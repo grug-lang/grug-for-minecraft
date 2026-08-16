@@ -1,6 +1,0 @@
-{
-    "parent": "block/cube_all",
-    "textures": {
-        "all": "grugmodloader:block/game_of_life_block"
-    }
-}

@@ -1,6 +1,0 @@
-[submodule "grug"]
-	path = grug
-	url = https://github.com/MyNameIsTrez/grug
-[submodule "grug-adapter-for-java"]
-	path = grug-adapter-for-java
-	url = https://github.com/MyNameIsTrez/grug-adapter-for-java

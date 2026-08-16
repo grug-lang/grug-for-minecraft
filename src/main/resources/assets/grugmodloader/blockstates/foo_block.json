@@ -1,7 +1,0 @@
-{
-    "variants": {
-        "": {
-            "model": "grugmodloader:block/foo_block"
-        }
-    }
-}
