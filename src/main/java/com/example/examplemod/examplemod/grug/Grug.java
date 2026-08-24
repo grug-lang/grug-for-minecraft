@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public final class Grug {
     private static boolean loaded = false;
@@ -72,7 +73,7 @@ public final class Grug {
         return nativeCompileAllFiles(statePtr);
     }
 
-    public static void update() {
+    public static void update(Consumer<String> onError) {
         if (statePtr == 0)
             return;
 
@@ -80,7 +81,11 @@ public final class Grug {
 
         for (FileInfo file : updatedFiles) {
             if (file.fileId() == INVALID_GRUG_FILE_ID) {
-                InitListener.LOGGER.error("Failed to hot-reload {}: \n{}", file.path(), file.errorString());
+                String errorMsg = "Failed to hot-reload " + file.fileName() + ":\n" + file.errorString();
+                InitListener.LOGGER.error(errorMsg);
+                if (onError != null) {
+                    onError.accept(errorMsg);
+                }
             } else {
                 InitListener.LOGGER.info("Successfully hot-reloaded {} with file ID {}", file.path(), file.fileId());
                 fileIds.put(file.path(), file.fileId());
