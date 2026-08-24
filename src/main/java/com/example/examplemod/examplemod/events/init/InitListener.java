@@ -49,12 +49,11 @@ public class InitListener {
         File modApiJson = new File(grugDir, "mod_api.json");
 
         try {
-            // Extract mod_api.json if missing
-            if (!modApiJson.exists()) {
-                try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
-                    if (in != null) {
-                        Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    }
+            // Always sync mod_api.json so grug-rs matches
+            // the current Java/C adapter signatures
+            try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
+                if (in != null) {
+                    Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 }
             }
 
