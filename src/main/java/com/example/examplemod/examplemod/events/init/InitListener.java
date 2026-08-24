@@ -2,6 +2,7 @@ package com.example.examplemod.examplemod.events.init;
 
 import com.example.examplemod.examplemod.block.ExampleBlock;
 import com.example.examplemod.examplemod.block.entity.ExampleBlockEntity;
+import com.example.examplemod.examplemod.grug.Grug;
 import net.mine_diver.unsafeevents.listener.EventListener;
 import net.minecraft.block.Block;
 import net.modificationstation.stationapi.api.event.block.entity.BlockEntityRegisterEvent;
@@ -28,6 +29,7 @@ public class InitListener {
     @EventListener
     private static void serverInit(InitEvent event) {
         LOGGER.info(NAMESPACE.toString());
+        LOGGER.info("grug-rs native library loaded: {}", Grug.ping());
     }
 
     @EventListener

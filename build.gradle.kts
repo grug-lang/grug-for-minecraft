@@ -1,5 +1,6 @@
 import org.gradle.internal.extensions.stdlib.toDefaultLowerCase
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.net.URI
 import java.net.URL
@@ -146,3 +147,68 @@ publishing {
 	}
 }
 
+fun runCommand(command: List<String>, workingDir: File? = null) {
+	val process = ProcessBuilder(command)
+		.apply { if (workingDir != null) directory(workingDir) }
+		.redirectErrorStream(true)
+		.start()
+	val output = process.inputStream.bufferedReader().readText()
+	val exitCode = process.waitFor()
+	println(output)
+	if (exitCode != 0) {
+		throw GradleException("Command failed with exit code $exitCode: ${command.joinToString(" ")}\n$output")
+	}
+}
+
+val grugRsDir = layout.buildDirectory.dir("grug-rs").get().asFile
+val grugRsBranch = "grug-for-minecraft-fixes"
+
+val cloneGrugRs = tasks.register("cloneGrugRs") {
+	doLast {
+		if (!grugRsDir.resolve(".git").exists()) {
+			runCommand(listOf("git", "clone", "--branch", grugRsBranch, "https://github.com/grug-lang/grug-rs.git", grugRsDir.absolutePath))
+		} else {
+			runCommand(listOf("git", "fetch", "origin", grugRsBranch), grugRsDir)
+			runCommand(listOf("git", "checkout", grugRsBranch), grugRsDir)
+			runCommand(listOf("git", "reset", "--hard", "origin/$grugRsBranch"), grugRsDir)
+		}
+	}
+}
+
+val buildGrugRs = tasks.register("buildGrugRs") {
+	dependsOn(cloneGrugRs)
+	val libFile = grugRsDir.resolve("target/release/libgruggers.a")
+	outputs.file(libFile)
+	doLast {
+		runCommand(listOf("cargo", "build", "--release", "-p", "gruggers"), grugRsDir)
+	}
+}
+
+val nativesOutDir = file("src/main/resources/natives")
+
+val buildGrugAdapter = tasks.register("buildGrugAdapter") {
+	dependsOn(buildGrugRs)
+	val adapterC = file("src/main/native/adapter.c")
+	val libGruggers = grugRsDir.resolve("target/release/libgruggers.a")
+	val outLib = nativesOutDir.resolve("libadapter.so")
+	inputs.file(adapterC)
+	outputs.file(outLib)
+	doLast {
+		nativesOutDir.mkdirs()
+		val javaHome = System.getProperty("java.home")
+		runCommand(
+			listOf(
+				"cc", "-shared", "-fPIC",
+				"-I$javaHome/include", "-I$javaHome/include/linux",
+				adapterC.absolutePath,
+				libGruggers.absolutePath,
+				"-o", outLib.absolutePath,
+				"-ldl", "-lpthread", "-lm"
+			)
+		)
+	}
+}
+
+tasks.named("processResources") {
+	dependsOn(buildGrugAdapter)
+}
