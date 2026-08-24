@@ -33,5 +33,3 @@ bin/
 run/*
 # Remove the following line to remove server.properties from your project.
 !server.properties
-
-src/main/resources/natives/libadapter.so

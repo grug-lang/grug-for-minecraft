@@ -190,13 +190,31 @@ val buildGrugRs = tasks.register("buildGrugRs") {
 	}
 }
 
+val nativeSrcDir = file("src/main/native")
+
+val generateGrugAdapter = tasks.register("generateGrugAdapter") {
+	val modApiJson = file("src/main/resources/mod_api.json")
+	val generatorScript = file("generate.py")
+	val generatedC = layout.buildDirectory.dir("generated/grug").get().asFile.resolve("adapter_generated.c")
+	inputs.file(modApiJson)
+	inputs.file(generatorScript)
+	outputs.file(generatedC)
+	doLast {
+		generatedC.parentFile.mkdirs()
+		runCommand(listOf("python3", generatorScript.absolutePath, modApiJson.absolutePath, generatedC.absolutePath))
+	}
+}
+
 val buildGrugAdapter = tasks.register("buildGrugAdapter") {
-	dependsOn(buildGrugRs)
-	val adapterC = file("src/main/native/adapter.c")
+	dependsOn(buildGrugRs, generateGrugAdapter)
+	val adapterC = nativeSrcDir.resolve("adapter.c")
+	val generatedC = generateGrugAdapter.get().outputs.files.singleFile
 	val libGruggers = grugRsDir.resolve("target/release/libgruggers.a")
 	val outLib = nativesOutDir.resolve("libadapter.so")
 
 	inputs.file(adapterC)
+	inputs.file(generatedC)
+	inputs.file(nativeSrcDir.resolve("adapter_shared.h"))
 	inputs.file(libGruggers)
 	outputs.file(outLib)
 
@@ -207,7 +225,9 @@ val buildGrugAdapter = tasks.register("buildGrugAdapter") {
 			listOf(
 				"cc", "-shared", "-fPIC",
 				"-I$javaHome/include", "-I$javaHome/include/linux",
+				"-I${nativeSrcDir.absolutePath}",
 				adapterC.absolutePath,
+				generatedC.absolutePath,
 				libGruggers.absolutePath,
 				"-o", outLib.absolutePath,
 				"-ldl", "-lpthread", "-lm"

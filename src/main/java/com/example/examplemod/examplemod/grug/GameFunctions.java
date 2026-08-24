@@ -46,9 +46,9 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(be.x, be.y, be.z));
     }
 
-    public static long BlockPos_above_n(long blockPosId, int n) {
+    public static long BlockPos_above_n(long blockPosId, double n) {
         BlockPos pos = (BlockPos) Grug.entityData.get(blockPosId).object;
-        return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(pos.x(), pos.y() + n, pos.z()));
+        return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(pos.x(), pos.y() + (int) n, pos.z()));
     }
 
     public static long BlockPos_center(long blockPosId) {
@@ -56,16 +56,16 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Vec3, new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
     }
 
-    public static float Vec3_x(long vec3Id) {
-        return (float) ((Vec3) Grug.entityData.get(vec3Id).object).x();
+    public static double Vec3_x(long vec3Id) {
+        return ((Vec3) Grug.entityData.get(vec3Id).object).x();
     }
 
-    public static float Vec3_y(long vec3Id) {
-        return (float) ((Vec3) Grug.entityData.get(vec3Id).object).y();
+    public static double Vec3_y(long vec3Id) {
+        return ((Vec3) Grug.entityData.get(vec3Id).object).y();
     }
 
-    public static float Vec3_z(long vec3Id) {
-        return (float) ((Vec3) Grug.entityData.get(vec3Id).object).z();
+    public static double Vec3_z(long vec3Id) {
+        return ((Vec3) Grug.entityData.get(vec3Id).object).z();
     }
 
     public static long item(long resourceLocationId) {
@@ -74,10 +74,10 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Item, item);
     }
 
-    public static long item_entity(long levelId, float x, float y, float z, long itemStackId) {
+    public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {
         World world = (World) Grug.entityData.get(levelId).object;
         ItemStack stack = (ItemStack) Grug.entityData.get(itemStackId).object;
-        ItemEntity itemEntity = new ItemEntity(world, x, y, z, stack);
+        ItemEntity itemEntity = new ItemEntity(world, (float) x, (float) y, (float) z, stack);
         return Grug.addEntity(GrugEntityType.ItemEntity, itemEntity);
     }
 
@@ -109,7 +109,7 @@ public class GameFunctions {
         world.spawnEntity(entity);
     }
 
-    public static long vec3(float x, float y, float z) {
+    public static long vec3(double x, double y, double z) {
         return Grug.addEntity(GrugEntityType.Vec3, new Vec3(x, y, z));
     }
 
