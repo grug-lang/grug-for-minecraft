@@ -23,8 +23,6 @@ loom {
 //	accessWidenerPath = file("src/main/resources/examplemod.accesswidener")
 
 	runs {
-		// If you want to make a testmod for your mod, right click on src, and create a new folder with the same name as source() below.
-		// Intellij should give suggestions for testmod folders.
 		register("testClient") {
 			source("test")
 			client()
@@ -90,6 +88,13 @@ dependencies {
 configurations.all {
 	exclude("babric")
 }
+
+// Define the generated resources directory inside the build folder
+val generatedResourcesDir = layout.buildDirectory.dir("generated/resources").get().asFile
+val nativesOutDir = generatedResourcesDir.resolve("natives")
+
+// Add the generated directory to the main source set so it gets included in the JAR and classpath
+sourceSets.main.get().resources.srcDir(generatedResourcesDir)
 
 tasks.withType<ProcessResources> {
 	inputs.property("version", project.properties["version"])
@@ -179,20 +184,22 @@ val buildGrugRs = tasks.register("buildGrugRs") {
 	dependsOn(cloneGrugRs)
 	val libFile = grugRsDir.resolve("target/release/libgruggers.a")
 	outputs.file(libFile)
+	outputs.upToDateWhen { false } // Let Cargo manage its own cache natively
 	doLast {
 		runCommand(listOf("cargo", "build", "--release", "-p", "gruggers"), grugRsDir)
 	}
 }
-
-val nativesOutDir = file("src/main/resources/natives")
 
 val buildGrugAdapter = tasks.register("buildGrugAdapter") {
 	dependsOn(buildGrugRs)
 	val adapterC = file("src/main/native/adapter.c")
 	val libGruggers = grugRsDir.resolve("target/release/libgruggers.a")
 	val outLib = nativesOutDir.resolve("libadapter.so")
+
 	inputs.file(adapterC)
+	inputs.file(libGruggers)
 	outputs.file(outLib)
+
 	doLast {
 		nativesOutDir.mkdirs()
 		val javaHome = System.getProperty("java.home")
