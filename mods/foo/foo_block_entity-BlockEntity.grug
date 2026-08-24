@@ -1,0 +1,49 @@
+# Spawn the diamond 2 blocks above this block
+pos: BlockPos = get_block_pos_above_n(get_block_pos_of_block_entity(me), 2)
+# pos: BlockPos = me.block_pos().above_n(2) # TODO: Use this form later
+
+# The dimension, so overworld/nether/end
+level: Level = get_block_entity_level(me)
+# level: Level = me.level() # TODO: Use this form later
+
+# Gets the full name, so "minecraft:diamond"
+resource_location: ResourceLocation = resource_location("diamond")
+
+# Create a diamond item
+item: Item = item(resource_location)
+
+# The coordinates where the diamond is spawned
+center: Vec3 = get_block_pos_center(pos)
+# center: Vec3 = pos.center() # TODO: Use this form later
+x: f32 = get_vec3_x(center)
+y: f32 = get_vec3_y(center)
+z: f32 = get_vec3_z(center)
+# x: f32 = center.x() # TODO: Use this form later
+# y: f32 = center.y() # TODO: Use this form later
+# z: f32 = center.z() # TODO: Use this form later
+
+# How often on_tick() has been called
+tick: i32 = 0
+
+export tick() {
+    # Spawn a diamond every 10 game ticks (0.5 seconds)
+    tick = tick + 1
+    if tick != 10 {
+        return
+    }
+    tick = 0
+
+    # Create a diamond item stack
+    item_stack: ItemStack = item_stack(item)
+
+    # Create a diamond item entity
+    item_entity: ItemEntity = item_entity(level, x, y, z, item_stack)
+
+    # Remove the random velocity that spawned items are given
+    set_entity_delta_movement(item_entity_to_entity(item_entity), vec3_zero())
+    # item_entity.to_entity().set_delta_movement(vec3_zero()) # TODO: Use this form later
+
+    # Spawn the diamond
+    spawn_entity(item_entity_to_entity(item_entity), level)
+    # item_entity.to_entity().spawn(level) # TODO: Use this form later
+}
