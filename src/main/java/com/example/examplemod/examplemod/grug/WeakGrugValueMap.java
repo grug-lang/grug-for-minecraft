@@ -17,7 +17,7 @@ public class WeakGrugValueMap {
     public GrugObject get(long id) {
         cleanup();
         WeakValue ref = map.get(id);
-        assert ref != null;
+        if (ref == null) return null;
         return ref.get();
     }
 
@@ -40,6 +40,7 @@ public class WeakGrugValueMap {
 
     private static class WeakValue extends WeakReference<GrugObject> {
         final long id;
+
         WeakValue(long id, GrugObject referent, ReferenceQueue<? super GrugObject> q) {
             super(referent, q);
             this.id = id;

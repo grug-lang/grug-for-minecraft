@@ -1,20 +1,28 @@
 package com.example.examplemod.examplemod.grug;
 
+import net.minecraft.block.entity.BlockEntity;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class Grug {
     private static boolean loaded = false;
     public static long statePtr = 0;
     public static final long INVALID_GRUG_FILE_ID = -1L;
+    public static final long INVALID_GRUG_EXPORT_FN_ID = -1L;
 
     public static final WeakGrugValueMap entityData = new WeakGrugValueMap();
     private static final Map<GrugEntityType, Integer> nextEntityIndices = new HashMap<>();
+    public static final Map<String, Long> fileIds = new HashMap<>();
+
+    public static BlockEntity currentlyInitializingBlockEntity = null;
+
+    public static List<GrugObject> fnEntities = null;
 
     static {
         for (GrugEntityType type : GrugEntityType.values()) {
@@ -29,7 +37,7 @@ public final class Grug {
             File tempFile = File.createTempFile("libadapter", ".so");
             tempFile.deleteOnExit();
             try (InputStream in = Grug.class.getResourceAsStream("/natives/libadapter.so");
-                 OutputStream out = Files.newOutputStream(tempFile.toPath())) {
+                    OutputStream out = Files.newOutputStream(tempFile.toPath())) {
                 if (in == null) {
                     throw new IOException("libadapter.so not found on the classpath at /natives/libadapter.so");
                 }
@@ -66,8 +74,35 @@ public final class Grug {
         int index = nextEntityIndices.get(type);
         nextEntityIndices.put(type, index + 1);
         long id = ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
+
         entityData.put(id, grugObject);
+
+        // Capture the object to prevent GC.
+        if (fnEntities != null) {
+            fnEntities.add(grugObject);
+        }
+
         return id;
+    }
+
+    public static long createEntity(long fileId) {
+        return nativeCreateEntity(statePtr, fileId);
+    }
+
+    public static long getEntityId(long entityHandle) {
+        return nativeGetEntityId(statePtr, entityHandle);
+    }
+
+    public static long getExportFnId(String entityType, String fnName) {
+        return nativeGetExportFnId(statePtr, entityType, fnName);
+    }
+
+    public static boolean callExportFn(long entityHandle, long exportFnId) {
+        return nativeCallExportFn(statePtr, entityHandle, exportFnId);
+    }
+
+    public static void destroyEntity(long entityHandle) {
+        nativeDestroyEntity(statePtr, entityHandle);
     }
 
     private static native void initGrugAdapter();
@@ -75,4 +110,14 @@ public final class Grug {
     private static native long nativeInit(String modApiPath, String modsDirPath);
 
     private static native FileInfo[] nativeCompileAllFiles(long statePtr);
+
+    private static native long nativeCreateEntity(long statePtr, long fileId);
+
+    private static native long nativeGetEntityId(long statePtr, long entityHandle);
+
+    private static native long nativeGetExportFnId(long statePtr, String entityType, String fnName);
+
+    private static native boolean nativeCallExportFn(long statePtr, long entityHandle, long exportFnId);
+
+    private static native void nativeDestroyEntity(long statePtr, long entityHandle);
 }

@@ -11,9 +11,30 @@ import net.modificationstation.stationapi.api.util.Identifier;
 
 public class GameFunctions {
 
+    private static BlockEntity resolveBlockEntity(long blockEntityId) {
+        GrugObject obj = Grug.entityData.get(blockEntityId);
+        if (obj == null) {
+            BlockEntity be = Grug.currentlyInitializingBlockEntity;
+            if (be != null) {
+                GrugObject grugObject = new GrugObject(GrugEntityType.BlockEntity, be);
+                Grug.entityData.put(blockEntityId, grugObject);
+                if (Grug.fnEntities != null) {
+                    Grug.fnEntities.add(grugObject);
+                }
+                return be;
+            }
+        }
+        return (BlockEntity) obj.object;
+    }
+
     public static long get_block_entity_level(long blockEntityId) {
-        BlockEntity be = (BlockEntity) Grug.entityData.get(blockEntityId).object;
+        BlockEntity be = resolveBlockEntity(blockEntityId);
         return Grug.addEntity(GrugEntityType.Level, be.world);
+    }
+
+    public static long get_block_pos_of_block_entity(long blockEntityId) {
+        BlockEntity be = resolveBlockEntity(blockEntityId);
+        return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(be.x, be.y, be.z));
     }
 
     public static long get_block_pos_above_n(long blockPosId, int n) {
@@ -24,11 +45,6 @@ public class GameFunctions {
     public static long get_block_pos_center(long blockPosId) {
         BlockPos pos = (BlockPos) Grug.entityData.get(blockPosId).object;
         return Grug.addEntity(GrugEntityType.Vec3, new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
-    }
-
-    public static long get_block_pos_of_block_entity(long blockEntityId) {
-        BlockEntity be = (BlockEntity) Grug.entityData.get(blockEntityId).object;
-        return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(be.x, be.y, be.z));
     }
 
     public static float get_vec3_x(long vec3Id) {
@@ -57,7 +73,7 @@ public class GameFunctions {
     }
 
     public static long item_entity_to_entity(long itemEntityId) {
-        return itemEntityId; // ItemEntity extends Entity, so we can reuse the ID
+        return itemEntityId;
     }
 
     public static long item_stack(long itemId) {
