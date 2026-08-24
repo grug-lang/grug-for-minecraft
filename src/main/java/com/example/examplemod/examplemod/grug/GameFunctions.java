@@ -46,25 +46,25 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(be.x, be.y, be.z));
     }
 
-    public static long get_block_pos_above_n(long blockPosId, int n) {
+    public static long BlockPos_above_n(long blockPosId, int n) {
         BlockPos pos = (BlockPos) Grug.entityData.get(blockPosId).object;
         return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(pos.x(), pos.y() + n, pos.z()));
     }
 
-    public static long get_block_pos_center(long blockPosId) {
+    public static long BlockPos_center(long blockPosId) {
         BlockPos pos = (BlockPos) Grug.entityData.get(blockPosId).object;
         return Grug.addEntity(GrugEntityType.Vec3, new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
     }
 
-    public static float get_vec3_x(long vec3Id) {
+    public static float Vec3_x(long vec3Id) {
         return (float) ((Vec3) Grug.entityData.get(vec3Id).object).x();
     }
 
-    public static float get_vec3_y(long vec3Id) {
+    public static float Vec3_y(long vec3Id) {
         return (float) ((Vec3) Grug.entityData.get(vec3Id).object).y();
     }
 
-    public static float get_vec3_z(long vec3Id) {
+    public static float Vec3_z(long vec3Id) {
         return (float) ((Vec3) Grug.entityData.get(vec3Id).object).z();
     }
 
@@ -81,7 +81,7 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.ItemEntity, itemEntity);
     }
 
-    public static long item_entity_to_entity(long itemEntityId) {
+    public static long ItemEntity_entity(long itemEntityId) {
         return itemEntityId;
     }
 
@@ -95,7 +95,7 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.ResourceLocation, id);
     }
 
-    public static void set_entity_delta_movement(long entityId, long vec3Id) {
+    public static void Entity_set_delta_movement(long entityId, long vec3Id) {
         Entity entity = (Entity) Grug.entityData.get(entityId).object;
         Vec3 vec = (Vec3) Grug.entityData.get(vec3Id).object;
         entity.velocityX = vec.x();
@@ -103,7 +103,7 @@ public class GameFunctions {
         entity.velocityZ = vec.z();
     }
 
-    public static void spawn_entity(long entityId, long levelId) {
+    public static void Entity_spawn(long entityId, long levelId) {
         Entity entity = (Entity) Grug.entityData.get(entityId).object;
         World world = (World) Grug.entityData.get(levelId).object;
         world.spawnEntity(entity);

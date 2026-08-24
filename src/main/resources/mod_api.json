@@ -13,7 +13,94 @@
 			]
 		}
 	},
-	"classes": {},
+	"classes": {
+		"BlockPos": {
+			"description": "A position in the world.",
+			"methods": {
+				"above_n": {
+					"description": "Gets the BlockPosition N blocks up.",
+					"return_type": {
+						"name": "BlockPos"
+					},
+					"parameters": [
+						{
+							"name": "n",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"center": {
+					"description": "Gets the center of a BlockPosition.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				}
+			}
+		},
+		"Vec3": {
+			"description": "A 3D vector.",
+			"methods": {
+				"x": {
+					"description": "Gets the X coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"y": {
+					"description": "Gets the Y coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"z": {
+					"description": "Gets the Z coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				}
+			}
+		},
+		"ItemEntity": {
+			"description": "An item entity.",
+			"methods": {
+				"entity": {
+					"description": "Takes an ItemEntity, and returns it as an Entity.",
+					"return_type": {
+						"name": "Entity"
+					}
+				}
+			}
+		},
+		"Entity": {
+			"description": "A generic entity.",
+			"methods": {
+				"set_delta_movement": {
+					"description": "Sets an Entity's delta movement.",
+					"parameters": [
+						{
+							"name": "vec3",
+							"type": {
+								"name": "Vec3"
+							}
+						}
+					]
+				},
+				"spawn": {
+					"description": "Spawns a new entity. Spawning the same entity twice is an error.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						}
+					]
+				}
+			}
+		}
+	},
 	"host_functions": {
 		"get_block_entity_level": {
 			"description": "Gets the Level (dimension) a BlockEntity is in.",
@@ -29,40 +116,6 @@
 				}
 			]
 		},
-		"get_block_pos_above_n": {
-			"description": "Gets the BlockPosition N blocks up.",
-			"return_type": {
-				"name": "BlockPos"
-			},
-			"parameters": [
-				{
-					"name": "block_pos",
-					"type": {
-						"name": "BlockPos"
-					}
-				},
-				{
-					"name": "n",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"get_block_pos_center": {
-			"description": "Gets the center of a BlockPosition.",
-			"return_type": {
-				"name": "Vec3"
-			},
-			"parameters": [
-				{
-					"name": "block_pos",
-					"type": {
-						"name": "BlockPos"
-					}
-				}
-			]
-		},
 		"get_block_pos_of_block_entity": {
 			"description": "Gets the world position of a BlockEntity.",
 			"return_type": {
@@ -73,48 +126,6 @@
 					"name": "block_entity",
 					"type": {
 						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"get_vec3_x": {
-			"description": "Gets the X coordinate of a Vec3.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "vec3",
-					"type": {
-						"name": "Vec3"
-					}
-				}
-			]
-		},
-		"get_vec3_y": {
-			"description": "Gets the Y coordinate of a Vec3.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "vec3",
-					"type": {
-						"name": "Vec3"
-					}
-				}
-			]
-		},
-		"get_vec3_z": {
-			"description": "Gets the Z coordinate of a Vec3.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "vec3",
-					"type": {
-						"name": "Vec3"
 					}
 				}
 			]
@@ -171,20 +182,6 @@
 				}
 			]
 		},
-		"item_entity_to_entity": {
-			"description": "Takes an ItemEntity, and returns it as an Entity.",
-			"return_type": {
-				"name": "Entity"
-			},
-			"parameters": [
-				{
-					"name": "item_entity",
-					"type": {
-						"name": "ItemEntity"
-					}
-				}
-			]
-		},
 		"item_stack": {
 			"description": "Creates a new ItemStack. Keep in mind that when two ItemStacks get close enough to each other, they merge, turning the original ItemStacks and entities into 'Air'. So if you call spawn_entity() to spawn an ItemStack, make sure that the ItemStack isn't reused later on to spawn more entities.",
 			"return_type": {
@@ -209,40 +206,6 @@
 					"name": "resource_location_string",
 					"type": {
 						"name": "string"
-					}
-				}
-			]
-		},
-		"set_entity_delta_movement": {
-			"description": "Sets an Entity's delta movement.",
-			"parameters": [
-				{
-					"name": "entity",
-					"type": {
-						"name": "Entity"
-					}
-				},
-				{
-					"name": "vec3",
-					"type": {
-						"name": "Vec3"
-					}
-				}
-			]
-		},
-		"spawn_entity": {
-			"description": "Spawns a new entity. Spawning the same entity twice is an error.",
-			"parameters": [
-				{
-					"name": "entity",
-					"type": {
-						"name": "Entity"
-					}
-				},
-				{
-					"name": "level",
-					"type": {
-						"name": "Level"
 					}
 				}
 			]
