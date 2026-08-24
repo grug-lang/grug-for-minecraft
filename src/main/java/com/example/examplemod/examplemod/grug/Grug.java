@@ -1,14 +1,20 @@
 package com.example.examplemod.examplemod.grug;
 
 import net.minecraft.block.entity.BlockEntity;
+import com.example.examplemod.examplemod.events.init.InitListener;
+import com.example.examplemod.examplemod.block.entity.FooBlockEntity;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 public final class Grug {
     private static boolean loaded = false;
@@ -21,8 +27,10 @@ public final class Grug {
     public static final Map<String, Long> fileIds = new HashMap<>();
 
     public static BlockEntity currentlyInitializingBlockEntity = null;
-
     public static List<GrugObject> fnEntities = null;
+
+    // Track live entities so we can seamlessly reload them
+    public static final Set<FooBlockEntity> liveBlockEntities = Collections.newSetFromMap(new WeakHashMap<>());
 
     static {
         for (GrugEntityType type : GrugEntityType.values()) {
@@ -69,6 +77,30 @@ public final class Grug {
         return nativeCompileAllFiles(statePtr);
     }
 
+    public static void update() {
+        if (statePtr == 0)
+            return;
+
+        FileInfo[] updatedFiles = nativeUpdate(statePtr);
+        boolean needsReload = false;
+
+        for (FileInfo file : updatedFiles) {
+            if (file.fileId() == INVALID_GRUG_FILE_ID) {
+                InitListener.LOGGER.error("Failed to hot-reload {}: \n{}", file.path(), file.errorString());
+            } else {
+                InitListener.LOGGER.info("Successfully hot-reloaded {} with file ID {}", file.path(), file.fileId());
+                fileIds.put(file.path(), file.fileId());
+                needsReload = true;
+            }
+        }
+
+        if (needsReload) {
+            for (FooBlockEntity entity : liveBlockEntities) {
+                entity.reloadGrug();
+            }
+        }
+    }
+
     public static long addEntity(GrugEntityType type, Object object) {
         GrugObject grugObject = new GrugObject(type, object);
         int index = nextEntityIndices.get(type);
@@ -77,7 +109,6 @@ public final class Grug {
 
         entityData.put(id, grugObject);
 
-        // Capture the object to prevent GC.
         if (fnEntities != null) {
             fnEntities.add(grugObject);
         }
@@ -110,6 +141,8 @@ public final class Grug {
     private static native long nativeInit(String modApiPath, String modsDirPath);
 
     private static native FileInfo[] nativeCompileAllFiles(long statePtr);
+
+    private static native FileInfo[] nativeUpdate(long statePtr);
 
     private static native long nativeCreateEntity(long statePtr, long fileId);
 

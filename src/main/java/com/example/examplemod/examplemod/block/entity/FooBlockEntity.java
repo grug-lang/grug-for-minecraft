@@ -11,7 +11,6 @@ public class FooBlockEntity extends BlockEntity {
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean initAttempted = false;
 
-    // The strong reference holder for global variables
     private final List<GrugObject> childEntities = new ArrayList<>();
 
     private void initGrug() {
@@ -24,20 +23,29 @@ public class FooBlockEntity extends BlockEntity {
             return;
 
         Grug.currentlyInitializingBlockEntity = this;
+        Grug.liveBlockEntities.add(this);
 
-        // Capture any objects instantiated into our persistent list
         List<GrugObject> oldFnEntities = Grug.fnEntities;
         Grug.fnEntities = this.childEntities;
 
         entityHandle = Grug.createEntity(fileId);
 
-        // Restore the old list
         Grug.fnEntities = oldFnEntities;
         Grug.currentlyInitializingBlockEntity = null;
 
         if (entityHandle != 0) {
             tickFnId = Grug.getExportFnId("BlockEntity", "tick");
         }
+    }
+
+    public void reloadGrug() {
+        if (entityHandle != 0) {
+            Grug.destroyEntity(entityHandle);
+            entityHandle = 0;
+            childEntities.clear();
+        }
+        initAttempted = false;
+        initGrug();
     }
 
     @Override
@@ -49,8 +57,6 @@ public class FooBlockEntity extends BlockEntity {
         }
 
         if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-            // Create a temporary list to hold objects created THIS TICK.
-            // When the tick ends, they are naturally garbage collected to prevent leaks.
             List<GrugObject> oldFnEntities = Grug.fnEntities;
             Grug.fnEntities = new ArrayList<>();
 
@@ -63,6 +69,8 @@ public class FooBlockEntity extends BlockEntity {
     @Override
     public void markRemoved() {
         super.markRemoved();
+
+        Grug.liveBlockEntities.remove(this);
 
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);

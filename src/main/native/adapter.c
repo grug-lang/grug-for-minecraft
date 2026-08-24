@@ -318,3 +318,36 @@ JNIEXPORT void JNICALL
 Java_com_example_examplemod_examplemod_grug_Grug_nativeDestroyEntity(JNIEnv *env, jclass clazz, jlong statePtr, jlong entityHandle) {
     grug_deinit_entity((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle);
 }
+
+extern struct grug_files_slice grug_update(void* state);
+
+JNIEXPORT jobjectArray JNICALL
+Java_com_example_examplemod_examplemod_grug_Grug_nativeUpdate(JNIEnv *env, jclass clazz, jlong statePtr) {
+    struct grug_files_slice files = grug_update((void*)(intptr_t)statePtr);
+    jclass fileInfoClass = (*env)->FindClass(env, "com/example/examplemod/examplemod/grug/FileInfo");
+    jmethodID constructor = (*env)->GetMethodID(env, fileInfoClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V");
+    jobjectArray array = (*env)->NewObjectArray(env, files.len, fileInfoClass, NULL);
+
+    for (size_t i = 0; i < files.len; i++) {
+        struct grug_file_info *info = &files.ptr[i];
+        jstring path = (*env)->NewStringUTF(env, info->path);
+        jstring file_name = (*env)->NewStringUTF(env, info->file_name);
+        jstring mod_name = (*env)->NewStringUTF(env, info->mod_name);
+        jstring entity_type = (*env)->NewStringUTF(env, info->entity_type);
+        jstring entity_name = (*env)->NewStringUTF(env, info->entity_name);
+
+        jstring error_str = NULL;
+        if (info->file_id == UINT64_MAX && info->error.error_string) {
+            error_str = (*env)->NewStringUTF(env, info->error.error_string);
+        }
+
+        jobject obj = (*env)->NewObject(env, fileInfoClass, constructor, path, file_name, mod_name, entity_type, entity_name, (jlong)info->file_id, error_str);
+        (*env)->SetObjectArrayElement(env, array, i, obj);
+
+        (*env)->DeleteLocalRef(env, path); (*env)->DeleteLocalRef(env, file_name);
+        (*env)->DeleteLocalRef(env, mod_name); (*env)->DeleteLocalRef(env, entity_type);
+        (*env)->DeleteLocalRef(env, entity_name); (*env)->DeleteLocalRef(env, obj);
+        if (error_str) (*env)->DeleteLocalRef(env, error_str);
+    }
+    return array;
+}
