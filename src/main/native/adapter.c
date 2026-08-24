@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h> // For printf
 
 struct grug_source_span {
     size_t offset;
@@ -66,13 +65,9 @@ struct grug_init_settings {
 
 extern struct grug_state* grug_init(struct grug_init_settings *settings, struct grug_error* out_error);
 extern struct grug_init_settings grug_default_settings(void);
-extern void grug_deinit(void *state);
 
 JNIEXPORT jlong JNICALL
 Java_com_example_examplemod_examplemod_grug_Grug_nativeInit(JNIEnv *env, jclass clazz, jstring modApiPath, jstring modsDirPath) {
-    printf("[C] Entered nativeInit\n");
-    fflush(stdout);
-
     const char *c_modApiPath = (*env)->GetStringUTFChars(env, modApiPath, NULL);
     const char *c_modsDirPath = (*env)->GetStringUTFChars(env, modsDirPath, NULL);
 
@@ -86,21 +81,10 @@ Java_com_example_examplemod_examplemod_grug_Grug_nativeInit(JNIEnv *env, jclass 
     settings.mod_api_path = safe_modApiPath;
     settings.mods_dir_path = safe_modsDirPath;
 
-    printf("[C] Settings prepared.\n");
-    printf("[C]   mod_api_path ptr: %p ('%s')\n", settings.mod_api_path, settings.mod_api_path);
-    printf("[C]   mods_dir_path ptr: %p ('%s')\n", settings.mods_dir_path, settings.mods_dir_path);
-    fflush(stdout);
-
     struct grug_error error;
     memset(&error, 0, sizeof(error));
 
-    printf("[C] Calling grug_init...\n");
-    fflush(stdout);
-    
     struct grug_state *state = grug_init(&settings, &error);
-
-    printf("[C] Returned from grug_init. State ptr: %p\n", state);
-    fflush(stdout);
 
     if (!state) {
         jclass exceptionClass = (*env)->FindClass(env, "java/lang/RuntimeException");
@@ -113,13 +97,4 @@ Java_com_example_examplemod_examplemod_grug_Grug_nativeInit(JNIEnv *env, jclass 
     }
 
     return (jlong)(intptr_t)state;
-}
-
-// TODO: Remove this function
-JNIEXPORT jboolean JNICALL
-Java_com_example_examplemod_examplemod_grug_Grug_nativeGrugPing(JNIEnv *env, jclass clazz) {
-    (void)env;
-    (void)clazz;
-    grug_deinit(NULL); // Keeps the smoke test functioning
-    return JNI_TRUE;
 }

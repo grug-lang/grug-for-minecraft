@@ -43,12 +43,5 @@ public final class Grug {
         statePtr = nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
     }
 
-    public static boolean ping() {
-        load();
-        return nativeGrugPing();
-    }
-
-    private static native boolean nativeGrugPing();
-    
     private static native long nativeInit(String modApiPath, String modsDirPath);
 }

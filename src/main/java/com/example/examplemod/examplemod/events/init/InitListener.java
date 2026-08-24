@@ -30,7 +30,6 @@ public class InitListener {
     @EventListener
     private static void serverInit(InitEvent event) {
         LOGGER.info(NAMESPACE.toString());
-        LOGGER.info("grug-rs native library loaded: {}", Grug.ping());
 
         File runDir = new File(System.getProperty("user.dir"));
         File projectRoot = runDir.getName().equals("run") ? runDir.getParentFile() : runDir;
