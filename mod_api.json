@@ -1,0 +1,207 @@
+{
+	"entities": {
+		"Block": {
+			"description": "A block."
+		},
+		"BlockEntity": {
+			"description": "A block entity.",
+			"export_functions": [
+				{
+					"name": "tick",
+					"description": "Called every game tick, so every 0.05 seconds."
+				}
+			]
+		}
+	},
+	"classes": {},
+	"host_functions": {
+		"get_block_entity_level": {
+			"description": "Gets the Level (dimension) a BlockEntity is in.",
+			"return_type": "Level",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": "BlockEntity"
+				}
+			]
+		},
+		"get_block_pos_above_n": {
+			"description": "Gets the BlockPosition N blocks up.",
+			"return_type": "BlockPos",
+			"parameters": [
+				{
+					"name": "block_pos",
+					"type": "BlockPos"
+				},
+				{
+					"name": "n",
+					"type": "number"
+				}
+			]
+		},
+		"get_block_pos_center": {
+			"description": "Gets the center of a BlockPosition.",
+			"return_type": "Vec3",
+			"parameters": [
+				{
+					"name": "block_pos",
+					"type": "BlockPos"
+				}
+			]
+		},
+		"get_block_pos_of_block_entity": {
+			"description": "Gets the world position of a BlockEntity.",
+			"return_type": "BlockPos",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": "BlockEntity"
+				}
+			]
+		},
+		"get_vec3_x": {
+			"description": "Gets the X coordinate of a Vec3.",
+			"return_type": "number",
+			"parameters": [
+				{
+					"name": "vec3",
+					"type": "Vec3"
+				}
+			]
+		},
+		"get_vec3_y": {
+			"description": "Gets the Y coordinate of a Vec3.",
+			"return_type": "number",
+			"parameters": [
+				{
+					"name": "vec3",
+					"type": "Vec3"
+				}
+			]
+		},
+		"get_vec3_z": {
+			"description": "Gets the Z coordinate of a Vec3.",
+			"return_type": "number",
+			"parameters": [
+				{
+					"name": "vec3",
+					"type": "Vec3"
+				}
+			]
+		},
+		"item": {
+			"description": "Creates a new item.",
+			"return_type": "Item",
+			"parameters": [
+				{
+					"name": "resource_location",
+					"type": "ResourceLocation"
+				}
+			]
+		},
+		"item_entity": {
+			"description": "Creates a new ItemEntity.",
+			"return_type": "ItemEntity",
+			"parameters": [
+				{
+					"name": "level",
+					"type": "Level"
+				},
+				{
+					"name": "x",
+					"type": "number"
+				},
+				{
+					"name": "y",
+					"type": "number"
+				},
+				{
+					"name": "z",
+					"type": "number"
+				},
+				{
+					"name": "item_stack",
+					"type": "ItemStack"
+				}
+			]
+		},
+		"item_entity_to_entity": {
+			"description": "Takes an ItemEntity, and returns it as an Entity.",
+			"return_type": "Entity",
+			"parameters": [
+				{
+					"name": "item_entity",
+					"type": "ItemEntity"
+				}
+			]
+		},
+		"item_stack": {
+			"description": "Creates a new ItemStack. Keep in mind that when two ItemStacks get close enough to each other, they merge, turning the original ItemStacks and entities into 'Air'. So if you call spawn_entity() to spawn an ItemStack, make sure that the ItemStack isn't reused later on to spawn more entities.",
+			"return_type": "ItemStack",
+			"parameters": [
+				{
+					"name": "item",
+					"type": "Item"
+				}
+			]
+		},
+		"resource_location": {
+			"description": "Creates a new ResourceLocation.",
+			"return_type": "ResourceLocation",
+			"parameters": [
+				{
+					"name": "resource_location_string",
+					"type": "string"
+				}
+			]
+		},
+		"set_entity_delta_movement": {
+			"description": "Sets an Entity's delta movement.",
+			"parameters": [
+				{
+					"name": "entity",
+					"type": "Entity"
+				},
+				{
+					"name": "vec3",
+					"type": "Vec3"
+				}
+			]
+		},
+		"spawn_entity": {
+			"description": "Spawns a new entity. Spawning the same entity twice is an error.",
+			"parameters": [
+				{
+					"name": "entity",
+					"type": "Entity"
+				},
+				{
+					"name": "level",
+					"type": "Level"
+				}
+			]
+		},
+		"vec3": {
+			"description": "Creates a new Vec3.",
+			"return_type": "Vec3",
+			"parameters": [
+				{
+					"name": "x",
+					"type": "number"
+				},
+				{
+					"name": "y",
+					"type": "number"
+				},
+				{
+					"name": "z",
+					"type": "number"
+				}
+			]
+		},
+		"vec3_zero": {
+			"description": "Creates a new Vec3, initialized with all zeros.",
+			"return_type": "Vec3"
+		}
+	}
+}
