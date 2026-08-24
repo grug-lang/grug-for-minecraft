@@ -17,141 +17,199 @@
 	"host_functions": {
 		"get_block_entity_level": {
 			"description": "Gets the Level (dimension) a BlockEntity is in.",
-			"return_type": "Level",
+			"return_type": {
+				"name": "Level"
+			},
 			"parameters": [
 				{
 					"name": "block_entity",
-					"type": "BlockEntity"
+					"type": {
+						"name": "BlockEntity"
+					}
 				}
 			]
 		},
 		"get_block_pos_above_n": {
 			"description": "Gets the BlockPosition N blocks up.",
-			"return_type": "BlockPos",
+			"return_type": {
+				"name": "BlockPos"
+			},
 			"parameters": [
 				{
 					"name": "block_pos",
-					"type": "BlockPos"
+					"type": {
+						"name": "BlockPos"
+					}
 				},
 				{
 					"name": "n",
-					"type": "number"
+					"type": {
+						"name": "number"
+					}
 				}
 			]
 		},
 		"get_block_pos_center": {
 			"description": "Gets the center of a BlockPosition.",
-			"return_type": "Vec3",
+			"return_type": {
+				"name": "Vec3"
+			},
 			"parameters": [
 				{
 					"name": "block_pos",
-					"type": "BlockPos"
+					"type": {
+						"name": "BlockPos"
+					}
 				}
 			]
 		},
 		"get_block_pos_of_block_entity": {
 			"description": "Gets the world position of a BlockEntity.",
-			"return_type": "BlockPos",
+			"return_type": {
+				"name": "BlockPos"
+			},
 			"parameters": [
 				{
 					"name": "block_entity",
-					"type": "BlockEntity"
+					"type": {
+						"name": "BlockEntity"
+					}
 				}
 			]
 		},
 		"get_vec3_x": {
 			"description": "Gets the X coordinate of a Vec3.",
-			"return_type": "number",
+			"return_type": {
+				"name": "number"
+			},
 			"parameters": [
 				{
 					"name": "vec3",
-					"type": "Vec3"
+					"type": {
+						"name": "Vec3"
+					}
 				}
 			]
 		},
 		"get_vec3_y": {
 			"description": "Gets the Y coordinate of a Vec3.",
-			"return_type": "number",
+			"return_type": {
+				"name": "number"
+			},
 			"parameters": [
 				{
 					"name": "vec3",
-					"type": "Vec3"
+					"type": {
+						"name": "Vec3"
+					}
 				}
 			]
 		},
 		"get_vec3_z": {
 			"description": "Gets the Z coordinate of a Vec3.",
-			"return_type": "number",
+			"return_type": {
+				"name": "number"
+			},
 			"parameters": [
 				{
 					"name": "vec3",
-					"type": "Vec3"
+					"type": {
+						"name": "Vec3"
+					}
 				}
 			]
 		},
 		"item": {
 			"description": "Creates a new item.",
-			"return_type": "Item",
+			"return_type": {
+				"name": "Item"
+			},
 			"parameters": [
 				{
 					"name": "resource_location",
-					"type": "ResourceLocation"
+					"type": {
+						"name": "ResourceLocation"
+					}
 				}
 			]
 		},
 		"item_entity": {
 			"description": "Creates a new ItemEntity.",
-			"return_type": "ItemEntity",
+			"return_type": {
+				"name": "ItemEntity"
+			},
 			"parameters": [
 				{
 					"name": "level",
-					"type": "Level"
+					"type": {
+						"name": "Level"
+					}
 				},
 				{
 					"name": "x",
-					"type": "number"
+					"type": {
+						"name": "number"
+					}
 				},
 				{
 					"name": "y",
-					"type": "number"
+					"type": {
+						"name": "number"
+					}
 				},
 				{
 					"name": "z",
-					"type": "number"
+					"type": {
+						"name": "number"
+					}
 				},
 				{
 					"name": "item_stack",
-					"type": "ItemStack"
+					"type": {
+						"name": "ItemStack"
+					}
 				}
 			]
 		},
 		"item_entity_to_entity": {
 			"description": "Takes an ItemEntity, and returns it as an Entity.",
-			"return_type": "Entity",
+			"return_type": {
+				"name": "Entity"
+			},
 			"parameters": [
 				{
 					"name": "item_entity",
-					"type": "ItemEntity"
+					"type": {
+						"name": "ItemEntity"
+					}
 				}
 			]
 		},
 		"item_stack": {
 			"description": "Creates a new ItemStack. Keep in mind that when two ItemStacks get close enough to each other, they merge, turning the original ItemStacks and entities into 'Air'. So if you call spawn_entity() to spawn an ItemStack, make sure that the ItemStack isn't reused later on to spawn more entities.",
-			"return_type": "ItemStack",
+			"return_type": {
+				"name": "ItemStack"
+			},
 			"parameters": [
 				{
 					"name": "item",
-					"type": "Item"
+					"type": {
+						"name": "Item"
+					}
 				}
 			]
 		},
 		"resource_location": {
 			"description": "Creates a new ResourceLocation.",
-			"return_type": "ResourceLocation",
+			"return_type": {
+				"name": "ResourceLocation"
+			},
 			"parameters": [
 				{
 					"name": "resource_location_string",
-					"type": "string"
+					"type": {
+						"name": "string"
+					}
 				}
 			]
 		},
@@ -160,11 +218,15 @@
 			"parameters": [
 				{
 					"name": "entity",
-					"type": "Entity"
+					"type": {
+						"name": "Entity"
+					}
 				},
 				{
 					"name": "vec3",
-					"type": "Vec3"
+					"type": {
+						"name": "Vec3"
+					}
 				}
 			]
 		},
@@ -173,35 +235,49 @@
 			"parameters": [
 				{
 					"name": "entity",
-					"type": "Entity"
+					"type": {
+						"name": "Entity"
+					}
 				},
 				{
 					"name": "level",
-					"type": "Level"
+					"type": {
+						"name": "Level"
+					}
 				}
 			]
 		},
 		"vec3": {
 			"description": "Creates a new Vec3.",
-			"return_type": "Vec3",
+			"return_type": {
+				"name": "Vec3"
+			},
 			"parameters": [
 				{
 					"name": "x",
-					"type": "number"
+					"type": {
+						"name": "number"
+					}
 				},
 				{
 					"name": "y",
-					"type": "number"
+					"type": {
+						"name": "number"
+					}
 				},
 				{
 					"name": "z",
-					"type": "number"
+					"type": {
+						"name": "number"
+					}
 				}
 			]
 		},
 		"vec3_zero": {
 			"description": "Creates a new Vec3, initialized with all zeros.",
-			"return_type": "Vec3"
+			"return_type": {
+				"name": "Vec3"
+			}
 		}
 	}
 }

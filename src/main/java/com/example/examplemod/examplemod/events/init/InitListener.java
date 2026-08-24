@@ -12,6 +12,7 @@ import net.modificationstation.stationapi.api.mod.entrypoint.EntrypointManager;
 import net.modificationstation.stationapi.api.util.Namespace;
 import org.apache.logging.log4j.Logger;
 
+import java.io.File;
 import java.lang.invoke.MethodHandles;
 
 public class InitListener {
@@ -30,6 +31,19 @@ public class InitListener {
     private static void serverInit(InitEvent event) {
         LOGGER.info(NAMESPACE.toString());
         LOGGER.info("grug-rs native library loaded: {}", Grug.ping());
+
+        File runDir = new File(System.getProperty("user.dir"));
+        File projectRoot = runDir.getName().equals("run") ? runDir.getParentFile() : runDir;
+
+        File modApiJson = new File(projectRoot, "mod_api.json");
+        File modsDir = new File(projectRoot, "mods");
+
+        try {
+            Grug.init(modApiJson, modsDir);
+            LOGGER.info("grug_init succeeded. State pointer: {}", Grug.statePtr);
+        } catch (Exception e) {
+            LOGGER.error("Failed to initialize grug-rs", e);
+        }
     }
 
     @EventListener

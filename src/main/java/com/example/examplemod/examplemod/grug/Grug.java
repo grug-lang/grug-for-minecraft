@@ -8,6 +8,7 @@ import java.nio.file.Files;
 
 public final class Grug {
     private static boolean loaded = false;
+    public static long statePtr = 0;
 
     public static synchronized void load() {
         if (loaded) {
@@ -34,10 +35,20 @@ public final class Grug {
         loaded = true;
     }
 
+    public static void init(File modApiJson, File modsDir) {
+        load();
+        if (statePtr != 0) {
+            return; // Prevent duplicate initialization
+        }
+        statePtr = nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
+    }
+
     public static boolean ping() {
         load();
         return nativeGrugPing();
     }
 
     private static native boolean nativeGrugPing();
+    
+    private static native long nativeInit(String modApiPath, String modsDirPath);
 }
