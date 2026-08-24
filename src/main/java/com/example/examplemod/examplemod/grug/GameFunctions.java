@@ -1,5 +1,6 @@
 package com.example.examplemod.examplemod.grug;
 
+import com.example.examplemod.examplemod.events.init.InitListener;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
@@ -9,7 +10,19 @@ import net.minecraft.world.World;
 import net.modificationstation.stationapi.api.registry.ItemRegistry;
 import net.modificationstation.stationapi.api.util.Identifier;
 
+import java.util.ArrayDeque;
+import java.util.Queue;
+
 public class GameFunctions {
+
+    public static final Queue<String> runtimeErrorQueue = new ArrayDeque<>();
+
+    public static void onRuntimeError(String reason) {
+        InitListener.LOGGER.error(reason);
+        synchronized (runtimeErrorQueue) {
+            runtimeErrorQueue.add(reason);
+        }
+    }
 
     private static BlockEntity resolveBlockEntity(long blockEntityId) {
         GrugObject obj = Grug.entityData.get(blockEntityId);

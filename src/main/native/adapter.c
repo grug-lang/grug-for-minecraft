@@ -33,8 +33,17 @@ typedef union grug_value (*host_fn)(void* gst, const union grug_value[]);
 
 struct grug_runtime_error_handler {
     void* user_data;
-    void* drop_fn;
-    void* handler_fn;
+    void (*drop_fn)(void* user_data);
+    void (*handler_fn)(
+        void* data,
+        uint32_t err_kind,
+        char* reason_str,
+        size_t reason_len,
+        char* export_fn_name,
+        size_t export_fn_name_len,
+        char* script_path,
+        size_t script_path_len
+    );
 };
 
 struct grug_backend {
@@ -59,6 +68,7 @@ extern struct grug_files_slice grug_compile_all_files(void* state);
 static jint jni_version;
 static JavaVM* jvm;
 static jclass game_functions_class;
+static jmethodID jm_on_runtime_error;
 
 static jmethodID jm_get_block_entity_level, jm_get_block_pos_above_n, jm_get_block_pos_center;
 static jmethodID jm_get_block_pos_of_block_entity, jm_get_vec3_x, jm_get_vec3_y, jm_get_vec3_z;
@@ -69,6 +79,32 @@ static jmethodID jm_resource_location, jm_set_entity_delta_movement, jm_spawn_en
 #define CHECK(env) if ((*env)->ExceptionCheck(env)) { \
     (*env)->ExceptionDescribe(env); \
     (*env)->ExceptionClear(env); \
+}
+
+// --- Runtime Error Handler Callback ---
+static void runtime_error_callback(
+    void* data,
+    uint32_t err_kind,
+    char* reason_str,
+    size_t reason_len,
+    char* export_fn_name,
+    size_t export_fn_name_len,
+    char* script_path,
+    size_t script_path_len
+) {
+    if (!reason_str || reason_len == 0) return;
+
+    char message[1024];
+    snprintf(message, sizeof(message), "Error in %.*s (%.*s): %.*s", 
+        (int)script_path_len, script_path, 
+        (int)export_fn_name_len, export_fn_name, 
+        (int)reason_len, reason_str);
+
+    JNIEnv* env; FILL_ENV(env);
+    jstring str = (*env)->NewStringUTF(env, message);
+    (*env)->CallStaticVoidMethod(env, game_functions_class, jm_on_runtime_error, str);
+    CHECK(env);
+    (*env)->DeleteLocalRef(env, str);
 }
 
 // --- Host Function Wrappers ---
@@ -182,6 +218,8 @@ Java_com_example_examplemod_examplemod_grug_Grug_initGrugAdapter(JNIEnv *env, jc
 
     game_functions_class = (*env)->NewGlobalRef(env, local_gf);
 
+    jm_on_runtime_error = (*env)->GetStaticMethodID(env, game_functions_class, "onRuntimeError", "(Ljava/lang/String;)V");
+
     jm_get_block_entity_level = (*env)->GetStaticMethodID(env, game_functions_class, "get_block_entity_level", "(J)J");
     jm_get_block_pos_above_n = (*env)->GetStaticMethodID(env, game_functions_class, "get_block_pos_above_n", "(JI)J");
     jm_get_block_pos_center = (*env)->GetStaticMethodID(env, game_functions_class, "get_block_pos_center", "(J)J");
@@ -212,6 +250,9 @@ Java_com_example_examplemod_examplemod_grug_Grug_nativeInit(JNIEnv *env, jclass 
     struct grug_init_settings settings = grug_default_settings();
     settings.mod_api_path = safe_modApiPath;
     settings.mods_dir_path = safe_modsDirPath;
+    settings.runtime_error_handler.user_data = NULL;
+    settings.runtime_error_handler.drop_fn = NULL;
+    settings.runtime_error_handler.handler_fn = runtime_error_callback;
 
     struct grug_error error;
     memset(&error, 0, sizeof(error));
