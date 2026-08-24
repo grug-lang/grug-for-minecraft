@@ -2,6 +2,7 @@ package com.example.examplemod.examplemod.events.init;
 
 import com.example.examplemod.examplemod.block.ExampleBlock;
 import com.example.examplemod.examplemod.block.entity.ExampleBlockEntity;
+import com.example.examplemod.examplemod.grug.FileInfo;
 import com.example.examplemod.examplemod.grug.Grug;
 import net.mine_diver.unsafeevents.listener.EventListener;
 import net.minecraft.block.Block;
@@ -39,7 +40,15 @@ public class InitListener {
 
         try {
             Grug.init(modApiJson, modsDir);
-            LOGGER.info("grug_init succeeded. State pointer: {}", Grug.statePtr);
+
+            FileInfo[] files = Grug.compileAllFiles();
+            for (FileInfo file : files) {
+                if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
+                    LOGGER.error("Failed to compile {}: \n{}", file.path(), file.errorString());
+                } else {
+                    LOGGER.info("Successfully compiled {} with file ID {}", file.path(), file.fileId());
+                }
+            }
         } catch (Exception e) {
             LOGGER.error("Failed to initialize grug-rs", e);
         }

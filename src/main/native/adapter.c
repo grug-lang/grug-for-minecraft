@@ -4,76 +4,187 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-struct grug_source_span {
-    size_t offset;
-    size_t line;
-};
-
-struct grug_error_kind {
-    uint8_t tag[4];
-};
-
+struct grug_source_span { size_t offset; size_t line; };
+struct grug_error_kind { uint8_t tag[4]; };
 struct grug_error {
     struct grug_error_kind kind;
-    char* function_name;
-    char* file_path;
-    struct {
-        char* line;
-        size_t len;
-    } source;
+    char* function_name; char* file_path;
+    struct { char* line; size_t len; } source;
     struct grug_source_span span;
-    char* error_message;
-    char* error_string;
+    char* error_message; char* error_string;
 };
+
+struct grug_file_info {
+    char* path; char* file_name; char* mod_name;
+    char* entity_type; char* entity_name;
+    uint64_t file_id;
+    struct grug_error error;
+};
+struct grug_files_slice { struct grug_file_info* ptr; size_t len; };
+
+union grug_value {
+    double _number;
+    bool _bool;
+    const char* _string;
+    uint64_t _id;
+};
+typedef union grug_value (*host_fn)(void* gst, const union grug_value[]);
 
 struct grug_runtime_error_handler {
     void* user_data;
-    void (*drop_fn)(void*);
-    void (*handler_fn)(
-        void* data,
-        uint32_t err_kind,
-        char* reason_str,
-        size_t reason_len,
-        char* export_fn_name,
-        size_t export_fn_name_len,
-        char* script_path,
-        size_t script_path_len
-    );
-};
-
-struct grug_backend_vtable {
-    void* compile_script;
-    void* init_entity;
-    void* clear_entities;
-    void* entity_data;
-    void* call_on_function_raw;
-    void* call_on_function;
-    void* drop;
+    void* drop_fn;
+    void* handler_fn;
 };
 
 struct grug_backend {
     void* obj;
-    struct grug_backend_vtable* vtable;
+    void* vtable;
 };
 
 struct grug_init_settings {
-    char const* mod_api_path;
-    char const* mods_dir_path;
+    const char* mod_api_path;
+    const char* mods_dir_path;
     struct grug_runtime_error_handler runtime_error_handler;
     struct grug_backend backend;
 };
 
-extern struct grug_state* grug_init(struct grug_init_settings *settings, struct grug_error* out_error);
+extern void* grug_init(const struct grug_init_settings* settings, struct grug_error* out_error);
 extern struct grug_init_settings grug_default_settings(void);
+extern struct grug_error* grug_register_host_fn(void* state, const char* fn_name, host_fn func);
+extern struct grug_error* grug_all_host_fns_registered(void* state);
+extern struct grug_files_slice grug_compile_all_files(void* state);
+
+// --- JNI Caching ---
+static jint jni_version;
+static JavaVM* jvm;
+static jclass game_functions_class;
+
+static jmethodID jm_get_block_entity_level, jm_get_block_pos_above_n, jm_get_block_pos_center;
+static jmethodID jm_get_block_pos_of_block_entity, jm_get_vec3_x, jm_get_vec3_y, jm_get_vec3_z;
+static jmethodID jm_item, jm_item_entity, jm_item_entity_to_entity, jm_item_stack;
+static jmethodID jm_resource_location, jm_set_entity_delta_movement, jm_spawn_entity, jm_vec3, jm_vec3_zero;
+
+#define FILL_ENV(env) (*jvm)->GetEnv(jvm, (void**)&env, jni_version)
+
+// --- Host Function Wrappers ---
+union grug_value host_get_block_entity_level(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_get_block_entity_level, (jlong)args[0]._id);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_get_block_pos_above_n(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_get_block_pos_above_n, (jlong)args[0]._id, (jint)args[1]._number);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_get_block_pos_center(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_get_block_pos_center, (jlong)args[0]._id);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_get_block_pos_of_block_entity(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_get_block_pos_of_block_entity, (jlong)args[0]._id);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_get_vec3_x(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jfloat res = (*env)->CallStaticFloatMethod(env, game_functions_class, jm_get_vec3_x, (jlong)args[0]._id);
+    return (union grug_value){._number = (double)res};
+}
+union grug_value host_get_vec3_y(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jfloat res = (*env)->CallStaticFloatMethod(env, game_functions_class, jm_get_vec3_y, (jlong)args[0]._id);
+    return (union grug_value){._number = (double)res};
+}
+union grug_value host_get_vec3_z(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jfloat res = (*env)->CallStaticFloatMethod(env, game_functions_class, jm_get_vec3_z, (jlong)args[0]._id);
+    return (union grug_value){._number = (double)res};
+}
+union grug_value host_item(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_item, (jlong)args[0]._id);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_item_entity(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_item_entity, (jlong)args[0]._id, (jfloat)args[1]._number, (jfloat)args[2]._number, (jfloat)args[3]._number, (jlong)args[4]._id);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_item_entity_to_entity(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_item_entity_to_entity, (jlong)args[0]._id);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_item_stack(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_item_stack, (jlong)args[0]._id);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_resource_location(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jstring str = (*env)->NewStringUTF(env, args[0]._string);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_resource_location, str);
+    (*env)->DeleteLocalRef(env, str);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_set_entity_delta_movement(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    (*env)->CallStaticVoidMethod(env, game_functions_class, jm_set_entity_delta_movement, (jlong)args[0]._id, (jlong)args[1]._id);
+    return (union grug_value){0};
+}
+union grug_value host_spawn_entity(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    (*env)->CallStaticVoidMethod(env, game_functions_class, jm_spawn_entity, (jlong)args[0]._id, (jlong)args[1]._id);
+    return (union grug_value){0};
+}
+union grug_value host_vec3(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_vec3, (jfloat)args[0]._number, (jfloat)args[1]._number, (jfloat)args[2]._number);
+    return (union grug_value){._id = (uint64_t)res};
+}
+union grug_value host_vec3_zero(void* gst, const union grug_value args[]) {
+    JNIEnv* env; FILL_ENV(env);
+    jlong res = (*env)->CallStaticLongMethod(env, game_functions_class, jm_vec3_zero);
+    return (union grug_value){._id = (uint64_t)res};
+}
+
+// --- JNI Implementation ---
+JNIEXPORT void JNICALL
+Java_com_example_examplemod_examplemod_grug_Grug_initGrugAdapter(JNIEnv *env, jclass clazz) {
+    jni_version = (*env)->GetVersion(env);
+    (*env)->GetJavaVM(env, &jvm);
+
+    jclass local_gf = (*env)->FindClass(env, "com/example/examplemod/examplemod/grug/GameFunctions");
+    if (!local_gf) return;
+
+    game_functions_class = (*env)->NewGlobalRef(env, local_gf);
+
+    jm_get_block_entity_level = (*env)->GetStaticMethodID(env, game_functions_class, "get_block_entity_level", "(J)J");
+    jm_get_block_pos_above_n = (*env)->GetStaticMethodID(env, game_functions_class, "get_block_pos_above_n", "(JI)J");
+    jm_get_block_pos_center = (*env)->GetStaticMethodID(env, game_functions_class, "get_block_pos_center", "(J)J");
+    jm_get_block_pos_of_block_entity = (*env)->GetStaticMethodID(env, game_functions_class, "get_block_pos_of_block_entity", "(J)J");
+    jm_get_vec3_x = (*env)->GetStaticMethodID(env, game_functions_class, "get_vec3_x", "(J)F");
+    jm_get_vec3_y = (*env)->GetStaticMethodID(env, game_functions_class, "get_vec3_y", "(J)F");
+    jm_get_vec3_z = (*env)->GetStaticMethodID(env, game_functions_class, "get_vec3_z", "(J)F");
+    jm_item = (*env)->GetStaticMethodID(env, game_functions_class, "item", "(J)J");
+    jm_item_entity = (*env)->GetStaticMethodID(env, game_functions_class, "item_entity", "(JFFFJ)J");
+    jm_item_entity_to_entity = (*env)->GetStaticMethodID(env, game_functions_class, "item_entity_to_entity", "(J)J");
+    jm_item_stack = (*env)->GetStaticMethodID(env, game_functions_class, "item_stack", "(J)J");
+    jm_resource_location = (*env)->GetStaticMethodID(env, game_functions_class, "resource_location", "(Ljava/lang/String;)J");
+    jm_set_entity_delta_movement = (*env)->GetStaticMethodID(env, game_functions_class, "set_entity_delta_movement", "(JJ)V");
+    jm_spawn_entity = (*env)->GetStaticMethodID(env, game_functions_class, "spawn_entity", "(JJ)V");
+    jm_vec3 = (*env)->GetStaticMethodID(env, game_functions_class, "vec3", "(FFF)J");
+    jm_vec3_zero = (*env)->GetStaticMethodID(env, game_functions_class, "vec3_zero", "()J");
+}
 
 JNIEXPORT jlong JNICALL
 Java_com_example_examplemod_examplemod_grug_Grug_nativeInit(JNIEnv *env, jclass clazz, jstring modApiPath, jstring modsDirPath) {
     const char *c_modApiPath = (*env)->GetStringUTFChars(env, modApiPath, NULL);
     const char *c_modsDirPath = (*env)->GetStringUTFChars(env, modsDirPath, NULL);
-
     char *safe_modApiPath = strdup(c_modApiPath);
     char *safe_modsDirPath = strdup(c_modsDirPath);
-
     (*env)->ReleaseStringUTFChars(env, modApiPath, c_modApiPath);
     (*env)->ReleaseStringUTFChars(env, modsDirPath, c_modsDirPath);
 
@@ -83,18 +194,68 @@ Java_com_example_examplemod_examplemod_grug_Grug_nativeInit(JNIEnv *env, jclass 
 
     struct grug_error error;
     memset(&error, 0, sizeof(error));
-
-    struct grug_state *state = grug_init(&settings, &error);
+    void *state = grug_init(&settings, &error);
 
     if (!state) {
         jclass exceptionClass = (*env)->FindClass(env, "java/lang/RuntimeException");
-        if (error.error_string) {
-            (*env)->ThrowNew(env, exceptionClass, error.error_string);
-        } else {
-            (*env)->ThrowNew(env, exceptionClass, "Failed to initialize grug_state.");
-        }
-        return 0; 
+        (*env)->ThrowNew(env, exceptionClass, error.error_string ? error.error_string : "Failed to initialize grug_state.");
+        return 0;
+    }
+
+    grug_register_host_fn(state, "get_block_entity_level", host_get_block_entity_level);
+    grug_register_host_fn(state, "get_block_pos_above_n", host_get_block_pos_above_n);
+    grug_register_host_fn(state, "get_block_pos_center", host_get_block_pos_center);
+    grug_register_host_fn(state, "get_block_pos_of_block_entity", host_get_block_pos_of_block_entity);
+    grug_register_host_fn(state, "get_vec3_x", host_get_vec3_x);
+    grug_register_host_fn(state, "get_vec3_y", host_get_vec3_y);
+    grug_register_host_fn(state, "get_vec3_z", host_get_vec3_z);
+    grug_register_host_fn(state, "item", host_item);
+    grug_register_host_fn(state, "item_entity", host_item_entity);
+    grug_register_host_fn(state, "item_entity_to_entity", host_item_entity_to_entity);
+    grug_register_host_fn(state, "item_stack", host_item_stack);
+    grug_register_host_fn(state, "resource_location", host_resource_location);
+    grug_register_host_fn(state, "set_entity_delta_movement", host_set_entity_delta_movement);
+    grug_register_host_fn(state, "spawn_entity", host_spawn_entity);
+    grug_register_host_fn(state, "vec3", host_vec3);
+    grug_register_host_fn(state, "vec3_zero", host_vec3_zero);
+
+    struct grug_error* reg_err = grug_all_host_fns_registered(state);
+    if (reg_err) {
+        jclass exceptionClass = (*env)->FindClass(env, "java/lang/RuntimeException");
+        (*env)->ThrowNew(env, exceptionClass, reg_err->error_string);
+        return 0;
     }
 
     return (jlong)(intptr_t)state;
+}
+
+JNIEXPORT jobjectArray JNICALL
+Java_com_example_examplemod_examplemod_grug_Grug_nativeCompileAllFiles(JNIEnv *env, jclass clazz, jlong statePtr) {
+    struct grug_files_slice files = grug_compile_all_files((void*)(intptr_t)statePtr);
+    jclass fileInfoClass = (*env)->FindClass(env, "com/example/examplemod/examplemod/grug/FileInfo");
+    jmethodID constructor = (*env)->GetMethodID(env, fileInfoClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V");
+    jobjectArray array = (*env)->NewObjectArray(env, files.len, fileInfoClass, NULL);
+
+    for (size_t i = 0; i < files.len; i++) {
+        struct grug_file_info *info = &files.ptr[i];
+        jstring path = (*env)->NewStringUTF(env, info->path);
+        jstring file_name = (*env)->NewStringUTF(env, info->file_name);
+        jstring mod_name = (*env)->NewStringUTF(env, info->mod_name);
+        jstring entity_type = (*env)->NewStringUTF(env, info->entity_type);
+        jstring entity_name = (*env)->NewStringUTF(env, info->entity_name);
+
+        jstring error_str = NULL;
+        if (info->file_id == UINT64_MAX && info->error.error_string) {
+            error_str = (*env)->NewStringUTF(env, info->error.error_string);
+        }
+
+        jobject obj = (*env)->NewObject(env, fileInfoClass, constructor, path, file_name, mod_name, entity_type, entity_name, (jlong)info->file_id, error_str);
+        (*env)->SetObjectArrayElement(env, array, i, obj);
+
+        (*env)->DeleteLocalRef(env, path); (*env)->DeleteLocalRef(env, file_name);
+        (*env)->DeleteLocalRef(env, mod_name); (*env)->DeleteLocalRef(env, entity_type);
+        (*env)->DeleteLocalRef(env, entity_name); (*env)->DeleteLocalRef(env, obj);
+        if (error_str) (*env)->DeleteLocalRef(env, error_str);
+    }
+    return array;
 }

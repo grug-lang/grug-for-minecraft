@@ -15,15 +15,15 @@ item: Item = item(resource_location)
 # The coordinates where the diamond is spawned
 center: Vec3 = get_block_pos_center(pos)
 # center: Vec3 = pos.center() # TODO: Use this form later
-x: f32 = get_vec3_x(center)
-y: f32 = get_vec3_y(center)
-z: f32 = get_vec3_z(center)
-# x: f32 = center.x() # TODO: Use this form later
-# y: f32 = center.y() # TODO: Use this form later
-# z: f32 = center.z() # TODO: Use this form later
+x: number = get_vec3_x(center)
+y: number = get_vec3_y(center)
+z: number = get_vec3_z(center)
+# x: number = center.x() # TODO: Use this form later
+# y: number = center.y() # TODO: Use this form later
+# z: number = center.z() # TODO: Use this form later
 
 # How often on_tick() has been called
-tick: i32 = 0
+tick: number = 0
 
 export tick() {
     # Spawn a diamond every 10 game ticks (0.5 seconds)
