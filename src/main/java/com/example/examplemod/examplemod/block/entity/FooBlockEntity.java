@@ -11,8 +11,6 @@ public class FooBlockEntity extends BlockEntity {
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean initAttempted = false;
 
-    private final List<GrugObject> childEntities = new ArrayList<>();
-
     private void initGrug() {
         if (entityHandle != 0 || initAttempted)
             return;
@@ -23,29 +21,12 @@ public class FooBlockEntity extends BlockEntity {
             return;
 
         Grug.currentlyInitializingBlockEntity = this;
-        Grug.liveBlockEntities.add(this);
-
-        List<GrugObject> oldFnEntities = Grug.fnEntities;
-        Grug.fnEntities = this.childEntities;
-
         entityHandle = Grug.createEntity(fileId);
-
-        Grug.fnEntities = oldFnEntities;
         Grug.currentlyInitializingBlockEntity = null;
 
         if (entityHandle != 0) {
             tickFnId = Grug.getExportFnId("BlockEntity", "tick");
         }
-    }
-
-    public void reloadGrug() {
-        if (entityHandle != 0) {
-            Grug.destroyEntity(entityHandle);
-            entityHandle = 0;
-            childEntities.clear();
-        }
-        initAttempted = false;
-        initGrug();
     }
 
     @Override
@@ -70,12 +51,9 @@ public class FooBlockEntity extends BlockEntity {
     public void markRemoved() {
         super.markRemoved();
 
-        Grug.liveBlockEntities.remove(this);
-
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;
-            childEntities.clear();
         }
     }
 }

@@ -16,15 +16,11 @@ public class GameFunctions {
         if (obj == null) {
             BlockEntity be = Grug.currentlyInitializingBlockEntity;
             if (be != null) {
-                GrugObject grugObject = new GrugObject(GrugEntityType.BlockEntity, be);
-                Grug.entityData.put(blockEntityId, grugObject);
-                if (Grug.fnEntities != null) {
-                    Grug.fnEntities.add(grugObject);
-                }
+                Grug.addEntityWithId(blockEntityId, GrugEntityType.BlockEntity, be);
                 return be;
             }
         }
-        return (BlockEntity) obj.object;
+        return (BlockEntity) (obj != null ? obj.object : null);
     }
 
     public static long get_block_entity_level(long blockEntityId) {

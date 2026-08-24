@@ -2,19 +2,16 @@ package com.example.examplemod.examplemod.grug;
 
 import net.minecraft.block.entity.BlockEntity;
 import com.example.examplemod.examplemod.events.init.InitListener;
-import com.example.examplemod.examplemod.block.entity.FooBlockEntity;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.WeakHashMap;
 
 public final class Grug {
     private static boolean loaded = false;
@@ -27,10 +24,9 @@ public final class Grug {
     public static final Map<String, Long> fileIds = new HashMap<>();
 
     public static BlockEntity currentlyInitializingBlockEntity = null;
-    public static List<GrugObject> fnEntities = null;
 
-    // Track live entities so we can seamlessly reload them
-    public static final Set<FooBlockEntity> liveBlockEntities = Collections.newSetFromMap(new WeakHashMap<>());
+    public static final List<GrugObject> globalFnEntities = new ArrayList<>();
+    public static List<GrugObject> fnEntities = globalFnEntities;
 
     static {
         for (GrugEntityType type : GrugEntityType.values()) {
@@ -47,7 +43,7 @@ public final class Grug {
             try (InputStream in = Grug.class.getResourceAsStream("/natives/libadapter.so");
                     OutputStream out = Files.newOutputStream(tempFile.toPath())) {
                 if (in == null) {
-                    throw new IOException("libadapter.so not found on the classpath at /natives/libadapter.so");
+                    throw new IOException("libadapter.so not found on the classpath");
                 }
                 byte[] buffer = new byte[8192];
                 int read;
@@ -71,9 +67,8 @@ public final class Grug {
     }
 
     public static FileInfo[] compileAllFiles() {
-        if (statePtr == 0) {
+        if (statePtr == 0)
             throw new IllegalStateException("grug_state is not initialized");
-        }
         return nativeCompileAllFiles(statePtr);
     }
 
@@ -82,7 +77,6 @@ public final class Grug {
             return;
 
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
-        boolean needsReload = false;
 
         for (FileInfo file : updatedFiles) {
             if (file.fileId() == INVALID_GRUG_FILE_ID) {
@@ -90,13 +84,6 @@ public final class Grug {
             } else {
                 InitListener.LOGGER.info("Successfully hot-reloaded {} with file ID {}", file.path(), file.fileId());
                 fileIds.put(file.path(), file.fileId());
-                needsReload = true;
-            }
-        }
-
-        if (needsReload) {
-            for (FooBlockEntity entity : liveBlockEntities) {
-                entity.reloadGrug();
             }
         }
     }
@@ -108,12 +95,16 @@ public final class Grug {
         long id = ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
 
         entityData.put(id, grugObject);
-
-        if (fnEntities != null) {
+        if (fnEntities != null)
             fnEntities.add(grugObject);
-        }
-
         return id;
+    }
+
+    public static void addEntityWithId(long id, GrugEntityType type, Object object) {
+        GrugObject grugObject = new GrugObject(type, object);
+        entityData.put(id, grugObject);
+        if (fnEntities != null)
+            fnEntities.add(grugObject);
     }
 
     public static long createEntity(long fileId) {

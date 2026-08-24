@@ -4,6 +4,8 @@ import com.example.examplemod.examplemod.block.FooBlock;
 import com.example.examplemod.examplemod.block.entity.FooBlockEntity;
 import com.example.examplemod.examplemod.grug.Grug;
 import com.example.examplemod.examplemod.grug.FileInfo;
+import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.ModContainer;
 import net.mine_diver.unsafeevents.listener.EventListener;
 import net.minecraft.block.Block;
 import net.modificationstation.stationapi.api.event.block.entity.BlockEntityRegisterEvent;
@@ -14,7 +16,14 @@ import net.modificationstation.stationapi.api.util.Namespace;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 public class InitListener {
     static {
@@ -30,13 +39,30 @@ public class InitListener {
     private static void serverInit(InitEvent event) {
         LOGGER.info(NAMESPACE.toString());
 
-        File runDir = new File(System.getProperty("user.dir"));
-        File projectRoot = runDir.getName().equals("run") ? runDir.getParentFile() : runDir;
-        File modApiJson = new File(projectRoot, "mod_api.json");
-        File modsDir = new File(projectRoot, "mods");
+        File gameDir = FabricLoader.getInstance().getGameDir().toFile();
+        File grugDir = new File(gameDir, "grug_mods");
+
+        if (!grugDir.exists()) {
+            grugDir.mkdirs();
+        }
+
+        File modApiJson = new File(grugDir, "mod_api.json");
 
         try {
-            Grug.init(modApiJson, modsDir);
+            // Extract mod_api.json if missing
+            if (!modApiJson.exists()) {
+                try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
+                    if (in != null) {
+                        Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            }
+
+            // Extract default .grug mods from resources if missing
+            extractDefaultGrugMods(grugDir.toPath());
+
+            // Initialize grug-rs
+            Grug.init(modApiJson, grugDir);
 
             FileInfo[] files = Grug.compileAllFiles();
             for (FileInfo file : files) {
@@ -49,6 +75,41 @@ public class InitListener {
             }
         } catch (Exception e) {
             LOGGER.error("Failed to initialize grug-rs", e);
+        }
+    }
+
+    private static void extractDefaultGrugMods(Path targetGrugDir) {
+        Optional<ModContainer> modContainer = FabricLoader.getInstance().getModContainer(NAMESPACE.toString());
+        if (modContainer.isEmpty())
+            return;
+
+        Optional<Path> defaultModsPath = modContainer.get().findPath("default_grug_mods");
+        if (defaultModsPath.isEmpty())
+            return;
+
+        Path srcRoot = defaultModsPath.get();
+        try (Stream<Path> stream = Files.walk(srcRoot)) {
+            stream.forEach(source -> {
+                try {
+                    Path relative = srcRoot.relativize(source);
+                    Path target = targetGrugDir.resolve(relative.toString());
+
+                    if (Files.isDirectory(source)) {
+                        if (!Files.exists(target)) {
+                            Files.createDirectories(target);
+                        }
+                    } else {
+                        // Only copy if the file doesn't exist so user edits aren't overwritten
+                        if (!Files.exists(target)) {
+                            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    }
+                } catch (IOException e) {
+                    LOGGER.error("Failed to extract default grug mod file: " + source, e);
+                }
+            });
+        } catch (IOException e) {
+            LOGGER.error("Failed to walk default_grug_mods directory", e);
         }
     }
 
