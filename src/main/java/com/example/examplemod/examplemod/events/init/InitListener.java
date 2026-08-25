@@ -3,6 +3,7 @@ package com.example.examplemod.examplemod.events.init;
 import com.example.examplemod.examplemod.block.FooBlock;
 import com.example.examplemod.examplemod.block.entity.FooBlockEntity;
 import com.example.examplemod.examplemod.grug.Grug;
+import com.example.examplemod.examplemod.grug.GrugBlockData;
 import com.example.examplemod.examplemod.grug.FileInfo;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
@@ -12,6 +13,7 @@ import net.modificationstation.stationapi.api.event.block.entity.BlockEntityRegi
 import net.modificationstation.stationapi.api.event.mod.InitEvent;
 import net.modificationstation.stationapi.api.event.registry.BlockRegistryEvent;
 import net.modificationstation.stationapi.api.mod.entrypoint.EntrypointManager;
+import net.modificationstation.stationapi.api.util.Identifier;
 import net.modificationstation.stationapi.api.util.Namespace;
 import org.apache.logging.log4j.Logger;
 
@@ -70,6 +72,31 @@ public class InitListener {
                 } else {
                     Grug.fileIds.put(file.path(), file.fileId());
                     LOGGER.info("Successfully compiled {} with file ID {}", file.path(), file.fileId());
+
+                    // Run export init() for Blocks
+                    if ("Block".equals(file.entityType())) {
+                        Identifier blockId = Identifier.of(file.modName() + ":" + file.entityName());
+
+                        GrugBlockData blockData = new GrugBlockData(blockId);
+                        Grug.currentlyInitializingBlock = blockData;
+
+                        long tempEntityHandle = Grug.createEntity(file.fileId());
+                        long initFnId = Grug.getExportFnId("Block", "init");
+
+                        if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                            Grug.callExportFn(tempEntityHandle, initFnId);
+                        }
+
+                        if (tempEntityHandle != 0) {
+                            Grug.destroyEntity(tempEntityHandle);
+                        }
+
+                        Grug.declaredBlocks.put(blockId, blockData);
+                        Grug.currentlyInitializingBlock = null;
+
+                        LOGGER.info("Discovered Grug Block: " + blockId + " (Texture: " + blockData.texturePath
+                                + ", Name: " + blockData.displayName + ")");
+                    }
                 }
             }
         } catch (Exception e) {

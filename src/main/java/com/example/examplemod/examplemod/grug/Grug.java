@@ -25,6 +25,9 @@ public final class Grug {
     public static final Map<String, Long> fileIds = new HashMap<>();
 
     public static BlockEntity currentlyInitializingBlockEntity = null;
+    public static GrugBlockData currentlyInitializingBlock = null;
+
+    public static final Map<net.modificationstation.stationapi.api.util.Identifier, GrugBlockData> declaredBlocks = new HashMap<>();
 
     public static final List<GrugObject> globalFnEntities = new ArrayList<>();
     public static List<GrugObject> fnEntities = globalFnEntities;

@@ -110,13 +110,15 @@ public class GameFunctions {
     }
 
     public static void set_texture(String texturePath) {
-        // TODO: Implement the actual JSON synthesis
-        System.out.println("Grug called set_texture: " + texturePath);
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.texturePath = texturePath;
+        }
     }
 
     public static void set_display_name(String name) {
-        // TODO: Implement the actual lang entry synthesis
-        System.out.println("Grug called set_display_name: " + name);
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.displayName = name;
+        }
     }
 
     public static long vec3(double x, double y, double z) {
