@@ -216,13 +216,50 @@
 				}
 			]
 		},
-		"set_display_name": {
-			"description": "Declares the block's translated display name. Java generates the lang entry.",
+		"set_blockstate": {
+			"description": "Declares the block's blockstate JSON file.",
 			"parameters": [
 				{
-					"name": "name",
+					"name": "path",
 					"type": {
-						"name": "string"
+						"name": "resource",
+						"resource_extension": ".json"
+					}
+				}
+			]
+		},
+		"set_block_model": {
+			"description": "Declares the block's block model JSON file.",
+			"parameters": [
+				{
+					"name": "path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".json"
+					}
+				}
+			]
+		},
+		"set_item_model": {
+			"description": "Declares the block's item model JSON file.",
+			"parameters": [
+				{
+					"name": "path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".json"
+					}
+				}
+			]
+		},
+		"add_lang": {
+			"description": "Adds a language file to the resource pack.",
+			"parameters": [
+				{
+					"name": "path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".lang"
 					}
 				}
 			]

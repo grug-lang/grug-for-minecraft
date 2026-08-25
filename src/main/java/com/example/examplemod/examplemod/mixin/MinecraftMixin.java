@@ -5,8 +5,10 @@ import com.example.examplemod.examplemod.grug.GameFunctions;
 import com.example.examplemod.examplemod.grug.Grug;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.ClientPlayerEntity;
-import net.modificationstation.stationapi.api.StationAPI;
-import net.modificationstation.stationapi.api.client.event.resource.AssetsReloadEvent;
+import net.modificationstation.stationapi.api.client.resource.ReloadableAssetsManager;
+import net.modificationstation.stationapi.api.tick.TickScheduler;
+import net.modificationstation.stationapi.api.util.Util;
+import net.modificationstation.stationapi.impl.client.resource.AssetsReloaderImpl;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -27,8 +29,20 @@ public class MinecraftMixin {
         for (String resource : updatedResources) {
             InitListener.LOGGER.info("Reloading changed resource: {}", resource);
         }
+
         if (updatedResources.length > 0) {
-            StationAPI.EVENT_BUS.post(AssetsReloadEvent.builder().build());
+            // Bypass StationAPI's ReloadScreenManager entirely to avoid the blue overlay
+            // and Escape bug.
+            // This runs the preparation async and applies the textures safely on the main
+            // thread.
+            AssetsReloaderImpl.RESOURCE_PACK_MANAGER.scanPacks();
+            ReloadableAssetsManager.INSTANCE.reload(
+                    Util.getMainWorkerExecutor(),
+                    TickScheduler.CLIENT_RENDER_END::distributed,
+                    AssetsReloaderImpl.COMPLETED_UNIT_FUTURE,
+                    (reloader, formatString, location) -> {
+                    }, // No-op profiler to avoid tracking locations
+                    AssetsReloaderImpl.RESOURCE_PACK_MANAGER.createResourcePacks());
         }
 
         // Handle runtime errors triggered by grug-rs

@@ -115,9 +115,27 @@ public class GameFunctions {
         }
     }
 
-    public static void set_display_name(String name) {
+    public static void set_blockstate(String path) {
         if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.displayName = name;
+            Grug.currentlyInitializingBlock.blockstatePath = path;
+        }
+    }
+
+    public static void set_block_model(String path) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.blockModelPath = path;
+        }
+    }
+
+    public static void set_item_model(String path) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.itemModelPath = path;
+        }
+    }
+
+    public static void add_lang(String path) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.langPaths.add(path);
         }
     }
 
