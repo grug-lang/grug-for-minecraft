@@ -1,1 +1,4 @@
-# TODO: Remove this placeholder comment once https://github.com/grug-lang/grug-tests/issues/149 has been implemented
+export init() {
+    set_display_name("My Custom Foo Block")
+    set_texture(r"textures/foo_block.png")
+}

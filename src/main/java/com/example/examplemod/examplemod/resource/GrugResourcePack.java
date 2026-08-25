@@ -44,25 +44,19 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
         String path = id.getPath();
 
-        // 1. Synthesize language file if requested
+        // Synthesize language file if requested
         if (path.equals("stationapi/lang/en_US.lang")) {
             StringBuilder langFile = new StringBuilder();
             for (GrugBlockData block : Grug.declaredBlocks.values()) {
                 if (block.displayName != null) {
-                    langFile.append("tile.")
-                            .append(InitListener.NAMESPACE)
-                            .append(".")
-                            .append(block.id.getPath())
-                            .append(".name=")
-                            .append(block.displayName)
-                            .append("\n");
+                    langFile.append("tile.").append(InitListener.NAMESPACE).append(".").append(block.id.getPath())
+                            .append(".name=").append(block.displayName).append("\n");
                 }
             }
-            String langContent = langFile.toString();
-            return () -> new ByteArrayInputStream(langContent.getBytes(StandardCharsets.UTF_8));
+            return () -> new ByteArrayInputStream(langFile.toString().getBytes(StandardCharsets.UTF_8));
         }
 
-        // 2. Synthesize block/item assets
+        // Synthesize block/item assets
         for (GrugBlockData block : Grug.declaredBlocks.values()) {
             String blockPath = block.id.getPath(); // e.g. "foo_block"
 
@@ -108,9 +102,8 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         if (prefix.equals("stationapi/lang")) {
             Identifier targetId = Identifier.of(namespace, "stationapi/lang/en_US.lang");
             InputSupplier<InputStream> supplier = this.open(type, targetId);
-            if (supplier != null) {
+            if (supplier != null)
                 consumer.accept(targetId, supplier);
-            }
         }
 
         // Yield block assets
@@ -120,21 +113,18 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             if (prefix.equals("stationapi/blockstates")) {
                 Identifier targetId = Identifier.of(namespace, "stationapi/blockstates/" + blockPath + ".json");
                 InputSupplier<InputStream> supplier = this.open(type, targetId);
-                if (supplier != null) {
+                if (supplier != null)
                     consumer.accept(targetId, supplier);
-                }
             } else if (prefix.equals("stationapi/models")) {
                 Identifier blockModelId = Identifier.of(namespace, "stationapi/models/block/" + blockPath + ".json");
                 InputSupplier<InputStream> blockSupplier = this.open(type, blockModelId);
-                if (blockSupplier != null) {
+                if (blockSupplier != null)
                     consumer.accept(blockModelId, blockSupplier);
-                }
 
                 Identifier itemModelId = Identifier.of(namespace, "stationapi/models/item/" + blockPath + ".json");
                 InputSupplier<InputStream> itemSupplier = this.open(type, itemModelId);
-                if (itemSupplier != null) {
+                if (itemSupplier != null)
                     consumer.accept(itemModelId, itemSupplier);
-                }
             } else if (prefix.equals("stationapi/textures/block")) {
                 Identifier targetId = Identifier.of(namespace, "stationapi/textures/block/" + blockPath + ".png");
                 InputSupplier<InputStream> supplier = this.open(type, targetId);

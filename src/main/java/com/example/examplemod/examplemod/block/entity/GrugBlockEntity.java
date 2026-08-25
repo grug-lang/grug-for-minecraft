@@ -1,12 +1,15 @@
 package com.example.examplemod.examplemod.block.entity;
 
+import com.example.examplemod.examplemod.block.GrugBlock;
 import com.example.examplemod.examplemod.grug.Grug;
 import com.example.examplemod.examplemod.grug.GrugObject;
+import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class FooBlockEntity extends BlockEntity {
+public class GrugBlockEntity extends BlockEntity {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean initAttempted = false;
@@ -16,8 +19,12 @@ public class FooBlockEntity extends BlockEntity {
             return;
         initAttempted = true;
 
-        Long fileId = Grug.fileIds.get("foo/foo_block_entity-BlockEntity.grug");
-        if (fileId == null || fileId == Grug.INVALID_GRUG_FILE_ID)
+        Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
+        if (!(block instanceof GrugBlock))
+            return;
+
+        long fileId = ((GrugBlock) block).entityFileId;
+        if (fileId == Grug.INVALID_GRUG_FILE_ID)
             return;
 
         Grug.currentlyInitializingBlockEntity = this;

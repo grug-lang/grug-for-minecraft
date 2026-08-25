@@ -1,14 +1,13 @@
 package com.example.examplemod.examplemod.events.init;
 
-import com.example.examplemod.examplemod.block.FooBlock;
-import com.example.examplemod.examplemod.block.entity.FooBlockEntity;
+import com.example.examplemod.examplemod.block.GrugBlock;
+import com.example.examplemod.examplemod.block.entity.GrugBlockEntity;
 import com.example.examplemod.examplemod.grug.Grug;
 import com.example.examplemod.examplemod.grug.GrugBlockData;
 import com.example.examplemod.examplemod.grug.FileInfo;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.mine_diver.unsafeevents.listener.EventListener;
-import net.minecraft.block.Block;
 import net.modificationstation.stationapi.api.event.block.entity.BlockEntityRegisterEvent;
 import net.modificationstation.stationapi.api.event.mod.InitEvent;
 import net.modificationstation.stationapi.api.event.registry.BlockRegistryEvent;
@@ -24,6 +23,8 @@ import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -32,76 +33,101 @@ public class InitListener {
         EntrypointManager.registerLookup(MethodHandles.lookup());
     }
 
-    @SuppressWarnings("UnstableApiUsage")
     public static final Namespace NAMESPACE = Namespace.resolve();
     public static final Logger LOGGER = NAMESPACE.getLogger();
-    public static Block fooBlock;
 
     @EventListener
     private static void serverInit(InitEvent event) {
         LOGGER.info(NAMESPACE.toString());
+    }
 
+    @EventListener
+    private static void registerBlocks(BlockRegistryEvent event) {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
         File grugDir = new File(gameDir, "grug_mods");
 
-        if (!grugDir.exists()) {
+        if (!grugDir.exists())
             grugDir.mkdirs();
-        }
 
         File modApiJson = new File(grugDir, "mod_api.json");
 
         try {
-            // Always sync mod_api.json so grug-rs matches
-            // the current Java/C adapter signatures
             try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
-                if (in != null) {
+                if (in != null)
                     Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                }
             }
 
-            // Extract default .grug mods from resources if missing
             extractDefaultGrugMods(grugDir.toPath());
-
-            // Initialize grug-rs
             Grug.init(modApiJson, grugDir);
 
             FileInfo[] files = Grug.compileAllFiles();
+
+            // Group blocks and their companion entities by their clean name (e.g.
+            // "foo_block")
+            Map<String, Long> blockFiles = new HashMap<>();
+            Map<String, Long> entityFiles = new HashMap<>();
+            Map<String, String> blockMods = new HashMap<>();
+
             for (FileInfo file : files) {
                 if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
                     LOGGER.error("Failed to compile {}: \n{}", file.path(), file.errorString());
-                } else {
-                    Grug.fileIds.put(file.path(), file.fileId());
-                    LOGGER.info("Successfully compiled {} with file ID {}", file.path(), file.fileId());
+                    continue;
+                }
 
-                    // Run export init() for Blocks
-                    if ("Block".equals(file.entityType())) {
-                        Identifier blockId = Identifier.of(file.modName() + ":" + file.entityName());
+                Grug.fileIds.put(file.path(), file.fileId());
 
-                        GrugBlockData blockData = new GrugBlockData(blockId);
-                        Grug.currentlyInitializingBlock = blockData;
+                String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
+                        : file.entityName();
 
-                        long tempEntityHandle = Grug.createEntity(file.fileId());
-                        long initFnId = Grug.getExportFnId("Block", "init");
-
-                        if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                            Grug.callExportFn(tempEntityHandle, initFnId);
-                        }
-
-                        if (tempEntityHandle != 0) {
-                            Grug.destroyEntity(tempEntityHandle);
-                        }
-
-                        Grug.declaredBlocks.put(blockId, blockData);
-                        Grug.currentlyInitializingBlock = null;
-
-                        LOGGER.info("Discovered Grug Block: " + blockId + " (Texture: " + blockData.texturePath
-                                + ", Name: " + blockData.displayName + ")");
-                    }
+                if ("Block".equals(file.entityType())) {
+                    blockFiles.put(cleanName, file.fileId());
+                    blockMods.put(cleanName, file.modName());
+                } else if ("BlockEntity".equals(file.entityType())) {
+                    String baseName = cleanName.endsWith("_entity") ? cleanName.substring(0, cleanName.length() - 7)
+                            : cleanName;
+                    entityFiles.put(baseName, file.fileId());
                 }
             }
+
+            // Synthesize and register the Block instances
+            for (Map.Entry<String, Long> entry : blockFiles.entrySet()) {
+                String cleanName = entry.getKey();
+                // FORCE the host namespace (examplemod) so StationAPI and AMI are happy
+                Identifier blockId = Identifier.of(NAMESPACE, cleanName);
+                String modName = blockMods.get(cleanName);
+
+                long blockFileId = entry.getValue();
+                long entityFileId = entityFiles.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
+
+                GrugBlockData blockData = new GrugBlockData(blockId);
+                Grug.currentlyInitializingBlock = blockData;
+
+                long tempEntityHandle = Grug.createEntity(blockFileId);
+                long initFnId = Grug.getExportFnId("Block", "init");
+
+                if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                    Grug.callExportFn(tempEntityHandle, initFnId);
+                }
+
+                if (tempEntityHandle != 0) {
+                    Grug.destroyEntity(tempEntityHandle);
+                }
+
+                Grug.declaredBlocks.put(blockId, blockData);
+                Grug.currentlyInitializingBlock = null;
+
+                new GrugBlock(blockId, blockFileId, entityFileId).setTranslationKey(blockId.namespace, blockId.path);
+                LOGGER.info("Registered Generic Grug Block: " + blockId + " (Grug Mod: " + modName + ")");
+            }
         } catch (Exception e) {
-            LOGGER.error("Failed to initialize grug-rs", e);
+            LOGGER.error("Failed to initialize grug-rs blocks", e);
         }
+    }
+
+    @EventListener
+    private static void registerBlockEntities(BlockEntityRegisterEvent event) {
+        // Register a single namespace alias that all GrugBlockEntity instances share
+        event.register("grug:generic_block_entity", GrugBlockEntity.class);
     }
 
     private static void extractDefaultGrugMods(Path targetGrugDir) {
@@ -121,14 +147,11 @@ public class InitListener {
                     Path target = targetGrugDir.resolve(relative.toString());
 
                     if (Files.isDirectory(source)) {
-                        if (!Files.exists(target)) {
+                        if (!Files.exists(target))
                             Files.createDirectories(target);
-                        }
                     } else {
-                        // Only copy if the file doesn't exist so user edits aren't overwritten
-                        if (!Files.exists(target)) {
+                        if (!Files.exists(target))
                             Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-                        }
                     }
                 } catch (IOException e) {
                     LOGGER.error("Failed to extract default grug mod file: " + source, e);
@@ -137,16 +160,5 @@ public class InitListener {
         } catch (IOException e) {
             LOGGER.error("Failed to walk default_grug_mods directory", e);
         }
-    }
-
-    @EventListener
-    private static void registerBlocks(BlockRegistryEvent event) {
-        fooBlock = new FooBlock(NAMESPACE.id("foo_block"))
-                .setTranslationKey(NAMESPACE, "foo_block");
-    }
-
-    @EventListener
-    private static void registerBlockEntities(BlockEntityRegisterEvent event) {
-        event.register(NAMESPACE.id("foo_block").toString(), FooBlockEntity.class);
     }
 }
