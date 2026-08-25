@@ -1,0 +1,4 @@
+export init() {
+    set_display_name("My Custom Bar Block")
+    set_texture(r"foo_block.png")
+}
