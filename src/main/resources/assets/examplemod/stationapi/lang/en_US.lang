@@ -1,2 +1,0 @@
-# @ is a shorthand for the current mod id, which is examplemod. E.g: tile.@.redclay.name
-tile.@.foo_block.name=Foo Block
