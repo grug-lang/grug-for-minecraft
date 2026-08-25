@@ -156,6 +156,16 @@ public final class Grug {
                 continue;
             }
 
+            // Un-hide the block in AMI
+            // if
+            // (com.example.examplemod.examplemod.compat.ami.ExampleModAmiPlugin.amiHelpers
+            // != null) {
+            // com.example.examplemod.examplemod.compat.ami.ExampleModAmiPlugin.amiHelpers
+            // .getItemBlacklist()
+            // .removeItemFromBlacklist(new net.minecraft.item.ItemStack(dynamicBlock, 1,
+            // -1));
+            // }
+
             // Bind the script IDs to the block
             dynamicBlock.blockFileId = blockFileId;
             dynamicBlock.entityFileId = entityFileId;

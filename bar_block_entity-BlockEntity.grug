@@ -1,0 +1,43 @@
+# Spawn the diamond 2 blocks above this block
+pos: BlockPos = get_block_pos_of_block_entity(me).above_n(2)
+# pos: BlockPos = me.block_pos().above_n(2) # TODO: Use this once it is supported: https://github.com/grug-lang/grug-tests/issues/150
+
+# The dimension, so overworld/nether/end
+level: Level = get_block_entity_level(me)
+# level: Level = me.level() # TODO: Use this once it is supported: https://github.com/grug-lang/grug-tests/issues/150
+
+# Gets the full name, so "minecraft:diamond"
+resource_location: ResourceLocation = resource_location("gold_ingot")
+
+# Create a diamond item
+item: Item = item(resource_location)
+
+# The coordinates where the diamond is spawned
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# How often on_tick() has been called
+tick: number = 0
+
+export tick() {
+    # Spawn a diamond every 10 game ticks (0.5 seconds)
+    tick = tick + 1
+    if tick != 10 {
+        return
+    }
+    tick = 0
+
+    # Create a diamond item stack
+    item_stack: ItemStack = item_stack(item)
+
+    # Create a diamond item entity
+    item_entity: ItemEntity = item_entity(level, x, y, z, item_stack)
+
+    # Remove the random velocity that spawned items are given
+    item_entity.entity().set_delta_movement(vec3_zero())
+
+    # Spawn the diamond
+    item_entity.entity().spawn(level)
+}

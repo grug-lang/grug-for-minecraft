@@ -9,6 +9,8 @@ import net.minecraft.nbt.NbtCompound;
 import net.modificationstation.stationapi.api.util.Identifier;
 
 public class ExampleModAmiPlugin implements ModPluginProvider {
+    public static AMIHelpers amiHelpers;
+
     @Override
     public String getName() {
         return "Example Mod";
@@ -21,6 +23,8 @@ public class ExampleModAmiPlugin implements ModPluginProvider {
 
     @Override
     public void onAMIHelpersAvailable(AMIHelpers amiHelpers) {
+        InitListener.LOGGER.info("AMI onAMIHelpersAvailable called!"); // TODO: Remove!
+        ExampleModAmiPlugin.amiHelpers = amiHelpers;
     }
 
     @Override
@@ -42,9 +46,18 @@ public class ExampleModAmiPlugin implements ModPluginProvider {
 
     @Override
     public void updateBlacklist(AMIHelpers amiHelpers) {
-        // Hide all dynamically pre-allocated blocks that are currently unused
-        for (GrugBlock block : Grug.availableDynamicBlocks) {
-            amiHelpers.getItemBlacklist().addItemToBlacklist(new ItemStack(block));
-        }
+        InitListener.LOGGER.info("AMI in updateBlacklist"); // TODO: Remove!
+
+        // Expose helpers globally
+        ExampleModAmiPlugin.amiHelpers = amiHelpers;
+
+        // // Hide all dynamically pre-allocated blocks using the -1 wildcard
+        // for (GrugBlock block : Grug.availableDynamicBlocks) {
+        // InitListener.LOGGER.info("AMI in updateBlacklist with block '{}'",
+        // block.identifier); // TODO: Remove!
+
+        // amiHelpers.getItemBlacklist().addItemToBlacklist(new ItemStack(block, 1,
+        // -1));
+        // }
     }
 }

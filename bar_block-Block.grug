@@ -1,0 +1,8 @@
+export init() {
+    add_lang(r"en_US2.lang")
+    set_blockstate(r"blockstates/bar_block.json")
+    set_block_model(r"models/block/bar_block.json")
+    set_item_model(r"models/item/bar_block.json")
+    set_texture(r"textures/bar_block.png")
+    give_local_player_item("examplemod:bar_block")
+}
