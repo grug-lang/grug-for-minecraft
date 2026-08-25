@@ -1,5 +1,8 @@
 package com.example.examplemod.examplemod.resource;
 
+import com.example.examplemod.examplemod.grug.Grug;
+import com.example.examplemod.examplemod.grug.GrugBlockData;
+import net.fabricmc.loader.api.FabricLoader;
 import net.modificationstation.stationapi.api.resource.InputSupplier;
 import net.modificationstation.stationapi.api.resource.ResourcePack;
 import net.modificationstation.stationapi.api.resource.ResourceType;
@@ -8,9 +11,12 @@ import net.modificationstation.stationapi.api.util.Namespace;
 import net.modificationstation.stationapi.impl.resource.AbstractFileResourcePack;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
+import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Set;
 
 public class GrugResourcePack extends AbstractFileResourcePack {
@@ -21,7 +27,12 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
     @Override
     public Set<Namespace> getNamespaces(ResourceType type) {
-        return Collections.singleton(Namespace.of("examplemod"));
+        // Dynamically claim the namespace of every discovered Grug mod
+        Set<Namespace> namespaces = new HashSet<>();
+        for (Identifier id : Grug.declaredBlocks.keySet()) {
+            namespaces.add(id.getNamespace());
+        }
+        return namespaces;
     }
 
     @Override
@@ -31,48 +42,88 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
     @Override
     public InputSupplier<InputStream> open(ResourceType type, Identifier id) {
-        System.out.println("[GrugPack] open() called with ID: " + id);
-        if (id != null && id.getPath().contains("my_dynamic_block")) {
-            System.out.println("BINGO! StationAPI asked for our dynamic asset: " + id);
+        String path = id.getPath();
+        Namespace namespace = id.getNamespace();
 
-            String dummyJson = "{}";
-            if (id.getPath().contains("blockstates")) {
-                dummyJson = "{ \"variants\": { \"\": { \"model\": \"examplemod:block/my_dynamic_block\" } } }";
-            } else if (id.getPath().contains("models")) {
-                dummyJson = "{ \"parent\": \"block/cube_all\", \"textures\": { \"all\": \"examplemod:block/foo_block\" } }";
+        // Synthesize the Lang file (aggregates all blocks for this namespace)
+        if (path.equals("stationapi/lang/en_US.lang")) {
+            StringBuilder langFile = new StringBuilder();
+            for (GrugBlockData block : Grug.declaredBlocks.values()) {
+                if (block.id.getNamespace().equals(namespace) && block.displayName != null) {
+                    langFile.append("tile.").append(block.id.getNamespace()).append(".").append(block.id.getPath())
+                            .append(".name=").append(block.displayName).append("\n");
+                }
             }
-
-            final String finalJson = dummyJson;
-            return () -> new ByteArrayInputStream(finalJson.getBytes(StandardCharsets.UTF_8));
+            return () -> new ByteArrayInputStream(langFile.toString().getBytes(StandardCharsets.UTF_8));
         }
+
+        // Synthesize Block/Item assets dynamically
+        for (GrugBlockData block : Grug.declaredBlocks.values()) {
+            if (!block.id.getNamespace().equals(namespace))
+                continue;
+
+            String blockPath = block.id.getPath();
+
+            if (path.equals("stationapi/blockstates/" + blockPath + ".json")) {
+                String json = "{ \"variants\": { \"\": { \"model\": \"" + namespace + ":block/" + blockPath
+                        + "\" } } }";
+                return () -> new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+            } else if (path.equals("stationapi/models/block/" + blockPath + ".json")) {
+                String json = "{ \"parent\": \"block/cube_all\", \"textures\": { \"all\": \"" + namespace + ":block/"
+                        + blockPath + "\" } }";
+                return () -> new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+            } else if (path.equals("stationapi/models/item/" + blockPath + ".json")) {
+                String json = "{ \"parent\": \"" + namespace + ":block/" + blockPath + "\" }";
+                return () -> new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+            } else if (path.equals("stationapi/textures/block/" + blockPath + ".png")) {
+                if (block.texturePath != null) {
+                    Path grugModsDir = FabricLoader.getInstance().getGameDir().resolve("grug_mods");
+                    File textureFile = grugModsDir.resolve(block.texturePath).toFile();
+                    if (textureFile.exists()) {
+                        return () -> {
+                            try {
+                                return new FileInputStream(textureFile);
+                            } catch (Exception e) {
+                                return null;
+                            }
+                        };
+                    }
+                }
+            }
+        }
+
         return null;
     }
 
     @Override
     public void findResources(ResourceType type, Namespace namespace, String prefix,
             ResourcePack.ResultConsumer consumer) {
-        try {
-            if (namespace.toString().equals("examplemod")) {
-                System.out.println("[GrugPack] findResources namespace match! Prefix: " + prefix);
+        // Expose our synthesized lang file
+        if (prefix.equals("stationapi/lang")) {
+            Identifier targetId = Identifier.of(namespace, "stationapi/lang/en_US.lang");
+            consumer.accept(targetId, this.open(type, targetId));
+        }
 
-                if (prefix.equals("stationapi/blockstates")) {
-                    System.out.println("[GrugPack] Processing blockstates");
-                    Identifier targetId = Identifier.of(namespace, "stationapi/blockstates/my_dynamic_block.json");
-                    System.out.println("[GrugPack] Created ID: " + targetId);
-                    consumer.accept(targetId, this.open(type, targetId));
-                    System.out.println("[GrugPack] Successfully fed blockstate to consumer");
-                } else if (prefix.equals("stationapi/models")) {
-                    System.out.println("[GrugPack] Processing models");
-                    Identifier blockModelId = Identifier.of(namespace, "stationapi/models/block/my_dynamic_block.json");
-                    consumer.accept(blockModelId, this.open(type, blockModelId));
-                    Identifier itemModelId = Identifier.of(namespace, "stationapi/models/item/my_dynamic_block.json");
-                    consumer.accept(itemModelId, this.open(type, itemModelId));
-                    System.out.println("[GrugPack] Successfully fed models to consumer");
-                }
+        // Expose the synthesized block assets
+        for (GrugBlockData block : Grug.declaredBlocks.values()) {
+            if (!block.id.getNamespace().equals(namespace))
+                continue;
+
+            String blockPath = block.id.getPath();
+
+            if (prefix.equals("stationapi/blockstates")) {
+                Identifier targetId = Identifier.of(namespace, "stationapi/blockstates/" + blockPath + ".json");
+                consumer.accept(targetId, this.open(type, targetId));
+            } else if (prefix.equals("stationapi/models")) {
+                Identifier blockModelId = Identifier.of(namespace, "stationapi/models/block/" + blockPath + ".json");
+                consumer.accept(blockModelId, this.open(type, blockModelId));
+
+                Identifier itemModelId = Identifier.of(namespace, "stationapi/models/item/" + blockPath + ".json");
+                consumer.accept(itemModelId, this.open(type, itemModelId));
+            } else if (prefix.equals("stationapi/textures/block")) {
+                Identifier targetId = Identifier.of(namespace, "stationapi/textures/block/" + blockPath + ".png");
+                consumer.accept(targetId, this.open(type, targetId));
             }
-        } catch (Throwable t) {
-            System.out.println("[GrugPack] THROWABLE CAUGHT in findResources:");
-            t.printStackTrace();
         }
     }
 
