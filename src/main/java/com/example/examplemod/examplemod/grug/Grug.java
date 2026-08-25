@@ -76,9 +76,9 @@ public final class Grug {
         return nativeCompileAllFiles(statePtr);
     }
 
-    public static void update(Consumer<String> onError) {
+    public static String[] update(Consumer<String> onError) {
         if (statePtr == 0)
-            return;
+            return new String[0];
 
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
 
@@ -94,6 +94,8 @@ public final class Grug {
                 fileIds.put(file.path(), file.fileId());
             }
         }
+
+        return nativeGetUpdatedResources(statePtr);
     }
 
     public static long addEntity(GrugEntityType type, Object object) {
@@ -152,4 +154,6 @@ public final class Grug {
     private static native boolean nativeCallExportFn(long statePtr, long entityHandle, long exportFnId);
 
     private static native void nativeDestroyEntity(long statePtr, long entityHandle);
+
+    private static native String[] nativeGetUpdatedResources(long statePtr);
 }

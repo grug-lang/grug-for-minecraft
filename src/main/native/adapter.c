@@ -249,3 +249,21 @@ Java_com_example_examplemod_examplemod_grug_Grug_nativeUpdate(JNIEnv *env, jclas
     }
     return array;
 }
+
+struct grug_str_slice { char** ptr; size_t len; };
+
+extern struct grug_str_slice grug_get_updated_resources(void* state);
+
+JNIEXPORT jobjectArray JNICALL
+Java_com_example_examplemod_examplemod_grug_Grug_nativeGetUpdatedResources(JNIEnv *env, jclass clazz, jlong statePtr) {
+    struct grug_str_slice resources = grug_get_updated_resources((void*)(intptr_t)statePtr);
+    jclass stringClass = (*env)->FindClass(env, "java/lang/String");
+    jobjectArray array = (*env)->NewObjectArray(env, resources.len, stringClass, NULL);
+
+    for (size_t i = 0; i < resources.len; i++) {
+        jstring str = (*env)->NewStringUTF(env, resources.ptr[i]);
+        (*env)->SetObjectArrayElement(env, array, i, str);
+        (*env)->DeleteLocalRef(env, str);
+    }
+    return array;
+}

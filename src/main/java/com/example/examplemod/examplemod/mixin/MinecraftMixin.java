@@ -1,9 +1,12 @@
 package com.example.examplemod.examplemod.mixin;
 
+import com.example.examplemod.examplemod.events.init.InitListener;
 import com.example.examplemod.examplemod.grug.GameFunctions;
 import com.example.examplemod.examplemod.grug.Grug;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.ClientPlayerEntity;
+import net.modificationstation.stationapi.api.StationAPI;
+import net.modificationstation.stationapi.api.client.event.resource.AssetsReloadEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,8 +21,15 @@ public class MinecraftMixin {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
-        // Handle compilation / hot-reload errors
-        Grug.update(this::sendRedMessage);
+        // Handle compilation / hot-reload errors, and reload assets if a
+        // resource referenced by a grug script (e.g. via set_texture) changed
+        String[] updatedResources = Grug.update(this::sendRedMessage);
+        for (String resource : updatedResources) {
+            InitListener.LOGGER.info("Reloading changed resource: {}", resource);
+        }
+        if (updatedResources.length > 0) {
+            StationAPI.EVENT_BUS.post(AssetsReloadEvent.builder().build());
+        }
 
         // Handle runtime errors triggered by grug-rs
         if (this.player != null) {
