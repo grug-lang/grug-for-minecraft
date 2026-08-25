@@ -23,7 +23,7 @@ def grug_type_name(type_field):
 def jni_descriptor(type_name):
     if type_name == "number":
         return "D"
-    if type_name == "string":
+    if type_name in ("string", "resource", "entity"):
         return "Ljava/lang/String;"
     if type_name == "bool":
         return "Z"
@@ -33,7 +33,7 @@ def jni_descriptor(type_name):
 def value_union_field(type_name):
     if type_name == "number":
         return "_number"
-    if type_name == "string":
+    if type_name in ("string", "resource", "entity"):
         return "_string"
     if type_name == "bool":
         return "_bool"
@@ -51,7 +51,7 @@ def jni_call_suffix(type_name):
 def c_arg_expr(type_name, index):
     if type_name == "number":
         return f"(jdouble)args[{index}]._number"
-    if type_name == "string":
+    if type_name in ("string", "resource", "entity"):
         return f"arg_str_{index}"
     if type_name == "bool":
         return f"(jboolean)args[{index}]._bool"
@@ -73,7 +73,9 @@ def gen_wrapper(java_name, param_types, return_type):
         "    JNIEnv* env; FILL_ENV(env);",
     ]
 
-    string_indices = [i for i, t in enumerate(param_types) if t == "string"]
+    string_indices = [
+        i for i, t in enumerate(param_types) if t in ("string", "resource", "entity")
+    ]
     for i in string_indices:
         lines.append(
             f"    jstring arg_str_{i} = (*env)->NewStringUTF(env, args[{i}]._string);"
@@ -88,7 +90,7 @@ def gen_wrapper(java_name, param_types, return_type):
         lines.append(f"    (*env)->CallStaticVoidMethod({full_args});")
         lines.append("    CHECK(env);")
         result_expr = "(union grug_value){0}"
-    elif return_type == "string":
+    elif return_type in ("string", "resource", "entity"):
         lines.append(
             f"    jstring res = (jstring)(*env)->CallStaticObjectMethod({full_args});"
         )

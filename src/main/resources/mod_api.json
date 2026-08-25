@@ -1,7 +1,13 @@
 {
 	"entities": {
 		"Block": {
-			"description": "A block."
+			"description": "A block.",
+			"export_functions": [
+				{
+					"name": "init",
+					"description": "Called once at registration time to declare the block's assets."
+				}
+			]
 		},
 		"BlockEntity": {
 			"description": "A block entity.",
@@ -206,6 +212,29 @@
 					"name": "resource_location_string",
 					"type": {
 						"name": "string"
+					}
+				}
+			]
+		},
+		"set_display_name": {
+			"description": "Declares the block's translated display name. Java generates the lang entry.",
+			"parameters": [
+				{
+					"name": "name",
+					"type": {
+						"name": "string"
+					}
+				}
+			]
+		},
+		"set_texture": {
+			"description": "Declares the block's (and its item's) texture. Java generates the standard blockstate and cube_all model referencing it.",
+			"parameters": [
+				{
+					"name": "texture_path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ""
 					}
 				}
 			]

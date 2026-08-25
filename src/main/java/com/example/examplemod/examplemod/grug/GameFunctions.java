@@ -109,6 +109,16 @@ public class GameFunctions {
         world.spawnEntity(entity);
     }
 
+    public static void set_texture(String texturePath) {
+        // TODO: Implement the actual JSON synthesis
+        System.out.println("Grug called set_texture: " + texturePath);
+    }
+
+    public static void set_display_name(String name) {
+        // TODO: Implement the actual lang entry synthesis
+        System.out.println("Grug called set_display_name: " + name);
+    }
+
     public static long vec3(double x, double y, double z) {
         return Grug.addEntity(GrugEntityType.Vec3, new Vec3(x, y, z));
     }
