@@ -38,10 +38,11 @@ public class MinecraftMixin {
         String[] lines = text.split("\n");
         for (String line : lines) {
             // Break long lines into chunks of ~50 characters so the color code is preserved
-            while (line.length() > 50) {
-                int splitIndex = line.lastIndexOf(' ', 50);
+            int maxLength = 50;
+            while (line.length() > maxLength) {
+                int splitIndex = line.lastIndexOf(' ', maxLength);
                 if (splitIndex == -1) {
-                    splitIndex = 50; // Force split mid-word if there are no spaces (like long file paths)
+                    splitIndex = maxLength; // Force split mid-word if there are no spaces (like long file paths)
                 }
                 this.player.sendMessage("\u00A7c" + line.substring(0, splitIndex));
                 line = line.substring(splitIndex).trim(); // Remove leading space for the next line
