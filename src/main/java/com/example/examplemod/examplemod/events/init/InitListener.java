@@ -116,6 +116,9 @@ public class InitListener {
     private static void registerBlocks(BlockRegistryEvent event) {
         fooBlock = new FooBlock(NAMESPACE.id("foo_block"))
                 .setTranslationKey(NAMESPACE, "foo_block");
+
+        // Dummy block to trigger the asset fetcher
+        new FooBlock(NAMESPACE.id("my_dynamic_block")).setTranslationKey(NAMESPACE, "my_dynamic_block");
     }
 
     @EventListener

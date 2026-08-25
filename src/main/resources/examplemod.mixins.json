@@ -8,7 +8,8 @@
   ],
   "server": [],
   "client": [
-    "MinecraftMixin"
+    "MinecraftMixin",
+    "ResourcePackManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
