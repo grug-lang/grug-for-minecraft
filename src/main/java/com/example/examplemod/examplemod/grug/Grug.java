@@ -33,6 +33,8 @@ public final class Grug {
     public static final List<GrugObject> globalFnEntities = new ArrayList<>();
     public static List<GrugObject> fnEntities = globalFnEntities;
 
+    public static final Map<String, Long> entityFileIdsByName = new HashMap<>();
+
     static {
         for (GrugEntityType type : GrugEntityType.values()) {
             nextEntityIndices.put(type, 0);
@@ -82,7 +84,7 @@ public final class Grug {
             return new String[0];
 
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
-        List<String> reloadTriggers = new ArrayList<>(); // Track both resources and scripts
+        List<String> reloadTriggers = new ArrayList<>();
 
         for (FileInfo file : updatedFiles) {
             if (file.fileId() == INVALID_GRUG_FILE_ID) {
@@ -92,39 +94,48 @@ public final class Grug {
                     onError.accept(errorMsg);
                 }
             } else {
-                InitListener.LOGGER.info("Successfully hot-reloaded {} with file ID {}", file.path(), file.fileId());
+                boolean isNew = !fileIds.containsKey(file.path());
                 fileIds.put(file.path(), file.fileId());
 
-                // If this script belongs to a block, re-run its init()
-                GrugBlockData blockData = blockDataByFileId.get(file.fileId());
-                if (blockData != null) {
-                    // Clear old paths so deleted lines in the script take effect
-                    blockData.texturePath = null;
-                    blockData.blockstatePath = null;
-                    blockData.blockModelPath = null;
-                    blockData.itemModelPath = null;
-                    blockData.langPaths.clear();
+                // Maintain the dynamic entity linking map
+                if ("BlockEntity".equals(file.entityType())) {
+                    String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
+                            : file.entityName();
+                    entityFileIdsByName.put(cleanName, file.fileId());
+                }
 
-                    currentlyInitializingBlock = blockData;
-                    long tempEntityHandle = createEntity(file.fileId());
-                    long initFnId = getExportFnId("Block", "init");
+                if (!isNew) {
+                    InitListener.LOGGER.info("Successfully hot-reloaded {} with file ID {}", file.path(),
+                            file.fileId());
 
-                    if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
-                        callExportFn(tempEntityHandle, initFnId);
+                    GrugBlockData blockData = blockDataByFileId.get(file.fileId());
+                    if (blockData != null) {
+                        blockData.texturePath = null;
+                        blockData.blockstatePath = null;
+                        blockData.blockModelPath = null;
+                        blockData.itemModelPath = null;
+                        blockData.langPaths.clear();
+                        blockData.blockEntityString = null;
+
+                        currentlyInitializingBlock = blockData;
+                        long tempEntityHandle = createEntity(file.fileId());
+                        long initFnId = getExportFnId("Block", "init");
+
+                        if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
+                            callExportFn(tempEntityHandle, initFnId);
+                        }
+
+                        if (tempEntityHandle != 0) {
+                            destroyEntity(tempEntityHandle);
+                        }
+                        currentlyInitializingBlock = null;
+
+                        reloadTriggers.add(file.path());
                     }
-
-                    if (tempEntityHandle != 0) {
-                        destroyEntity(tempEntityHandle);
-                    }
-                    currentlyInitializingBlock = null;
-
-                    // Flag this script's path as a trigger for a StationAPI asset reload
-                    reloadTriggers.add(file.path());
                 }
             }
         }
 
-        // Add any natively detected resources (like .png or .json files)
         for (String resource : nativeGetUpdatedResources(statePtr)) {
             reloadTriggers.add(resource);
         }

@@ -115,6 +115,12 @@ public class GameFunctions {
         }
     }
 
+    public static void set_block_entity(String entityString) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.blockEntityString = entityString;
+        }
+    }
+
     public static void set_blockstate(String path) {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.blockstatePath = path;

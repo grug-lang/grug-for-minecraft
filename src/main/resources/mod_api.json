@@ -216,6 +216,18 @@
 				}
 			]
 		},
+		"set_block_entity": {
+			"description": "Declares the block entity script used by this block.",
+			"parameters": [
+				{
+					"name": "entity_string",
+					"type": {
+						"name": "entity",
+						"entity_type": "BlockEntity"
+					}
+				}
+			]
+		},
 		"set_blockstate": {
 			"description": "Declares the block's blockstate JSON file.",
 			"parameters": [

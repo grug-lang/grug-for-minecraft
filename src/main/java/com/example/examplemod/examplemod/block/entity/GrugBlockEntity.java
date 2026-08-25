@@ -23,7 +23,8 @@ public class GrugBlockEntity extends BlockEntity {
         if (!(block instanceof GrugBlock))
             return;
 
-        long fileId = ((GrugBlock) block).entityFileId;
+        long fileId = ((GrugBlock) block).getEntityFileId();
+
         if (fileId == Grug.INVALID_GRUG_FILE_ID)
             return;
 

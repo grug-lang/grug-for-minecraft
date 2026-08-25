@@ -4,4 +4,6 @@ export init() {
     set_block_model(r"models/block/foo_block.json")
     set_item_model(r"models/item/foo_block.json")
     set_texture(r"textures/foo_block.png")
+
+    set_block_entity(e"foo_block_entity")
 }

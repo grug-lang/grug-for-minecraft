@@ -62,10 +62,7 @@ public class InitListener {
 
             FileInfo[] files = Grug.compileAllFiles();
 
-            // Group blocks and their companion entities by their clean name (e.g.
-            // "foo_block")
             Map<String, Long> blockFiles = new HashMap<>();
-            Map<String, Long> entityFiles = new HashMap<>();
             Map<String, String> blockMods = new HashMap<>();
 
             for (FileInfo file : files) {
@@ -83,9 +80,7 @@ public class InitListener {
                     blockFiles.put(cleanName, file.fileId());
                     blockMods.put(cleanName, file.modName());
                 } else if ("BlockEntity".equals(file.entityType())) {
-                    String baseName = cleanName.endsWith("_entity") ? cleanName.substring(0, cleanName.length() - 7)
-                            : cleanName;
-                    entityFiles.put(baseName, file.fileId());
+                    Grug.entityFileIdsByName.put(cleanName, file.fileId());
                 }
             }
 
@@ -97,7 +92,6 @@ public class InitListener {
                 String modName = blockMods.get(cleanName);
 
                 long blockFileId = entry.getValue();
-                long entityFileId = entityFiles.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
 
                 GrugBlockData blockData = new GrugBlockData(blockId);
                 Grug.currentlyInitializingBlock = blockData;
@@ -117,7 +111,7 @@ public class InitListener {
                 Grug.blockDataByFileId.put(blockFileId, blockData);
                 Grug.currentlyInitializingBlock = null;
 
-                new GrugBlock(blockId, blockFileId, entityFileId).setTranslationKey(blockId.namespace, blockId.path);
+                new GrugBlock(blockId, blockFileId).setTranslationKey(blockId.namespace, blockId.path);
                 LOGGER.info("Registered Generic Grug Block: " + blockId + " (Grug Mod: " + modName + ")");
             }
         } catch (Exception e) {
