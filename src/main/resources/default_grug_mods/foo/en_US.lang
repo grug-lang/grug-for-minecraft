@@ -1,1 +1,2 @@
-tile.examplemod.foo_block.name=My Custom Foo Block
+tile.examplemod.foo_block.name=Foo Block
+tile.examplemod.bar_block.name=Bar Block

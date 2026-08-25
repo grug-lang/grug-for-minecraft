@@ -136,6 +136,17 @@
 				}
 			]
 		},
+		"give_local_player_item": {
+			"description": "Gives 64 of the specified item to the local player by dropping it at their feet.",
+			"parameters": [
+				{
+					"name": "item",
+					"type": {
+						"name": "string"
+					}
+				}
+			]
+		},
 		"item": {
 			"description": "Creates a new item.",
 			"return_type": {

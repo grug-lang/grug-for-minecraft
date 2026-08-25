@@ -17,6 +17,8 @@ public class GameFunctions {
 
     public static final Queue<String> runtimeErrorQueue = new ArrayDeque<>();
 
+    public static final Queue<String> giveItemQueue = new ArrayDeque<>(); // TODO: Remove
+
     public static void onRuntimeError(String reason) {
         InitListener.LOGGER.error(reason);
         synchronized (runtimeErrorQueue) {
@@ -66,6 +68,12 @@ public class GameFunctions {
 
     public static double Vec3_z(long vec3Id) {
         return ((Vec3) Grug.entityData.get(vec3Id).object).z();
+    }
+
+    public static void give_local_player_item(String resourceLocationString) { // TODO: Remove
+        synchronized (giveItemQueue) {
+            giveItemQueue.add(resourceLocationString);
+        }
     }
 
     public static long item(long resourceLocationId) {

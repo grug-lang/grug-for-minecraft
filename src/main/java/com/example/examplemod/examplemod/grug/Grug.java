@@ -33,6 +33,9 @@ public final class Grug {
     public static final List<GrugObject> globalFnEntities = new ArrayList<>();
     public static List<GrugObject> fnEntities = globalFnEntities;
 
+    public static final java.util.Queue<com.example.examplemod.examplemod.block.GrugBlock> availableDynamicBlocks = new java.util.ArrayDeque<>();
+    public static final Map<String, net.modificationstation.stationapi.api.util.Identifier> grugNameToId = new HashMap<>();
+
     static {
         for (GrugEntityType type : GrugEntityType.values()) {
             nextEntityIndices.put(type, 0);
@@ -82,8 +85,12 @@ public final class Grug {
             return new String[0];
 
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
-        List<String> reloadTriggers = new ArrayList<>(); // Track both resources and scripts
+        List<String> reloadTriggers = new ArrayList<>();
 
+        Map<String, Long> newBlockFiles = new HashMap<>();
+        Map<String, Long> newEntityFiles = new HashMap<>();
+
+        // First pass: Hot-reload existing files, and categorize newly discovered files
         for (FileInfo file : updatedFiles) {
             if (file.fileId() == INVALID_GRUG_FILE_ID) {
                 String errorMsg = "Failed to hot-reload " + file.fileName() + ":\n" + file.errorString();
@@ -92,39 +99,97 @@ public final class Grug {
                     onError.accept(errorMsg);
                 }
             } else {
-                InitListener.LOGGER.info("Successfully hot-reloaded {} with file ID {}", file.path(), file.fileId());
+                boolean isNew = !fileIds.containsKey(file.path());
                 fileIds.put(file.path(), file.fileId());
 
-                // If this script belongs to a block, re-run its init()
-                GrugBlockData blockData = blockDataByFileId.get(file.fileId());
-                if (blockData != null) {
-                    // Clear old paths so deleted lines in the script take effect
-                    blockData.texturePath = null;
-                    blockData.blockstatePath = null;
-                    blockData.blockModelPath = null;
-                    blockData.itemModelPath = null;
-                    blockData.langPaths.clear();
+                if (isNew) {
+                    // Extract the clean name (e.g., "foo_block" from "foo_block-Block.grug")
+                    String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
+                            : file.entityName();
 
-                    currentlyInitializingBlock = blockData;
-                    long tempEntityHandle = createEntity(file.fileId());
-                    long initFnId = getExportFnId("Block", "init");
-
-                    if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
-                        callExportFn(tempEntityHandle, initFnId);
+                    if ("Block".equals(file.entityType())) {
+                        newBlockFiles.put(cleanName, file.fileId());
+                    } else if ("BlockEntity".equals(file.entityType())) {
+                        newEntityFiles.put(cleanName, file.fileId());
                     }
+                } else {
+                    InitListener.LOGGER.info("Successfully hot-reloaded {} with file ID {}", file.path(),
+                            file.fileId());
 
-                    if (tempEntityHandle != 0) {
-                        destroyEntity(tempEntityHandle);
+                    // Existing hot-reload logic for declared blocks
+                    GrugBlockData blockData = blockDataByFileId.get(file.fileId());
+                    if (blockData != null) {
+                        blockData.texturePath = null;
+                        blockData.blockstatePath = null;
+                        blockData.blockModelPath = null;
+                        blockData.itemModelPath = null;
+                        blockData.langPaths.clear();
+
+                        currentlyInitializingBlock = blockData;
+                        long tempEntityHandle = createEntity(file.fileId());
+                        long initFnId = getExportFnId("Block", "init");
+
+                        if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
+                            callExportFn(tempEntityHandle, initFnId);
+                        }
+
+                        if (tempEntityHandle != 0) {
+                            destroyEntity(tempEntityHandle);
+                        }
+                        currentlyInitializingBlock = null;
+
+                        reloadTriggers.add(file.path());
                     }
-                    currentlyInitializingBlock = null;
-
-                    // Flag this script's path as a trigger for a StationAPI asset reload
-                    reloadTriggers.add(file.path());
                 }
             }
         }
 
-        // Add any natively detected resources (like .png or .json files)
+        // Second pass: Bind newly discovered files to pre-allocated blocks
+        for (Map.Entry<String, Long> entry : newBlockFiles.entrySet()) {
+            String cleanName = entry.getKey();
+            long blockFileId = entry.getValue();
+            long entityFileId = newEntityFiles.getOrDefault(cleanName, INVALID_GRUG_FILE_ID);
+
+            com.example.examplemod.examplemod.block.GrugBlock dynamicBlock = availableDynamicBlocks.poll();
+            if (dynamicBlock == null) {
+                InitListener.LOGGER.error("Out of dynamic blocks! Cannot register {}", cleanName);
+                continue;
+            }
+
+            // Bind the script IDs to the block
+            dynamicBlock.blockFileId = blockFileId;
+            dynamicBlock.entityFileId = entityFileId;
+
+            // Trick the localization system into using the grug name instead of the dynamic
+            // ID
+            dynamicBlock.setTranslationKey(InitListener.NAMESPACE, cleanName);
+
+            net.modificationstation.stationapi.api.util.Identifier blockId = dynamicBlock.identifier;
+            grugNameToId.put(cleanName, blockId); // E.g., Map "bar_block" to "dynamic_block_0"
+
+            GrugBlockData blockData = new GrugBlockData(blockId);
+            blockDataByFileId.put(blockFileId, blockData);
+            declaredBlocks.put(blockId, blockData);
+
+            currentlyInitializingBlock = blockData;
+            long tempEntityHandle = createEntity(blockFileId);
+            long initFnId = getExportFnId("Block", "init");
+
+            if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
+                callExportFn(tempEntityHandle, initFnId);
+            }
+
+            if (tempEntityHandle != 0) {
+                destroyEntity(tempEntityHandle);
+            }
+            currentlyInitializingBlock = null;
+
+            InitListener.LOGGER.info("Runtime bound {} to dynamic block: {}", cleanName, blockId);
+
+            reloadTriggers.add("new_block_" + cleanName);
+        }
+
+        // Add any natively detected resources (like .png or .lang files)
         for (String resource : nativeGetUpdatedResources(statePtr)) {
             reloadTriggers.add(resource);
         }

@@ -120,6 +120,14 @@ public class InitListener {
                 new GrugBlock(blockId, blockFileId, entityFileId).setTranslationKey(blockId.namespace, blockId.path);
                 LOGGER.info("Registered Generic Grug Block: " + blockId + " (Grug Mod: " + modName + ")");
             }
+
+            // Create blank blocks for runtime hot-swapping
+            for (int i = 0; i < 50; i++) {
+                Identifier dynId = Identifier.of(NAMESPACE, "dynamic_block_" + i);
+                GrugBlock dynBlock = new GrugBlock(dynId, Grug.INVALID_GRUG_FILE_ID, Grug.INVALID_GRUG_FILE_ID);
+                dynBlock.setTranslationKey(dynId.namespace, dynId.path);
+                Grug.availableDynamicBlocks.add(dynBlock);
+            }
         } catch (Exception e) {
             LOGGER.error("Failed to initialize grug-rs blocks", e);
         }

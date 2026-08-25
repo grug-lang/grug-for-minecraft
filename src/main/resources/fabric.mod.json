@@ -18,6 +18,9 @@
 
   "environment": "*",
   "entrypoints": {
+    "alwaysmoreitems:plugin": [
+      "com.example.examplemod.examplemod.compat.ami.ExampleModAmiPlugin"
+    ],
     "stationapi:event_bus": [
       "com.example.examplemod.examplemod.events.init.InitListener"
     ],

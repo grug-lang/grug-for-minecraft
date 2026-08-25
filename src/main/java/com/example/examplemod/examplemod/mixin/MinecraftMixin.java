@@ -52,6 +52,38 @@ public class MinecraftMixin {
                     sendRedMessage(GameFunctions.runtimeErrorQueue.poll());
                 }
             }
+
+            // Drop queued items at the player's feet
+            synchronized (GameFunctions.giveItemQueue) {
+                while (!GameFunctions.giveItemQueue.isEmpty()) {
+                    String resourceString = GameFunctions.giveItemQueue.poll();
+                    String[] parts = resourceString.split(":");
+
+                    // Map "examplemod:bar_block" -> "examplemod:dynamic_block_X"
+                    if (parts.length == 2 && Grug.grugNameToId.containsKey(parts[1])) {
+                        resourceString = Grug.grugNameToId.get(parts[1]).toString();
+                    }
+
+                    net.modificationstation.stationapi.api.util.Identifier id = net.modificationstation.stationapi.api.util.Identifier
+                            .of(resourceString);
+                    net.minecraft.item.Item item = net.modificationstation.stationapi.api.registry.ItemRegistry.INSTANCE
+                            .get(id);
+
+                    if (item != null) {
+                        net.minecraft.item.ItemStack stack = new net.minecraft.item.ItemStack(item, 64);
+                        net.minecraft.entity.ItemEntity itemEntity = new net.minecraft.entity.ItemEntity(
+                                this.player.world,
+                                (float) this.player.x,
+                                (float) this.player.y,
+                                (float) this.player.z,
+                                stack);
+                        this.player.world.spawnEntity(itemEntity);
+                        InitListener.LOGGER.info("Gave player 64x {}", resourceString);
+                    } else {
+                        sendRedMessage("Failed to give item: " + resourceString + " does not exist in the registry.");
+                    }
+                }
+            }
         }
     }
 
