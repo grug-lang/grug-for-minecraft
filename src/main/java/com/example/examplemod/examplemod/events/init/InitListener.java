@@ -114,6 +114,7 @@ public class InitListener {
                 }
 
                 Grug.declaredBlocks.put(blockId, blockData);
+                Grug.blockDataByFileId.put(blockFileId, blockData);
                 Grug.currentlyInitializingBlock = null;
 
                 new GrugBlock(blockId, blockFileId, entityFileId).setTranslationKey(blockId.namespace, blockId.path);

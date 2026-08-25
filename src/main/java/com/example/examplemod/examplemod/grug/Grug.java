@@ -28,6 +28,7 @@ public final class Grug {
     public static GrugBlockData currentlyInitializingBlock = null;
 
     public static final Map<net.modificationstation.stationapi.api.util.Identifier, GrugBlockData> declaredBlocks = new HashMap<>();
+    public static final Map<Long, GrugBlockData> blockDataByFileId = new HashMap<>();
 
     public static final List<GrugObject> globalFnEntities = new ArrayList<>();
     public static List<GrugObject> fnEntities = globalFnEntities;
@@ -81,6 +82,7 @@ public final class Grug {
             return new String[0];
 
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
+        List<String> reloadTriggers = new ArrayList<>(); // Track both resources and scripts
 
         for (FileInfo file : updatedFiles) {
             if (file.fileId() == INVALID_GRUG_FILE_ID) {
@@ -92,10 +94,42 @@ public final class Grug {
             } else {
                 InitListener.LOGGER.info("Successfully hot-reloaded {} with file ID {}", file.path(), file.fileId());
                 fileIds.put(file.path(), file.fileId());
+
+                // If this script belongs to a block, re-run its init()
+                GrugBlockData blockData = blockDataByFileId.get(file.fileId());
+                if (blockData != null) {
+                    // Clear old paths so deleted lines in the script take effect
+                    blockData.texturePath = null;
+                    blockData.blockstatePath = null;
+                    blockData.blockModelPath = null;
+                    blockData.itemModelPath = null;
+                    blockData.langPaths.clear();
+
+                    currentlyInitializingBlock = blockData;
+                    long tempEntityHandle = createEntity(file.fileId());
+                    long initFnId = getExportFnId("Block", "init");
+
+                    if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
+                        callExportFn(tempEntityHandle, initFnId);
+                    }
+
+                    if (tempEntityHandle != 0) {
+                        destroyEntity(tempEntityHandle);
+                    }
+                    currentlyInitializingBlock = null;
+
+                    // Flag this script's path as a trigger for a StationAPI asset reload
+                    reloadTriggers.add(file.path());
+                }
             }
         }
 
-        return nativeGetUpdatedResources(statePtr);
+        // Add any natively detected resources (like .png or .json files)
+        for (String resource : nativeGetUpdatedResources(statePtr)) {
+            reloadTriggers.add(resource);
+        }
+
+        return reloadTriggers.toArray(new String[0]);
     }
 
     public static long addEntity(GrugEntityType type, Object object) {
