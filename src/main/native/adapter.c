@@ -46,12 +46,14 @@ struct grug_backend {
 
 struct grug_init_settings {
     const char* mod_api_path;
+    size_t mod_api_path_len;
     const char* mods_dir_path;
+    size_t mods_dir_path_len;
     struct grug_runtime_error_handler runtime_error_handler;
     struct grug_backend backend;
 };
 
-extern void* grug_init(const struct grug_init_settings* settings, struct grug_error* out_error);
+extern void* grug_init(struct grug_init_settings settings, struct grug_error* out_error);
 extern struct grug_init_settings grug_default_settings(void);
 extern struct grug_error* grug_all_host_fns_registered(void* state);
 extern struct grug_files_slice grug_compile_all_files(void* state);
@@ -108,21 +110,23 @@ JNIEXPORT jlong JNICALL
 Java_com_example_examplemod_examplemod_grug_Grug_nativeInit(JNIEnv *env, jclass clazz, jstring modApiPath, jstring modsDirPath) {
     const char *c_modApiPath = (*env)->GetStringUTFChars(env, modApiPath, NULL);
     const char *c_modsDirPath = (*env)->GetStringUTFChars(env, modsDirPath, NULL);
-    char *safe_modApiPath = strdup(c_modApiPath);
-    char *safe_modsDirPath = strdup(c_modsDirPath);
-    (*env)->ReleaseStringUTFChars(env, modApiPath, c_modApiPath);
-    (*env)->ReleaseStringUTFChars(env, modsDirPath, c_modsDirPath);
 
     struct grug_init_settings settings = grug_default_settings();
-    settings.mod_api_path = safe_modApiPath;
-    settings.mods_dir_path = safe_modsDirPath;
+    settings.mod_api_path = c_modApiPath;
+    settings.mod_api_path_len = strlen(c_modApiPath);
+    settings.mods_dir_path = c_modsDirPath;
+    settings.mods_dir_path_len = strlen(c_modsDirPath);
     settings.runtime_error_handler.user_data = NULL;
     settings.runtime_error_handler.drop_fn = NULL;
     settings.runtime_error_handler.handler_fn = runtime_error_callback;
 
     struct grug_error error;
     memset(&error, 0, sizeof(error));
-    void *state = grug_init(&settings, &error);
+    
+    void *state = grug_init(settings, &error);
+
+    (*env)->ReleaseStringUTFChars(env, modApiPath, c_modApiPath);
+    (*env)->ReleaseStringUTFChars(env, modsDirPath, c_modsDirPath);
 
     if (!state) {
         jclass exceptionClass = (*env)->FindClass(env, "java/lang/RuntimeException");
