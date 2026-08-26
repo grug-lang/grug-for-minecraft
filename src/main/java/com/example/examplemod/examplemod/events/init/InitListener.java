@@ -41,24 +41,46 @@ public class InitListener {
         LOGGER.info(NAMESPACE.toString());
     }
 
+    public static File getActiveGrugModsDir() {
+        File gameDir = FabricLoader.getInstance().getGameDir().toFile();
+
+        if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+            File devGrugDir = new File(gameDir, "../src/main/resources/default_grug_mods");
+            if (devGrugDir.exists() && devGrugDir.isDirectory()) {
+                return devGrugDir;
+            }
+        }
+        return new File(gameDir, "grug_mods");
+    }
+
     @EventListener
     private static void registerBlocks(BlockRegistryEvent event) {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
-        File grugDir = new File(gameDir, "grug_mods");
+        File runGrugDir = new File(gameDir, "grug_mods");
 
-        if (!grugDir.exists())
-            grugDir.mkdirs();
+        if (!runGrugDir.exists())
+            runGrugDir.mkdirs();
 
-        File modApiJson = new File(grugDir, "mod_api.json");
+        File modApiJson = new File(runGrugDir, "mod_api.json");
+
+        File activeGrugDir = getActiveGrugModsDir();
 
         try {
+            if (!activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
+                LOGGER.info("Dev mode detected: Pointing grug-rs directly to " + activeGrugDir.getCanonicalPath());
+            }
+
             try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
                 if (in != null)
                     Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
 
-            extractDefaultGrugMods(grugDir.toPath());
-            Grug.init(modApiJson, grugDir);
+            // Only extract if we are actually using the standard run folder
+            if (activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
+                extractDefaultGrugMods(runGrugDir.toPath());
+            }
+
+            Grug.init(modApiJson, activeGrugDir);
 
             FileInfo[] files = Grug.compileAllFiles();
 
@@ -126,6 +148,14 @@ public class InitListener {
     }
 
     private static void extractDefaultGrugMods(Path targetGrugDir) {
+        Path markerFile = targetGrugDir.resolve(".examples_generated.txt");
+
+        // If the marker file exists, the player already generated them.
+        // We respect their right to delete the 'foo' folder without it coming back.
+        if (Files.exists(markerFile)) {
+            return;
+        }
+
         Optional<ModContainer> modContainer = FabricLoader.getInstance().getModContainer(NAMESPACE.toString());
         if (modContainer.isEmpty())
             return;
@@ -152,6 +182,13 @@ public class InitListener {
                     LOGGER.error("Failed to extract default grug mod file: " + source, e);
                 }
             });
+
+            // Write the marker file so we never forcefully extract again
+            String msg = "This file tells the mod that the default examples have already been generated.\n" +
+                    "If you delete the example folders, they won't come back.\n" +
+                    "If you WANT the examples back, delete this file and restart the game.\n";
+            Files.writeString(markerFile, msg);
+
         } catch (IOException e) {
             LOGGER.error("Failed to walk default_grug_mods directory", e);
         }

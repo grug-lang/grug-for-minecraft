@@ -3,7 +3,6 @@ package com.example.examplemod.examplemod.resource;
 import com.example.examplemod.examplemod.events.init.InitListener;
 import com.example.examplemod.examplemod.grug.Grug;
 import com.example.examplemod.examplemod.grug.GrugBlockData;
-import net.fabricmc.loader.api.FabricLoader;
 import net.modificationstation.stationapi.api.resource.InputSupplier;
 import net.modificationstation.stationapi.api.resource.ResourcePack;
 import net.modificationstation.stationapi.api.resource.ResourceType;
@@ -42,7 +41,8 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             return null;
 
         String path = id.getPath();
-        Path grugModsDir = FabricLoader.getInstance().getGameDir().resolve("grug_mods");
+
+        Path grugModsDir = InitListener.getActiveGrugModsDir().toPath();
 
         // Concatenate language files safely
         if (path.equals("stationapi/lang/en_US.lang")) {
