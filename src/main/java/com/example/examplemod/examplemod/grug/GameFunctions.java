@@ -36,6 +36,12 @@ public class GameFunctions {
         return (BlockEntity) (obj != null ? obj.object : null);
     }
 
+    public static void add_texture(String filePath) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.textures.add(filePath);
+        }
+    }
+
     public static long get_block_entity_level(long blockEntityId) {
         BlockEntity be = resolveBlockEntity(blockEntityId);
         return Grug.addEntity(GrugEntityType.Level, be.world);
@@ -107,12 +113,6 @@ public class GameFunctions {
         Entity entity = (Entity) Grug.entityData.get(entityId).object;
         World world = (World) Grug.entityData.get(levelId).object;
         world.spawnEntity(entity);
-    }
-
-    public static void set_texture(String texturePath) {
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.texturePath = texturePath;
-        }
     }
 
     public static void set_block_entity(String entityString) {

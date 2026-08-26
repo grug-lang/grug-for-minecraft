@@ -1,0 +1,8 @@
+{
+    "parent": "block/cube_bottom_top",
+    "textures": {
+        "top": "examplemod:block/autocrafting_table_top",
+        "bottom": "examplemod:block/autocrafting_table_top",
+        "side": "examplemod:block/autocrafting_table_side"
+    }
+}

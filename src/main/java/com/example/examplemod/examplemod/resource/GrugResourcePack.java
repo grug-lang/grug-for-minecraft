@@ -41,10 +41,9 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             return null;
 
         String path = id.getPath();
-
         Path grugModsDir = InitListener.getActiveGrugModsDir().toPath();
 
-        // Concatenate language files safely
+        // Language files
         if (path.equals("stationapi/lang/en_US.lang")) {
             return () -> {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -54,7 +53,7 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                         if (langFile.exists()) {
                             try (FileInputStream fis = new FileInputStream(langFile)) {
                                 fis.transferTo(out);
-                                out.write('\n'); // Add a newline between files
+                                out.write('\n');
                             } catch (Exception ignored) {
                             }
                         }
@@ -64,7 +63,7 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             };
         }
 
-        // Return block/item assets from disk
+        // Return block/item assets
         for (GrugBlockData block : Grug.declaredBlocks.values()) {
             String blockPath = block.id.getPath();
 
@@ -80,10 +79,16 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                 File file = grugModsDir.resolve(block.itemModelPath).toFile();
                 if (file.exists())
                     return () -> new FileInputStream(file);
-            } else if (path.equals("stationapi/textures/block/" + blockPath + ".png") && block.texturePath != null) {
-                File file = grugModsDir.resolve(block.texturePath).toFile();
-                if (file.exists())
-                    return () -> new FileInputStream(file);
+            } else if (path.startsWith("stationapi/textures/block/")) {
+                String requestedFile = path.substring(path.lastIndexOf('/') + 1);
+
+                for (String texPath : block.textures) {
+                    if (texPath.endsWith(requestedFile)) {
+                        File file = grugModsDir.resolve(texPath).toFile();
+                        if (file.exists())
+                            return () -> new FileInputStream(file);
+                    }
+                }
             }
         }
         return null;
@@ -118,18 +123,21 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                     if (blockSupplier != null)
                         consumer.accept(blockModelId, blockSupplier);
                 }
-
                 if (block.itemModelPath != null) {
                     Identifier itemModelId = Identifier.of(namespace, "stationapi/models/item/" + blockPath + ".json");
                     InputSupplier<InputStream> itemSupplier = this.open(type, itemModelId);
                     if (itemSupplier != null)
                         consumer.accept(itemModelId, itemSupplier);
                 }
-            } else if (prefix.equals("stationapi/textures/block") && block.texturePath != null) {
-                Identifier targetId = Identifier.of(namespace, "stationapi/textures/block/" + blockPath + ".png");
-                InputSupplier<InputStream> supplier = this.open(type, targetId);
-                if (supplier != null)
-                    consumer.accept(targetId, supplier);
+            } else if (prefix.equals("stationapi/textures/block")) {
+                for (String texPath : block.textures) {
+                    // Extract just the name without the .png extension
+                    String fileName = texPath.substring(texPath.lastIndexOf('/') + 1, texPath.length() - 4);
+                    Identifier targetId = Identifier.of(namespace, "stationapi/textures/block/" + fileName + ".png");
+                    InputSupplier<InputStream> supplier = this.open(type, targetId);
+                    if (supplier != null)
+                        consumer.accept(targetId, supplier);
+                }
             }
         }
     }

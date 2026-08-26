@@ -85,7 +85,6 @@ public class InitListener {
             FileInfo[] files = Grug.compileAllFiles();
 
             Map<String, Long> blockFiles = new HashMap<>();
-            Map<String, String> blockMods = new HashMap<>();
 
             for (FileInfo file : files) {
                 if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
@@ -100,7 +99,6 @@ public class InitListener {
 
                 if ("Block".equals(file.entityType())) {
                     blockFiles.put(cleanName, file.fileId());
-                    blockMods.put(cleanName, file.modName());
                 } else if ("BlockEntity".equals(file.entityType())) {
                     Grug.entityFileIdsByName.put(cleanName, file.fileId());
                 }
@@ -109,9 +107,8 @@ public class InitListener {
             // Synthesize and register the Block instances
             for (Map.Entry<String, Long> entry : blockFiles.entrySet()) {
                 String cleanName = entry.getKey();
-                // FORCE the host namespace (examplemod) so StationAPI and AMI are happy
+
                 Identifier blockId = Identifier.of(NAMESPACE, cleanName);
-                String modName = blockMods.get(cleanName);
 
                 long blockFileId = entry.getValue();
 
@@ -134,7 +131,6 @@ public class InitListener {
                 Grug.currentlyInitializingBlock = null;
 
                 new GrugBlock(blockId, blockFileId).setTranslationKey(blockId.namespace, blockId.path);
-                LOGGER.info("Registered Generic Grug Block: " + blockId + " (Grug Mod: " + modName + ")");
             }
         } catch (Exception e) {
             LOGGER.error("Failed to initialize grug-rs blocks", e);

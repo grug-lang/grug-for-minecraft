@@ -1,0 +1,9 @@
+export init() {
+    add_lang(r"lang/en_US.lang")
+    set_blockstate(r"blockstates/autocrafting_table.json")
+    set_block_model(r"models/block/autocrafting_table.json")
+    set_item_model(r"models/item/autocrafting_table.json")
+
+    add_texture(r"textures/autocrafting_table_side.png")
+    add_texture(r"textures/autocrafting_table_top.png")
+}

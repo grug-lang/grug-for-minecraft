@@ -108,6 +108,18 @@
 		}
 	},
 	"host_functions": {
+		"add_texture": {
+			"description": "Maps a texture identifier path to a file path.",
+			"parameters": [
+				{
+					"name": "file_path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".png"
+					}
+				}
+			]
+		},
 		"get_block_entity_level": {
 			"description": "Gets the Level (dimension) a BlockEntity is in.",
 			"return_type": {
@@ -272,18 +284,6 @@
 					"type": {
 						"name": "resource",
 						"resource_extension": ".lang"
-					}
-				}
-			]
-		},
-		"set_texture": {
-			"description": "Declares the block's (and its item's) texture. Java generates the standard blockstate and cube_all model referencing it.",
-			"parameters": [
-				{
-					"name": "texture_path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ""
 					}
 				}
 			]
