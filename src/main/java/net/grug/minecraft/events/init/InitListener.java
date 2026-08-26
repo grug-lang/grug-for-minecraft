@@ -70,11 +70,12 @@ public class InitListener {
         return new File(gameDir, "grug_mods");
     }
 
-    // Runs on PreInitEvent (earlier than BlockRegistryEvent/ItemRegistryEvent)
-    // because StationAPI's JsonRecipesLoader also scans for recipes on
-    // PreInitEvent. grug's own recipes/tags need to exist before that scan
-    // finishes, so all compiling and mod-level init() script execution happens
-    // here now, with block/item synthesis deferred to their own registry events.
+    // Intentionally still on the deprecated PreInitEvent, not InitEvent:
+    // JsonRecipesLoader (station-recipes-v0) still listens on PreInitEvent
+    // too, and our recipe/tag registration must run before it does. Since
+    // PreInitEvent and InitEvent are dispatched separately, migrating to
+    // InitEvent's PRE_INIT_PHASE would not guarantee that ordering.
+    @SuppressWarnings("deprecation")
     @EventListener
     private static void preInit(PreInitEvent event) {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
