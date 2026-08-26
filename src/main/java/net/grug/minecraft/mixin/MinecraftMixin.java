@@ -28,6 +28,7 @@ public class MinecraftMixin {
         String[] updatedResources = Grug.update(this::sendRedMessage);
         for (String resource : updatedResources) {
             InitListener.LOGGER.info("Reloading changed resource: {}", resource);
+            InitListener.handlePossibleRecipeUpdate(resource);
         }
 
         if (updatedResources.length > 0) {

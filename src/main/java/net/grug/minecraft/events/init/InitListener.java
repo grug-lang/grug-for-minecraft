@@ -11,9 +11,11 @@ import net.grug.minecraft.item.GrugItem;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.mine_diver.unsafeevents.listener.EventListener;
+import net.modificationstation.stationapi.api.StationAPI;
 import net.modificationstation.stationapi.api.event.block.entity.BlockEntityRegisterEvent;
 import net.modificationstation.stationapi.api.event.mod.InitEvent;
 import net.modificationstation.stationapi.api.event.mod.PreInitEvent;
+import net.modificationstation.stationapi.api.event.recipe.RecipeRegisterEvent;
 import net.modificationstation.stationapi.api.event.registry.BlockRegistryEvent;
 import net.modificationstation.stationapi.api.event.registry.ItemRegistryEvent;
 import net.modificationstation.stationapi.api.mod.entrypoint.EntrypointManager;
@@ -25,6 +27,7 @@ import net.modificationstation.stationapi.api.util.exception.MissingModException
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -70,6 +73,12 @@ public class InitListener {
         return new File(gameDir, "grug_mods");
     }
 
+    // Runs on PreInitEvent (earlier than BlockRegistryEvent/ItemRegistryEvent)
+    // because StationAPI's JsonRecipesLoader also scans for recipes on
+    // PreInitEvent. Grug's own recipes/tags need to exist before that scan
+    // finishes, so all compiling and mod-level init() script execution happens
+    // here now, with block/item synthesis deferred to their own registry events.
+    //
     // Intentionally still on the deprecated PreInitEvent, not InitEvent:
     // JsonRecipesLoader (station-recipes-v0) still listens on PreInitEvent
     // too, and our recipe/tag registration must run before it does. Since
@@ -255,6 +264,50 @@ public class InitListener {
         if (!JsonRecipesRegistry.INSTANCE.containsId(recipeId))
             Registry.register(JsonRecipesRegistry.INSTANCE, recipeId, new HashSet<>());
         Objects.requireNonNull(JsonRecipesRegistry.INSTANCE.get(recipeId)).add(recipe);
+    }
+
+    // Called from MinecraftMixin whenever grug-rs reports a changed resource
+    // path. If that path is a declared recipe, re-triggers StationAPI's JSON
+    // recipe parsing for whichever type the file currently declares.
+    //
+    // This is append-only: the previously-parsed recipe object for this file
+    // is NOT removed from CraftingRecipeManager, so edits can leave a stale,
+    // orphaned recipe alongside the current one until restart. Fine for
+    // hot-reload during development, not a substitute for a real reload.
+    //
+    // Known gap: if the file's "type" field itself changes (not just its
+    // pattern/ingredients/result), the URL is still registered under the old
+    // type in JsonRecipesRegistry, so re-posting for the new type won't find
+    // it there. That case needs a restart.
+    public static void handlePossibleRecipeUpdate(String updatedResourcePath) {
+        if (!Grug.declaredRecipes.contains(updatedResourcePath))
+            return;
+
+        File file = new File(getActiveGrugModsDir(), updatedResourcePath);
+        if (!file.exists()) {
+            LOGGER.warn("Updated recipe not found on disk: " + file.getAbsolutePath());
+            return;
+        }
+
+        try {
+            String rawId;
+            try (InputStreamReader reader = new InputStreamReader(new FileInputStream(file))) {
+                rawId = new Gson().fromJson(reader, RecipeTypeHolder.class).type;
+            }
+
+            Identifier recipeId;
+            try {
+                recipeId = Identifier.of(rawId);
+            } catch (MissingModException e) {
+                LOGGER.warn("Found an unknown recipe type " + rawId + ". Ignoring.");
+                return;
+            }
+
+            LOGGER.info("Re-registering recipes of type {} due to change in {}", recipeId, updatedResourcePath);
+            StationAPI.EVENT_BUS.post(RecipeRegisterEvent.builder().recipeId(recipeId).build());
+        } catch (Exception e) {
+            LOGGER.error("Failed to hot-reload recipe: " + file, e);
+        }
     }
 
     // Minimal stand-in for stationapi's internal JsonRecipeType, since that
