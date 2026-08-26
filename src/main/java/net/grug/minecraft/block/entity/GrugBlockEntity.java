@@ -1,8 +1,8 @@
-package com.example.examplemod.examplemod.block.entity;
+package net.grug.minecraft.block.entity;
 
-import com.example.examplemod.examplemod.block.GrugBlock;
-import com.example.examplemod.examplemod.grug.Grug;
-import com.example.examplemod.examplemod.grug.GrugObject;
+import net.grug.minecraft.block.GrugBlock;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugObject;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 

@@ -1,4 +1,4 @@
-package com.example.examplemod.examplemod.grug;
+package net.grug.minecraft.grug;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
@@ -17,20 +17,22 @@ public class WeakGrugValueMap {
     public GrugObject get(long id) {
         cleanup();
         WeakValue ref = map.get(id);
-        if (ref == null) return null;
+        if (ref == null)
+            return null;
         return ref.get();
     }
 
     private void cleanup() {
         WeakValue ref;
-        while ((ref = (WeakValue)queue.poll()) != null) {
+        while ((ref = (WeakValue) queue.poll()) != null) {
             map.remove(ref.id);
         }
     }
 
     public void clear() {
         map.clear();
-        while (queue.poll() != null) {}
+        while (queue.poll() != null) {
+        }
     }
 
     public int size() {

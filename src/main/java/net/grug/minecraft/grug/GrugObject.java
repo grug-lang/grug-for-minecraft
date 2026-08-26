@@ -1,4 +1,4 @@
-package com.example.examplemod.examplemod.grug;
+package net.grug.minecraft.grug;
 
 import java.util.Objects;
 
@@ -13,9 +13,11 @@ public class GrugObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GrugObject other = (GrugObject)o;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        GrugObject other = (GrugObject) o;
         return type == other.type && Objects.equals(object, other.object);
     }
 

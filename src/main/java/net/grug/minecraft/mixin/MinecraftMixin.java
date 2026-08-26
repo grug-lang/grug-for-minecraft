@@ -1,8 +1,8 @@
-package com.example.examplemod.examplemod.mixin;
+package net.grug.minecraft.mixin;
 
-import com.example.examplemod.examplemod.events.init.InitListener;
-import com.example.examplemod.examplemod.grug.GameFunctions;
-import com.example.examplemod.examplemod.grug.Grug;
+import net.grug.minecraft.events.init.InitListener;
+import net.grug.minecraft.grug.GameFunctions;
+import net.grug.minecraft.grug.Grug;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.ClientPlayerEntity;
 import net.modificationstation.stationapi.api.client.resource.ReloadableAssetsManager;

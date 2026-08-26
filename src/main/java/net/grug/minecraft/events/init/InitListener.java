@@ -1,10 +1,10 @@
-package com.example.examplemod.examplemod.events.init;
+package net.grug.minecraft.events.init;
 
-import com.example.examplemod.examplemod.block.GrugBlock;
-import com.example.examplemod.examplemod.block.entity.GrugBlockEntity;
-import com.example.examplemod.examplemod.grug.Grug;
-import com.example.examplemod.examplemod.grug.GrugBlockData;
-import com.example.examplemod.examplemod.grug.FileInfo;
+import net.grug.minecraft.block.GrugBlock;
+import net.grug.minecraft.block.entity.GrugBlockEntity;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.FileInfo;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.mine_diver.unsafeevents.listener.EventListener;

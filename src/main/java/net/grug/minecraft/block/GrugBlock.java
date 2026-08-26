@@ -1,8 +1,8 @@
-package com.example.examplemod.examplemod.block;
+package net.grug.minecraft.block;
 
-import com.example.examplemod.examplemod.block.entity.GrugBlockEntity;
-import com.example.examplemod.examplemod.grug.Grug;
-import com.example.examplemod.examplemod.grug.GrugBlockData;
+import net.grug.minecraft.block.entity.GrugBlockEntity;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockData;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
 import net.modificationstation.stationapi.api.template.block.TemplateBlockWithEntity;
@@ -22,7 +22,7 @@ public class GrugBlock extends TemplateBlockWithEntity {
     public long getEntityFileId() {
         GrugBlockData data = Grug.blockDataByFileId.get(this.blockFileId);
         if (data != null && data.blockEntityString != null) {
-            // "examplemod:bar_block_entity" -> "bar_block_entity"
+            // "grug:bar_block_entity" -> "bar_block_entity"
             String[] parts = data.blockEntityString.split(":");
             String cleanName = parts.length == 2 ? parts[1] : data.blockEntityString;
 

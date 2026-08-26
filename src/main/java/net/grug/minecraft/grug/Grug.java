@@ -1,7 +1,7 @@
-package com.example.examplemod.examplemod.grug;
+package net.grug.minecraft.grug;
 
 import net.minecraft.block.entity.BlockEntity;
-import com.example.examplemod.examplemod.events.init.InitListener;
+import net.grug.minecraft.events.init.InitListener;
 
 import java.io.File;
 import java.io.IOException;

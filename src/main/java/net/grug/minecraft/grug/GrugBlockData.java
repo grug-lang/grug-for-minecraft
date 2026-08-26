@@ -1,4 +1,4 @@
-package com.example.examplemod.examplemod.grug;
+package net.grug.minecraft.grug;
 
 import net.modificationstation.stationapi.api.util.Identifier;
 

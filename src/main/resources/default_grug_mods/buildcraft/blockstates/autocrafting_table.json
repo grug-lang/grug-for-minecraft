@@ -1,7 +1,7 @@
 {
     "variants": {
         "": {
-            "model": "examplemod:block/autocrafting_table"
+            "model": "grug:block/autocrafting_table"
         }
     }
 }

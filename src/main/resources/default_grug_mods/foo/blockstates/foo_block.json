@@ -1,7 +1,7 @@
 {
     "variants": {
         "": {
-            "model": "examplemod:block/foo_block"
+            "model": "grug:block/foo_block"
         }
     }
 }

@@ -1,6 +1,6 @@
-package com.example.examplemod.examplemod.grug;
+package net.grug.minecraft.grug;
 
-import com.example.examplemod.examplemod.events.init.InitListener;
+import net.grug.minecraft.events.init.InitListener;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;

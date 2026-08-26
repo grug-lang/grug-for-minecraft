@@ -20,7 +20,7 @@ version = project.properties["mod_version"] as String
 group = project.properties["maven_group"] as String
 
 loom {
-//	accessWidenerPath = file("src/main/resources/examplemod.accesswidener")
+//	accessWidenerPath = file("src/main/resources/grug.accesswidener")
 
 	runs {
 		register("testClient") {

@@ -1,4 +1,4 @@
-package com.example.examplemod.examplemod.resource;
+package net.grug.minecraft.resource;
 
 import net.modificationstation.stationapi.api.resource.ResourceType;
 import net.modificationstation.stationapi.impl.resource.ResourcePackProfile;

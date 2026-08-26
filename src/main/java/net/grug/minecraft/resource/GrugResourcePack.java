@@ -1,8 +1,8 @@
-package com.example.examplemod.examplemod.resource;
+package net.grug.minecraft.resource;
 
-import com.example.examplemod.examplemod.events.init.InitListener;
-import com.example.examplemod.examplemod.grug.Grug;
-import com.example.examplemod.examplemod.grug.GrugBlockData;
+import net.grug.minecraft.events.init.InitListener;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockData;
 import net.modificationstation.stationapi.api.resource.InputSupplier;
 import net.modificationstation.stationapi.api.resource.ResourcePack;
 import net.modificationstation.stationapi.api.resource.ResourceType;

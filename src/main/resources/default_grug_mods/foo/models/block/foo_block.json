@@ -1,6 +1,6 @@
 {
     "parent": "block/cube_all",
     "textures": {
-        "all": "examplemod:block/foo_block"
+        "all": "grug:block/foo_block"
     }
 }

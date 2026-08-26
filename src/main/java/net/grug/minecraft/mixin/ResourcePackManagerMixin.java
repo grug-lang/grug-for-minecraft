@@ -1,6 +1,6 @@
-package com.example.examplemod.examplemod.mixin;
+package net.grug.minecraft.mixin;
 
-import com.example.examplemod.examplemod.resource.GrugResourcePackProvider;
+import net.grug.minecraft.resource.GrugResourcePackProvider;
 import com.google.common.collect.ImmutableSet;
 import net.modificationstation.stationapi.impl.resource.ResourcePackManager;
 import net.modificationstation.stationapi.impl.resource.ResourcePackProvider;
