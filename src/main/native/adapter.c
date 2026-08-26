@@ -271,3 +271,14 @@ Java_com_example_examplemod_examplemod_grug_Grug_nativeGetUpdatedResources(JNIEn
     }
     return array;
 }
+
+extern void grug_set_runtime_error(void* state, const char* message);
+
+JNIEXPORT void JNICALL
+Java_com_example_examplemod_examplemod_grug_Grug_gameFunctionErrorHappened(JNIEnv *env, jclass clazz, jlong statePtr, jstring message) {
+    const char *c_message = (*env)->GetStringUTFChars(env, message, NULL);
+    
+    grug_set_runtime_error((void*)(intptr_t)statePtr, c_message);
+    
+    (*env)->ReleaseStringUTFChars(env, message, c_message);
+}

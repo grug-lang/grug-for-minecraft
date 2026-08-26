@@ -201,4 +201,6 @@ public final class Grug {
     private static native void nativeDestroyEntity(long statePtr, long entityHandle);
 
     private static native String[] nativeGetUpdatedResources(long statePtr);
+
+    public static native void gameFunctionErrorHappened(long statePtr, String message);
 }

@@ -116,6 +116,14 @@ public class GameFunctions {
     }
 
     public static void set_block_entity(String entityString) {
+        String[] parts = entityString.split(":");
+        String cleanName = parts.length == 2 ? parts[1] : entityString;
+
+        if (!Grug.entityFileIdsByName.containsKey(cleanName)) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Block entity script '" + entityString + "' does not exist.");
+            return;
+        }
+
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.blockEntityString = entityString;
         }
