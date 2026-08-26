@@ -26,14 +26,24 @@ public final class Grug {
 
     public static BlockEntity currentlyInitializingBlockEntity = null;
     public static GrugBlockData currentlyInitializingBlock = null;
+    public static GrugItemData currentlyInitializingItem = null;
 
     public static final Map<net.modificationstation.stationapi.api.util.Identifier, GrugBlockData> declaredBlocks = new HashMap<>();
     public static final Map<Long, GrugBlockData> blockDataByFileId = new HashMap<>();
+
+    public static final Map<net.modificationstation.stationapi.api.util.Identifier, GrugItemData> declaredItems = new HashMap<>();
+    public static final Map<Long, GrugItemData> itemDataByFileId = new HashMap<>();
 
     public static final List<GrugObject> globalFnEntities = new ArrayList<>();
     public static List<GrugObject> fnEntities = globalFnEntities;
 
     public static final Map<String, Long> entityFileIdsByName = new HashMap<>();
+
+    public static final List<TagContribution> declaredTags = new ArrayList<>();
+    public static final List<String> declaredRecipes = new ArrayList<>();
+
+    public record TagContribution(String namespace, String path) {
+    }
 
     static {
         for (GrugEntityType type : GrugEntityType.values()) {

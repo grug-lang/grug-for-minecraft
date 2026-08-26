@@ -36,21 +36,7 @@ public class GameFunctions {
         return (BlockEntity) (obj != null ? obj.object : null);
     }
 
-    public static void add_texture(String filePath) {
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.textures.add(filePath);
-        }
-    }
-
-    public static long get_block_entity_level(long blockEntityId) {
-        BlockEntity be = resolveBlockEntity(blockEntityId);
-        return Grug.addEntity(GrugEntityType.Level, be.world);
-    }
-
-    public static long get_block_pos_of_block_entity(long blockEntityId) {
-        BlockEntity be = resolveBlockEntity(blockEntityId);
-        return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(be.x, be.y, be.z));
-    }
+    // Classes
 
     public static long BlockPos_above_n(long blockPosId, double n) {
         BlockPos pos = (BlockPos) Grug.entityData.get(blockPosId).object;
@@ -74,31 +60,8 @@ public class GameFunctions {
         return ((Vec3) Grug.entityData.get(vec3Id).object).z();
     }
 
-    public static long item(long resourceLocationId) {
-        Identifier id = (Identifier) Grug.entityData.get(resourceLocationId).object;
-        Item item = ItemRegistry.INSTANCE.get(id);
-        return Grug.addEntity(GrugEntityType.Item, item);
-    }
-
-    public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {
-        World world = (World) Grug.entityData.get(levelId).object;
-        ItemStack stack = (ItemStack) Grug.entityData.get(itemStackId).object;
-        ItemEntity itemEntity = new ItemEntity(world, (float) x, (float) y, (float) z, stack);
-        return Grug.addEntity(GrugEntityType.ItemEntity, itemEntity);
-    }
-
     public static long ItemEntity_entity(long itemEntityId) {
         return itemEntityId;
-    }
-
-    public static long item_stack(long itemId) {
-        Item item = (Item) Grug.entityData.get(itemId).object;
-        return Grug.addEntity(GrugEntityType.ItemStack, new ItemStack(item));
-    }
-
-    public static long resource_location(String resourceLocationString) {
-        Identifier id = Identifier.of(resourceLocationString);
-        return Grug.addEntity(GrugEntityType.ResourceLocation, id);
     }
 
     public static void Entity_set_delta_movement(long entityId, long vec3Id) {
@@ -115,6 +78,65 @@ public class GameFunctions {
         world.spawnEntity(entity);
     }
 
+    // Host functions
+
+    public static void add_lang(String path) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.langPaths.add(path);
+        } else if (Grug.currentlyInitializingItem != null) {
+            Grug.currentlyInitializingItem.langPaths.add(path);
+        }
+    }
+
+    public static void add_recipe(String path) {
+        Grug.declaredRecipes.add(path);
+    }
+
+    public static void add_tag(String namespace, String path) {
+        Grug.declaredTags.add(new Grug.TagContribution(namespace, path));
+    }
+
+    public static void add_texture(String filePath) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.textures.add(filePath);
+        } else if (Grug.currentlyInitializingItem != null) {
+            Grug.currentlyInitializingItem.textures.add(filePath);
+        }
+    }
+
+    public static long get_block_entity_level(long blockEntityId) {
+        BlockEntity be = resolveBlockEntity(blockEntityId);
+        return Grug.addEntity(GrugEntityType.Level, be.world);
+    }
+
+    public static long get_block_pos_of_block_entity(long blockEntityId) {
+        BlockEntity be = resolveBlockEntity(blockEntityId);
+        return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(be.x, be.y, be.z));
+    }
+
+    public static long item(long resourceLocationId) {
+        Identifier id = (Identifier) Grug.entityData.get(resourceLocationId).object;
+        Item item = ItemRegistry.INSTANCE.get(id);
+        return Grug.addEntity(GrugEntityType.Item, item);
+    }
+
+    public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {
+        World world = (World) Grug.entityData.get(levelId).object;
+        ItemStack stack = (ItemStack) Grug.entityData.get(itemStackId).object;
+        ItemEntity itemEntity = new ItemEntity(world, (float) x, (float) y, (float) z, stack);
+        return Grug.addEntity(GrugEntityType.ItemEntity, itemEntity);
+    }
+
+    public static long item_stack(long itemId) {
+        Item item = (Item) Grug.entityData.get(itemId).object;
+        return Grug.addEntity(GrugEntityType.ItemStack, new ItemStack(item));
+    }
+
+    public static long resource_location(String resourceLocationString) {
+        Identifier id = Identifier.of(resourceLocationString);
+        return Grug.addEntity(GrugEntityType.ResourceLocation, id);
+    }
+
     public static void set_block_entity(String entityString) {
         String[] parts = entityString.split(":");
         String cleanName = parts.length == 2 ? parts[1] : entityString;
@@ -129,27 +151,23 @@ public class GameFunctions {
         }
     }
 
-    public static void set_blockstate(String path) {
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.blockstatePath = path;
-        }
-    }
-
     public static void set_block_model(String path) {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.blockModelPath = path;
         }
     }
 
-    public static void set_item_model(String path) {
+    public static void set_blockstate(String path) {
         if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.itemModelPath = path;
+            Grug.currentlyInitializingBlock.blockstatePath = path;
         }
     }
 
-    public static void add_lang(String path) {
+    public static void set_item_model(String path) {
         if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.langPaths.add(path);
+            Grug.currentlyInitializingBlock.itemModelPath = path;
+        } else if (Grug.currentlyInitializingItem != null) {
+            Grug.currentlyInitializingItem.itemModelPath = path;
         }
     }
 

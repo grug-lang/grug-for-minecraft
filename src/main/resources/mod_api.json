@@ -17,6 +17,24 @@
 					"description": "Called every game tick, so every 0.05 seconds."
 				}
 			]
+		},
+		"Item": {
+			"description": "An item.",
+			"export_functions": [
+				{
+					"name": "init",
+					"description": "Called once at registration time to declare the item's assets."
+				}
+			]
+		},
+		"Mod": {
+			"description": "A mod's top-level entry point.",
+			"export_functions": [
+				{
+					"name": "init",
+					"description": "Called once at startup to declare mod-level resources, such as tags and recipes."
+				}
+			]
 		}
 	},
 	"classes": {
@@ -108,6 +126,48 @@
 		}
 	},
 	"host_functions": {
+		"add_lang": {
+			"description": "Adds a language file to the resource pack.",
+			"parameters": [
+				{
+					"name": "path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".lang"
+					}
+				}
+			]
+		},
+		"add_recipe": {
+			"description": "Registers a recipe JSON file to be served under this mod's own namespace.",
+			"parameters": [
+				{
+					"name": "path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".json"
+					}
+				}
+			]
+		},
+		"add_tag": {
+			"description": "Merges this file's \"values\" array into the tag at <namespace>:<path>, so multiple mods can contribute entries to the same tag.",
+			"parameters": [
+				{
+					"name": "namespace",
+					"type": {
+						"name": "string"
+					}
+				},
+				{
+					"name": "path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".json"
+					}
+				}
+			]
+		},
 		"add_texture": {
 			"description": "Maps a texture identifier path to a file path.",
 			"parameters": [
@@ -240,8 +300,8 @@
 				}
 			]
 		},
-		"set_blockstate": {
-			"description": "Declares the block's blockstate JSON file.",
+		"set_block_model": {
+			"description": "Declares the block's block model JSON file.",
 			"parameters": [
 				{
 					"name": "path",
@@ -252,8 +312,8 @@
 				}
 			]
 		},
-		"set_block_model": {
-			"description": "Declares the block's block model JSON file.",
+		"set_blockstate": {
+			"description": "Declares the block's blockstate JSON file.",
 			"parameters": [
 				{
 					"name": "path",
@@ -272,18 +332,6 @@
 					"type": {
 						"name": "resource",
 						"resource_extension": ".json"
-					}
-				}
-			]
-		},
-		"add_lang": {
-			"description": "Adds a language file to the resource pack.",
-			"parameters": [
-				{
-					"name": "path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".lang"
 					}
 				}
 			]

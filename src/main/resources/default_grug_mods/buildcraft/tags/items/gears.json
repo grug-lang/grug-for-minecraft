@@ -1,0 +1,24 @@
+{
+    "values": [
+        {
+            "id": "#c:gears/wooden",
+            "required": false
+        },
+        {
+            "id": "#c:gears/stone",
+            "required": false
+        },
+        {
+            "id": "#c:gears/iron",
+            "required": false
+        },
+        {
+            "id": "#c:gears/gold",
+            "required": false
+        },
+        {
+            "id": "#c:gears/diamond",
+            "required": false
+        }
+    ]
+}

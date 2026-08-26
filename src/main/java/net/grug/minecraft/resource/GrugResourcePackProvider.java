@@ -13,13 +13,27 @@ public class GrugResourcePackProvider implements ResourcePackProvider {
     @Override
     public void register(Consumer<ResourcePackProfile> profileAdder) {
         GrugResourcePack pack = new GrugResourcePack();
+
+        // Register for client-side assets (models, textures, lang)
         profileAdder.accept(ResourcePackProfile.of(
-                "grug_generated",
-                pack.getName(),
+                "grug_generated_assets",
+                pack.getName() + " (Assets)",
                 true,
                 name -> pack,
                 METADATA,
                 ResourceType.CLIENT_RESOURCES,
+                ResourcePackProfile.InsertionPosition.TOP,
+                true,
+                ResourcePackSource.BUILTIN));
+
+        // Register for server-side data (recipes, tags)
+        profileAdder.accept(ResourcePackProfile.of(
+                "grug_generated_data",
+                pack.getName() + " (Data)",
+                true,
+                name -> pack,
+                METADATA,
+                ResourceType.SERVER_DATA,
                 ResourcePackProfile.InsertionPosition.TOP,
                 true,
                 ResourcePackSource.BUILTIN));

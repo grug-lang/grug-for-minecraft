@@ -1,0 +1,19 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        " g ",
+        "gwg",
+        " g "
+    ],
+    "key": {
+        "w": {
+            "item": "minecraft:crafting_table"
+        },
+        "g": {
+            "tag": "c:gears/wooden"
+        }
+    },
+    "result": {
+        "item": "grug:autocrafting_table"
+    }
+}
