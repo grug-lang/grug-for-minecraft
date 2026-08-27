@@ -86,4 +86,51 @@ public class GrugScreenHandler extends ScreenHandler {
     public boolean canUse(PlayerEntity player) {
         return this.blockInventory.canPlayerUse(player);
     }
+
+    @Override
+    public ItemStack quickMove(int index) {
+        ItemStack originalStack = null;
+        Slot slot = (Slot) this.slots.get(index);
+
+        if (slot != null && slot.hasStack()) {
+            ItemStack stackInSlot = slot.getStack();
+            originalStack = stackInSlot.copy();
+
+            // The player's inventory (27 main + 9 hotbar) is always the last 36 slots we
+            // added
+            int customSlotCount = this.slots.size() - 36;
+
+            if (index >= customSlotCount) {
+                // The shift-click originated from the player's own inventory
+                if (index >= customSlotCount && index < customSlotCount + 27) {
+                    // Main Inventory -> Hotbar
+                    this.insertItem(stackInSlot, customSlotCount + 27, customSlotCount + 36, false);
+                } else if (index >= customSlotCount + 27 && index < customSlotCount + 36) {
+                    // Hotbar -> Main Inventory
+                    this.insertItem(stackInSlot, customSlotCount, customSlotCount + 27, false);
+                }
+            } else {
+                // The shift-click originated from the custom GUI (e.g., the crafting output
+                // slot)
+                // Attempt to push it into the player's inventory (hotbar first, then main)
+                this.insertItem(stackInSlot, customSlotCount, customSlotCount + 36, true);
+            }
+
+            // Standard boilerplate to update the slot after items have been moved
+            if (stackInSlot.count == 0) {
+                slot.setStack(null);
+            } else {
+                slot.markDirty();
+            }
+
+            // If the count didn't change, nothing was moved
+            if (stackInSlot.count == originalStack.count) {
+                return null;
+            }
+
+            slot.onTakeItem(stackInSlot);
+        }
+
+        return originalStack;
+    }
 }
