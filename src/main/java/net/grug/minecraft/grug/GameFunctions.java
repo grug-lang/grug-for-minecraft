@@ -42,6 +42,16 @@ public class GameFunctions {
         world.spawnEntity(entity);
     }
 
+    public static void GUI_add_crafting_grid(long guiId, double startSlot, double x, double y) {
+        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
+        builder.craftingGrids.add(new GrugGuiBuilder.CraftingGridDef((int) startSlot, (int) x, (int) y));
+    }
+
+    public static void GUI_add_crafting_result(long guiId, double slot, double x, double y) {
+        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
+        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef((int) slot, (int) x, (int) y));
+    }
+
     public static void GUI_add_output_slot(long guiId, double slot, double x, double y) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, true));
@@ -73,17 +83,18 @@ public class GameFunctions {
         GuiHelper.openGUI(player, Identifier.of("grug:dynamic_gui"), inv,
                 new GrugScreenHandler(player, inv, builder),
                 messagePacket -> {
-                    // Preserves the GUI Identifier at strings[0]
                     String guiIdStr = (messagePacket.strings != null && messagePacket.strings.length > 0)
                             ? messagePacket.strings[0]
                             : "";
                     messagePacket.strings = new String[] { guiIdStr, builder.texturePath };
-
-                    // Preserves the syncId at ints[0]
                     int syncId = (messagePacket.ints != null && messagePacket.ints.length > 0) ? messagePacket.ints[0]
                             : 0;
 
-                    int[] ints = new int[10 + (builder.blockSlots.size() * 4)];
+                    // Arrays sizes
+                    int numInts = 13 + (builder.blockSlots.size() * 4) + (builder.craftingGrids.size() * 3)
+                            + (builder.craftingResults.size() * 3);
+                    int[] ints = new int[numInts];
+
                     ints[0] = syncId;
                     ints[1] = be.x;
                     ints[2] = be.y;
@@ -93,9 +104,9 @@ public class GameFunctions {
                     ints[6] = builder.playerInvY;
                     ints[7] = builder.hotbarX;
                     ints[8] = builder.hotbarY;
-                    ints[9] = builder.blockSlots.size();
 
-                    int idx = 10;
+                    int idx = 9;
+                    ints[idx++] = builder.blockSlots.size();
                     for (GrugGuiBuilder.SlotDef def : builder.blockSlots) {
                         ints[idx++] = def.index();
                         ints[idx++] = def.x();
@@ -103,6 +114,19 @@ public class GameFunctions {
                         ints[idx++] = def.isOutput() ? 1 : 0;
                     }
 
+                    ints[idx++] = builder.craftingGrids.size();
+                    for (GrugGuiBuilder.CraftingGridDef grid : builder.craftingGrids) {
+                        ints[idx++] = grid.startSlot();
+                        ints[idx++] = grid.x();
+                        ints[idx++] = grid.y();
+                    }
+
+                    ints[idx++] = builder.craftingResults.size();
+                    for (GrugGuiBuilder.CraftingResultDef res : builder.craftingResults) {
+                        ints[idx++] = res.slot();
+                        ints[idx++] = res.x();
+                        ints[idx++] = res.y();
+                    }
                     messagePacket.ints = ints;
                 });
     }

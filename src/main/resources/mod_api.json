@@ -159,6 +159,52 @@
 		"GUI": {
 			"description": "A dynamic GUI layout builder.",
 			"methods": {
+				"add_crafting_grid": {
+					"description": "Adds a 3x3 crafting grid.",
+					"parameters": [
+						{
+							"name": "start_slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_crafting_result": {
+					"description": "Adds a crafting output slot.",
+					"parameters": [
+						{
+							"name": "slot_index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"add_output_slot": {
 					"description": "Adds a read-only/result slot linked to the BlockEntity.",
 					"parameters": [

@@ -36,13 +36,24 @@ public class ClientInitListener {
                     builder.hotbarX = message.ints[7];
                     builder.hotbarY = message.ints[8];
 
-                    int slotCount = message.ints[9];
-                    int idx = 10;
-
-                    for (int i = 0; i < slotCount; i++) {
+                    int idx = 9;
+                    int blockSlotsCount = message.ints[idx++];
+                    for (int i = 0; i < blockSlotsCount; i++) {
                         builder.blockSlots.add(new GrugGuiBuilder.SlotDef(
                                 message.ints[idx++], message.ints[idx++], message.ints[idx++],
                                 message.ints[idx++] == 1));
+                    }
+
+                    int gridCount = message.ints[idx++];
+                    for (int i = 0; i < gridCount; i++) {
+                        builder.craftingGrids.add(new GrugGuiBuilder.CraftingGridDef(
+                                message.ints[idx++], message.ints[idx++], message.ints[idx++]));
+                    }
+
+                    int resultsCount = message.ints[idx++];
+                    for (int i = 0; i < resultsCount; i++) {
+                        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(
+                                message.ints[idx++], message.ints[idx++], message.ints[idx++]));
                     }
 
                     return new GrugScreen(new GrugScreenHandler(player, realInv, builder), builder);
