@@ -67,15 +67,13 @@ public class GameFunctions {
         PlayerEntity player = (PlayerEntity) Grug.entityData.get(playerId).object;
         BlockEntity be = (BlockEntity) Grug.entityData.get(blockEntityId).object;
 
-        if (be instanceof Inventory inv) {
-            // Note: To make this fully functional across the network, you will want to
-            // register
-            // a generic "grug:dynamic_gui" in StationAPI's GuiHandlerRegistry that accepts
-            // the builder
-            // state, or handle the container/screen opening directly.
-            GuiHelper.openGUI(player, Identifier.of("grug:dynamic_gui"), inv,
-                    new GrugScreenHandler(player, inv, builder));
+        if (!(be instanceof Inventory inv)) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Gui.open: Block entity is not an inventory.");
+            return;
         }
+
+        GuiHelper.openGUI(player, Identifier.of("grug:dynamic_gui"), inv,
+                new GrugScreenHandler(player, inv, builder));
     }
 
     public static long ItemEntity_entity(long itemEntityId) {
@@ -123,14 +121,18 @@ public class GameFunctions {
     public static void drop_inventory(long levelId, double x, double y, double z) {
         World world = (World) Grug.entityData.get(levelId).object;
         BlockEntity be = world.getBlockEntity((int) x, (int) y, (int) z);
-        if (be instanceof Inventory inv) {
-            for (int i = 0; i < inv.size(); i++) {
-                ItemStack stack = inv.getStack(i);
-                if (stack != null) {
-                    ItemEntity itemEntity = new ItemEntity(world, x, y, z, stack);
-                    world.spawnEntity(itemEntity);
-                    inv.setStack(i, null);
-                }
+        if (!(be instanceof Inventory inv)) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "drop_inventory: Block entity at (" + (int) x + ", " + (int) y
+                    + ", " + (int) z + ") is not an inventory.");
+            return;
+        }
+
+        for (int i = 0; i < inv.size(); i++) {
+            ItemStack stack = inv.getStack(i);
+            if (stack != null) {
+                ItemEntity itemEntity = new ItemEntity(world, x, y, z, stack);
+                world.spawnEntity(itemEntity);
+                inv.setStack(i, null);
             }
         }
     }
@@ -156,19 +158,23 @@ public class GameFunctions {
 
     public static double get_inventory_size(long blockEntityId) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
-        if (be instanceof Inventory inv) {
-            return inv.size();
+        if (!(be instanceof Inventory inv)) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "get_inventory_size: Block entity is not an inventory.");
+            return 0;
         }
-        return 0;
+        return inv.size();
     }
 
     public static long get_item_in_slot(long blockEntityId, double slot) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
-        if (be instanceof Inventory inv) {
-            ItemStack stack = inv.getStack((int) slot);
-            if (stack != null && stack.getItem() != null) {
-                return Grug.addEntity(GrugEntityType.Item, stack.getItem());
-            }
+        if (!(be instanceof Inventory inv)) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "get_item_in_slot: Block entity is not an inventory.");
+            return Grug.INVALID_GRUG_FILE_ID;
+        }
+
+        ItemStack stack = inv.getStack((int) slot);
+        if (stack != null && stack.getItem() != null) {
+            return Grug.addEntity(GrugEntityType.Item, stack.getItem());
         }
         return Grug.INVALID_GRUG_FILE_ID;
     }
@@ -212,7 +218,8 @@ public class GameFunctions {
         String cleanName = parts.length == 2 ? parts[1] : entityString;
 
         if (!Grug.entityFileIdsByName.containsKey(cleanName)) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Block entity script '" + entityString + "' does not exist.");
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "set_block_entity: Block entity script '" + entityString + "' does not exist.");
             return;
         }
 
@@ -241,10 +248,13 @@ public class GameFunctions {
 
     public static void set_item_in_slot(long blockEntityId, double slot, long itemId, double count) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
-        if (be instanceof Inventory inv) {
-            Item item = (Item) Grug.entityData.get(itemId).object;
-            inv.setStack((int) slot, new ItemStack(item, (int) count));
+        if (!(be instanceof Inventory inv)) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "set_item_in_slot: Block entity is not an inventory.");
+            return;
         }
+
+        Item item = (Item) Grug.entityData.get(itemId).object;
+        inv.setStack((int) slot, new ItemStack(item, (int) count));
     }
 
     public static void set_item_model(String path) {
