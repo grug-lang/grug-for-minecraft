@@ -167,7 +167,15 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     @Override
     public void readNbt(NbtCompound nbt) {
         super.readNbt(nbt);
-        ensureSized();
+
+        // Recover the size from NBT before attempting to load items,
+        // completely bypassing the world == null issue.
+        if (nbt.contains("GrugInvSize")) {
+            stacks = new ItemStack[nbt.getInt("GrugInvSize")];
+            sized = true;
+        } else {
+            ensureSized();
+        }
 
         NbtList items = nbt.getList("Items");
         for (int i = 0; i < items.size(); i++) {
@@ -183,6 +191,9 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     public void writeNbt(NbtCompound nbt) {
         super.writeNbt(nbt);
         ensureSized();
+
+        // Save the size so readNbt doesn't need the world object.
+        nbt.putInt("GrugInvSize", stacks.length);
 
         NbtList items = new NbtList();
         for (int i = 0; i < stacks.length; i++) {
