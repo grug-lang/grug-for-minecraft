@@ -9,6 +9,7 @@ z: number = center.z()
 tick_timer: number = 0
 
 export tick() {
+    print("tick")
     tick_timer = tick_timer + 1
 
     # Check every 20 ticks (1 second) to prevent lag

@@ -34,29 +34,38 @@ public class MinecraftMixin {
         if (updatedResources.length > 0) {
             // Bypass StationAPI's ReloadScreenManager entirely to avoid the blue overlay
             // and Escape bug.
-            // This runs the preparation async and applies the textures safely on the main
-            // thread.
             AssetsReloaderImpl.RESOURCE_PACK_MANAGER.scanPacks();
             ReloadableAssetsManager.INSTANCE.reload(
                     Util.getMainWorkerExecutor(),
                     TickScheduler.CLIENT_RENDER_END::distributed,
                     AssetsReloaderImpl.COMPLETED_UNIT_FUTURE,
                     (reloader, formatString, location) -> {
-                    }, // No-op profiler to avoid tracking locations
+                    }, // No-op profiler
                     AssetsReloaderImpl.RESOURCE_PACK_MANAGER.createResourcePacks());
         }
 
-        // Handle runtime errors triggered by grug-rs
         if (this.player != null) {
+            // Handle runtime errors triggered by grug-rs
             synchronized (GameFunctions.runtimeErrorQueue) {
                 while (!GameFunctions.runtimeErrorQueue.isEmpty()) {
                     sendRedMessage(GameFunctions.runtimeErrorQueue.poll());
+                }
+            }
+
+            // Handle print statements
+            synchronized (GameFunctions.printQueue) {
+                while (!GameFunctions.printQueue.isEmpty()) {
+                    sendMessage(GameFunctions.printQueue.poll(), "");
                 }
             }
         }
     }
 
     private void sendRedMessage(String text) {
+        sendMessage(text, "\u00A7c");
+    }
+
+    private void sendMessage(String text, String prefix) {
         if (this.player == null || text == null)
             return;
 
@@ -69,11 +78,11 @@ public class MinecraftMixin {
                 if (splitIndex == -1) {
                     splitIndex = maxLength; // Force split mid-word if there are no spaces (like long file paths)
                 }
-                this.player.sendMessage("\u00A7c" + line.substring(0, splitIndex));
+                this.player.sendMessage(prefix + line.substring(0, splitIndex));
                 line = line.substring(splitIndex).trim(); // Remove leading space for the next line
             }
             if (!line.isEmpty()) {
-                this.player.sendMessage("\u00A7c" + line);
+                this.player.sendMessage(prefix + line);
             }
         }
     }

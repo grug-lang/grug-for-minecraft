@@ -1,10 +1,14 @@
 package net.grug.minecraft.block;
 
 import net.grug.minecraft.block.entity.GrugBlockEntity;
+import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugEntityType;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.world.World;
 import net.modificationstation.stationapi.api.template.block.TemplateBlockWithEntity;
 import net.modificationstation.stationapi.api.util.Identifier;
 
@@ -29,6 +33,32 @@ public class GrugBlock extends TemplateBlockWithEntity {
             return Grug.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
         }
         return Grug.INVALID_GRUG_FILE_ID;
+    }
+
+    @Override
+    public boolean onUse(World world, int x, int y, int z, PlayerEntity player) {
+        long blockHandle = Grug.createEntity(this.blockFileId);
+        if (blockHandle != 0) {
+            long worldId = Grug.addEntity(GrugEntityType.Level, world);
+            long playerId = Grug.addEntity(GrugEntityType.Player, player);
+            boolean handled = ExportFns.Block_use(blockHandle, worldId, x, y, z, playerId);
+            Grug.destroyEntity(blockHandle);
+            if (handled) {
+                return true;
+            }
+        }
+        return super.onUse(world, x, y, z, player);
+    }
+
+    @Override
+    public void onBreak(World world, int x, int y, int z) {
+        long blockHandle = Grug.createEntity(this.blockFileId);
+        if (blockHandle != 0) {
+            long worldId = Grug.addEntity(GrugEntityType.Level, world);
+            ExportFns.Block_on_break(blockHandle, worldId, x, y, z);
+            Grug.destroyEntity(blockHandle);
+        }
+        super.onBreak(world, x, y, z);
     }
 
     @Override

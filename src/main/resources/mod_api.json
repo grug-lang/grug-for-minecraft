@@ -38,7 +38,7 @@
 					]
 				},
 				{
-					"name": "on_use",
+					"name": "use",
 					"description": "Called when a player right-clicks the block.",
 					"parameters": [
 						{
@@ -542,6 +542,20 @@
 					"name": "item",
 					"type": {
 						"name": "Item"
+					}
+				}
+			]
+		},
+		"print": {
+			"description": "Prints a value.",
+			"used_generics": [
+				"$Value"
+			],
+			"parameters": [
+				{
+					"name": "value",
+					"type": {
+						"name": "$Value"
 					}
 				}
 			]

@@ -12,11 +12,14 @@ export init() {
     set_block_entity(e"autocrafting_table_entity")
 }
 
+# TODO: Rename to `export break` once https://github.com/grug-lang/grug-rs/issues/14 is fixed
 export on_break(world: Level, x: number, y: number, z: number) {
+    print("on_break")
     drop_inventory(world, x, y, z)
 }
 
-export on_use(world: Level, x: number, y: number, z: number, player: Player) {
+export use(world: Level, x: number, y: number, z: number, player: Player) {
+    print("use")
     block_entity: BlockEntity = get_block_entity(world, x, y, z)
 
     gui_layout: Gui = gui("textures/gui/autocrafting_table.png")

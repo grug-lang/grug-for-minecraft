@@ -20,8 +20,13 @@ import java.util.Queue;
 
 public class GameFunctions {
 
+    // TODO: Move to GameFunctionsHelpers.java
     public static final Queue<String> runtimeErrorQueue = new ArrayDeque<>();
 
+    // TODO: Move to GameFunctionsHelpers.java
+    public static final Queue<String> printQueue = new ArrayDeque<>();
+
+    // TODO: Move to GameFunctionsHelpers.java
     public static void onRuntimeError(String reason) {
         InitListener.LOGGER.error(reason);
         synchronized (runtimeErrorQueue) {
@@ -29,6 +34,7 @@ public class GameFunctions {
         }
     }
 
+    // TODO: Move to GameFunctionsHelpers.java
     private static BlockEntity resolveBlockEntity(long blockEntityId) {
         GrugObject obj = Grug.entityData.get(blockEntityId);
         if (obj == null) {
@@ -218,6 +224,24 @@ public class GameFunctions {
     public static long item_stack(long itemId) {
         Item item = (Item) Grug.entityData.get(itemId).object;
         return Grug.addEntity(GrugEntityType.ItemStack, new ItemStack(item));
+    }
+
+    public static <T> void print(T value) {
+        String message = prettyFormat(value);
+        synchronized (printQueue) {
+            printQueue.add(message);
+        }
+    }
+
+    // TODO: Move to GameFunctionsHelpers.java
+    private static String prettyFormat(Object value) {
+        if (value instanceof Long id) {
+            GrugObject grugObj = Grug.entityData.get(id);
+            return (grugObj != null && grugObj.object != null)
+                    ? prettyFormat(grugObj.object)
+                    : "<id:" + id + " (invalid)>";
+        }
+        return String.valueOf(value);
     }
 
     public static long resource_location(String resourceLocationString) {
