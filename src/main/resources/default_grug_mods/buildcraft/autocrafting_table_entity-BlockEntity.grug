@@ -6,16 +6,91 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
-tick_timer: number = 0
-
-export tick() {
-    tick_timer = tick_timer + 1
-
-    # Check every 20 ticks (1 second) to prevent lag
-    if tick_timer != 20 {
-        return
+export item_extracted(slot: number, amount: number) {
+    if slot >= 0 and slot <= 8 {
+        update_recipe_output(me, 0, 9)
     }
-    tick_timer = 0
+}
 
-    # TODO: Autocrafting logic goes here!
+export item_inserted(slot: number, amount: number) {
+    if slot >= 0 and slot <= 8 {
+        update_recipe_output(me, 0, 9)
+    }
+}
+
+export output_taken(slot: number, amount: number) {
+    if slot == 9 {
+        _try_restock_about_to_empty()
+        consume_crafting_ingredients(me, 0)
+        update_recipe_output(me, 0, 9)
+    }
+}
+
+local _try_restock_about_to_empty() {
+    slot: number = 0
+    while slot < 9 {
+        count: number = get_item_count_in_slot(me, slot)
+
+        if count == 1 {
+            item_opt: Option[Item] = get_item_in_slot(me, slot)
+            if item_opt.is() {
+                item: Item = item_opt.unwrap()
+                damage: number = get_item_damage_in_slot(me, slot)
+
+                extracted: number = _extract_from_neighbors(item, damage, 1)
+
+                if extracted > 0 {
+                    set_item_count_in_slot(me, slot, 2)
+                }
+            }
+        }
+        slot = slot + 1
+    }
+}
+
+local _extract_from_neighbors(item: Item, damage: number, amount: number) number {
+    extracted: number = 0
+
+    pull: number = _extract_from_neighbor(x + 1, y, z, item, damage, amount - extracted)
+    extracted = extracted + pull
+    if extracted >= amount {
+        return extracted
+    }
+
+    pull = _extract_from_neighbor(x - 1, y, z, item, damage, amount - extracted)
+    extracted = extracted + pull
+    if extracted >= amount {
+        return extracted
+    }
+
+    pull = _extract_from_neighbor(x, y + 1, z, item, damage, amount - extracted)
+    extracted = extracted + pull
+    if extracted >= amount {
+        return extracted
+    }
+
+    pull = _extract_from_neighbor(x, y - 1, z, item, damage, amount - extracted)
+    extracted = extracted + pull
+    if extracted >= amount {
+        return extracted
+    }
+
+    pull = _extract_from_neighbor(x, y, z + 1, item, damage, amount - extracted)
+    extracted = extracted + pull
+    if extracted >= amount {
+        return extracted
+    }
+
+    pull = _extract_from_neighbor(x, y, z - 1, item, damage, amount - extracted)
+    extracted = extracted + pull
+
+    return extracted
+}
+
+local _extract_from_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number, amount: number) number {
+    neighbor_opt: Option[BlockEntity] = get_block_entity(level, nx, ny, nz)
+    if neighbor_opt.is() {
+        return extract_item_from_inventory(neighbor_opt.unwrap(), item, damage, amount)
+    }
+    return 0
 }

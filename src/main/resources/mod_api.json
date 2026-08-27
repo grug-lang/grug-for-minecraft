@@ -79,6 +79,60 @@
 			"description": "A block entity.",
 			"export_functions": [
 				{
+					"name": "item_extracted",
+					"description": "Called immediately when an item is removed from a slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
+					"name": "item_inserted",
+					"description": "Called immediately when an item is placed into a slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
+					"name": "output_taken",
+					"description": "Called whenever an item leaves a crafting result slot, by any means.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
 					"name": "tick",
 					"description": "Called every game tick, so every 0.05 seconds."
 				}
@@ -186,7 +240,7 @@
 					"description": "Adds a crafting output slot.",
 					"parameters": [
 						{
-							"name": "slot_index",
+							"name": "slot",
 							"type": {
 								"name": "number"
 							}
@@ -209,7 +263,7 @@
 					"description": "Adds a read-only/result slot linked to the BlockEntity.",
 					"parameters": [
 						{
-							"name": "slot_index",
+							"name": "slot",
 							"type": {
 								"name": "number"
 							}
@@ -261,7 +315,7 @@
 					"description": "Adds a standard inventory slot linked to the BlockEntity.",
 					"parameters": [
 						{
-							"name": "slot_index",
+							"name": "slot",
 							"type": {
 								"name": "number"
 							}
@@ -409,6 +463,49 @@
 				}
 			]
 		},
+		"consume_crafting_ingredients": {
+			"description": "Consumes 1 set of ingredients from a 3x3 grid, leaving behind buckets if necessary.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "start_slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"count_item_in_inventory": {
+			"description": "Counts how many of a specific item are in an entire inventory.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				},
+				{
+					"name": "damage",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"drop_inventory": {
 			"description": "Drops the inventory of a block entity into the world.",
 			"parameters": [
@@ -438,10 +535,47 @@
 				}
 			]
 		},
+		"extract_item_from_inventory": {
+			"description": "Extracts a specific amount of an item from an inventory.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				},
+				{
+					"name": "damage",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "amount",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"get_block_entity": {
 			"description": "Gets the BlockEntity at the specified coordinates.",
 			"return_type": {
-				"name": "BlockEntity"
+				"name": "Option",
+				"generics": [
+					{
+						"name": "BlockEntity"
+					}
+				]
 			},
 			"parameters": [
 				{
@@ -512,10 +646,55 @@
 				}
 			]
 		},
+		"get_item_count_in_slot": {
+			"description": "Gets the size of the item stack in a slot.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"get_item_damage_in_slot": {
+			"description": "Gets the damage/metadata of the item stack in a slot.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"get_item_in_slot": {
 			"description": "Gets the Item in a specific inventory slot.",
 			"return_type": {
-				"name": "Item"
+				"name": "Option",
+				"generics": [
+					{
+						"name": "Item"
+					}
+				]
 			},
 			"parameters": [
 				{
@@ -698,6 +877,29 @@
 				}
 			]
 		},
+		"set_item_count_in_slot": {
+			"description": "Changes the amount of items in a specific slot.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "count",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"set_item_in_slot": {
 			"description": "Sets the item in a specific inventory slot.",
 			"parameters": [
@@ -746,6 +948,29 @@
 					"name": "material_name",
 					"type": {
 						"name": "string"
+					}
+				}
+			]
+		},
+		"update_recipe_output": {
+			"description": "Evaluates a 3x3 crafting grid and places the result in the output slot.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "start_slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "output_slot",
+					"type": {
+						"name": "number"
 					}
 				}
 			]

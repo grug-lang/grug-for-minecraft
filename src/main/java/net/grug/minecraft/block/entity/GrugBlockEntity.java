@@ -1,6 +1,7 @@
 package net.grug.minecraft.block.entity;
 
 import net.grug.minecraft.block.GrugBlock;
+import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugObject;
 import net.minecraft.block.Block;
@@ -126,6 +127,14 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         }
 
         markDirty();
+
+        if (entityHandle != 0) {
+            long fnId = Grug.getExportFnId("BlockEntity", "item_extracted");
+            if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                ExportFns.BlockEntity_item_extracted(entityHandle, slot, amount);
+            }
+        }
+
         return result;
     }
 
@@ -141,6 +150,22 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         }
 
         markDirty();
+
+        if (entityHandle != 0) {
+            long fnId = Grug.getExportFnId("BlockEntity", "item_inserted");
+            if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                ExportFns.BlockEntity_item_inserted(entityHandle, slot, stack != null ? stack.count : 0);
+            }
+        }
+    }
+
+    public void notifyOutputTaken(int slot, int amount) {
+        if (entityHandle != 0) {
+            long fnId = Grug.getExportFnId("BlockEntity", "output_taken");
+            if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                ExportFns.BlockEntity_output_taken(entityHandle, slot, amount);
+            }
+        }
     }
 
     @Override

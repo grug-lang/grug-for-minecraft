@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import net.grug.minecraft.block.entity.GrugBlockEntity;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.gui.GrugScreenHandler;
 import net.minecraft.block.entity.BlockEntity;
@@ -9,6 +10,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.recipe.CraftingRecipeManager;
 import net.minecraft.world.World;
 import net.modificationstation.stationapi.api.gui.screen.container.GuiHelper;
 import net.modificationstation.stationapi.api.registry.ItemRegistry;
@@ -87,11 +89,12 @@ public class GameFunctions {
                             ? messagePacket.strings[0]
                             : "";
                     messagePacket.strings = new String[] { guiIdStr, builder.texturePath };
+
                     int syncId = (messagePacket.ints != null && messagePacket.ints.length > 0) ? messagePacket.ints[0]
                             : 0;
 
-                    // Arrays sizes
-                    int numInts = 13 + (builder.blockSlots.size() * 4) + (builder.craftingGrids.size() * 3)
+                    // 12 base elements + dynamic slots
+                    int numInts = 12 + (builder.blockSlots.size() * 4) + (builder.craftingGrids.size() * 3)
                             + (builder.craftingResults.size() * 3);
                     int[] ints = new int[numInts];
 
@@ -127,6 +130,7 @@ public class GameFunctions {
                         ints[idx++] = res.x();
                         ints[idx++] = res.y();
                     }
+
                     messagePacket.ints = ints;
                 });
     }
@@ -187,6 +191,40 @@ public class GameFunctions {
         }
     }
 
+    public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!(be instanceof Inventory inv))
+            return;
+
+        DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
+        for (int i = 0; i < matrix.size(); i++) {
+            ItemStack stack = matrix.getStack(i);
+            if (stack != null) {
+                matrix.removeStack(i, 1);
+                if (stack.getItem().hasCraftingReturnItem()) {
+                    matrix.setStack(i, new ItemStack(stack.getItem().getCraftingReturnItem()));
+                }
+            }
+        }
+    }
+
+    public static double count_item_in_inventory(long blockEntityId, long itemId, double damage) {
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!(be instanceof Inventory inv))
+            return 0;
+
+        Item item = (Item) Grug.entityData.get(itemId).object;
+        int total = 0;
+
+        for (int i = 0; i < inv.size(); i++) {
+            ItemStack stack = inv.getStack(i);
+            if (stack != null && stack.getItem() == item && stack.getDamage() == (int) damage) {
+                total += stack.count;
+            }
+        }
+        return total;
+    }
+
     public static void drop_inventory(long levelId, double x, double y, double z) {
         World world = (World) Grug.entityData.get(levelId).object;
         BlockEntity be = world.getBlockEntity((int) x, (int) y, (int) z);
@@ -206,13 +244,35 @@ public class GameFunctions {
         }
     }
 
+    public static double extract_item_from_inventory(long blockEntityId, long itemId, double damage, double amount) {
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!(be instanceof Inventory inv))
+            return 0;
+
+        Item item = (Item) Grug.entityData.get(itemId).object;
+        int remainingToExtract = (int) amount;
+
+        for (int i = 0; i < inv.size() && remainingToExtract > 0; i++) {
+            ItemStack stack = inv.getStack(i);
+            if (stack != null && stack.getItem() == item && stack.getDamage() == (int) damage) {
+                int extractFromSlot = Math.min(stack.count, remainingToExtract);
+                inv.removeStack(i, extractFromSlot);
+                remainingToExtract -= extractFromSlot;
+            }
+        }
+        return amount - remainingToExtract;
+    }
+
     public static long get_block_entity(long levelId, double x, double y, double z) {
         World world = (World) Grug.entityData.get(levelId).object;
         BlockEntity be = world.getBlockEntity((int) x, (int) y, (int) z);
+
         if (be != null) {
-            return Grug.addEntity(GrugEntityType.BlockEntity, be);
+            long beId = Grug.addEntity(GrugEntityType.BlockEntity, be);
+            return Grug.addEntity(GrugEntityType.Option, new GrugOption(beId));
         }
-        return Grug.INVALID_GRUG_FILE_ID;
+
+        return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
     public static long get_block_entity_level(long blockEntityId) {
@@ -234,18 +294,36 @@ public class GameFunctions {
         return inv.size();
     }
 
+    public static double get_item_count_in_slot(long blockEntityId, double slot) {
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (be instanceof Inventory inv) {
+            ItemStack stack = inv.getStack((int) slot);
+            return stack != null ? stack.count : 0;
+        }
+        return 0;
+    }
+
+    public static double get_item_damage_in_slot(long blockEntityId, double slot) {
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (be instanceof Inventory inv) {
+            ItemStack stack = inv.getStack((int) slot);
+            return stack != null ? stack.getDamage() : 0;
+        }
+        return 0;
+    }
+
     public static long get_item_in_slot(long blockEntityId, double slot) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
-        if (!(be instanceof Inventory inv)) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "get_item_in_slot: Block entity is not an inventory.");
-            return Grug.INVALID_GRUG_FILE_ID;
+
+        if (be instanceof Inventory inv) {
+            ItemStack stack = inv.getStack((int) slot);
+            if (stack != null && stack.getItem() != null) {
+                long itemId = Grug.addEntity(GrugEntityType.Item, stack.getItem());
+                return Grug.addEntity(GrugEntityType.Option, new GrugOption(itemId));
+            }
         }
 
-        ItemStack stack = inv.getStack((int) slot);
-        if (stack != null && stack.getItem() != null) {
-            return Grug.addEntity(GrugEntityType.Item, stack.getItem());
-        }
-        return Grug.INVALID_GRUG_FILE_ID;
+        return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
     public static long gui(String texturePath) {
@@ -321,6 +399,19 @@ public class GameFunctions {
         }
     }
 
+    public static void set_item_count_in_slot(long blockEntityId, double slot, double count) {
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (be instanceof Inventory inv) {
+            ItemStack stack = inv.getStack((int) slot);
+            if (stack != null) {
+                if (count <= 0)
+                    inv.setStack((int) slot, null);
+                else
+                    stack.count = (int) count;
+            }
+        }
+    }
+
     public static void set_item_in_slot(long blockEntityId, double slot, long itemId, double count) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!(be instanceof Inventory inv)) {
@@ -344,6 +435,18 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.material = materialName;
         }
+    }
+
+    public static void update_recipe_output(long blockEntityId, double startSlot, double outputSlot) {
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!(be instanceof Inventory inv))
+            return;
+
+        DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
+        ItemStack result = CraftingRecipeManager.getInstance().craft(matrix);
+
+        ((GrugBlockEntity) be).getStack((int) outputSlot); // Safe cast check
+        inv.setStack((int) outputSlot, result != null ? result.copy() : null);
     }
 
     public static long vec3(double x, double y, double z) {
