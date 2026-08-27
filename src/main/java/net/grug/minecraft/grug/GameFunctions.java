@@ -135,6 +135,20 @@ public class GameFunctions {
         return itemEntityId;
     }
 
+    public static boolean Option_is(long optionId) {
+        GrugOption opt = (GrugOption) Grug.entityData.get(optionId).object;
+        return opt.is();
+    }
+
+    public static Object Option_unwrap(long optionId) {
+        GrugOption opt = (GrugOption) Grug.entityData.get(optionId).object;
+        if (!opt.is()) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Tried to unwrap an empty Option!");
+            return null;
+        }
+        return opt.value();
+    }
+
     public static double Vec3_x(long vec3Id) {
         return ((Vec3) Grug.entityData.get(vec3Id).object).x();
     }

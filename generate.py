@@ -267,7 +267,7 @@ def collect_functions(mod_api: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "param_types": param_types,
                     "param_names": param_names,
                     "return_type": return_type,
-                    "used_generics": decl.get("used_generics", []),
+                    "used_generics": class_decl.get("used_generics", []),
                 }
             )
 
@@ -447,7 +447,10 @@ def generate_generic_java_bridge(functions: List[Dict[str, Any]]) -> str:
             )
 
             if resolved_return:
-                lines.append(f"        return GameFunctions.{base_name}({call_args});")
+                cast_type = java_class_type(resolved_return)
+                lines.append(
+                    f"        return ({cast_type}) GameFunctions.{base_name}({call_args});"
+                )
             else:
                 lines.append(f"        GameFunctions.{base_name}({call_args});")
 

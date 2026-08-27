@@ -310,6 +310,26 @@
 				}
 			}
 		},
+		"Option": {
+			"description": "Indicates that a value may not be present.",
+			"used_generics": [
+				"$Value"
+			],
+			"methods": {
+				"is": {
+					"description": "Checks if a value is present.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"unwrap": {
+					"description": "Gets the value if present.",
+					"return_type": {
+						"name": "$Value"
+					}
+				}
+			}
+		},
 		"Vec3": {
 			"description": "A 3D vector.",
 			"methods": {
