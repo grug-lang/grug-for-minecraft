@@ -70,7 +70,11 @@ public class MinecraftMixin {
 
         String[] lines = text.split("\n");
         for (String line : lines) {
-            // Break long lines into chunks of ~50 characters so the color code is preserved
+            // Print the full, unsplit line to the console
+            InitListener.LOGGER.info(prefix + line);
+
+            // Break long lines into chunks of ~50 characters
+            // so the color code is preserved for the player
             int maxLength = 50;
             while (line.length() > maxLength) {
                 int splitIndex = line.lastIndexOf(' ', maxLength);
