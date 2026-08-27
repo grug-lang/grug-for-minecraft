@@ -18,6 +18,9 @@
   "entrypoints": {
     "stationapi:event_bus": [
       "net.grug.minecraft.events.init.InitListener"
+    ],
+    "stationapi:event_bus_client": [
+      "net.grug.minecraft.events.init.ClientInitListener"
     ]
   },
   "mixins": [

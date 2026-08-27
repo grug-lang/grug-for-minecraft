@@ -1,7 +1,7 @@
 package net.grug.minecraft.grug;
 
 public enum GrugEntityType {
-    Block, BlockEntity, BlockPos, Entity, Gui, Item, ItemEntity, ItemStack, Level, Player, ResourceLocation, Vec3;
+    Block, BlockEntity, BlockPos, Entity, GUI, Item, ItemEntity, ItemStack, Level, Player, ResourceLocation, Vec3;
 
     private final static GrugEntityType[] values = GrugEntityType.values();
 

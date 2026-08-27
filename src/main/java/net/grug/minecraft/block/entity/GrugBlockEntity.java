@@ -5,19 +5,46 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugObject;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class GrugBlockEntity extends BlockEntity {
+public class GrugBlockEntity extends BlockEntity implements Inventory {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean initAttempted = false;
+
+    // Backing storage for the Inventory interface. Starts unsized because this
+    // class is instantiated generically (via reflection during deserialization,
+    // see InitListener#registerBlockEntities) before we know which grug block
+    // placed it, so the real size is resolved lazily from the GrugBlock once
+    // world/x/y/z are available.
+    private ItemStack[] stacks = new ItemStack[0];
+    private boolean sized = false;
+
+    private void ensureSized() {
+        if (sized || world == null)
+            return;
+
+        Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
+        if (!(block instanceof GrugBlock grugBlock))
+            return;
+
+        stacks = new ItemStack[grugBlock.getInventorySize()];
+        sized = true;
+    }
 
     private void initGrug() {
         if (entityHandle != 0 || initAttempted)
             return;
         initAttempted = true;
+
+        ensureSized();
 
         Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
         if (!(block instanceof GrugBlock))
@@ -63,5 +90,109 @@ public class GrugBlockEntity extends BlockEntity {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;
         }
+    }
+
+    // Inventory
+
+    @Override
+    public int size() {
+        ensureSized();
+        return stacks.length;
+    }
+
+    @Override
+    public ItemStack getStack(int slot) {
+        ensureSized();
+        if (slot < 0 || slot >= stacks.length)
+            return null;
+        return stacks[slot];
+    }
+
+    @Override
+    public ItemStack removeStack(int slot, int amount) {
+        ensureSized();
+        if (slot < 0 || slot >= stacks.length || stacks[slot] == null)
+            return null;
+
+        ItemStack result;
+        if (stacks[slot].count <= amount) {
+            result = stacks[slot];
+            stacks[slot] = null;
+        } else {
+            result = stacks[slot].split(amount);
+            if (stacks[slot].count == 0) {
+                stacks[slot] = null;
+            }
+        }
+
+        markDirty();
+        return result;
+    }
+
+    @Override
+    public void setStack(int slot, ItemStack stack) {
+        ensureSized();
+        if (slot < 0 || slot >= stacks.length)
+            return;
+
+        stacks[slot] = stack;
+        if (stack != null && stack.count > getMaxCountPerStack()) {
+            stack.count = getMaxCountPerStack();
+        }
+
+        markDirty();
+    }
+
+    @Override
+    public String getName() {
+        return "Grug Inventory";
+    }
+
+    @Override
+    public int getMaxCountPerStack() {
+        return 64;
+    }
+
+    @Override
+    public boolean canPlayerUse(PlayerEntity player) {
+        return world.getBlockEntity(x, y, z) == this
+                && player.getSquaredDistance(x + 0.5D, y + 0.5D, z + 0.5D) <= 64D;
+    }
+
+    @Override
+    public void markDirty() {
+        super.markDirty();
+    }
+
+    @Override
+    public void readNbt(NbtCompound nbt) {
+        super.readNbt(nbt);
+        ensureSized();
+
+        NbtList items = nbt.getList("Items");
+        for (int i = 0; i < items.size(); i++) {
+            NbtCompound itemNbt = (NbtCompound) items.get(i);
+            int slot = itemNbt.getByte("Slot") & 255;
+            if (slot < stacks.length) {
+                stacks[slot] = new ItemStack(itemNbt);
+            }
+        }
+    }
+
+    @Override
+    public void writeNbt(NbtCompound nbt) {
+        super.writeNbt(nbt);
+        ensureSized();
+
+        NbtList items = new NbtList();
+        for (int i = 0; i < stacks.length; i++) {
+            if (stacks[i] != null) {
+                NbtCompound itemNbt = new NbtCompound();
+                itemNbt.putByte("Slot", (byte) i);
+                stacks[i].writeNbt(itemNbt);
+                items.add(itemNbt);
+            }
+        }
+        nbt.put("Items", items);
     }
 }

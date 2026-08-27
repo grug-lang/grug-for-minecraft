@@ -42,12 +42,12 @@ public class GameFunctions {
         world.spawnEntity(entity);
     }
 
-    public static void Gui_add_output_slot(long guiId, double slot, double x, double y) {
+    public static void GUI_add_output_slot(long guiId, double slot, double x, double y) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, true));
     }
 
-    public static void Gui_add_player_inventory(long guiId, double mainX, double mainY, double hotbarX,
+    public static void GUI_add_player_inventory(long guiId, double mainX, double mainY, double hotbarX,
             double hotbarY) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         builder.hasPlayerInventory = true;
@@ -57,23 +57,54 @@ public class GameFunctions {
         builder.hotbarY = (int) hotbarY;
     }
 
-    public static void Gui_add_slot(long guiId, double slot, double x, double y) {
+    public static void GUI_add_slot(long guiId, double slot, double x, double y) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, false));
     }
 
-    public static void Gui_open(long guiId, long playerId, long blockEntityId) {
+    public static void GUI_open(long guiId, long playerId, long blockEntityId) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         PlayerEntity player = (PlayerEntity) Grug.entityData.get(playerId).object;
-        BlockEntity be = (BlockEntity) Grug.entityData.get(blockEntityId).object;
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
 
-        if (!(be instanceof Inventory inv)) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Gui.open: Block entity is not an inventory.");
+        if (!(be instanceof Inventory inv))
             return;
-        }
 
         GuiHelper.openGUI(player, Identifier.of("grug:dynamic_gui"), inv,
-                new GrugScreenHandler(player, inv, builder));
+                new GrugScreenHandler(player, inv, builder),
+                messagePacket -> {
+                    // Preserves the GUI Identifier at strings[0]
+                    String guiIdStr = (messagePacket.strings != null && messagePacket.strings.length > 0)
+                            ? messagePacket.strings[0]
+                            : "";
+                    messagePacket.strings = new String[] { guiIdStr, builder.texturePath };
+
+                    // Preserves the syncId at ints[0]
+                    int syncId = (messagePacket.ints != null && messagePacket.ints.length > 0) ? messagePacket.ints[0]
+                            : 0;
+
+                    int[] ints = new int[10 + (builder.blockSlots.size() * 4)];
+                    ints[0] = syncId;
+                    ints[1] = be.x;
+                    ints[2] = be.y;
+                    ints[3] = be.z;
+                    ints[4] = builder.hasPlayerInventory ? 1 : 0;
+                    ints[5] = builder.playerInvX;
+                    ints[6] = builder.playerInvY;
+                    ints[7] = builder.hotbarX;
+                    ints[8] = builder.hotbarY;
+                    ints[9] = builder.blockSlots.size();
+
+                    int idx = 10;
+                    for (GrugGuiBuilder.SlotDef def : builder.blockSlots) {
+                        ints[idx++] = def.index();
+                        ints[idx++] = def.x();
+                        ints[idx++] = def.y();
+                        ints[idx++] = def.isOutput() ? 1 : 0;
+                    }
+
+                    messagePacket.ints = ints;
+                });
     }
 
     public static long ItemEntity_entity(long itemEntityId) {
@@ -180,7 +211,7 @@ public class GameFunctions {
     }
 
     public static long gui(String texturePath) {
-        return Grug.addEntity(GrugEntityType.Gui, new GrugGuiBuilder(texturePath));
+        return Grug.addEntity(GrugEntityType.GUI, new GrugGuiBuilder(texturePath));
     }
 
     public static long item(long resourceLocationId) {
@@ -243,6 +274,12 @@ public class GameFunctions {
     public static void set_hardness(double value) {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.hardness = (float) value;
+        }
+    }
+
+    public static void set_inventory_size(double size) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.inventorySize = (int) size;
         }
     }
 

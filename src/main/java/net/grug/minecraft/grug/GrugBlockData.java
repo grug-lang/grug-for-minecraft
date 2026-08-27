@@ -16,6 +16,7 @@ public class GrugBlockData {
 
     public float hardness = 0.0f;
     public String material = "stone";
+    public int inventorySize = 0;
 
     public GrugBlockData(Identifier id) {
         this.id = id;

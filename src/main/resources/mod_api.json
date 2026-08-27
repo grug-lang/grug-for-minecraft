@@ -156,7 +156,7 @@
 				}
 			}
 		},
-		"Gui": {
+		"GUI": {
 			"description": "A dynamic GUI layout builder.",
 			"methods": {
 				"add_output_slot": {
@@ -469,7 +469,7 @@
 		"gui": {
 			"description": "Creates a new dynamic GUI layout using the specified background texture.",
 			"return_type": {
-				"name": "Gui"
+				"name": "GUI"
 			},
 			"parameters": [
 				{
@@ -615,6 +615,17 @@
 			"parameters": [
 				{
 					"name": "value",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"set_inventory_size": {
+			"description": "Declares how many item slots this block's block entity has.",
+			"parameters": [
+				{
+					"name": "size",
 					"type": {
 						"name": "number"
 					}

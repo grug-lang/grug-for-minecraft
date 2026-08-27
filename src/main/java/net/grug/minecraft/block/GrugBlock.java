@@ -35,6 +35,11 @@ public class GrugBlock extends TemplateBlockWithEntity {
         return Grug.INVALID_GRUG_FILE_ID;
     }
 
+    public int getInventorySize() {
+        GrugBlockData data = Grug.blockDataByFileId.get(this.blockFileId);
+        return data != null ? data.inventorySize : 0;
+    }
+
     @Override
     public boolean onUse(World world, int x, int y, int z, PlayerEntity player) {
         long blockHandle = Grug.createEntity(this.blockFileId);

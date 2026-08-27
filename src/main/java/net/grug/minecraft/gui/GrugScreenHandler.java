@@ -2,6 +2,7 @@ package net.grug.minecraft.gui;
 
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 
@@ -12,9 +13,16 @@ public class GrugScreenHandler extends ScreenHandler {
         this.blockInventory = blockInventory;
 
         for (GrugGuiBuilder.SlotDef def : layout.blockSlots) {
-            // Note: If def.isOutput() is true, you would typically use a custom Slot here
-            // that prevents players from placing items into it.
-            this.addSlot(new Slot(blockInventory, def.index(), def.x(), def.y()));
+            if (def.isOutput()) {
+                this.addSlot(new Slot(blockInventory, def.index(), def.x(), def.y()) {
+                    @Override
+                    public boolean canInsert(ItemStack stack) {
+                        return false;
+                    }
+                });
+            } else {
+                this.addSlot(new Slot(blockInventory, def.index(), def.x(), def.y()));
+            }
         }
 
         if (layout.hasPlayerInventory) {
