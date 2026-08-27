@@ -1,6 +1,5 @@
 package net.grug.minecraft.grug;
 
-import net.grug.minecraft.events.init.InitListener;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.gui.GrugScreenHandler;
 import net.minecraft.block.entity.BlockEntity;
@@ -15,37 +14,7 @@ import net.modificationstation.stationapi.api.gui.screen.container.GuiHelper;
 import net.modificationstation.stationapi.api.registry.ItemRegistry;
 import net.modificationstation.stationapi.api.util.Identifier;
 
-import java.util.ArrayDeque;
-import java.util.Queue;
-
 public class GameFunctions {
-
-    // TODO: Move to GameFunctionsHelpers.java
-    public static final Queue<String> runtimeErrorQueue = new ArrayDeque<>();
-
-    // TODO: Move to GameFunctionsHelpers.java
-    public static final Queue<String> printQueue = new ArrayDeque<>();
-
-    // TODO: Move to GameFunctionsHelpers.java
-    public static void onRuntimeError(String reason) {
-        InitListener.LOGGER.error(reason);
-        synchronized (runtimeErrorQueue) {
-            runtimeErrorQueue.add(reason);
-        }
-    }
-
-    // TODO: Move to GameFunctionsHelpers.java
-    private static BlockEntity resolveBlockEntity(long blockEntityId) {
-        GrugObject obj = Grug.entityData.get(blockEntityId);
-        if (obj == null) {
-            BlockEntity be = Grug.currentlyInitializingBlockEntity;
-            if (be != null) {
-                Grug.addEntityWithId(blockEntityId, GrugEntityType.BlockEntity, be);
-                return be;
-            }
-        }
-        return (BlockEntity) (obj != null ? obj.object : null);
-    }
 
     // Classes
 
@@ -176,17 +145,17 @@ public class GameFunctions {
     }
 
     public static long get_block_entity_level(long blockEntityId) {
-        BlockEntity be = resolveBlockEntity(blockEntityId);
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         return Grug.addEntity(GrugEntityType.Level, be.world);
     }
 
     public static long get_block_pos_of_block_entity(long blockEntityId) {
-        BlockEntity be = resolveBlockEntity(blockEntityId);
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(be.x, be.y, be.z));
     }
 
     public static double get_inventory_size(long blockEntityId) {
-        BlockEntity be = resolveBlockEntity(blockEntityId);
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (be instanceof Inventory inv) {
             return inv.size();
         }
@@ -194,7 +163,7 @@ public class GameFunctions {
     }
 
     public static long get_item_in_slot(long blockEntityId, double slot) {
-        BlockEntity be = resolveBlockEntity(blockEntityId);
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (be instanceof Inventory inv) {
             ItemStack stack = inv.getStack((int) slot);
             if (stack != null && stack.getItem() != null) {
@@ -227,21 +196,10 @@ public class GameFunctions {
     }
 
     public static <T> void print(T value) {
-        String message = prettyFormat(value);
-        synchronized (printQueue) {
-            printQueue.add(message);
+        String message = GameFunctionHelpers.prettyFormat(value);
+        synchronized (Grug.printQueue) {
+            Grug.printQueue.add(message);
         }
-    }
-
-    // TODO: Move to GameFunctionsHelpers.java
-    private static String prettyFormat(Object value) {
-        if (value instanceof Long id) {
-            GrugObject grugObj = Grug.entityData.get(id);
-            return (grugObj != null && grugObj.object != null)
-                    ? prettyFormat(grugObj.object)
-                    : "<id:" + id + " (invalid)>";
-        }
-        return String.valueOf(value);
     }
 
     public static long resource_location(String resourceLocationString) {
@@ -282,7 +240,7 @@ public class GameFunctions {
     }
 
     public static void set_item_in_slot(long blockEntityId, double slot, long itemId, double count) {
-        BlockEntity be = resolveBlockEntity(blockEntityId);
+        BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (be instanceof Inventory inv) {
             Item item = (Item) Grug.entityData.get(itemId).object;
             inv.setStack((int) slot, new ItemStack(item, (int) count));

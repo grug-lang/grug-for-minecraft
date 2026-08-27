@@ -1,7 +1,6 @@
 package net.grug.minecraft.mixin;
 
 import net.grug.minecraft.events.init.InitListener;
-import net.grug.minecraft.grug.GameFunctions;
 import net.grug.minecraft.grug.Grug;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.ClientPlayerEntity;
@@ -46,16 +45,16 @@ public class MinecraftMixin {
 
         if (this.player != null) {
             // Handle runtime errors triggered by grug-rs
-            synchronized (GameFunctions.runtimeErrorQueue) {
-                while (!GameFunctions.runtimeErrorQueue.isEmpty()) {
-                    sendRedMessage(GameFunctions.runtimeErrorQueue.poll());
+            synchronized (Grug.runtimeErrorQueue) {
+                while (!Grug.runtimeErrorQueue.isEmpty()) {
+                    sendRedMessage(Grug.runtimeErrorQueue.poll());
                 }
             }
 
             // Handle print statements
-            synchronized (GameFunctions.printQueue) {
-                while (!GameFunctions.printQueue.isEmpty()) {
-                    sendMessage(GameFunctions.printQueue.poll(), "");
+            synchronized (Grug.printQueue) {
+                while (!Grug.printQueue.isEmpty()) {
+                    sendMessage(Grug.printQueue.poll(), "");
                 }
             }
         }

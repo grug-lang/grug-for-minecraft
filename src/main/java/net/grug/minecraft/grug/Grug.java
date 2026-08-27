@@ -8,10 +8,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.function.Consumer;
 
 public final class Grug {
@@ -41,6 +43,9 @@ public final class Grug {
 
     public static final List<TagContribution> declaredTags = new ArrayList<>();
     public static final List<String> declaredRecipes = new ArrayList<>();
+
+    public static final Queue<String> runtimeErrorQueue = new ArrayDeque<>();
+    public static final Queue<String> printQueue = new ArrayDeque<>();
 
     public record TagContribution(String namespace, String path) {
     }
@@ -151,6 +156,13 @@ public final class Grug {
         }
 
         return reloadTriggers.toArray(new String[0]);
+    }
+
+    public static void onRuntimeError(String reason) {
+        InitListener.LOGGER.error(reason);
+        synchronized (runtimeErrorQueue) {
+            runtimeErrorQueue.add(reason);
+        }
     }
 
     public static long addEntity(GrugEntityType type, Object object) {

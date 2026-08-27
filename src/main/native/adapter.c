@@ -62,6 +62,7 @@ extern struct grug_files_slice grug_compile_all_files(void* state);
 jint jni_version;
 JavaVM* jvm;
 jclass game_functions_class;
+static jclass grug_class;
 static jmethodID jm_on_runtime_error;
 
 // --- Runtime Error Handler Callback ---
@@ -85,7 +86,7 @@ static void runtime_error_callback(
 
     JNIEnv* env; FILL_ENV(env);
     jstring str = (*env)->NewStringUTF(env, message);
-    (*env)->CallStaticVoidMethod(env, game_functions_class, jm_on_runtime_error, str);
+    (*env)->CallStaticVoidMethod(env, grug_class, jm_on_runtime_error, str);
     CHECK(env);
     (*env)->DeleteLocalRef(env, str);
 }
@@ -96,12 +97,12 @@ Java_net_grug_minecraft_grug_Grug_initGrugAdapter(JNIEnv *env, jclass clazz) {
     jni_version = (*env)->GetVersion(env);
     (*env)->GetJavaVM(env, &jvm);
 
+    grug_class = (*env)->NewGlobalRef(env, clazz);
+    jm_on_runtime_error = (*env)->GetStaticMethodID(env, grug_class, "onRuntimeError", "(Ljava/lang/String;)V");
+
     jclass local_gf = (*env)->FindClass(env, "net/grug/minecraft/grug/GameFunctions");
     if (!local_gf) return;
-
     game_functions_class = (*env)->NewGlobalRef(env, local_gf);
-
-    jm_on_runtime_error = (*env)->GetStaticMethodID(env, game_functions_class, "onRuntimeError", "(Ljava/lang/String;)V");
 
     resolve_generated_method_ids(env, game_functions_class);
 }
