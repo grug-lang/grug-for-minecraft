@@ -1,0 +1,21 @@
+level: Level = get_block_entity_level(me)
+
+pos: BlockPos = get_block_pos_of_block_entity(me)
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+tick_timer: number = 0
+
+export tick() {
+    tick_timer = tick_timer + 1
+
+    # Check every 20 ticks (1 second) to prevent lag
+    if tick_timer != 20 {
+        return
+    }
+    tick_timer = 0
+
+    # TODO: Autocrafting logic goes here!
+}

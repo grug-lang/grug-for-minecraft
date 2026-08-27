@@ -6,6 +6,72 @@
 				{
 					"name": "init",
 					"description": "Called once at registration time to declare the block's assets."
+				},
+				{
+					"name": "on_break",
+					"description": "Called when the block is mined/broken.",
+					"parameters": [
+						{
+							"name": "world",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
+					"name": "on_use",
+					"description": "Called when a player right-clicks the block.",
+					"parameters": [
+						{
+							"name": "world",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
 				}
 			]
 		},
@@ -63,40 +129,6 @@
 				}
 			}
 		},
-		"Vec3": {
-			"description": "A 3D vector.",
-			"methods": {
-				"x": {
-					"description": "Gets the X coordinate of a Vec3.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"y": {
-					"description": "Gets the Y coordinate of a Vec3.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"z": {
-					"description": "Gets the Z coordinate of a Vec3.",
-					"return_type": {
-						"name": "number"
-					}
-				}
-			}
-		},
-		"ItemEntity": {
-			"description": "An item entity.",
-			"methods": {
-				"entity": {
-					"description": "Takes an ItemEntity, and returns it as an Entity.",
-					"return_type": {
-						"name": "Entity"
-					}
-				}
-			}
-		},
 		"Entity": {
 			"description": "A generic entity.",
 			"methods": {
@@ -121,6 +153,137 @@
 							}
 						}
 					]
+				}
+			}
+		},
+		"Gui": {
+			"description": "A dynamic GUI layout builder.",
+			"methods": {
+				"add_output_slot": {
+					"description": "Adds a read-only/result slot linked to the BlockEntity.",
+					"parameters": [
+						{
+							"name": "slot_index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_player_inventory": {
+					"description": "Automatically lays out the player's main inventory and hotbar.",
+					"parameters": [
+						{
+							"name": "main_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "main_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "hotbar_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "hotbar_y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_slot": {
+					"description": "Adds a standard inventory slot linked to the BlockEntity.",
+					"parameters": [
+						{
+							"name": "slot_index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"open": {
+					"description": "Opens the dynamically built GUI for the player.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						},
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				}
+			}
+		},
+		"ItemEntity": {
+			"description": "An item entity.",
+			"methods": {
+				"entity": {
+					"description": "Takes an ItemEntity, and returns it as an Entity.",
+					"return_type": {
+						"name": "Entity"
+					}
+				}
+			}
+		},
+		"Vec3": {
+			"description": "A 3D vector.",
+			"methods": {
+				"x": {
+					"description": "Gets the X coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"y": {
+					"description": "Gets the Y coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"z": {
+					"description": "Gets the Z coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
 				}
 			}
 		}
@@ -180,6 +343,67 @@
 				}
 			]
 		},
+		"drop_inventory": {
+			"description": "Drops the inventory of a block entity into the world.",
+			"parameters": [
+				{
+					"name": "level",
+					"type": {
+						"name": "Level"
+					}
+				},
+				{
+					"name": "x",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"get_block_entity": {
+			"description": "Gets the BlockEntity at the specified coordinates.",
+			"return_type": {
+				"name": "BlockEntity"
+			},
+			"parameters": [
+				{
+					"name": "level",
+					"type": {
+						"name": "Level"
+					}
+				},
+				{
+					"name": "x",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"get_block_entity_level": {
 			"description": "Gets the Level (dimension) a BlockEntity is in.",
 			"return_type": {
@@ -204,6 +428,54 @@
 					"name": "block_entity",
 					"type": {
 						"name": "BlockEntity"
+					}
+				}
+			]
+		},
+		"get_inventory_size": {
+			"description": "Gets the size of an inventory block entity.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				}
+			]
+		},
+		"get_item_in_slot": {
+			"description": "Gets the Item in a specific inventory slot.",
+			"return_type": {
+				"name": "Item"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"gui": {
+			"description": "Creates a new dynamic GUI layout using the specified background texture.",
+			"return_type": {
+				"name": "Gui"
+			},
+			"parameters": [
+				{
+					"name": "texture_path",
+					"type": {
+						"name": "string"
 					}
 				}
 			]
@@ -324,6 +596,46 @@
 				}
 			]
 		},
+		"set_hardness": {
+			"description": "Sets the mining hardness of the block.",
+			"parameters": [
+				{
+					"name": "value",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"set_item_in_slot": {
+			"description": "Sets the item in a specific inventory slot.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				},
+				{
+					"name": "count",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"set_item_model": {
 			"description": "Declares the block's item model JSON file.",
 			"parameters": [
@@ -332,6 +644,17 @@
 					"type": {
 						"name": "resource",
 						"resource_extension": ".json"
+					}
+				}
+			]
+		},
+		"set_material": {
+			"description": "Sets the material of the block (e.g., 'wood', 'stone').",
+			"parameters": [
+				{
+					"name": "material_name",
+					"type": {
+						"name": "string"
 					}
 				}
 			]

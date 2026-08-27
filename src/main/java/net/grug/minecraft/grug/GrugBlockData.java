@@ -14,6 +14,9 @@ public class GrugBlockData {
     public final List<String> langPaths = new ArrayList<>();
     public String blockEntityString;
 
+    public float hardness = 0.0f;
+    public String material = "stone";
+
     public GrugBlockData(Identifier id) {
         this.id = id;
     }

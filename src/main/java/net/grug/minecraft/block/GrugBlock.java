@@ -12,11 +12,11 @@ public class GrugBlock extends TemplateBlockWithEntity {
     public final Identifier identifier;
     public long blockFileId;
 
-    // We no longer require entityFileId in the constructor
-    public GrugBlock(Identifier identifier, long blockFileId) {
-        super(identifier, Material.SAND);
+    public GrugBlock(Identifier identifier, long blockFileId, Material material, float hardness) {
+        super(identifier, material);
         this.identifier = identifier;
         this.blockFileId = blockFileId;
+        this.setHardness(hardness);
     }
 
     public long getEntityFileId() {

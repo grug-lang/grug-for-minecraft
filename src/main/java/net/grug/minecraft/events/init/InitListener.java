@@ -11,6 +11,7 @@ import net.grug.minecraft.item.GrugItem;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.mine_diver.unsafeevents.listener.EventListener;
+import net.minecraft.block.material.Material;
 import net.modificationstation.stationapi.api.StationAPI;
 import net.modificationstation.stationapi.api.event.block.entity.BlockEntityRegisterEvent;
 import net.modificationstation.stationapi.api.event.mod.InitEvent;
@@ -161,6 +162,43 @@ public class InitListener {
         }
     }
 
+    private static Material stringToMaterial(String materialName) {
+        if (materialName == null)
+            return Material.STONE;
+
+        return switch (materialName.toLowerCase()) {
+            case "air" -> Material.AIR;
+            case "solid_organic" -> Material.SOLID_ORGANIC;
+            case "soil" -> Material.SOIL;
+            case "wood" -> Material.WOOD;
+            case "stone" -> Material.STONE;
+            case "metal" -> Material.METAL;
+            case "water" -> Material.WATER;
+            case "lava" -> Material.LAVA;
+            case "leaves" -> Material.LEAVES;
+            case "plant" -> Material.PLANT;
+            case "sponge" -> Material.SPONGE;
+            case "wool" -> Material.WOOL;
+            case "fire" -> Material.FIRE;
+            case "sand" -> Material.SAND;
+            case "piston_breakable" -> Material.PISTON_BREAKABLE;
+            case "glass" -> Material.GLASS;
+            case "tnt" -> Material.TNT;
+            case "unused" -> Material.UNUSED;
+            case "ice" -> Material.ICE;
+            case "snow_layer" -> Material.SNOW_LAYER;
+            case "snow_block" -> Material.SNOW_BLOCK;
+            case "cactus" -> Material.CACTUS;
+            case "clay" -> Material.CLAY;
+            case "pumpkin" -> Material.PUMPKIN;
+            case "nether_portal" -> Material.NETHER_PORTAL;
+            case "cake" -> Material.CAKE;
+            case "cobweb" -> Material.COBWEB;
+            case "piston" -> Material.PISTON;
+            default -> Material.STONE;
+        };
+    }
+
     @EventListener
     private static void registerBlocks(BlockRegistryEvent event) {
         // Synthesize and register the Block instances (compiling/mod-init already
@@ -190,7 +228,9 @@ public class InitListener {
             Grug.blockDataByFileId.put(blockFileId, blockData);
             Grug.currentlyInitializingBlock = null;
 
-            new GrugBlock(blockId, blockFileId).setTranslationKey(blockId.namespace, blockId.path);
+            Material mat = stringToMaterial(blockData.material);
+            new GrugBlock(blockId, blockFileId, mat, blockData.hardness)
+                    .setTranslationKey(blockId.namespace, blockId.path);
         }
     }
 

@@ -1,12 +1,17 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.events.init.InitListener;
+import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.gui.GrugScreenHandler;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
+import net.modificationstation.stationapi.api.gui.screen.container.GuiHelper;
 import net.modificationstation.stationapi.api.registry.ItemRegistry;
 import net.modificationstation.stationapi.api.util.Identifier;
 
@@ -48,22 +53,6 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Vec3, new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
     }
 
-    public static double Vec3_x(long vec3Id) {
-        return ((Vec3) Grug.entityData.get(vec3Id).object).x();
-    }
-
-    public static double Vec3_y(long vec3Id) {
-        return ((Vec3) Grug.entityData.get(vec3Id).object).y();
-    }
-
-    public static double Vec3_z(long vec3Id) {
-        return ((Vec3) Grug.entityData.get(vec3Id).object).z();
-    }
-
-    public static long ItemEntity_entity(long itemEntityId) {
-        return itemEntityId;
-    }
-
     public static void Entity_set_delta_movement(long entityId, long vec3Id) {
         Entity entity = (Entity) Grug.entityData.get(entityId).object;
         Vec3 vec = (Vec3) Grug.entityData.get(vec3Id).object;
@@ -76,6 +65,58 @@ public class GameFunctions {
         Entity entity = (Entity) Grug.entityData.get(entityId).object;
         World world = (World) Grug.entityData.get(levelId).object;
         world.spawnEntity(entity);
+    }
+
+    public static void Gui_add_output_slot(long guiId, double slot, double x, double y) {
+        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
+        builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, true));
+    }
+
+    public static void Gui_add_player_inventory(long guiId, double mainX, double mainY, double hotbarX,
+            double hotbarY) {
+        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
+        builder.hasPlayerInventory = true;
+        builder.playerInvX = (int) mainX;
+        builder.playerInvY = (int) mainY;
+        builder.hotbarX = (int) hotbarX;
+        builder.hotbarY = (int) hotbarY;
+    }
+
+    public static void Gui_add_slot(long guiId, double slot, double x, double y) {
+        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
+        builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, false));
+    }
+
+    public static void Gui_open(long guiId, long playerId, long blockEntityId) {
+        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
+        PlayerEntity player = (PlayerEntity) Grug.entityData.get(playerId).object;
+        BlockEntity be = (BlockEntity) Grug.entityData.get(blockEntityId).object;
+
+        if (be instanceof Inventory inv) {
+            // Note: To make this fully functional across the network, you will want to
+            // register
+            // a generic "grug:dynamic_gui" in StationAPI's GuiHandlerRegistry that accepts
+            // the builder
+            // state, or handle the container/screen opening directly.
+            GuiHelper.openGUI(player, Identifier.of("grug:dynamic_gui"), inv,
+                    new GrugScreenHandler(player, inv, builder));
+        }
+    }
+
+    public static long ItemEntity_entity(long itemEntityId) {
+        return itemEntityId;
+    }
+
+    public static double Vec3_x(long vec3Id) {
+        return ((Vec3) Grug.entityData.get(vec3Id).object).x();
+    }
+
+    public static double Vec3_y(long vec3Id) {
+        return ((Vec3) Grug.entityData.get(vec3Id).object).y();
+    }
+
+    public static double Vec3_z(long vec3Id) {
+        return ((Vec3) Grug.entityData.get(vec3Id).object).z();
     }
 
     // Host functions
@@ -104,6 +145,30 @@ public class GameFunctions {
         }
     }
 
+    public static void drop_inventory(long levelId, double x, double y, double z) {
+        World world = (World) Grug.entityData.get(levelId).object;
+        BlockEntity be = world.getBlockEntity((int) x, (int) y, (int) z);
+        if (be instanceof Inventory inv) {
+            for (int i = 0; i < inv.size(); i++) {
+                ItemStack stack = inv.getStack(i);
+                if (stack != null) {
+                    ItemEntity itemEntity = new ItemEntity(world, x, y, z, stack);
+                    world.spawnEntity(itemEntity);
+                    inv.setStack(i, null);
+                }
+            }
+        }
+    }
+
+    public static long get_block_entity(long levelId, double x, double y, double z) {
+        World world = (World) Grug.entityData.get(levelId).object;
+        BlockEntity be = world.getBlockEntity((int) x, (int) y, (int) z);
+        if (be != null) {
+            return Grug.addEntity(GrugEntityType.BlockEntity, be);
+        }
+        return Grug.INVALID_GRUG_FILE_ID;
+    }
+
     public static long get_block_entity_level(long blockEntityId) {
         BlockEntity be = resolveBlockEntity(blockEntityId);
         return Grug.addEntity(GrugEntityType.Level, be.world);
@@ -112,6 +177,29 @@ public class GameFunctions {
     public static long get_block_pos_of_block_entity(long blockEntityId) {
         BlockEntity be = resolveBlockEntity(blockEntityId);
         return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(be.x, be.y, be.z));
+    }
+
+    public static double get_inventory_size(long blockEntityId) {
+        BlockEntity be = resolveBlockEntity(blockEntityId);
+        if (be instanceof Inventory inv) {
+            return inv.size();
+        }
+        return 0;
+    }
+
+    public static long get_item_in_slot(long blockEntityId, double slot) {
+        BlockEntity be = resolveBlockEntity(blockEntityId);
+        if (be instanceof Inventory inv) {
+            ItemStack stack = inv.getStack((int) slot);
+            if (stack != null && stack.getItem() != null) {
+                return Grug.addEntity(GrugEntityType.Item, stack.getItem());
+            }
+        }
+        return Grug.INVALID_GRUG_FILE_ID;
+    }
+
+    public static long gui(String texturePath) {
+        return Grug.addEntity(GrugEntityType.Gui, new GrugGuiBuilder(texturePath));
     }
 
     public static long item(long resourceLocationId) {
@@ -163,11 +251,31 @@ public class GameFunctions {
         }
     }
 
+    public static void set_hardness(double value) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.hardness = (float) value;
+        }
+    }
+
+    public static void set_item_in_slot(long blockEntityId, double slot, long itemId, double count) {
+        BlockEntity be = resolveBlockEntity(blockEntityId);
+        if (be instanceof Inventory inv) {
+            Item item = (Item) Grug.entityData.get(itemId).object;
+            inv.setStack((int) slot, new ItemStack(item, (int) count));
+        }
+    }
+
     public static void set_item_model(String path) {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.itemModelPath = path;
         } else if (Grug.currentlyInitializingItem != null) {
             Grug.currentlyInitializingItem.itemModelPath = path;
+        }
+    }
+
+    public static void set_material(String materialName) {
+        if (Grug.currentlyInitializingBlock != null) {
+            Grug.currentlyInitializingBlock.material = materialName;
         }
     }
 

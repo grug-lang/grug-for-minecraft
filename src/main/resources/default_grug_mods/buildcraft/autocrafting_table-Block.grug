@@ -6,4 +6,37 @@ export init() {
 
     add_texture(r"textures/block/autocrafting_table_side.png")
     add_texture(r"textures/block/autocrafting_table_top.png")
+
+    set_hardness(2.5)
+    set_material("wood")
+    set_block_entity(e"autocrafting_table_entity")
+}
+
+export on_break(world: Level, x: number, y: number, z: number) {
+    drop_inventory(world, x, y, z)
+}
+
+export on_use(world: Level, x: number, y: number, z: number, player: Player) {
+    block_entity: BlockEntity = get_block_entity(world, x, y, z)
+
+    gui_layout: Gui = gui("textures/gui/autocrafting_table.png")
+
+    # Build the 3x3 crafting grid (slots 0-8)
+    row: number = 0
+    while row < 3 {
+        col: number = 0
+        while col < 3 {
+            gui_layout.add_slot(col + row * 3, 30 + col * 18, 17 + row * 18)
+            col = col + 1
+        }
+        row = row + 1
+    }
+
+    # Build the Crafting Result slot (slot 9)
+    gui_layout.add_output_slot(9, 124, 35)
+
+    # Add the standard Player Inventory (Main inventory at 8, 84 and Hotbar at 8, 142)
+    gui_layout.add_player_inventory(8, 84, 8, 142)
+
+    gui_layout.open(player, block_entity)
 }

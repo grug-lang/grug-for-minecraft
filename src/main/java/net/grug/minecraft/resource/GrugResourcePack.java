@@ -43,20 +43,16 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         for (Grug.TagContribution contribution : Grug.declaredTags) {
             namespaces.add(namespaceOf(contribution.namespace()));
         }
-        System.out.println("[DEBUG GRUG] getNamespaces(" + type + ") returning: " + namespaces);
         return namespaces;
     }
 
     @Override
     public InputSupplier<InputStream> openRoot(String... segments) {
-        System.out.println("[DEBUG GRUG] openRoot() called with segments: " + String.join("/", segments));
         return null;
     }
 
     @Override
     public InputSupplier<InputStream> open(ResourceType type, Identifier id) {
-        System.out.println("[DEBUG GRUG] open() called | type=" + type + " | id=" + id);
-
         if (id == null)
             return null;
 
@@ -73,18 +69,13 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
         if (path.startsWith("stationapi/recipes/")) {
             String requestedSuffix = path.substring("stationapi/recipes/".length());
-            System.out.println("[DEBUG GRUG] -> Extracted recipe suffix: " + requestedSuffix);
             for (String recipePath : Grug.declaredRecipes) {
-                System.out.println("[DEBUG GRUG]   -> Checking against declared: " + recipePath);
                 if (recipePath.endsWith("recipes/" + requestedSuffix)) {
                     File file = grugModsDir.resolve(recipePath).toFile();
-                    System.out.println("[DEBUG GRUG]   -> MATCHED! Physical file exists? " + file.exists() + " at "
-                            + file.getAbsolutePath());
                     if (file.exists())
                         return () -> new FileInputStream(file);
                 }
             }
-            System.out.println("[DEBUG GRUG] -> No matching recipe found for: " + requestedSuffix);
             return null;
         }
 
@@ -175,9 +166,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
     @Override
     public void findResources(ResourceType type, Namespace namespace, String prefix,
             ResourcePack.ResultConsumer consumer) {
-
-        System.out.println("[DEBUG GRUG] findResources() called | type=" + type + " | namespace=" + namespace
-                + " | prefix=" + prefix);
 
         if (prefix.startsWith("stationapi/tags")) {
             Set<String> tagSuffixes = new LinkedHashSet<>();
@@ -299,8 +287,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
     private static InputSupplier<InputStream> mergeTagFragments(Path grugModsDir, Namespace namespace,
             String requestedSuffix) {
-        System.out.println("[DEBUG GRUG] mergeTagFragments() called | namespace=" + namespace + " | requestedSuffix="
-                + requestedSuffix);
         JsonArray mergedValues = new JsonArray();
         boolean found = false;
 
@@ -310,8 +296,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
             if (contribution.path().endsWith(requestedSuffix)) {
                 File file = grugModsDir.resolve(contribution.path()).toFile();
-                System.out.println(
-                        "[DEBUG GRUG]   -> Tag Match! File exists? " + file.exists() + " at " + file.getAbsolutePath());
                 if (!file.exists())
                     continue;
 
@@ -320,7 +304,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                     JsonObject fragment = JsonParser.parseReader(reader).getAsJsonObject();
                     if (fragment.has("values")) {
                         for (var value : fragment.getAsJsonArray("values")) {
-                            System.out.println("[DEBUG GRUG]     -> Adding tag value: " + value);
                             mergedValues.add(value);
                         }
                     }
@@ -331,13 +314,11 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         }
 
         if (!found) {
-            System.out.println("[DEBUG GRUG] -> No valid tag fragments found.");
             return null;
         }
 
         JsonObject merged = new JsonObject();
         merged.add("values", mergedValues);
-        System.out.println("[DEBUG GRUG] -> Returning merged JSON: " + merged.toString());
         byte[] bytes = merged.toString().getBytes(StandardCharsets.UTF_8);
         return () -> new ByteArrayInputStream(bytes);
     }
