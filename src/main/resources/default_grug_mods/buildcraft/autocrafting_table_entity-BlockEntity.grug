@@ -27,6 +27,10 @@ export output_taken(slot: number, amount: number) {
 }
 
 local _try_restock_about_to_empty() {
+    if not _can_restock_all() {
+        return
+    }
+
     slot: number = 0
     while slot < 9 {
         count: number = get_item_count_in_slot(me, slot)
@@ -46,6 +50,62 @@ local _try_restock_about_to_empty() {
         }
         slot = slot + 1
     }
+}
+
+local _can_restock_all() bool {
+    slot: number = 0
+    while slot < 9 {
+        if get_item_count_in_slot(me, slot) == 1 {
+            item_opt: Option[Item] = get_item_in_slot(me, slot)
+            if item_opt.is() {
+                item: Item = item_opt.unwrap()
+                damage: number = get_item_damage_in_slot(me, slot)
+
+                required: number = 0
+                inner_slot: number = 0
+
+                # Count how many of this exact item are needed across the whole grid
+                while inner_slot < 9 {
+                    if get_item_count_in_slot(me, inner_slot) == 1 {
+                        inner_opt: Option[Item] = get_item_in_slot(me, inner_slot)
+                        if inner_opt.is() {
+                            if equals(inner_opt.unwrap(), item) and get_item_damage_in_slot(me, inner_slot) == damage {
+                                required = required + 1
+                            }
+                        }
+                    }
+                    inner_slot = inner_slot + 1
+                }
+
+                # If neighbors don't have enough, abort the whole restock
+                if _count_in_neighbors(item, damage) < required {
+                    return false
+                }
+            }
+        }
+        slot = slot + 1
+    }
+
+    return true
+}
+
+local _count_in_neighbors(item: Item, damage: number) number {
+    total: number = 0
+    total = total + _count_in_neighbor(x + 1, y, z, item, damage)
+    total = total + _count_in_neighbor(x - 1, y, z, item, damage)
+    total = total + _count_in_neighbor(x, y + 1, z, item, damage)
+    total = total + _count_in_neighbor(x, y - 1, z, item, damage)
+    total = total + _count_in_neighbor(x, y, z + 1, item, damage)
+    total = total + _count_in_neighbor(x, y, z - 1, item, damage)
+    return total
+}
+
+local _count_in_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number) number {
+    neighbor_opt: Option[BlockEntity] = get_block_entity(level, nx, ny, nz)
+    if neighbor_opt.is() {
+        return count_item_in_inventory(neighbor_opt.unwrap(), item, damage)
+    }
+    return 0
 }
 
 local _extract_from_neighbors(item: Item, damage: number, amount: number) number {
@@ -83,7 +143,6 @@ local _extract_from_neighbors(item: Item, damage: number, amount: number) number
 
     pull = _extract_from_neighbor(x, y, z - 1, item, damage, amount - extracted)
     extracted = extracted + pull
-
     return extracted
 }
 

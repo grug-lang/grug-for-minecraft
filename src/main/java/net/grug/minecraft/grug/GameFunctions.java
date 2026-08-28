@@ -248,6 +248,21 @@ public class GameFunctions {
         }
     }
 
+    public static boolean equals(Object a, Object b) {
+        // If both are entity IDs (longs), resolve them and compare underlying objects
+        if (a instanceof Long idA && b instanceof Long idB) {
+            GrugObject objA = Grug.entityData.get(idA);
+            GrugObject objB = Grug.entityData.get(idB);
+
+            if (objA != null && objB != null) {
+                return java.util.Objects.equals(objA.object, objB.object);
+            }
+        }
+
+        // Fallback for primitives (numbers, booleans, strings) or if resolution fails
+        return java.util.Objects.equals(a, b);
+    }
+
     public static double extract_item_from_inventory(long blockEntityId, long itemId, double damage, double amount) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!(be instanceof Inventory inv))

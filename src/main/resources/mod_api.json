@@ -535,6 +535,29 @@
 				}
 			]
 		},
+		"equals": {
+			"description": "Checks if two values are equal. For objects like Items, this compares the underlying game object rather than the Grug entity ID.",
+			"used_generics": [
+				"$Type"
+			],
+			"return_type": {
+				"name": "bool"
+			},
+			"parameters": [
+				{
+					"name": "a",
+					"type": {
+						"name": "$Type"
+					}
+				},
+				{
+					"name": "b",
+					"type": {
+						"name": "$Type"
+					}
+				}
+			]
+		},
 		"extract_item_from_inventory": {
 			"description": "Extracts a specific amount of an item from an inventory.",
 			"return_type": {
