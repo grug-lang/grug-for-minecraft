@@ -61,21 +61,7 @@ local _can_restock_all() bool {
                 item: Item = item_opt.unwrap()
                 damage: number = get_item_damage_in_slot(me, slot)
 
-                required: number = 0
-                inner_slot: number = 0
-
-                # Count how many of this exact item are needed across the whole grid
-                while inner_slot < 9 {
-                    if get_item_count_in_slot(me, inner_slot) == 1 {
-                        inner_opt: Option[Item] = get_item_in_slot(me, inner_slot)
-                        if inner_opt.is() {
-                            if equals(inner_opt.unwrap(), item) and get_item_damage_in_slot(me, inner_slot) == damage {
-                                required = required + 1
-                            }
-                        }
-                    }
-                    inner_slot = inner_slot + 1
-                }
+                required: number = _count_required(item, damage)
 
                 # If neighbors don't have enough, abort the whole restock
                 if _count_in_neighbors(item, damage) < required {
@@ -87,6 +73,28 @@ local _can_restock_all() bool {
     }
 
     return true
+}
+
+local _count_required(target_item: Item, target_damage: number) number {
+    required: number = 0
+    slot: number = 0
+
+    while slot < 9 {
+        if get_item_count_in_slot(me, slot) == 1 {
+            item_opt: Option[Item] = get_item_in_slot(me, slot)
+            if item_opt.is() {
+                is_same_item: bool = equals(item_opt.unwrap(), target_item)
+                is_same_damage: bool = get_item_damage_in_slot(me, slot) == target_damage
+
+                if is_same_item and is_same_damage {
+                    required = required + 1
+                }
+            }
+        }
+        slot = slot + 1
+    }
+
+    return required
 }
 
 local _count_in_neighbors(item: Item, damage: number) number {
