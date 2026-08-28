@@ -139,14 +139,14 @@ public class GameFunctions {
         return itemEntityId;
     }
 
-    public static boolean Option_is(long optionId) {
+    public static boolean Option_has(long optionId) {
         GrugOption opt = (GrugOption) Grug.entityData.get(optionId).object;
-        return opt.is();
+        return opt.has();
     }
 
     public static Object Option_unwrap(long optionId) {
         GrugOption opt = (GrugOption) Grug.entityData.get(optionId).object;
-        if (!opt.is()) {
+        if (!opt.has()) {
             Grug.gameFunctionErrorHappened(Grug.statePtr, "Tried to unwrap an empty Option!");
             return null;
         }

@@ -370,14 +370,14 @@
 				"$Value"
 			],
 			"methods": {
-				"is": {
-					"description": "Checks if a value is present.",
+				"has": {
+					"description": "Checks if it has a value.",
 					"return_type": {
 						"name": "bool"
 					}
 				},
 				"unwrap": {
-					"description": "Gets the value if present.",
+					"description": "Gets the value if present, otherwise throws a runtime error.",
 					"return_type": {
 						"name": "$Value"
 					}

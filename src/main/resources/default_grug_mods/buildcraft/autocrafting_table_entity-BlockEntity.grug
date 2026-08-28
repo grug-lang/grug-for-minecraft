@@ -37,7 +37,7 @@ local _try_restock_about_to_empty() {
 
         if count == 1 {
             item_opt: Option[Item] = get_item_in_slot(me, slot)
-            if item_opt.is() {
+            if item_opt.has() {
                 item: Item = item_opt.unwrap()
                 damage: number = get_item_damage_in_slot(me, slot)
 
@@ -57,7 +57,7 @@ local _can_restock_all() bool {
     while slot < 9 {
         if get_item_count_in_slot(me, slot) == 1 {
             item_opt: Option[Item] = get_item_in_slot(me, slot)
-            if item_opt.is() {
+            if item_opt.has() {
                 item: Item = item_opt.unwrap()
                 damage: number = get_item_damage_in_slot(me, slot)
 
@@ -82,7 +82,7 @@ local _count_required(target_item: Item, target_damage: number) number {
     while slot < 9 {
         if get_item_count_in_slot(me, slot) == 1 {
             item_opt: Option[Item] = get_item_in_slot(me, slot)
-            if item_opt.is() {
+            if item_opt.has() {
                 is_same_item: bool = equals(item_opt.unwrap(), target_item)
                 is_same_damage: bool = get_item_damage_in_slot(me, slot) == target_damage
 
@@ -110,7 +110,7 @@ local _count_in_neighbors(item: Item, damage: number) number {
 
 local _count_in_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number) number {
     neighbor_opt: Option[BlockEntity] = get_block_entity(level, nx, ny, nz)
-    if neighbor_opt.is() {
+    if neighbor_opt.has() {
         return count_item_in_inventory(neighbor_opt.unwrap(), item, damage)
     }
     return 0
@@ -156,7 +156,7 @@ local _extract_from_neighbors(item: Item, damage: number, amount: number) number
 
 local _extract_from_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number, amount: number) number {
     neighbor_opt: Option[BlockEntity] = get_block_entity(level, nx, ny, nz)
-    if neighbor_opt.is() {
+    if neighbor_opt.has() {
         return extract_item_from_inventory(neighbor_opt.unwrap(), item, damage, amount)
     }
     return 0
