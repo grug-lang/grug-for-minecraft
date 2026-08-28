@@ -370,8 +370,25 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.ItemStack, new ItemStack(item));
     }
 
-    public static <T> void print(T value) {
-        String message = GameFunctionHelpers.prettyFormat(value);
+    public static <T> void print(T a) {
+        String message = GameFunctionHelpers.prettyFormat(a);
+        synchronized (Grug.printQueue) {
+            Grug.printQueue.add(message);
+        }
+    }
+
+    public static <T, U> void print2(T a, U b) {
+        String message = GameFunctionHelpers.prettyFormat(a) + " " +
+                GameFunctionHelpers.prettyFormat(b);
+        synchronized (Grug.printQueue) {
+            Grug.printQueue.add(message);
+        }
+    }
+
+    public static <T, U, V> void print3(T a, U b, V c) {
+        String message = GameFunctionHelpers.prettyFormat(a) + " " +
+                GameFunctionHelpers.prettyFormat(b) + " " +
+                GameFunctionHelpers.prettyFormat(c);
         synchronized (Grug.printQueue) {
             Grug.printQueue.add(message);
         }

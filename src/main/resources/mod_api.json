@@ -828,6 +828,55 @@
 				}
 			]
 		},
+		"print2": {
+			"description": "Prints two values.",
+			"used_generics": [
+				"$Value1",
+				"$Value2"
+			],
+			"parameters": [
+				{
+					"name": "a",
+					"type": {
+						"name": "$Value1"
+					}
+				},
+				{
+					"name": "b",
+					"type": {
+						"name": "$Value2"
+					}
+				}
+			]
+		},
+		"print3": {
+			"description": "Prints three values.",
+			"used_generics": [
+				"$Value1",
+				"$Value2",
+				"$Value3"
+			],
+			"parameters": [
+				{
+					"name": "a",
+					"type": {
+						"name": "$Value1"
+					}
+				},
+				{
+					"name": "b",
+					"type": {
+						"name": "$Value2"
+					}
+				},
+				{
+					"name": "c",
+					"type": {
+						"name": "$Value3"
+					}
+				}
+			]
+		},
 		"resource_location": {
 			"description": "Creates a new ResourceLocation.",
 			"return_type": {
