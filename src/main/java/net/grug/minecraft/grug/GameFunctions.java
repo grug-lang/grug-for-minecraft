@@ -227,7 +227,11 @@ public class GameFunctions {
 
     public static void drop_inventory(long levelId, double x, double y, double z) {
         World world = (World) Grug.entityData.get(levelId).object;
-        BlockEntity be = world.getBlockEntity((int) x, (int) y, (int) z);
+
+        // Math.floor rounds towards negative infinity regardless of sign,
+        // so a center-based coordinate always lands in the block that contains it.
+        BlockEntity be = world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+
         if (!(be instanceof Inventory inv)) {
             Grug.gameFunctionErrorHappened(Grug.statePtr, "drop_inventory: Block entity at (" + (int) x + ", " + (int) y
                     + ", " + (int) z + ") is not an inventory.");
@@ -265,7 +269,10 @@ public class GameFunctions {
 
     public static long get_block_entity(long levelId, double x, double y, double z) {
         World world = (World) Grug.entityData.get(levelId).object;
-        BlockEntity be = world.getBlockEntity((int) x, (int) y, (int) z);
+
+        // Math.floor rounds towards negative infinity regardless of sign,
+        // so a center-based coordinate always lands in the block that contains it.
+        BlockEntity be = world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
 
         if (be != null) {
             long beId = Grug.addEntity(GrugEntityType.BlockEntity, be);
