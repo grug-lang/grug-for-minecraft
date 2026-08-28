@@ -21,21 +21,16 @@ export on_break(world: Level, x: number, y: number, z: number) {
 }
 
 export use(world: Level, x: number, y: number, z: number, player: Player) {
-    # TODO: Can this be safely stored in member scope?
     gui_layout: GUI = gui("gui/crafting.png")
 
-    # TODO: Can I move this to export init?
     # Add a 3x3 crafting grid starting at inventory slot 0
     gui_layout.add_crafting_grid(0, 30, 17)
 
-    # TODO: Can I move this to export init?
     # Add the result slot pointing to inventory slot 9
     gui_layout.add_crafting_result(9, 124, 35)
 
-    # TODO: Can I move this to export init?
     gui_layout.add_player_inventory(8, 84, 8, 142)
 
-    # TODO: Can this be safely stored in member scope?
     block_entity: BlockEntity = get_block_entity(world, x, y, z).unwrap()
 
     gui_layout.open(player, block_entity)
