@@ -1,4 +1,3 @@
 export init() {
     add_lang(r"lang/en_US.lang")
-    set_item_model(r"models/item/wooden_gear.json")
 }

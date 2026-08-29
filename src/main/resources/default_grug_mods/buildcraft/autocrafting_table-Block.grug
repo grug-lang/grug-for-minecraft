@@ -1,8 +1,5 @@
 export init() {
     add_lang(r"lang/en_US.lang")
-    set_blockstate(r"blockstates/autocrafting_table.json")
-    set_block_model(r"models/block/autocrafting_table.json")
-    set_item_model(r"models/item/autocrafting_table.json")
 
     set_hardness(2.5)
     set_material("wood")

@@ -406,18 +406,6 @@ public class GameFunctions {
         }
     }
 
-    public static void set_block_model(String path) {
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.blockModelPath = path;
-        }
-    }
-
-    public static void set_blockstate(String path) {
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.blockstatePath = path;
-        }
-    }
-
     public static void set_hardness(double value) {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.hardness = (float) value;
@@ -452,14 +440,6 @@ public class GameFunctions {
 
         Item item = (Item) Grug.entityData.get(itemId).object;
         inv.setStack((int) slot, new ItemStack(item, (int) count));
-    }
-
-    public static void set_item_model(String path) {
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.itemModelPath = path;
-        } else if (Grug.currentlyInitializingItem != null) {
-            Grug.currentlyInitializingItem.itemModelPath = path;
-        }
     }
 
     public static void set_material(String materialName) {

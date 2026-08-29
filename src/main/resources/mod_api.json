@@ -891,30 +891,6 @@
 				}
 			]
 		},
-		"set_block_model": {
-			"description": "Declares the block's block model JSON file.",
-			"parameters": [
-				{
-					"name": "path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".json"
-					}
-				}
-			]
-		},
-		"set_blockstate": {
-			"description": "Declares the block's blockstate JSON file.",
-			"parameters": [
-				{
-					"name": "path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".json"
-					}
-				}
-			]
-		},
 		"set_hardness": {
 			"description": "Sets the mining hardness of the block.",
 			"parameters": [
@@ -985,18 +961,6 @@
 					"name": "count",
 					"type": {
 						"name": "number"
-					}
-				}
-			]
-		},
-		"set_item_model": {
-			"description": "Declares the block's item model JSON file.",
-			"parameters": [
-				{
-					"name": "path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".json"
 					}
 				}
 			]

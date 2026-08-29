@@ -68,7 +68,8 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         if (!id.getNamespace().equals(InitListener.NAMESPACE))
             return null;
 
-        if (path.startsWith("stationapi/textures/")) {
+        if (path.startsWith("stationapi/textures/") || path.startsWith("stationapi/models/")
+                || path.startsWith("stationapi/blockstates/")) {
             File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
             if (modDirs != null) {
                 for (File modDir : modDirs) {
@@ -123,35 +124,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             };
         }
 
-        // Return block assets
-        for (GrugBlockData block : Grug.declaredBlocks.values()) {
-            String blockPath = block.id.getPath();
-
-            if (path.equals("stationapi/blockstates/" + blockPath + ".json") && block.blockstatePath != null) {
-                File file = grugModsDir.resolve(block.blockstatePath).toFile();
-                if (file.exists())
-                    return () -> new FileInputStream(file);
-            } else if (path.equals("stationapi/models/block/" + blockPath + ".json") && block.blockModelPath != null) {
-                File file = grugModsDir.resolve(block.blockModelPath).toFile();
-                if (file.exists())
-                    return () -> new FileInputStream(file);
-            } else if (path.equals("stationapi/models/item/" + blockPath + ".json") && block.itemModelPath != null) {
-                File file = grugModsDir.resolve(block.itemModelPath).toFile();
-                if (file.exists())
-                    return () -> new FileInputStream(file);
-            }
-        }
-
-        // Return item assets
-        for (GrugItemData item : Grug.declaredItems.values()) {
-            String itemPath = item.id.getPath();
-
-            if (path.equals("stationapi/models/item/" + itemPath + ".json") && item.itemModelPath != null) {
-                File file = grugModsDir.resolve(item.itemModelPath).toFile();
-                if (file.exists())
-                    return () -> new FileInputStream(file);
-            }
-        }
         return null;
     }
 
@@ -182,15 +154,16 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         if (!namespace.equals(InitListener.NAMESPACE))
             return;
 
-        if (prefix.startsWith("stationapi/textures")) {
+        if (prefix.startsWith("stationapi/textures") || prefix.startsWith("stationapi/models")
+                || prefix.startsWith("stationapi/blockstates")) {
             File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
             if (modDirs != null) {
                 for (File modDir : modDirs) {
-                    File texDir = new File(modDir, "assets/" + namespace + "/" + prefix);
-                    if (texDir.exists() && texDir.isDirectory()) {
-                        try (java.util.stream.Stream<Path> stream = Files.walk(texDir.toPath())) {
+                    File assetDir = new File(modDir, "assets/" + namespace + "/" + prefix);
+                    if (assetDir.exists() && assetDir.isDirectory()) {
+                        try (java.util.stream.Stream<Path> stream = Files.walk(assetDir.toPath())) {
                             stream.filter(Files::isRegularFile)
-                                    .filter(p -> p.toString().endsWith(".png"))
+                                    .filter(p -> p.toString().endsWith(".png") || p.toString().endsWith(".json"))
                                     .forEach(p -> {
                                         String relativePath = new File(modDir, "assets/" + namespace).toPath()
                                                 .relativize(p).toString().replace('\\', '/');
@@ -200,7 +173,7 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                                             consumer.accept(targetId, supplier);
                                     });
                         } catch (Exception e) {
-                            InitListener.LOGGER.error("Failed to walk textures directory", e);
+                            InitListener.LOGGER.error("Failed to walk asset directory", e);
                         }
                     }
                 }
@@ -228,52 +201,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                 InputSupplier<InputStream> supplier = this.open(type, targetId);
                 if (supplier != null)
                     consumer.accept(targetId, supplier);
-            }
-        }
-
-        for (GrugBlockData block : Grug.declaredBlocks.values()) {
-            String blockPath = block.id.getPath();
-
-            if (prefix.startsWith("stationapi/blockstates") && block.blockstatePath != null) {
-                Identifier targetId = Identifier.of(namespace, "stationapi/blockstates/" + blockPath + ".json");
-                if (targetId.getPath().startsWith(prefix)) {
-                    InputSupplier<InputStream> supplier = this.open(type, targetId);
-                    if (supplier != null)
-                        consumer.accept(targetId, supplier);
-                }
-            } else if (prefix.startsWith("stationapi/models")) {
-                if (block.blockModelPath != null) {
-                    Identifier blockModelId = Identifier.of(namespace,
-                            "stationapi/models/block/" + blockPath + ".json");
-                    if (blockModelId.getPath().startsWith(prefix)) {
-                        InputSupplier<InputStream> blockSupplier = this.open(type, blockModelId);
-                        if (blockSupplier != null)
-                            consumer.accept(blockModelId, blockSupplier);
-                    }
-                }
-                if (block.itemModelPath != null) {
-                    Identifier itemModelId = Identifier.of(namespace, "stationapi/models/item/" + blockPath + ".json");
-                    if (itemModelId.getPath().startsWith(prefix)) {
-                        InputSupplier<InputStream> itemSupplier = this.open(type, itemModelId);
-                        if (itemSupplier != null)
-                            consumer.accept(itemModelId, itemSupplier);
-                    }
-                }
-            }
-        }
-
-        for (GrugItemData item : Grug.declaredItems.values()) {
-            String itemPath = item.id.getPath();
-
-            if (prefix.startsWith("stationapi/models")) {
-                if (item.itemModelPath != null) {
-                    Identifier itemModelId = Identifier.of(namespace, "stationapi/models/item/" + itemPath + ".json");
-                    if (itemModelId.getPath().startsWith(prefix)) {
-                        InputSupplier<InputStream> itemSupplier = this.open(type, itemModelId);
-                        if (itemSupplier != null)
-                            consumer.accept(itemModelId, itemSupplier);
-                    }
-                }
             }
         }
     }

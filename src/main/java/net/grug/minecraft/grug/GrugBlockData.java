@@ -7,9 +7,6 @@ import java.util.List;
 
 public class GrugBlockData {
     public final Identifier id;
-    public String blockstatePath;
-    public String blockModelPath;
-    public String itemModelPath;
     public final List<String> langPaths = new ArrayList<>();
     public String blockEntityString;
 
