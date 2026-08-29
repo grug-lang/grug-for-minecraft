@@ -409,18 +409,6 @@
 		}
 	},
 	"host_functions": {
-		"add_lang": {
-			"description": "Adds a language file to the resource pack.",
-			"parameters": [
-				{
-					"name": "path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".lang"
-					}
-				}
-			]
-		},
 		"add_recipe": {
 			"description": "Registers a recipe JSON file to be served under this mod's own namespace.",
 			"parameters": [

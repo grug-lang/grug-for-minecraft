@@ -1,6 +1,4 @@
 export init() {
-    add_lang(r"lang/en_US.lang")
-
     set_hardness(2.5)
     set_material("wood")
     set_block_entity(e"autocrafting_table_entity")

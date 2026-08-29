@@ -1,3 +1,1 @@
-export init() {
-    add_lang(r"lang/en_US.lang")
-}
+# TODO: Remove this placeholder comment once https://github.com/grug-lang/grug-tests/issues/149 is merged

@@ -7,7 +7,6 @@ import java.util.List;
 
 public class GrugBlockData {
     public final Identifier id;
-    public final List<String> langPaths = new ArrayList<>();
     public String blockEntityString;
 
     public float hardness = 0.0f;

@@ -28,7 +28,6 @@ public final class Grug {
 
     public static BlockEntity currentlyInitializingBlockEntity = null;
     public static GrugBlockData currentlyInitializingBlock = null;
-    public static GrugItemData currentlyInitializingItem = null;
 
     public static final Map<net.modificationstation.stationapi.api.util.Identifier, GrugBlockData> declaredBlocks = new HashMap<>();
     public static final Map<Long, GrugBlockData> blockDataByFileId = new HashMap<>();
@@ -125,7 +124,6 @@ public final class Grug {
 
                     GrugBlockData blockData = blockDataByFileId.get(file.fileId());
                     if (blockData != null) {
-                        blockData.langPaths.clear();
                         blockData.blockEntityString = null;
 
                         currentlyInitializingBlock = blockData;

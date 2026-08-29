@@ -7,7 +7,6 @@ import java.util.List;
 
 public class GrugItemData {
     public final Identifier id;
-    public final List<String> langPaths = new ArrayList<>();
 
     public GrugItemData(Identifier id) {
         this.id = id;

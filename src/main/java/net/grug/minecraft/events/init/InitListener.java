@@ -242,7 +242,6 @@ public class InitListener {
             long itemFileId = entry.getValue();
 
             GrugItemData itemData = new GrugItemData(itemId);
-            Grug.currentlyInitializingItem = itemData;
 
             long tempEntityHandle = Grug.createEntity(itemFileId);
             long initFnId = Grug.getExportFnId("Item", "init");
@@ -257,7 +256,6 @@ public class InitListener {
 
             Grug.declaredItems.put(itemId, itemData);
             Grug.itemDataByFileId.put(itemFileId, itemData);
-            Grug.currentlyInitializingItem = null;
 
             new GrugItem(itemId, itemFileId).setTranslationKey(itemId.namespace, itemId.path);
         }

@@ -167,14 +167,6 @@ public class GameFunctions {
 
     // Host functions
 
-    public static void add_lang(String path) {
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.langPaths.add(path);
-        } else if (Grug.currentlyInitializingItem != null) {
-            Grug.currentlyInitializingItem.langPaths.add(path);
-        }
-    }
-
     public static void add_recipe(String path) {
         Grug.declaredRecipes.add(path);
     }

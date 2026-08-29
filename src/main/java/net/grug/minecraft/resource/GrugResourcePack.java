@@ -5,8 +5,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.grug.minecraft.events.init.InitListener;
 import net.grug.minecraft.grug.Grug;
-import net.grug.minecraft.grug.GrugBlockData;
-import net.grug.minecraft.grug.GrugItemData;
 import net.modificationstation.stationapi.api.resource.InputSupplier;
 import net.modificationstation.stationapi.api.resource.ResourcePack;
 import net.modificationstation.stationapi.api.resource.ResourceType;
@@ -92,25 +90,14 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             return null;
         }
 
-        // Language files
-        if (path.equals("stationapi/lang/en_US.lang")) {
+        // Language files (Merged across all mods for the given namespace)
+        if (path.startsWith("stationapi/lang/") && path.endsWith(".lang")) {
             return () -> {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
-                for (GrugBlockData block : Grug.declaredBlocks.values()) {
-                    for (String langPath : block.langPaths) {
-                        File langFile = grugModsDir.resolve(langPath).toFile();
-                        if (langFile.exists()) {
-                            try (FileInputStream fis = new FileInputStream(langFile)) {
-                                fis.transferTo(out);
-                                out.write('\n');
-                            } catch (Exception ignored) {
-                            }
-                        }
-                    }
-                }
-                for (GrugItemData item : Grug.declaredItems.values()) {
-                    for (String langPath : item.langPaths) {
-                        File langFile = grugModsDir.resolve(langPath).toFile();
+                File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+                if (modDirs != null) {
+                    for (File modDir : modDirs) {
+                        File langFile = new File(modDir, "assets/" + id.getNamespace() + "/" + path);
                         if (langFile.exists()) {
                             try (FileInputStream fis = new FileInputStream(langFile)) {
                                 fis.transferTo(out);
@@ -155,22 +142,28 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             return;
 
         if (prefix.startsWith("stationapi/textures") || prefix.startsWith("stationapi/models")
-                || prefix.startsWith("stationapi/blockstates")) {
+                || prefix.startsWith("stationapi/blockstates") || prefix.startsWith("stationapi/lang")) {
             File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
             if (modDirs != null) {
+                java.util.Set<Identifier> discoveredIds = new java.util.HashSet<>();
                 for (File modDir : modDirs) {
                     File assetDir = new File(modDir, "assets/" + namespace + "/" + prefix);
                     if (assetDir.exists() && assetDir.isDirectory()) {
                         try (java.util.stream.Stream<Path> stream = Files.walk(assetDir.toPath())) {
                             stream.filter(Files::isRegularFile)
-                                    .filter(p -> p.toString().endsWith(".png") || p.toString().endsWith(".json"))
+                                    .filter(p -> p.toString().endsWith(".png") || p.toString().endsWith(".json")
+                                            || p.toString().endsWith(".lang"))
                                     .forEach(p -> {
                                         String relativePath = new File(modDir, "assets/" + namespace).toPath()
                                                 .relativize(p).toString().replace('\\', '/');
                                         Identifier targetId = Identifier.of(namespace, relativePath);
-                                        InputSupplier<InputStream> supplier = this.open(type, targetId);
-                                        if (supplier != null)
-                                            consumer.accept(targetId, supplier);
+
+                                        // Only yield the identifier once, as open() handles the merging!
+                                        if (discoveredIds.add(targetId)) {
+                                            InputSupplier<InputStream> supplier = this.open(type, targetId);
+                                            if (supplier != null)
+                                                consumer.accept(targetId, supplier);
+                                        }
                                     });
                         } catch (Exception e) {
                             InitListener.LOGGER.error("Failed to walk asset directory", e);
@@ -192,15 +185,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                             consumer.accept(targetId, supplier);
                     }
                 }
-            }
-        }
-
-        if (prefix.startsWith("stationapi/lang")) {
-            Identifier targetId = Identifier.of(namespace, "stationapi/lang/en_US.lang");
-            if (targetId.getPath().startsWith(prefix)) {
-                InputSupplier<InputStream> supplier = this.open(type, targetId);
-                if (supplier != null)
-                    consumer.accept(targetId, supplier);
             }
         }
     }
