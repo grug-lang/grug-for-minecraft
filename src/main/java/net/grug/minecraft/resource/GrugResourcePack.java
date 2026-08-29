@@ -66,45 +66,50 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
         String path = id.getPath();
 
+        // Strip "stationapi/" when looking on the physical disk
+        String diskPath = path.startsWith("stationapi/") ? path.substring(11) : path;
+
+        // Tags
         if (path.startsWith("stationapi/tags/")) {
-            String requestedSuffix = path.substring("stationapi/".length());
-            return mergeTagFragments(id.getNamespace(), requestedSuffix);
+            return mergeTagFragments(id.getNamespace(), diskPath);
         }
 
         if (!id.getNamespace().equals(InitListener.NAMESPACE))
             return null;
 
+        // Textures, Models, Blockstates
         if (path.startsWith("stationapi/textures/") || path.startsWith("stationapi/models/")
                 || path.startsWith("stationapi/blockstates/")) {
             File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
             if (modDirs != null) {
                 for (File modDir : modDirs) {
-                    File file = new File(modDir, "assets/" + id.getNamespace() + "/" + path);
+                    File file = new File(modDir, "assets/" + id.getNamespace() + "/" + diskPath);
                     if (file.exists())
                         return () -> new FileInputStream(file);
                 }
             }
         }
 
+        // Recipes
         if (path.startsWith("stationapi/recipes/")) {
             File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
             if (modDirs != null) {
                 for (File modDir : modDirs) {
-                    File file = new File(modDir, "data/" + id.getNamespace() + "/" + path);
+                    File file = new File(modDir, "data/" + id.getNamespace() + "/" + diskPath);
                     if (file.exists())
                         return () -> new FileInputStream(file);
                 }
             }
         }
 
-        // Language files (Merged across all mods for the given namespace)
+        // Language files
         if (path.startsWith("stationapi/lang/") && path.endsWith(".lang")) {
             return () -> {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
                 if (modDirs != null) {
                     for (File modDir : modDirs) {
-                        File langFile = new File(modDir, "assets/" + id.getNamespace() + "/" + path);
+                        File langFile = new File(modDir, "assets/" + id.getNamespace() + "/" + diskPath);
                         if (langFile.exists()) {
                             try (FileInputStream fis = new FileInputStream(langFile)) {
                                 fis.transferTo(out);
@@ -125,12 +130,16 @@ public class GrugResourcePack extends AbstractFileResourcePack {
     public void findResources(ResourceType type, Namespace namespace, String prefix,
             ResourcePack.ResultConsumer consumer) {
 
+        // Strip "stationapi/" when looking on the physical disk
+        String diskPrefix = prefix.startsWith("stationapi/") ? prefix.substring(11) : prefix;
+
+        // Tags
         if (prefix.startsWith("stationapi/tags")) {
             File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
             if (modDirs != null) {
                 java.util.Set<Identifier> discoveredIds = new java.util.HashSet<>();
                 for (File modDir : modDirs) {
-                    File dataDir = new File(modDir, "data/" + namespace + "/" + prefix);
+                    File dataDir = new File(modDir, "data/" + namespace + "/" + diskPrefix);
                     if (dataDir.exists() && dataDir.isDirectory()) {
                         try (java.util.stream.Stream<Path> stream = Files.walk(dataDir.toPath())) {
                             stream.filter(Files::isRegularFile)
@@ -138,9 +147,7 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                                     .forEach(p -> {
                                         String relativePath = new File(modDir, "data/" + namespace).toPath()
                                                 .relativize(p).toString().replace('\\', '/');
-                                        Identifier targetId = Identifier.of(namespace, relativePath);
-
-                                        // Only yield the identifier once, as mergeTagFragments handles the merging!
+                                        Identifier targetId = Identifier.of(namespace, "stationapi/" + relativePath);
                                         if (discoveredIds.add(targetId)) {
                                             InputSupplier<InputStream> supplier = this.open(type, targetId);
                                             if (supplier != null)
@@ -158,13 +165,14 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         if (!namespace.equals(InitListener.NAMESPACE))
             return;
 
+        // Textures, Models, Blockstates, Lang
         if (prefix.startsWith("stationapi/textures") || prefix.startsWith("stationapi/models")
                 || prefix.startsWith("stationapi/blockstates") || prefix.startsWith("stationapi/lang")) {
             File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
             if (modDirs != null) {
                 java.util.Set<Identifier> discoveredIds = new java.util.HashSet<>();
                 for (File modDir : modDirs) {
-                    File assetDir = new File(modDir, "assets/" + namespace + "/" + prefix);
+                    File assetDir = new File(modDir, "assets/" + namespace + "/" + diskPrefix);
                     if (assetDir.exists() && assetDir.isDirectory()) {
                         try (java.util.stream.Stream<Path> stream = Files.walk(assetDir.toPath())) {
                             stream.filter(Files::isRegularFile)
@@ -173,9 +181,7 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                                     .forEach(p -> {
                                         String relativePath = new File(modDir, "assets/" + namespace).toPath()
                                                 .relativize(p).toString().replace('\\', '/');
-                                        Identifier targetId = Identifier.of(namespace, relativePath);
-
-                                        // Only yield the identifier once, as open() handles the merging!
+                                        Identifier targetId = Identifier.of(namespace, "stationapi/" + relativePath);
                                         if (discoveredIds.add(targetId)) {
                                             InputSupplier<InputStream> supplier = this.open(type, targetId);
                                             if (supplier != null)
@@ -190,11 +196,12 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             }
         }
 
+        // Recipes
         if (prefix.startsWith("stationapi/recipes")) {
             File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
             if (modDirs != null) {
                 for (File modDir : modDirs) {
-                    File dataDir = new File(modDir, "data/" + namespace + "/" + prefix);
+                    File dataDir = new File(modDir, "data/" + namespace + "/" + diskPrefix);
                     if (dataDir.exists() && dataDir.isDirectory()) {
                         try (java.util.stream.Stream<Path> stream = Files.walk(dataDir.toPath())) {
                             stream.filter(Files::isRegularFile)
@@ -202,7 +209,7 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                                     .forEach(p -> {
                                         String relativePath = new File(modDir, "data/" + namespace).toPath()
                                                 .relativize(p).toString().replace('\\', '/');
-                                        Identifier targetId = Identifier.of(namespace, relativePath);
+                                        Identifier targetId = Identifier.of(namespace, "stationapi/" + relativePath);
                                         InputSupplier<InputStream> supplier = this.open(type, targetId);
                                         if (supplier != null)
                                             consumer.accept(targetId, supplier);
@@ -216,14 +223,14 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         }
     }
 
-    private static InputSupplier<InputStream> mergeTagFragments(Namespace namespace, String requestedSuffix) {
+    private static InputSupplier<InputStream> mergeTagFragments(Namespace namespace, String diskPath) {
         JsonArray mergedValues = new JsonArray();
         boolean found = false;
 
         File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
         if (modDirs != null) {
             for (File modDir : modDirs) {
-                File file = new File(modDir, "data/" + namespace + "/stationapi/" + requestedSuffix);
+                File file = new File(modDir, "data/" + namespace + "/" + diskPath);
                 if (file.exists()) {
                     found = true;
                     try (FileReader reader = new FileReader(file)) {

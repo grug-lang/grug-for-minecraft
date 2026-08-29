@@ -254,7 +254,7 @@ public class InitListener {
                 continue;
 
             for (File nsDir : namespaceDirs) {
-                File recipesDir = new File(nsDir, "stationapi/recipes");
+                File recipesDir = new File(nsDir, "recipes");
                 if (!recipesDir.exists() || !recipesDir.isDirectory())
                     continue;
 
@@ -295,8 +295,15 @@ public class InitListener {
     }
 
     public static void handlePossibleRecipeUpdate(String updatedResourcePath) {
-        if (!updatedResourcePath.contains("/stationapi/recipes/"))
+        if (!updatedResourcePath.endsWith(".json"))
             return;
+
+        String[] pathParts = updatedResourcePath.replace('\\', '/').split("/");
+
+        // A valid path needs at least: <mod_name>/data/<namespace>/recipes/<file>.json
+        if (pathParts.length < 5 || !pathParts[1].equals("data") || !pathParts[3].equals("recipes")) {
+            return;
+        }
 
         File file = new File(getActiveGrugModsDir(), updatedResourcePath);
         if (!file.exists()) {
