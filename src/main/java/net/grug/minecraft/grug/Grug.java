@@ -102,6 +102,17 @@ public final class Grug {
                     onError.accept(errorMsg);
                 }
             } else {
+                String[] pathParts = file.path().replace('\\', '/').split("/");
+                if (pathParts.length < 2 || !pathParts[1].equals("code")) {
+                    String errorMsg = "Ignored " + file.path()
+                            + ": Grug files must be placed inside the 'code/' directory!";
+                    InitListener.LOGGER.error(errorMsg);
+                    if (onError != null) {
+                        onError.accept(errorMsg);
+                    }
+                    continue;
+                }
+
                 boolean isNew = !fileIds.containsKey(file.path());
                 fileIds.put(file.path(), file.fileId());
 

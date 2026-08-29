@@ -72,20 +72,9 @@ public class InitListener {
         return new File(gameDir, "grug_mods");
     }
 
-    // Runs on PreInitEvent (earlier than BlockRegistryEvent/ItemRegistryEvent)
-    // because StationAPI's JsonRecipesLoader also scans for recipes on
-    // PreInitEvent. Grug's own recipes/tags need to exist before that scan
-    // finishes, so all compiling and mod-level init() script execution happens
-    // here now, with block/item synthesis deferred to their own registry events.
-    //
-    // Intentionally still on the deprecated PreInitEvent, not InitEvent:
-    // JsonRecipesLoader (station-recipes-v0) still listens on PreInitEvent
-    // too, and our recipe/tag registration must run before it does. Since
-    // PreInitEvent and InitEvent are dispatched separately, migrating to
-    // InitEvent's PRE_INIT_PHASE would not guarantee that ordering.
     @SuppressWarnings("deprecation")
     @EventListener
-    private static void preInit(PreInitEvent event) {
+    private static void preInit(PreInitEvent event) throws IOException {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
         File runGrugDir = new File(gameDir, "grug_mods");
 
@@ -96,52 +85,53 @@ public class InitListener {
 
         File activeGrugDir = getActiveGrugModsDir();
 
-        try {
-            if (!activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
-                LOGGER.info("Dev mode detected: Pointing grug-rs directly to " + activeGrugDir.getCanonicalPath());
-            }
-
-            try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
-                if (in != null)
-                    Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-
-            // Only extract if we are actually using the standard run folder
-            if (activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
-                extractDefaultGrugMods(runGrugDir.toPath());
-            }
-
-            Grug.init(modApiJson, activeGrugDir);
-
-            FileInfo[] files = Grug.compileAllFiles();
-
-            blockFiles.clear();
-            itemFiles.clear();
-
-            for (FileInfo file : files) {
-                if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
-                    LOGGER.error("Failed to compile {}: \n{}", file.path(), file.errorString());
-                    continue;
-                }
-
-                Grug.fileIds.put(file.path(), file.fileId());
-
-                String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
-                        : file.entityName();
-
-                if ("Block".equals(file.entityType())) {
-                    blockFiles.put(cleanName, file.fileId());
-                } else if ("BlockEntity".equals(file.entityType())) {
-                    Grug.entityFileIdsByName.put(cleanName, file.fileId());
-                } else if ("Item".equals(file.entityType())) {
-                    itemFiles.put(cleanName, file.fileId());
-                }
-            }
-
-            registerAutoDiscoveredRecipes(activeGrugDir);
-        } catch (Exception e) {
-            LOGGER.error("Failed to initialize grug-rs", e);
+        if (!activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
+            LOGGER.info("Dev mode detected: Pointing grug-rs directly to " + activeGrugDir.getCanonicalPath());
         }
+
+        try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
+            if (in != null)
+                Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        // Only extract if we are actually using the standard run folder
+        if (activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
+            extractDefaultGrugMods(runGrugDir.toPath());
+        }
+
+        Grug.init(modApiJson, activeGrugDir);
+
+        FileInfo[] files = Grug.compileAllFiles();
+
+        blockFiles.clear();
+        itemFiles.clear();
+
+        for (FileInfo file : files) {
+            if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
+                throw new RuntimeException("Failed to compile " + file.path() + ":\n" + file.errorString());
+            }
+
+            String[] pathParts = file.path().replace('\\', '/').split("/");
+            if (pathParts.length < 2 || !pathParts[1].equals("code")) {
+                throw new RuntimeException(
+                        "Grug file misplaced! '" + file.path() + "' must be placed inside a 'code/' directory.");
+            }
+
+            Grug.fileIds.put(file.path(), file.fileId());
+
+            String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
+                    : file.entityName();
+
+            if ("Block".equals(file.entityType())) {
+                blockFiles.put(cleanName, file.fileId());
+            } else if ("BlockEntity".equals(file.entityType())) {
+                Grug.entityFileIdsByName.put(cleanName, file.fileId());
+            } else if ("Item".equals(file.entityType())) {
+                itemFiles.put(cleanName, file.fileId());
+            }
+        }
+
+        registerAutoDiscoveredRecipes(activeGrugDir);
     }
 
     private static Material stringToMaterial(String materialName) {
