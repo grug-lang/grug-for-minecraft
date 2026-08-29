@@ -37,10 +37,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -117,7 +115,6 @@ public class InitListener {
 
             FileInfo[] files = Grug.compileAllFiles();
 
-            List<Long> modFileIds = new ArrayList<>();
             blockFiles.clear();
             itemFiles.clear();
 
@@ -136,23 +133,8 @@ public class InitListener {
                     blockFiles.put(cleanName, file.fileId());
                 } else if ("BlockEntity".equals(file.entityType())) {
                     Grug.entityFileIdsByName.put(cleanName, file.fileId());
-                } else if ("Mod".equals(file.entityType())) {
-                    modFileIds.add(file.fileId());
                 } else if ("Item".equals(file.entityType())) {
                     itemFiles.put(cleanName, file.fileId());
-                }
-            }
-
-            // Run mod-level init() scripts before blocks get synthesized, so
-            // tags/recipes are registered before anything might need them.
-            long modInitFnId = Grug.getExportFnId("Mod", "init");
-            if (modInitFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                for (long modFileId : modFileIds) {
-                    long tempEntityHandle = Grug.createEntity(modFileId);
-                    if (tempEntityHandle != 0) {
-                        Grug.callExportFn(tempEntityHandle, modInitFnId);
-                        Grug.destroyEntity(tempEntityHandle);
-                    }
                 }
             }
 

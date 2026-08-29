@@ -2,9 +2,6 @@ package net.grug.minecraft.grug;
 
 import net.modificationstation.stationapi.api.util.Identifier;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class GrugBlockData {
     public final Identifier id;
     public String blockEntityString;

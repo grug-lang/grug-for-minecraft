@@ -40,13 +40,8 @@ public final class Grug {
 
     public static final Map<String, Long> entityFileIdsByName = new HashMap<>();
 
-    public static final List<TagContribution> declaredTags = new ArrayList<>();
-
     public static final Queue<String> runtimeErrorQueue = new ArrayDeque<>();
     public static final Queue<String> printQueue = new ArrayDeque<>();
-
-    public record TagContribution(String namespace, String path) {
-    }
 
     static {
         for (GrugEntityType type : GrugEntityType.values()) {

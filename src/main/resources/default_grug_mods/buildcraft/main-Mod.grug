@@ -1,5 +1,0 @@
-export init() {
-    add_tag("minecraft", r"tags/blocks/mineable/axe.json")
-    add_tag("c", r"tags/items/gears.json")
-    add_tag("c", r"tags/items/gears/wooden.json")
-}

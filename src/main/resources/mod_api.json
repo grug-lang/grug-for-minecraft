@@ -146,15 +146,6 @@
 					"description": "Called once at registration time to declare the item's assets."
 				}
 			]
-		},
-		"Mod": {
-			"description": "A mod's top-level entry point.",
-			"export_functions": [
-				{
-					"name": "init",
-					"description": "Called once at startup to declare mod-level resources, such as tags and recipes."
-				}
-			]
 		}
 	},
 	"classes": {
@@ -409,24 +400,6 @@
 		}
 	},
 	"host_functions": {
-		"add_tag": {
-			"description": "Merges this file's \"values\" array into the tag at <namespace>:<path>, so multiple mods can contribute entries to the same tag.",
-			"parameters": [
-				{
-					"name": "namespace",
-					"type": {
-						"name": "string"
-					}
-				},
-				{
-					"name": "path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".json"
-					}
-				}
-			]
-		},
 		"consume_crafting_ingredients": {
 			"description": "Consumes 1 set of ingredients from a 3x3 grid, leaving behind buckets if necessary.",
 			"parameters": [

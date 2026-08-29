@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.grug.minecraft.events.init.InitListener;
-import net.grug.minecraft.grug.Grug;
 import net.modificationstation.stationapi.api.resource.InputSupplier;
 import net.modificationstation.stationapi.api.resource.ResourcePack;
 import net.modificationstation.stationapi.api.resource.ResourceType;
@@ -22,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class GrugResourcePack extends AbstractFileResourcePack {
@@ -39,8 +37,19 @@ public class GrugResourcePack extends AbstractFileResourcePack {
     public Set<Namespace> getNamespaces(ResourceType type) {
         Set<Namespace> namespaces = new HashSet<>();
         namespaces.add(InitListener.NAMESPACE);
-        for (Grug.TagContribution contribution : Grug.declaredTags) {
-            namespaces.add(namespaceOf(contribution.namespace()));
+
+        File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+        if (modDirs != null) {
+            for (File modDir : modDirs) {
+                File typeDir = new File(modDir, type == ResourceType.SERVER_DATA ? "data" : "assets");
+                File[] nsDirs = typeDir.listFiles(File::isDirectory);
+                if (nsDirs != null) {
+                    for (File nsDir : nsDirs) {
+                        // Use your existing helper method here!
+                        namespaces.add(namespaceOf(nsDir.getName()));
+                    }
+                }
+            }
         }
         return namespaces;
     }
@@ -55,12 +64,11 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         if (id == null)
             return null;
 
-        Path grugModsDir = InitListener.getActiveGrugModsDir().toPath();
         String path = id.getPath();
 
         if (path.startsWith("stationapi/tags/")) {
             String requestedSuffix = path.substring("stationapi/".length());
-            return mergeTagFragments(grugModsDir, id.getNamespace(), requestedSuffix);
+            return mergeTagFragments(id.getNamespace(), requestedSuffix);
         }
 
         if (!id.getNamespace().equals(InitListener.NAMESPACE))
@@ -118,21 +126,31 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             ResourcePack.ResultConsumer consumer) {
 
         if (prefix.startsWith("stationapi/tags")) {
-            Set<String> tagSuffixes = new LinkedHashSet<>();
-            for (Grug.TagContribution contribution : Grug.declaredTags) {
-                if (namespaceOf(contribution.namespace()).equals(namespace)) {
-                    int tagsIdx = contribution.path().indexOf("tags/");
-                    if (tagsIdx != -1) {
-                        tagSuffixes.add(contribution.path().substring(tagsIdx));
+            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+            if (modDirs != null) {
+                java.util.Set<Identifier> discoveredIds = new java.util.HashSet<>();
+                for (File modDir : modDirs) {
+                    File dataDir = new File(modDir, "data/" + namespace + "/" + prefix);
+                    if (dataDir.exists() && dataDir.isDirectory()) {
+                        try (java.util.stream.Stream<Path> stream = Files.walk(dataDir.toPath())) {
+                            stream.filter(Files::isRegularFile)
+                                    .filter(p -> p.toString().endsWith(".json"))
+                                    .forEach(p -> {
+                                        String relativePath = new File(modDir, "data/" + namespace).toPath()
+                                                .relativize(p).toString().replace('\\', '/');
+                                        Identifier targetId = Identifier.of(namespace, relativePath);
+
+                                        // Only yield the identifier once, as mergeTagFragments handles the merging!
+                                        if (discoveredIds.add(targetId)) {
+                                            InputSupplier<InputStream> supplier = this.open(type, targetId);
+                                            if (supplier != null)
+                                                consumer.accept(targetId, supplier);
+                                        }
+                                    });
+                        } catch (Exception e) {
+                            InitListener.LOGGER.error("Failed to walk tag directory", e);
+                        }
                     }
-                }
-            }
-            for (String tagSuffix : tagSuffixes) {
-                Identifier targetId = Identifier.of(namespace, "stationapi/" + tagSuffix);
-                if (targetId.getPath().startsWith(prefix)) {
-                    InputSupplier<InputStream> supplier = this.open(type, targetId);
-                    if (supplier != null)
-                        consumer.accept(targetId, supplier);
                 }
             }
         }
@@ -198,30 +216,26 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         }
     }
 
-    private static InputSupplier<InputStream> mergeTagFragments(Path grugModsDir, Namespace namespace,
-            String requestedSuffix) {
+    private static InputSupplier<InputStream> mergeTagFragments(Namespace namespace, String requestedSuffix) {
         JsonArray mergedValues = new JsonArray();
         boolean found = false;
 
-        for (Grug.TagContribution contribution : Grug.declaredTags) {
-            if (!namespaceOf(contribution.namespace()).equals(namespace))
-                continue;
-
-            if (contribution.path().endsWith(requestedSuffix)) {
-                File file = grugModsDir.resolve(contribution.path()).toFile();
-                if (!file.exists())
-                    continue;
-
-                found = true;
-                try (FileReader reader = new FileReader(file)) {
-                    JsonObject fragment = JsonParser.parseReader(reader).getAsJsonObject();
-                    if (fragment.has("values")) {
-                        for (var value : fragment.getAsJsonArray("values")) {
-                            mergedValues.add(value);
+        File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+        if (modDirs != null) {
+            for (File modDir : modDirs) {
+                File file = new File(modDir, "data/" + namespace + "/stationapi/" + requestedSuffix);
+                if (file.exists()) {
+                    found = true;
+                    try (FileReader reader = new FileReader(file)) {
+                        JsonObject fragment = JsonParser.parseReader(reader).getAsJsonObject();
+                        if (fragment.has("values")) {
+                            for (var value : fragment.getAsJsonArray("values")) {
+                                mergedValues.add(value);
+                            }
                         }
+                    } catch (Exception e) {
+                        InitListener.LOGGER.error("Failed to parse tag fragment: " + file, e);
                     }
-                } catch (Exception e) {
-                    InitListener.LOGGER.error("Failed to parse tag fragment: " + file, e);
                 }
             }
         }

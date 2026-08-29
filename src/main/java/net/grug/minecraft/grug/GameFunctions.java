@@ -167,10 +167,6 @@ public class GameFunctions {
 
     // Host functions
 
-    public static void add_tag(String namespace, String path) {
-        Grug.declaredTags.add(new Grug.TagContribution(namespace, path));
-    }
-
     public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!(be instanceof Inventory inv))
