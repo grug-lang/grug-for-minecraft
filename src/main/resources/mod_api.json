@@ -409,18 +409,6 @@
 		}
 	},
 	"host_functions": {
-		"add_recipe": {
-			"description": "Registers a recipe JSON file to be served under this mod's own namespace.",
-			"parameters": [
-				{
-					"name": "path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".json"
-					}
-				}
-			]
-		},
 		"add_tag": {
 			"description": "Merges this file's \"values\" array into the tag at <namespace>:<path>, so multiple mods can contribute entries to the same tag.",
 			"parameters": [

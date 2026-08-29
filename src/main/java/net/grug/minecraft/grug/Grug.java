@@ -41,7 +41,6 @@ public final class Grug {
     public static final Map<String, Long> entityFileIdsByName = new HashMap<>();
 
     public static final List<TagContribution> declaredTags = new ArrayList<>();
-    public static final List<String> declaredRecipes = new ArrayList<>();
 
     public static final Queue<String> runtimeErrorQueue = new ArrayDeque<>();
     public static final Queue<String> printQueue = new ArrayDeque<>();

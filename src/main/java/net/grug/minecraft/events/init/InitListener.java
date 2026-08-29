@@ -156,7 +156,7 @@ public class InitListener {
                 }
             }
 
-            registerDeclaredRecipes(activeGrugDir);
+            registerAutoDiscoveredRecipes(activeGrugDir);
         } catch (Exception e) {
             LOGGER.error("Failed to initialize grug-rs", e);
         }
@@ -267,20 +267,38 @@ public class InitListener {
         event.register("grug:generic_block_entity", GrugBlockEntity.class);
     }
 
-    // Mirrors JsonRecipesLoader.registerRecipe, but reads Grug.declaredRecipes
-    // off disk instead of scanning the classpath, since grug mods are loose
-    // files rather than jar resources.
-    private static void registerDeclaredRecipes(File grugModsDir) {
-        for (String recipePath : Grug.declaredRecipes) {
-            File file = new File(grugModsDir, recipePath);
-            if (!file.exists()) {
-                LOGGER.warn("Declared recipe not found on disk: " + file.getAbsolutePath());
+    private static void registerAutoDiscoveredRecipes(File grugModsDir) {
+        File[] modDirs = grugModsDir.listFiles(File::isDirectory);
+        if (modDirs == null)
+            return;
+
+        for (File modDir : modDirs) {
+            File dataDir = new File(modDir, "data");
+            if (!dataDir.exists() || !dataDir.isDirectory())
                 continue;
-            }
-            try {
-                registerJsonRecipe(file.toURI().toURL());
-            } catch (Exception e) {
-                LOGGER.error("Failed to register recipe: " + file, e);
+
+            File[] namespaceDirs = dataDir.listFiles(File::isDirectory);
+            if (namespaceDirs == null)
+                continue;
+
+            for (File nsDir : namespaceDirs) {
+                File recipesDir = new File(nsDir, "stationapi/recipes");
+                if (!recipesDir.exists() || !recipesDir.isDirectory())
+                    continue;
+
+                try (Stream<Path> stream = Files.walk(recipesDir.toPath())) {
+                    stream.filter(Files::isRegularFile)
+                            .filter(p -> p.toString().endsWith(".json"))
+                            .forEach(p -> {
+                                try {
+                                    registerJsonRecipe(p.toUri().toURL());
+                                } catch (Exception e) {
+                                    LOGGER.error("Failed to register recipe: " + p, e);
+                                }
+                            });
+                } catch (IOException e) {
+                    LOGGER.error("Failed to walk recipes directory: " + recipesDir, e);
+                }
             }
         }
     }
@@ -304,21 +322,8 @@ public class InitListener {
         Objects.requireNonNull(JsonRecipesRegistry.INSTANCE.get(recipeId)).add(recipe);
     }
 
-    // Called from MinecraftMixin whenever grug-rs reports a changed resource
-    // path. If that path is a declared recipe, re-triggers StationAPI's JSON
-    // recipe parsing for whichever type the file currently declares.
-    //
-    // This is append-only: the previously-parsed recipe object for this file
-    // is NOT removed from CraftingRecipeManager, so edits can leave a stale,
-    // orphaned recipe alongside the current one until restart. Fine for
-    // hot-reload during development, not a substitute for a real reload.
-    //
-    // Known gap: if the file's "type" field itself changes (not just its
-    // pattern/ingredients/result), the URL is still registered under the old
-    // type in JsonRecipesRegistry, so re-posting for the new type won't find
-    // it there. That case needs a restart.
     public static void handlePossibleRecipeUpdate(String updatedResourcePath) {
-        if (!Grug.declaredRecipes.contains(updatedResourcePath))
+        if (!updatedResourcePath.contains("/stationapi/recipes/"))
             return;
 
         File file = new File(getActiveGrugModsDir(), updatedResourcePath);

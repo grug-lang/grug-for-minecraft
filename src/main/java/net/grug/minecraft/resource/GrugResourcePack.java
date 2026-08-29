@@ -79,15 +79,14 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         }
 
         if (path.startsWith("stationapi/recipes/")) {
-            String requestedSuffix = path.substring("stationapi/recipes/".length());
-            for (String recipePath : Grug.declaredRecipes) {
-                if (recipePath.endsWith("recipes/" + requestedSuffix)) {
-                    File file = grugModsDir.resolve(recipePath).toFile();
+            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+            if (modDirs != null) {
+                for (File modDir : modDirs) {
+                    File file = new File(modDir, "data/" + id.getNamespace() + "/" + path);
                     if (file.exists())
                         return () -> new FileInputStream(file);
                 }
             }
-            return null;
         }
 
         // Language files (Merged across all mods for the given namespace)
@@ -174,15 +173,25 @@ public class GrugResourcePack extends AbstractFileResourcePack {
         }
 
         if (prefix.startsWith("stationapi/recipes")) {
-            for (String recipePath : Grug.declaredRecipes) {
-                int recipesIdx = recipePath.indexOf("recipes/");
-                if (recipesIdx != -1) {
-                    String subPath = recipePath.substring(recipesIdx);
-                    Identifier targetId = Identifier.of(namespace, "stationapi/" + subPath);
-                    if (targetId.getPath().startsWith(prefix)) {
-                        InputSupplier<InputStream> supplier = this.open(type, targetId);
-                        if (supplier != null)
-                            consumer.accept(targetId, supplier);
+            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+            if (modDirs != null) {
+                for (File modDir : modDirs) {
+                    File dataDir = new File(modDir, "data/" + namespace + "/" + prefix);
+                    if (dataDir.exists() && dataDir.isDirectory()) {
+                        try (java.util.stream.Stream<Path> stream = Files.walk(dataDir.toPath())) {
+                            stream.filter(Files::isRegularFile)
+                                    .filter(p -> p.toString().endsWith(".json"))
+                                    .forEach(p -> {
+                                        String relativePath = new File(modDir, "data/" + namespace).toPath()
+                                                .relativize(p).toString().replace('\\', '/');
+                                        Identifier targetId = Identifier.of(namespace, relativePath);
+                                        InputSupplier<InputStream> supplier = this.open(type, targetId);
+                                        if (supplier != null)
+                                            consumer.accept(targetId, supplier);
+                                    });
+                        } catch (Exception e) {
+                            InitListener.LOGGER.error("Failed to walk recipe directory", e);
+                        }
                     }
                 }
             }

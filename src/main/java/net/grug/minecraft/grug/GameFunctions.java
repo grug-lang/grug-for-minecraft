@@ -167,10 +167,6 @@ public class GameFunctions {
 
     // Host functions
 
-    public static void add_recipe(String path) {
-        Grug.declaredRecipes.add(path);
-    }
-
     public static void add_tag(String namespace, String path) {
         Grug.declaredTags.add(new Grug.TagContribution(namespace, path));
     }

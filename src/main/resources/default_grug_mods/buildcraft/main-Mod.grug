@@ -2,6 +2,4 @@ export init() {
     add_tag("minecraft", r"tags/blocks/mineable/axe.json")
     add_tag("c", r"tags/items/gears.json")
     add_tag("c", r"tags/items/gears/wooden.json")
-    add_recipe(r"recipes/crafting/autocrafting_table.json")
-    add_recipe(r"recipes/crafting/wooden_gear.json")
 }
