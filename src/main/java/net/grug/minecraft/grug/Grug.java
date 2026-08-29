@@ -125,7 +125,6 @@ public final class Grug {
 
                     GrugBlockData blockData = blockDataByFileId.get(file.fileId());
                     if (blockData != null) {
-                        blockData.textures.clear();
                         blockData.blockstatePath = null;
                         blockData.blockModelPath = null;
                         blockData.itemModelPath = null;

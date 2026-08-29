@@ -183,14 +183,6 @@ public class GameFunctions {
         Grug.declaredTags.add(new Grug.TagContribution(namespace, path));
     }
 
-    public static void add_texture(String filePath) {
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.textures.add(filePath);
-        } else if (Grug.currentlyInitializingItem != null) {
-            Grug.currentlyInitializingItem.textures.add(filePath);
-        }
-    }
-
     public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!(be instanceof Inventory inv))

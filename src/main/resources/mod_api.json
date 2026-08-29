@@ -451,18 +451,6 @@
 				}
 			]
 		},
-		"add_texture": {
-			"description": "Maps a texture identifier path to a file path.",
-			"parameters": [
-				{
-					"name": "file_path",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".png"
-					}
-				}
-			]
-		},
 		"consume_crafting_ingredients": {
 			"description": "Consumes 1 set of ingredients from a 3x3 grid, leaving behind buckets if necessary.",
 			"parameters": [

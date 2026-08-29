@@ -21,6 +21,7 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -66,6 +67,17 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
         if (!id.getNamespace().equals(InitListener.NAMESPACE))
             return null;
+
+        if (path.startsWith("stationapi/textures/")) {
+            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+            if (modDirs != null) {
+                for (File modDir : modDirs) {
+                    File file = new File(modDir, "assets/" + id.getNamespace() + "/" + path);
+                    if (file.exists())
+                        return () -> new FileInputStream(file);
+                }
+            }
+        }
 
         if (path.startsWith("stationapi/recipes/")) {
             String requestedSuffix = path.substring("stationapi/recipes/".length());
@@ -127,16 +139,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                 File file = grugModsDir.resolve(block.itemModelPath).toFile();
                 if (file.exists())
                     return () -> new FileInputStream(file);
-            } else if (path.startsWith("stationapi/textures/")) {
-                String requestedFile = path.substring(path.lastIndexOf('/') + 1);
-
-                for (String texPath : block.textures) {
-                    if (texPath.endsWith(requestedFile)) {
-                        File file = grugModsDir.resolve(texPath).toFile();
-                        if (file.exists())
-                            return () -> new FileInputStream(file);
-                    }
-                }
             }
         }
 
@@ -148,16 +150,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                 File file = grugModsDir.resolve(item.itemModelPath).toFile();
                 if (file.exists())
                     return () -> new FileInputStream(file);
-            } else if (path.startsWith("stationapi/textures/")) {
-                String requestedFile = path.substring(path.lastIndexOf('/') + 1);
-
-                for (String texPath : item.textures) {
-                    if (texPath.endsWith(requestedFile)) {
-                        File file = grugModsDir.resolve(texPath).toFile();
-                        if (file.exists())
-                            return () -> new FileInputStream(file);
-                    }
-                }
             }
         }
         return null;
@@ -189,6 +181,31 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
         if (!namespace.equals(InitListener.NAMESPACE))
             return;
+
+        if (prefix.startsWith("stationapi/textures")) {
+            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+            if (modDirs != null) {
+                for (File modDir : modDirs) {
+                    File texDir = new File(modDir, "assets/" + namespace + "/" + prefix);
+                    if (texDir.exists() && texDir.isDirectory()) {
+                        try (java.util.stream.Stream<Path> stream = Files.walk(texDir.toPath())) {
+                            stream.filter(Files::isRegularFile)
+                                    .filter(p -> p.toString().endsWith(".png"))
+                                    .forEach(p -> {
+                                        String relativePath = new File(modDir, "assets/" + namespace).toPath()
+                                                .relativize(p).toString().replace('\\', '/');
+                                        Identifier targetId = Identifier.of(namespace, relativePath);
+                                        InputSupplier<InputStream> supplier = this.open(type, targetId);
+                                        if (supplier != null)
+                                            consumer.accept(targetId, supplier);
+                                    });
+                        } catch (Exception e) {
+                            InitListener.LOGGER.error("Failed to walk textures directory", e);
+                        }
+                    }
+                }
+            }
+        }
 
         if (prefix.startsWith("stationapi/recipes")) {
             for (String recipePath : Grug.declaredRecipes) {
@@ -242,18 +259,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                             consumer.accept(itemModelId, itemSupplier);
                     }
                 }
-            } else if (prefix.startsWith("stationapi/textures")) {
-                for (String texPath : block.textures) {
-                    String textureType = texPath.contains("textures/item") ? "item" : "block";
-                    String fileName = texPath.substring(texPath.lastIndexOf('/') + 1, texPath.length() - 4);
-                    Identifier targetId = Identifier.of(namespace,
-                            "stationapi/textures/" + textureType + "/" + fileName + ".png");
-                    if (targetId.getPath().startsWith(prefix)) {
-                        InputSupplier<InputStream> supplier = this.open(type, targetId);
-                        if (supplier != null)
-                            consumer.accept(targetId, supplier);
-                    }
-                }
             }
         }
 
@@ -267,18 +272,6 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                         InputSupplier<InputStream> itemSupplier = this.open(type, itemModelId);
                         if (itemSupplier != null)
                             consumer.accept(itemModelId, itemSupplier);
-                    }
-                }
-            } else if (prefix.startsWith("stationapi/textures")) {
-                for (String texPath : item.textures) {
-                    String textureType = texPath.contains("textures/item") ? "item" : "block";
-                    String fileName = texPath.substring(texPath.lastIndexOf('/') + 1, texPath.length() - 4);
-                    Identifier targetId = Identifier.of(namespace,
-                            "stationapi/textures/" + textureType + "/" + fileName + ".png");
-                    if (targetId.getPath().startsWith(prefix)) {
-                        InputSupplier<InputStream> supplier = this.open(type, targetId);
-                        if (supplier != null)
-                            consumer.accept(targetId, supplier);
                     }
                 }
             }

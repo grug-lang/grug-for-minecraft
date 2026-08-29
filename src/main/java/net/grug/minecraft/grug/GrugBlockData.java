@@ -10,7 +10,6 @@ public class GrugBlockData {
     public String blockstatePath;
     public String blockModelPath;
     public String itemModelPath;
-    public final List<String> textures = new ArrayList<>();
     public final List<String> langPaths = new ArrayList<>();
     public String blockEntityString;
 
