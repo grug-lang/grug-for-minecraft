@@ -389,7 +389,7 @@ public class GameFunctions {
             Grug.currentlyInitializingBlock.blockEntityString = entityString;
         } else {
             Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "set_block_entity: Can only be called during the init() block lifecycle.");
+                    "set_block_entity: Can only be called during a Block's init().");
         }
     }
 
@@ -397,8 +397,7 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.hardness = (float) value;
         } else {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "set_hardness: Can only be called during the init() block lifecycle.");
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "set_hardness: Can only be called during a Block's init().");
         }
     }
 
@@ -407,7 +406,7 @@ public class GameFunctions {
             Grug.currentlyInitializingBlock.inventorySize = (int) size;
         } else {
             Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "set_inventory_size: Can only be called during the init() block lifecycle.");
+                    "set_inventory_size: Can only be called during a Block's init().");
         }
     }
 
@@ -439,8 +438,7 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.material = materialName;
         } else {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "set_material: Can only be called during the init() block lifecycle.");
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "set_material: Can only be called during a Block's init().");
         }
     }
 
