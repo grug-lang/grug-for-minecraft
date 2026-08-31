@@ -1,0 +1,33 @@
+{
+	"name": "BuildCraft",
+	"version": "1.0.0",
+	"game_version": "beta-1.7.3",
+	"authors": [
+		"MyNameIsTrez"
+	],
+	"repository": {
+		"url": "https://github.com/grug-lang/grug-for-minecraft"
+	},
+	"original": {
+		"name": "BuildCraft",
+		"credits": [
+			"SpaceToad",
+			"SirSengir",
+			"Krapht",
+			"CovertJaguar",
+			"hea3ven",
+			"cpw",
+			"SandGrainOne",
+			"Flow86",
+			"Player",
+			"asie",
+			"AEnterprise",
+			"AlexIIL",
+			"afdw"
+		],
+		"sources": [
+			"https://www.minecraftinfo.com/bc/aboutbuildcraft.htm",
+			"https://mod-buildcraft.com/pages/hall-of-fame.html"
+		]
+	}
+}
