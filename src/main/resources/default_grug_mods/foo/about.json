@@ -4,5 +4,8 @@
 	"game_version": "beta-1.7.3",
 	"authors": [
 		"MyNameIsTrez"
-	]
+	],
+	"repository": {
+		"url": "https://github.com/grug-lang/grug-for-minecraft"
+	}
 }
