@@ -40,12 +40,12 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
         File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
         if (modDirs != null) {
+            String baseDir = type == ResourceType.SERVER_DATA ? "data" : "assets";
             for (File modDir : modDirs) {
-                File typeDir = new File(modDir, type == ResourceType.SERVER_DATA ? "data" : "assets");
+                File typeDir = new File(modDir, baseDir);
                 File[] nsDirs = typeDir.listFiles(File::isDirectory);
                 if (nsDirs != null) {
                     for (File nsDir : nsDirs) {
-                        // Use your existing helper method here!
                         namespaces.add(namespaceOf(nsDir.getName()));
                     }
                 }
@@ -65,44 +65,18 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             return null;
 
         String path = id.getPath();
-
-        // Strip "stationapi/" when looking on the physical disk
         String diskPath = path.startsWith("stationapi/") ? path.substring(11) : path;
 
-        // Tags
+        // Tags require merging arrays
         if (path.startsWith("stationapi/tags/")) {
             return mergeTagFragments(id.getNamespace(), diskPath);
         }
 
-        if (!id.getNamespace().equals(InitListener.NAMESPACE))
+        if (!id.getNamespace().equals(InitListener.NAMESPACE)) {
             return null;
-
-        // Textures, Models, Blockstates
-        if (path.startsWith("stationapi/textures/") || path.startsWith("stationapi/models/")
-                || path.startsWith("stationapi/blockstates/")) {
-            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
-            if (modDirs != null) {
-                for (File modDir : modDirs) {
-                    File file = new File(modDir, "assets/" + id.getNamespace() + "/" + diskPath);
-                    if (file.exists())
-                        return () -> new FileInputStream(file);
-                }
-            }
         }
 
-        // Recipes
-        if (path.startsWith("stationapi/recipes/")) {
-            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
-            if (modDirs != null) {
-                for (File modDir : modDirs) {
-                    File file = new File(modDir, "data/" + id.getNamespace() + "/" + diskPath);
-                    if (file.exists())
-                        return () -> new FileInputStream(file);
-                }
-            }
-        }
-
-        // Language files
+        // Language files require merging appending text
         if (path.startsWith("stationapi/lang/") && path.endsWith(".lang")) {
             return () -> {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -123,100 +97,60 @@ public class GrugResourcePack extends AbstractFileResourcePack {
             };
         }
 
+        // Standard files (Textures, Models, Blockstates, Recipes)
+        String baseDir = type == ResourceType.SERVER_DATA ? "data" : "assets";
+        File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+
+        if (modDirs != null) {
+            for (File modDir : modDirs) {
+                File file = new File(modDir, baseDir + "/" + id.getNamespace() + "/" + diskPath);
+                if (file.exists()) {
+                    return () -> new FileInputStream(file);
+                }
+            }
+        }
+
         return null;
     }
 
     @Override
     public void findResources(ResourceType type, Namespace namespace, String prefix,
             ResourcePack.ResultConsumer consumer) {
-
-        // Strip "stationapi/" when looking on the physical disk
         String diskPrefix = prefix.startsWith("stationapi/") ? prefix.substring(11) : prefix;
 
-        // Tags
-        if (prefix.startsWith("stationapi/tags")) {
-            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
-            if (modDirs != null) {
-                java.util.Set<Identifier> discoveredIds = new java.util.HashSet<>();
-                for (File modDir : modDirs) {
-                    File dataDir = new File(modDir, "data/" + namespace + "/" + diskPrefix);
-                    if (dataDir.exists() && dataDir.isDirectory()) {
-                        try (java.util.stream.Stream<Path> stream = Files.walk(dataDir.toPath())) {
-                            stream.filter(Files::isRegularFile)
-                                    .filter(p -> p.toString().endsWith(".json"))
-                                    .forEach(p -> {
-                                        String relativePath = new File(modDir, "data/" + namespace).toPath()
-                                                .relativize(p).toString().replace('\\', '/');
-                                        Identifier targetId = Identifier.of(namespace, "stationapi/" + relativePath);
-                                        if (discoveredIds.add(targetId)) {
-                                            InputSupplier<InputStream> supplier = this.open(type, targetId);
-                                            if (supplier != null)
-                                                consumer.accept(targetId, supplier);
-                                        }
-                                    });
-                        } catch (Exception e) {
-                            InitListener.LOGGER.error("Failed to walk tag directory", e);
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!namespace.equals(InitListener.NAMESPACE))
+        // Allow any namespace for tags, but restrict others to the mod's namespace
+        if (!prefix.startsWith("stationapi/tags") && !namespace.equals(InitListener.NAMESPACE)) {
             return;
-
-        // Textures, Models, Blockstates, Lang
-        if (prefix.startsWith("stationapi/textures") || prefix.startsWith("stationapi/models")
-                || prefix.startsWith("stationapi/blockstates") || prefix.startsWith("stationapi/lang")) {
-            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
-            if (modDirs != null) {
-                java.util.Set<Identifier> discoveredIds = new java.util.HashSet<>();
-                for (File modDir : modDirs) {
-                    File assetDir = new File(modDir, "assets/" + namespace + "/" + diskPrefix);
-                    if (assetDir.exists() && assetDir.isDirectory()) {
-                        try (java.util.stream.Stream<Path> stream = Files.walk(assetDir.toPath())) {
-                            stream.filter(Files::isRegularFile)
-                                    .filter(p -> p.toString().endsWith(".png") || p.toString().endsWith(".json")
-                                            || p.toString().endsWith(".lang"))
-                                    .forEach(p -> {
-                                        String relativePath = new File(modDir, "assets/" + namespace).toPath()
-                                                .relativize(p).toString().replace('\\', '/');
-                                        Identifier targetId = Identifier.of(namespace, "stationapi/" + relativePath);
-                                        if (discoveredIds.add(targetId)) {
-                                            InputSupplier<InputStream> supplier = this.open(type, targetId);
-                                            if (supplier != null)
-                                                consumer.accept(targetId, supplier);
-                                        }
-                                    });
-                        } catch (Exception e) {
-                            InitListener.LOGGER.error("Failed to walk asset directory", e);
-                        }
-                    }
-                }
-            }
         }
 
-        // Recipes
-        if (prefix.startsWith("stationapi/recipes")) {
-            File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
-            if (modDirs != null) {
-                for (File modDir : modDirs) {
-                    File dataDir = new File(modDir, "data/" + namespace + "/" + diskPrefix);
-                    if (dataDir.exists() && dataDir.isDirectory()) {
-                        try (java.util.stream.Stream<Path> stream = Files.walk(dataDir.toPath())) {
-                            stream.filter(Files::isRegularFile)
-                                    .filter(p -> p.toString().endsWith(".json"))
-                                    .forEach(p -> {
-                                        String relativePath = new File(modDir, "data/" + namespace).toPath()
-                                                .relativize(p).toString().replace('\\', '/');
-                                        Identifier targetId = Identifier.of(namespace, "stationapi/" + relativePath);
+        String baseDir = type == ResourceType.SERVER_DATA ? "data" : "assets";
+        File[] modDirs = InitListener.getActiveGrugModsDir().listFiles(File::isDirectory);
+
+        if (modDirs != null) {
+            Set<Identifier> discoveredIds = new HashSet<>();
+            for (File modDir : modDirs) {
+                File targetDir = new File(modDir, baseDir + "/" + namespace + "/" + diskPrefix);
+                if (targetDir.exists() && targetDir.isDirectory()) {
+                    try (java.util.stream.Stream<Path> stream = Files.walk(targetDir.toPath())) {
+                        stream.filter(Files::isRegularFile)
+                                .filter(p -> {
+                                    String str = p.toString();
+                                    return str.endsWith(".png") || str.endsWith(".json") || str.endsWith(".lang");
+                                })
+                                .forEach(p -> {
+                                    String relativePath = new File(modDir, baseDir + "/" + namespace).toPath()
+                                            .relativize(p).toString().replace('\\', '/');
+                                    Identifier targetId = Identifier.of(namespace, "stationapi/" + relativePath);
+
+                                    if (discoveredIds.add(targetId)) {
                                         InputSupplier<InputStream> supplier = this.open(type, targetId);
-                                        if (supplier != null)
+                                        if (supplier != null) {
                                             consumer.accept(targetId, supplier);
-                                    });
-                        } catch (Exception e) {
-                            InitListener.LOGGER.error("Failed to walk recipe directory", e);
-                        }
+                                        }
+                                    }
+                                });
+                    } catch (Exception e) {
+                        InitListener.LOGGER.error("Failed to walk resource directory: " + targetDir, e);
                     }
                 }
             }
