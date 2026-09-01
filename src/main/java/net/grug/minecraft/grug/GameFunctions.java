@@ -74,9 +74,10 @@ public class GameFunctions {
         builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, false));
     }
 
-    public static void GUI_add_text(long guiId, String text, double x, double y, double color) {
+    public static void GUI_add_text(long guiId, String text, double x, double y, long colorId) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
-        builder.texts.add(new GrugGuiBuilder.TextDef(text, (int) x, (int) y, (int) color));
+        Color color = (Color) Grug.entityData.get(colorId).object;
+        builder.texts.add(new GrugGuiBuilder.TextDef(text, (int) x, (int) y, color.getRGB()));
     }
 
     public static void GUI_open(long guiId, long playerId, long blockEntityId) {
@@ -186,6 +187,10 @@ public class GameFunctions {
     }
 
     // Host functions
+
+    public static long color_rgb(double r, double g, double b) {
+        return Grug.addEntity(GrugEntityType.Color, new Color((int) r, (int) g, (int) b));
+    }
 
     public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
         BlockEntity be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);

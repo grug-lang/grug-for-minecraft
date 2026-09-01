@@ -174,6 +174,9 @@
 				}
 			}
 		},
+		"Color": {
+			"description": "An RGB color."
+		},
 		"Entity": {
 			"description": "A generic entity.",
 			"methods": {
@@ -349,7 +352,7 @@
 						{
 							"name": "color",
 							"type": {
-								"name": "number"
+								"name": "Color"
 							}
 						}
 					]
@@ -429,6 +432,32 @@
 		}
 	},
 	"host_functions": {
+		"color_rgb": {
+			"description": "Creates a new Color from RGB values, where each value is an integer from 0 to 255 (inclusive).",
+			"return_type": {
+				"name": "Color"
+			},
+			"parameters": [
+				{
+					"name": "r",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "g",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "b",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"consume_crafting_ingredients": {
 			"description": "Consumes 1 set of ingredients from a 3x3 grid, leaving behind buckets if necessary.",
 			"parameters": [

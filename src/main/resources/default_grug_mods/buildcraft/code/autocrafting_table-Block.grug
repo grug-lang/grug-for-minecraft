@@ -15,8 +15,9 @@ export on_break(world: Level, x: number, y: number, z: number) {
 export use(world: Level, x: number, y: number, z: number, player: Player) {
     gui_layout: GUI = gui("gui/crafting.png")
 
-    gui_layout.add_text("Autocrafting Table", 30, 6, 4210752)
-    gui_layout.add_text("Inventory", 8, 72, 4210752)
+    text_color: Color = color_rgb(64, 64, 64)
+    gui_layout.add_text("Autocrafting Table", 30, 6, text_color)
+    gui_layout.add_text("Inventory", 8, 72, text_color)
 
     # Add a 3x3 crafting grid starting at inventory slot 0
     gui_layout.add_crafting_grid(0, 30, 17)
