@@ -22,4 +22,11 @@ public class GrugScreen extends HandledScreen {
         int y = (height - backgroundHeight) / 2;
         drawTexture(x, y, 0, 0, backgroundWidth, backgroundHeight);
     }
+
+    @Override
+    protected void drawForeground() {
+        for (GrugGuiBuilder.TextDef textDef : layout.texts) {
+            textRenderer.draw(textDef.text(), textDef.x(), textDef.y(), textDef.color());
+        }
+    }
 }

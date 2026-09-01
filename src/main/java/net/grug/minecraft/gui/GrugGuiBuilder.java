@@ -8,6 +8,7 @@ public class GrugGuiBuilder {
     public final List<SlotDef> blockSlots = new ArrayList<>();
     public final List<CraftingGridDef> craftingGrids = new ArrayList<>();
     public final List<CraftingResultDef> craftingResults = new ArrayList<>();
+    public final List<TextDef> texts = new ArrayList<>();
 
     public int playerInvX, playerInvY, hotbarX, hotbarY;
     public boolean hasPlayerInventory = false;
@@ -23,5 +24,8 @@ public class GrugGuiBuilder {
     }
 
     public record CraftingResultDef(int slot, int x, int y) {
+    }
+
+    public record TextDef(String text, int x, int y, int color) {
     }
 }

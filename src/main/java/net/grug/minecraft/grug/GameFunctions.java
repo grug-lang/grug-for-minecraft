@@ -74,6 +74,11 @@ public class GameFunctions {
         builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, false));
     }
 
+    public static void GUI_add_text(long guiId, String text, double x, double y, double color) {
+        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
+        builder.texts.add(new GrugGuiBuilder.TextDef(text, (int) x, (int) y, (int) color));
+    }
+
     public static void GUI_open(long guiId, long playerId, long blockEntityId) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         PlayerEntity player = (PlayerEntity) Grug.entityData.get(playerId).object;
@@ -88,14 +93,22 @@ public class GameFunctions {
                     String guiIdStr = (messagePacket.strings != null && messagePacket.strings.length > 0)
                             ? messagePacket.strings[0]
                             : "";
-                    messagePacket.strings = new String[] { guiIdStr, builder.texturePath };
+
+                    // Add texts to the strings array
+                    String[] strings = new String[2 + builder.texts.size()];
+                    strings[0] = guiIdStr;
+                    strings[1] = builder.texturePath;
+                    for (int i = 0; i < builder.texts.size(); i++) {
+                        strings[2 + i] = builder.texts.get(i).text();
+                    }
+                    messagePacket.strings = strings;
 
                     int syncId = (messagePacket.ints != null && messagePacket.ints.length > 0) ? messagePacket.ints[0]
                             : 0;
 
-                    // 12 base elements + dynamic slots
-                    int numInts = 12 + (builder.blockSlots.size() * 4) + (builder.craftingGrids.size() * 3)
-                            + (builder.craftingResults.size() * 3);
+                    // 13 base elements + dynamic slots + texts
+                    int numInts = 13 + (builder.blockSlots.size() * 4) + (builder.craftingGrids.size() * 3)
+                            + (builder.craftingResults.size() * 3) + (builder.texts.size() * 3);
                     int[] ints = new int[numInts];
 
                     ints[0] = syncId;
@@ -129,6 +142,13 @@ public class GameFunctions {
                         ints[idx++] = res.slot();
                         ints[idx++] = res.x();
                         ints[idx++] = res.y();
+                    }
+
+                    ints[idx++] = builder.texts.size();
+                    for (GrugGuiBuilder.TextDef text : builder.texts) {
+                        ints[idx++] = text.x();
+                        ints[idx++] = text.y();
+                        ints[idx++] = text.color();
                     }
 
                     messagePacket.ints = ints;

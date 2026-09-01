@@ -325,6 +325,35 @@
 						}
 					]
 				},
+				"add_text": {
+					"description": "Adds text to the GUI.",
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "color",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"open": {
 					"description": "Opens the dynamically built GUI for the player.",
 					"parameters": [

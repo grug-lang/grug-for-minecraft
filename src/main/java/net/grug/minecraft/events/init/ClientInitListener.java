@@ -56,6 +56,12 @@ public class ClientInitListener {
                                 message.ints[idx++], message.ints[idx++], message.ints[idx++]));
                     }
 
+                    int textCount = message.ints[idx++];
+                    for (int i = 0; i < textCount; i++) {
+                        builder.texts.add(new GrugGuiBuilder.TextDef(
+                                message.strings[2 + i], message.ints[idx++], message.ints[idx++], message.ints[idx++]));
+                    }
+
                     return new GrugScreen(new GrugScreenHandler(player, realInv, builder), builder);
                 },
                 GrugBlockEntity::new));
