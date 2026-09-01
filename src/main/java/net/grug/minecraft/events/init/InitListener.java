@@ -343,7 +343,7 @@ public class InitListener {
         Path markerFile = targetGrugDir.resolve(".examples_generated.txt");
 
         // If the marker file exists, the player already generated them.
-        // We respect their right to delete the 'foo' folder without it coming back.
+        // We respect their right to delete the 'examplemod' folder without it coming back.
         if (Files.exists(markerFile)) {
             return;
         }
