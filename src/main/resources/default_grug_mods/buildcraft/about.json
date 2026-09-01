@@ -8,34 +8,50 @@
 	"repository": {
 		"url": "https://github.com/grug-lang/grug-for-minecraft"
 	},
-	"original": {
-		"name": "BuildCraft",
-		"repository": {
-			"url": "https://github.com/BuildCraft/BuildCraft"
+	"derived_from": [
+		{
+			"name": "Buildcraft StationAPI",
+			"repository": {
+				"url": "https://github.com/DanyGames2014/Buildcraft"
+			},
+			"license": {
+				"name": "Minecraft Mod Public License 1.0.1",
+				"url": "https://github.com/DanyGames2014/Buildcraft/blob/master/LICENSE"
+			},
+			"sources": [
+				"https://modrinth.com/mod/buildcraft-stationapi"
+			]
 		},
-		"license": {
-			"name": "Minecraft Mod Public License 1.0.1",
-			"url": "https://github.com/BuildCraft/BuildCraft/blob/8.0.x-1.12.2/LICENSE"
-		},
-		"credits": [
-			"SpaceToad",
-			"SirSengir",
-			"Krapht",
-			"CovertJaguar",
-			"hea3ven",
-			"cpw",
-			"SandGrainOne",
-			"Flow86",
-			"Player",
-			"asie",
-			"AEnterprise",
-			"AlexIIL",
-			"afdw"
-		],
-		"sources": [
-			"https://www.minecraftinfo.com/bc/aboutbuildcraft.htm",
-			"https://mod-buildcraft.com/pages/hall-of-fame.html",
-			"https://blog.asie.pl/2015/01/buildcraft-history-and-design/"
-		]
-	}
+		{
+			"name": "BuildCraft",
+			"repository": {
+				"url": "https://github.com/BuildCraft/BuildCraft"
+			},
+			"license": {
+				"name": "Minecraft Mod Public License 1.0.1",
+				"url": "https://github.com/BuildCraft/BuildCraft/blob/8.0.x-1.12.2/LICENSE"
+			},
+			"credits": [
+				"SpaceToad",
+				"SirSengir",
+				"Krapht",
+				"CovertJaguar",
+				"hea3ven",
+				"cpw",
+				"SandGrainOne",
+				"Flow86",
+				"Player",
+				"asie",
+				"AEnterprise",
+				"AlexIIL",
+				"afdw"
+			],
+			"sources": [
+				"https://modrinth.com/mod/buildcraft",
+				"https://www.minecraftinfo.com/bc/aboutbuildcraft.htm",
+				"https://mod-buildcraft.com/pages/hall-of-fame.html",
+				"https://blog.asie.pl/2015/01/buildcraft-history-and-design/"
+			]
+		}
+	]
 }
