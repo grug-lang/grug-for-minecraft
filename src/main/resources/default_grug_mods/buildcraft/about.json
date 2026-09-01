@@ -28,9 +28,9 @@
 				"url": "https://github.com/BuildCraft/BuildCraft"
 			},
 			"license": {
-				"name": null,
-				"url": "https://modrinth.com/mod/buildcraft",
-				"note": "BuildCraft's licensing varies by version, and the specific 1.2.5 release underlying this derivative work has not been identified."
+				"name": "Minecraft Mod Public License 1.0.1",
+				"url": "https://github.com/BuildCraft/BuildCraft/blob/8.0.x-1.12.2/LICENSE",
+				"note": "The StationAPI port draws from multiple BuildCraft versions and unreleased builds, approximately spanning 2.2.x-6.5.x, while targeting feature parity with the Release 1.2.5 version. DanyGames2014, the StationAPI port author, confirmed that the referenced versions fall within the period when BuildCraft was licensed under MMPLv1."
 			},
 			"credits": [
 				"SpaceToad",
@@ -51,7 +51,8 @@
 				"https://modrinth.com/mod/buildcraft",
 				"https://www.minecraftinfo.com/bc/aboutbuildcraft.htm",
 				"https://mod-buildcraft.com/pages/hall-of-fame.html",
-				"https://blog.asie.pl/2015/01/buildcraft-history-and-design/"
+				"https://blog.asie.pl/2015/01/buildcraft-history-and-design/",
+				"https://modrinth.com/user/DanyGames2014"
 			]
 		}
 	]
