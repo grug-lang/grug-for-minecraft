@@ -28,8 +28,9 @@
 				"url": "https://github.com/BuildCraft/BuildCraft"
 			},
 			"license": {
-				"name": "Minecraft Mod Public License 1.0.1",
-				"url": "https://github.com/BuildCraft/BuildCraft/blob/8.0.x-1.12.2/LICENSE"
+				"name": null,
+				"url": "https://modrinth.com/mod/buildcraft",
+				"note": "BuildCraft's licensing varies by version, and the specific 1.2.5 release underlying this derivative work has not been identified."
 			},
 			"credits": [
 				"SpaceToad",
