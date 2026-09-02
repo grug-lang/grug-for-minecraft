@@ -28,9 +28,9 @@ bin/
 
 *.DS_Store
 
-# fabric
-
+loaders/forge-1.20.6/run/
 loaders/stationapi/run/
+
 # Remove the following line to remove server.properties from your project.
 !server.properties
 

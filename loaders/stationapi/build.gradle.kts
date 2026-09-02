@@ -2,8 +2,8 @@ import java.net.URI
 
 plugins {
     id("maven-publish")
-    id("fabric-loom") version "1.15.3"
-    id("babric-loom-extension") version "1.15.3"
+    id("fabric-loom") version "1.11.7"
+    id("babric-loom-extension") version "1.11-SNAPSHOT"
 }
 
 java.sourceCompatibility = JavaVersion.VERSION_17
@@ -18,12 +18,10 @@ loom {
         register("testClient") {
             source("test")
             client()
-            configurations.transitiveImplementation
         }
         register("testServer") {
             source("test")
             server()
-            configurations.transitiveImplementation
         }
     }
 }

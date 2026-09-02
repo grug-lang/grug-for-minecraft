@@ -4,6 +4,14 @@
 
 ## Running
 
+### MC 1.20.6 - Forge
+
 ```sh
-./gradlew runClient
+./gradlew :loaders:forge-1.20.6:runClient
+```
+
+### MC Beta 1.7.3 - StationAPI
+
+```sh
+./gradlew :loaders:stationapi:runClient
 ```
