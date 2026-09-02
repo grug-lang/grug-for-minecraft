@@ -6,7 +6,6 @@ import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.forge.gui.GrugScreen;
-import net.grug.minecraft.forge.network.NetworkHandler;
 import net.grug.minecraft.forge.resource.GrugPackResources;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
@@ -23,6 +22,7 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -79,8 +79,13 @@ public class GrugModLoader {
     private static final List<RegistryObject<? extends Item>> registeredGrugItems = new ArrayList<>();
 
     public static final RegistryObject<MenuType<GrugMenu>> GRUG_MENU = MENUS.register("grug_menu",
-            () -> IForgeMenuType.create((windowId, inv, data) -> new GrugMenu(null, windowId, inv,
-                    new SimpleContainer(9), new GrugGuiBuilder(""))));
+            () -> IForgeMenuType.create((windowId, inv, data) -> {
+                net.minecraft.core.BlockPos pos = data.readBlockPos();
+                GrugGuiBuilder builder = GrugMenu.readBuilder(data);
+                net.minecraft.world.Container container = (net.minecraft.world.Container) inv.player.level()
+                        .getBlockEntity(pos);
+                return new GrugMenu(null, windowId, inv, container, builder);
+            }));
 
     public static final RegistryObject<CreativeModeTab> GRUG_TAB = CREATIVE_MODE_TABS.register("grug_tab",
             () -> CreativeModeTab.builder()
@@ -99,8 +104,6 @@ public class GrugModLoader {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
         initializeGrug();
-
-        NetworkHandler.register();
 
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
@@ -279,8 +282,8 @@ public class GrugModLoader {
         public static void onClientSetup(FMLClientSetupEvent event) {
             event.enqueueWork(() -> {
                 MenuScreens.register(GRUG_MENU.get(),
-                        (GrugMenu menu, net.minecraft.world.entity.player.Inventory inv,
-                                Component title) -> new GrugScreen(menu, inv, title, new GrugGuiBuilder("")));
+                        (GrugMenu menu, Inventory inv, Component title) -> new GrugScreen(menu, inv, title,
+                                menu.layout));
             });
         }
     }

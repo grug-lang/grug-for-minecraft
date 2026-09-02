@@ -2,11 +2,16 @@ package net.grug.minecraft.forge;
 
 import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.ModLoaderAdapter;
+import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
+import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
@@ -52,14 +57,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
-        if (playerObj instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-            if (blockEntityObj instanceof net.minecraft.world.level.block.entity.BlockEntity be) {
-                net.grug.minecraft.gui.GrugGuiBuilder builder = (net.grug.minecraft.gui.GrugGuiBuilder) guiBuilderObj;
-                net.grug.minecraft.forge.network.GrugGuiPayload payload = new net.grug.minecraft.forge.network.GrugGuiPayload(
-                        be.getBlockPos(), builder);
+        if (playerObj instanceof ServerPlayer serverPlayer) {
+            if (blockEntityObj instanceof BlockEntity be) {
+                GrugGuiBuilder builder = (GrugGuiBuilder) guiBuilderObj;
 
-                net.grug.minecraft.forge.network.NetworkHandler.INSTANCE.send(
-                        payload, net.minecraftforge.network.PacketDistributor.PLAYER.with(serverPlayer));
+                serverPlayer.openMenu(
+                        new SimpleMenuProvider(
+                                (windowId, inv, player) -> new GrugMenu(
+                                        GrugModLoader.GRUG_MENU.get(), windowId, inv, (Container) be, builder),
+                                Component.literal("Grug GUI")),
+                        buf -> GrugMenu.writeMenuData(buf, be.getBlockPos(), builder));
             }
         }
     }
