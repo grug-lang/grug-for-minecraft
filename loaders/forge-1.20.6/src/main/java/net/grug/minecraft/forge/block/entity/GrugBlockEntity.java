@@ -74,6 +74,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     public void tick() {
         if (entityHandle == 0)
             initGrug();
+
         if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
             List<GrugObject> oldFnEntities = Grug.fnEntities;
             Grug.fnEntities = new ArrayList<>();
