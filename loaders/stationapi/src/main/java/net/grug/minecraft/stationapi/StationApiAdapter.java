@@ -8,6 +8,7 @@ import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
+import net.grug.minecraft.stationapi.gui.StationGuiHelper;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.Entity;
@@ -50,6 +51,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
     public void registerBlockEntity(String namespace, String name) {
     }
 
+    /**
+     * Note: Although StationAPI is based on Fabric, it targets Minecraft Beta
+     * 1.7.3.
+     * Therefore, we do not have access to modern UI abstractions like
+     * net.minecraft.screen.SimpleNamedScreenHandlerFactory (or Forge's
+     * SimpleMenuProvider).
+     * Instead, we manually synchronize the GUI data using StationAPI's
+     * MessagePacket system.
+     */
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
@@ -60,69 +70,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
             GuiHelper.openGUI(player, Identifier.of("grug:dynamic_gui"), inv,
                     new GrugScreenHandler(player, inv, builder),
                     messagePacket -> {
-                        String guiIdStr = (messagePacket.strings != null && messagePacket.strings.length > 0)
-                                ? messagePacket.strings[0]
-                                : "";
-
-                        // Add texts to the strings array
-                        String[] strings = new String[2 + builder.texts.size()];
-                        strings[0] = guiIdStr;
-                        strings[1] = builder.texturePath;
-                        for (int i = 0; i < builder.texts.size(); i++) {
-                            strings[2 + i] = builder.texts.get(i).text();
-                        }
-                        messagePacket.strings = strings;
-
                         int syncId = (messagePacket.ints != null && messagePacket.ints.length > 0)
                                 ? messagePacket.ints[0]
                                 : 0;
-
-                        // 13 base elements + dynamic slots + texts
-                        int numInts = 13 + (builder.blockSlots.size() * 4) + (builder.craftingGrids.size() * 3)
-                                + (builder.craftingResults.size() * 3) + (builder.texts.size() * 3);
-                        int[] ints = new int[numInts];
-
-                        ints[0] = syncId;
-                        ints[1] = be.x;
-                        ints[2] = be.y;
-                        ints[3] = be.z;
-                        ints[4] = builder.hasPlayerInventory ? 1 : 0;
-                        ints[5] = builder.playerInvX;
-                        ints[6] = builder.playerInvY;
-                        ints[7] = builder.hotbarX;
-                        ints[8] = builder.hotbarY;
-
-                        int idx = 9;
-                        ints[idx++] = builder.blockSlots.size();
-                        for (GrugGuiBuilder.SlotDef def : builder.blockSlots) {
-                            ints[idx++] = def.index();
-                            ints[idx++] = def.x();
-                            ints[idx++] = def.y();
-                            ints[idx++] = def.isOutput() ? 1 : 0;
-                        }
-
-                        ints[idx++] = builder.craftingGrids.size();
-                        for (GrugGuiBuilder.CraftingGridDef grid : builder.craftingGrids) {
-                            ints[idx++] = grid.startSlot();
-                            ints[idx++] = grid.x();
-                            ints[idx++] = grid.y();
-                        }
-
-                        ints[idx++] = builder.craftingResults.size();
-                        for (GrugGuiBuilder.CraftingResultDef res : builder.craftingResults) {
-                            ints[idx++] = res.slot();
-                            ints[idx++] = res.x();
-                            ints[idx++] = res.y();
-                        }
-
-                        ints[idx++] = builder.texts.size();
-                        for (GrugGuiBuilder.TextDef text : builder.texts) {
-                            ints[idx++] = text.x();
-                            ints[idx++] = text.y();
-                            ints[idx++] = text.color();
-                        }
-
-                        messagePacket.ints = ints;
+                        StationGuiHelper.writeBuilderToPacket(builder, messagePacket, syncId, be.x, be.y, be.z);
                     });
         }
     }
