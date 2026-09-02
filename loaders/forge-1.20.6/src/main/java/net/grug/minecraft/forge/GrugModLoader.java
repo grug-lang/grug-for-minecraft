@@ -272,7 +272,10 @@ public class GrugModLoader {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
-            // Hot-reloading logic
+            String[] updatedResources = Grug.update(LOGGER::error);
+            for (String resource : updatedResources) {
+                LOGGER.info("Reloading changed resource: {}", resource);
+            }
         }
     }
 

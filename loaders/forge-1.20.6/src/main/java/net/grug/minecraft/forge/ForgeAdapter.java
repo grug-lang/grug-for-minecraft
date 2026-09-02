@@ -50,16 +50,22 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public void registerBlock(String namespace, String name, long fileId) {
         // Registration is already dynamically handled in GrugModLoader
+        // TODO: Should this method be removed from the ModLoaderAdapter interface,
+        // cause StationAPI has this method *not* empty?
     }
 
     @Override
     public void registerItem(String namespace, String name, long fileId) {
         // Registration is already dynamically handled in GrugModLoader
+        // TODO: Should this method be removed from the ModLoaderAdapter interface,
+        // cause StationAPI has this method empty?
     }
 
     @Override
     public void registerBlockEntity(String namespace, String name) {
         // Registration is already dynamically handled in GrugModLoader
+        // TODO: Should this method be removed from the ModLoaderAdapter interface,
+        // cause StationAPI has this method empty?
     }
 
     @Override
@@ -81,6 +87,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public void reloadRecipe(String resourcePath) {
         // Recipe hot-reloading needs advanced integration with Forge's RecipeManager
+        // TODO: Implement
     }
 
     @Override
