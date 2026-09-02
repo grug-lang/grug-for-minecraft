@@ -1,6 +1,8 @@
 package net.grug.minecraft.stationapi.events.init;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.grug.minecraft.grug.Grug;
@@ -29,12 +31,14 @@ import net.modificationstation.stationapi.api.util.Namespace;
 import net.modificationstation.stationapi.api.util.exception.MissingModException;
 import org.apache.logging.log4j.Logger;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.invoke.MethodHandles;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -261,7 +265,7 @@ public class InitListener {
                             .filter(p -> p.toString().endsWith(".json"))
                             .forEach(p -> {
                                 try {
-                                    registerJsonRecipe(p.toUri().toURL());
+                                    registerJsonRecipe(createLegacyRecipeUrl(p));
                                 } catch (Exception e) {
                                     LOGGER.error("Failed to register recipe: " + p, e);
                                 }
@@ -271,6 +275,38 @@ public class InitListener {
                 }
             }
         }
+    }
+
+    private static URL createLegacyRecipeUrl(Path p) throws MalformedURLException {
+        // We intercept the file stream to rewrite modern {"id": "..."} to legacy
+        // {"item": "..."}
+        return new URL("grugrecipe", null, -1, p.toAbsolutePath().toString(), new java.net.URLStreamHandler() {
+            @Override
+            protected java.net.URLConnection openConnection(URL u) {
+                return new java.net.URLConnection(u) {
+                    @Override
+                    public void connect() {
+                    }
+
+                    @Override
+                    public InputStream getInputStream() throws IOException {
+                        try (InputStreamReader reader = new InputStreamReader(new FileInputStream(p.toFile()),
+                                java.nio.charset.StandardCharsets.UTF_8)) {
+                            JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
+                            if (json.has("result")) {
+                                JsonObject result = json.getAsJsonObject("result");
+                                if (result.has("id")) {
+                                    result.add("item", result.get("id"));
+                                    result.remove("id");
+                                }
+                            }
+                            return new ByteArrayInputStream(
+                                    json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        }
+                    }
+                };
+            }
+        });
     }
 
     private static void registerJsonRecipe(URL recipe) throws IOException {

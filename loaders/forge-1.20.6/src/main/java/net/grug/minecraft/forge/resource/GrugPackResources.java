@@ -22,7 +22,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
@@ -37,8 +36,6 @@ public class GrugPackResources implements PackResources {
     }
 
     private File getResourceFile(PackType packType, ResourceLocation location) {
-        if (packType != PackType.CLIENT_RESOURCES)
-            return null;
         File activeGrugDir = GrugModLoader.getActiveGrugModsDir();
         if (!activeGrugDir.exists() || !activeGrugDir.isDirectory())
             return null;
@@ -47,7 +44,8 @@ public class GrugPackResources implements PackResources {
         if (modDirs == null)
             return null;
 
-        String path = "assets/" + location.getNamespace() + "/" + location.getPath();
+        String baseDir = packType == PackType.CLIENT_RESOURCES ? "assets" : "data";
+        String path = baseDir + "/" + location.getNamespace() + "/" + location.getPath();
         for (File modDir : modDirs) {
             File file = new File(modDir, path);
             if (file.exists() && file.isFile()) {
@@ -117,8 +115,6 @@ public class GrugPackResources implements PackResources {
 
     @Override
     public void listResources(PackType packType, String namespace, String path, ResourceOutput output) {
-        if (packType != PackType.CLIENT_RESOURCES)
-            return;
         File activeGrugDir = GrugModLoader.getActiveGrugModsDir();
         if (!activeGrugDir.exists() || !activeGrugDir.isDirectory())
             return;
@@ -128,9 +124,10 @@ public class GrugPackResources implements PackResources {
             return;
 
         Set<ResourceLocation> visited = new HashSet<>();
+        String baseDir = packType == PackType.CLIENT_RESOURCES ? "assets" : "data";
 
         for (File modDir : modDirs) {
-            File targetDir = new File(modDir, "assets/" + namespace + "/" + path);
+            File targetDir = new File(modDir, baseDir + "/" + namespace + "/" + path);
             if (targetDir.exists() && targetDir.isDirectory()) {
                 Path targetPath = targetDir.toPath();
                 try (Stream<Path> stream = Files.walk(targetPath)) {
@@ -153,7 +150,7 @@ public class GrugPackResources implements PackResources {
 
     @Override
     public Set<String> getNamespaces(PackType packType) {
-        return packType == PackType.CLIENT_RESOURCES ? Set.of("grug") : Collections.emptySet();
+        return Set.of("grug", "minecraft", "c");
     }
 
     @Nullable

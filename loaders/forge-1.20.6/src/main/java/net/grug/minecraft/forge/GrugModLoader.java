@@ -131,30 +131,29 @@ public class GrugModLoader {
     }
 
     private void onAddPackFinders(AddPackFindersEvent event) {
-        if (event.getPackType() == PackType.CLIENT_RESOURCES) {
-            PackLocationInfo info = new PackLocationInfo(
-                    "grug_resources",
-                    Component.literal("Grug Mod Resources"),
-                    PackSource.BUILT_IN,
-                    Optional.empty());
-            Pack pack = Pack.readMetaAndCreate(
-                    info,
-                    new Pack.ResourcesSupplier() {
-                        @Override
-                        public PackResources openPrimary(PackLocationInfo locationInfo) {
-                            return new GrugPackResources(locationInfo);
-                        }
+        PackType type = event.getPackType();
+        PackLocationInfo info = new PackLocationInfo(
+                "grug_resources_" + type.name(),
+                Component.literal("Grug Mod " + (type == PackType.CLIENT_RESOURCES ? "Resources" : "Data")),
+                PackSource.BUILT_IN,
+                Optional.empty());
+        Pack pack = Pack.readMetaAndCreate(
+                info,
+                new Pack.ResourcesSupplier() {
+                    @Override
+                    public PackResources openPrimary(PackLocationInfo locationInfo) {
+                        return new GrugPackResources(locationInfo);
+                    }
 
-                        @Override
-                        public PackResources openFull(PackLocationInfo locationInfo, Pack.Metadata metadata) {
-                            return openPrimary(locationInfo);
-                        }
-                    },
-                    PackType.CLIENT_RESOURCES,
-                    new PackSelectionConfig(true, Pack.Position.TOP, false));
-            if (pack != null) {
-                event.addRepositorySource(consumer -> consumer.accept(pack));
-            }
+                    @Override
+                    public PackResources openFull(PackLocationInfo locationInfo, Pack.Metadata metadata) {
+                        return openPrimary(locationInfo);
+                    }
+                },
+                type,
+                new PackSelectionConfig(true, Pack.Position.TOP, false));
+        if (pack != null) {
+            event.addRepositorySource(consumer -> consumer.accept(pack));
         }
     }
 
