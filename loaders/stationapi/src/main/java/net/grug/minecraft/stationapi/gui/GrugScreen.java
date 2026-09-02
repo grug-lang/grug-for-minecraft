@@ -14,9 +14,21 @@ public class GrugScreen extends HandledScreen {
 
     @Override
     protected void drawBackground(float tickDelta) {
-        // Since texturePath is something like "textures/gui/autocrafting_table.png",
-        // you might need to resolve it against the mod's specific namespace if needed.
-        int bgTextureId = minecraft.textureManager.getTextureId("/" + layout.texturePath);
+        String path = layout.texturePath;
+        if (path != null) {
+            // Convert disk paths like "buildcraft/assets/grug/textures/gui/crafting.png"
+            // into valid Identifiers like "grug:textures/gui/crafting.png"
+            int assetsIdx = path.indexOf("/assets/");
+            if (assetsIdx != -1) {
+                String afterAssets = path.substring(assetsIdx + 8);
+                int slashIdx = afterAssets.indexOf('/');
+                if (slashIdx != -1) {
+                    path = afterAssets.substring(0, slashIdx) + ":" + afterAssets.substring(slashIdx + 1);
+                }
+            }
+        }
+
+        int bgTextureId = minecraft.textureManager.getTextureId(path);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
         minecraft.textureManager.bindTexture(bgTextureId);
         int x = (width - backgroundWidth) / 2;

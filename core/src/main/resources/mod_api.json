@@ -738,7 +738,8 @@
 				{
 					"name": "texture_path",
 					"type": {
-						"name": "string"
+						"name": "resource",
+						"resource_extension": ".png"
 					}
 				}
 			]

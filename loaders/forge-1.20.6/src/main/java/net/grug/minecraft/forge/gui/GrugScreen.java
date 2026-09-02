@@ -15,11 +15,20 @@ public class GrugScreen extends AbstractContainerScreen<GrugMenu> {
         super(menu, playerInventory, title);
         this.layout = layout;
 
-        String path = (layout != null && layout.texturePath != null) ? layout.texturePath
-                : "textures/gui/container/dispenser.png";
-        if (!path.contains(":")) {
-            path = "minecraft:" + path;
+        String path = layout.texturePath;
+        if (path != null) {
+            // Convert disk paths like "buildcraft/assets/grug/textures/gui/crafting.png"
+            // into valid ResourceLocations like "grug:textures/gui/crafting.png"
+            int assetsIdx = path.indexOf("/assets/");
+            if (assetsIdx != -1) {
+                String afterAssets = path.substring(assetsIdx + 8);
+                int slashIdx = afterAssets.indexOf('/');
+                if (slashIdx != -1) {
+                    path = afterAssets.substring(0, slashIdx) + ":" + afterAssets.substring(slashIdx + 1);
+                }
+            }
         }
+
         this.backgroundTexture = new ResourceLocation(path);
     }
 

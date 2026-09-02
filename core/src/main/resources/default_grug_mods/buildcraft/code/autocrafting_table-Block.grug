@@ -13,7 +13,7 @@ export on_break(world: Level, x: number, y: number, z: number) {
 }
 
 export use(world: Level, x: number, y: number, z: number, player: Player) {
-    gui_layout: GUI = gui("gui/crafting.png")
+    gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
 
     text_color: Color = color_rgb(64, 64, 64)
     gui_layout.add_text("Autocrafting Table", 30, 6, text_color)
