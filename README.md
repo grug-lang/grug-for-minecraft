@@ -5,7 +5,7 @@
 ## For Developers
 
 > [!NOTE]
-> **For players:** You only need an appropriate version of Java to run these mods! The mod downloads already include everything else needed to work out-of-the-box on Windows, macOS, and Linux.
+> **For players:** You only need an appropriate version of Java! Simply download the latest `grug-for-minecraft` release, which works out-of-the-box on Windows, macOS, and Linux.
 
 ### Requirements
 
