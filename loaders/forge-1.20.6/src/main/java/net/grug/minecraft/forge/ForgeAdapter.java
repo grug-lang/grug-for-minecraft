@@ -14,8 +14,14 @@ import net.minecraft.world.Containers;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.TransientCraftingContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
@@ -26,6 +32,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
 import java.io.File;
+import java.util.Optional;
 
 public class ForgeAdapter implements ModLoaderAdapter {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -249,6 +256,37 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
-        // Modern crafting recipe logic goes here
+        if (blockEntityObj instanceof BlockEntity be && be.getLevel() != null) {
+            Level level = be.getLevel();
+            if (be instanceof Container inv) {
+                TransientCraftingContainer craftingContainer = new TransientCraftingContainer(
+                        new AbstractContainerMenu(null, -1) {
+                            @Override
+                            public ItemStack quickMoveStack(Player player, int index) {
+                                return ItemStack.EMPTY;
+                            }
+
+                            @Override
+                            public boolean stillValid(Player player) {
+                                return false;
+                            }
+                        }, 3, 3);
+
+                int start = (int) startSlot;
+                for (int i = 0; i < 9; i++) {
+                    craftingContainer.setItem(i, inv.getItem(start + i));
+                }
+
+                Optional<RecipeHolder<CraftingRecipe>> recipe = level.getRecipeManager()
+                        .getRecipeFor(RecipeType.CRAFTING, craftingContainer, level);
+
+                if (recipe.isPresent()) {
+                    ItemStack result = recipe.get().value().assemble(craftingContainer, level.registryAccess());
+                    inv.setItem((int) outputSlot, result);
+                } else {
+                    inv.setItem((int) outputSlot, ItemStack.EMPTY);
+                }
+            }
+        }
     }
 }
