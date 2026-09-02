@@ -30,7 +30,7 @@ bin/
 
 # fabric
 
-run/*
+loaders/stationapi/run/
 # Remove the following line to remove server.properties from your project.
 !server.properties
 

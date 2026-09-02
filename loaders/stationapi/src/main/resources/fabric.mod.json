@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "grug",
+  "version": "${version}",
+  "name": "grug",
+  "description": "The grug mod loader for Minecraft, making your mods immortal.",
+  "authors": [
+    "MyNameIsTrez"
+  ],
+  "contact": {
+    "homepage": "https://github.com/grug-lang/grug",
+    "sources": "https://github.com/grug-lang/grug-for-minecraft",
+    "issues": "https://github.com/grug-lang/grug-for-minecraft/issues"
+  },
+  "license": "MIT",
+  "icon": "assets/grug/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "stationapi:event_bus": [
+      "net.grug.minecraft.stationapi.events.init.InitListener"
+    ],
+    "stationapi:event_bus_client": [
+      "net.grug.minecraft.stationapi.events.init.ClientInitListener"
+    ]
+  },
+  "mixins": [
+    "grug.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.22",
+    "minecraft": "1.0.0-beta.7.3",
+    "stationapi": ">=2.0.0-alpha.6.2"
+  }
+}
