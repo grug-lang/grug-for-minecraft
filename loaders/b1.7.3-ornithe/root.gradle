@@ -1,0 +1,20 @@
+tasks.register("runClient") {
+    dependsOn(":core:publishMavenJavaPublicationToMavenLocal")
+
+    doLast {
+        def isWindows =
+            org.gradle.internal.os.OperatingSystem.current().isWindows()
+
+        if (isWindows) {
+            exec {
+                workingDir project.projectDir
+                commandLine "cmd", "/c", "gradlew.bat", "runClient"
+            }
+        } else {
+            exec {
+                workingDir project.projectDir
+                commandLine "./gradlew", "runClient"
+            }
+        }
+    }
+}

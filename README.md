@@ -24,4 +24,5 @@ Use the following Gradle commands to build and run the specific mod loader envir
 | Minecraft Version | Mod Loader | Command |
 | :--- | :--- | :--- |
 | **1.20.6** | Forge | `./gradlew :loaders:1.20.6-forge:runClient` |
+| **Beta 1.7.3** | Ornithe | `./gradlew :loaders:b1.7.3-ornithe:runClient` |
 | **Beta 1.7.3** | StationAPI | `./gradlew :loaders:b1.7.3-stationapi:runClient` |
