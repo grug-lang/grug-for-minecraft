@@ -11,5 +11,6 @@ pluginManagement {
 rootProject.name = "grug-for-minecraft"
 
 include("core")
-include("loaders:stationapi")
-include("loaders:forge-1.20.6")
+
+include("loaders:b1.7.3-stationapi")
+include("loaders:1.20.6-forge")

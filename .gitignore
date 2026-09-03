@@ -28,8 +28,8 @@ bin/
 
 *.DS_Store
 
-loaders/forge-1.20.6/run/
-loaders/stationapi/run/
+loaders/1.20.6-forge/run/
+loaders/b1.7.3-stationapi/run/
 
 # Remove the following line to remove server.properties from your project.
 !server.properties
