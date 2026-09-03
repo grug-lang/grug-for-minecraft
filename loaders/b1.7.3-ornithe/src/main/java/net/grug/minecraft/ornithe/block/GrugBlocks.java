@@ -12,9 +12,9 @@ import java.lang.reflect.Method;
 public final class GrugBlocks {
 
     public static final FooBlock FOO_BLOCK = BlockRegistry.register(
-            150,
+            99,
             NamespacedIdentifiers.from("grug", "foo_block"),
-            new FooBlock(150, Material.STONE));
+            new FooBlock(99, Material.STONE));
 
     public static void init() {
         GrugModLoader.LOGGER.info("This line is printed by GrugBlocks.init()");
