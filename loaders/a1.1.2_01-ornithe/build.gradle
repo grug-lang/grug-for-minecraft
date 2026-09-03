@@ -1,0 +1,60 @@
+plugins {
+    id 'java'
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.20'
+    id 'ploceus' version '1.17.7'
+}
+
+base {
+    archivesName = project.properties["archives_base_name"]
+}
+
+version = project.properties["mod_version"]
+group = project.properties["maven_group"]
+
+loom {
+}
+
+ploceus {
+    setIntermediaryGeneration(2)
+}
+
+repositories {
+    mavenLocal()
+
+    maven {
+        name = 'Ornithe Releases'
+        url = 'https://maven.ornithemc.net/releases'
+    }
+
+    maven {
+        name = 'Ornithe Snapshots'
+        url = 'https://maven.ornithemc.net/snapshots'
+    }
+}
+
+dependencies {
+    implementation "net.grug:grug-core:${project.grug_core_version}"
+    include "net.grug:grug-core:${project.grug_core_version}"
+
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    exceptions ploceus.raven(project.raven_build)
+    signatures ploceus.sparrow(project.sparrow_build)
+    nests ploceus.nests(project.nests_build)
+    mappings ploceus.featherMappings(project.feather_build)
+
+    ploceus.dependOsl(project.osl_version)
+}
+
+tasks.withType(ProcessResources) {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

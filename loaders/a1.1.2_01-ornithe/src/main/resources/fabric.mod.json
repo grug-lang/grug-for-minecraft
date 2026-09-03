@@ -1,0 +1,22 @@
+{
+    "schemaVersion": 1,
+    "id": "grug",
+    "version": "${version}",
+    "name": "Grug",
+    "description": "The grug mod loader for Minecraft.",
+    "authors": [
+        "MyNameIsTrez"
+    ],
+    "environment": "*",
+    "entrypoints": {
+        "init": [
+            "net.grug.minecraft.ornithe.GrugModLoader"
+        ]
+    },
+    "mixins": [
+        "grug.mixins.json"
+    ],
+    "depends": {
+        "minecraft": "1.0.0-alpha.1.2.1"
+    }
+}
