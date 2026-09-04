@@ -2,7 +2,7 @@
 
 [grug](https://github.com/grug-lang/grug) its primary goal is to serve as a faithful digital preservation format for mods, so that players can continue enjoying the hard work of mod authors for decades to come. If a mod contains copyrighted material or prohibits redistribution, please [open a GitHub issue](https://github.com/grug-lang/grug-for-minecraft/issues) with supporting evidence.
 
-TODO: Insert video here
+<video src="https://github.com/user-attachments/assets/2a7949ae-643c-4274-9a06-12e528affe97" width="100%" autoplay controls loop muted></video>
 
 To cover the full range of Minecraft versions, `grug-for-minecraft` currently uses Forge, Ornithe, and StationAPI.
 
