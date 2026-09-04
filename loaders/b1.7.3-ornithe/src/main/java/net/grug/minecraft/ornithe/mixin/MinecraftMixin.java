@@ -4,17 +4,45 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
+import org.lwjgl.opengl.Display;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.awt.Canvas;
+import java.awt.Container;
+import java.awt.Frame;
+
 @Mixin(Minecraft.class)
 public class MinecraftMixin {
 
     @Shadow
     public ClientPlayerEntity player;
+
+    @Shadow
+    public Canvas canvas;
+
+    @Inject(method = "init", at = @At("TAIL"))
+    private void grug$onInit(CallbackInfo ci) {
+        String title = "Minecraft Beta 1.7.3 - Ornithe with grug";
+
+        // This handles the raw LWJGL window (used in production builds)
+        Display.setTitle(title);
+
+        // This traverses the AWT hierarchy to update the Applet Frame (used in dev
+        // environments)
+        if (this.canvas != null) {
+            Container parent = this.canvas.getParent();
+            while (parent != null && !(parent instanceof Frame)) {
+                parent = parent.getParent();
+            }
+            if (parent instanceof Frame frame) {
+                frame.setTitle(title);
+            }
+        }
+    }
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
