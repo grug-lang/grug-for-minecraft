@@ -14,11 +14,19 @@ import net.ornithemc.osl.blocks.api.BlockRegistry;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.Map;
 
 public final class GrugBlocks {
     private static int nextBlockId = 160;
     private static int nextItemId = 400;
+
+    // Allocate unused empty sprite slots in terrain.png and items.png starting from
+    // 160
+    public static final Map<String, Integer> BLOCK_SPRITES = new HashMap<>();
+    public static final Map<String, Integer> ITEM_SPRITES = new HashMap<>();
+    private static int nextBlockSpriteId = 160;
+    private static int nextItemSpriteId = 160;
 
     public static void init() {
         GrugModLoader.LOGGER.info("Registering dynamic grug blocks and items in Ornithe...");
@@ -59,6 +67,11 @@ public final class GrugBlocks {
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
 
+            // Texture Registration
+            int blockSprite = nextBlockSpriteId++;
+            BLOCK_SPRITES.put(cleanName, blockSprite);
+            block.sprite = blockSprite;
+
             String blockKey = "grug." + cleanName;
             block.setKey(blockKey);
 
@@ -94,6 +107,11 @@ public final class GrugBlocks {
 
             int itemId = nextItemId++;
             GrugItem item = new GrugItem(itemId - 256, itemFileId);
+
+            // Texture Registration
+            int itemSprite = nextItemSpriteId++;
+            ITEM_SPRITES.put(cleanName, itemSprite);
+            item.setSprite(itemSprite);
 
             String itemKey = "grug." + cleanName;
             item.setKey(itemKey);
