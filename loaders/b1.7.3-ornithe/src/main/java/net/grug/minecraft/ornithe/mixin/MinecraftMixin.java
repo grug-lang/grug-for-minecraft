@@ -44,6 +44,12 @@ public class MinecraftMixin {
         }
     }
 
+    @Inject(method = "pauseGame", at = @At("HEAD"), cancellable = true)
+    private void grug$preventFocusLossPause(CallbackInfo ci) {
+        // Prevents the Escape menu from popping up when you switch to VS Code
+        ci.cancel();
+    }
+
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
         String[] updatedResources = Grug.update(this::sendRedMessage);

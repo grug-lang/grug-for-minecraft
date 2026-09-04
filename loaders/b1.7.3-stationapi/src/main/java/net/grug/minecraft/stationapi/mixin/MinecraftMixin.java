@@ -25,6 +25,12 @@ public class MinecraftMixin {
     @Unique
     private boolean grug$titleSet = false;
 
+    @Inject(method = "pauseGame", at = @At("HEAD"), cancellable = true)
+    private void grug$preventFocusLossPause(CallbackInfo ci) {
+        // Prevents the Escape menu from popping up when you switch to VS Code
+        ci.cancel();
+    }
+
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
         // TODO: I think this can be done using some mixin, but the problem I ran

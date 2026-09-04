@@ -1,10 +1,8 @@
 # Spawn the diamond 2 blocks above this block
 pos: BlockPos = get_block_pos_of_block_entity(me).above_n(2)
-# pos: BlockPos = me.block_pos().above_n(2) # TODO: Use this once it is supported: https://github.com/grug-lang/grug-tests/issues/150
 
 # The dimension, so overworld/nether/end
 level: Level = get_block_entity_level(me)
-# level: Level = me.level() # TODO: Use this once it is supported: https://github.com/grug-lang/grug-tests/issues/150
 
 # Gets the full name, so "minecraft:diamond"
 resource_location: ResourceLocation = resource_location("diamond")
