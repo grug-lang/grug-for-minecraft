@@ -4,6 +4,12 @@
 
 <video src="https://github.com/user-attachments/assets/2a7949ae-643c-4274-9a06-12e528affe97" width="100%" autoplay controls loop muted></video>
 
+In the video above, four different Minecraft environments all hot-reload the same grug file:
+* Minecraft 1.20.6 with Forge
+* Minecraft Beta 1.7.3 with Ornithe
+* Minecraft Beta 1.7.3 with StationAPI
+* Minecraft Alpha 1.1.2_01 with Ornithe
+
 To cover the full range of Minecraft versions, `grug-for-minecraft` currently uses Forge, Ornithe, and StationAPI.
 
 > [!NOTE]
