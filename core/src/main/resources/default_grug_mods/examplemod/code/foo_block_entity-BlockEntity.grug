@@ -22,9 +22,6 @@ z: number = center.z()
 tick: number = 0
 
 export tick() {
-    # TODO: REMOVE!
-    print("In foo_block_entity-BlockEntity.grug its tick()")
-
     # Spawn a diamond every 10 game ticks (0.5 seconds)
     tick = tick + 1
     if tick != 10 {
