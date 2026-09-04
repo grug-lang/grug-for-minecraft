@@ -11,6 +11,12 @@
     "entrypoints": {
         "init": [
             "net.grug.minecraft.ornithe.GrugModLoader"
+        ],
+        "client": [
+            "net.grug.minecraft.ornithe.ClientGrugModLoader"
+        ],
+        "server": [
+            "net.grug.minecraft.ornithe.ServerGrugModLoader"
         ]
     },
     "mixins": [

@@ -58,14 +58,16 @@ public final class GrugBlocks {
             int blockId = nextBlockId++;
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
-            block.setKey("grug." + cleanName);
+
+            String blockKey = "grug." + cleanName;
+            block.setKey(blockKey);
 
             BlockRegistry.register(
                     blockId,
                     NamespacedIdentifiers.from("grug", cleanName),
                     block);
 
-            Item.BY_ID[blockId] = new BlockItem(blockId - 256).setKey("grug." + cleanName);
+            Item.BY_ID[blockId] = new BlockItem(blockId - 256).setKey(blockKey);
         }
 
         // Register Dynamic Items
@@ -92,7 +94,9 @@ public final class GrugBlocks {
 
             int itemId = nextItemId++;
             GrugItem item = new GrugItem(itemId - 256, itemFileId);
-            item.setKey("grug." + cleanName);
+
+            String itemKey = "grug." + cleanName;
+            item.setKey(itemKey);
         }
     }
 
