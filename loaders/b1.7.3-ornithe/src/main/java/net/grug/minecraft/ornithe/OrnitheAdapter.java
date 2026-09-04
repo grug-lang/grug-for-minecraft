@@ -214,6 +214,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public Object getItemFromRegistry(Object resourceLocationObj) {
         if (resourceLocationObj == null)
             return null;
+
         String path;
         if (resourceLocationObj instanceof NamespacedIdentifier nid) {
             path = nid.identifier();
@@ -224,6 +225,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         }
 
+        // Try Translation Keys
         for (Item item : Item.BY_ID) {
             if (item == null)
                 continue;
@@ -235,6 +237,35 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 }
             }
         }
+
+        // Match Vanilla Items via reflection
+        for (java.lang.reflect.Field field : Item.class.getFields()) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                    && Item.class.isAssignableFrom(field.getType())) {
+                if (field.getName().equalsIgnoreCase(path)
+                        || field.getName().replace("_", "").equalsIgnoreCase(path.replace("_", ""))) {
+                    try {
+                        return field.get(null);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
+
+        // Match Vanilla Blocks via reflection
+        for (java.lang.reflect.Field field : Block.class.getFields()) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
+                    && Block.class.isAssignableFrom(field.getType())) {
+                if (field.getName().equalsIgnoreCase(path)
+                        || field.getName().replace("_", "").equalsIgnoreCase(path.replace("_", ""))) {
+                    try {
+                        return field.get(null);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
+
         return null;
     }
 

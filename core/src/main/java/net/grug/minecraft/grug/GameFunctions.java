@@ -189,13 +189,15 @@ public class GameFunctions {
     }
 
     public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {
-        Object itemEntity = GrugCore.getAdapter().createItemEntity(
-                Grug.entityData.get(levelId).object, x, y, z, Grug.entityData.get(itemStackId).object);
+        Object itemStackObj = Grug.entityData.get(itemStackId).object;
+        Object levelObj = Grug.entityData.get(levelId).object;
+        Object itemEntity = GrugCore.getAdapter().createItemEntity(levelObj, x, y, z, itemStackObj);
         return Grug.addEntity(GrugEntityType.ItemEntity, itemEntity);
     }
 
     public static long item_stack(long itemId) {
-        Object itemStack = GrugCore.getAdapter().createItemStack(Grug.entityData.get(itemId).object);
+        Object itemObj = Grug.entityData.get(itemId).object;
+        Object itemStack = GrugCore.getAdapter().createItemStack(itemObj);
         return Grug.addEntity(GrugEntityType.ItemStack, itemStack);
     }
 
