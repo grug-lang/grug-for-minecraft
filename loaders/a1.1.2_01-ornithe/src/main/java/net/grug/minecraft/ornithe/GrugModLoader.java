@@ -5,9 +5,9 @@ import net.fabricmc.loader.api.ModContainer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.ornithemc.osl.blocks.api.BlockEvents;
 import net.ornithemc.osl.entrypoints.api.ModInitializer;
-import net.grug.minecraft.ornithe.block.GrugBlocks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -88,7 +88,9 @@ public class GrugModLoader implements ModInitializer {
             }
 
             Grug.fileIds.put(file.path(), file.fileId());
-            String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0] : file.entityName();
+
+            String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
+                    : file.entityName();
 
             if ("Block".equals(file.entityType())) {
                 blockFiles.put(cleanName, file.fileId());
@@ -116,8 +118,10 @@ public class GrugModLoader implements ModInitializer {
 
     private static void extractDefaultGrugMods(Path targetGrugDir) {
         Path markerFile = targetGrugDir.resolve(".examples_generated.txt");
-        if (Files.exists(markerFile))
+
+        if (Files.exists(markerFile)) {
             return;
+        }
 
         Optional<ModContainer> modContainer = FabricLoader.getInstance().getModContainer(MOD_ID);
         if (modContainer.isEmpty())

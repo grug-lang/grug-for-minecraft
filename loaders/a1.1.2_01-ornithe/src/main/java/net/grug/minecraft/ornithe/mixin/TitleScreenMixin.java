@@ -22,13 +22,17 @@ public class TitleScreenMixin {
         GrugModLoader.LOGGER.info("This line is printed by a grug mixin in Ornithe!");
 
         if (!recipesAdded) {
-            // Using a 1x1 shaped recipe instead of shapeless for Alpha!
-            GrugRecipeHelper.addShaped(
-                    new ItemStack(GrugBlocks.FOO_BLOCK, 64),
-                    "D",
-                    'D', Block.DIRT);
+            for (int id = GrugBlocks.START_BLOCK_ID; id < GrugBlocks.START_BLOCK_ID
+                    + GrugModLoader.blockFiles.size(); id++) {
+                if (Block.BY_ID[id] != null) {
+                    GrugRecipeHelper.addShaped(
+                            new ItemStack(Block.BY_ID[id], 64),
+                            "D",
+                            'D', Block.DIRT);
+                }
+            }
             recipesAdded = true;
-            GrugModLoader.LOGGER.info("Temporary FooBlock testing recipe added!");
+            GrugModLoader.LOGGER.info("Temporary testing recipes added for dynamic Grug blocks!");
         }
     }
 }
