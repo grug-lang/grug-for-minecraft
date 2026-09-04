@@ -2,10 +2,13 @@
 
 [grug](https://github.com/grug-lang/grug) its primary goal is to serve as a faithful digital preservation format for mods, so that players can continue enjoying the hard work of mod authors for decades to come. If a mod contains copyrighted material or prohibits redistribution, please [open a GitHub issue](https://github.com/grug-lang/grug-for-minecraft/issues) with supporting evidence.
 
-## For Developers
+To cover the full range of Minecraft versions, `grug-for-minecraft` currently uses Forge, Ornithe, and StationAPI.
 
-> [!NOTE]
-> **For players:** You only need an appropriate version of Java! Simply download the latest `grug-for-minecraft` release, which works out-of-the-box on Windows, macOS, and Linux.
+## For Players
+
+In the future, `grug-for-minecraft` will ship ready-to-use releases that work out-of-the-box on Windows, macOS, and Linux.
+
+## For Developers
 
 ### Requirements
 
