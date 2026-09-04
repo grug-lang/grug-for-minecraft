@@ -6,7 +6,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import net.grug.minecraft.ornithe.GrugModLoader;
-import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
@@ -22,11 +21,15 @@ public class TitleScreenMixin {
         GrugModLoader.LOGGER.info("This line is printed by a grug mixin in Ornithe!");
 
         if (!recipesAdded) {
-            GrugRecipeHelper.addShapeless(
-                    new ItemStack(GrugBlocks.FOO_BLOCK, 64),
-                    Block.DIRT);
+            for (int id = 160; id < 160 + GrugModLoader.blockFiles.size(); id++) {
+                if (Block.BY_ID[id] != null) {
+                    GrugRecipeHelper.addShapeless(
+                            new ItemStack(Block.BY_ID[id], 64),
+                            Block.DIRT);
+                }
+            }
             recipesAdded = true;
-            GrugModLoader.LOGGER.info("Temporary FooBlock testing recipe added!");
+            GrugModLoader.LOGGER.info("Temporary testing recipes added for dynamic Grug blocks!");
         }
     }
 }

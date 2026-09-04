@@ -5,9 +5,9 @@ import net.fabricmc.loader.api.ModContainer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.ornithemc.osl.blocks.api.BlockEvents;
 import net.ornithemc.osl.entrypoints.api.ModInitializer;
-import net.grug.minecraft.ornithe.block.GrugBlocks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,7 +34,6 @@ public class GrugModLoader implements ModInitializer {
     public void init() {
         LOGGER.info("Successfully loaded Grug into Beta 1.7.3 (Ornithe)!");
 
-        // Hook into Ornithe Standard Libraries to register your blocks
         BlockEvents.REGISTER_BLOCKS.register(GrugBlocks::init);
 
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
@@ -71,7 +70,6 @@ public class GrugModLoader implements ModInitializer {
             LOGGER.error("Failed to extract default grug mods", e);
         }
 
-        // Initialize Core and compile scripts
         GrugCore.initialize(new OrnitheAdapter(), modApiJson, activeGrugDir);
         FileInfo[] files = Grug.compileAllFiles();
 

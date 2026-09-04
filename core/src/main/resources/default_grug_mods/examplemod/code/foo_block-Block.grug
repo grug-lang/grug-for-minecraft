@@ -1,3 +1,6 @@
 export init() {
+    # TODO: REMOVE!
+    print("In foo_block-Block.grug its init()")
+
     set_block_entity(e"foo_block_entity")
 }
