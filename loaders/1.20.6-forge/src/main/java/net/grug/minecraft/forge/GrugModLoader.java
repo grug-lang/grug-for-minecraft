@@ -305,6 +305,10 @@ public class GrugModLoader {
             if (event.phase == TickEvent.Phase.START) {
                 Minecraft mc = Minecraft.getInstance();
 
+                if (mc.getWindow() != null) {
+                    mc.getWindow().setTitle("Minecraft 1.20.6 - Forge with grug");
+                }
+
                 // Process standard message queues directly in the local player's chat
                 if (mc.player != null) {
                     synchronized (Grug.runtimeErrorQueue) {
