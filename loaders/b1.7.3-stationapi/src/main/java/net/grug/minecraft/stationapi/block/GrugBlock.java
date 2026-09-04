@@ -26,7 +26,7 @@ public class GrugBlock extends TemplateBlockWithEntity {
     public long getEntityFileId() {
         GrugBlockData data = Grug.blockDataByFileId.get(this.blockFileId);
         if (data != null && data.blockEntityString != null) {
-            // "grug:bar_block_entity" -> "bar_block_entity"
+            // "grug:foo_block_entity" -> "foo_block_entity"
             String[] parts = data.blockEntityString.split(":");
             String cleanName = parts.length == 2 ? parts[1] : data.blockEntityString;
 
