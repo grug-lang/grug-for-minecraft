@@ -14,12 +14,18 @@ import net.ornithemc.osl.blocks.api.BlockRegistry;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.Map;
 
 public final class GrugBlocks {
     public static final int START_BLOCK_ID = 95;
     private static int nextBlockId = START_BLOCK_ID;
     private static int nextItemId = 400;
+
+    public static final Map<String, Integer> BLOCK_SPRITES = new HashMap<>();
+    public static final Map<String, Integer> ITEM_SPRITES = new HashMap<>();
+    private static int nextBlockSpriteId = 160;
+    private static int nextItemSpriteId = 160;
 
     public static void init() {
         GrugModLoader.LOGGER.info("Registering dynamic grug blocks and items in Ornithe (Alpha 1.1.2_01)...");
@@ -60,6 +66,11 @@ public final class GrugBlocks {
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
 
+            // Texture Registration
+            int blockSprite = nextBlockSpriteId++;
+            BLOCK_SPRITES.put(cleanName, blockSprite);
+            block.sprite = blockSprite;
+
             BlockRegistry.register(
                     blockId,
                     NamespacedIdentifiers.from("grug", cleanName),
@@ -91,7 +102,12 @@ public final class GrugBlocks {
             Grug.itemDataByFileId.put(itemFileId, itemData);
 
             int itemId = nextItemId++;
-            new GrugItem(itemId - 256, itemFileId);
+            GrugItem item = new GrugItem(itemId - 256, itemFileId);
+
+            // Texture Registration
+            int itemSprite = nextItemSpriteId++;
+            ITEM_SPRITES.put(cleanName, itemSprite);
+            item.setSprite(itemSprite);
         }
     }
 
