@@ -8,8 +8,10 @@ import net.modificationstation.stationapi.api.client.resource.ReloadableAssetsMa
 import net.modificationstation.stationapi.api.tick.TickScheduler;
 import net.modificationstation.stationapi.api.util.Util;
 import net.modificationstation.stationapi.impl.client.resource.AssetsReloaderImpl;
+import org.lwjgl.opengl.Display;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -20,8 +22,18 @@ public class MinecraftMixin {
     @Shadow
     public ClientPlayerEntity player;
 
+    @Unique
+    private boolean grug$titleSet = false;
+
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
+        // TODO: I think this can be done using some mixin, but the problem I ran
+        // into is that the main menu already overwrites the title.
+        if (!this.grug$titleSet) {
+            Display.setTitle("Minecraft Beta 1.7.3 - StationAPI with grug");
+            this.grug$titleSet = true;
+        }
+
         // Handle compilation / hot-reload errors, and reload assets if a
         // resource referenced by a grug script (e.g. via set_texture) changed
         String[] updatedResources = Grug.update(this::sendRedMessage);
