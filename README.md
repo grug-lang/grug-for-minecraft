@@ -10,8 +10,6 @@ In the video above, four different Minecraft environments all hot-reload the sam
 * Minecraft Beta 1.7.3 with StationAPI
 * Minecraft Alpha 1.1.2_01 with Ornithe
 
-To cover the full range of Minecraft versions, `grug-for-minecraft` currently uses Forge, Ornithe, and StationAPI.
-
 > [!NOTE]
 > `mod_api.json` is currently frozen. We will not be expanding the API until comprehensive test coverage and Continuous Integration (CI) pipelines are fully established.
 
