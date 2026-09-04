@@ -12,7 +12,9 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.packs.PackLocationInfo;
@@ -272,7 +274,12 @@ public class GrugModLoader {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
-            String[] updatedResources = Grug.update(LOGGER::error);
+            String[] updatedResources = Grug.update(errorMsg -> {
+                LOGGER.error(errorMsg);
+                synchronized (Grug.runtimeErrorQueue) {
+                    Grug.runtimeErrorQueue.add(errorMsg);
+                }
+            });
             for (String resource : updatedResources) {
                 LOGGER.info("Reloading changed resource: {}", resource);
             }
@@ -288,6 +295,58 @@ public class GrugModLoader {
                         (GrugMenu menu, Inventory inv, Component title) -> new GrugScreen(menu, inv, title,
                                 menu.layout));
             });
+        }
+    }
+
+    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+    public static class ClientForgeEvents {
+        @SubscribeEvent
+        public static void onClientTick(TickEvent.ClientTickEvent event) {
+            if (event.phase == TickEvent.Phase.START) {
+                Minecraft mc = Minecraft.getInstance();
+
+                // Process standard message queues directly in the local player's chat
+                if (mc.player != null) {
+                    synchronized (Grug.runtimeErrorQueue) {
+                        while (!Grug.runtimeErrorQueue.isEmpty()) {
+                            sendRedMessage(mc.player, Grug.runtimeErrorQueue.poll());
+                        }
+                    }
+
+                    synchronized (Grug.printQueue) {
+                        while (!Grug.printQueue.isEmpty()) {
+                            sendMessage(mc.player, Grug.printQueue.poll(), "");
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void sendRedMessage(LocalPlayer player, String text) {
+            sendMessage(player, text, "\u00A7c");
+        }
+
+        private static void sendMessage(LocalPlayer player, String text, String prefix) {
+            if (player == null || text == null)
+                return;
+
+            String[] lines = text.split("\n");
+            for (String line : lines) {
+                LOGGER.info(prefix + line);
+
+                int maxLength = 50;
+                while (line.length() > maxLength) {
+                    int splitIndex = line.lastIndexOf(' ', maxLength);
+                    if (splitIndex == -1) {
+                        splitIndex = maxLength;
+                    }
+                    player.sendSystemMessage(Component.literal(prefix + line.substring(0, splitIndex)));
+                    line = line.substring(splitIndex).trim();
+                }
+                if (!line.isEmpty()) {
+                    player.sendSystemMessage(Component.literal(prefix + line));
+                }
+            }
         }
     }
 }
