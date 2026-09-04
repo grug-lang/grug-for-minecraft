@@ -531,7 +531,7 @@
 			]
 		},
 		"equals": {
-			"description": "Checks if two values are equal. For objects like Items, this compares the underlying game object rather than the Grug entity ID.",
+			"description": "Checks if two values are equal. For objects like Items, this compares the underlying game object rather than the grug entity ID.",
 			"used_generics": [
 				"$Type"
 			],

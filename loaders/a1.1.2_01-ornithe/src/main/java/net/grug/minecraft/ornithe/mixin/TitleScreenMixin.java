@@ -32,7 +32,7 @@ public class TitleScreenMixin {
                 }
             }
             recipesAdded = true;
-            GrugModLoader.LOGGER.info("Temporary testing recipes added for dynamic Grug blocks!");
+            GrugModLoader.LOGGER.info("Temporary testing recipes added for dynamic grug blocks!");
         }
     }
 }

@@ -25,14 +25,14 @@ import java.util.stream.Stream;
 public class GrugModLoader implements ModInitializer {
 
     public static final String MOD_ID = "grug";
-    public static final Logger LOGGER = LogManager.getLogger("Grug");
+    public static final Logger LOGGER = LogManager.getLogger("grug");
 
     public static final Map<String, Long> blockFiles = new HashMap<>();
     public static final Map<String, Long> itemFiles = new HashMap<>();
 
     @Override
     public void init() {
-        LOGGER.info("Successfully loaded Grug into Beta 1.7.3 (Ornithe)!");
+        LOGGER.info("Successfully loaded grug into Beta 1.7.3 (Ornithe)!");
 
         BlockEvents.REGISTER_BLOCKS.register(GrugBlocks::init);
 
@@ -101,7 +101,7 @@ public class GrugModLoader implements ModInitializer {
             }
         }
 
-        LOGGER.info("Compiled " + files.length + " Grug files successfully.");
+        LOGGER.info("Compiled " + files.length + " grug files successfully.");
     }
 
     public static File getActiveGrugModsDir() {

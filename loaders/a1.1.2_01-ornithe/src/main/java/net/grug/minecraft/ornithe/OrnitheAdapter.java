@@ -229,7 +229,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         }
 
-        // Match custom Grug items first
+        // Match custom grug items first
         for (Map.Entry<String, net.grug.minecraft.grug.GrugItemData> entry : Grug.declaredItems.entrySet()) {
             if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
                 Long fileId = Grug.itemDataByFileId.entrySet().stream()

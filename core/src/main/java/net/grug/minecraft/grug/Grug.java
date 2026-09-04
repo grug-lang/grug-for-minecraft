@@ -104,7 +104,7 @@ public final class Grug {
                 String[] pathParts = file.path().replace('\\', '/').split("/");
                 if (pathParts.length < 2 || !pathParts[1].equals("code")) {
                     String errorMsg = "Ignored " + file.path()
-                            + ": Grug files must be placed inside the 'code/' directory!";
+                            + ": grug files must be placed inside the 'code/' directory!";
                     GrugCore.getAdapter().logError(errorMsg);
                     if (onError != null) {
                         onError.accept(errorMsg);

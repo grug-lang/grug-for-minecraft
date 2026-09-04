@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "adapter_shared.h"
 
-// --- Grug Structs ---
+// --- grug Structs ---
 struct grug_source_span { size_t offset; size_t line; };
 struct grug_error_kind { uint8_t tag[4]; };
 struct grug_error {

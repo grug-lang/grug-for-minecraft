@@ -21,7 +21,7 @@ public final class GrugBlocks {
     private static int nextItemId = 400;
 
     public static void init() {
-        GrugModLoader.LOGGER.info("Registering dynamic Grug blocks and items in Ornithe...");
+        GrugModLoader.LOGGER.info("Registering dynamic grug blocks and items in Ornithe...");
 
         try {
             Method registerMethod = BlockEntity.class.getDeclaredMethod("register", Class.class, String.class);

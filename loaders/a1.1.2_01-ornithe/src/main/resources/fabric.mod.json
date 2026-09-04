@@ -2,7 +2,7 @@
     "schemaVersion": 1,
     "id": "grug",
     "version": "${version}",
-    "name": "Grug",
+    "name": "grug",
     "description": "The grug mod loader for Minecraft.",
     "authors": [
         "MyNameIsTrez"
