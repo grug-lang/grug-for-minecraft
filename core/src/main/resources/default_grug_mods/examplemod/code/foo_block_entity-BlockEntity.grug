@@ -18,7 +18,7 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
-# How often on_tick() has been called
+# How often tick() has been called
 tick: number = 0
 
 export tick() {
