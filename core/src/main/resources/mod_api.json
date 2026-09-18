@@ -390,7 +390,9 @@
 		"Option": {
 			"description": "Indicates that a value may not be present.",
 			"used_generics": [
-				"$Value"
+				{
+					"name": "$Value"
+				}
 			],
 			"methods": {
 				"has": {
@@ -533,7 +535,9 @@
 		"equals": {
 			"description": "Checks if two values are equal. For objects like Items, this compares the underlying game object rather than the grug entity ID.",
 			"used_generics": [
-				"$Type"
+				{
+					"name": "$Type"
+				}
 			],
 			"return_type": {
 				"name": "bool"
@@ -813,7 +817,9 @@
 		"print": {
 			"description": "Prints a value.",
 			"used_generics": [
-				"$Value"
+				{
+					"name": "$Value"
+				}
 			],
 			"parameters": [
 				{
@@ -827,8 +833,12 @@
 		"print2": {
 			"description": "Prints two values.",
 			"used_generics": [
-				"$Value1",
-				"$Value2"
+				{
+					"name": "$Value1"
+				},
+				{
+					"name": "$Value2"
+				}
 			],
 			"parameters": [
 				{
@@ -848,9 +858,15 @@
 		"print3": {
 			"description": "Prints three values.",
 			"used_generics": [
-				"$Value1",
-				"$Value2",
-				"$Value3"
+				{
+					"name": "$Value1"
+				},
+				{
+					"name": "$Value2"
+				},
+				{
+					"name": "$Value3"
+				}
 			],
 			"parameters": [
 				{

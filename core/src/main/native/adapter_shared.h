@@ -2,6 +2,30 @@
 #include <jni.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
+
+enum grug_type_enum {
+    GRUG_TYPE_ENUM_VOID,
+    GRUG_TYPE_ENUM_BOOL,
+    GRUG_TYPE_ENUM_NUMBER,
+    GRUG_TYPE_ENUM_STRING,
+    GRUG_TYPE_ENUM_ID,
+    GRUG_TYPE_ENUM_RESOURCE,
+    GRUG_TYPE_ENUM_ENTITY
+};
+
+struct grug_type {
+    uint32_t type;
+    union {
+        struct {
+            char* name;
+            struct grug_type* generics;
+            size_t generics_len;
+        } id;
+        char* resource_extension;
+        char* entity_type;
+    } data;
+};
 
 union grug_value {
     double _number;
@@ -9,7 +33,7 @@ union grug_value {
     const char* _string;
     uint64_t _id;
 };
-typedef union grug_value (*host_fn)(void* gst, const union grug_value[]);
+typedef union grug_value (*host_fn)(void* gst, const union grug_value args[], const struct grug_type generics[]);
 
 struct grug_error;
 

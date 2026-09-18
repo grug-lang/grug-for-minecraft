@@ -133,8 +133,9 @@ def gen_wrapper(
     jm = f"jm_{java_name}{suffix}"
 
     lines = [
-        f"static union grug_value {c_name}(void* gst, const union grug_value args[]) {{",
+        f"static union grug_value {c_name}(void* gst, const union grug_value args[], const struct grug_type generics[]) {{",
         "    (void)gst;",
+        "    (void)generics;",
         "    JNIEnv* env; FILL_ENV(env);",
     ]
 
@@ -194,14 +195,14 @@ def gen_wrapper(
     return "\n".join(lines)
 
 
-def gen_factory(java_name: str, used_generics: List[str]) -> str:
+def gen_dispatcher(java_name: str, used_generics: List[str]) -> str:
     lines = [
-        f"static grug_host_fn_t reg_{java_name}(const struct grug_type* generics) {{"
+        f"static union grug_value host_{java_name}(void* gst, const union grug_value args[], const struct grug_type generics[]) {{"
     ]
 
     def build_tree(depth: int, prefix: str = "") -> str:
         if depth == len(used_generics):
-            return f"    return host_{java_name}_{prefix.strip('_')};\n"
+            return f"    return host_{java_name}_{prefix.strip('_')}(gst, args, generics);\n"
 
         out = ""
         for bt in BASE_TYPES:
@@ -243,7 +244,9 @@ def collect_functions(mod_api: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "param_types": param_types,
                 "param_names": param_names,
                 "return_type": return_type,
-                "used_generics": decl.get("used_generics", []),
+                "used_generics": [
+                    grug_type_name(g) for g in decl.get("used_generics", [])
+                ],
             }
         )
 
@@ -267,7 +270,9 @@ def collect_functions(mod_api: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "param_types": param_types,
                     "param_names": param_names,
                     "return_type": return_type,
-                    "used_generics": class_decl.get("used_generics", []),
+                    "used_generics": [
+                        grug_type_name(g) for g in class_decl.get("used_generics", [])
+                    ],
                 }
             )
 
@@ -470,37 +475,9 @@ def generate(mod_api: Dict[str, Any]) -> str:
         '#include "adapter_shared.h"',
         "#include <string.h>",
         "",
-        "enum grug_type_enum {",
-        "    GRUG_TYPE_ENUM_VOID,",
-        "    GRUG_TYPE_ENUM_BOOL,",
-        "    GRUG_TYPE_ENUM_NUMBER,",
-        "    GRUG_TYPE_ENUM_STRING,",
-        "    GRUG_TYPE_ENUM_ID,",
-        "    GRUG_TYPE_ENUM_RESOURCE,",
-        "    GRUG_TYPE_ENUM_ENTITY",
-        "};",
-        "",
-        "struct grug_type {",
-        "    uint32_t type;",
-        "    union {",
-        "        struct {",
-        "            char* name;",
-        "            struct grug_type* generics;",
-        "            size_t generics_len;",
-        "        } id;",
-        "        char* resource_extension;",
-        "        char* entity_type;",
-        "    } data;",
-        "};",
-        "",
         "extern uint64_t grug_get_on_fn_id(void* state, const char* entity_type, const char* on_fn_name);",
         "extern bool grug_call_export_fn(void* state, void* entity_handle, uint64_t on_fn_id, const union grug_value* args, size_t args_len);",
         "extern jlong Java_net_grug_minecraft_grug_Grug_nativeGetExportFnId(JNIEnv *env, jclass clazz, jlong statePtr, jstring entityType, jstring fnName);",
-        "",
-        "typedef union grug_value (*grug_host_fn_t)(void *state, const union grug_value args[]);",
-        "typedef grug_host_fn_t (*grug_generic_host_fn_t)(const struct grug_type *generics);",
-        "extern void grug_register_generic_fn(void *state, const char *name, grug_generic_host_fn_t fn);",
-        "extern void grug_register_generic_method(void *state, const char *class_name, const char *method_name, grug_generic_host_fn_t fn);",
         "",
     ]
 
@@ -518,7 +495,7 @@ def generate(mod_api: Dict[str, Any]) -> str:
                 out.append(f"static jmethodID jm_{fn['java_name']}{suffix};")
     out.append("")
 
-    # Generate all function wrappers and routing factories
+    # Generate all function wrappers and routing dispatchers
     for fn in functions:
         used_generics = fn["used_generics"]
         if not used_generics:
@@ -540,7 +517,7 @@ def generate(mod_api: Dict[str, Any]) -> str:
                     )
                 )
                 out.append("")
-            out.append(gen_factory(fn["java_name"], used_generics))
+            out.append(gen_dispatcher(fn["java_name"], used_generics))
         out.append("")
 
     # Method ID Resolution
@@ -588,20 +565,15 @@ def generate(mod_api: Dict[str, Any]) -> str:
     # Registration hooks
     out.append("void register_generated_host_fns(void* state) {")
     for fn in functions:
-        is_generic = bool(fn["used_generics"])
-        c_name = f"reg_{fn['java_name']}" if is_generic else f"host_{fn['java_name']}"
+        c_name = f"host_{fn['java_name']}"
 
         if fn["kind"] == "host_fn":
-            reg_func = (
-                "grug_register_generic_fn" if is_generic else "grug_register_host_fn"
-            )
-            out.append(f'    {reg_func}(state, "{fn["grug_name"]}", (void*){c_name});')
-        else:
-            reg_func = (
-                "grug_register_generic_method" if is_generic else "grug_register_method"
-            )
             out.append(
-                f'    {reg_func}(state, "{fn["grug_class"]}", "{fn["grug_method"]}", (void*){c_name});'
+                f'    grug_register_host_fn(state, "{fn["grug_name"]}", (void*){c_name});'
+            )
+        else:
+            out.append(
+                f'    grug_register_method(state, "{fn["grug_class"]}", "{fn["grug_method"]}", (void*){c_name});'
             )
     out.append("}")
     out.append("")
