@@ -34,8 +34,8 @@ public class MinecraftMixin {
             this.grug$titleSet = true;
         }
 
-        // Handle compilation / hot-reload errors, and reload assets if a
-        // resource referenced by a grug script (e.g. via set_texture) changed
+        // Trigger resource reloading for ANY non-grug file change in the mods directory
+        // (textures, blockstates, models, lang files, etc.)
         String[] updatedResources = Grug.update(this::sendRedMessage);
         for (String resource : updatedResources) {
             InitListener.LOGGER.info("Reloading changed resource: {}", resource);
