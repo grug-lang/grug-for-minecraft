@@ -112,7 +112,7 @@ val buildGrugRs = tasks.register("buildGrugRs") {
 val nativeSrcDir = file("src/main/native")
 
 val generateGrugAdapter = tasks.register("generateGrugAdapter") {
-    val modApiJson = file("src/main/resources/mod_api.json")
+    val modApiJson = rootProject.file("mod_api.json")
     val generatorScript = file("generate.py")
 
     val generatedC = layout.buildDirectory
@@ -213,6 +213,7 @@ tasks.named<ProcessResources>("processResources") {
     from(rootProject.file("mods")) {
         into("mods")
     }
+    from(rootProject.file("mod_api.json"))
 }
 
 publishing {
