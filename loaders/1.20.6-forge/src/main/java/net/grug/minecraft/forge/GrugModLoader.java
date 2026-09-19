@@ -23,7 +23,6 @@ import net.minecraft.server.packs.PackSelectionConfig;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
@@ -312,7 +311,10 @@ public class GrugModLoader {
                 // to trigger a client-side reload
                 if (GrugModLoader.reloadClientResources) {
                     GrugModLoader.reloadClientResources = false;
+
+                    // Trigger the reload and immediately clear the LoadingOverlay it creates
                     mc.reloadResourcePacks();
+                    mc.setOverlay(null);
                 }
 
                 if (mc.getWindow() != null) {
