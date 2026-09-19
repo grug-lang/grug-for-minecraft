@@ -47,8 +47,16 @@ public class MinecraftMixin {
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
         String[] updatedResources = Grug.update(this::sendRedMessage);
+        boolean reloadClientResources = false;
+        
         for (String resource : updatedResources) {
             GrugModLoader.LOGGER.info("Reloading changed resource: {}", resource);
+            reloadClientResources = true;
+        }
+
+        if (reloadClientResources) {
+            Minecraft mc = (Minecraft) (Object) this;
+            mc.textureManager.reload();
         }
 
         if (this.player != null) {
