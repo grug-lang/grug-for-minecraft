@@ -80,6 +80,8 @@ public class GrugModLoader {
     private static final List<RegistryObject<GrugBlock>> registeredGrugBlocks = new ArrayList<>();
     private static final List<RegistryObject<? extends Item>> registeredGrugItems = new ArrayList<>();
 
+    public static volatile boolean reloadClientResources = false;
+
     public static final RegistryObject<MenuType<GrugMenu>> GRUG_MENU = MENUS.register("grug_menu",
             () -> IForgeMenuType.create((windowId, inv, data) -> {
                 net.minecraft.core.BlockPos pos = data.readBlockPos();
@@ -282,6 +284,7 @@ public class GrugModLoader {
             });
             for (String resource : updatedResources) {
                 LOGGER.info("Reloading changed resource: {}", resource);
+                reloadClientResources = true;
             }
         }
     }
@@ -304,6 +307,13 @@ public class GrugModLoader {
         public static void onClientTick(TickEvent.ClientTickEvent event) {
             if (event.phase == TickEvent.Phase.START) {
                 Minecraft mc = Minecraft.getInstance();
+
+                // Intercept the flag from the server tick thread
+                // to trigger a client-side reload
+                if (GrugModLoader.reloadClientResources) {
+                    GrugModLoader.reloadClientResources = false;
+                    mc.reloadResourcePacks();
+                }
 
                 if (mc.getWindow() != null) {
                     mc.getWindow().setTitle("Minecraft 1.20.6 - Forge with grug");
