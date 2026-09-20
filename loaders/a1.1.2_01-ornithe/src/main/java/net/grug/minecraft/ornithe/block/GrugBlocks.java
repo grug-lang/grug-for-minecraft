@@ -75,8 +75,6 @@ public final class GrugBlocks {
                     blockId,
                     NamespacedIdentifiers.from("grug", cleanName),
                     block);
-
-            Item.BY_ID[blockId] = new BlockItem(blockId - 256);
         }
 
         // Register Dynamic Items

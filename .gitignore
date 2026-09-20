@@ -31,4 +31,5 @@ bin/
 # Remove the following line to remove server.properties from your project.
 !server.properties
 
+diff.diff
 log.log

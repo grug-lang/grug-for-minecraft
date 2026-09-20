@@ -5,6 +5,8 @@ import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.grug.minecraft.ornithe.client.GrugStaticTexture;
 import net.grug.minecraft.ornithe.resource.GrugResourcePackProvider;
 import net.minecraft.client.Minecraft;
+import net.minecraft.crafting.GrugRecipeHelper;
+import net.ornithemc.osl.lifecycle.api.client.MinecraftClientEvents;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 import net.ornithemc.osl.resource.loader.api.client.ClientResourceLoaderEvents;
 import net.ornithemc.osl.resource.loader.api.resource.manager.ResourceManager;
@@ -43,10 +45,14 @@ public class ClientGrugModLoader implements ClientModInitializer {
                 }
             }
         });
+
+        MinecraftClientEvents.READY.register(minecraft -> {
+            GrugModLoader.LOGGER.info("Parsing JSON recipes...");
+            GrugRecipeHelper.registerAutoDiscoveredRecipes(GrugModLoader.getActiveGrugModsDir());
+        });
     }
 
     private InputStream findTexture(ResourceManager manager, String type, String name) {
-        // Fallback checks for _top, _side, etc. in case the exact name isn't found
         String[] suffixes = { "", "_top", "_side", "_front" };
         for (String suffix : suffixes) {
             try {

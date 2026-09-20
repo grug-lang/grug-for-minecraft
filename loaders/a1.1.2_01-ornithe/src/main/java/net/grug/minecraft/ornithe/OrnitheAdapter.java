@@ -246,6 +246,23 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         }
 
+        // Match custom grug blocks
+        for (Map.Entry<String, net.grug.minecraft.grug.GrugBlockData> entry : Grug.declaredBlocks.entrySet()) {
+            if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
+                Long fileId = Grug.blockDataByFileId.entrySet().stream()
+                        .filter(e -> e.getValue().id.equals(entry.getKey()))
+                        .map(Map.Entry::getKey)
+                        .findFirst().orElse(null);
+                if (fileId != null) {
+                    for (Block block : Block.BY_ID) {
+                        if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb && gb.blockFileId == fileId) {
+                            return Item.BY_ID[block.id];
+                        }
+                    }
+                }
+            }
+        }
+
         // Match Vanilla Items via reflection
         for (Field field : Item.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers()) && Item.class.isAssignableFrom(field.getType())) {

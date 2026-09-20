@@ -1,0 +1,15 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "D"
+    ],
+    "key": {
+        "D": {
+            "item": "minecraft:dirt"
+        }
+    },
+    "result": {
+        "id": "grug:foo_block",
+        "count": 64
+    }
+}
