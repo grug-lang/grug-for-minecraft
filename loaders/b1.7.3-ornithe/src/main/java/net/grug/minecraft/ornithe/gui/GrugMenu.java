@@ -11,6 +11,8 @@ import net.minecraft.item.ItemStack;
 /** Slot layout for a grug GUI, built from the `GrugGuiBuilder` a mod filled in. */
 public class GrugMenu extends InventoryMenu {
     private final Inventory blockInventory;
+    private final int customSlotCount;
+    private final boolean hasPlayerSlots;
 
     public GrugMenu(PlayerEntity player, Inventory blockInventory, GrugGuiBuilder layout) {
         this.blockInventory = blockInventory;
@@ -45,6 +47,9 @@ public class GrugMenu extends InventoryMenu {
             });
         }
 
+        this.customSlotCount = this.slots.size();
+        this.hasPlayerSlots = layout.hasPlayerInventory;
+
         if (layout.hasPlayerInventory) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 9; col++) {
@@ -61,5 +66,47 @@ public class GrugMenu extends InventoryMenu {
     @Override
     public boolean isValid(PlayerEntity player) {
         return this.blockInventory.isValid(player);
+    }
+
+    @Override
+    public ItemStack quickMoveItem(int index) {
+        if (!this.hasPlayerSlots) {
+            return null;
+        }
+
+        ItemStack original = null;
+        InventorySlot slot = this.getSlot(index);
+
+        if (slot != null && slot.hasItem()) {
+            ItemStack inSlot = slot.getItem();
+            original = inSlot.copy();
+
+            // The player's 27 main slots come first, then the 9 hotbar slots
+            int start = this.customSlotCount;
+            if (index >= start) {
+                if (index < start + 27) {
+                    this.moveItem(inSlot, start + 27, start + 36, false);
+                } else {
+                    this.moveItem(inSlot, start, start + 27, false);
+                }
+            } else {
+                this.moveItem(inSlot, start, start + 36, true);
+            }
+
+            if (inSlot.size == 0) {
+                slot.setItem(null);
+            } else {
+                slot.markDirty();
+            }
+
+            // Nothing was moved
+            if (inSlot.size == original.size) {
+                return null;
+            }
+
+            slot.onItemRemoved(inSlot);
+        }
+
+        return original;
     }
 }

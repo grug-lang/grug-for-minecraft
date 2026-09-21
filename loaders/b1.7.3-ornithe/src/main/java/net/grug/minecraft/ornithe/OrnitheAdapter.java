@@ -6,8 +6,10 @@ import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.client.GrugScreen;
+import net.grug.minecraft.ornithe.inventory.DummyCraftingInventory;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.crafting.CraftingManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
@@ -86,6 +88,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void consumeCraftingIngredients(Object blockEntityObj, double startSlot) {
+        if (blockEntityObj instanceof Inventory inv) {
+            DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
+            for (int i = 0; i < matrix.getSize(); i++) {
+                ItemStack stack = matrix.getItem(i);
+                if (stack != null) {
+                    matrix.removeItem(i, 1);
+                    if (stack.getItem().hasRecipeRemainder()) {
+                        matrix.setItem(i, new ItemStack(stack.getItem().getRecipeRemainder()));
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -188,6 +202,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
+        if (blockEntityObj instanceof Inventory inv) {
+            DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
+            ItemStack result = CraftingManager.getInstance().getResult(matrix);
+            inv.setItem((int) outputSlot, result != null ? result.copy() : null);
+        }
     }
 
     // --- World & Entity Methods ---
