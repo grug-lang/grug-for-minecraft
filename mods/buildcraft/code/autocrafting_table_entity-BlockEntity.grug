@@ -1,5 +1,7 @@
+# TODO: Change to me.level() once entities can have methods
 level: Level = get_block_entity_level(me)
 
+# TODO: Change to me.block_pos() once entities can have methods
 pos: BlockPos = get_block_pos_of_block_entity(me)
 center: Vec3 = pos.center()
 x: number = center.x()
