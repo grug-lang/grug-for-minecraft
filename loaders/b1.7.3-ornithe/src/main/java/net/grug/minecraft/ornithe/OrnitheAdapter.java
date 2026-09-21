@@ -1,12 +1,16 @@
 package net.grug.minecraft.ornithe;
 
+import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
+import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -60,6 +64,24 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
+        if (!(playerObj instanceof PlayerEntity player)) {
+            GrugModLoader.LOGGER.error("openGui: player is not a PlayerEntity: {}", playerObj);
+            return;
+        }
+        if (!(blockEntityObj instanceof Inventory inventory)) {
+            GrugModLoader.LOGGER.error("openGui: block entity is not an Inventory: {}", blockEntityObj);
+            return;
+        }
+        if (!(guiBuilderObj instanceof GrugGuiBuilder builder)) {
+            GrugModLoader.LOGGER.error("openGui: builder is not a GrugGuiBuilder: {}", guiBuilderObj);
+            return;
+        }
+        if (FabricLoader.getInstance().getEnvironmentType() != EnvType.CLIENT) {
+            GrugModLoader.LOGGER.warn("openGui: dedicated servers are not supported yet");
+            return;
+        }
+
+        GrugScreen.open(player, inventory, builder);
     }
 
     @Override
