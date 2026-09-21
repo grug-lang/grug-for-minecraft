@@ -10,6 +10,7 @@ import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.item.GrugItem;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.crafting.CraftingManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
@@ -91,6 +92,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void consumeCraftingIngredients(Object blockEntityObj, double startSlot) {
+        if (blockEntityObj instanceof Inventory inv) {
+            // Alpha has no recipe remainders (like the empty bucket from a milk bucket)
+            for (int i = 0; i < 9; i++) {
+                int slot = (int) startSlot + i;
+                if (inv.getItem(slot) != null) {
+                    inv.removeItem(slot, 1);
+                }
+            }
+        }
     }
 
     @Override
@@ -193,6 +203,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
+        if (blockEntityObj instanceof Inventory inv) {
+            // Alpha recipes match on item ids only, with -1 for an empty cell
+            int[] ids = new int[9];
+            for (int i = 0; i < 9; i++) {
+                ItemStack stack = inv.getItem((int) startSlot + i);
+                ids[i] = stack != null ? stack.id : -1;
+            }
+            ItemStack result = CraftingManager.getInstance().getResult(ids);
+            inv.setItem((int) outputSlot, result != null ? result.copy() : null);
+        }
     }
 
     // --- World & Entity Methods ---
