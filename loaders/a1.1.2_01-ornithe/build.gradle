@@ -18,6 +18,19 @@ ploceus {
     setIntermediaryGeneration(2)
 }
 
+// Sources and resources shared by all Ornithe loaders. They reference Minecraft
+// classes, so they are compiled against this loader's own Minecraft jar.
+sourceSets {
+    main {
+        java {
+            srcDir '../../shared/ornithe/src/main/java'
+        }
+        resources {
+            srcDir '../../shared/ornithe/src/main/resources'
+        }
+    }
+}
+
 repositories {
     mavenLocal()
 
