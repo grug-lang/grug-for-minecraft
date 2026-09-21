@@ -1,7 +1,7 @@
 package net.grug.minecraft.ornithe.client;
 
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.gui.GrugGuiBuilder;
-import net.grug.minecraft.ornithe.GrugModLoader;
 import net.grug.minecraft.ornithe.gui.GrugMenu;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
@@ -38,8 +38,7 @@ public class GrugScreen extends InventoryMenuScreen {
      */
     public static void open(PlayerEntity player, Inventory inventory, GrugGuiBuilder layout) {
         if (!(player instanceof ClientPlayerEntity) || player instanceof LocalClientPlayerEntity) {
-            GrugModLoader.LOGGER.warn("GrugScreen.open: multiplayer is not supported yet (player is {})",
-                    player.getClass().getName());
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "GUI.open: Opening a GUI in multiplayer is not supported yet.");
             return;
         }
 

@@ -3,6 +3,8 @@ package net.grug.minecraft.grug;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
+import java.util.OptionalInt;
+
 public class GameFunctions {
 
     // Classes
@@ -66,9 +68,19 @@ public class GameFunctions {
     }
 
     public static void GUI_open(long guiId, long playerId, long blockEntityId) {
-        Object builder = Grug.entityData.get(guiId).object;
+        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         Object player = Grug.entityData.get(playerId).object;
         Object be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+
+        // A script can pass any block entity, including ones without an inventory
+        int inventorySize = (int) GrugCore.getAdapter().getInventorySize(be);
+        OptionalInt badSlot = builder.firstSlotOutsideInventory(inventorySize);
+        if (badSlot.isPresent()) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "GUI.open: The GUI uses slot " + badSlot.getAsInt()
+                    + ", but the block entity only has " + inventorySize + " inventory slots.");
+            return;
+        }
+
         GrugCore.getAdapter().openGui(player, be, builder);
     }
 

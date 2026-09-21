@@ -70,12 +70,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
+        // The player and builder types cannot be wrong because of a script, so these are loader bugs
         if (!(playerObj instanceof PlayerEntity player)) {
             GrugModLoader.LOGGER.error("openGui: player is not a PlayerEntity: {}", playerObj);
             return;
         }
         if (!(blockEntityObj instanceof Inventory inventory)) {
-            GrugModLoader.LOGGER.error("openGui: block entity is not an Inventory: {}", blockEntityObj);
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "GUI.open: The block entity has no inventory.");
             return;
         }
         if (!(guiBuilderObj instanceof GrugGuiBuilder builder)) {
@@ -83,7 +84,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             return;
         }
         if (FabricLoader.getInstance().getEnvironmentType() != EnvType.CLIENT) {
-            GrugModLoader.LOGGER.warn("openGui: dedicated servers are not supported yet");
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "GUI.open: Opening a GUI on a dedicated server is not supported yet.");
             return;
         }
 
