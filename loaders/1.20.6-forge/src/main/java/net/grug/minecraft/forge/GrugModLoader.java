@@ -51,6 +51,7 @@ import net.minecraftforge.registries.RegistryObject;
 import org.slf4j.Logger;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -174,13 +175,12 @@ public class GrugModLoader {
         File modApiJson = new File(runGrugDir, "mod_api.json");
 
         try (InputStream in = GrugCore.class.getResourceAsStream("/mod_api.json")) {
-            if (in != null) {
-                Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            } else {
-                LOGGER.error("Failed to load /mod_api.json resource from GrugCore classpath");
+            if (in == null) {
+                throw Grug.fatal("/mod_api.json is missing from the GrugCore jar");
             }
-        } catch (Exception e) {
-            LOGGER.error("Failed to copy mod_api.json", e);
+            Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw Grug.fatal("Failed to copy mod_api.json", e);
         }
 
         File activeGrugDir = getActiveGrugModsDir();

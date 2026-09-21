@@ -55,11 +55,12 @@ public class GrugModLoader implements ModInitializer {
         }
 
         try (InputStream in = GrugModLoader.class.getResourceAsStream("/mod_api.json")) {
-            if (in != null) {
-                Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            if (in == null) {
+                throw Grug.fatal("/mod_api.json is missing from the grug jar");
             }
+            Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            LOGGER.error("Failed to copy mod_api.json", e);
+            throw Grug.fatal("Failed to copy mod_api.json", e);
         }
 
         try {

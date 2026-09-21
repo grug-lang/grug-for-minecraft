@@ -195,7 +195,38 @@ public final class Grug {
     }
 
     public static boolean callExportFn(long entityHandle, long exportFnId) {
-        return nativeCallExportFn(statePtr, entityHandle, exportFnId);
+        boolean result = nativeCallExportFn(statePtr, entityHandle, exportFnId);
+        throwPendingFatal();
+        return result;
+    }
+
+    // The JNI layer prints and clears any exception thrown inside a game function, and the script
+    // then carries on. So fatal() remembers the first error per thread, and it is rethrown as soon
+    // as the native call returns to Java (see callExportFn and the generated ExportFns).
+    private static final ThreadLocal<RuntimeException> pendingFatal = new ThreadLocal<>();
+
+    /**
+     * For invariants that must never be broken. Use as {@code throw Grug.fatal("...")}.
+     * This crashes the game, even when thrown inside a game function that a script called.
+     */
+    public static RuntimeException fatal(String message) {
+        return fatal(message, null);
+    }
+
+    public static RuntimeException fatal(String message, Throwable cause) {
+        RuntimeException error = new IllegalStateException("Broken grug invariant: " + message, cause);
+        if (pendingFatal.get() == null) {
+            pendingFatal.set(error);
+        }
+        return error;
+    }
+
+    public static void throwPendingFatal() {
+        RuntimeException error = pendingFatal.get();
+        if (error != null) {
+            pendingFatal.remove();
+            throw error;
+        }
     }
 
     public static void destroyEntity(long entityHandle) {

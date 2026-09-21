@@ -322,7 +322,9 @@ def generate_java_exports(exports: List[Dict[str, Any]]) -> str:
         call_str = ", ".join(call_args)
 
         lines.append(f"    public static boolean {method_name}({param_str}) {{")
-        lines.append(f"        return {native_name}({call_str});")
+        lines.append(f"        boolean result = {native_name}({call_str});")
+        lines.append("        Grug.throwPendingFatal();")
+        lines.append("        return result;")
         lines.append("    }")
         lines.append("")
 

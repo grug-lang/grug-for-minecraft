@@ -72,16 +72,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         // The player and builder types cannot be wrong because of a script, so these are loader bugs
         if (!(playerObj instanceof PlayerEntity player)) {
-            GrugModLoader.LOGGER.error("openGui: player is not a PlayerEntity: {}", playerObj);
-            return;
+            throw Grug.fatal("openGui: player is not a PlayerEntity: " + playerObj);
         }
         if (!(blockEntityObj instanceof Inventory inventory)) {
             Grug.gameFunctionErrorHappened(Grug.statePtr, "GUI.open: The block entity has no inventory.");
             return;
         }
         if (!(guiBuilderObj instanceof GrugGuiBuilder builder)) {
-            GrugModLoader.LOGGER.error("openGui: builder is not a GrugGuiBuilder: {}", guiBuilderObj);
-            return;
+            throw Grug.fatal("openGui: builder is not a GrugGuiBuilder: " + guiBuilderObj);
         }
         if (FabricLoader.getInstance().getEnvironmentType() != EnvType.CLIENT) {
             Grug.gameFunctionErrorHappened(Grug.statePtr,

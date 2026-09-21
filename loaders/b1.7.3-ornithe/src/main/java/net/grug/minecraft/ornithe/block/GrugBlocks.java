@@ -40,7 +40,7 @@ public final class GrugBlocks {
             registerMethod.setAccessible(true);
             registerMethod.invoke(null, GrugBlockEntity.class, "grug:generic_block_entity");
         } catch (Exception e) {
-            GrugModLoader.LOGGER.error("Failed to register GrugBlockEntity via reflection!", e);
+            throw Grug.fatal("Failed to register GrugBlockEntity via reflection", e);
         }
 
         // Register Dynamic Blocks

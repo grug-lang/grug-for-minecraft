@@ -96,8 +96,9 @@ public class InitListener {
         }
 
         try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
-            if (in != null)
-                Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            if (in == null)
+                throw Grug.fatal("/mod_api.json is missing from the grug jar");
+            Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
 
         // Only extract if we are actually using the standard run folder
