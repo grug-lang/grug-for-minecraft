@@ -25,6 +25,10 @@ public final class GrugBlocks {
     // 160
     public static final Map<String, Integer> BLOCK_SPRITES = new HashMap<>();
     public static final Map<String, Integer> ITEM_SPRITES = new HashMap<>();
+    // Blocks with a resolved model: sprite id -> texture resource path
+    public static final Map<Integer, String> BLOCK_SPRITE_PATHS = new HashMap<>();
+    // Texture reference ("grug:block/foo") -> sprite id, so identical textures share a slot
+    private static final Map<String, Integer> TEXTURE_SPRITES = new HashMap<>();
     private static int nextBlockSpriteId = 160;
     private static int nextItemSpriteId = 160;
 
@@ -68,9 +72,19 @@ public final class GrugBlocks {
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
 
             // Texture Registration
-            int blockSprite = nextBlockSpriteId++;
-            BLOCK_SPRITES.put(cleanName, blockSprite);
-            block.sprite = blockSprite;
+            String[] faceTextures = GrugBlockModels.resolveFaceTextures(cleanName);
+            if (faceTextures != null) {
+                int[] faceSprites = new int[faceTextures.length];
+                for (int face = 0; face < faceTextures.length; face++) {
+                    faceSprites[face] = allocateBlockSprite(faceTextures[face]);
+                }
+                block.faceSprites = faceSprites;
+                block.sprite = faceSprites[2];
+            } else {
+                int blockSprite = nextBlockSpriteId++;
+                BLOCK_SPRITES.put(cleanName, blockSprite);
+                block.sprite = blockSprite;
+            }
 
             String blockKey = "grug." + cleanName;
             block.setKey(blockKey);
@@ -116,6 +130,17 @@ public final class GrugBlocks {
             String itemKey = "grug." + cleanName;
             item.setKey(itemKey);
         }
+    }
+
+    private static int allocateBlockSprite(String textureRef) {
+        Integer existing = TEXTURE_SPRITES.get(textureRef);
+        if (existing != null) {
+            return existing;
+        }
+        int sprite = nextBlockSpriteId++;
+        TEXTURE_SPRITES.put(textureRef, sprite);
+        BLOCK_SPRITE_PATHS.put(sprite, GrugBlockModels.toTexturePath(textureRef));
+        return sprite;
     }
 
     private static Material stringToMaterial(String materialName) {

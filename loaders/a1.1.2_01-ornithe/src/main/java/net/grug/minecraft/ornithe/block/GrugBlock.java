@@ -14,6 +14,9 @@ import net.minecraft.world.World;
 public class GrugBlock extends BlockWithBlockEntity {
     public final long blockFileId;
 
+    /** Sprite per face (down, up, north, south, west, east), or null to use `sprite` for all faces. */
+    public int[] faceSprites;
+
     public GrugBlock(int id, long blockFileId, Material material, float strength) {
         super(id, material);
         this.blockFileId = blockFileId;
@@ -33,6 +36,14 @@ public class GrugBlock extends BlockWithBlockEntity {
     public int getInventorySize() {
         GrugBlockData data = Grug.blockDataByFileId.get(this.blockFileId);
         return data != null ? data.inventorySize : 0;
+    }
+
+    @Override
+    public int getSprite(int side) {
+        if (faceSprites != null && side >= 0 && side < faceSprites.length) {
+            return faceSprites[side];
+        }
+        return super.getSprite(side);
     }
 
     @Override

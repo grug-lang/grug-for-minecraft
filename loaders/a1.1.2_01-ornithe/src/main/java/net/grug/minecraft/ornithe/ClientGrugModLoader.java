@@ -34,6 +34,21 @@ public class ClientGrugModLoader implements ClientModInitializer {
                     }
                 }
 
+                // Upload per-face Block Textures (from model JSON) to terrain.png
+                for (Map.Entry<Integer, String> entry : GrugBlocks.BLOCK_SPRITE_PATHS.entrySet()) {
+                    int spriteId = entry.getKey();
+                    String path = entry.getValue();
+                    try (InputStream is = manager.getResource(path)) {
+                        if (is != null) {
+                            mc.textureManager.addDynamicTexture(new GrugStaticTexture(spriteId, 0, is));
+                        } else {
+                            GrugModLoader.LOGGER.warn("Missing block texture " + path + " for sprite " + spriteId);
+                        }
+                    } catch (Exception e) {
+                        GrugModLoader.LOGGER.error("Failed to load block texture " + path + " for sprite " + spriteId, e);
+                    }
+                }
+
                 // Upload Item Textures to gui/items.png
                 for (Map.Entry<String, Integer> entry : GrugBlocks.ITEM_SPRITES.entrySet()) {
                     String name = entry.getKey();
