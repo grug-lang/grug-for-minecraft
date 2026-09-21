@@ -32,7 +32,7 @@ public class GrugModLoader implements ModInitializer {
 
     @Override
     public void init() {
-        LOGGER.info("Successfully loaded grug into Beta 1.7.3 (Ornithe)!");
+        LOGGER.info("Successfully loaded grug (Ornithe)!");
 
         BlockEvents.REGISTER_BLOCKS.register(GrugBlocks::init);
 
