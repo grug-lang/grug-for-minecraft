@@ -71,7 +71,7 @@ jobs:
 
       - name: Start Xvfb
         run: |
-          Xvfb :99 -screen 0 1280x720x24 &
+          Xvfb :99 -screen 0 1280x720x24 +extension RANDR +extension GLX &
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
           echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
 

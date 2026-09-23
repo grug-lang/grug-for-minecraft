@@ -164,7 +164,7 @@ case "$PHASE" in
 
     if [ -z "${DISPLAY:-}" ]; then
       echo "DISPLAY is not set. Start Xvfb first, e.g.:" >&2
-      echo "  Xvfb :99 -screen 0 1280x720x24 & export DISPLAY=:99" >&2
+      echo "  Xvfb :99 -screen 0 1280x720x24 +extension RANDR +extension GLX & export DISPLAY=:99" >&2
       exit 2
     fi
     if ! command -v xdotool >/dev/null 2>&1; then
