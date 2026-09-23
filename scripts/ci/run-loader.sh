@@ -210,7 +210,7 @@ case "$PHASE" in
         kill -KILL -- "$watch_pid" 2>/dev/null || true
       fi
       if [ -n "$crash_pid" ]; then
-        kill -KILL -- "$crash_pid" 2>/dev/null || true
+        { kill -KILL -- "$crash_pid"; wait "$crash_pid"; } 2>/dev/null || true
       fi
       if [ -n "$gradle_pid" ]; then
         kill -TERM -- "-${gradle_pid}" 2>/dev/null || true
@@ -312,6 +312,19 @@ case "$PHASE" in
         echo "==> The process was still running when the timeout hit; this can mean a genuine hang," >&2
         echo "==> or (especially on a first run) still-in-progress downloads. Check $LOG_FILE" >&2
         echo "==> for the last thing Gradle/the game printed before raising GRUG_CI_RUN_TIMEOUT." >&2
+        # Tells "title never set / game stuck" apart from "title set but not
+        # matched": a window still named "Minecraft" means the title was never set.
+        echo "==> Windows on DISPLAY=$DISPLAY:" >&2
+        for w in $(xdotool search --name '.' 2>/dev/null); do
+          echo "    $w  '$(xdotool getwindowname "$w" 2>/dev/null)'" >&2
+        done
+        if command -v jcmd >/dev/null 2>&1; then
+          for jp in $(jcmd -l 2>/dev/null | awk '!/[Gg]radle|JCmd/ {print $1}'); do
+            echo "==> Thread dump of JVM $jp (game main thread and AWT event thread):" >&2
+            jcmd "$jp" Thread.print 2>&1 \
+              | grep -A20 -E '^"(Minecraft main thread|AWT-EventQueue-0)"' >&2 || true
+          done
+        fi
         ;;
     esac
 
