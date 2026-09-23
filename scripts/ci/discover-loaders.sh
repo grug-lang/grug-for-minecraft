@@ -9,10 +9,9 @@ entries=()
 shopt -s nullglob
 for dir in loaders/*/; do
   name="$(basename "$dir")"
-  jdk="17"
-  if [ "$name" = "1.20.6-forge" ]; then
-    jdk="21"
-  fi
+  # All loaders run on Java 21. The SHA-1 signature verification
+  # issue on older Minecraft jars is bypassed via Gradle properties.
+  jdk="21"
   entries+=("{\"dir\":\"${name}\",\"jdk\":\"${jdk}\"}")
 done
 shopt -u nullglob
