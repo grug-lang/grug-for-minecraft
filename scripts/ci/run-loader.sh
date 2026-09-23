@@ -163,8 +163,8 @@ case "$PHASE" in
     esac
 
     if [ -z "${DISPLAY:-}" ]; then
-      echo "DISPLAY is not set. Start an X server first, e.g.:" >&2
-      echo "  Xvnc :99 -geometry 1280x720 -depth 24 -SecurityTypes None & export DISPLAY=:99" >&2
+      echo "DISPLAY is not set. Start a real X server or Xdummy first, e.g.:" >&2
+      echo "  sudo Xorg -noreset -ac -config ./dummy.xorg.conf :99 & export DISPLAY=:99" >&2
       exit 2
     fi
     if ! command -v xdotool >/dev/null 2>&1; then
