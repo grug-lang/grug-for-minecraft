@@ -130,3 +130,104 @@ jobs:
             loaders/${{ matrix.dir }}/run/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
+
+  # TODO: Remove this debug job
+  lwjgl2-mre:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb x11-xserver-utils xauth \
+            xserver-xorg-core xserver-xorg-video-dummy \
+            mesa-utils libgl1-mesa-dri libglx-mesa0 \
+            libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+
+      - name: Download Patched LegacyFabric LWJGL 2.9.4
+        run: |
+          mkdir -p lwjgl/natives
+          cd lwjgl
+          wget -q "https://repo.legacyfabric.net/repository/legacyfabric/org/lwjgl/lwjgl/lwjgl/2.9.4%2Blegacyfabric.15/lwjgl-2.9.4%2Blegacyfabric.15.jar" -O lwjgl.jar
+          wget -q "https://repo.legacyfabric.net/repository/legacyfabric/org/lwjgl/lwjgl/lwjgl-platform/2.9.4%2Blegacyfabric.15/lwjgl-platform-2.9.4%2Blegacyfabric.15-natives-linux.jar" -O lwjgl-natives.jar
+          unzip -q lwjgl-natives.jar -d natives/
+
+      - name: Write LwjglTest.java
+        run: |
+          cat << 'EOF' > LwjglTest.java
+          import org.lwjgl.opengl.Display;
+          import org.lwjgl.opengl.DisplayMode;
+
+          public class LwjglTest {
+              public static void main(String[] args) {
+                  try {
+                      System.out.println("Fetching available display modes...");
+                      DisplayMode[] modes = Display.getAvailableDisplayModes();
+                      System.out.println("Found " + modes.length + " modes.");
+                      
+                      for (DisplayMode mode : modes) {
+                          System.out.println(" - " + mode.getWidth() + "x" + mode.getHeight() + 
+                                             "x" + mode.getBitsPerPixel() + " @" + mode.getFrequency() + "Hz");
+                      }
+                      
+                      if (modes.length == 0) {
+                          throw new RuntimeException("LWJGL found 0 display modes!");
+                      }
+                      
+                      Display.setDisplayMode(modes[0]);
+                      System.out.println("Creating display...");
+                      Display.create();
+                      System.out.println("Display created successfully!");
+                      Display.destroy();
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                      System.exit(1);
+                  }
+              }
+          }
+          EOF
+
+      - name: Compile LwjglTest
+        run: javac -cp "lwjgl/lwjgl.jar" LwjglTest.java
+
+      - name: Test 1: Reproduce Failure with Xdummy
+        continue-on-error: true
+        run: |
+          cat << 'EOF' > dummy.xorg.conf
+          Section "Monitor"
+              Identifier "DummyMonitor"
+              HorizSync 28.0-80.0
+              VertRefresh 48.0-75.0
+          EndSection
+
+          Section "Device"
+              Identifier "DummyDevice"
+              Driver "dummy"
+              VideoRam 256000
+          EndSection
+
+          Section "Screen"
+              Identifier "DummyScreen"
+              Device "DummyDevice"
+              Monitor "DummyMonitor"
+              DefaultDepth 24
+              SubSection "Display"
+                  Depth 24
+                  Modes "1280x720"
+              EndSubSection
+          EndSection
+          EOF
+          sudo Xorg -noreset -ac +extension GLX +extension RANDR +extension RENDER -logfile /tmp/xorg.log -config ./dummy.xorg.conf :99 &
+          sleep 2
+          DISPLAY=:99 java -cp ".:lwjgl/lwjgl.jar" -Djava.library.path="lwjgl/natives" LwjglTest
+
+      - name: Test 2: Verify Fix with xvfb-run
+        run: |
+          xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
+            java -cp ".:lwjgl/lwjgl.jar" -Djava.library.path="lwjgl/natives" LwjglTest
