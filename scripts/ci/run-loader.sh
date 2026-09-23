@@ -93,7 +93,7 @@ is_standalone() {
 
 publish_core_local() {
   echo "==> Publishing core to mavenLocal"
-  ./gradlew ":core:publishMavenJavaPublicationToMavenLocal" --stacktrace
+  ./gradlew ":core:publishMavenJavaPublicationToMavenLocal" --configure-on-demand --stacktrace
 }
 
 # Kills anything left running from a previous `run` invocation of this
@@ -134,7 +134,7 @@ case "$PHASE" in
       publish_core_local
       (cd "$LOADER_DIR" && ./gradlew dependencies --stacktrace)
     else
-      ./gradlew ":loaders:${LOADER}:dependencies" --stacktrace
+      ./gradlew ":loaders:${LOADER}:dependencies" --configure-on-demand --stacktrace
     fi
     ;;
 
@@ -144,7 +144,7 @@ case "$PHASE" in
       publish_core_local
       (cd "$LOADER_DIR" && ./gradlew build -x test --stacktrace)
     else
-      ./gradlew ":loaders:${LOADER}:build" -x test --stacktrace
+      ./gradlew ":loaders:${LOADER}:build" -x test --configure-on-demand --stacktrace
     fi
     ;;
 
@@ -197,6 +197,13 @@ case "$PHASE" in
         done
         kill -KILL -- "-${gradle_pid}" 2>/dev/null || true
       fi
+      
+      echo "==> Stopping Gradle daemons" >&2
+      ./gradlew --stop >/dev/null 2>&1 || true
+      if is_standalone; then
+        (cd "$LOADER_DIR" && ./gradlew --stop >/dev/null 2>&1 || true)
+      fi
+      
       sweep_stale_processes
     }
     trap 'cleanup "Interrupted"; exit 130' INT
@@ -205,7 +212,7 @@ case "$PHASE" in
     echo "==> Launching $LOADER, waiting up to ${timeout_secs}s for window title: $expected_title"
     : > "$LOG_FILE"
 
-    setsid ./gradlew ":loaders:${LOADER}:runClient" --no-daemon --stacktrace \
+    setsid ./gradlew ":loaders:${LOADER}:runClient" --configure-on-demand --no-daemon --stacktrace \
       >"$LOG_FILE" 2>&1 &
     gradle_pid=$!
     echo "$gradle_pid" > "$PID_FILE"
