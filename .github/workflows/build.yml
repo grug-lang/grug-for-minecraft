@@ -1,0 +1,109 @@
+name: Build
+
+# Mirrors validate-about.yml's triggers, minus path filters: core/, mods/,
+# mod_api.json, shared/**, and each loader's own sources all affect whether
+# every loader still boots, so this always runs on the whole repo.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Emits one matrix entry per loaders/* directory. See
+  # scripts/ci/discover-loaders.sh.
+  discover:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Discover loaders
+        id: discover
+        run: scripts/ci/discover-loaders.sh
+
+  build:
+    name: ${{ matrix.dir }}
+    needs: discover
+    if: needs.discover.outputs.matrix != '[]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Every loader currently builds and runs under JDK 21, including
+      # Alpha and Beta via Ornithe. See scripts/ci/discover-loaders.sh for
+      # why this isn't discovered per loader.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
+      # screenshots pixel-for-pixel, which needs a stable Mesa/font stack
+      # across runs.
+      - name: Install headless and native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            xvfb xdotool \
+            mesa-utils libgl1-mesa-dri libglx-mesa0
+
+      - name: Start Xvfb
+        run: |
+          Xvfb :99 -screen 0 1280x720x24 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
+
+      - name: Make gradlew scripts executable
+        run: |
+          chmod +x gradlew
+          for f in loaders/*/gradlew; do
+            [ -f "$f" ] && chmod +x "$f"
+          done
+          exit 0
+
+      - name: Resolve dependencies (${{ matrix.dir }})
+        run: scripts/ci/run-loader.sh "${{ matrix.dir }}" resolve
+
+      - name: Build (${{ matrix.dir }})
+        run: scripts/ci/run-loader.sh "${{ matrix.dir }}" build
+
+      - name: Boot to title screen (${{ matrix.dir }})
+        run: scripts/ci/run-loader.sh "${{ matrix.dir }}" run
+
+      - name: Upload logs and crash reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: loader-${{ matrix.dir }}-logs
+          path: |
+            loaders/${{ matrix.dir }}/run/logs
+            loaders/${{ matrix.dir }}/run/crash-reports
+            loaders/${{ matrix.dir }}/run/ci-run-loader.log
+            loaders/${{ matrix.dir }}/run/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
