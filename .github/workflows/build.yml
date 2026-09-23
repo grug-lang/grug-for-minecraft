@@ -66,13 +66,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
-            xvfb xdotool \
+            tigervnc-standalone-server xdotool \
             mesa-utils libgl1-mesa-dri libglx-mesa0 \
             libxrandr2 libxxf86vm1 libxcursor1
 
-      - name: Start Xvfb
+      - name: Start X server
         run: |
-          Xvfb :99 -screen 0 1280x720x24 +extension RANDR +extension GLX &
+          Xvnc :99 -geometry 1280x720 -depth 24 -SecurityTypes None &
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
           echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
 
