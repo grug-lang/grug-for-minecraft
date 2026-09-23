@@ -61,13 +61,14 @@ jobs:
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
       # screenshots pixel-for-pixel, which needs a stable Mesa/font stack
       # across runs.
-      - name: Install headless and native build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             xvfb xdotool \
-            mesa-utils libgl1-mesa-dri libglx-mesa0
+            mesa-utils libgl1-mesa-dri libglx-mesa0 \
+            libxrandr2 libxxf86vm1 libxcursor1
 
       - name: Start Xvfb
         run: |
