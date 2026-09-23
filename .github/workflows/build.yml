@@ -39,19 +39,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: ${{ fromJson(needs.discover.outputs.matrix) }}
+        include: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # Every loader currently builds and runs under JDK 21, including
-      # Alpha and Beta via Ornithe. See scripts/ci/discover-loaders.sh for
-      # why this isn't discovered per loader.
-      - name: Set up JDK 21
+      - name: Set up JDK ${{ matrix.jdk }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: ${{ matrix.jdk }}
 
       - name: Set up Python
         uses: actions/setup-python@v5

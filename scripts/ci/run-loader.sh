@@ -93,7 +93,7 @@ is_standalone() {
 
 publish_core_local() {
   echo "==> Publishing core to mavenLocal"
-  ./gradlew ":core:publishMavenJavaPublicationToMavenLocal" -Dfabric.loom.disableSignatureVerification=true --stacktrace
+  ./gradlew ":core:publishMavenJavaPublicationToMavenLocal" -Dgrug.activeLoader="$LOADER" --stacktrace
 }
 
 # Kills anything left running from a previous `run` invocation of this
@@ -132,9 +132,9 @@ case "$PHASE" in
     echo "==> Resolving dependencies for $LOADER"
     if is_standalone; then
       publish_core_local
-      (cd "$LOADER_DIR" && ./gradlew dependencies -Dfabric.loom.disableSignatureVerification=true --stacktrace)
+      (cd "$LOADER_DIR" && ./gradlew dependencies -Dgrug.activeLoader="$LOADER" --stacktrace)
     else
-      ./gradlew ":loaders:${LOADER}:dependencies" -Dfabric.loom.disableSignatureVerification=true --stacktrace
+      ./gradlew ":loaders:${LOADER}:dependencies" -Dgrug.activeLoader="$LOADER" --stacktrace
     fi
     ;;
 
@@ -142,9 +142,9 @@ case "$PHASE" in
     echo "==> Building $LOADER (compile only, no game launch)"
     if is_standalone; then
       publish_core_local
-      (cd "$LOADER_DIR" && ./gradlew build -x test -Dfabric.loom.disableSignatureVerification=true --stacktrace)
+      (cd "$LOADER_DIR" && ./gradlew build -x test -Dgrug.activeLoader="$LOADER" --stacktrace)
     else
-      ./gradlew ":loaders:${LOADER}:build" -x test -Dfabric.loom.disableSignatureVerification=true --stacktrace
+      ./gradlew ":loaders:${LOADER}:build" -x test -Dgrug.activeLoader="$LOADER" --stacktrace
     fi
     ;;
 
@@ -214,10 +214,10 @@ case "$PHASE" in
 
     if is_standalone; then
       publish_core_local
-      setsid bash -c "cd \"$LOADER_DIR\" && ./gradlew runClient -Dfabric.loom.disableSignatureVerification=true --no-daemon --stacktrace" \
+      setsid bash -c "cd \"$LOADER_DIR\" && ./gradlew runClient -Dgrug.activeLoader=\"$LOADER\" --no-daemon --stacktrace" \
         >"$LOG_FILE" 2>&1 &
     else
-      setsid ./gradlew ":loaders:${LOADER}:runClient" -Dfabric.loom.disableSignatureVerification=true --no-daemon --stacktrace \
+      setsid ./gradlew ":loaders:${LOADER}:runClient" -Dgrug.activeLoader="$LOADER" --no-daemon --stacktrace \
         >"$LOG_FILE" 2>&1 &
     fi
     gradle_pid=$!
