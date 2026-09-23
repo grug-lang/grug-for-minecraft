@@ -58,7 +58,7 @@
 #
 # Env vars (all optional):
 #   GRUG_CI_RUN_TIMEOUT   Seconds to wait for the title screen in the `run`
-#                         phase before giving up. Default 120 (first runs
+#                         phase before giving up. Default 300 (first runs
 #                         download Minecraft, mappings, and mod
 #                         dependencies from several Maven hosts).
 
@@ -172,7 +172,7 @@ case "$PHASE" in
       exit 2
     fi
 
-    timeout_secs="${GRUG_CI_RUN_TIMEOUT:-120}"
+    timeout_secs="${GRUG_CI_RUN_TIMEOUT:-300}"
 
     # Clear out anything left behind by a previous run of this loader
     # (including one killed by Ctrl-C before the trap below existed, or one
@@ -214,10 +214,10 @@ case "$PHASE" in
 
     if is_standalone; then
       publish_core_local
-      setsid bash -c "cd \"$LOADER_DIR\" && xvfb-run -a -s \"-screen 0 1280x720x24 +extension RANDR +extension GLX\" ./gradlew runClient -Dgrug.activeLoader=\"$LOADER\" --no-daemon --stacktrace" \
+      setsid bash -c "cd \"$LOADER_DIR\" && ./gradlew runClient -Dgrug.activeLoader=\"$LOADER\" --no-daemon --stacktrace" \
         >"$LOG_FILE" 2>&1 &
     else
-      setsid bash -c "xvfb-run -a -s \"-screen 0 1280x720x24 +extension RANDR +extension GLX\" ./gradlew \":loaders:${LOADER}:runClient\" -Dgrug.activeLoader=\"$LOADER\" --no-daemon --stacktrace" \
+      setsid bash -c "./gradlew \":loaders:${LOADER}:runClient\" -Dgrug.activeLoader=\"$LOADER\" --no-daemon --stacktrace" \
         >"$LOG_FILE" 2>&1 &
     fi
     gradle_pid=$!
