@@ -172,6 +172,25 @@ case "$PHASE" in
       exit 2
     fi
 
+    # The Alpha/Beta loaders use Legacy Fabric's LWJGL 2, which only enables
+    # XRandR if an `xrandr` executable is on PATH *and* the X server has RANDR
+    # (Xvfb has no XF86VidMode fallback). Otherwise the game thread dies in
+    # Display.<clinit> with "No display mode extension is available" while AWT
+    # threads keep the JVM alive. Check here so that fails fast, with the cause.
+    if [ "$LOADER" != "1.20.6-forge" ]; then
+      if ! command -v xrandr >/dev/null 2>&1; then
+        echo "xrandr is required for LWJGL 2 loaders (apt-get install x11-xserver-utils)." >&2
+        exit 2
+      fi
+      if ! xrandr -q >/dev/null 2>&1; then
+        echo "The X server on DISPLAY=$DISPLAY has no usable RANDR extension." >&2
+        echo "For Xvfb, start it with: -screen 0 1280x720x24 +extension RANDR" >&2
+        exit 2
+      fi
+      # Makes LWJGL log which display mode extension it picked (or why none).
+      export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Dorg.lwjgl.util.Debug=true"
+    fi
+
     timeout_secs="${GRUG_CI_RUN_TIMEOUT:-120}"
 
     # Clear out anything left behind by a previous run of this loader
@@ -182,12 +201,16 @@ case "$PHASE" in
 
     gradle_pid=""
     watch_pid=""
+    crash_pid=""
 
     cleanup() {
       local reason="$1"
       [ -n "$reason" ] && echo "==> $reason, stopping $LOADER" >&2
       if [ -n "$watch_pid" ]; then
         kill -KILL -- "$watch_pid" 2>/dev/null || true
+      fi
+      if [ -n "$crash_pid" ]; then
+        kill -KILL -- "$crash_pid" 2>/dev/null || true
       fi
       if [ -n "$gradle_pid" ]; then
         kill -TERM -- "-${gradle_pid}" 2>/dev/null || true
@@ -232,6 +255,15 @@ case "$PHASE" in
         >/dev/null 2>&1 ) &
     watch_pid=$!
 
+    # A dead game thread does not end the run on its own: AWT and SoundSystem
+    # threads keep the JVM (and so Gradle) alive, and the title never appears.
+    # Treat a fatal game-thread error in the log as an immediate failure
+    # instead of waiting out the whole timeout. Only exits on a match; cleanup
+    # kills it otherwise.
+    crash_re='Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to'
+    ( while ! grep -q -E "$crash_re" "$LOG_FILE" 2>/dev/null; do sleep 1; done ) &
+    crash_pid=$!
+
     wait -n
     status="timeout"
     exit_code=""
@@ -244,6 +276,8 @@ case "$PHASE" in
       else
         status="timeout"
       fi
+    elif ! kill -0 "$crash_pid" 2>/dev/null; then
+      status="crashed"
     else
       # Neither has finished yet but wait -n returned (e.g. a signal we
       # don't trap); fall back to waiting on the game process itself. Only
@@ -255,6 +289,13 @@ case "$PHASE" in
     fi
 
     case "$status" in
+      crashed)
+        echo "==> $LOADER's game thread crashed before reaching the title screen (not waiting for the timeout)." >&2
+        echo "==> LWJGL debug lines from $LOG_FILE:" >&2
+        grep -h '\[LWJGL\]' "$LOG_FILE" | head -20 >&2 || true
+        echo "==> First fatal error in $LOG_FILE:" >&2
+        grep -n -m1 -B2 -A14 -E "$crash_re" "$LOG_FILE" >&2 || true
+        ;;
       booted)
         echo "==> $LOADER reached its title screen."
         ;;
