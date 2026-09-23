@@ -58,7 +58,7 @@
 #
 # Env vars (all optional):
 #   GRUG_CI_RUN_TIMEOUT   Seconds to wait for the title screen in the `run`
-#                         phase before giving up. Default 900 (first runs
+#                         phase before giving up. Default 60 (first runs
 #                         download Minecraft, mappings, and mod
 #                         dependencies from several Maven hosts).
 
@@ -172,7 +172,7 @@ case "$PHASE" in
       exit 2
     fi
 
-    timeout_secs="${GRUG_CI_RUN_TIMEOUT:-900}"
+    timeout_secs="${GRUG_CI_RUN_TIMEOUT:-60}"
 
     # Clear out anything left behind by a previous run of this loader
     # (including one killed by Ctrl-C before the trap below existed, or one
