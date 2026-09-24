@@ -1,10 +1,6 @@
 name: Build
 
-# Mirrors validate-about.yml's triggers, minus path filters: core/, mods/,
-# mod_api.json, shared/**, and each loader's own sources all affect whether
-# every loader still boots, so this always runs on the whole repo.
 on:
-  push:
   pull_request:
   workflow_dispatch:
 
@@ -12,12 +8,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Emits one matrix entry per loaders/* directory. See
-  # scripts/ci/discover-loaders.sh.
+  # Emits one matrix entry per loaders/* directory.
   discover:
     runs-on: ubuntu-24.04
     outputs:
@@ -28,68 +23,51 @@ jobs:
 
       - name: Discover loaders
         id: discover
-        run: scripts/ci/discover-loaders.sh
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'EOF'
+          import json, pathlib
+          loaders = sorted(p.name for p in pathlib.Path("loaders").iterdir() if p.is_dir())
+          print("matrix=" + json.dumps(loaders))
+          EOF
 
   build:
     name: ${{ matrix.dir }}
     needs: discover
-    if: needs.discover.outputs.matrix != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.discover.outputs.matrix) }}
+        dir: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ matrix.jdk }}
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ matrix.jdk }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+          java-version: 21
 
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
       # screenshots pixel-for-pixel, which needs a stable Mesa/font stack
       # across runs.
+      # x11-xserver-utils provides the xrandr binary, which LWJGL 2 (the
+      # Alpha/Beta loaders) shells out to. Without it those loaders fail with
+      # "No display mode extension is available".
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential xdotool \
-            xvfb x11-xserver-utils xauth \
-            mesa-utils libgl1-mesa-dri libglx-mesa0 \
+            xvfb xauth x11-xserver-utils \
+            libgl1 libgl1-mesa-dri libglx-mesa0 \
             libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
 
-      - name: Make gradlew scripts executable
-        run: |
-          chmod +x gradlew
-          for f in loaders/*/gradlew; do
-            [ -f "$f" ] && chmod +x "$f"
-          done
-          exit 0
-
-      - name: Resolve dependencies (${{ matrix.dir }})
-        run: scripts/ci/run-loader.sh "${{ matrix.dir }}" resolve
-
       - name: Build (${{ matrix.dir }})
-        run: scripts/ci/run-loader.sh "${{ matrix.dir }}" build
-
-      # TODO: Remove this debug step
-      - name: Verify Resolved LWJGL Version
-        run: find ~/.gradle/caches/ -name "*lwjgl*.jar"
+        run: .github/scripts/run-loader.sh "${{ matrix.dir }}" build
 
       - name: Boot to title screen (${{ matrix.dir }})
-        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" scripts/ci/run-loader.sh "${{ matrix.dir }}" run
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" run
 
       - name: Upload logs and crash reports
         if: always()
