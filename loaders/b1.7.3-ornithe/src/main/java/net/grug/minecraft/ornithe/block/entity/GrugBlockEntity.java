@@ -122,6 +122,8 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
 
         markDirty();
 
+        initGrug();
+
         if (entityHandle != 0) {
             long fnId = Grug.getExportFnId("BlockEntity", "item_extracted");
             if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
@@ -145,6 +147,8 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
 
         markDirty();
 
+        initGrug();
+
         if (entityHandle != 0) {
             long fnId = Grug.getExportFnId("BlockEntity", "item_inserted");
             if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
@@ -154,6 +158,8 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     }
 
     public void notifyOutputTaken(int slot, int amount) {
+        initGrug();
+
         if (entityHandle != 0) {
             long fnId = Grug.getExportFnId("BlockEntity", "output_taken");
             if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {

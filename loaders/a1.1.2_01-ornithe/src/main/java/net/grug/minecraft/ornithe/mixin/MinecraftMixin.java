@@ -42,7 +42,7 @@ public class MinecraftMixin {
 
     static {
         KeybindEvents.REGISTER_KEYBINDS.register(() -> {
-            grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_F8, "Grug");
+            grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_F7, "Grug");
         });
     }
 

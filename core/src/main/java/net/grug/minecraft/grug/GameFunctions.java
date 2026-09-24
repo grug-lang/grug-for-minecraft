@@ -21,9 +21,9 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Level, level);
     }
 
+    // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
-        // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
-        return Grug.addEntity(GrugEntityType.Vec3, new Vec3(0, 70, 0));
+        return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());
     }
 
     // Classes

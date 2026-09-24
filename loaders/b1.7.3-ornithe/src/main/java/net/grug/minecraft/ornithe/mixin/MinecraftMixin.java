@@ -4,6 +4,10 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
+import net.minecraft.client.options.KeyBinding;
+import net.ornithemc.osl.keybinds.api.KeybindEvents;
+import net.ornithemc.osl.keybinds.api.KeybindRegistry;
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.Display;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -13,6 +17,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.awt.Frame;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @Mixin(Minecraft.class)
 public class MinecraftMixin {
@@ -22,6 +29,18 @@ public class MinecraftMixin {
 
     @Unique
     private boolean grug$titleSet = false;
+
+    @Unique
+    private static KeyBinding grug$runTestsKey;
+
+    @Unique
+    private boolean grug$testsKeyPressed = false;
+
+    static {
+        KeybindEvents.REGISTER_KEYBINDS.register(() -> {
+            grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_F7, "Grug");
+        });
+    }
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
@@ -38,9 +57,20 @@ public class MinecraftMixin {
             this.grug$titleSet = true;
         }
 
+        // Test runner hotkey logic
+        if (grug$runTestsKey != null) {
+            boolean isKeyDown = Keyboard.isKeyDown(grug$runTestsKey.keyCode);
+            if (isKeyDown && !this.grug$testsKeyPressed) {
+                this.grug$testsKeyPressed = true;
+                grug$runAllTests();
+            } else if (!isKeyDown) {
+                this.grug$testsKeyPressed = false;
+            }
+        }
+
         String[] updatedResources = Grug.update(this::sendRedMessage);
         boolean reloadClientResources = false;
-        
+
         for (String resource : updatedResources) {
             GrugModLoader.LOGGER.info("Reloading changed resource: {}", resource);
             reloadClientResources = true;
@@ -61,6 +91,68 @@ public class MinecraftMixin {
             synchronized (Grug.printQueue) {
                 while (!Grug.printQueue.isEmpty()) {
                     sendMessage(Grug.printQueue.poll(), "");
+                }
+            }
+        }
+    }
+
+    @Unique
+    private void grug$runAllTests() {
+        List<Map.Entry<String, Long>> tests = new ArrayList<>();
+        for (Map.Entry<String, Long> entry : Grug.fileIds.entrySet()) {
+            if (entry.getKey().endsWith("-Test.grug")) {
+                tests.add(entry);
+            }
+        }
+
+        String startMsg = "Running " + tests.size() + " " + (tests.size() == 1 ? "test" : "tests") + "...";
+        GrugModLoader.LOGGER.info(startMsg);
+        if (this.player != null) {
+            sendMessage(startMsg, "");
+        }
+
+        for (Map.Entry<String, Long> entry : tests) {
+            String path = entry.getKey();
+            long fileId = entry.getValue();
+            long entityHandle = 0;
+
+            try {
+                entityHandle = Grug.createEntity(fileId);
+                if (entityHandle != 0) {
+                    long fnId = Grug.getExportFnId("Test", "run");
+                    if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                        Grug.callExportFn(entityHandle, fnId);
+
+                        GrugModLoader.LOGGER.info("PASS " + path);
+                        if (this.player != null) {
+                            sendMessage("PASS " + path, "\u00A7a"); // \u00A7a is light green
+                        }
+                    } else {
+                        throw new RuntimeException("Test entity missing 'run' export function.");
+                    }
+                }
+            } catch (Exception e) {
+                Grug.printQueue.clear();
+
+                String msg = e.getMessage();
+                if (msg != null && msg.startsWith("Broken grug invariant: ")) {
+                    msg = msg.substring(23);
+                } else if (msg == null) {
+                    msg = e.toString();
+                }
+
+                GrugModLoader.LOGGER.error("FAIL " + path);
+                GrugModLoader.LOGGER.error(msg);
+
+                if (this.player != null) {
+                    sendRedMessage("FAIL " + path);
+                    sendRedMessage(msg);
+                }
+
+                break;
+            } finally {
+                if (entityHandle != 0) {
+                    Grug.destroyEntity(entityHandle);
                 }
             }
         }
