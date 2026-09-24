@@ -227,53 +227,66 @@ def gen_dispatcher(java_name: str, used_generics: List[str]) -> str:
 
 def collect_functions(mod_api: Dict[str, Any]) -> List[Dict[str, Any]]:
     functions: List[Dict[str, Any]] = []
-    for name, decl in mod_api.get("host_functions", {}).items():
-        param_types = [grug_type_name(p["type"]) for p in decl.get("parameters", [])]
-        return_type = (
-            grug_type_name(decl["return_type"]) if "return_type" in decl else None
-        )
 
-        # We also need the original parameter names for generating the Java bridge
+    def parse_and_add(
+        decl: Dict[str, Any],
+        kind: str,
+        java_name: str,
+        grug_class: Optional[str] = None,
+        grug_method: Optional[str] = None,
+        generics_src: Optional[Dict[str, Any]] = None,
+    ) -> None:
+
+        param_types = [grug_type_name(p["type"]) for p in decl.get("parameters", [])]
         param_names = [p["name"] for p in decl.get("parameters", [])]
+
+        if kind == "method" and grug_class:
+            param_types.insert(0, grug_class)
+            param_names.insert(0, "self")
 
         functions.append(
             {
-                "java_name": name,
-                "kind": "host_fn",
-                "grug_name": name,
+                "java_name": java_name,
+                "kind": kind,
+                "grug_name": java_name,
+                "grug_class": grug_class,
+                "grug_method": grug_method,
                 "param_types": param_types,
                 "param_names": param_names,
-                "return_type": return_type,
+                "return_type": (
+                    grug_type_name(decl["return_type"])
+                    if "return_type" in decl
+                    else None
+                ),
                 "used_generics": [
-                    grug_type_name(g) for g in decl.get("used_generics", [])
+                    grug_type_name(g)
+                    for g in (generics_src or decl).get("used_generics", [])
                 ],
             }
         )
 
+    for name, decl in mod_api.get("host_functions", {}).items():
+        parse_and_add(decl, "host_fn", name)
+
     for class_name, class_decl in mod_api.get("classes", {}).items():
         for method_name, decl in class_decl.get("methods", {}).items():
-            param_types = [class_name] + [
-                grug_type_name(p["type"]) for p in decl.get("parameters", [])
-            ]
-            return_type = (
-                grug_type_name(decl["return_type"]) if "return_type" in decl else None
+            parse_and_add(
+                decl,
+                "method",
+                f"{class_name}_{method_name}",
+                grug_class=class_name,
+                grug_method=method_name,
+                generics_src=class_decl,
             )
 
-            param_names = ["self"] + [p["name"] for p in decl.get("parameters", [])]
-
-            functions.append(
-                {
-                    "java_name": f"{class_name}_{method_name}",
-                    "kind": "method",
-                    "grug_class": class_name,
-                    "grug_method": method_name,
-                    "param_types": param_types,
-                    "param_names": param_names,
-                    "return_type": return_type,
-                    "used_generics": [
-                        grug_type_name(g) for g in class_decl.get("used_generics", [])
-                    ],
-                }
+        for method_name, decl in class_decl.get("static_methods", {}).items():
+            parse_and_add(
+                decl,
+                "static_method",
+                f"{class_name}_{method_name}",
+                grug_class=class_name,
+                grug_method=method_name,
+                generics_src=class_decl,
             )
 
     return functions

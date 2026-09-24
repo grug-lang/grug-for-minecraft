@@ -19,6 +19,10 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Vec3, new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
     }
 
+    public static long Color_rgb(double r, double g, double b) {
+        return Grug.addEntity(GrugEntityType.Color, new Color((int) r, (int) g, (int) b));
+    }
+
     public static void Entity_set_delta_movement(long entityId, long vec3Id) {
         Object entity = Grug.entityData.get(entityId).object;
         Vec3 vec = (Vec3) Grug.entityData.get(vec3Id).object;
@@ -114,10 +118,6 @@ public class GameFunctions {
     }
 
     // Host functions
-
-    public static long color_rgb(double r, double g, double b) {
-        return Grug.addEntity(GrugEntityType.Color, new Color((int) r, (int) g, (int) b));
-    }
 
     public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
         GrugCore.getAdapter().consumeCraftingIngredients(GameFunctionHelpers.resolveBlockEntity(blockEntityId),
