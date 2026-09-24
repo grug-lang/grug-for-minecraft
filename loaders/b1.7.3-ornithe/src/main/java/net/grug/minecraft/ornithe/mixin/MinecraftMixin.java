@@ -32,6 +32,9 @@ public class MinecraftMixin {
             for (Frame frame : Frame.getFrames()) {
                 frame.setTitle(title);
             }
+
+            GrugModLoader.LOGGER.info("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
+
             this.grug$titleSet = true;
         }
 
