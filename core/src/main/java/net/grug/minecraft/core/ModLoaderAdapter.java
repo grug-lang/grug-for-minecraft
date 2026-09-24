@@ -1,6 +1,8 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.BlockPos;
+import net.grug.minecraft.grug.Vec3;
+
 import java.io.File;
 
 public interface ModLoaderAdapter {
@@ -76,4 +78,6 @@ public interface ModLoaderAdapter {
     double takeItemFromSlot(Object blockEntityObj, double slot, double amount);
 
     Object getClientLevel();
+
+    Vec3 getTestOrigin();
 }

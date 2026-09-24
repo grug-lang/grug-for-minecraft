@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.client.GrugScreen;
@@ -438,5 +439,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
         String[] parts = string.split(":", 2);
         return NamespacedIdentifiers.from(parts[0], parts[1]);
+    }
+
+    @Override
+    public Vec3 getTestOrigin() {
+        PlayerEntity player = MinecraftInstance.get().player;
+        return new Vec3(player.x, player.y + 3.0, player.z);
     }
 }
