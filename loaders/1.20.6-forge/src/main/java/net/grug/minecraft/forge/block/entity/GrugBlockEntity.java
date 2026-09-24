@@ -122,6 +122,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
         ItemStack result = ContainerHelper.removeItem(stacks, slot, amount);
         if (!result.isEmpty()) {
             setChanged();
+            initGrug();
             if (entityHandle != 0) {
                 long fnId = Grug.getExportFnId("BlockEntity", "item_extracted");
                 if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
@@ -147,6 +148,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
                 stack.setCount(getMaxStackSize());
             }
             setChanged();
+            initGrug();
             if (entityHandle != 0) {
                 long fnId = Grug.getExportFnId("BlockEntity", "item_inserted");
                 if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
@@ -157,6 +159,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     }
 
     public void notifyOutputTaken(int slot, int amount) {
+        initGrug();
         if (entityHandle != 0) {
             long fnId = Grug.getExportFnId("BlockEntity", "output_taken");
             if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {

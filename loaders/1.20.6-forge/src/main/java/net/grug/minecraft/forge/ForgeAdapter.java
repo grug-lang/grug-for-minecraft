@@ -2,10 +2,12 @@ package net.grug.minecraft.forge;
 
 import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.ModLoaderAdapter;
+import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
+import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
-import net.minecraft.core.Direction;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,12 +25,13 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -172,6 +175,20 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
+        if (blockEntityObj instanceof Container inv) {
+            ItemStack removed = inv.removeItem((int) slot, (int) amount);
+            if (!removed.isEmpty()) {
+                if (blockEntityObj instanceof GrugBlockEntity gbe) {
+                    gbe.notifyOutputTaken((int) slot, removed.getCount());
+                }
+                return removed.getCount();
+            }
+        }
+        return 0;
+    }
+
+    @Override
     public Object getBlockEntity(Object levelObj, double x, double y, double z) {
         return ((Level) levelObj).getBlockEntity(
                 new net.minecraft.core.BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
@@ -180,6 +197,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
         return ((BlockEntity) blockEntityObj).getLevel();
+    }
+
+    @Override
+    public Object getClientLevel() {
+        if (ServerLifecycleHooks.getCurrentServer() != null) {
+            return ServerLifecycleHooks.getCurrentServer().overworld();
+        }
+        return Minecraft.getInstance().level;
     }
 
     @Override
@@ -295,5 +320,35 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 }
             }
         }
+    }
+
+    @Override
+    public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
+        if (levelObj instanceof Level world) {
+            ResourceLocation id = new ResourceLocation(blockName.contains(":") ? blockName : "minecraft:" + blockName);
+            Block targetBlock = ForgeRegistries.BLOCKS.getValue(id);
+
+            // Forge registries return AIR if unknown
+            if (targetBlock != null && targetBlock != Blocks.AIR) {
+                net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos((int) Math.floor(x),
+                        (int) Math.floor(y), (int) Math.floor(z));
+                world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
+            } else {
+                GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+            }
+        }
+    }
+
+    @Override
+    public Vec3 getTestOrigin() {
+        if (ServerLifecycleHooks.getCurrentServer() != null) {
+            var players = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers();
+            if (!players.isEmpty()) {
+                Player player = players.get(0);
+                return new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
+            }
+        }
+        Player player = Minecraft.getInstance().player;
+        return new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
     }
 }

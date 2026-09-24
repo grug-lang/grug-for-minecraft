@@ -12,9 +12,9 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.packs.PackLocationInfo;
@@ -24,6 +24,7 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
@@ -35,6 +36,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.common.extensions.IForgeMenuType;
 import net.minecraftforge.event.AddPackFindersEvent;
 import net.minecraftforge.event.TickEvent;
@@ -48,6 +50,7 @@ import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
+import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -81,6 +84,11 @@ public class GrugModLoader {
     private static final List<RegistryObject<? extends Item>> registeredGrugItems = new ArrayList<>();
 
     public static volatile boolean reloadClientResources = false;
+
+    public static final KeyMapping RUN_TESTS_KEY = new KeyMapping(
+            "key.grug.run_tests",
+            GLFW.GLFW_KEY_F7,
+            "key.categories.grug");
 
     public static final RegistryObject<MenuType<GrugMenu>> GRUG_MENU = MENUS.register("grug_menu",
             () -> IForgeMenuType.create((windowId, inv, data) -> {
@@ -298,6 +306,11 @@ public class GrugModLoader {
                                 menu.layout));
             });
         }
+
+        @SubscribeEvent
+        public static void onKeyRegister(RegisterKeyMappingsEvent event) {
+            event.register(RUN_TESTS_KEY);
+        }
     }
 
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
@@ -306,6 +319,19 @@ public class GrugModLoader {
         public static void onClientTick(TickEvent.ClientTickEvent event) {
             if (event.phase == TickEvent.Phase.START) {
                 Minecraft mc = Minecraft.getInstance();
+
+                while (RUN_TESTS_KEY.consumeClick()) {
+                    if (mc.getSingleplayerServer() != null && mc.player != null) {
+                        // Push the execution onto the server thread to prevent ghost blocks & crashes
+                        mc.getSingleplayerServer().execute(() -> {
+                            Player serverPlayer = mc.getSingleplayerServer().getPlayerList()
+                                    .getPlayer(mc.player.getUUID());
+                            if (serverPlayer != null) {
+                                runAllTests(serverPlayer);
+                            }
+                        });
+                    }
+                }
 
                 // Intercept the flag from the server tick thread
                 // to trigger a client-side reload
@@ -339,11 +365,71 @@ public class GrugModLoader {
             }
         }
 
-        private static void sendRedMessage(LocalPlayer player, String text) {
+        private static void runAllTests(Player player) {
+            List<Map.Entry<String, Long>> tests = new ArrayList<>();
+            for (Map.Entry<String, Long> entry : Grug.fileIds.entrySet()) {
+                if (entry.getKey().endsWith("-Test.grug")) {
+                    tests.add(entry);
+                }
+            }
+
+            String startMsg = "Running " + tests.size() + " " + (tests.size() == 1 ? "test" : "tests") + "...";
+            GrugModLoader.LOGGER.info(startMsg);
+            if (player != null) {
+                sendMessage(player, startMsg, "");
+            }
+
+            for (Map.Entry<String, Long> entry : tests) {
+                String path = entry.getKey();
+                long fileId = entry.getValue();
+                long entityHandle = 0;
+
+                try {
+                    entityHandle = Grug.createEntity(fileId);
+                    if (entityHandle != 0) {
+                        long fnId = Grug.getExportFnId("Test", "run");
+                        if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                            Grug.callExportFn(entityHandle, fnId);
+
+                            GrugModLoader.LOGGER.info("PASS " + path);
+                            if (player != null) {
+                                sendMessage(player, "PASS " + path, "\u00A7a");
+                            }
+                        } else {
+                            throw new RuntimeException("Test entity missing 'run' export function.");
+                        }
+                    }
+                } catch (Exception e) {
+                    Grug.printQueue.clear();
+
+                    String msg = e.getMessage();
+                    if (msg != null && msg.startsWith("Broken grug invariant: ")) {
+                        msg = msg.substring(23);
+                    } else if (msg == null) {
+                        msg = e.toString();
+                    }
+
+                    GrugModLoader.LOGGER.error("FAIL " + path);
+                    GrugModLoader.LOGGER.error(msg);
+
+                    if (player != null) {
+                        sendRedMessage(player, "FAIL " + path);
+                        sendRedMessage(player, msg);
+                    }
+                    break;
+                } finally {
+                    if (entityHandle != 0) {
+                        Grug.destroyEntity(entityHandle);
+                    }
+                }
+            }
+        }
+
+        private static void sendRedMessage(Player player, String text) {
             sendMessage(player, text, "\u00A7c");
         }
 
-        private static void sendMessage(LocalPlayer player, String text, String prefix) {
+        private static void sendMessage(Player player, String text, String prefix) {
             if (player == null || text == null)
                 return;
 
