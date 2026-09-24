@@ -268,26 +268,27 @@ def collect_functions(mod_api: Dict[str, Any]) -> List[Dict[str, Any]]:
     for name, decl in mod_api.get("host_functions", {}).items():
         parse_and_add(decl, "host_fn", name)
 
-    for class_name, class_decl in mod_api.get("classes", {}).items():
-        for method_name, decl in class_decl.get("methods", {}).items():
-            parse_and_add(
-                decl,
-                "method",
-                f"{class_name}_{method_name}",
-                grug_class=class_name,
-                grug_method=method_name,
-                generics_src=class_decl,
-            )
+    for category in ("classes", "entities"):
+        for class_name, class_decl in mod_api.get(category, {}).items():
+            for method_name, decl in class_decl.get("methods", {}).items():
+                parse_and_add(
+                    decl,
+                    "method",
+                    f"{class_name}_{method_name}",
+                    grug_class=class_name,
+                    grug_method=method_name,
+                    generics_src=class_decl,
+                )
 
-        for method_name, decl in class_decl.get("static_methods", {}).items():
-            parse_and_add(
-                decl,
-                "static_method",
-                f"{class_name}_{method_name}",
-                grug_class=class_name,
-                grug_method=method_name,
-                generics_src=class_decl,
-            )
+            for method_name, decl in class_decl.get("static_methods", {}).items():
+                parse_and_add(
+                    decl,
+                    "static_method",
+                    f"{class_name}_{method_name}",
+                    grug_class=class_name,
+                    grug_method=method_name,
+                    generics_src=class_decl,
+                )
 
     return functions
 

@@ -1,0 +1,44 @@
+export run() {
+    level: Level = Test.get_client_level()
+
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:autocrafting_table")
+    table: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    level.place_block(x + 1, y, z, "minecraft:chest")
+    chest1: BlockEntity = level.get_block_entity(x + 1, y, z).unwrap()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    chest2: BlockEntity = level.get_block_entity(x - 1, y, z).unwrap()
+
+    diamond_item: Item = item(resource_location("minecraft:diamond"))
+
+    # TODO: Change to chest1.set_item_in_slot() once entities can have methods
+    set_item_in_slot(chest1, 0, diamond_item, 5)
+    set_item_in_slot(chest2, 0, diamond_item, 5)
+
+    # Prime the grid
+    slot: number = 0
+    while slot < 9 {
+        set_item_in_slot(table, slot, diamond_item, 1)
+        slot = slot + 1
+    }
+
+    # TODO: Change to table.take_item_from_slot() once entities can have methods
+    # Pull 1: 9 diamonds used (from grid). Restocks 9 from chests. (10 - 9 = 1 left in chests).
+    take_item_from_slot(table, 9, 1)
+
+    # Pull 2: 9 diamonds used (from grid). Restock fails (requires 9, has 1). Grid empties.
+    take_item_from_slot(table, 9, 1)
+
+    # TODO: Change to chest1.get_item_count_in_slot() once entities can have methods
+    chest1_count: number = get_item_count_in_slot(chest1, 0)
+    chest2_count: number = get_item_count_in_slot(chest2, 0)
+
+    Test.assert(chest1_count == 0, "Expected exactly 0 diamonds to remain in chest 1.")
+    Test.assert(chest2_count == 1, "Expected exactly 1 diamond to remain in chest 2.")
+}

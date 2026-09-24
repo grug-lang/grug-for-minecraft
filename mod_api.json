@@ -146,6 +146,46 @@
 					"description": "Called once at registration time to declare the item's assets."
 				}
 			]
+		},
+		"Test": {
+			"description": "Utility functions for automated tests.",
+			"export_functions": [
+				{
+					"name": "run",
+					"description": "Runs the test."
+				}
+			],
+			"static_methods": {
+				"assert": {
+					"description": "Asserts a condition is true.",
+					"parameters": [
+						{
+							"name": "condition",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "message",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"get_client_level": {
+					"description": "Gets the current client level.",
+					"return_type": {
+						"name": "Level"
+					}
+				},
+				"get_origin": {
+					"description": "Gets the origin coordinates for running isolated tests.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				}
+			}
 		}
 	},
 	"classes": {
@@ -415,6 +455,71 @@
 				}
 			}
 		},
+		"Level": {
+			"description": "A dimension or world.",
+			"methods": {
+				"get_block_entity": {
+					"description": "Gets the BlockEntity at the specified coordinates.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "BlockEntity"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"place_block": {
+					"description": "Places a block in the world.",
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "block_name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				}
+			}
+		},
 		"Option": {
 			"description": "Indicates that a value may not be present.",
 			"used_generics": [
@@ -585,43 +690,6 @@
 				},
 				{
 					"name": "amount",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"get_block_entity": {
-			"description": "Gets the BlockEntity at the specified coordinates.",
-			"return_type": {
-				"name": "Option",
-				"generics": [
-					{
-						"name": "BlockEntity"
-					}
-				]
-			},
-			"parameters": [
-				{
-					"name": "level",
-					"type": {
-						"name": "Level"
-					}
-				},
-				{
-					"name": "x",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "y",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "z",
 					"type": {
 						"name": "number"
 					}
@@ -998,6 +1066,32 @@
 					"name": "material_name",
 					"type": {
 						"name": "string"
+					}
+				}
+			]
+		},
+		"take_item_from_slot": {
+			"description": "Takes item(s) from a slot. TODO: This description should document what happens and the fn returns when a slot only contains 2 items, but the code tries to take 3 items. Does it just return 2?",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "amount",
+					"type": {
+						"name": "number"
 					}
 				}
 			]
