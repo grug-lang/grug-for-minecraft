@@ -175,7 +175,35 @@
 			}
 		},
 		"Color": {
-			"description": "An RGB color."
+			"description": "An RGB color.",
+			"static_methods": {
+				"rgb": {
+					"description": "Creates a new Color from RGB values, where each value is an integer from 0 to 255 (inclusive).",
+					"return_type": {
+						"name": "Color"
+					},
+					"parameters": [
+						{
+							"name": "r",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "g",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "b",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
 		},
 		"Entity": {
 			"description": "A generic entity.",
@@ -434,32 +462,6 @@
 		}
 	},
 	"host_functions": {
-		"color_rgb": {
-			"description": "Creates a new Color from RGB values, where each value is an integer from 0 to 255 (inclusive).",
-			"return_type": {
-				"name": "Color"
-			},
-			"parameters": [
-				{
-					"name": "r",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "g",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "b",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
 		"consume_crafting_ingredients": {
 			"description": "Consumes 1 set of ingredients from a 3x3 grid, leaving behind buckets if necessary.",
 			"parameters": [
