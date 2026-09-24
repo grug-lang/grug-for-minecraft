@@ -4,6 +4,8 @@ import net.grug.minecraft.grug.BlockPos;
 import java.io.File;
 
 public interface ModLoaderAdapter {
+    // --- TODO: Give this section a title, like the other sections below
+
     File getGameDirectory();
 
     boolean isDevelopmentEnvironment();
@@ -18,13 +20,16 @@ public interface ModLoaderAdapter {
 
     void reloadRecipe(String resourcePath);
 
-    // --- Logging Abstraction ---
+    // --- Logging Abstraction --- TODO: Give this section a better title
 
     void logInfo(String message);
 
     void logError(String message);
 
-    // --- Game Functions Abstraction ---
+    // --- Game Functions Abstraction --- TODO: Give this section a better title
+
+    // TODO: Sort the below methods into entities, classes and host fns, and sort
+    // each alphabetically
 
     void setEntityDeltaMovement(Object entityObj, double dx, double dy, double dz);
 
@@ -65,4 +70,10 @@ public interface ModLoaderAdapter {
     void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count);
 
     void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot);
+
+    void placeBlock(Object levelObj, double x, double y, double z, String blockName);
+
+    double takeItemFromSlot(Object blockEntityObj, double slot, double amount);
+
+    Object getClientLevel();
 }

@@ -6,20 +6,24 @@ import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.item.GrugItem;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockWithBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.crafting.CraftingManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
+import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -151,6 +155,20 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
+        if (blockEntityObj instanceof Inventory inv) {
+            ItemStack removed = inv.removeItem((int)slot, (int)amount);
+            if (removed != null) {
+                if (blockEntityObj instanceof GrugBlockEntity gbe) {
+                    gbe.notifyOutputTaken((int)slot, removed.size);
+                }
+                return removed.size;
+            }
+        }
+        return 0;
+    }
+
+    @Override
     public double getInventorySize(Object blockEntityObj) {
         return (blockEntityObj instanceof Inventory inv) ? inv.getSize() : 0;
     }
@@ -242,11 +260,71 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
+        if (levelObj instanceof World world) {
+            String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
+            Block targetBlock = null;
+
+            // 1. Try resolving custom Grug blocks
+            for (Map.Entry<String, net.grug.minecraft.grug.GrugBlockData> entry : Grug.declaredBlocks.entrySet()) {
+                if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
+                    Long fileId = Grug.blockDataByFileId.entrySet().stream()
+                            .filter(e -> e.getValue().id.equals(entry.getKey()))
+                            .map(Map.Entry::getKey)
+                            .findFirst().orElse(null);
+
+                    if (fileId != null) {
+                        for (Block block : Block.BY_ID) {
+                            if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb && gb.blockFileId == fileId) {
+                                targetBlock = block;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Try resolving Vanilla blocks via reflection
+            if (targetBlock == null) {
+                for (Field field : Block.class.getFields()) {
+                    if (Modifier.isStatic(field.getModifiers()) && Block.class.isAssignableFrom(field.getType())) {
+                        if (field.getName().equalsIgnoreCase(path) || field.getName().replace("_", "").equalsIgnoreCase(path.replace("_", ""))) {
+                            try {
+                                targetBlock = (Block) field.get(null);
+                                break;
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            }
+
+            if (targetBlock != null) {
+                int posX = (int) Math.floor(x);
+                int posY = (int) Math.floor(y);
+                int posZ = (int) Math.floor(z);
+
+                world.setBlockQuietly(posX, posY, posZ, targetBlock.id);
+
+                if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
+                    targetBlock.onAdded(world, posX, posY, posZ);
+                }
+            } else {
+                GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+            }
+        }
+    }
+
+    @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
         if (blockEntityObj instanceof BlockEntity be) {
             return be.world;
         }
         return null;
+    }
+
+    @Override
+    public Object getClientLevel() {
+        return MinecraftInstance.get().world;
     }
 
     @Override

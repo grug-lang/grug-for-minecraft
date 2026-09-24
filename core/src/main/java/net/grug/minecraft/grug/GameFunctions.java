@@ -7,6 +7,25 @@ import java.util.OptionalInt;
 
 public class GameFunctions {
 
+    // Entities
+
+    public static void Test_assert(boolean condition, String message) {
+        if (!condition) {
+            // TODO: I don't think calling Grug.fatal() is a good idea, since that quits MC
+            throw Grug.fatal("Assertion failed: " + message);
+        }
+    }
+
+    public static long Test_get_client_level() {
+        Object level = GrugCore.getAdapter().getClientLevel();
+        return Grug.addEntity(GrugEntityType.Level, level);
+    }
+
+    public static long Test_get_origin() {
+        // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
+        return Grug.addEntity(GrugEntityType.Vec3, new Vec3(0, 70, 0));
+    }
+
     // Classes
 
     public static long BlockPos_above_n(long blockPosId, double n) {
@@ -92,6 +111,20 @@ public class GameFunctions {
         return itemEntityId;
     }
 
+    public static long Level_get_block_entity(long levelId, double x, double y, double z) {
+        Object be = GrugCore.getAdapter().getBlockEntity(Grug.entityData.get(levelId).object, x, y, z);
+        // TODO: Should this not call Grug.gameFunctionErrorHappened when be is null?
+        if (be != null) {
+            return Grug.addEntity(GrugEntityType.Option,
+                    new GrugOption(Grug.addEntity(GrugEntityType.BlockEntity, be)));
+        }
+        return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
+    }
+
+    public static void Level_place_block(long levelId, double x, double y, double z, String blockName) {
+        GrugCore.getAdapter().placeBlock(Grug.entityData.get(levelId).object, x, y, z, blockName);
+    }
+
     public static boolean Option_has(long optionId) {
         return ((GrugOption) Grug.entityData.get(optionId).object).has();
     }
@@ -148,15 +181,6 @@ public class GameFunctions {
         return GrugCore.getAdapter().extractItemFromInventory(
                 GameFunctionHelpers.resolveBlockEntity(blockEntityId),
                 Grug.entityData.get(itemId).object, damage, amount);
-    }
-
-    public static long get_block_entity(long levelId, double x, double y, double z) {
-        Object be = GrugCore.getAdapter().getBlockEntity(Grug.entityData.get(levelId).object, x, y, z);
-        if (be != null) {
-            return Grug.addEntity(GrugEntityType.Option,
-                    new GrugOption(Grug.addEntity(GrugEntityType.BlockEntity, be)));
-        }
-        return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
     public static long get_block_entity_level(long blockEntityId) {
@@ -284,6 +308,11 @@ public class GameFunctions {
             Grug.currentlyInitializingBlock.material = materialName;
         else
             Grug.gameFunctionErrorHappened(Grug.statePtr, "set_material: Can only be called during a Block's init().");
+    }
+
+    public static double take_item_from_slot(long blockEntityId, double slot, double amount) {
+        return GrugCore.getAdapter().takeItemFromSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot,
+                amount);
     }
 
     public static void update_recipe_output(long blockEntityId, double startSlot, double outputSlot) {

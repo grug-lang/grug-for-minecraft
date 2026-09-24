@@ -27,7 +27,7 @@ export use(world: Level, x: number, y: number, z: number, player: Player) {
 
     gui_layout.add_player_inventory(8, 84, 8, 142)
 
-    block_entity: BlockEntity = get_block_entity(world, x, y, z).unwrap()
+    block_entity: BlockEntity = world.get_block_entity(x, y, z).unwrap()
 
     gui_layout.open(player, block_entity)
 }
