@@ -27,10 +27,9 @@ public class MinecraftMixin {
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
-        // TODO: I think this can be done using some mixin, but the problem I ran
-        // into is that the main menu already overwrites the title.
         if (!this.grug$titleSet) {
             Display.setTitle("Minecraft Beta 1.7.3 - StationAPI with grug");
+            InitListener.LOGGER.info("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
             this.grug$titleSet = true;
         }
 

@@ -319,6 +319,7 @@ public class GrugModLoader {
 
                 if (mc.getWindow() != null) {
                     mc.getWindow().setTitle("Minecraft 1.20.6 - Forge with grug");
+                    GrugModLoader.LOGGER.info("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
                 }
 
                 // Process standard message queues directly in the local player's chat
