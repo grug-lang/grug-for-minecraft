@@ -1,11 +1,13 @@
 package net.grug.minecraft.stationapi.events.init;
 
 import net.mine_diver.unsafeevents.listener.EventListener;
+import net.modificationstation.stationapi.api.client.event.option.KeyBindingRegisterEvent;
 import net.modificationstation.stationapi.api.client.gui.screen.GuiHandler;
 import net.modificationstation.stationapi.api.event.registry.GuiHandlerRegistryEvent;
 import net.modificationstation.stationapi.api.network.packet.MessagePacket;
 import net.modificationstation.stationapi.api.util.Identifier;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -13,8 +15,17 @@ import net.grug.minecraft.stationapi.gui.GrugScreen;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
 import net.grug.minecraft.stationapi.gui.StationGuiHelper;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
+import org.lwjgl.input.Keyboard;
 
 public class ClientInitListener {
+
+    public static KeyBinding runTestsKey;
+
+    @EventListener
+    public void registerKeyBindings(KeyBindingRegisterEvent event) {
+        runTestsKey = new KeyBinding("key.grug.run_tests", Keyboard.KEY_F7);
+        event.keyBindings.add(runTestsKey);
+    }
 
     @EventListener
     public void registerGuiHandlers(GuiHandlerRegistryEvent event) {

@@ -3,12 +3,15 @@ package net.grug.minecraft.stationapi;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
+import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.GrugBlock;
+import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
 import net.grug.minecraft.stationapi.gui.StationGuiHelper;
+import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.Entity;
@@ -20,6 +23,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.CraftingRecipeManager;
 import net.minecraft.world.World;
 import net.modificationstation.stationapi.api.gui.screen.container.GuiHelper;
+import net.modificationstation.stationapi.api.registry.BlockRegistry;
 import net.modificationstation.stationapi.api.registry.ItemRegistry;
 import net.modificationstation.stationapi.api.util.Identifier;
 
@@ -173,6 +177,20 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
+        if (blockEntityObj instanceof Inventory inv) {
+            ItemStack removed = inv.removeStack((int) slot, (int) amount);
+            if (removed != null) {
+                if (blockEntityObj instanceof GrugBlockEntity gbe) {
+                    gbe.notifyOutputTaken((int) slot, removed.count);
+                }
+                return removed.count;
+            }
+        }
+        return 0;
+    }
+
+    @Override
     public Object getBlockEntity(Object levelObj, double x, double y, double z) {
         return ((World) levelObj).getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
@@ -180,6 +198,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
         return ((BlockEntity) blockEntityObj).world;
+    }
+
+    @Override
+    public Object getClientLevel() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc = (net.minecraft.client.Minecraft) FabricLoader.getInstance()
+                .getGameInstance();
+        return mc != null ? mc.world : null;
     }
 
     @Override
@@ -266,5 +292,31 @@ public class StationApiAdapter implements ModLoaderAdapter {
             ItemStack result = CraftingRecipeManager.getInstance().craft(matrix);
             inv.setStack((int) outputSlot, result != null ? result.copy() : null);
         }
+    }
+
+    @Override
+    public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
+        if (levelObj instanceof World world) {
+            Identifier id = Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
+            Block targetBlock = BlockRegistry.INSTANCE.get(id);
+
+            if (targetBlock != null) {
+                int posX = (int) Math.floor(x);
+                int posY = (int) Math.floor(y);
+                int posZ = (int) Math.floor(z);
+
+                world.setBlock(posX, posY, posZ, targetBlock.id);
+            } else {
+                InitListener.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+            }
+        }
+    }
+
+    @Override
+    public Vec3 getTestOrigin() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc = (net.minecraft.client.Minecraft) FabricLoader
+                .getInstance().getGameInstance();
+        return new Vec3(mc.player.x, mc.player.y + 3.0, mc.player.z);
     }
 }
