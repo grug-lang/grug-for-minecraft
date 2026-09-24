@@ -1,0 +1,28 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+
+        maven {
+            name = 'Babric'
+            url = 'https://maven.glass-launcher.net/babric'
+        }
+
+        maven {
+            name = 'Glass Snapshots'
+            url = 'https://maven.glass-launcher.net/snapshots/'
+        }
+
+        maven {
+            name = 'Glass Releases'
+            url = 'https://maven.glass-launcher.net/releases/'
+        }
+
+        mavenLocal()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = "grug-b1.7.3-stationapi"

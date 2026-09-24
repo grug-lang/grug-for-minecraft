@@ -15,9 +15,19 @@ rootProject.name = "grug-for-minecraft"
 include("core")
 
 val activeLoader = System.getProperty("grug.activeLoader")
+
+// These loaders use their own Gradle wrapper because their build plugins
+// require a different Gradle version from the root Forge build.
+val standaloneLoaders = setOf(
+    "b1.7.3-ornithe",
+    "a1.1.2_01-ornithe",
+    "b1.7.3-stationapi",
+)
+
 if (activeLoader != null) {
     include("loaders:$activeLoader")
-    if (activeLoader.contains("ornithe")) {
+
+    if (activeLoader in standaloneLoaders) {
         project(":loaders:$activeLoader").buildFileName = "root.gradle"
     }
 } else {
@@ -26,7 +36,7 @@ if (activeLoader != null) {
     include("loaders:b1.7.3-stationapi")
     include("loaders:a1.1.2_01-ornithe")
 
-    // These are projects, as they require Gradle 9 rather than 8.
-    project(":loaders:b1.7.3-ornithe").buildFileName = "root.gradle"
-    project(":loaders:a1.1.2_01-ornithe").buildFileName = "root.gradle"
+    for (loader in standaloneLoaders) {
+        project(":loaders:$loader").buildFileName = "root.gradle"
+    }
 }

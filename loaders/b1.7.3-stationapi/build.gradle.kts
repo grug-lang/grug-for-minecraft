@@ -2,8 +2,8 @@ import java.net.URI
 
 plugins {
     id("maven-publish")
-    id("fabric-loom") version "1.11.7"
-    id("babric-loom-extension") version "1.11-SNAPSHOT"
+    id("fabric-loom") version "1.16.3"
+    id("babric-loom-extension") version "1.16.1"
 }
 
 java.sourceCompatibility = JavaVersion.VERSION_17
@@ -27,23 +27,28 @@ loom {
 }
 
 repositories {
+    mavenLocal()
+
     maven("https://maven.glass-launcher.net/snapshots/")
     maven("https://maven.glass-launcher.net/releases/")
     maven("https://maven.glass-launcher.net/babric")
     maven("https://maven.minecraftforge.net/")
     maven("https://jitpack.io/")
     mavenCentral()
+
     exclusiveContent {
-        forRepository { maven("https://api.modrinth.com/maven") }
-        filter { includeGroup("maven.modrinth") }
+        forRepository {
+            maven("https://api.modrinth.com/maven")
+        }
+        filter {
+            includeGroup("maven.modrinth")
+        }
     }
 }
 
 dependencies {
-    // 1. Depend on core logic
-    implementation(project(":core"))
-    // 2. Bundle core classes and native libs into final mod jar
-    include(project(":core"))
+    implementation("net.grug:grug-core:${project.properties["grug_core_version"]}")
+    include("net.grug:grug-core:${project.properties["grug_core_version"]}")
 
     minecraft("com.mojang:minecraft:b1.7.3")
     mappings("net.glasslauncher:biny:${project.properties["yarn_mappings"]}:v2")
