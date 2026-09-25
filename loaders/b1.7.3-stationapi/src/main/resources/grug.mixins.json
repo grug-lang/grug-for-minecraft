@@ -9,7 +9,8 @@
   "server": [],
   "client": [
     "MinecraftMixin",
-    "ResourcePackManagerMixin"
+    "ResourcePackManagerMixin",
+    "TitleScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

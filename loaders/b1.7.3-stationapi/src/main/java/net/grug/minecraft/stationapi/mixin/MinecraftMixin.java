@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi.mixin;
 
+import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.stationapi.events.init.ClientInitListener;
 import net.grug.minecraft.stationapi.events.init.InitListener;
@@ -18,15 +19,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 @Mixin(Minecraft.class)
-public class MinecraftMixin {
+public abstract class MinecraftMixin {
 
     @Shadow
     public ClientPlayerEntity player;
+
+    @Shadow
+    public abstract void scheduleStop();
 
     @Unique
     private boolean grug$titleSet = false;
@@ -34,12 +34,22 @@ public class MinecraftMixin {
     @Unique
     private boolean grug$testsKeyPressed = false;
 
+    @Unique
+    private boolean grug$ciTestsRan = false;
+
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
         if (!this.grug$titleSet) {
             Display.setTitle("Minecraft Beta 1.7.3 - StationAPI with grug");
-            InitListener.LOGGER.info("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
             this.grug$titleSet = true;
+        }
+
+        // CI auto-execution
+        if ("true".equals(System.getenv("GRUG_CI")) && !this.grug$ciTestsRan && this.player != null) {
+            System.out.println("[GRUG CI] CI mode active & player loaded. Firing tests!");
+            this.grug$ciTestsRan = true;
+            GrugTestRunner.runAllTests(this.player);
+            this.scheduleStop();
         }
 
         // Test runner hotkey logic
@@ -47,7 +57,7 @@ public class MinecraftMixin {
             boolean isKeyDown = Keyboard.isKeyDown(ClientInitListener.runTestsKey.code);
             if (isKeyDown && !this.grug$testsKeyPressed) {
                 this.grug$testsKeyPressed = true;
-                grug$runAllTests();
+                GrugTestRunner.runAllTests(this.player);
             } else if (!isKeyDown) {
                 this.grug$testsKeyPressed = false;
             }
@@ -92,71 +102,11 @@ public class MinecraftMixin {
     }
 
     @Unique
-    private void grug$runAllTests() {
-        List<Map.Entry<String, Long>> tests = new ArrayList<>();
-        for (Map.Entry<String, Long> entry : Grug.fileIds.entrySet()) {
-            if (entry.getKey().endsWith("-Test.grug")) {
-                tests.add(entry);
-            }
-        }
-
-        String startMsg = "Running " + tests.size() + " " + (tests.size() == 1 ? "test" : "tests") + "...";
-        InitListener.LOGGER.info(startMsg);
-        if (this.player != null) {
-            sendMessage(startMsg, "");
-        }
-
-        for (Map.Entry<String, Long> entry : tests) {
-            String path = entry.getKey();
-            long fileId = entry.getValue();
-            long entityHandle = 0;
-
-            try {
-                entityHandle = Grug.createEntity(fileId);
-                if (entityHandle != 0) {
-                    long fnId = Grug.getExportFnId("Test", "run");
-                    if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                        Grug.callExportFn(entityHandle, fnId);
-
-                        InitListener.LOGGER.info("PASS " + path);
-                        if (this.player != null) {
-                            sendMessage("PASS " + path, "\u00A7a"); // \u00A7a is light green
-                        }
-                    } else {
-                        throw new RuntimeException("Test entity missing 'run' export function.");
-                    }
-                }
-            } catch (Exception e) {
-                Grug.printQueue.clear();
-
-                String msg = e.getMessage();
-                if (msg != null && msg.startsWith("Broken grug invariant: ")) {
-                    msg = msg.substring(23);
-                } else if (msg == null) {
-                    msg = e.toString();
-                }
-
-                InitListener.LOGGER.error("FAIL " + path);
-                InitListener.LOGGER.error(msg);
-
-                if (this.player != null) {
-                    sendRedMessage("FAIL " + path);
-                    sendRedMessage(msg);
-                }
-
-                break;
-            } finally {
-                if (entityHandle != 0) {
-                    Grug.destroyEntity(entityHandle);
-                }
-            }
-        }
-    }
-
     private void sendRedMessage(String text) {
         sendMessage(text, "\u00A7c");
     }
 
+    @Unique
     private void sendMessage(String text, String prefix) {
         if (this.player == null || text == null)
             return;
@@ -172,7 +122,7 @@ public class MinecraftMixin {
             while (line.length() > maxLength) {
                 int splitIndex = line.lastIndexOf(' ', maxLength);
                 if (splitIndex == -1) {
-                    splitIndex = maxLength; // Force split mid-word if there are no spaces (like long file paths)
+                    splitIndex = maxLength; // Force split mid-word if there are no spaces
                 }
                 this.player.sendMessage(prefix + line.substring(0, splitIndex));
                 line = line.substring(splitIndex).trim(); // Remove leading space for the next line
