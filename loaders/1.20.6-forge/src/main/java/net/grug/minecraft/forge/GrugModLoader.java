@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
@@ -315,10 +316,29 @@ public class GrugModLoader {
 
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
     public static class ClientForgeEvents {
+
+        private static boolean grug$titleSet = false;
+        private static boolean grug$testsRan = false;
+
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
             if (event.phase == TickEvent.Phase.START) {
                 Minecraft mc = Minecraft.getInstance();
+
+                if (mc.getWindow() != null && !grug$titleSet) {
+                    mc.getWindow().setTitle("Minecraft 1.20.6 - Forge with grug");
+                    grug$titleSet = true;
+
+                    if ("true".equals(System.getenv("GRUG_CI"))) {
+                        GrugModLoader.LOGGER.info("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
+
+                        File savesDir = new File(mc.gameDirectory, "saves");
+                        File[] saves = savesDir.listFiles(File::isDirectory);
+                        if (saves != null && saves.length > 0) {
+                            mc.createWorldOpenFlows().openWorld(saves[0].getName(), () -> mc.setScreen(null));
+                        }
+                    }
+                }
 
                 while (RUN_TESTS_KEY.consumeClick()) {
                     if (mc.getSingleplayerServer() != null && mc.player != null) {
@@ -327,10 +347,22 @@ public class GrugModLoader {
                             Player serverPlayer = mc.getSingleplayerServer().getPlayerList()
                                     .getPlayer(mc.player.getUUID());
                             if (serverPlayer != null) {
-                                runAllTests(serverPlayer);
+                                GrugTestRunner.runAllTests(serverPlayer);
                             }
                         });
                     }
+                }
+
+                if ("true".equals(System.getenv("GRUG_CI")) && !grug$testsRan && mc.player != null
+                        && mc.getSingleplayerServer() != null) {
+                    grug$testsRan = true;
+                    mc.getSingleplayerServer().execute(() -> {
+                        Player serverPlayer = mc.getSingleplayerServer().getPlayerList().getPlayer(mc.player.getUUID());
+                        if (serverPlayer != null) {
+                            GrugTestRunner.runAllTests(serverPlayer);
+                            mc.stop();
+                        }
+                    });
                 }
 
                 // Intercept the flag from the server tick thread
@@ -341,11 +373,6 @@ public class GrugModLoader {
                     // Trigger the reload and immediately clear the LoadingOverlay it creates
                     mc.reloadResourcePacks();
                     mc.setOverlay(null);
-                }
-
-                if (mc.getWindow() != null) {
-                    mc.getWindow().setTitle("Minecraft 1.20.6 - Forge with grug");
-                    GrugModLoader.LOGGER.info("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
                 }
 
                 // Process standard message queues directly in the local player's chat
@@ -360,66 +387,6 @@ public class GrugModLoader {
                         while (!Grug.printQueue.isEmpty()) {
                             sendMessage(mc.player, Grug.printQueue.poll(), "");
                         }
-                    }
-                }
-            }
-        }
-
-        private static void runAllTests(Player player) {
-            List<Map.Entry<String, Long>> tests = new ArrayList<>();
-            for (Map.Entry<String, Long> entry : Grug.fileIds.entrySet()) {
-                if (entry.getKey().endsWith("-Test.grug")) {
-                    tests.add(entry);
-                }
-            }
-
-            String startMsg = "Running " + tests.size() + " " + (tests.size() == 1 ? "test" : "tests") + "...";
-            GrugModLoader.LOGGER.info(startMsg);
-            if (player != null) {
-                sendMessage(player, startMsg, "");
-            }
-
-            for (Map.Entry<String, Long> entry : tests) {
-                String path = entry.getKey();
-                long fileId = entry.getValue();
-                long entityHandle = 0;
-
-                try {
-                    entityHandle = Grug.createEntity(fileId);
-                    if (entityHandle != 0) {
-                        long fnId = Grug.getExportFnId("Test", "run");
-                        if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                            Grug.callExportFn(entityHandle, fnId);
-
-                            GrugModLoader.LOGGER.info("PASS " + path);
-                            if (player != null) {
-                                sendMessage(player, "PASS " + path, "\u00A7a");
-                            }
-                        } else {
-                            throw new RuntimeException("Test entity missing 'run' export function.");
-                        }
-                    }
-                } catch (Exception e) {
-                    Grug.printQueue.clear();
-
-                    String msg = e.getMessage();
-                    if (msg != null && msg.startsWith("Broken grug invariant: ")) {
-                        msg = msg.substring(23);
-                    } else if (msg == null) {
-                        msg = e.toString();
-                    }
-
-                    GrugModLoader.LOGGER.error("FAIL " + path);
-                    GrugModLoader.LOGGER.error(msg);
-
-                    if (player != null) {
-                        sendRedMessage(player, "FAIL " + path);
-                        sendRedMessage(player, msg);
-                    }
-                    break;
-                } finally {
-                    if (entityHandle != 0) {
-                        Grug.destroyEntity(entityHandle);
                     }
                 }
             }
