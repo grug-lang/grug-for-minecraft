@@ -66,7 +66,7 @@ jobs:
       - name: Build (${{ matrix.dir }})
         run: .github/scripts/run-loader.sh "${{ matrix.dir }}" build
 
-      - name: Boot to title screen (${{ matrix.dir }})
+      - name: Run tests (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" run
 
       - name: Upload logs and crash reports
