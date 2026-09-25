@@ -20,7 +20,7 @@ if [ ! -d "$LOADER_DIR" ]; then
 fi
 
 if [ "$PHASE" = run ] && [ -z "${DISPLAY:-}" ]; then
-  echo "DISPLAY is not set. Start an X server first, e.g. run under xvfb-run." >&2
+  echo "DISPLAY is not set. Start an X server first, e.g. Xvfb :99 & export DISPLAY=:99" >&2
   exit 2
 fi
 
