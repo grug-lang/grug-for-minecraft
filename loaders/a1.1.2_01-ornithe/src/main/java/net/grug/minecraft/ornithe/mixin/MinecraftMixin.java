@@ -23,9 +23,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Frame;
+import java.awt.Insets;
+import java.awt.Window;
 
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {
@@ -267,11 +270,17 @@ public abstract class MinecraftMixin {
     /**
      * Resizes the game window to the given mode.
      *
-     * <p>{@code Display.setDisplayMode()} alone isn't enough. It's a no-op while the Display is
-     * parented to Alpha's Canvas, and the Canvas's size is owned by the Frame's BorderLayout, so
-     * {@code canvas.setSize()} only lasts until the next AWT validation snaps it back. Setting the
-     * Canvas's preferred size and packing the Frame resizes the actual OS window, and the layout then
-     * sizes the Canvas to match (pack() accounts for window decorations via the Frame's insets).
+     * <p>{@code Display.setDisplayMode()} alone isn't enough: it's a no-op while the Display is
+     * parented to Alpha's Canvas. The Canvas's size is in turn owned by the layout of whatever
+     * contains it, so it isn't enough to size the Canvas directly either — that's what originally
+     * left the game rendering 1280x720 clipped inside an 854x480 window. The top-level Window has to
+     * be resized, and the layout then sizes everything below it.
+     *
+     * <p>The Canvas is deliberately not assumed to be a direct child of a Frame. Fabric launches
+     * Alpha as an applet, so it actually sits in MinecraftApplet, inside AppletLauncher, inside
+     * AppletFrame; a {@code getParent() instanceof Frame} check never matched and the Window was
+     * never resized. The window's insets are added so its client area is exactly the requested mode
+     * even when it has decorations.
      *
      * <p>{@code resize()} still has to be called so Minecraft's own width/height, GUI scale and
      * viewport follow immediately rather than one frame later. At the end of every frame Minecraft
@@ -287,11 +296,14 @@ public abstract class MinecraftMixin {
             Minecraft mc = (Minecraft) (Object) this;
             if (mc.canvas != null) {
                 mc.canvas.setPreferredSize(new Dimension(mode.getWidth(), mode.getHeight()));
-                Container parent = mc.canvas.getParent();
-                if (parent instanceof Frame) {
-                    ((Frame) parent).pack();
-                } else {
-                    mc.canvas.setSize(mode.getWidth(), mode.getHeight());
+                mc.canvas.setSize(mode.getWidth(), mode.getHeight());
+
+                Window window = enclosingWindow(mc.canvas);
+                if (window != null) {
+                    Insets insets = window.getInsets();
+                    window.setSize(mode.getWidth() + insets.left + insets.right,
+                            mode.getHeight() + insets.top + insets.bottom);
+                    window.validate();
                 }
             }
 
@@ -302,6 +314,17 @@ public abstract class MinecraftMixin {
                     + mode.getWidth() + "x" + mode.getHeight(), e);
             sendRedMessage("Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight() + ".");
         }
+    }
+
+    /** The Window a component lives in, however many containers deep it is. */
+    @Unique
+    private static Window enclosingWindow(Component component) {
+        for (Container ancestor = component.getParent(); ancestor != null; ancestor = ancestor.getParent()) {
+            if (ancestor instanceof Window) {
+                return (Window) ancestor;
+            }
+        }
+        return null;
     }
 
     /**
