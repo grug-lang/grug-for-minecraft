@@ -114,6 +114,7 @@ public abstract class MinecraftMixin {
                 boolean fromCI = this.grug$testRunnerFromCI;
                 this.grug$testRunner = null;
                 this.grug$testRunnerFromCI = false;
+                this.restoreResolutionAfterTestRun();
                 // The hotkey path leaves the game running so another F7 press can start a fresh run.
                 if (fromCI) {
                     this.shutdown();
@@ -196,8 +197,31 @@ public abstract class MinecraftMixin {
         if (this.grug$testRunner != null) {
             return;
         }
+
+        // Screenshot tests only compare equal at the resolution their reference was captured at,
+        // so a run always happens at 1280x720 and the previous resolution comes back afterwards.
+        // If F6 already forced that size, leave its state alone: this run didn't set it up, so it
+        // shouldn't undo it, and a second F6 press remains the way back.
+        if (this.grug$savedDisplayMode == null) {
+            this.grug$savedDisplayMode = Display.getDisplayMode();
+            this.applyTestDisplayMode();
+            this.grug$resolutionForcedByTestRun = true;
+        }
+
         this.grug$testRunner = new GrugTestRunner();
         this.grug$testRunnerFromCI = fromCI;
+    }
+
+    /** Puts the window back the way this run found it, but only if this run changed it. */
+    @Unique
+    private void restoreResolutionAfterTestRun() {
+        if (!this.grug$resolutionForcedByTestRun) {
+            return;
+        }
+        DisplayMode previous = this.grug$savedDisplayMode;
+        this.grug$savedDisplayMode = null;
+        this.grug$resolutionForcedByTestRun = false;
+        this.applyDisplayMode(previous);
     }
 
     /** Switches the window to the resolution screenshot tests are captured at. */
