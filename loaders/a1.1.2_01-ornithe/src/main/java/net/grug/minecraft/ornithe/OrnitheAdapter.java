@@ -7,6 +7,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.item.GrugItem;
@@ -445,5 +446,59 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public Vec3 getTestOrigin() {
         PlayerEntity player = MinecraftInstance.get().player;
         return new Vec3(player.x, player.y + 3.0, player.z);
+    }
+
+    // The graphics-test methods below are filled in by the commits that follow; the stubs are here
+    // so that every commit in this sequence leaves the tree building.
+
+    @Override
+    public boolean supportsGraphicsTests() {
+        return false;
+    }
+
+    @Override
+    public Vec3 setupGraphicsTestCamera() {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not implemented yet.");
+        return null;
+    }
+
+    @Override
+    public void restoreCameraAfterGraphicsTest() {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not implemented yet.");
+    }
+
+    @Override
+    public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not implemented yet.");
+    }
+
+    @Override
+    public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        if (!(levelObj instanceof World world)) {
+            return;
+        }
+        PlayerEntity player = MinecraftInstance.get().player;
+        if (player == null) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.use_block: There is no local player to right-click with.");
+            return;
+        }
+
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+
+        // In Alpha, World.getBlock() hands back a block id rather than a Block.
+        int blockId = world.getBlock(blockX, blockY, blockZ);
+        Block block = (blockId >= 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
+
+        if (block instanceof GrugBlock grugBlock) {
+            // Go through the block's own use() so the test drives the same code path a real
+            // right-click does, instead of a copy of the block's GUI layout.
+            grugBlock.use(world, blockX, blockY, blockZ, player);
+        } else {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.use_block: There is no grug block at " + blockX + ", " + blockY + ", " + blockZ + ".");
+        }
     }
 }

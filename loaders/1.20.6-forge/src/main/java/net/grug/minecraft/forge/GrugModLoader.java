@@ -319,6 +319,8 @@ public class GrugModLoader {
 
         private static boolean grug$titleSet = false;
         private static boolean grug$testsRan = false;
+        private static GrugTestRunner grug$testRunner = null;
+        private static boolean grug$testRunnerFromCI = false;
 
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -341,29 +343,18 @@ public class GrugModLoader {
                 }
 
                 while (RUN_TESTS_KEY.consumeClick()) {
-                    if (mc.getSingleplayerServer() != null && mc.player != null) {
-                        // Push the execution onto the server thread to prevent ghost blocks & crashes
-                        mc.getSingleplayerServer().execute(() -> {
-                            Player serverPlayer = mc.getSingleplayerServer().getPlayerList()
-                                    .getPlayer(mc.player.getUUID());
-                            if (serverPlayer != null) {
-                                GrugTestRunner.runAllTests(serverPlayer);
-                            }
-                        });
-                    }
+                    startTestRunner(mc, false);
                 }
 
                 if ("true".equals(System.getenv("GRUG_CI")) && !grug$testsRan && mc.player != null
                         && mc.getSingleplayerServer() != null) {
                     grug$testsRan = true;
-                    mc.getSingleplayerServer().execute(() -> {
-                        Player serverPlayer = mc.getSingleplayerServer().getPlayerList().getPlayer(mc.player.getUUID());
-                        if (serverPlayer != null) {
-                            GrugTestRunner.runAllTests(serverPlayer);
-                            mc.stop();
-                        }
-                    });
+                    startTestRunner(mc, true);
                 }
+
+                // The runner does one Test.run() call per real tick, so that real ticks (and real
+                // rendered frames) elapse between a test's own invocations.
+                advanceTestRunner(mc);
 
                 // Intercept the flag from the server tick thread
                 // to trigger a client-side reload
@@ -390,6 +381,40 @@ public class GrugModLoader {
                     }
                 }
             }
+        }
+
+        private static void startTestRunner(Minecraft mc, boolean fromCI) {
+            // Pressing the hotkey again while a run is still going shouldn't restart it.
+            if (grug$testRunner != null) {
+                return;
+            }
+            grug$testRunner = new GrugTestRunner();
+            grug$testRunnerFromCI = fromCI;
+            advanceTestRunner(mc);
+        }
+
+        private static void advanceTestRunner(Minecraft mc) {
+            if (grug$testRunner == null || mc.getSingleplayerServer() == null || mc.player == null) {
+                return;
+            }
+            // Push the execution onto the server thread to prevent ghost blocks & crashes. The whole
+            // advance happens there, so the runner's state is only ever touched by one thread.
+            mc.getSingleplayerServer().execute(() -> {
+                Player serverPlayer = mc.getSingleplayerServer().getPlayerList().getPlayer(mc.player.getUUID());
+                if (serverPlayer == null) {
+                    return;
+                }
+                grug$testRunner.tick(serverPlayer);
+                if (grug$testRunner.isFinished()) {
+                    boolean fromCI = grug$testRunnerFromCI;
+                    grug$testRunner = null;
+                    grug$testRunnerFromCI = false;
+                    // The hotkey path leaves the game running so another F7 press can start a fresh run.
+                    if (fromCI) {
+                        mc.stop();
+                    }
+                }
+            });
         }
 
         private static void sendRedMessage(Player player, String text) {
