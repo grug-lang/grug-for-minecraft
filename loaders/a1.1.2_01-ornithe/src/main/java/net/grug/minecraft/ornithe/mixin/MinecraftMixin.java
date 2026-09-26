@@ -12,6 +12,7 @@ import net.ornithemc.osl.keybinds.api.KeybindEvents;
 import net.ornithemc.osl.keybinds.api.KeybindRegistry;
 import org.lwjgl.LWJGLException;
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.DisplayMode;
 import org.spongepowered.asm.mixin.Mixin;
@@ -57,6 +58,12 @@ public abstract class MinecraftMixin {
     private boolean grug$resolutionKeyPressed = false;
 
     @Unique
+    private static KeyBinding grug$printCursorKey;
+
+    @Unique
+    private boolean grug$printCursorKeyPressed = false;
+
+    @Unique
     private boolean grug$ciTestsRan = false;
 
     @Unique
@@ -77,6 +84,7 @@ public abstract class MinecraftMixin {
         KeybindEvents.REGISTER_KEYBINDS.register(() -> {
             grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_F7, "Grug");
             grug$forceResolutionKey = KeybindRegistry.register("key.grug.force_test_resolution", Keyboard.KEY_F6, "Grug");
+            grug$printCursorKey = KeybindRegistry.register("key.grug.print_cursor_pos", Keyboard.KEY_F5, "Grug");
         });
     }
 
@@ -143,6 +151,17 @@ public abstract class MinecraftMixin {
             }
         }
 
+        // F5: print where the cursor is, in screenshot-crop coordinates
+        if (grug$printCursorKey != null) {
+            boolean isKeyDown = Keyboard.isKeyDown(grug$printCursorKey.keyCode);
+            if (isKeyDown && !this.grug$printCursorKeyPressed) {
+                this.grug$printCursorKeyPressed = true;
+                this.printCursorPosition();
+            } else if (!isKeyDown) {
+                this.grug$printCursorKeyPressed = false;
+            }
+        }
+
         String[] updatedResources = Grug.update(this::sendRedMessage);
         boolean reloadClientResources = false;
 
@@ -203,6 +222,33 @@ public abstract class MinecraftMixin {
                     + mode.getWidth() + "x" + mode.getHeight(), e);
             sendRedMessage("Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight() + ".");
         }
+    }
+
+    /**
+     * Reads the mouse position in the same top-left-origin convention
+     * Test.assert_screenshot_equals() takes, so a coordinate read off chat can be pasted straight
+     * into a crop rectangle.
+     *
+     * <p>This shares its flip with captureRectangle() in OrnitheAdapter, which reads the same frame
+     * back: LWJGL's Mouse counts Y from the bottom of the window, like GL does, whereas the crop
+     * rectangle counts from the top.
+     */
+    @Unique
+    private void printCursorPosition() {
+        Minecraft mc = (Minecraft) (Object) this;
+
+        if (mc.width != OrnitheAdapter.TEST_SCREENSHOT_WIDTH
+                || mc.height != OrnitheAdapter.TEST_SCREENSHOT_HEIGHT) {
+            sendRedMessage("The window is " + mc.width + "x" + mc.height
+                    + "; press F6 to resize to " + OrnitheAdapter.TEST_SCREENSHOT_WIDTH + "x"
+                    + OrnitheAdapter.TEST_SCREENSHOT_HEIGHT + " first.");
+            return;
+        }
+
+        int screenX = Mouse.getX();
+        int screenY = mc.height - Mouse.getY();
+
+        sendMessage("Cursor: " + screenX + ", " + screenY, "");
     }
 
     @Unique
