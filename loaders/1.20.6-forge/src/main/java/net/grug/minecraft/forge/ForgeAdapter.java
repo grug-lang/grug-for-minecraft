@@ -5,6 +5,7 @@ import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
@@ -350,5 +351,31 @@ public class ForgeAdapter implements ModLoaderAdapter {
         }
         Player player = Minecraft.getInstance().player;
         return new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
+    }
+
+    @Override
+    public boolean supportsGraphicsTests() {
+        return false;
+    }
+
+    @Override
+    public Vec3 setupGraphicsTestCamera() {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+        return null;
+    }
+
+    @Override
+    public void restoreCameraAfterGraphicsTest() {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+    }
+
+    @Override
+    public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.use_block is not supported on this loader yet.");
+    }
+
+    @Override
+    public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
     }
 }
