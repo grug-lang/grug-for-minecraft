@@ -3,6 +3,7 @@ package net.grug.minecraft.stationapi;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.GrugBlock;
@@ -318,5 +319,31 @@ public class StationApiAdapter implements ModLoaderAdapter {
         net.minecraft.client.Minecraft mc = (net.minecraft.client.Minecraft) FabricLoader
                 .getInstance().getGameInstance();
         return new Vec3(mc.player.x, mc.player.y + 3.0, mc.player.z);
+    }
+
+    @Override
+    public boolean supportsGraphicsTests() {
+        return false;
+    }
+
+    @Override
+    public Vec3 setupGraphicsTestCamera() {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+        return null;
+    }
+
+    @Override
+    public void restoreCameraAfterGraphicsTest() {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+    }
+
+    @Override
+    public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.use_block is not supported on this loader yet.");
+    }
+
+    @Override
+    public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
     }
 }
