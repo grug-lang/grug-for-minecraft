@@ -173,6 +173,42 @@
 						}
 					]
 				},
+				"assert_screenshot_equals": {
+					"description": "Captures the given pixel rectangle of the current frame and fails the test if it differs at all from the referenced PNG. In `GRUG_CI` update mode, writes the capture to the reference path instead of comparing. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
+					"parameters": [
+						{
+							"name": "reference",
+							"type": {
+								"name": "resource",
+								"resource_extension": ".png"
+							}
+						},
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"get_client_level": {
 					"description": "Gets the current client level.",
 					"return_type": {
@@ -184,6 +220,59 @@
 					"return_type": {
 						"name": "Vec3"
 					}
+				},
+				"graphics_tests_supported": {
+					"description": "Checks whether this loader can run graphics (screenshot) tests. On a loader that can't, the other graphics test functions below report a host function error, so tests should check this first and skip that half of the test instead of calling them.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"not_done": {
+					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Will eventually be replaced by `me.not_done()` once entities can have methods."
+				},
+				"restore_camera": {
+					"description": "Restores the player to the position saved by the most recent `setup_graphics_camera` call."
+				},
+				"setup_graphics_camera": {
+					"description": "Saves the player's current position and teleports them to a fixed, deterministic location for pixel-perfect screenshot tests. Returns an origin point near the new position, for placing test blocks.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
+				"tick": {
+					"description": "Returns the current tick number within this test's execution, starting at 0. Will eventually be replaced by `me.tick()` once entities can have methods.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"use_block": {
+					"description": "Right-clicks the block at the given coordinates as the local player, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. Note that the player is the one the test is already running as, so this only does anything in singleplayer.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		}
@@ -534,10 +623,34 @@
 						"name": "bool"
 					}
 				},
+				"set": {
+					"description": "Stores a value into the Option.",
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "$Value"
+							}
+						}
+					]
+				},
 				"unwrap": {
 					"description": "Gets the value if present, otherwise throws a runtime error.",
 					"return_type": {
 						"name": "$Value"
+					}
+				}
+			},
+			"static_methods": {
+				"new": {
+					"description": "Creates a new, empty Option.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "$Value"
+							}
+						]
 					}
 				}
 			}
