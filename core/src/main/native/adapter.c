@@ -24,18 +24,32 @@ struct grug_file_info {
 };
 struct grug_files_slice { struct grug_file_info* ptr; size_t len; };
 
+struct grug_stack_frame;
+
+// Mirrors grug_runtime_error in grug.h. Every string field there is a null terminated pointer, so
+// these can be used with %s directly.
+enum grug_runtime_error_kind {
+    GRUG_RUNTIME_ERROR_STACK_OVERFLOW,
+    GRUG_RUNTIME_ERROR_TIME_LIMIT_EXCEEDED,
+    GRUG_RUNTIME_ERROR_HOST_FN,
+};
+struct grug_runtime_error {
+    uint32_t error_kind;
+    struct { struct grug_stack_frame* frames; size_t len; } call_stack;
+    char* export_fn_name;
+    char* script_path;
+    struct grug_source_span err_span;
+    struct { char* ptr; size_t len; } source_line;
+    char* error_message;
+    char* error_string;
+};
+
 struct grug_runtime_error_handler {
     void* user_data;
     void (*drop_fn)(void* user_data);
     void (*handler_fn)(
         void* data,
-        uint32_t err_kind,
-        char* reason_str,
-        size_t reason_len,
-        char* export_fn_name,
-        size_t export_fn_name_len,
-        char* script_path,
-        size_t script_path_len
+        struct grug_runtime_error* error
     );
 };
 
@@ -66,23 +80,26 @@ static jclass grug_class;
 static jmethodID jm_on_runtime_error;
 
 // --- Runtime Error Handler Callback ---
-static void runtime_error_callback(
-    void* data,
-    uint32_t err_kind,
-    char* reason_str,
-    size_t reason_len,
-    char* export_fn_name,
-    size_t export_fn_name_len,
-    char* script_path,
-    size_t script_path_len
-) {
-    if (!reason_str || reason_len == 0) return;
+// The signature here has to match grug_runtime_error_handler.handler_fn in grug.h, which passes a
+// single grug_runtime_error*. Every string field in that struct is a null terminated pointer (see
+// gruggers-core's runtime_error.rs), so they can be used with %s directly.
+static void runtime_error_callback(void* data, struct grug_runtime_error* error) {
+    (void)data;
+    if (error == NULL) return;
 
-    char message[1024];
-    snprintf(message, sizeof(message), "Error in %.*s (%.*s): %.*s", 
-        (int)script_path_len, script_path, 
-        (int)export_fn_name_len, export_fn_name, 
-        (int)reason_len, reason_str);
+    const char* kind;
+    switch (error->error_kind) {
+        case GRUG_RUNTIME_ERROR_STACK_OVERFLOW: kind = "Stack overflow"; break;
+        case GRUG_RUNTIME_ERROR_TIME_LIMIT_EXCEEDED: kind = "Time limit exceeded"; break;
+        case GRUG_RUNTIME_ERROR_HOST_FN: kind = "Host function error"; break;
+        default: kind = "Runtime error"; break;
+    }
+
+    // error_string is the message grug-rs formats for display: it carries the kind, the call stack
+    // and the offending source line. Truncate it so a pathological error can't overflow message[].
+    char message[2048];
+    snprintf(message, sizeof(message), "%s: %s", kind,
+        error->error_string ? error->error_string : "(no message)");
 
     JNIEnv* env; FILL_ENV(env);
     jstring str = (*env)->NewStringUTF(env, message);
@@ -117,7 +134,11 @@ Java_net_grug_minecraft_grug_Grug_nativeInit(JNIEnv *env, jclass clazz, jstring 
     settings.mod_api_path_len = strlen(c_modApiPath);
     settings.mods_dir_path = c_modsDirPath;
     settings.mods_dir_path_len = strlen(c_modsDirPath);
-    settings.runtime_error_handler.user_data = NULL;
+    // grug's init settings declare this handler as an Option, and Rust encodes None using the null
+    // niche of the first pointer field. So a NULL user_data here doesn't mean "no user data", it
+    // makes Rust read the whole handler as None and silently drop handler_fn, after which no runtime
+    // error is ever reported to Java. Any non-null sentinel works, since the callback ignores it.
+    settings.runtime_error_handler.user_data = (void*)1;
     settings.runtime_error_handler.drop_fn = NULL;
     settings.runtime_error_handler.handler_fn = runtime_error_callback;
 
