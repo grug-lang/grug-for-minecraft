@@ -23,6 +23,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.awt.Container;
+import java.awt.Dimension;
 import java.awt.Frame;
 
 @Mixin(Minecraft.class)
@@ -144,7 +146,7 @@ public abstract class MinecraftMixin {
             if (isKeyDown && !this.grug$resolutionKeyPressed) {
                 this.grug$resolutionKeyPressed = true;
                 if (this.grug$savedDisplayMode == null) {
-                    this.grug$savedDisplayMode = Display.getDisplayMode();
+                    this.grug$savedDisplayMode = currentWindowDisplayMode();
                     this.applyTestDisplayMode();
                 } else {
                     DisplayMode previous = this.grug$savedDisplayMode;
@@ -208,7 +210,7 @@ public abstract class MinecraftMixin {
         // If F6 already forced that size, leave its state alone: this run didn't set it up, so it
         // shouldn't undo it, and a second F6 press remains the way back.
         if (this.grug$savedDisplayMode == null) {
-            this.grug$savedDisplayMode = Display.getDisplayMode();
+            this.grug$savedDisplayMode = currentWindowDisplayMode();
             this.applyTestDisplayMode();
             this.grug$resolutionForcedByTestRun = true;
         }
@@ -246,15 +248,35 @@ public abstract class MinecraftMixin {
     }
 
     /**
-     * LWJGL 2's DisplayMode only controls the window itself, so Minecraft also has to be told,
-     * or its GUI scale and viewport stay sized for the old mode.
+     * The size the game window is actually at.
      *
-     * <p>The AWT canvas has to be resized too, and that's the part that isn't obvious. At the end of
-     * every frame Minecraft re-reads {@code canvas.getWidth()/getHeight()} and, if either differs
-     * from its own width/height, resets them to the canvas's size and calls {@code resize()} again.
-     * So switching the display mode without resizing the canvas looks like it worked for exactly one
-     * frame, and then Minecraft quietly puts the old resolution back — which is how a screenshot
-     * test ends up asserting against an 854x480 frame.
+     * <p>Deliberately not {@code Display.getDisplayMode()}. Alpha parents the LWJGL Display to an
+     * AWT Canvas, and LWJGL documents that in that mode the Display "inherits the size of the
+     * parent, disregarding the currently set display mode": {@code getDisplayMode()} keeps reporting
+     * the mode the Display was created with (the desktop resolution), and {@code setDisplayMode()}
+     * doesn't resize anything. So saving {@code getDisplayMode()} and later restoring it resized the
+     * window to the desktop resolution instead of the size the player had — which is why F7 left the
+     * window small and zoomed. {@code Display.getWidth()/getHeight()} do report the canvas size here.
+     */
+    @Unique
+    private static DisplayMode currentWindowDisplayMode() {
+        return new DisplayMode(Display.getWidth(), Display.getHeight());
+    }
+
+    /**
+     * Resizes the game window to the given mode.
+     *
+     * <p>{@code Display.setDisplayMode()} alone isn't enough. It's a no-op while the Display is
+     * parented to Alpha's Canvas, and the Canvas's size is owned by the Frame's BorderLayout, so
+     * {@code canvas.setSize()} only lasts until the next AWT validation snaps it back. Setting the
+     * Canvas's preferred size and packing the Frame resizes the actual OS window, and the layout then
+     * sizes the Canvas to match (pack() accounts for window decorations via the Frame's insets).
+     *
+     * <p>{@code resize()} still has to be called so Minecraft's own width/height, GUI scale and
+     * viewport follow immediately rather than one frame later. At the end of every frame Minecraft
+     * re-reads {@code canvas.getWidth()/getHeight()} and, if either differs from its own
+     * width/height, resets them to the canvas's size and calls {@code resize()} again — which is why
+     * the Canvas and Minecraft have to agree.
      */
     @Unique
     private void applyDisplayMode(DisplayMode mode) {
@@ -263,7 +285,13 @@ public abstract class MinecraftMixin {
 
             Minecraft mc = (Minecraft) (Object) this;
             if (mc.canvas != null) {
-                mc.canvas.setSize(mode.getWidth(), mode.getHeight());
+                mc.canvas.setPreferredSize(new Dimension(mode.getWidth(), mode.getHeight()));
+                Container parent = mc.canvas.getParent();
+                if (parent instanceof Frame) {
+                    ((Frame) parent).pack();
+                } else {
+                    mc.canvas.setSize(mode.getWidth(), mode.getHeight());
+                }
             }
 
             this.resize(mode.getWidth(), mode.getHeight());
