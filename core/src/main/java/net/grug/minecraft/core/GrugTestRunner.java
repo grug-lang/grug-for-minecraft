@@ -5,17 +5,41 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Drives every {@code *-Test.grug} file, one real game tick at a time.
+ *
+ * <p>This used to be a single blocking call that ran each test to completion, which meant zero
+ * real ticks (and so zero rendered frames) ever elapsed during a test. That's fine for pure logic
+ * tests, but useless for anything that needs to screenshot actual rendered output. A test now
+ * spreads itself over as many ticks as it needs by calling {@code Test.not_done()}, and real frames
+ * render between those invocations via the normal game loop.
+ */
 public class GrugTestRunner {
-    public static void runAllTests(Object player) {
-        List<Map.Entry<String, Long>> tests = new ArrayList<>();
+    /** How many ticks a single test may run for before we give up on it. */
+    // TODO: Allow individual tests to override this budget.
+    public static final int DEFAULT_MAX_TEST_TICKS = 200; // 10 seconds at 20 ticks/sec
+
+    private final List<Map.Entry<String, Long>> tests;
+    private final int totalCount;
+
+    private int nextTestIndex = 0;
+    private int passedCount = 0;
+
+    /** 0 when no test is active, meaning "start the next one". */
+    private long currentEntityHandle = 0;
+    private long currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private int currentTick = 0;
+
+    private boolean finished = false;
+
+    public GrugTestRunner() {
+        this.tests = new ArrayList<>();
         for (Map.Entry<String, Long> entry : Grug.fileIds.entrySet()) {
             if (entry.getKey().endsWith("-Test.grug")) {
                 tests.add(entry);
             }
         }
-
-        int totalCount = tests.size();
-        int passedCount = 0;
+        this.totalCount = tests.size();
 
         String startMsg = "Running " + totalCount + " " + (totalCount == 1 ? "test" : "tests") + "...";
         System.out.println("[GRUG CI] " + startMsg);
@@ -23,58 +47,129 @@ public class GrugTestRunner {
         synchronized (Grug.printQueue) {
             Grug.printQueue.add(startMsg);
         }
+    }
 
-        for (Map.Entry<String, Long> entry : tests) {
-            String path = entry.getKey();
-            long fileId = entry.getValue();
-            long entityHandle = 0;
+    /**
+     * Does exactly one unit of work: starts the next test if none is active, then makes exactly one
+     * {@code Test.run()} call for it. Meant to be called once per real Minecraft tick.
+     */
+    public void tick(Object player) {
+        if (finished)
+            return;
 
-            System.out.println("[GRUG CI] Executing test: " + path);
-
-            try {
-                entityHandle = Grug.createEntity(fileId);
-                if (entityHandle != 0) {
-                    long fnId = Grug.getExportFnId("Test", "run");
-                    if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                        Grug.callExportFn(entityHandle, fnId);
-
-                        System.out.println("[GRUG CI] PASS " + path);
-
-                        synchronized (Grug.printQueue) {
-                            Grug.printQueue.add("\u00A7aPASS " + path);
-                        }
-                        passedCount++;
-                    } else {
-                        throw new RuntimeException("Test entity missing 'run' export function.");
-                    }
-                }
-            } catch (Exception e) {
-                Grug.printQueue.clear();
-
-                String msg = e.getMessage();
-                if (msg != null && msg.startsWith("Broken grug invariant: ")) {
-                    msg = msg.substring(23);
-                } else if (msg == null) {
-                    msg = e.toString();
-                }
-
-                System.out.println("[GRUG CI] FAIL " + path);
-                System.out.println("[GRUG CI] " + msg);
-
-                synchronized (Grug.runtimeErrorQueue) {
-                    Grug.runtimeErrorQueue.add("FAIL " + path);
-                    Grug.runtimeErrorQueue.add(msg);
-                }
-                break;
-            } finally {
-                if (entityHandle != 0) {
-                    Grug.destroyEntity(entityHandle);
-                }
+        if (currentEntityHandle == 0 && !startNextTest()) {
+            // Nothing left to run.
+            if (passedCount == totalCount) {
+                System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
             }
+            finished = true;
+            return;
         }
 
-        if (passedCount == totalCount) {
-            System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
+        String path = tests.get(nextTestIndex).getKey();
+
+        Grug.currentTestTick = currentTick;
+        Grug.testNotDone = false;
+
+        try {
+            Grug.callExportFn(currentEntityHandle, currentRunFnId);
+        } catch (Exception e) {
+            // Same fail-fast behavior as before: the first failing test aborts the whole run.
+            String msg = e.getMessage();
+            if (msg != null && msg.startsWith("Broken grug invariant: ")) {
+                msg = msg.substring(23);
+            } else if (msg == null) {
+                msg = e.toString();
+            }
+            fail(path, msg);
+            return;
         }
+
+        if (Grug.testNotDone) {
+            // currentTick is this invocation's tick, so asking for one more means asking for
+            // currentTick + 1. Refusing that once it reaches the cap is what bounds a test to
+            // DEFAULT_MAX_TEST_TICKS run() calls, on ticks 0 through DEFAULT_MAX_TEST_TICKS - 1.
+            if (currentTick + 1 >= DEFAULT_MAX_TEST_TICKS) {
+                // Deliberately loud: a test that keeps asking for more ticks should hang for the
+                // whole budget and then say so, rather than quietly passing or running forever.
+                fail(path, "Test exceeded " + DEFAULT_MAX_TEST_TICKS
+                        + " ticks without finishing (did it forget to stop calling Test.not_done()?)");
+                return;
+            }
+            currentTick++;
+            return;
+        }
+
+        // The test stopped asking for ticks, so it's done.
+        System.out.println("[GRUG CI] PASS " + path);
+
+        synchronized (Grug.printQueue) {
+            Grug.printQueue.add("\u00A7aPASS " + path);
+        }
+        passedCount++;
+
+        destroyCurrentEntity();
+        nextTestIndex++;
+        currentTick = 0;
+    }
+
+    /** Starts the next pending test, or returns false if there are none left. */
+    private boolean startNextTest() {
+        if (nextTestIndex >= tests.size()) {
+            return false;
+        }
+
+        Map.Entry<String, Long> entry = tests.get(nextTestIndex);
+        String path = entry.getKey();
+
+        System.out.println("[GRUG CI] Executing test: " + path);
+
+        try {
+            currentEntityHandle = Grug.createEntity(entry.getValue());
+            if (currentEntityHandle == 0) {
+                throw new RuntimeException("Failed to create an entity for the test.");
+            }
+
+            currentRunFnId = Grug.getExportFnId("Test", "run");
+            if (currentRunFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                throw new RuntimeException("Test entity missing 'run' export function.");
+            }
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            fail(path, msg != null ? msg : e.toString());
+            return false;
+        }
+
+        currentTick = 0;
+        return true;
+    }
+
+    /** Reports a failure, aborts the whole run, and cleans up. */
+    private void fail(String path, String msg) {
+        Grug.printQueue.clear();
+
+        System.out.println("[GRUG CI] FAIL " + path);
+        System.out.println("[GRUG CI] " + msg);
+
+        synchronized (Grug.runtimeErrorQueue) {
+            Grug.runtimeErrorQueue.add("FAIL " + path);
+            Grug.runtimeErrorQueue.add(msg);
+        }
+
+        destroyCurrentEntity();
+        finished = true;
+    }
+
+    private void destroyCurrentEntity() {
+        if (currentEntityHandle != 0) {
+            Grug.destroyEntity(currentEntityHandle);
+            currentEntityHandle = 0;
+            currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+        }
+    }
+
+    /** True once the run has stopped for any reason: every test passed, or one failed. */
+    public boolean isFinished() {
+        return finished;
     }
 }
