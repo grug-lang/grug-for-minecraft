@@ -71,8 +71,9 @@ public class GrugTestRunner {
         Grug.currentTestTick = currentTick;
         Grug.testNotDone = false;
 
+        boolean completed;
         try {
-            Grug.callExportFn(currentEntityHandle, currentRunFnId);
+            completed = Grug.callExportFn(currentEntityHandle, currentRunFnId);
         } catch (Exception e) {
             // Same fail-fast behavior as before: the first failing test aborts the whole run.
             String msg = e.getMessage();
@@ -82,6 +83,17 @@ public class GrugTestRunner {
                 msg = e.toString();
             }
             fail(path, msg);
+            return;
+        }
+
+        if (!completed) {
+            // The script aborted partway through: either a host function reported a runtime error
+            // (Grug.gameFunctionErrorHappened, which is how the graphics functions refuse an
+            // unsupported loader or an out-of-bounds crop) or the script itself errored. Either way
+            // it did not run to completion, so it certainly did not pass. The reason has already
+            // been logged and queued for chat by Grug.onRuntimeError.
+            fail(path, "The test script reported a runtime error and stopped early. "
+                    + "See the error above for the reason.");
             return;
         }
 
