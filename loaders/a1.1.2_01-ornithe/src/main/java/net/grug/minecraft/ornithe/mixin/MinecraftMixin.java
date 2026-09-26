@@ -83,7 +83,7 @@ public abstract class MinecraftMixin {
     @Unique
     private DisplayMode grug$savedDisplayMode = null;
 
-    /** True only while F7 (not F6) is the reason the window is forced, so only F7 restores it. */
+    /** True only while R (not M) is the reason the window is forced, so only R restores it. */
     @Unique
     private boolean grug$resolutionForcedByTestRun = false;
 
@@ -93,8 +93,8 @@ public abstract class MinecraftMixin {
 
     static {
         KeybindEvents.REGISTER_KEYBINDS.register(() -> {
-            grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_F7, "Grug");
-            grug$forceResolutionKey = KeybindRegistry.register("key.grug.force_test_resolution", Keyboard.KEY_F6, "Grug");
+            grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_R, "Grug");
+            grug$forceResolutionKey = KeybindRegistry.register("key.grug.force_test_resolution", Keyboard.KEY_M, "Grug");
         });
     }
 
@@ -125,7 +125,7 @@ public abstract class MinecraftMixin {
                 this.grug$testRunner = null;
                 this.grug$testRunnerFromCI = false;
                 this.finishTestRun();
-                // The hotkey path leaves the game running so another F7 press can start a fresh run.
+                // The hotkey path leaves the game running so another R press can start a fresh run.
                 if (fromCI) {
                     this.shutdown();
                 }
@@ -143,7 +143,7 @@ public abstract class MinecraftMixin {
             }
         }
 
-        // F6: force the window to the resolution screenshot tests are captured at
+        // M: force the window to the resolution screenshot tests are captured at
         if (grug$forceResolutionKey != null) {
             boolean isKeyDown = Keyboard.isKeyDown(grug$forceResolutionKey.keyCode);
             if (isKeyDown && !this.grug$resolutionKeyPressed) {
@@ -162,13 +162,13 @@ public abstract class MinecraftMixin {
             }
         }
 
-        // While F6 is holding the window at the test resolution, keep the cursor's screenshot-crop
+        // While M is holding the window at the test resolution, keep the cursor's screenshot-crop
         // coordinates in chat. A test run is excluded because it forces the same resolution for its
         // own reasons and nobody is aiming a cursor at it.
         if (this.grug$savedDisplayMode != null && this.grug$testRunner == null) {
             this.updateCursorPositionReadout();
         } else {
-            // Forget the last position while inactive, so the readout reappears the moment F6 is
+            // Forget the last position while inactive, so the readout reappears the moment M is
             // switched back on even if the cursor hasn't moved since it was last on.
             this.grug$lastCursorX = Integer.MIN_VALUE;
             this.grug$lastCursorY = Integer.MIN_VALUE;
@@ -211,8 +211,8 @@ public abstract class MinecraftMixin {
 
         // Screenshot tests only compare equal at the resolution their reference was captured at,
         // so a run always happens at 1280x720 and the previous resolution comes back afterwards.
-        // If F6 already forced that size, leave its state alone: this run didn't set it up, so it
-        // shouldn't undo it, and a second F6 press remains the way back.
+        // If M already forced that size, leave its state alone: this run didn't set it up, so it
+        // shouldn't undo it, and a second M press remains the way back.
         if (this.grug$savedDisplayMode == null) {
             this.grug$savedDisplayMode = currentWindowDisplayMode();
             this.applyTestDisplayMode();
@@ -259,7 +259,7 @@ public abstract class MinecraftMixin {
      * parent, disregarding the currently set display mode": {@code getDisplayMode()} keeps reporting
      * the mode the Display was created with (the desktop resolution), and {@code setDisplayMode()}
      * doesn't resize anything. So saving {@code getDisplayMode()} and later restoring it resized the
-     * window to the desktop resolution instead of the size the player had — which is why F7 left the
+     * window to the desktop resolution instead of the size the player had — which is why R left the
      * window small and zoomed. {@code Display.getWidth()/getHeight()} do report the canvas size here.
      */
     @Unique
@@ -330,7 +330,7 @@ public abstract class MinecraftMixin {
     /**
      * Reads the mouse position in the same top-left-origin convention
      * Test.assert_screenshot_equals() takes, so a coordinate read off chat can be pasted straight
-     * into a crop rectangle. Called every tick while F6 holds the window at the test resolution, but
+     * into a crop rectangle. Called every tick while M holds the window at the test resolution, but
      * only prints when the position changed, so a stationary mouse doesn't fill chat.
      *
      * <p>This shares its flip with captureRectangle() in OrnitheAdapter, which reads the same frame

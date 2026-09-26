@@ -65,7 +65,7 @@ public abstract class MinecraftMixin {
                 boolean fromCI = this.grug$testRunnerFromCI;
                 this.grug$testRunner = null;
                 this.grug$testRunnerFromCI = false;
-                // The hotkey path leaves the game running so another F7 press can start a fresh run.
+                // The hotkey path leaves the game running so another R press can start a fresh run.
                 if (fromCI) {
                     this.scheduleStop();
                 }
