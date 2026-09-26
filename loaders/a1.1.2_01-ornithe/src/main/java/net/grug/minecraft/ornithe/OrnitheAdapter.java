@@ -587,7 +587,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * stack (LWJGL 2 + Mesa under Xvfb) doesn't leave the rendered frame readable through the front
      * buffer at this point in the loop.
      *
-     * <p>Coordinate convention, shared with the F5 cursor-position hotkey: the rectangle
+     * <p>Coordinate convention, shared with the F6 cursor-position readout: the rectangle
      * (x1,y1,x2,y2) is in screen space with the origin at the top left, but GL's origin is the
      * bottom left. A screen row {@code y} is therefore GL row {@code height - 1 - y}, which puts
      * the bottom edge of the crop at GL row {@code height - y2}. glReadPixels then fills the buffer
