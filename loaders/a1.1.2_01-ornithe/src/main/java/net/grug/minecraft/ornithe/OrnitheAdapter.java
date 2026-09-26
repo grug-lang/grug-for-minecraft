@@ -458,11 +458,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return true;
     }
 
-    /** Fixed, deterministic spot for graphics tests to run at. */
-    private static final double GRAPHICS_TEST_X = 10000;
-    private static final double GRAPHICS_TEST_Y = 100;
-    private static final double GRAPHICS_TEST_Z = 10000;
-
     private boolean graphicsCameraSaved = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
@@ -483,12 +478,21 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         savedPitch = player.pitch;
         graphicsCameraSaved = true;
 
-        // Far out in the open, so that neither a real world's terrain nor anything a previous test
-        // placed can bleed into the edges of a screenshot. Alpha has no void dimension to hide in.
-        player.setPositionAndAngles(GRAPHICS_TEST_X, GRAPHICS_TEST_Y, GRAPHICS_TEST_Z, 0.0F, 0.0F);
+        // Level the view so the test's frame doesn't depend on which way the player happened to be
+        // looking, but deliberately do NOT move them somewhere far away.
+        //
+        // The obvious choice — a fixed far-off coordinate like 10000,100,10000, so no terrain could
+        // bleed into the background — reliably crashes Alpha. Teleporting into a chunk the client
+        // hasn't lit yet makes World.doLightUpdates recurse through World.updateLight and
+        // LightUpdate.run until the stack overflows, which killed the test run roughly one time in
+        // four. Staying put keeps the build site inside chunks that are already loaded and lit.
+        //
+        // Nothing is lost by it: a screenshot test crops a rectangle of the frame, and the GUI is
+        // always centred in the window, so the terrain behind it is never part of the comparison.
+        player.setPositionAndAngles(player.x, player.y, player.z, 0.0F, 0.0F);
 
         // +3 mirrors getTestOrigin()'s convention: an origin a little above the player to build on.
-        return new Vec3(GRAPHICS_TEST_X, GRAPHICS_TEST_Y + 3.0, GRAPHICS_TEST_Z);
+        return new Vec3(player.x, player.y + 3.0, player.z);
     }
 
     @Override
@@ -576,10 +580,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     /**
      * Reads back a rectangle of the frame that's currently on screen.
      *
-     * <p>This runs from Minecraft.tick(), i.e. after the previous frame was rendered and swapped but
-     * before this frame is drawn. So the frame we want is in the <em>front</em> buffer; a
-     * double-buffered context leaves the back buffer undefined after a swap. Reading the front is
-     * also correct for a single-buffered one, where the two are the same buffer.
+     * <p>This runs from Minecraft.tick(), i.e. after the previous frame was rendered but before this
+     * one is drawn, so the frame of interest is whatever was drawn most recently. On LWJGL 2 that is
+     * the <em>back</em> buffer, which is also GL's default read buffer, so no glReadBuffer call is
+     * needed. Reading the front buffer instead was tried first and returns solid black here: this
+     * stack (LWJGL 2 + Mesa under Xvfb) doesn't leave the rendered frame readable through the front
+     * buffer at this point in the loop.
      *
      * <p>Coordinate convention, shared with the F5 cursor-position hotkey: the rectangle
      * (x1,y1,x2,y2) is in screen space with the origin at the top left, but GL's origin is the
@@ -594,11 +600,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
         ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
 
-        int previousReadBuffer = GL11.GL_BACK_LEFT;
-        GL11.glReadBuffer(GL11.GL_FRONT_LEFT);
-        GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        try {
+            GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        } catch (RuntimeException e) {
+            // A Java exception escaping into the JNI layer gets described and cleared there, and
+            // the script carries on — which would turn a broken capture into a passing test. Report
+            // it the way every other problem here is reported, so that the script aborts instead.
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: the pixel readback failed unexpectedly: " + e);
+            return null;
+        }
         int glError = GL11.glGetError();
-        GL11.glReadBuffer(previousReadBuffer);
 
         if (glError != GL11.GL_NO_ERROR) {
             Grug.gameFunctionErrorHappened(Grug.statePtr,
@@ -609,19 +621,28 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             return null;
         }
 
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        pixels.flip();
-        for (int row = 0; row < height; row++) {
-            for (int column = 0; column < width; column++) {
-                int r = pixels.get() & 0xFF;
-                int g = pixels.get() & 0xFF;
-                int b = pixels.get() & 0xFF;
-                pixels.get(); // alpha, unused
-                // Reversed: GL's first row is the bottom of the crop, the image's last is the top.
-                image.setRGB(column, height - 1 - row, (r << 16) | (g << 8) | b);
+        try {
+            // Absolute gets, because glReadPixels leaves the buffer's position wherever it likes
+            // (LWJGL rewinds it before the read), so its position and limit can't be relied on
+            // afterwards. glReadPixels also fills the buffer bottom row first, hence the reversed
+            // row index: the image's row 0 has to be the crop's top row, which is the buffer's last.
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            for (int row = 0; row < height; row++) {
+                for (int column = 0; column < width; column++) {
+                    int index = (row * width + column) * 4;
+                    int r = pixels.get(index) & 0xFF;
+                    int g = pixels.get(index + 1) & 0xFF;
+                    int b = pixels.get(index + 2) & 0xFF;
+                    // index + 3 is alpha, which the framebuffer may not even have; unused.
+                    image.setRGB(column, height - 1 - row, (r << 16) | (g << 8) | b);
+                }
             }
+            return image;
+        } catch (RuntimeException e) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: could not build an image from the readback: " + e);
+            return null;
         }
-        return image;
     }
 
     private static void writeReferenceImage(BufferedImage capture, File referenceFile, String referencePath) {
@@ -664,15 +685,49 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
 
         // No tolerance: CI is pinned to ubuntu-24.04 precisely so that this can be exact.
+        int differing = 0;
+        int worstDelta = 0;
+        int firstX = -1;
+        int firstY = -1;
+        int firstExpected = 0;
+        int firstActual = 0;
+
         for (int y = 0; y < capture.getHeight(); y++) {
             for (int x = 0; x < capture.getWidth(); x++) {
-                if (reference.getRGB(x, y) != capture.getRGB(x, y)) {
-                    throw Grug.fatal("Screenshot mismatch against " + referencePath + " at pixel ("
-                            + x + "," + y + "): expected 0x" + Integer.toHexString(reference.getRGB(x, y))
-                            + " but got 0x" + Integer.toHexString(capture.getRGB(x, y)));
+                int expected = reference.getRGB(x, y);
+                int actual = capture.getRGB(x, y);
+                if (expected == actual) {
+                    continue;
                 }
+                if (differing == 0) {
+                    firstX = x;
+                    firstY = y;
+                    firstExpected = expected;
+                    firstActual = actual;
+                }
+                differing++;
+                worstDelta = Math.max(worstDelta, maxChannelDelta(expected, actual));
             }
         }
+
+        if (differing > 0) {
+            // Say how much differs, not just where. A handful of pixels off by one is dithering
+            // rather than a layout change, and that difference isn't worth reading one coordinate
+            // at a time to discover.
+            throw Grug.fatal("Screenshot mismatch against " + referencePath + ": " + differing
+                    + " of " + (capture.getWidth() * capture.getHeight()) + " pixels differ, by at most "
+                    + worstDelta + " per channel. First difference at pixel (" + firstX + "," + firstY
+                    + "): expected 0x" + Integer.toHexString(firstExpected) + " but got 0x"
+                    + Integer.toHexString(firstActual));
+        }
+    }
+
+    private static int maxChannelDelta(int a, int b) {
+        int worst = 0;
+        for (int shift = 0; shift <= 16; shift += 8) {
+            worst = Math.max(worst, Math.abs(((a >> shift) & 0xFF) - ((b >> shift) & 0xFF)));
+        }
+        return worst;
     }
 
     @Override
