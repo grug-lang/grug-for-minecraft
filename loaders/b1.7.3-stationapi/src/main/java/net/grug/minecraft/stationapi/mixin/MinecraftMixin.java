@@ -37,6 +37,12 @@ public abstract class MinecraftMixin {
     @Unique
     private boolean grug$ciTestsRan = false;
 
+    @Unique
+    private GrugTestRunner grug$testRunner = null;
+
+    @Unique
+    private boolean grug$testRunnerFromCI = false;
+
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
         if (!this.grug$titleSet) {
@@ -48,8 +54,22 @@ public abstract class MinecraftMixin {
         if ("true".equals(System.getenv("GRUG_CI")) && !this.grug$ciTestsRan && this.player != null) {
             System.out.println("[GRUG CI] CI mode active & player loaded. Firing tests!");
             this.grug$ciTestsRan = true;
-            GrugTestRunner.runAllTests(this.player);
-            this.scheduleStop();
+            this.startTestRunner(true);
+        }
+
+        // The runner does one Test.run() call per real tick, so that real ticks (and real rendered
+        // frames) elapse between a test's own invocations.
+        if (this.grug$testRunner != null) {
+            this.grug$testRunner.tick(this.player);
+            if (this.grug$testRunner.isFinished()) {
+                boolean fromCI = this.grug$testRunnerFromCI;
+                this.grug$testRunner = null;
+                this.grug$testRunnerFromCI = false;
+                // The hotkey path leaves the game running so another F7 press can start a fresh run.
+                if (fromCI) {
+                    this.scheduleStop();
+                }
+            }
         }
 
         // Test runner hotkey logic
@@ -57,7 +77,7 @@ public abstract class MinecraftMixin {
             boolean isKeyDown = Keyboard.isKeyDown(ClientInitListener.runTestsKey.code);
             if (isKeyDown && !this.grug$testsKeyPressed) {
                 this.grug$testsKeyPressed = true;
-                GrugTestRunner.runAllTests(this.player);
+                this.startTestRunner(false);
             } else if (!isKeyDown) {
                 this.grug$testsKeyPressed = false;
             }
@@ -99,6 +119,16 @@ public abstract class MinecraftMixin {
                 }
             }
         }
+    }
+
+    @Unique
+    private void startTestRunner(boolean fromCI) {
+        // Pressing the hotkey again while a run is still going shouldn't restart it.
+        if (this.grug$testRunner != null) {
+            return;
+        }
+        this.grug$testRunner = new GrugTestRunner();
+        this.grug$testRunnerFromCI = fromCI;
     }
 
     @Unique
