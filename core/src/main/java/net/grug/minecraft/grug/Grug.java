@@ -28,6 +28,11 @@ public final class Grug {
     public static Object currentlyInitializingBlockEntity = null;
     public static GrugBlockData currentlyInitializingBlock = null;
 
+    // Set by GrugTestRunner immediately before each Test.run() call; read by Test.tick().
+    public static int currentTestTick = 0;
+    // Set by Test.not_done(); reset to false by GrugTestRunner immediately before each Test.run() call.
+    public static boolean testNotDone = false;
+
     public static final Map<String, GrugBlockData> declaredBlocks = new HashMap<>();
     public static final Map<Long, GrugBlockData> blockDataByFileId = new HashMap<>();
 

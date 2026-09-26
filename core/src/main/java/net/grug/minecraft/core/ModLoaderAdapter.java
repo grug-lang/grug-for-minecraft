@@ -80,4 +80,14 @@ public interface ModLoaderAdapter {
     Object getClientLevel();
 
     Vec3 getTestOrigin();
+
+    boolean supportsGraphicsTests();
+
+    Vec3 setupGraphicsTestCamera();
+
+    void restoreCameraAfterGraphicsTest();
+
+    void useBlockForTest(Object levelObj, double x, double y, double z);
+
+    void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2);
 }
