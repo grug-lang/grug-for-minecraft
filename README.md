@@ -51,3 +51,37 @@ Use the following Gradle commands to build and run the specific mod loader envir
 | **Beta 1.7.3** | Ornithe | `./gradlew :loaders:b1.7.3-ornithe:runClient` |
 | **Beta 1.7.3** | StationAPI | `./gradlew :loaders:b1.7.3-stationapi:runClient` |
 | **Alpha 1.1.2_01** | Ornithe | `./gradlew :loaders:a1.1.2_01-ornithe:runClient` |
+
+### Screenshot Tests
+
+Alongside the logic tests, a test can assert that a screen looks exactly right, by comparing a
+rectangle of the rendered frame against a reference PNG committed next to it. A test does this with
+`Test.assert_screenshot_equals(reference, x1, y1, x2, y2)`, where the rectangle is in pixels with the
+origin at the top left of the window.
+
+Graphics tests are **singleplayer-only**, and currently only work on **Alpha 1.1.2_01 with
+Ornithe**. Both limits come from the game rather than from grug: `GUI.open` already refuses to open a
+screen in multiplayer, and the other three loaders don't implement the screenshot functions yet, so a
+test should check `Test.graphics_tests_supported()` before using them.
+
+Screenshot tests are captured at a fixed **1280x720**, and the comparison is exact — a single
+differing pixel fails the test. CI already runs at that resolution on a pinned `ubuntu-24.04` image so
+that Mesa and the font stack stay identical between runs.
+
+To find the coordinates for a new test, on the Alpha 1.1.2_01 client:
+
+| Key | What it does |
+| :--- | :--- |
+| **F6** | Toggles the window between its current size and a forced 1280x720. Press it first, or the coordinates you read won't be the ones CI sees. |
+| **F5** | Prints the cursor's pixel position to chat, in the same top-left-origin convention `Test.assert_screenshot_equals` takes. Open the screen you're writing a test against, hover the pixel you want, and press F5. |
+| **F7** | Runs every test. It forces 1280x720 for the duration of the run and restores the previous resolution afterwards, so tests always run at the resolution their references were captured at. |
+
+Beware that Alpha draws its GUI scaled: it lays the screen out in a fixed 426x240 space and scales
+that up to the window, so at 1280x720 everything is drawn 3x. The coordinates F5 reports are real
+screen pixels and are what the crop should use; the scaling is just a reminder that they won't match
+the numbers in the screen's own layout code.
+
+To regenerate a reference image after an intentional change, run the test with
+`GRUG_UPDATE_SCREENSHOTS=true` set. It writes the capture to the reference path instead of comparing
+against it. Do this on the same platform CI uses (`ubuntu-24.04` with the same Xvfb display) and
+commit the result, or every later run will fail.
