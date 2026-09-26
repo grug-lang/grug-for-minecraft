@@ -424,4 +424,30 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         PlayerEntity player = MinecraftInstance.get().player;
         return new Vec3(player.x, player.y + 3.0, player.z);
     }
+
+    @Override
+    public boolean supportsGraphicsTests() {
+        return false;
+    }
+
+    @Override
+    public Vec3 setupGraphicsTestCamera() {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+        return null;
+    }
+
+    @Override
+    public void restoreCameraAfterGraphicsTest() {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+    }
+
+    @Override
+    public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.use_block is not supported on this loader yet.");
+    }
+
+    @Override
+    public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
+        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+    }
 }
