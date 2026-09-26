@@ -453,18 +453,56 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean supportsGraphicsTests() {
+        // Not until assertScreenshotEquals() is real too, which is the next commit.
         return false;
     }
 
+    /** Fixed, deterministic spot for graphics tests to run at. */
+    private static final double GRAPHICS_TEST_X = 10000;
+    private static final double GRAPHICS_TEST_Y = 100;
+    private static final double GRAPHICS_TEST_Z = 10000;
+
+    private boolean graphicsCameraSaved = false;
+    private double savedX, savedY, savedZ;
+    private float savedYaw, savedPitch;
+
     @Override
     public Vec3 setupGraphicsTestCamera() {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not implemented yet.");
-        return null;
+        PlayerEntity player = MinecraftInstance.get().player;
+        if (player == null) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.setup_graphics_camera: There is no local player to move.");
+            return null;
+        }
+
+        savedX = player.x;
+        savedY = player.y;
+        savedZ = player.z;
+        savedYaw = player.yaw;
+        savedPitch = player.pitch;
+        graphicsCameraSaved = true;
+
+        // Far out in the open, so that neither a real world's terrain nor anything a previous test
+        // placed can bleed into the edges of a screenshot. Alpha has no void dimension to hide in.
+        player.setPositionAndAngles(GRAPHICS_TEST_X, GRAPHICS_TEST_Y, GRAPHICS_TEST_Z, 0.0F, 0.0F);
+
+        // +3 mirrors getTestOrigin()'s convention: an origin a little above the player to build on.
+        return new Vec3(GRAPHICS_TEST_X, GRAPHICS_TEST_Y + 3.0, GRAPHICS_TEST_Z);
     }
 
     @Override
     public void restoreCameraAfterGraphicsTest() {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not implemented yet.");
+        if (!graphicsCameraSaved) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera first.");
+            return;
+        }
+        graphicsCameraSaved = false;
+
+        PlayerEntity player = MinecraftInstance.get().player;
+        if (player != null) {
+            player.setPositionAndAngles(savedX, savedY, savedZ, savedYaw, savedPitch);
+        }
     }
 
     @Override
