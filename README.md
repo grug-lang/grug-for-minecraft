@@ -72,14 +72,13 @@ To find the coordinates for a new test, on the Alpha 1.1.2_01 client:
 
 | Key | What it does |
 | :--- | :--- |
-| **F6** | Toggles the window between its current size and a forced 1280x720. Press it first, or the coordinates you read won't be the ones CI sees. |
-| **F5** | Prints the cursor's pixel position to chat, in the same top-left-origin convention `Test.assert_screenshot_equals` takes. Open the screen you're writing a test against, hover the pixel you want, and press F5. |
+| **F6** | Toggles the window between its current size and a forced 1280x720. While it's on, the cursor's pixel position is kept in chat, in the same top-left-origin convention `Test.assert_screenshot_equals` takes: open the screen you're writing a test against, hover the pixel you want, and read the coordinate off the latest `Cursor:` line. Press F6 first, or the coordinates you read won't be the ones CI sees. |
 | **F7** | Runs every test. It forces 1280x720 for the duration of the run and restores the previous resolution afterwards, so tests always run at the resolution their references were captured at. |
 
 Beware that Alpha draws its GUI scaled: it lays the screen out in a fixed 426x240 space and scales
-that up to the window, so at 1280x720 everything is drawn 3x. The coordinates F5 reports are real
-screen pixels and are what the crop should use; the scaling is just a reminder that they won't match
-the numbers in the screen's own layout code.
+that up to the window, so at 1280x720 everything is drawn 3x. The coordinates the F6 readout reports
+are real screen pixels and are what the crop should use; the scaling is just a reminder that they
+won't match the numbers in the screen's own layout code.
 
 To regenerate a reference image after an intentional change, run the test with
 `GRUG_UPDATE_SCREENSHOTS=true` set. It writes the capture to the reference path instead of comparing

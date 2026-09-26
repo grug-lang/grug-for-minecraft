@@ -60,11 +60,12 @@ public abstract class MinecraftMixin {
     @Unique
     private boolean grug$resolutionKeyPressed = false;
 
+    /** Last cursor position printed to chat, or Integer.MIN_VALUE when nothing has been printed. */
     @Unique
-    private static KeyBinding grug$printCursorKey;
+    private int grug$lastCursorX = Integer.MIN_VALUE;
 
     @Unique
-    private boolean grug$printCursorKeyPressed = false;
+    private int grug$lastCursorY = Integer.MIN_VALUE;
 
     @Unique
     private boolean grug$ciTestsRan = false;
@@ -91,7 +92,6 @@ public abstract class MinecraftMixin {
         KeybindEvents.REGISTER_KEYBINDS.register(() -> {
             grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_F7, "Grug");
             grug$forceResolutionKey = KeybindRegistry.register("key.grug.force_test_resolution", Keyboard.KEY_F6, "Grug");
-            grug$printCursorKey = KeybindRegistry.register("key.grug.print_cursor_pos", Keyboard.KEY_F5, "Grug");
         });
     }
 
@@ -159,15 +159,16 @@ public abstract class MinecraftMixin {
             }
         }
 
-        // F5: print where the cursor is, in screenshot-crop coordinates
-        if (grug$printCursorKey != null) {
-            boolean isKeyDown = Keyboard.isKeyDown(grug$printCursorKey.keyCode);
-            if (isKeyDown && !this.grug$printCursorKeyPressed) {
-                this.grug$printCursorKeyPressed = true;
-                this.printCursorPosition();
-            } else if (!isKeyDown) {
-                this.grug$printCursorKeyPressed = false;
-            }
+        // While F6 is holding the window at the test resolution, keep the cursor's screenshot-crop
+        // coordinates in chat. A test run is excluded because it forces the same resolution for its
+        // own reasons and nobody is aiming a cursor at it.
+        if (this.grug$savedDisplayMode != null && this.grug$testRunner == null) {
+            this.updateCursorPositionReadout();
+        } else {
+            // Forget the last position while inactive, so the readout reappears the moment F6 is
+            // switched back on even if the cursor hasn't moved since it was last on.
+            this.grug$lastCursorX = Integer.MIN_VALUE;
+            this.grug$lastCursorY = Integer.MIN_VALUE;
         }
 
         String[] updatedResources = Grug.update(this::sendRedMessage);
@@ -306,27 +307,39 @@ public abstract class MinecraftMixin {
     /**
      * Reads the mouse position in the same top-left-origin convention
      * Test.assert_screenshot_equals() takes, so a coordinate read off chat can be pasted straight
-     * into a crop rectangle.
+     * into a crop rectangle. Called every tick while F6 holds the window at the test resolution, but
+     * only prints when the position changed, so a stationary mouse doesn't fill chat.
      *
      * <p>This shares its flip with captureRectangle() in OrnitheAdapter, which reads the same frame
      * back: LWJGL's Mouse counts Y from the bottom of the window, like GL does, whereas the crop
      * rectangle counts from the top.
      */
     @Unique
-    private void printCursorPosition() {
+    private void updateCursorPositionReadout() {
         Minecraft mc = (Minecraft) (Object) this;
 
+        // Only meaningful at the test resolution, with a free cursor. While the mouse is grabbed for
+        // camera control Mouse.getX/Y accumulate movement deltas rather than pointing at a pixel, so
+        // printing them would just fill chat with drift. A screen being open is what ungrabs it.
         if (mc.width != OrnitheAdapter.TEST_SCREENSHOT_WIDTH
-                || mc.height != OrnitheAdapter.TEST_SCREENSHOT_HEIGHT) {
-            sendRedMessage("The window is " + mc.width + "x" + mc.height
-                    + "; press F6 to resize to " + OrnitheAdapter.TEST_SCREENSHOT_WIDTH + "x"
-                    + OrnitheAdapter.TEST_SCREENSHOT_HEIGHT + " first.");
+                || mc.height != OrnitheAdapter.TEST_SCREENSHOT_HEIGHT
+                || Mouse.isGrabbed()) {
+            // Forget the last position too, so the readout comes back as soon as it's meaningful
+            // again even if the cursor hasn't moved since it was last printed.
+            this.grug$lastCursorX = Integer.MIN_VALUE;
+            this.grug$lastCursorY = Integer.MIN_VALUE;
             return;
         }
 
         int screenX = Mouse.getX();
         int screenY = mc.height - Mouse.getY();
 
+        if (screenX == this.grug$lastCursorX && screenY == this.grug$lastCursorY) {
+            return;
+        }
+
+        this.grug$lastCursorX = screenX;
+        this.grug$lastCursorY = screenY;
         sendMessage("Cursor: " + screenX + ", " + screenY, "");
     }
 
