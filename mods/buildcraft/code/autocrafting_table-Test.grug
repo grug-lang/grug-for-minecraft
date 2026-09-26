@@ -1,4 +1,43 @@
+# The graphics half of this test needs a singleplayer client that can actually render a frame:
+# GUI.open refuses in multiplayer, and so far only a1.1.2_01-ornithe implements screenshots. CI
+# runs this same file against all four loaders, so ask before touching any of it. The other three
+# run the logic test on tick 0 and finish immediately, exactly as they did before.
+# The graphics_* block entities below are member variables rather than locals because they have
+# to survive across ticks: they're created on tick 0 and read back several ticks later in
+# _test_graphics_check(). grug only allows variable declarations at member scope, which is why
+# they're created empty up here and filled in with .set() during setup. They're also named
+# graphics_* because grug rejects a local that shadows a global, and _test_logic() below already
+# uses the plain names for its own.
+# (Note for whoever edits this next: grug's tokenizer has no way to write a bare '#' comment line,
+# and '+' only works on numbers, not strings.)
+graphics_table: Option[BlockEntity] = Option.new()
+graphics_chest1: Option[BlockEntity] = Option.new()
+graphics_chest2: Option[BlockEntity] = Option.new()
+
 export run() {
+    if Test.tick() == 0 {
+        # Runs before the camera setup, so it still builds at the player's own origin.
+        _test_logic()
+
+        if Test.graphics_tests_supported() {
+            _test_graphics_setup()
+            Test.not_done()
+        }
+    } else if Test.tick() < 40 {
+        # How long the opened GUI takes to reach the framebuffer. Measured on the CI stack: the
+        # frame is still the level-loading screen at tick 0, is blank by tick 10, and first holds the
+        # real GUI at tick 16 — Alpha has to mesh the chunks around the new blocks and upload their
+        # textures before anything is drawn. 40 leaves a good margin over that, since how long it
+        # takes depends on how loaded the machine is, and costs 2 seconds of a 200-tick budget.
+        # Raise it rather than touch the crop rectangle if a capture ever comes out stale.
+        Test.not_done()
+    } else {
+        _test_graphics_check()
+        Test.restore_camera()
+    }
+}
+
+local _test_logic() {
     level: Level = Test.get_client_level()
 
     origin: Vec3 = Test.get_origin()
@@ -41,4 +80,79 @@ export run() {
 
     Test.assert(chest1_count == 0, "Expected exactly 0 diamonds to remain in chest 1.")
     Test.assert(chest2_count == 1, "Expected exactly 1 diamond to remain in chest 2.")
+}
+
+local _test_graphics_setup() {
+    level: Level = Test.get_client_level()
+    diamond_item: Item = item(resource_location("minecraft:diamond"))
+
+    origin: Vec3 = Test.setup_graphics_camera()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # place_block quietly does nothing for a block it can't resolve, and get_block_entity finds
+    # nothing when the chunk isn't loaded, which is easy to hit right after a teleport. Checking
+    # each one turns either mistake into a readable failure rather than a screenshot of nothing.
+
+    level.place_block(x, y, z, "grug:autocrafting_table")
+    table_be: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(table_be.has(), "The autocrafting table has no block entity after being placed.")
+    graphics_table.set(table_be.unwrap())
+
+    level.place_block(x + 1, y, z, "minecraft:chest")
+    chest1_be: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    Test.assert(chest1_be.has(), "Chest 1 has no block entity after being placed.")
+    graphics_chest1.set(chest1_be.unwrap())
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    chest2_be: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    Test.assert(chest2_be.has(), "Chest 2 has no block entity after being placed.")
+    graphics_chest2.set(chest2_be.unwrap())
+
+    set_item_in_slot(graphics_chest1.unwrap(), 0, diamond_item, 5)
+    set_item_in_slot(graphics_chest2.unwrap(), 0, diamond_item, 5)
+
+    # Fill the crafting grid, so the screenshot has to render real item sprites rather than nine
+    # empty slots. That makes the comparison sensitive to texture loading as well as to layout.
+    slot: number = 0
+    while slot < 9 {
+        set_item_in_slot(graphics_table.unwrap(), slot, diamond_item, 1)
+        slot = slot + 1
+    }
+
+    # Right-click the block to open the real GUI, rather than redeclaring its layout here. A
+    # hand-copied layout could silently drift away from what the block actually opens.
+    Test.use_block(level, x, y, z)
+}
+
+local _test_graphics_check() {
+    # This is the GUI panel and nothing else, at 1280x720.
+    # Alpha doesn't lay its GUI out in window pixels. It centers the 176x166 panel inside a fixed
+    # 426x240 virtual space and then scales that space up to the window, so at 1280x720 the scale is
+    # 3x: the panel's top-left is at (376, 111) and it runs 176*3 by 166*3, to (904, 609). The
+    # obvious-looking ((1280-176)/2, (720-166)/2) = (552, 277) is in the virtual space, and crops the
+    # wrong part of the screen entirely.
+    # The crop is inset 10px from that panel on all four sides. The panel's outer edge is soft and
+    # blends with the world behind it, and those blend pixels are the only ones in the panel that
+    # aren't reproducible: captured over and over, they drift by one and move around, reaching 5px in
+    # from the edge. Insetting well past that costs none of the layout, which is all far inside.
+    # To re-derive these: press F6 to force 1280x720, open this GUI, hover a corner of the panel and
+    # press F5 to read the pixel.
+    Test.assert_screenshot_equals(r"screenshots/autocrafting_table_gui.png", 386, 121, 894, 599)
+
+    # The screenshot only means something if it shows live block data, so check the inventory it was
+    # rendered from. These block entities were set up on tick 0 and are read back here, several ticks
+    # later, which is the whole reason they're member variables.
+    slot: number = 0
+    while slot < 9 {
+        # (A call's arguments have to stay on one line in grug, hence the local.)
+        count: number = get_item_count_in_slot(graphics_table.unwrap(), slot)
+        Test.assert(count == 1, "Expected the crafting grid to still hold exactly 1 diamond per slot.")
+        slot = slot + 1
+    }
+    chest1_count: number = get_item_count_in_slot(graphics_chest1.unwrap(), 0)
+    chest2_count: number = get_item_count_in_slot(graphics_chest2.unwrap(), 0)
+    Test.assert(chest1_count == 5, "Expected chest 1 to still hold its 5 diamonds.")
+    Test.assert(chest2_count == 5, "Expected chest 2 to still hold its 5 diamonds.")
 }
