@@ -23,7 +23,7 @@ public class ClientInitListener {
 
     @EventListener
     public void registerKeyBindings(KeyBindingRegisterEvent event) {
-        runTestsKey = new KeyBinding("key.grug.run_tests", Keyboard.KEY_F7);
+        runTestsKey = new KeyBinding("key.grug.run_tests", Keyboard.KEY_R);
         event.keyBindings.add(runTestsKey);
     }
 

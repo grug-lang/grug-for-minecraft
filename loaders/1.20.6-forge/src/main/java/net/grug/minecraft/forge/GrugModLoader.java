@@ -88,7 +88,7 @@ public class GrugModLoader {
 
     public static final KeyMapping RUN_TESTS_KEY = new KeyMapping(
             "key.grug.run_tests",
-            GLFW.GLFW_KEY_F7,
+            GLFW.GLFW_KEY_R,
             "key.categories.grug");
 
     public static final RegistryObject<MenuType<GrugMenu>> GRUG_MENU = MENUS.register("grug_menu",
@@ -409,7 +409,7 @@ public class GrugModLoader {
                     boolean fromCI = grug$testRunnerFromCI;
                     grug$testRunner = null;
                     grug$testRunnerFromCI = false;
-                    // The hotkey path leaves the game running so another F7 press can start a fresh run.
+                    // The hotkey path leaves the game running so another R press can start a fresh run.
                     if (fromCI) {
                         mc.stop();
                     }

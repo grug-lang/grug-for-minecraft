@@ -137,7 +137,7 @@ local _test_graphics_check() {
     # blends with the world behind it, and those blend pixels are the only ones in the panel that
     # aren't reproducible: captured over and over, they drift by one and move around, reaching 5px in
     # from the edge. Insetting well past that costs none of the layout, which is all far inside.
-    # To re-derive these: press F6 to force 1280x720, open this GUI, and hover a corner of the panel
+    # To re-derive these: press M to force 1280x720, open this GUI, and hover a corner of the panel
     # to read the pixel off the chat readout.
     Test.assert_screenshot_equals(r"screenshots/autocrafting_table_gui.png", 386, 121, 894, 599)
 

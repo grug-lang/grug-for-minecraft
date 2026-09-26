@@ -538,7 +538,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             return;
         }
 
-        // A defensive safety net rather than the primary sizing mechanism: F7 forces 1280x720
+        // A defensive safety net rather than the primary sizing mechanism: R forces 1280x720
         // around a test run. If that ever stops happening, a mismatch here is much easier to
         // diagnose than a screen of subtly wrong pixels.
         Minecraft mc = MinecraftInstance.get();
@@ -587,7 +587,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * stack (LWJGL 2 + Mesa under Xvfb) doesn't leave the rendered frame readable through the front
      * buffer at this point in the loop.
      *
-     * <p>Coordinate convention, shared with the F6 cursor-position readout: the rectangle
+     * <p>Coordinate convention, shared with the M cursor-position readout: the rectangle
      * (x1,y1,x2,y2) is in screen space with the origin at the top left, but GL's origin is the
      * bottom left. A screen row {@code y} is therefore GL row {@code height - 1 - y}, which puts
      * the bottom edge of the crop at GL row {@code height - y2}. glReadPixels then fills the buffer
