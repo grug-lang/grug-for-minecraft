@@ -26,6 +26,36 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());
     }
 
+    public static boolean Test_graphics_tests_supported() {
+        return GrugCore.getAdapter().supportsGraphicsTests();
+    }
+
+    public static long Test_setup_graphics_camera() {
+        return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().setupGraphicsTestCamera());
+    }
+
+    public static void Test_restore_camera() {
+        GrugCore.getAdapter().restoreCameraAfterGraphicsTest();
+    }
+
+    public static void Test_use_block(long levelId, double x, double y, double z) {
+        GrugCore.getAdapter().useBlockForTest(Grug.entityData.get(levelId).object, x, y, z);
+    }
+
+    public static void Test_assert_screenshot_equals(String referencePath, double x1, double y1, double x2, double y2) {
+        GrugCore.getAdapter().assertScreenshotEquals(referencePath, x1, y1, x2, y2);
+    }
+
+    // TODO: Change to me.tick() once entities can have methods
+    public static double Test_tick() {
+        return (double) Grug.currentTestTick;
+    }
+
+    // TODO: Change to me.not_done() once entities can have methods
+    public static void Test_not_done() {
+        Grug.testNotDone = true;
+    }
+
     // Classes
 
     public static long BlockPos_above_n(long blockPosId, double n) {
@@ -129,6 +159,31 @@ public class GameFunctions {
         return ((GrugOption) Grug.entityData.get(optionId).object).has();
     }
 
+    // The generated GenericGameFunctions bridge resolves Option's $Value generic down to one of the
+    // four base types before calling in, so set() needs an overload per base type to keep the JNI
+    // calls from autoboxing.
+    public static void Option_set(long optionId, double value) {
+        setOptionValue(optionId, value);
+    }
+
+    public static void Option_set(long optionId, boolean value) {
+        setOptionValue(optionId, value);
+    }
+
+    public static void Option_set(long optionId, String value) {
+        setOptionValue(optionId, value);
+    }
+
+    public static void Option_set(long optionId, long value) {
+        setOptionValue(optionId, value);
+    }
+
+    // GrugOption is a record, so filling an Option in means replacing the object stored under its
+    // entity id rather than mutating it in place.
+    private static void setOptionValue(long optionId, Object value) {
+        Grug.addEntityWithId(optionId, GrugEntityType.Option, new GrugOption(value));
+    }
+
     public static Object Option_unwrap(long optionId) {
         GrugOption opt = (GrugOption) Grug.entityData.get(optionId).object;
         if (!opt.has()) {
@@ -136,6 +191,10 @@ public class GameFunctions {
             return null;
         }
         return opt.value();
+    }
+
+    public static long Option_new() {
+        return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
     public static double Vec3_x(long vec3Id) {
