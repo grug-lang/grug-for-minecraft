@@ -3,14 +3,17 @@ package net.grug.minecraft.ornithe.mixin;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.ornithe.GrugModLoader;
+import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
 import net.minecraft.client.gui.GameGui;
 import net.minecraft.client.options.KeyBinding;
 import net.ornithemc.osl.keybinds.api.KeybindEvents;
 import net.ornithemc.osl.keybinds.api.KeybindRegistry;
+import org.lwjgl.LWJGLException;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.DisplayMode;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -32,6 +35,12 @@ public abstract class MinecraftMixin {
     @Shadow
     public abstract void shutdown();
 
+    // Minecraft.resize() is private, so it can't be called directly. Java forbids "private
+    // abstract", and a shadow only has to be at least as visible as its target, so this is
+    // declared protected.
+    @Shadow
+    protected abstract void resize(int width, int height);
+
     @Unique
     private boolean grug$titleSet = false;
 
@@ -42,6 +51,12 @@ public abstract class MinecraftMixin {
     private boolean grug$testsKeyPressed = false;
 
     @Unique
+    private static KeyBinding grug$forceResolutionKey;
+
+    @Unique
+    private boolean grug$resolutionKeyPressed = false;
+
+    @Unique
     private boolean grug$ciTestsRan = false;
 
     @Unique
@@ -50,9 +65,18 @@ public abstract class MinecraftMixin {
     @Unique
     private boolean grug$testRunnerFromCI = false;
 
+    /** Non-null exactly while the window is forced to 1280x720, whoever forced it. */
+    @Unique
+    private DisplayMode grug$savedDisplayMode = null;
+
+    /** True only while F7 (not F6) is the reason the window is forced, so only F7 restores it. */
+    @Unique
+    private boolean grug$resolutionForcedByTestRun = false;
+
     static {
         KeybindEvents.REGISTER_KEYBINDS.register(() -> {
             grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_F7, "Grug");
+            grug$forceResolutionKey = KeybindRegistry.register("key.grug.force_test_resolution", Keyboard.KEY_F6, "Grug");
         });
     }
 
@@ -100,6 +124,25 @@ public abstract class MinecraftMixin {
             }
         }
 
+        // F6: force the window to the resolution screenshot tests are captured at
+        if (grug$forceResolutionKey != null) {
+            boolean isKeyDown = Keyboard.isKeyDown(grug$forceResolutionKey.keyCode);
+            if (isKeyDown && !this.grug$resolutionKeyPressed) {
+                this.grug$resolutionKeyPressed = true;
+                if (this.grug$savedDisplayMode == null) {
+                    this.grug$savedDisplayMode = Display.getDisplayMode();
+                    this.applyTestDisplayMode();
+                } else {
+                    DisplayMode previous = this.grug$savedDisplayMode;
+                    this.grug$savedDisplayMode = null;
+                    this.grug$resolutionForcedByTestRun = false;
+                    this.applyDisplayMode(previous);
+                }
+            } else if (!isKeyDown) {
+                this.grug$resolutionKeyPressed = false;
+            }
+        }
+
         String[] updatedResources = Grug.update(this::sendRedMessage);
         boolean reloadClientResources = false;
 
@@ -136,6 +179,30 @@ public abstract class MinecraftMixin {
         }
         this.grug$testRunner = new GrugTestRunner();
         this.grug$testRunnerFromCI = fromCI;
+    }
+
+    /** Switches the window to the resolution screenshot tests are captured at. */
+    @Unique
+    private void applyTestDisplayMode() {
+        this.applyDisplayMode(new DisplayMode(
+                OrnitheAdapter.TEST_SCREENSHOT_WIDTH, OrnitheAdapter.TEST_SCREENSHOT_HEIGHT));
+    }
+
+    /**
+     * LWJGL 2's DisplayMode only controls the window itself, so Minecraft also has to be told,
+     * or its GUI scale and viewport stay sized for the old mode.
+     */
+    @Unique
+    private void applyDisplayMode(DisplayMode mode) {
+        try {
+            Display.setDisplayMode(mode);
+            this.resize(mode.getWidth(), mode.getHeight());
+        } catch (LWJGLException e) {
+            // Resolution changes are finicky across platforms, so report rather than crash the client.
+            GrugModLoader.LOGGER.error("Failed to switch the window to "
+                    + mode.getWidth() + "x" + mode.getHeight(), e);
+            sendRedMessage("Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight() + ".");
+        }
     }
 
     @Unique
