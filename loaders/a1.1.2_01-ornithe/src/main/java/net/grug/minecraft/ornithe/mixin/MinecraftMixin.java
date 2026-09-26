@@ -15,6 +15,7 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.DisplayMode;
+import org.lwjgl.opengl.GL11;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -80,6 +81,10 @@ public abstract class MinecraftMixin {
     @Unique
     private boolean grug$resolutionForcedByTestRun = false;
 
+    /** Whether GL_DITHER was on before a test run turned it off, so it can be put back. */
+    @Unique
+    private boolean grug$ditherWasEnabled = false;
+
     static {
         KeybindEvents.REGISTER_KEYBINDS.register(() -> {
             grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_F7, "Grug");
@@ -114,7 +119,7 @@ public abstract class MinecraftMixin {
                 boolean fromCI = this.grug$testRunnerFromCI;
                 this.grug$testRunner = null;
                 this.grug$testRunnerFromCI = false;
-                this.restoreResolutionAfterTestRun();
+                this.finishTestRun();
                 // The hotkey path leaves the game running so another F7 press can start a fresh run.
                 if (fromCI) {
                     this.shutdown();
@@ -208,20 +213,29 @@ public abstract class MinecraftMixin {
             this.grug$resolutionForcedByTestRun = true;
         }
 
+        // OpenGL dithers by default, which puts +/-1 noise on roughly 30 pixels of a GUI-sized crop
+        // and moves it around between runs. That's the whole difference between a pixel-exact
+        // comparison and one that can never pass, so turn it off for the duration of the run.
+        this.grug$ditherWasEnabled = GL11.glIsEnabled(GL11.GL_DITHER);
+        GL11.glDisable(GL11.GL_DITHER);
+
         this.grug$testRunner = new GrugTestRunner();
         this.grug$testRunnerFromCI = fromCI;
     }
 
-    /** Puts the window back the way this run found it, but only if this run changed it. */
+    /** Puts the window and the GL state back the way this run found them, if this run changed them. */
     @Unique
-    private void restoreResolutionAfterTestRun() {
-        if (!this.grug$resolutionForcedByTestRun) {
-            return;
+    private void finishTestRun() {
+        if (this.grug$resolutionForcedByTestRun) {
+            DisplayMode previous = this.grug$savedDisplayMode;
+            this.grug$savedDisplayMode = null;
+            this.grug$resolutionForcedByTestRun = false;
+            this.applyDisplayMode(previous);
         }
-        DisplayMode previous = this.grug$savedDisplayMode;
-        this.grug$savedDisplayMode = null;
-        this.grug$resolutionForcedByTestRun = false;
-        this.applyDisplayMode(previous);
+        if (this.grug$ditherWasEnabled) {
+            GL11.glEnable(GL11.GL_DITHER);
+        }
+        this.grug$ditherWasEnabled = false;
     }
 
     /** Switches the window to the resolution screenshot tests are captured at. */
@@ -234,11 +248,24 @@ public abstract class MinecraftMixin {
     /**
      * LWJGL 2's DisplayMode only controls the window itself, so Minecraft also has to be told,
      * or its GUI scale and viewport stay sized for the old mode.
+     *
+     * <p>The AWT canvas has to be resized too, and that's the part that isn't obvious. At the end of
+     * every frame Minecraft re-reads {@code canvas.getWidth()/getHeight()} and, if either differs
+     * from its own width/height, resets them to the canvas's size and calls {@code resize()} again.
+     * So switching the display mode without resizing the canvas looks like it worked for exactly one
+     * frame, and then Minecraft quietly puts the old resolution back — which is how a screenshot
+     * test ends up asserting against an 854x480 frame.
      */
     @Unique
     private void applyDisplayMode(DisplayMode mode) {
         try {
             Display.setDisplayMode(mode);
+
+            Minecraft mc = (Minecraft) (Object) this;
+            if (mc.canvas != null) {
+                mc.canvas.setSize(mode.getWidth(), mode.getHeight());
+            }
+
             this.resize(mode.getWidth(), mode.getHeight());
         } catch (LWJGLException e) {
             // Resolution changes are finicky across platforms, so report rather than crash the client.
