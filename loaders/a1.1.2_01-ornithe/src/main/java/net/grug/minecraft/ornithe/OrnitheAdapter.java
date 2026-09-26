@@ -14,6 +14,7 @@ import net.grug.minecraft.ornithe.item.GrugItem;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockWithBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
 import net.minecraft.crafting.CraftingManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
@@ -26,10 +27,14 @@ import net.minecraft.world.World;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
+import org.lwjgl.opengl.GL11;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 public class OrnitheAdapter implements ModLoaderAdapter {
@@ -448,13 +453,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return new Vec3(player.x, player.y + 3.0, player.z);
     }
 
-    // The graphics-test methods below are filled in by the commits that follow; the stubs are here
-    // so that every commit in this sequence leaves the tree building.
-
     @Override
     public boolean supportsGraphicsTests() {
-        // Not until assertScreenshotEquals() is real too, which is the next commit.
-        return false;
+        return true;
     }
 
     /** Fixed, deterministic spot for graphics tests to run at. */
@@ -505,9 +506,173 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
     }
 
+    /** Screenshot tests are pixel-exact against a reference captured at this resolution. */
+    public static final int TEST_SCREENSHOT_WIDTH = 1280;
+    public static final int TEST_SCREENSHOT_HEIGHT = 720;
+
     @Override
     public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not implemented yet.");
+        // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
+        // rather than as a mysterious capture failure. (1300 instead of 130 is an easy mistake to
+        // make while writing a new test, and is the whole reason this lists the offending name.)
+        String bad = checkCoordinate("x1", x1, TEST_SCREENSHOT_WIDTH);
+        if (bad == null)
+            bad = checkCoordinate("y1", y1, TEST_SCREENSHOT_HEIGHT);
+        if (bad == null)
+            bad = checkCoordinate("x2", x2, TEST_SCREENSHOT_WIDTH);
+        if (bad == null)
+            bad = checkCoordinate("y2", y2, TEST_SCREENSHOT_HEIGHT);
+        if (bad != null) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
+            return;
+        }
+        if (x2 <= x1 || y2 <= y1) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: the rectangle is empty, since ("
+                            + (int) x2 + "," + (int) y2 + ") is not below and right of ("
+                            + (int) x1 + "," + (int) y1 + ")");
+            return;
+        }
+
+        // A defensive safety net rather than the primary sizing mechanism: F7 forces 1280x720
+        // around a test run. If that ever stops happening, a mismatch here is much easier to
+        // diagnose than a screen of subtly wrong pixels.
+        Minecraft mc = MinecraftInstance.get();
+        if (mc.width != TEST_SCREENSHOT_WIDTH || mc.height != TEST_SCREENSHOT_HEIGHT) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: the window is " + mc.width + "x" + mc.height
+                            + ", but screenshot tests are captured at " + TEST_SCREENSHOT_WIDTH + "x"
+                            + TEST_SCREENSHOT_HEIGHT);
+            return;
+        }
+
+        BufferedImage capture = captureRectangle((int) x1, (int) y1, (int) x2, (int) y2, mc.height);
+        if (capture == null) {
+            return; // captureRectangle already reported why
+        }
+
+        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
+        // the mods root gives the file on disk. This is deliberately NOT GrugResourcePack's
+        // new File(modDir, path) pattern, which expects the mod name already stripped off.
+        File referenceFile = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
+
+        if ("true".equals(System.getenv("GRUG_UPDATE_SCREENSHOTS"))) {
+            writeReferenceImage(capture, referenceFile, referencePath);
+            return;
+        }
+
+        compareAgainstReference(capture, referenceFile, referencePath);
+    }
+
+    /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
+    private static String checkCoordinate(String name, double value, int limit) {
+        if (value < 0 || value > limit) {
+            return name + " is " + (int) value + ", which is outside the " + TEST_SCREENSHOT_WIDTH + "x"
+                    + TEST_SCREENSHOT_HEIGHT + " frame (0 to " + limit + ")";
+        }
+        return null;
+    }
+
+    /**
+     * Reads back a rectangle of the frame that's currently on screen.
+     *
+     * <p>This runs from Minecraft.tick(), i.e. after the previous frame was rendered and swapped but
+     * before this frame is drawn. So the frame we want is in the <em>front</em> buffer; a
+     * double-buffered context leaves the back buffer undefined after a swap. Reading the front is
+     * also correct for a single-buffered one, where the two are the same buffer.
+     *
+     * <p>Coordinate convention, shared with the F5 cursor-position hotkey: the rectangle
+     * (x1,y1,x2,y2) is in screen space with the origin at the top left, but GL's origin is the
+     * bottom left. A screen row {@code y} is therefore GL row {@code height - 1 - y}, which puts
+     * the bottom edge of the crop at GL row {@code height - y2}. glReadPixels then fills the buffer
+     * bottom row first, so rows are written into the image in reverse to land the right way up.
+     */
+    private static BufferedImage captureRectangle(int x1, int y1, int x2, int y2, int windowHeight) {
+        int width = x2 - x1;
+        int height = y2 - y1;
+        int glY = windowHeight - y2;
+
+        ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
+
+        int previousReadBuffer = GL11.GL_BACK_LEFT;
+        GL11.glReadBuffer(GL11.GL_FRONT_LEFT);
+        GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        int glError = GL11.glGetError();
+        GL11.glReadBuffer(previousReadBuffer);
+
+        if (glError != GL11.GL_NO_ERROR) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: glReadPixels failed with GL error 0x"
+                            + Integer.toHexString(glError)
+                            + ", so the capture cannot be trusted. A multisampled or otherwise "
+                            + "unreadable framebuffer is the usual cause.");
+            return null;
+        }
+
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        pixels.flip();
+        for (int row = 0; row < height; row++) {
+            for (int column = 0; column < width; column++) {
+                int r = pixels.get() & 0xFF;
+                int g = pixels.get() & 0xFF;
+                int b = pixels.get() & 0xFF;
+                pixels.get(); // alpha, unused
+                // Reversed: GL's first row is the bottom of the crop, the image's last is the top.
+                image.setRGB(column, height - 1 - row, (r << 16) | (g << 8) | b);
+            }
+        }
+        return image;
+    }
+
+    private static void writeReferenceImage(BufferedImage capture, File referenceFile, String referencePath) {
+        try {
+            File parent = referenceFile.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
+            ImageIO.write(capture, "png", referenceFile);
+        } catch (Exception e) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: failed to write the reference image to "
+                            + referencePath + ": " + e);
+            return;
+        }
+        System.out.println("[GRUG CI] Wrote screenshot reference " + referencePath + " ("
+                + capture.getWidth() + "x" + capture.getHeight() + ")");
+    }
+
+    private static void compareAgainstReference(BufferedImage capture, File referenceFile, String referencePath) {
+        BufferedImage reference;
+        try {
+            reference = ImageIO.read(referenceFile);
+        } catch (Exception e) {
+            reference = null;
+        }
+
+        if (reference == null) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: could not read the reference image " + referencePath
+                            + ". Re-run with GRUG_UPDATE_SCREENSHOTS=true to create it.");
+            return;
+        }
+
+        if (reference.getWidth() != capture.getWidth() || reference.getHeight() != capture.getHeight()) {
+            throw Grug.fatal("Screenshot mismatch against " + referencePath + ": the reference is "
+                    + reference.getWidth() + "x" + reference.getHeight() + " but the capture is "
+                    + capture.getWidth() + "x" + capture.getHeight()
+                    + ". The crop rectangle and the reference image have to agree.");
+        }
+
+        // No tolerance: CI is pinned to ubuntu-24.04 precisely so that this can be exact.
+        for (int y = 0; y < capture.getHeight(); y++) {
+            for (int x = 0; x < capture.getWidth(); x++) {
+                if (reference.getRGB(x, y) != capture.getRGB(x, y)) {
+                    throw Grug.fatal("Screenshot mismatch against " + referencePath + " at pixel ("
+                            + x + "," + y + "): expected 0x" + Integer.toHexString(reference.getRGB(x, y))
+                            + " but got 0x" + Integer.toHexString(capture.getRGB(x, y)));
+                }
+            }
+        }
     }
 
     @Override
