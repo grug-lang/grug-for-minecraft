@@ -486,11 +486,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // Level the view so the test's frame doesn't depend on which way the player happened to be
         // looking, but deliberately do NOT move them somewhere far away.
         //
-        // The obvious choice — a fixed far-off coordinate like 10000,100,10000, so no terrain could
-        // bleed into the background — reliably crashes Alpha. Teleporting into a chunk the client
-        // hasn't lit yet makes World.doLightUpdates recurse through World.updateLight and
-        // LightUpdate.run until the stack overflows, which killed the test run roughly one time in
-        // four. Staying put keeps the build site inside chunks that are already loaded and lit.
+        // The obvious choice would be a fixed far-off coordinate like 10000,100,10000, so no
+        // terrain could bleed into the background. But that reliably crashes Alpha. Teleporting
+        // into a chunk the client hasn't lit yet makes World.doLightUpdates recurse through
+        // World.updateLight and LightUpdate.run until the stack overflows, which killed the test
+        // run roughly one time in four. Staying put keeps the build site inside chunks that are
+        // already loaded and lit.
         //
         // Nothing is lost by it: a screenshot test crops a rectangle of the frame, and the GUI is
         // always centred in the window, so the terrain behind it is never part of the comparison.
@@ -599,7 +600,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
         } catch (RuntimeException e) {
             // A Java exception escaping into the JNI layer gets described and cleared there, and
-            // the script carries on — which would turn a broken capture into a passing test. Report
+            // the script carries on, which would turn a broken capture into a passing test. Report
             // it the way every other problem here is reported, so that the script aborts instead.
             Grug.gameFunctionErrorHappened(Grug.statePtr,
                     "Test.assert_screenshot_equals: the pixel readback failed unexpectedly: " + e);

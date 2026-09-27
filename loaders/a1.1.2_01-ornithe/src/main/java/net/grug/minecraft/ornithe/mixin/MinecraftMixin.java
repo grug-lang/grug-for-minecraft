@@ -301,7 +301,7 @@ public abstract class MinecraftMixin {
      * parent, disregarding the currently set display mode": {@code getDisplayMode()} keeps reporting
      * the mode the Display was created with (the desktop resolution), and {@code setDisplayMode()}
      * doesn't resize anything. So saving {@code getDisplayMode()} and later restoring it resized the
-     * window to the desktop resolution instead of the size the player had — which is why R left the
+     * window to the desktop resolution instead of the size the player had, which is why R left the
      * window small and zoomed. {@code Display.getWidth()/getHeight()} do report the canvas size here.
      */
     @Unique
@@ -314,7 +314,7 @@ public abstract class MinecraftMixin {
      *
      * <p>{@code Display.setDisplayMode()} alone isn't enough: it's a no-op while the Display is
      * parented to Alpha's Canvas. The Canvas's size is in turn owned by the layout of whatever
-     * contains it, so it isn't enough to size the Canvas directly either — that's what originally
+     * contains it, so it isn't enough to size the Canvas directly either. That's what originally
      * left the game rendering 1280x720 clipped inside an 854x480 window. The top-level Window has to
      * be resized, and the layout then sizes everything below it.
      *
@@ -327,7 +327,7 @@ public abstract class MinecraftMixin {
      * <p>{@code resize()} still has to be called so Minecraft's own width/height, GUI scale and
      * viewport follow immediately rather than one frame later. At the end of every frame Minecraft
      * re-reads {@code canvas.getWidth()/getHeight()} and, if either differs from its own
-     * width/height, resets them to the canvas's size and calls {@code resize()} again — which is why
+     * width/height, resets them to the canvas's size and calls {@code resize()} again, which is why
      * the Canvas and Minecraft have to agree.
      */
     @Unique

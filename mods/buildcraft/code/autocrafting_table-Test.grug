@@ -26,7 +26,7 @@ export run() {
     } else if Test.tick() < 40 {
         # How long the opened GUI takes to reach the framebuffer. Measured on the CI stack: the
         # frame is still the level-loading screen at tick 0, is blank by tick 10, and first holds the
-        # real GUI at tick 16 — Alpha has to mesh the chunks around the new blocks and upload their
+        # real GUI at tick 16: Alpha has to mesh the chunks around the new blocks and upload their
         # textures before anything is drawn. 40 leaves a good margin over that, since how long it
         # takes depends on how loaded the machine is, and costs 2 seconds of a 200-tick budget.
         # Raise it rather than touch the crop rectangle if a capture ever comes out stale.
