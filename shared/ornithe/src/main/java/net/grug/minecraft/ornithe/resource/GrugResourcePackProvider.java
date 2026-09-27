@@ -10,11 +10,8 @@ public class GrugResourcePackProvider implements ResourcePackRepository.Source {
     @Override
     public void loadResourcePacks(Consumer<ResourcePackSummary> consumer) {
         GrugResourcePack pack = new GrugResourcePack();
-        consumer.accept(ResourcePackSummary.create(
-                "grug_generated",
-                true,
-                true,
-                PackPosition.TOP,
-                () -> pack));
+        consumer.accept(
+                ResourcePackSummary.create(
+                        "grug_generated", true, true, PackPosition.TOP, () -> pack));
     }
 }

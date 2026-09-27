@@ -57,10 +57,10 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
         if not entry.is_dir():
             continue
         if entry.name.startswith("coverage-exec-"):
-            runner = entry.name[len("coverage-exec-"):]
+            runner = entry.name[len("coverage-exec-") :]
             runners.setdefault(runner, {})["exec"] = sorted(entry.glob("*.exec"))
         elif entry.name.startswith("coverage-classes-"):
-            runner = entry.name[len("coverage-classes-"):]
+            runner = entry.name[len("coverage-classes-") :]
             runners.setdefault(runner, {})["classes"] = entry
     return runners
 
@@ -136,7 +136,9 @@ def print_totals(combined: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--artifacts", required=True, type=Path, help="Directory of downloaded artifacts")
+    parser.add_argument(
+        "--artifacts", required=True, type=Path, help="Directory of downloaded artifacts"
+    )
     parser.add_argument("--jacoco-cli", required=True, type=Path, help="Path to the JaCoCo CLI jar")
     parser.add_argument("--output", required=True, type=Path, help="Directory to write reports to")
     args = parser.parse_args()

@@ -1,5 +1,8 @@
 package net.grug.minecraft.core;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -9,16 +12,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-/**
- * Covers the LICENSE convention enforced by {@link GrugModLicenses#validate(java.io.File)}.
- */
+/** Covers the LICENSE convention enforced by {@link GrugModLicenses#validate(java.io.File)}. */
 class GrugModLicensesTest {
 
-    @TempDir
-    Path mods;
+    @TempDir Path mods;
 
     private void write(String relativePath, String content) throws IOException {
         Path path = mods.resolve(relativePath);
@@ -78,6 +75,7 @@ class GrugModLicensesTest {
 
     @Test
     void treatsAnUnreadableModsDirectoryAsEmpty() {
-        assertEquals(List.of(), GrugModLicenses.validate(new File(mods.toFile(), "does-not-exist")));
+        assertEquals(
+                List.of(), GrugModLicenses.validate(new File(mods.toFile(), "does-not-exist")));
     }
 }

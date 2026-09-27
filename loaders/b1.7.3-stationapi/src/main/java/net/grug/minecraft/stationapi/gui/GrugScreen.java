@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi.gui;
 
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+
 import org.lwjgl.opengl.GL11;
 
 public class GrugScreen extends HandledScreen {
@@ -23,7 +24,10 @@ public class GrugScreen extends HandledScreen {
                 String afterAssets = path.substring(assetsIdx + 8);
                 int slashIdx = afterAssets.indexOf('/');
                 if (slashIdx != -1) {
-                    path = afterAssets.substring(0, slashIdx) + ":" + afterAssets.substring(slashIdx + 1);
+                    path =
+                            afterAssets.substring(0, slashIdx)
+                                    + ":"
+                                    + afterAssets.substring(slashIdx + 1);
                 }
             }
         }

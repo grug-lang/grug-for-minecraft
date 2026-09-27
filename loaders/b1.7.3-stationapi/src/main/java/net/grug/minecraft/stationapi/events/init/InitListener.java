@@ -3,17 +3,18 @@ package net.grug.minecraft.stationapi.events.init;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.grug.minecraft.stationapi.block.GrugBlock;
-import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
-import net.grug.minecraft.grug.Grug;
-import net.grug.minecraft.grug.GrugBlockData;
-import net.grug.minecraft.core.GrugCore;
-import net.grug.minecraft.grug.GrugItemData;
-import net.grug.minecraft.grug.FileInfo;
-import net.grug.minecraft.stationapi.item.GrugItem;
-import net.grug.minecraft.stationapi.StationApiAdapter;
+
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
+import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.grug.FileInfo;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.stationapi.StationApiAdapter;
+import net.grug.minecraft.stationapi.block.GrugBlock;
+import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
+import net.grug.minecraft.stationapi.item.GrugItem;
 import net.mine_diver.unsafeevents.listener.EventListener;
 import net.minecraft.block.material.Material;
 import net.modificationstation.stationapi.api.StationAPI;
@@ -29,6 +30,7 @@ import net.modificationstation.stationapi.api.registry.Registry;
 import net.modificationstation.stationapi.api.util.Identifier;
 import net.modificationstation.stationapi.api.util.Namespace;
 import net.modificationstation.stationapi.api.util.exception.MissingModException;
+
 import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
@@ -84,20 +86,20 @@ public class InitListener {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
         File runGrugDir = new File(gameDir, "grug_mods");
 
-        if (!runGrugDir.exists())
-            runGrugDir.mkdirs();
+        if (!runGrugDir.exists()) runGrugDir.mkdirs();
 
         File modApiJson = new File(runGrugDir, "mod_api.json");
 
         File activeGrugDir = getActiveGrugModsDir();
 
         if (!activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
-            LOGGER.info("Dev mode detected: Pointing grug-rs directly to " + activeGrugDir.getCanonicalPath());
+            LOGGER.info(
+                    "Dev mode detected: Pointing grug-rs directly to "
+                            + activeGrugDir.getCanonicalPath());
         }
 
         try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
-            if (in == null)
-                throw Grug.fatal("/mod_api.json is missing from the grug jar");
+            if (in == null) throw Grug.fatal("/mod_api.json is missing from the grug jar");
             Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
 
@@ -115,19 +117,24 @@ public class InitListener {
 
         for (FileInfo file : files) {
             if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
-                throw new RuntimeException("Failed to compile " + file.path() + ":\n" + file.errorString());
+                throw new RuntimeException(
+                        "Failed to compile " + file.path() + ":\n" + file.errorString());
             }
 
             String[] pathParts = file.path().replace('\\', '/').split("/");
             if (pathParts.length < 2 || !pathParts[1].equals("code")) {
                 throw new RuntimeException(
-                        "Grug file misplaced! '" + file.path() + "' must be placed inside a 'code/' directory.");
+                        "Grug file misplaced! '"
+                                + file.path()
+                                + "' must be placed inside a 'code/' directory.");
             }
 
             Grug.fileIds.put(file.path(), file.fileId());
 
-            String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
-                    : file.entityName();
+            String cleanName =
+                    file.entityName().contains("-")
+                            ? file.entityName().split("-")[0]
+                            : file.entityName();
 
             if ("Block".equals(file.entityType())) {
                 blockFiles.put(cleanName, file.fileId());
@@ -142,8 +149,7 @@ public class InitListener {
     }
 
     private static Material stringToMaterial(String materialName) {
-        if (materialName == null)
-            return Material.STONE;
+        if (materialName == null) return Material.STONE;
 
         return switch (materialName.toLowerCase()) {
             case "air" -> Material.AIR;
@@ -244,33 +250,30 @@ public class InitListener {
 
     private static void registerAutoDiscoveredRecipes(File grugModsDir) {
         File[] modDirs = grugModsDir.listFiles(File::isDirectory);
-        if (modDirs == null)
-            return;
+        if (modDirs == null) return;
 
         for (File modDir : modDirs) {
             File dataDir = new File(modDir, "data");
-            if (!dataDir.exists() || !dataDir.isDirectory())
-                continue;
+            if (!dataDir.exists() || !dataDir.isDirectory()) continue;
 
             File[] namespaceDirs = dataDir.listFiles(File::isDirectory);
-            if (namespaceDirs == null)
-                continue;
+            if (namespaceDirs == null) continue;
 
             for (File nsDir : namespaceDirs) {
                 File recipesDir = new File(nsDir, "recipes");
-                if (!recipesDir.exists() || !recipesDir.isDirectory())
-                    continue;
+                if (!recipesDir.exists() || !recipesDir.isDirectory()) continue;
 
                 try (Stream<Path> stream = Files.walk(recipesDir.toPath())) {
                     stream.filter(Files::isRegularFile)
                             .filter(p -> p.toString().endsWith(".json"))
-                            .forEach(p -> {
-                                try {
-                                    registerJsonRecipe(createLegacyRecipeUrl(p));
-                                } catch (Exception e) {
-                                    LOGGER.error("Failed to register recipe: " + p, e);
-                                }
-                            });
+                            .forEach(
+                                    p -> {
+                                        try {
+                                            registerJsonRecipe(createLegacyRecipeUrl(p));
+                                        } catch (Exception e) {
+                                            LOGGER.error("Failed to register recipe: " + p, e);
+                                        }
+                                    });
                 } catch (IOException e) {
                     LOGGER.error("Failed to walk recipes directory: " + recipesDir, e);
                 }
@@ -281,33 +284,43 @@ public class InitListener {
     private static URL createLegacyRecipeUrl(Path p) throws MalformedURLException {
         // We intercept the file stream to rewrite modern {"id": "..."} to legacy
         // {"item": "..."}
-        return new URL("grugrecipe", null, -1, p.toAbsolutePath().toString(), new java.net.URLStreamHandler() {
-            @Override
-            protected java.net.URLConnection openConnection(URL u) {
-                return new java.net.URLConnection(u) {
+        return new URL(
+                "grugrecipe",
+                null,
+                -1,
+                p.toAbsolutePath().toString(),
+                new java.net.URLStreamHandler() {
                     @Override
-                    public void connect() {
-                    }
+                    protected java.net.URLConnection openConnection(URL u) {
+                        return new java.net.URLConnection(u) {
+                            @Override
+                            public void connect() {}
 
-                    @Override
-                    public InputStream getInputStream() throws IOException {
-                        try (InputStreamReader reader = new InputStreamReader(new FileInputStream(p.toFile()),
-                                java.nio.charset.StandardCharsets.UTF_8)) {
-                            JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
-                            if (json.has("result")) {
-                                JsonObject result = json.getAsJsonObject("result");
-                                if (result.has("id")) {
-                                    result.add("item", result.get("id"));
-                                    result.remove("id");
+                            @Override
+                            public InputStream getInputStream() throws IOException {
+                                try (InputStreamReader reader =
+                                        new InputStreamReader(
+                                                new FileInputStream(p.toFile()),
+                                                java.nio.charset.StandardCharsets.UTF_8)) {
+                                    JsonObject json =
+                                            JsonParser.parseReader(reader).getAsJsonObject();
+                                    if (json.has("result")) {
+                                        JsonObject result = json.getAsJsonObject("result");
+                                        if (result.has("id")) {
+                                            result.add("item", result.get("id"));
+                                            result.remove("id");
+                                        }
+                                    }
+                                    return new ByteArrayInputStream(
+                                            json.toString()
+                                                    .getBytes(
+                                                            java.nio.charset.StandardCharsets
+                                                                    .UTF_8));
                                 }
                             }
-                            return new ByteArrayInputStream(
-                                    json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                        }
+                        };
                     }
-                };
-            }
-        });
+                });
     }
 
     private static void registerJsonRecipe(URL recipe) throws IOException {
@@ -330,13 +343,14 @@ public class InitListener {
     }
 
     public static void handlePossibleRecipeUpdate(String updatedResourcePath) {
-        if (!updatedResourcePath.endsWith(".json"))
-            return;
+        if (!updatedResourcePath.endsWith(".json")) return;
 
         String[] pathParts = updatedResourcePath.replace('\\', '/').split("/");
 
         // A valid path needs at least: <mod_name>/data/<namespace>/recipes/<file>.json
-        if (pathParts.length < 5 || !pathParts[1].equals("data") || !pathParts[3].equals("recipes")) {
+        if (pathParts.length < 5
+                || !pathParts[1].equals("data")
+                || !pathParts[3].equals("recipes")) {
             return;
         }
 
@@ -360,7 +374,10 @@ public class InitListener {
                 return;
             }
 
-            LOGGER.info("Re-registering recipes of type {} due to change in {}", recipeId, updatedResourcePath);
+            LOGGER.info(
+                    "Re-registering recipes of type {} due to change in {}",
+                    recipeId,
+                    updatedResourcePath);
             StationAPI.EVENT_BUS.post(RecipeRegisterEvent.builder().recipeId(recipeId).build());
         } catch (Exception e) {
             LOGGER.error("Failed to hot-reload recipe: " + file, e);
@@ -384,37 +401,38 @@ public class InitListener {
             return;
         }
 
-        Optional<ModContainer> modContainer = FabricLoader.getInstance().getModContainer(NAMESPACE.toString());
-        if (modContainer.isEmpty())
-            return;
+        Optional<ModContainer> modContainer =
+                FabricLoader.getInstance().getModContainer(NAMESPACE.toString());
+        if (modContainer.isEmpty()) return;
 
         Optional<Path> defaultModsPath = modContainer.get().findPath("mods");
-        if (defaultModsPath.isEmpty())
-            return;
+        if (defaultModsPath.isEmpty()) return;
 
         Path srcRoot = defaultModsPath.get();
         try (Stream<Path> stream = Files.walk(srcRoot)) {
-            stream.forEach(source -> {
-                try {
-                    Path relative = srcRoot.relativize(source);
-                    Path target = targetGrugDir.resolve(relative.toString());
+            stream.forEach(
+                    source -> {
+                        try {
+                            Path relative = srcRoot.relativize(source);
+                            Path target = targetGrugDir.resolve(relative.toString());
 
-                    if (Files.isDirectory(source)) {
-                        if (!Files.exists(target))
-                            Files.createDirectories(target);
-                    } else {
-                        if (!Files.exists(target))
-                            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (IOException e) {
-                    LOGGER.error("Failed to extract default grug mod file: " + source, e);
-                }
-            });
+                            if (Files.isDirectory(source)) {
+                                if (!Files.exists(target)) Files.createDirectories(target);
+                            } else {
+                                if (!Files.exists(target))
+                                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                            }
+                        } catch (IOException e) {
+                            LOGGER.error("Failed to extract default grug mod file: " + source, e);
+                        }
+                    });
 
             // Write the marker file so we never forcefully extract again
-            String msg = "This file tells the mod that the default examples have already been generated.\n" +
-                    "If you delete the example folders, they won't come back.\n" +
-                    "If you WANT the examples back, delete this file and restart the game.\n";
+            String msg =
+                    "This file tells the mod that the default examples have already been"
+                        + " generated.\n"
+                        + "If you delete the example folders, they won't come back.\n"
+                        + "If you WANT the examples back, delete this file and restart the game.\n";
             Files.writeString(markerFile, msg);
 
         } catch (IOException e) {

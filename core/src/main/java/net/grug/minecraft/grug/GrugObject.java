@@ -14,10 +14,8 @@ public class GrugObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         GrugObject other = (GrugObject) o;
         return type == other.type && Objects.equals(object, other.object);
     }
@@ -29,13 +27,11 @@ public class GrugObject {
 
     private static int safeHashCode(Object obj, IdentityHashMap<Object, Boolean> seen) {
         // Null values: return 0 hash
-        if (obj == null)
-            return 0;
+        if (obj == null) return 0;
 
         // Cycle detection: we've already seen this object,
         // so return 0 to avoid infinite recursion
-        if (seen.containsKey(obj))
-            return 0;
+        if (seen.containsKey(obj)) return 0;
 
         // Mark this object as visited to detect future cycles
         seen.put(obj, true);
@@ -79,12 +75,10 @@ public class GrugObject {
 
     private static String safeToString(Object obj, IdentityHashMap<Object, Boolean> seen) {
         // Null values: return "null"
-        if (obj == null)
-            return "null";
+        if (obj == null) return "null";
 
         // Cycle detection: we've already seen this object, return "[cyclic]"
-        if (seen.containsKey(obj))
-            return "[cyclic]";
+        if (seen.containsKey(obj)) return "[cyclic]";
 
         // Mark this object as visited to detect future cycles
         seen.put(obj, true);

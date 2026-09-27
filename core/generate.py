@@ -124,9 +124,7 @@ def gen_wrapper(
     concrete_map = dict(zip(used_generics, combo))
 
     resolved_params = [concrete_map.get(t, t) for t in param_types]
-    resolved_return = (
-        concrete_map.get(return_type, return_type) if return_type else None
-    )
+    resolved_return = concrete_map.get(return_type, return_type) if return_type else None
 
     suffix = "_" + "_".join(combo) if combo else ""
     c_name = f"host_{java_name}{suffix}"
@@ -140,32 +138,22 @@ def gen_wrapper(
     ]
 
     string_indices = [
-        i
-        for i, t in enumerate(resolved_params)
-        if t in ("string", "resource", "entity")
+        i for i, t in enumerate(resolved_params) if t in ("string", "resource", "entity")
     ]
     for i in string_indices:
-        lines.append(
-            f"    jstring arg_str_{i} = (*env)->NewStringUTF(env, args[{i}]._string);"
-        )
+        lines.append(f"    jstring arg_str_{i} = (*env)->NewStringUTF(env, args[{i}]._string);")
 
     call_args = ", ".join(c_arg_expr(t, i) for i, t in enumerate(resolved_params))
-    full_args = f"env, game_functions_class, {jm}" + (
-        f", {call_args}" if call_args else ""
-    )
+    full_args = f"env, game_functions_class, {jm}" + (f", {call_args}" if call_args else "")
 
     if resolved_return is None:
         lines.append(f"    (*env)->CallStaticVoidMethod({full_args});")
         lines.append("    CHECK(env);")
         result_expr = "(union grug_value){0}"
     elif resolved_return in ("string", "resource", "entity"):
-        lines.append(
-            f"    jstring res = (jstring)(*env)->CallStaticObjectMethod({full_args});"
-        )
+        lines.append(f"    jstring res = (jstring)(*env)->CallStaticObjectMethod({full_args});")
         lines.append("    CHECK(env);")
-        lines.append(
-            "    const char* res_utf = (*env)->GetStringUTFChars(env, res, NULL);"
-        )
+        lines.append("    const char* res_utf = (*env)->GetStringUTFChars(env, res, NULL);")
         lines.append(
             "    char* res_owned = strdup(res_utf); // intentionally leaked: grug borrows this pointer"
         )
@@ -173,18 +161,12 @@ def gen_wrapper(
         lines.append("    (*env)->DeleteLocalRef(env, res);")
         result_expr = "(union grug_value){._string = res_owned}"
     else:
-        jni_type = {"number": "jdouble", "bool": "jboolean"}.get(
-            resolved_return, "jlong"
-        )
+        jni_type = {"number": "jdouble", "bool": "jboolean"}.get(resolved_return, "jlong")
         c_suffix = jni_call_suffix(resolved_return)
-        lines.append(
-            f"    {jni_type} res = (*env)->CallStatic{c_suffix}Method({full_args});"
-        )
+        lines.append(f"    {jni_type} res = (*env)->CallStatic{c_suffix}Method({full_args});")
         lines.append("    CHECK(env);")
         field = value_union_field(resolved_return)
-        cast = {"_number": "(double)res", "_bool": "(bool)res", "_id": "(uint64_t)res"}[
-            field
-        ]
+        cast = {"_number": "(double)res", "_bool": "(bool)res", "_id": "(uint64_t)res"}[field]
         result_expr = f"(union grug_value){{.{field} = {cast}}}"
 
     for i in string_indices:
@@ -210,14 +192,12 @@ def gen_dispatcher(java_name: str, used_generics: List[str]) -> str:
             condition = f"generics[{depth}].type == {enum_name}"
             # Fallback to ID on the last branch to ensure C always returns a value
             if bt == "id":
-                out += f"    /* fallback id */\n"
+                out += "    /* fallback id */\n"
                 out += build_tree(depth + 1, prefix + "id_")
             else:
                 out += f"    if ({condition}) {{\n"
-                out += "    " + build_tree(depth + 1, prefix + bt + "_").replace(
-                    "\n", "\n    "
-                )
-                out += f"    }}\n"
+                out += "    " + build_tree(depth + 1, prefix + bt + "_").replace("\n", "\n    ")
+                out += "    }\n"
         return out
 
     lines.append(build_tree(0))
@@ -254,13 +234,10 @@ def collect_functions(mod_api: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "param_types": param_types,
                 "param_names": param_names,
                 "return_type": (
-                    grug_type_name(decl["return_type"])
-                    if "return_type" in decl
-                    else None
+                    grug_type_name(decl["return_type"]) if "return_type" in decl else None
                 ),
                 "used_generics": [
-                    grug_type_name(g)
-                    for g in (generics_src or decl).get("used_generics", [])
+                    grug_type_name(g) for g in (generics_src or decl).get("used_generics", [])
                 ],
             }
         )
@@ -299,8 +276,7 @@ def collect_exports(mod_api: Dict[str, Any]) -> List[Dict[str, Any]]:
         for fn_decl in entity_decl.get("export_functions", []):
             fn_name = fn_decl["name"]
             param_list = [
-                (p["name"], grug_type_name(p["type"]))
-                for p in fn_decl.get("parameters", [])
+                (p["name"], grug_type_name(p["type"])) for p in fn_decl.get("parameters", [])
             ]
             exports.append(
                 {
@@ -347,9 +323,7 @@ def generate_java_exports(exports: List[Dict[str, Any]]) -> str:
             native_param_decls.append(f"{java_type(p_type)} {p_name}")
 
         native_param_str = ", ".join(native_param_decls)
-        lines.append(
-            f"    private static native boolean {native_name}({native_param_str});"
-        )
+        lines.append(f"    private static native boolean {native_name}({native_param_str});")
         lines.append("")
 
     lines.append("}")
@@ -363,9 +337,7 @@ def generate_c_exports(exports: List[Dict[str, Any]]) -> str:
         fn_name = exp["fn_name"]
         params = exp["parameters"]
         raw_method_name = f"native_{entity_type}_{fn_name}"
-        c_func_name = (
-            f"Java_net_grug_minecraft_grug_ExportFns_{jni_mangle(raw_method_name)}"
-        )
+        c_func_name = f"Java_net_grug_minecraft_grug_ExportFns_{jni_mangle(raw_method_name)}"
         c_params = [
             "JNIEnv *env",
             "jclass clazz",
@@ -377,9 +349,7 @@ def generate_c_exports(exports: List[Dict[str, Any]]) -> str:
 
         param_str = ", ".join(c_params)
         lines.append(f"JNIEXPORT jboolean JNICALL {c_func_name}({param_str}) {{")
-        lines.append(
-            f'    jstring j_entity_type = (*env)->NewStringUTF(env, "{entity_type}");'
-        )
+        lines.append(f'    jstring j_entity_type = (*env)->NewStringUTF(env, "{entity_type}");')
         lines.append(f'    jstring j_fn_name = (*env)->NewStringUTF(env, "{fn_name}");')
         lines.append(
             "    jlong fn_id = Java_net_grug_minecraft_grug_Grug_nativeGetExportFnId(env, clazz, statePtr, j_entity_type, j_fn_name);"
@@ -411,9 +381,7 @@ def generate_c_exports(exports: List[Dict[str, Any]]) -> str:
         )
         for i, (p_name, p_type) in enumerate(params):
             if p_type in ("string", "resource", "entity"):
-                lines.append(
-                    f"    (*env)->ReleaseStringUTFChars(env, {p_name}, c_str_{i});"
-                )
+                lines.append(f"    (*env)->ReleaseStringUTFChars(env, {p_name}, c_str_{i});")
 
         lines.append("    return res ? JNI_TRUE : JNI_FALSE;")
         lines.append("}")
@@ -446,20 +414,15 @@ def generate_generic_java_bridge(functions: List[Dict[str, Any]]) -> str:
 
             resolved_params: List[str] = [concrete_map.get(t, t) for t in param_types]
             resolved_return: Optional[str] = (
-                concrete_map.get(return_type, return_type)
-                if return_type is not None
-                else None
+                concrete_map.get(return_type, return_type) if return_type is not None else None
             )
 
             java_param_list = [
-                f"{java_type(t)} {name}"
-                for t, name in zip(resolved_params, param_names)
+                f"{java_type(t)} {name}" for t, name in zip(resolved_params, param_names)
             ]
             call_args = ", ".join(param_names)
 
-            ret_type = (
-                java_type(resolved_return) if resolved_return is not None else "void"
-            )
+            ret_type = java_type(resolved_return) if resolved_return is not None else "void"
             suffix = "_" + "_".join(combo)
             method_name = f"{base_name}{suffix}"
 
@@ -503,9 +466,7 @@ def generate(mod_api: Dict[str, Any]) -> str:
         if not used_generics:
             out.append(f"static jmethodID jm_{fn['java_name']};")
         else:
-            combinations = list(
-                itertools.product(BASE_TYPES, repeat=len(used_generics))
-            )
+            combinations = list(itertools.product(BASE_TYPES, repeat=len(used_generics)))
             for combo in combinations:
                 suffix = "_" + "_".join(combo)
                 out.append(f"static jmethodID jm_{fn['java_name']}{suffix};")
@@ -515,13 +476,9 @@ def generate(mod_api: Dict[str, Any]) -> str:
     for fn in functions:
         used_generics = fn["used_generics"]
         if not used_generics:
-            out.append(
-                gen_wrapper(fn["java_name"], fn["param_types"], fn["return_type"])
-            )
+            out.append(gen_wrapper(fn["java_name"], fn["param_types"], fn["return_type"]))
         else:
-            combinations = list(
-                itertools.product(BASE_TYPES, repeat=len(used_generics))
-            )
+            combinations = list(itertools.product(BASE_TYPES, repeat=len(used_generics)))
             for combo in combinations:
                 out.append(
                     gen_wrapper(
@@ -537,9 +494,7 @@ def generate(mod_api: Dict[str, Any]) -> str:
         out.append("")
 
     # Method ID Resolution
-    out.append(
-        "void resolve_generated_method_ids(JNIEnv* env, jclass game_functions_class) {"
-    )
+    out.append("void resolve_generated_method_ids(JNIEnv* env, jclass game_functions_class) {")
     out.append(
         '    jclass generic_game_functions_class = (*env)->FindClass(env, "net/grug/minecraft/grug/GenericGameFunctions");'
     )
@@ -551,22 +506,16 @@ def generate(mod_api: Dict[str, Any]) -> str:
                 f'    jm_{fn["java_name"]} = (*env)->GetStaticMethodID(env, game_functions_class, "{fn["java_name"]}", "{sig}");'
             )
         else:
-            combinations = list(
-                itertools.product(BASE_TYPES, repeat=len(used_generics))
-            )
+            combinations = list(itertools.product(BASE_TYPES, repeat=len(used_generics)))
             for combo in combinations:
                 suffix = "_" + "_".join(combo)
                 concrete_map: Dict[str, str] = dict(zip(used_generics, combo))
                 param_types: List[str] = fn["param_types"]
                 return_type: Optional[str] = fn["return_type"]
 
-                resolved_params: List[str] = [
-                    concrete_map.get(t, t) for t in param_types
-                ]
+                resolved_params: List[str] = [concrete_map.get(t, t) for t in param_types]
                 resolved_return: Optional[str] = (
-                    concrete_map.get(return_type, return_type)
-                    if return_type is not None
-                    else None
+                    concrete_map.get(return_type, return_type) if return_type is not None else None
                 )
 
                 sig = build_signature(resolved_params, resolved_return)
@@ -584,9 +533,7 @@ def generate(mod_api: Dict[str, Any]) -> str:
         c_name = f"host_{fn['java_name']}"
 
         if fn["kind"] == "host_fn":
-            out.append(
-                f'    grug_register_host_fn(state, "{fn["grug_name"]}", (void*){c_name});'
-            )
+            out.append(f'    grug_register_host_fn(state, "{fn["grug_name"]}", (void*){c_name});')
         else:
             out.append(
                 f'    grug_register_method(state, "{fn["grug_class"]}", "{fn["grug_method"]}", (void*){c_name});'

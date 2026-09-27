@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.ornithemc.osl.blocks.api.BlockEvents;
 import net.ornithemc.osl.entrypoints.api.ModInitializer;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,7 +49,9 @@ public class GrugModLoader implements ModInitializer {
 
         try {
             if (!activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
-                LOGGER.info("Dev mode detected: Pointing grug-rs directly to " + activeGrugDir.getCanonicalPath());
+                LOGGER.info(
+                        "Dev mode detected: Pointing grug-rs directly to "
+                                + activeGrugDir.getCanonicalPath());
             }
         } catch (IOException e) {
             LOGGER.error("Failed to resolve canonical path", e);
@@ -79,19 +82,24 @@ public class GrugModLoader implements ModInitializer {
 
         for (FileInfo file : files) {
             if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
-                throw new RuntimeException("Failed to compile " + file.path() + ":\n" + file.errorString());
+                throw new RuntimeException(
+                        "Failed to compile " + file.path() + ":\n" + file.errorString());
             }
 
             String[] pathParts = file.path().replace('\\', '/').split("/");
             if (pathParts.length < 2 || !pathParts[1].equals("code")) {
                 throw new RuntimeException(
-                        "Grug file misplaced! '" + file.path() + "' must be placed inside a 'code/' directory.");
+                        "Grug file misplaced! '"
+                                + file.path()
+                                + "' must be placed inside a 'code/' directory.");
             }
 
             Grug.fileIds.put(file.path(), file.fileId());
 
-            String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
-                    : file.entityName();
+            String cleanName =
+                    file.entityName().contains("-")
+                            ? file.entityName().split("-")[0]
+                            : file.entityName();
 
             if ("Block".equals(file.entityType())) {
                 blockFiles.put(cleanName, file.fileId());
@@ -125,35 +133,35 @@ public class GrugModLoader implements ModInitializer {
         }
 
         Optional<ModContainer> modContainer = FabricLoader.getInstance().getModContainer(MOD_ID);
-        if (modContainer.isEmpty())
-            return;
+        if (modContainer.isEmpty()) return;
 
         Optional<Path> defaultModsPath = modContainer.get().findPath("mods");
-        if (defaultModsPath.isEmpty())
-            return;
+        if (defaultModsPath.isEmpty()) return;
 
         Path srcRoot = defaultModsPath.get();
         try (Stream<Path> stream = Files.walk(srcRoot)) {
-            stream.forEach(source -> {
-                try {
-                    Path relative = srcRoot.relativize(source);
-                    Path target = targetGrugDir.resolve(relative.toString());
+            stream.forEach(
+                    source -> {
+                        try {
+                            Path relative = srcRoot.relativize(source);
+                            Path target = targetGrugDir.resolve(relative.toString());
 
-                    if (Files.isDirectory(source)) {
-                        if (!Files.exists(target))
-                            Files.createDirectories(target);
-                    } else {
-                        if (!Files.exists(target))
-                            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (IOException e) {
-                    LOGGER.error("Failed to extract default grug mod file: " + source, e);
-                }
-            });
+                            if (Files.isDirectory(source)) {
+                                if (!Files.exists(target)) Files.createDirectories(target);
+                            } else {
+                                if (!Files.exists(target))
+                                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+                            }
+                        } catch (IOException e) {
+                            LOGGER.error("Failed to extract default grug mod file: " + source, e);
+                        }
+                    });
 
-            String msg = "This file tells the mod that the default examples have already been generated.\n" +
-                    "If you delete the example folders, they won't come back.\n" +
-                    "If you WANT the examples back, delete this file and restart the game.\n";
+            String msg =
+                    "This file tells the mod that the default examples have already been"
+                        + " generated.\n"
+                        + "If you delete the example folders, they won't come back.\n"
+                        + "If you WANT the examples back, delete this file and restart the game.\n";
             Files.writeString(markerFile, msg);
 
         } catch (IOException e) {

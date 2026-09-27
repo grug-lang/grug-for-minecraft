@@ -7,10 +7,8 @@ public record GrugOption(Object value) {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (!(o instanceof GrugOption other))
-            return false;
+        if (this == o) return true;
+        if (!(o instanceof GrugOption other)) return false;
 
         // Delegate to our smart equality function to resolve the inner IDs!
         return GameFunctions.equals(this.value, other.value);

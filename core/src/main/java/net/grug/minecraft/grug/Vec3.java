@@ -1,4 +1,3 @@
 package net.grug.minecraft.grug;
 
-public record Vec3(double x, double y, double z) {
-}
+public record Vec3(double x, double y, double z) {}

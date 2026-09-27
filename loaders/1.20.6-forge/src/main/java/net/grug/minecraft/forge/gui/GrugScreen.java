@@ -12,7 +12,8 @@ public class GrugScreen extends AbstractContainerScreen<GrugMenu> {
     private final GrugGuiBuilder layout;
     private final ResourceLocation backgroundTexture;
 
-    public GrugScreen(GrugMenu menu, Inventory playerInventory, Component title, GrugGuiBuilder layout) {
+    public GrugScreen(
+            GrugMenu menu, Inventory playerInventory, Component title, GrugGuiBuilder layout) {
         super(menu, playerInventory, title);
         this.layout = layout;
 
@@ -25,7 +26,10 @@ public class GrugScreen extends AbstractContainerScreen<GrugMenu> {
                 String afterAssets = path.substring(assetsIdx + 8);
                 int slashIdx = afterAssets.indexOf('/');
                 if (slashIdx != -1) {
-                    path = afterAssets.substring(0, slashIdx) + ":" + afterAssets.substring(slashIdx + 1);
+                    path =
+                            afterAssets.substring(0, slashIdx)
+                                    + ":"
+                                    + afterAssets.substring(slashIdx + 1);
                 }
             }
         }
@@ -44,9 +48,11 @@ public class GrugScreen extends AbstractContainerScreen<GrugMenu> {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        // A captured frame must not depend on where the cursor happens to be: the game highlights the
+        // A captured frame must not depend on where the cursor happens to be: the game highlights
+        // the
         // slot under the mouse and tooltips follow it. During a test run, render as if the mouse is
-        // outside the GUI, so a screenshot is deterministic regardless of the real cursor's position
+        // outside the GUI, so a screenshot is deterministic regardless of the real cursor's
+        // position
         // or how quickly moving it away takes effect.
         if (GrugModLoader.isTestRunActive()) {
             mouseX = -1_000_000;
@@ -68,7 +74,13 @@ public class GrugScreen extends AbstractContainerScreen<GrugMenu> {
     protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (layout != null && layout.texts != null) {
             for (GrugGuiBuilder.TextDef textDef : layout.texts) {
-                guiGraphics.drawString(this.font, textDef.text(), textDef.x(), textDef.y(), textDef.color(), false);
+                guiGraphics.drawString(
+                        this.font,
+                        textDef.text(),
+                        textDef.x(),
+                        textDef.y(),
+                        textDef.color(),
+                        false);
             }
         }
     }

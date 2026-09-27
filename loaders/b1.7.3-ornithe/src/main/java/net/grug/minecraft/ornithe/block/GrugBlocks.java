@@ -36,7 +36,8 @@ public final class GrugBlocks {
         GrugModLoader.LOGGER.info("Registering dynamic grug blocks and items in Ornithe...");
 
         try {
-            Method registerMethod = BlockEntity.class.getDeclaredMethod("register", Class.class, String.class);
+            Method registerMethod =
+                    BlockEntity.class.getDeclaredMethod("register", Class.class, String.class);
             registerMethod.setAccessible(true);
             registerMethod.invoke(null, GrugBlockEntity.class, "grug:generic_block_entity");
         } catch (Exception e) {
@@ -89,10 +90,7 @@ public final class GrugBlocks {
             String blockKey = "grug." + cleanName;
             block.setKey(blockKey);
 
-            BlockRegistry.register(
-                    blockId,
-                    NamespacedIdentifiers.from("grug", cleanName),
-                    block);
+            BlockRegistry.register(blockId, NamespacedIdentifiers.from("grug", cleanName), block);
 
             Item.BY_ID[blockId] = new BlockItem(blockId - 256).setKey(blockKey);
         }
@@ -144,8 +142,7 @@ public final class GrugBlocks {
     }
 
     private static Material stringToMaterial(String materialName) {
-        if (materialName == null)
-            return Material.STONE;
+        if (materialName == null) return Material.STONE;
         return switch (materialName.toLowerCase()) {
             case "air" -> Material.AIR;
             case "organic", "dirt" -> Material.DIRT;

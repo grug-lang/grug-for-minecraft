@@ -26,6 +26,7 @@ import net.minecraft.world.World;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
+
 import org.lwjgl.opengl.GL11;
 
 import java.awt.image.BufferedImage;
@@ -65,38 +66,37 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     // --- Registration Methods ---
 
     @Override
-    public void registerBlock(String namespace, String name, long fileId) {
-    }
+    public void registerBlock(String namespace, String name, long fileId) {}
 
     @Override
-    public void registerItem(String namespace, String name, long fileId) {
-    }
+    public void registerItem(String namespace, String name, long fileId) {}
 
     @Override
-    public void registerBlockEntity(String namespace, String name) {
-    }
+    public void registerBlockEntity(String namespace, String name) {}
 
     @Override
-    public void reloadRecipe(String resourcePath) {
-    }
+    public void reloadRecipe(String resourcePath) {}
 
     // --- GUI & Inventory Methods ---
 
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
-        // The player and builder types cannot be wrong because of a script, so these are loader bugs
+        // The player and builder types cannot be wrong because of a script, so these are loader
+        // bugs
         if (!(playerObj instanceof PlayerEntity player)) {
             throw Grug.fatal("openGui: player is not a PlayerEntity: " + playerObj);
         }
         if (!(blockEntityObj instanceof Inventory inventory)) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "GUI.open: The block entity has no inventory.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "GUI.open: The block entity has no inventory.");
             return;
         }
         if (!(guiBuilderObj instanceof GrugGuiBuilder builder)) {
             throw Grug.fatal("openGui: builder is not a GrugGuiBuilder: " + guiBuilderObj);
         }
         if (FabricLoader.getInstance().getEnvironmentType() != EnvType.CLIENT) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "GUI.open: Opening a GUI on a dedicated server is not supported yet.");
             return;
         }
@@ -122,8 +122,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public double countItemInInventory(Object blockEntityObj, Object itemObj, double damage) {
-        if (!(blockEntityObj instanceof Inventory inv))
-            return 0;
+        if (!(blockEntityObj instanceof Inventory inv)) return 0;
         Item item = (Item) itemObj;
         int total = 0;
         for (int i = 0; i < inv.getSize(); i++) {
@@ -136,9 +135,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void dropInventory(Object levelObj, double x, double y, double z) {
-        if (!(levelObj instanceof World world))
-            return;
-        BlockEntity be = world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        if (!(levelObj instanceof World world)) return;
+        BlockEntity be =
+                world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
         if (be instanceof Inventory inv) {
             for (int i = 0; i < inv.getSize(); i++) {
                 ItemStack stack = inv.getItem(i);
@@ -151,9 +150,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public double extractItemFromInventory(Object blockEntityObj, Object itemObj, double damage, double amount) {
-        if (!(blockEntityObj instanceof Inventory inv))
-            return 0;
+    public double extractItemFromInventory(
+            Object blockEntityObj, Object itemObj, double damage, double amount) {
+        if (!(blockEntityObj instanceof Inventory inv)) return 0;
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.getSize() && remainingToExtract > 0; i++) {
@@ -170,10 +169,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
         if (blockEntityObj instanceof Inventory inv) {
-            ItemStack removed = inv.removeItem((int)slot, (int)amount);
+            ItemStack removed = inv.removeItem((int) slot, (int) amount);
             if (removed != null) {
                 if (blockEntityObj instanceof GrugBlockEntity gbe) {
-                    gbe.notifyOutputTaken((int)slot, removed.size);
+                    gbe.notifyOutputTaken((int) slot, removed.size);
                 }
                 return removed.size;
             }
@@ -218,10 +217,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (blockEntityObj instanceof Inventory inv) {
             ItemStack stack = inv.getItem((int) slot);
             if (stack != null) {
-                if (count <= 0)
-                    inv.setItem((int) slot, null);
-                else
-                    stack.size = (int) count;
+                if (count <= 0) inv.setItem((int) slot, null);
+                else stack.size = (int) count;
             }
         }
     }
@@ -262,7 +259,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public Object getBlockEntity(Object levelObj, double x, double y, double z) {
         if (levelObj instanceof World world) {
-            return world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+            return world.getBlockEntity(
+                    (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
         }
         return null;
     }
@@ -274,16 +272,20 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             Block targetBlock = null;
 
             // 1. Try resolving custom Grug blocks
-            for (Map.Entry<String, net.grug.minecraft.grug.GrugBlockData> entry : Grug.declaredBlocks.entrySet()) {
+            for (Map.Entry<String, net.grug.minecraft.grug.GrugBlockData> entry :
+                    Grug.declaredBlocks.entrySet()) {
                 if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
-                    Long fileId = Grug.blockDataByFileId.entrySet().stream()
-                            .filter(e -> e.getValue().id.equals(entry.getKey()))
-                            .map(Map.Entry::getKey)
-                            .findFirst().orElse(null);
+                    Long fileId =
+                            Grug.blockDataByFileId.entrySet().stream()
+                                    .filter(e -> e.getValue().id.equals(entry.getKey()))
+                                    .map(Map.Entry::getKey)
+                                    .findFirst()
+                                    .orElse(null);
 
                     if (fileId != null) {
                         for (Block block : Block.BY_ID) {
-                            if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb && gb.blockFileId == fileId) {
+                            if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb
+                                    && gb.blockFileId == fileId) {
                                 targetBlock = block;
                                 break;
                             }
@@ -295,12 +297,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             // 2. Try resolving Vanilla blocks via reflection
             if (targetBlock == null) {
                 for (Field field : Block.class.getFields()) {
-                    if (Modifier.isStatic(field.getModifiers()) && Block.class.isAssignableFrom(field.getType())) {
-                        if (field.getName().equalsIgnoreCase(path) || field.getName().replace("_", "").equalsIgnoreCase(path.replace("_", ""))) {
+                    if (Modifier.isStatic(field.getModifiers())
+                            && Block.class.isAssignableFrom(field.getType())) {
+                        if (field.getName().equalsIgnoreCase(path)
+                                || field.getName()
+                                        .replace("_", "")
+                                        .equalsIgnoreCase(path.replace("_", ""))) {
                             try {
                                 targetBlock = (Block) field.get(null);
                                 break;
-                            } catch (Exception ignored) {}
+                            } catch (Exception ignored) {
+                            }
                         }
                     }
                 }
@@ -317,7 +324,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     targetBlock.onAdded(world, posX, posY, posZ);
                 }
             } else {
-                GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+                GrugModLoader.LOGGER.error(
+                        "placeBlock failed: Could not resolve block " + blockName);
             }
         }
     }
@@ -345,8 +353,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public Object getItemFromRegistry(Object resourceLocationObj) {
-        if (resourceLocationObj == null)
-            return null;
+        if (resourceLocationObj == null) return null;
 
         String path;
         if (resourceLocationObj instanceof NamespacedIdentifier nid) {
@@ -360,11 +367,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
         // Try Translation Keys
         for (Item item : Item.BY_ID) {
-            if (item == null)
-                continue;
+            if (item == null) continue;
             String key = item.getTranslationKey();
             if (key != null) {
-                if (key.equals(path) || key.endsWith("." + path) || key.equalsIgnoreCase("item." + path)
+                if (key.equals(path)
+                        || key.endsWith("." + path)
+                        || key.equalsIgnoreCase("item." + path)
                         || key.equalsIgnoreCase("tile." + path)) {
                     return item;
                 }
@@ -376,7 +384,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
                     && Item.class.isAssignableFrom(field.getType())) {
                 if (field.getName().equalsIgnoreCase(path)
-                        || field.getName().replace("_", "").equalsIgnoreCase(path.replace("_", ""))) {
+                        || field.getName()
+                                .replace("_", "")
+                                .equalsIgnoreCase(path.replace("_", ""))) {
                     try {
                         return field.get(null);
                     } catch (Exception ignored) {
@@ -390,7 +400,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             if (java.lang.reflect.Modifier.isStatic(field.getModifiers())
                     && Block.class.isAssignableFrom(field.getType())) {
                 if (field.getName().equalsIgnoreCase(path)
-                        || field.getName().replace("_", "").equalsIgnoreCase(path.replace("_", ""))) {
+                        || field.getName()
+                                .replace("_", "")
+                                .equalsIgnoreCase(path.replace("_", ""))) {
                     try {
                         return field.get(null);
                     } catch (Exception ignored) {
@@ -403,7 +415,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemEntity(Object levelObj, double x, double y, double z, Object itemStackObj) {
+    public Object createItemEntity(
+            Object levelObj, double x, double y, double z, Object itemStackObj) {
         if (levelObj instanceof World world && itemStackObj instanceof ItemStack stack) {
             return new ItemEntity(world, x, y, z, stack);
         }
@@ -449,8 +462,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public Vec3 setupGraphicsTestCamera() {
         PlayerEntity player = MinecraftInstance.get().player;
         if (player == null) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.setup_graphics_camera: There is no local player to move.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
             return null;
         }
 
@@ -473,8 +486,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public void restoreCameraAfterGraphicsTest() {
         if (!graphicsCameraSaved) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera first.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera"
+                            + " first.");
             return;
         }
         graphicsCameraSaved = false;
@@ -492,8 +507,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
         PlayerEntity player = MinecraftInstance.get().player;
         if (player == null) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.use_block: There is no local player to right-click with.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
             return;
         }
 
@@ -510,31 +525,43 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             // right-click does, instead of a copy of the block's GUI layout.
             grugBlock.use(world, blockX, blockY, blockZ, player);
         } else {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.use_block: There is no grug block at " + blockX + ", " + blockY + ", " + blockZ + ".");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.use_block: There is no grug block at "
+                            + blockX
+                            + ", "
+                            + blockY
+                            + ", "
+                            + blockZ
+                            + ".");
         }
     }
 
     @Override
-    public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
+    public void assertScreenshotEquals(
+            String referencePath, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure.
         String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
-        if (bad == null)
-            bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
-        if (bad == null)
-            bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
-        if (bad == null)
-            bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
+        if (bad == null) bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
+        if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
+        if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
         if (bad != null) {
             Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
             return;
         }
         if (x2 <= x1 || y2 <= y1) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "Test.assert_screenshot_equals: the rectangle is empty, since ("
-                            + (int) x2 + "," + (int) y2 + ") is not below and right of ("
-                            + (int) x1 + "," + (int) y1 + ")");
+                            + (int) x2
+                            + ","
+                            + (int) y2
+                            + ") is not below and right of ("
+                            + (int) x1
+                            + ","
+                            + (int) y1
+                            + ")");
             return;
         }
 
@@ -543,9 +570,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // a screen of subtly wrong pixels.
         Minecraft mc = MinecraftInstance.get();
         if (mc.width != GrugScreenshots.WIDTH || mc.height != GrugScreenshots.HEIGHT) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.assert_screenshot_equals: the window is " + mc.width + "x" + mc.height
-                            + ", but screenshot tests are captured at " + GrugScreenshots.WIDTH + "x"
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.assert_screenshot_equals: the window is "
+                            + mc.width
+                            + "x"
+                            + mc.height
+                            + ", but screenshot tests are captured at "
+                            + GrugScreenshots.WIDTH
+                            + "x"
                             + GrugScreenshots.HEIGHT);
             return;
         }
@@ -565,8 +598,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
     private static String checkCoordinate(String name, double value, int limit) {
         if (value < 0 || value > limit) {
-            return name + " is " + (int) value + ", which is outside the " + GrugScreenshots.WIDTH + "x"
-                    + GrugScreenshots.HEIGHT + " frame (0 to " + limit + ")";
+            return name
+                    + " is "
+                    + (int) value
+                    + ", which is outside the "
+                    + GrugScreenshots.WIDTH
+                    + "x"
+                    + GrugScreenshots.HEIGHT
+                    + " frame (0 to "
+                    + limit
+                    + ")";
         }
         return null;
     }
@@ -574,15 +615,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     /**
      * Reads back a rectangle of the frame that's currently on screen. Runs from Minecraft.tick(),
      * i.e. after the previous frame was rendered but before this one is drawn, so the frame of
-     * interest is whatever was drawn most recently. On LWJGL 2 that is the back buffer, which is also
-     * GL's default read buffer.
+     * interest is whatever was drawn most recently. On LWJGL 2 that is the back buffer, which is
+     * also GL's default read buffer.
      *
-     * <p>Coordinate convention: the rectangle (x1,y1,x2,y2) is in screen space with the origin at the
-     * top left, but GL's origin is the bottom left. A screen row y is therefore GL row height-1-y,
-     * which puts the bottom edge of the crop at GL row height-y2. glReadPixels fills the buffer
-     * bottom row first, so rows are written into the image in reverse to land the right way up.
+     * <p>Coordinate convention: the rectangle (x1,y1,x2,y2) is in screen space with the origin at
+     * the top left, but GL's origin is the bottom left. A screen row y is therefore GL row
+     * height-1-y, which puts the bottom edge of the crop at GL row height-y2. glReadPixels fills
+     * the buffer bottom row first, so rows are written into the image in reverse to land the right
+     * way up.
      */
-    private static BufferedImage captureRectangle(int x1, int y1, int x2, int y2, int windowHeight) {
+    private static BufferedImage captureRectangle(
+            int x1, int y1, int x2, int y2, int windowHeight) {
         int width = x2 - x1;
         int height = y2 - y1;
         int glY = windowHeight - y2;
@@ -592,13 +635,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         try {
             GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
         } catch (RuntimeException e) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "Test.assert_screenshot_equals: the pixel readback failed unexpectedly: " + e);
             return null;
         }
         int glError = GL11.glGetError();
         if (glError != GL11.GL_NO_ERROR) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "Test.assert_screenshot_equals: glReadPixels failed with GL error 0x"
                             + Integer.toHexString(glError)
                             + ", so the capture cannot be trusted. A multisampled or otherwise "
@@ -619,8 +664,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
             return image;
         } catch (RuntimeException e) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.assert_screenshot_equals: could not build an image from the readback: " + e);
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.assert_screenshot_equals: could not build an image from the readback: "
+                            + e);
             return null;
         }
     }

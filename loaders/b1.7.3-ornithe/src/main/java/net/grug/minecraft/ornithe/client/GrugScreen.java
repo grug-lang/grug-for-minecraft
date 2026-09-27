@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screen.inventory.menu.InventoryMenuScreen;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
+
 import org.lwjgl.opengl.GL11;
 
 /** Client-only. Never reference this class from code that runs on a dedicated server. */
@@ -24,8 +25,8 @@ public class GrugScreen extends InventoryMenuScreen {
     }
 
     /**
-     * Grug gives paths like "buildcraft/assets/grug/textures/gui/crafting.png".
-     * GrugResourcePack resolves paths relative to a mod dir, so drop the mod name.
+     * Grug gives paths like "buildcraft/assets/grug/textures/gui/crafting.png". GrugResourcePack
+     * resolves paths relative to a mod dir, so drop the mod name.
      */
     private static String toResourcePath(String path) {
         int assetsIdx = path.indexOf("/assets/");
@@ -33,12 +34,13 @@ public class GrugScreen extends InventoryMenuScreen {
     }
 
     /**
-     * Opens the screen for a singleplayer client. Beta 1.7.3 singleplayer has no
-     * server, so `Block.use` runs on the client and no packets are needed.
+     * Opens the screen for a singleplayer client. Beta 1.7.3 singleplayer has no server, so
+     * `Block.use` runs on the client and no packets are needed.
      */
     public static void open(PlayerEntity player, Inventory inventory, GrugGuiBuilder layout) {
         if (!(player instanceof ClientPlayerEntity) || player instanceof LocalClientPlayerEntity) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "GUI.open: Opening a GUI in multiplayer is not supported yet.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "GUI.open: Opening a GUI in multiplayer is not supported yet.");
             return;
         }
 

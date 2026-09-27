@@ -29,6 +29,7 @@ import net.modificationstation.stationapi.api.gui.screen.container.GuiHelper;
 import net.modificationstation.stationapi.api.registry.BlockRegistry;
 import net.modificationstation.stationapi.api.registry.ItemRegistry;
 import net.modificationstation.stationapi.api.util.Identifier;
+
 import org.lwjgl.opengl.GL11;
 
 import java.awt.image.BufferedImage;
@@ -55,25 +56,21 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public void registerBlock(String namespace, String name, long fileId) {
         Identifier blockId = Identifier.of(namespace + ":" + name);
-        new GrugBlock(blockId, fileId, Material.STONE, 0.0f).setTranslationKey(blockId.namespace, blockId.path);
+        new GrugBlock(blockId, fileId, Material.STONE, 0.0f)
+                .setTranslationKey(blockId.namespace, blockId.path);
     }
 
     @Override
-    public void registerItem(String namespace, String name, long fileId) {
-    }
+    public void registerItem(String namespace, String name, long fileId) {}
 
     @Override
-    public void registerBlockEntity(String namespace, String name) {
-    }
+    public void registerBlockEntity(String namespace, String name) {}
 
     /**
-     * Note: Although StationAPI is based on Fabric, it targets Minecraft Beta
-     * 1.7.3.
-     * Therefore, we do not have access to modern UI abstractions like
-     * net.minecraft.screen.SimpleNamedScreenHandlerFactory (or Forge's
-     * SimpleMenuProvider).
-     * Instead, we manually synchronize the GUI data using StationAPI's
-     * MessagePacket system.
+     * Note: Although StationAPI is based on Fabric, it targets Minecraft Beta 1.7.3. Therefore, we
+     * do not have access to modern UI abstractions like
+     * net.minecraft.screen.SimpleNamedScreenHandlerFactory (or Forge's SimpleMenuProvider).
+     * Instead, we manually synchronize the GUI data using StationAPI's MessagePacket system.
      */
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
@@ -82,13 +79,18 @@ public class StationApiAdapter implements ModLoaderAdapter {
         GrugGuiBuilder builder = (GrugGuiBuilder) guiBuilderObj;
 
         if (be instanceof Inventory inv) {
-            GuiHelper.openGUI(player, Identifier.of("grug:dynamic_gui"), inv,
+            GuiHelper.openGUI(
+                    player,
+                    Identifier.of("grug:dynamic_gui"),
+                    inv,
                     new GrugScreenHandler(player, inv, builder),
                     messagePacket -> {
-                        int syncId = (messagePacket.ints != null && messagePacket.ints.length > 0)
-                                ? messagePacket.ints[0]
-                                : 0;
-                        StationGuiHelper.writeBuilderToPacket(builder, messagePacket, syncId, be.x, be.y, be.z);
+                        int syncId =
+                                (messagePacket.ints != null && messagePacket.ints.length > 0)
+                                        ? messagePacket.ints[0]
+                                        : 0;
+                        StationGuiHelper.writeBuilderToPacket(
+                                builder, messagePacket, syncId, be.x, be.y, be.z);
                     });
         }
     }
@@ -143,8 +145,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public double countItemInInventory(Object blockEntityObj, Object itemObj, double damage) {
-        if (!(blockEntityObj instanceof Inventory inv))
-            return 0;
+        if (!(blockEntityObj instanceof Inventory inv)) return 0;
         Item item = (Item) itemObj;
         int total = 0;
         for (int i = 0; i < inv.size(); i++) {
@@ -158,7 +159,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public void dropInventory(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
-        BlockEntity be = world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        BlockEntity be =
+                world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
         if (be instanceof Inventory inv) {
             for (int i = 0; i < inv.size(); i++) {
                 ItemStack stack = inv.getStack(i);
@@ -171,9 +173,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public double extractItemFromInventory(Object blockEntityObj, Object itemObj, double damage, double amount) {
-        if (!(blockEntityObj instanceof Inventory inv))
-            return 0;
+    public double extractItemFromInventory(
+            Object blockEntityObj, Object itemObj, double damage, double amount) {
+        if (!(blockEntityObj instanceof Inventory inv)) return 0;
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.size() && remainingToExtract > 0; i++) {
@@ -203,7 +205,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public Object getBlockEntity(Object levelObj, double x, double y, double z) {
-        return ((World) levelObj).getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        return ((World) levelObj)
+                .getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
 
     @Override
@@ -214,8 +217,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public Object getClientLevel() {
         @SuppressWarnings("deprecation")
-        net.minecraft.client.Minecraft mc = (net.minecraft.client.Minecraft) FabricLoader.getInstance()
-                .getGameInstance();
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return mc != null ? mc.world : null;
     }
 
@@ -263,8 +266,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemEntity(Object levelObj, double x, double y, double z, Object itemStackObj) {
-        return new ItemEntity((World) levelObj, (float) x, (float) y, (float) z, (ItemStack) itemStackObj);
+    public Object createItemEntity(
+            Object levelObj, double x, double y, double z, Object itemStackObj) {
+        return new ItemEntity(
+                (World) levelObj, (float) x, (float) y, (float) z, (ItemStack) itemStackObj);
     }
 
     @Override
@@ -282,10 +287,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
         if (blockEntityObj instanceof Inventory inv) {
             ItemStack stack = inv.getStack((int) slot);
             if (stack != null) {
-                if (count <= 0)
-                    inv.setStack((int) slot, null);
-                else
-                    stack.count = (int) count;
+                if (count <= 0) inv.setStack((int) slot, null);
+                else stack.count = (int) count;
             }
         }
     }
@@ -308,7 +311,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         if (levelObj instanceof World world) {
-            Identifier id = Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
+            Identifier id =
+                    Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
             Block targetBlock = BlockRegistry.INSTANCE.get(id);
 
             if (targetBlock != null) {
@@ -318,7 +322,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
                 world.setBlock(posX, posY, posZ, targetBlock.id);
             } else {
-                InitListener.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+                InitListener.LOGGER.error(
+                        "placeBlock failed: Could not resolve block " + blockName);
             }
         }
     }
@@ -326,8 +331,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public Vec3 getTestOrigin() {
         @SuppressWarnings("deprecation")
-        net.minecraft.client.Minecraft mc = (net.minecraft.client.Minecraft) FabricLoader
-                .getInstance().getGameInstance();
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return new Vec3(mc.player.x, mc.player.y + 3.0, mc.player.z);
     }
 
@@ -343,12 +348,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public Vec3 setupGraphicsTestCamera() {
         @SuppressWarnings("deprecation")
-        net.minecraft.client.Minecraft mc = (net.minecraft.client.Minecraft) FabricLoader
-                .getInstance().getGameInstance();
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         PlayerEntity player = mc.player;
         if (player == null) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.setup_graphics_camera: There is no local player to move.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
             return null;
         }
 
@@ -371,15 +376,17 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public void restoreCameraAfterGraphicsTest() {
         if (!graphicsCameraSaved) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera first.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera"
+                            + " first.");
             return;
         }
         graphicsCameraSaved = false;
 
         @SuppressWarnings("deprecation")
-        net.minecraft.client.Minecraft mc = (net.minecraft.client.Minecraft) FabricLoader
-                .getInstance().getGameInstance();
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         if (mc.player != null) {
             mc.player.setPositionAndAngles(savedX, savedY, savedZ, savedYaw, savedPitch);
         }
@@ -391,12 +398,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
             return;
         }
         @SuppressWarnings("deprecation")
-        net.minecraft.client.Minecraft mc = (net.minecraft.client.Minecraft) FabricLoader
-                .getInstance().getGameInstance();
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         PlayerEntity player = mc.player;
         if (player == null) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.use_block: There is no local player to right-click with.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
             return;
         }
 
@@ -406,38 +413,51 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
         // World.getBlockId() hands back a block id rather than a Block in this generation.
         int blockId = world.getBlockId(blockX, blockY, blockZ);
-        Block block = (blockId >= 0 && blockId < Block.BLOCKS.length) ? Block.BLOCKS[blockId] : null;
+        Block block =
+                (blockId >= 0 && blockId < Block.BLOCKS.length) ? Block.BLOCKS[blockId] : null;
 
         if (block instanceof GrugBlock grugBlock) {
             // Go through the block's own onUse() so the test drives the same code path a real
             // right-click does, instead of a copy of the block's GUI layout.
             grugBlock.onUse(world, blockX, blockY, blockZ, player);
         } else {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.use_block: There is no grug block at " + blockX + ", " + blockY + ", " + blockZ + ".");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.use_block: There is no grug block at "
+                            + blockX
+                            + ", "
+                            + blockY
+                            + ", "
+                            + blockZ
+                            + ".");
         }
     }
 
     @Override
-    public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
+    public void assertScreenshotEquals(
+            String referencePath, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure.
         String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
-        if (bad == null)
-            bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
-        if (bad == null)
-            bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
-        if (bad == null)
-            bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
+        if (bad == null) bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
+        if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
+        if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
         if (bad != null) {
             Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
             return;
         }
         if (x2 <= x1 || y2 <= y1) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "Test.assert_screenshot_equals: the rectangle is empty, since ("
-                            + (int) x2 + "," + (int) y2 + ") is not below and right of ("
-                            + (int) x1 + "," + (int) y1 + ")");
+                            + (int) x2
+                            + ","
+                            + (int) y2
+                            + ") is not below and right of ("
+                            + (int) x1
+                            + ","
+                            + (int) y1
+                            + ")");
             return;
         }
 
@@ -446,15 +466,23 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // a screen of subtly wrong pixels.
         @SuppressWarnings("deprecation")
         Minecraft mc = (Minecraft) FabricLoader.getInstance().getGameInstance();
-        if (mc.displayWidth != GrugScreenshots.WIDTH || mc.displayHeight != GrugScreenshots.HEIGHT) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.assert_screenshot_equals: the window is " + mc.displayWidth + "x" + mc.displayHeight
-                            + ", but screenshot tests are captured at " + GrugScreenshots.WIDTH + "x"
+        if (mc.displayWidth != GrugScreenshots.WIDTH
+                || mc.displayHeight != GrugScreenshots.HEIGHT) {
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.assert_screenshot_equals: the window is "
+                            + mc.displayWidth
+                            + "x"
+                            + mc.displayHeight
+                            + ", but screenshot tests are captured at "
+                            + GrugScreenshots.WIDTH
+                            + "x"
                             + GrugScreenshots.HEIGHT);
             return;
         }
 
-        BufferedImage capture = captureRectangle((int) x1, (int) y1, (int) x2, (int) y2, mc.displayHeight);
+        BufferedImage capture =
+                captureRectangle((int) x1, (int) y1, (int) x2, (int) y2, mc.displayHeight);
         if (capture == null) {
             return; // captureRectangle already reported why
         }
@@ -469,8 +497,16 @@ public class StationApiAdapter implements ModLoaderAdapter {
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
     private static String checkCoordinate(String name, double value, int limit) {
         if (value < 0 || value > limit) {
-            return name + " is " + (int) value + ", which is outside the " + GrugScreenshots.WIDTH + "x"
-                    + GrugScreenshots.HEIGHT + " frame (0 to " + limit + ")";
+            return name
+                    + " is "
+                    + (int) value
+                    + ", which is outside the "
+                    + GrugScreenshots.WIDTH
+                    + "x"
+                    + GrugScreenshots.HEIGHT
+                    + " frame (0 to "
+                    + limit
+                    + ")";
         }
         return null;
     }
@@ -478,15 +514,17 @@ public class StationApiAdapter implements ModLoaderAdapter {
     /**
      * Reads back a rectangle of the frame that's currently on screen. Runs from Minecraft.tick(),
      * i.e. after the previous frame was rendered but before this one is drawn, so the frame of
-     * interest is whatever was drawn most recently. On LWJGL 2 that is the back buffer, which is also
-     * GL's default read buffer.
+     * interest is whatever was drawn most recently. On LWJGL 2 that is the back buffer, which is
+     * also GL's default read buffer.
      *
-     * <p>Coordinate convention: the rectangle (x1,y1,x2,y2) is in screen space with the origin at the
-     * top left, but GL's origin is the bottom left. A screen row y is therefore GL row height-1-y,
-     * which puts the bottom edge of the crop at GL row height-y2. glReadPixels fills the buffer
-     * bottom row first, so rows are written into the image in reverse to land the right way up.
+     * <p>Coordinate convention: the rectangle (x1,y1,x2,y2) is in screen space with the origin at
+     * the top left, but GL's origin is the bottom left. A screen row y is therefore GL row
+     * height-1-y, which puts the bottom edge of the crop at GL row height-y2. glReadPixels fills
+     * the buffer bottom row first, so rows are written into the image in reverse to land the right
+     * way up.
      */
-    private static BufferedImage captureRectangle(int x1, int y1, int x2, int y2, int windowHeight) {
+    private static BufferedImage captureRectangle(
+            int x1, int y1, int x2, int y2, int windowHeight) {
         int width = x2 - x1;
         int height = y2 - y1;
         int glY = windowHeight - y2;
@@ -496,13 +534,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
         try {
             GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
         } catch (RuntimeException e) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "Test.assert_screenshot_equals: the pixel readback failed unexpectedly: " + e);
             return null;
         }
         int glError = GL11.glGetError();
         if (glError != GL11.GL_NO_ERROR) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "Test.assert_screenshot_equals: glReadPixels failed with GL error 0x"
                             + Integer.toHexString(glError)
                             + ", so the capture cannot be trusted. A multisampled or otherwise "
@@ -523,8 +563,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
             }
             return image;
         } catch (RuntimeException e) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.assert_screenshot_equals: could not build an image from the readback: " + e);
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.assert_screenshot_equals: could not build an image from the readback: "
+                            + e);
             return null;
         }
     }

@@ -2,7 +2,6 @@ package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
@@ -11,8 +10,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import javax.imageio.ImageIO;
 
 /**
  * Reference-image handling shared by every loader's {@code Test.assert_screenshot_equals()}.
@@ -21,18 +21,19 @@ import java.util.regex.Pattern;
  * assertion passes when the capture is pixel-identical to any one of them. There is deliberately no
  * single canonical image: the same UI renders differently on each Minecraft version (fonts, item
  * sprites, GUI scaling), so every accepted appearance gets its own file and one test stays green on
- * all of them. It also means a contributor can add their own environment's rendering with a one-file
- * pull request.
+ * all of them. It also means a contributor can add their own environment's rendering with a
+ * one-file pull request.
  *
- * <p>A directory with no references yet is bootstrapped: the first capture is written as
- * {@code 1.png} and accepted, so a new screenshot test doesn't need its directory created by hand.
- * A capture that matches none of an existing directory's references is instead written to the
+ * <p>A directory with no references yet is bootstrapped: the first capture is written as {@code
+ * 1.png} and accepted, so a new screenshot test doesn't need its directory created by hand. A
+ * capture that matches none of an existing directory's references is instead written to the
  * screenshot-artifacts directory (mirroring the reference path) so CI can upload it, and the test
  * fails; promoting that artifact into the reference directory is how a new rendering is accepted.
  */
 public final class GrugScreenshots {
     /** Screenshot tests are pixel-exact against references captured at this resolution. */
     public static final int WIDTH = 1280;
+
     public static final int HEIGHT = 720;
 
     /**
@@ -53,26 +54,34 @@ public final class GrugScreenshots {
 
     private static final int DIFF_ALPHA = 0xCC;
 
-    private GrugScreenshots() {
-    }
+    private GrugScreenshots() {}
 
     /**
      * Passes if {@code capture} equals one of the numbered PNGs in {@code referenceDirectory},
-     * bootstraps that directory with the capture when it has no references yet, and otherwise reports
-     * the closest miss and writes the capture to the artifacts directory.
+     * bootstraps that directory with the capture when it has no references yet, and otherwise
+     * reports the closest miss and writes the capture to the artifacts directory.
      */
-    public static void verify(BufferedImage capture, File referenceDirectory, String referencePath) {
-        verify(capture, referenceDirectory, referencePath,
+    public static void verify(
+            BufferedImage capture, File referenceDirectory, String referencePath) {
+        verify(
+                capture,
+                referenceDirectory,
+                referencePath,
                 new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY));
     }
 
     /** The real entry point, with the artifacts directory passed in so tests can drive it. */
-    static void verify(BufferedImage capture, File referenceDirectory, String referencePath,
+    static void verify(
+            BufferedImage capture,
+            File referenceDirectory,
+            String referencePath,
             File artifactsRoot) {
         List<File> references = listReferences(referenceDirectory);
 
-        // No accepted rendering yet, so this is a brand-new screenshot test: create the directory and
-        // accept the capture as its first reference instead of failing. A committed directory always
+        // No accepted rendering yet, so this is a brand-new screenshot test: create the directory
+        // and
+        // accept the capture as its first reference instead of failing. A committed directory
+        // always
         // has at least one PNG -- git can't store an empty one -- so this only ever happens for a
         // local author on their first run; CI never reaches it.
         if (references.isEmpty()) {
@@ -89,13 +98,24 @@ public final class GrugScreenshots {
                 continue;
             }
 
-            if (image.getWidth() != capture.getWidth() || image.getHeight() != capture.getHeight()) {
+            if (image.getWidth() != capture.getWidth()
+                    || image.getHeight() != capture.getHeight()) {
                 // A reference of the wrong size means the crop rectangle changed; every reference,
                 // including this one, is now stale and has to be regenerated.
-                throw Grug.fatal("Screenshot reference " + reference.getName() + " in " + referencePath
-                        + " is " + image.getWidth() + "x" + image.getHeight() + " but the capture is "
-                        + capture.getWidth() + "x" + capture.getHeight()
-                        + ". The crop rectangle and every reference image have to agree.");
+                throw Grug.fatal(
+                        "Screenshot reference "
+                                + reference.getName()
+                                + " in "
+                                + referencePath
+                                + " is "
+                                + image.getWidth()
+                                + "x"
+                                + image.getHeight()
+                                + " but the capture is "
+                                + capture.getWidth()
+                                + "x"
+                                + capture.getHeight()
+                                + ". The crop rectangle and every reference image have to agree.");
             }
 
             int differing = countDifferences(image, capture);
@@ -109,38 +129,61 @@ public final class GrugScreenshots {
             }
         }
 
-        // The capture is named after the free slot it would fill, so accepting it is a plain copy of
+        // The capture is named after the free slot it would fill, so accepting it is a plain copy
+        // of
         // the artifact into the reference directory.
         int targetNumber = nextNumber(referenceDirectory);
         File artifact = writeArtifact(capture, referencePath, artifactsRoot, targetNumber);
 
         // The closest reference is the useful one to diff against: it keeps the highlighted area as
-        // small as possible, so a localized red patch reads as a change while an all-red frame reads
-        // as a rendering no reference represents yet. The faded background is the capture either way,
+        // small as possible, so a localized red patch reads as a change while an all-red frame
+        // reads
+        // as a rendering no reference represents yet. The faded background is the capture either
+        // way,
         // since a pixel only counts as matching when the capture and that reference agree there.
-        File diff = closestImage == null ? null : writeDiff(capture, closestImage, referencePath, artifactsRoot);
+        File diff =
+                closestImage == null
+                        ? null
+                        : writeDiff(capture, closestImage, referencePath, artifactsRoot);
 
-        String difference = closestName == null
-                ? "none of them could be read"
-                : "the closest (" + closestName + ") differs in " + closestDifference + " of "
-                        + (capture.getWidth() * capture.getHeight()) + " pixels";
+        String difference =
+                closestName == null
+                        ? "none of them could be read"
+                        : "the closest ("
+                                + closestName
+                                + ") differs in "
+                                + closestDifference
+                                + " of "
+                                + (capture.getWidth() * capture.getHeight())
+                                + " pixels";
 
-        throw Grug.fatal("Screenshot mismatch against " + referencePath + ": the capture matches none of the "
-                + references.size() + " reference image(s): " + difference + ". The capture was written to "
-                + artifact + (diff == null ? "." : " and a diff to " + diff + ".")
-                + " To accept it, copy the capture into " + referenceDirectory + " as " + targetNumber + ".png.");
+        throw Grug.fatal(
+                "Screenshot mismatch against "
+                        + referencePath
+                        + ": the capture matches none of the "
+                        + references.size()
+                        + " reference image(s): "
+                        + difference
+                        + ". The capture was written to "
+                        + artifact
+                        + (diff == null ? "." : " and a diff to " + diff + ".")
+                        + " To accept it, copy the capture into "
+                        + referenceDirectory
+                        + " as "
+                        + targetNumber
+                        + ".png.");
     }
 
     /**
-     * Checks the reference trees under a mods directory against the {@code screenshots/} convention,
-     * returning every violation (empty when the tree is valid). The convention is that, under a
-     * mod's {@code screenshots/}, every directory is either a group (subdirectories only) or a
-     * reference (only {@code 1.png}, {@code 2.png}, ... with no gaps), the two are never mixed, and
-     * a name is exactly a lowercase {@code .png} of a positive number.
+     * Checks the reference trees under a mods directory against the {@code screenshots/}
+     * convention, returning every violation (empty when the tree is valid). The convention is that,
+     * under a mod's {@code screenshots/}, every directory is either a group (subdirectories only)
+     * or a reference (only {@code 1.png}, {@code 2.png}, ... with no gaps), the two are never
+     * mixed, and a name is exactly a lowercase {@code .png} of a positive number.
      *
-     * <p>This is deliberately the only implementation of the rules: the loaders run it before a test
-     * run so authors see violations locally, and CI fails through the very same path, so the two
-     * can't drift apart.
+     * <p>This is deliberately the only implementation of the rules: the loaders run it before a
+     * test run so authors see violations locally, and CI fails through the very same path, so the
+     * two can't drift apart.
      */
     public static List<String> validateReferenceTrees(File modsDirectory) {
         List<String> errors = new ArrayList<>();
@@ -151,13 +194,15 @@ public final class GrugScreenshots {
         for (File modDirectory : modDirectories) {
             File screenshots = new File(modDirectory, "screenshots");
             if (screenshots.isDirectory()) {
-                validateReferenceDirectory(screenshots, modDirectory.getName() + "/screenshots", errors);
+                validateReferenceDirectory(
+                        screenshots, modDirectory.getName() + "/screenshots", errors);
             }
         }
         return errors;
     }
 
-    private static void validateReferenceDirectory(File directory, String path, List<String> errors) {
+    private static void validateReferenceDirectory(
+            File directory, String path, List<String> errors) {
         File[] entries = directory.listFiles();
         if (entries == null) {
             return;
@@ -170,17 +215,24 @@ public final class GrugScreenshots {
         }
 
         if (!subdirectories.isEmpty() && !files.isEmpty()) {
-            errors.add(path + " mixes reference PNGs with subdirectories; a directory is either a"
-                    + " group of subdirectories or a directory of numbered PNGs, never both.");
+            errors.add(
+                    path
+                            + " mixes reference PNGs with subdirectories; a directory is either a"
+                            + " group of subdirectories or a directory of numbered PNGs, never"
+                            + " both.");
         }
 
         if (!files.isEmpty()) {
             Set<Integer> numbers = new TreeSet<>();
             for (File file : files) {
                 if (!REFERENCE_NAME.matcher(file.getName()).matches()) {
-                    errors.add(path + "/" + file.getName() + " is not a valid reference name;"
-                            + " references are numbered from 1 (1.png, 2.png, ...) with the exact"
-                            + " lowercase .png extension.");
+                    errors.add(
+                            path
+                                    + "/"
+                                    + file.getName()
+                                    + " is not a valid reference name; references are numbered from"
+                                    + " 1 (1.png, 2.png, ...) with the exact lowercase .png"
+                                    + " extension.");
                     continue;
                 }
                 numbers.add(referenceNumber(file));
@@ -189,8 +241,12 @@ public final class GrugScreenshots {
             int expected = 1;
             for (int number : numbers) {
                 if (number != expected) {
-                    errors.add(path + " is missing " + expected + ".png, so its references are not"
-                            + " numbered 1, 2, 3, ... without gaps.");
+                    errors.add(
+                            path
+                                    + " is missing "
+                                    + expected
+                                    + ".png, so its references are not"
+                                    + " numbered 1, 2, 3, ... without gaps.");
                     // Report the gap once, rather than cascading it into every later number.
                     break;
                 }
@@ -229,21 +285,33 @@ public final class GrugScreenshots {
      */
     private static void addReference(BufferedImage capture, File directory, String referencePath) {
         if (!directory.exists() && !directory.mkdirs()) {
-            throw Grug.fatal("Screenshot: could not create the reference directory " + referencePath
-                    + " (" + directory + ").");
+            throw Grug.fatal(
+                    "Screenshot: could not create the reference directory "
+                            + referencePath
+                            + " ("
+                            + directory
+                            + ").");
         }
         try {
             File reference = new File(directory, nextNumber(directory) + ".png");
             ImageIO.write(capture, "png", reference);
-            String message = "Wrote the first screenshot reference " + referencePath + "/"
-                    + reference.getName() + " (" + capture.getWidth() + "x" + capture.getHeight()
-                    + "); re-run to verify it.";
+            String message =
+                    "Wrote the first screenshot reference "
+                            + referencePath
+                            + "/"
+                            + reference.getName()
+                            + " ("
+                            + capture.getWidth()
+                            + "x"
+                            + capture.getHeight()
+                            + "); re-run to verify it.";
             System.out.println("[GRUG CI] " + message);
             synchronized (Grug.printQueue) {
                 Grug.printQueue.add(message);
             }
         } catch (Exception e) {
-            throw Grug.fatal("Screenshot: failed to write a reference for " + referencePath + ": " + e);
+            throw Grug.fatal(
+                    "Screenshot: failed to write a reference for " + referencePath + ": " + e);
         }
     }
 
@@ -251,7 +319,8 @@ public final class GrugScreenshots {
      * Writes the unmatched capture to the artifacts directory under the given number, which is the
      * free slot in the reference directory, so promoting it is a plain copy.
      */
-    private static File writeArtifact(BufferedImage capture, String referencePath, File artifactsRoot, int number) {
+    private static File writeArtifact(
+            BufferedImage capture, String referencePath, File artifactsRoot, int number) {
         try {
             File directory = artifactDirectory(referencePath, artifactsRoot);
             if (!directory.exists() && !directory.mkdirs()) {
@@ -273,13 +342,16 @@ public final class GrugScreenshots {
     }
 
     /**
-     * Writes a visual diff of the capture against {@code reference}: differing pixels in ImageMagick
-     * compare's default highlight color and matching pixels faded towards white, so the red stands
-     * out. The colors and the 0xCC alpha are exactly ImageMagick's defaults ({@code #f1001ecc}
-     * highlight, {@code #ffffffcc} lowlight) composited over the capture, so this is pixel-identical
-     * to {@code magick compare capture reference diff}.
+     * Writes a visual diff of the capture against {@code reference}: differing pixels in
+     * ImageMagick compare's default highlight color and matching pixels faded towards white, so the
+     * red stands out. The colors and the 0xCC alpha are exactly ImageMagick's defaults ({@code
+     * #f1001ecc} highlight, {@code #ffffffcc} lowlight) composited over the capture, so this is
+     * pixel-identical to {@code magick compare capture reference diff}.
      */
-    private static File writeDiff(BufferedImage capture, BufferedImage reference, String referencePath,
+    private static File writeDiff(
+            BufferedImage capture,
+            BufferedImage reference,
+            String referencePath,
             File artifactsRoot) {
         try {
             int width = capture.getWidth();
@@ -306,11 +378,21 @@ public final class GrugScreenshots {
         }
     }
 
-    /** Composites a highlight/lowlight color over a capture pixel using ImageMagick's 0xCC alpha. */
+    /**
+     * Composites a highlight/lowlight color over a capture pixel using ImageMagick's 0xCC alpha.
+     */
     static int blend(int foreground, int background) {
         int inverse = 255 - DIFF_ALPHA;
-        int r = (((foreground >> 16) & 0xFF) * DIFF_ALPHA + ((background >> 16) & 0xFF) * inverse + 127) / 255;
-        int g = (((foreground >> 8) & 0xFF) * DIFF_ALPHA + ((background >> 8) & 0xFF) * inverse + 127) / 255;
+        int r =
+                (((foreground >> 16) & 0xFF) * DIFF_ALPHA
+                                + ((background >> 16) & 0xFF) * inverse
+                                + 127)
+                        / 255;
+        int g =
+                (((foreground >> 8) & 0xFF) * DIFF_ALPHA
+                                + ((background >> 8) & 0xFF) * inverse
+                                + 127)
+                        / 255;
         int b = ((foreground & 0xFF) * DIFF_ALPHA + (background & 0xFF) * inverse + 127) / 255;
         return (r << 16) | (g << 8) | b;
     }

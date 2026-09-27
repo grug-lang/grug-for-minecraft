@@ -1,5 +1,8 @@
 package net.grug.minecraft.grug;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -8,17 +11,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 /**
- * Covers the {@code screenshots/} tree convention enforced by
- * {@link GrugScreenshots#validateReferenceTrees(java.io.File)}.
+ * Covers the {@code screenshots/} tree convention enforced by {@link
+ * GrugScreenshots#validateReferenceTrees(java.io.File)}.
  */
 class GrugScreenshotsTest {
 
-    @TempDir
-    Path mods;
+    @TempDir Path mods;
 
     private void touch(String relativePath) throws IOException {
         Path path = mods.resolve(relativePath);
@@ -116,7 +115,11 @@ class GrugScreenshotsTest {
         touch("two/screenshots/chest/3.png");
         List<String> errors = validate();
         assertEquals(2, errors.size(), errors.toString());
-        assertTrue(errors.stream().anyMatch(error -> error.contains("one/screenshots")), errors.toString());
-        assertTrue(errors.stream().anyMatch(error -> error.contains("two/screenshots")), errors.toString());
+        assertTrue(
+                errors.stream().anyMatch(error -> error.contains("one/screenshots")),
+                errors.toString());
+        assertTrue(
+                errors.stream().anyMatch(error -> error.contains("two/screenshots")),
+                errors.toString());
     }
 }

@@ -11,6 +11,7 @@ import net.modificationstation.stationapi.api.client.resource.ReloadableAssetsMa
 import net.modificationstation.stationapi.api.tick.TickScheduler;
 import net.modificationstation.stationapi.api.util.Util;
 import net.modificationstation.stationapi.impl.client.resource.AssetsReloaderImpl;
+
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.Display;
@@ -32,8 +33,7 @@ import java.awt.Window;
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {
 
-    @Shadow
-    public ClientPlayerEntity player;
+    @Shadow public ClientPlayerEntity player;
 
     @Shadow
     public abstract void scheduleStop();
@@ -44,52 +44,38 @@ public abstract class MinecraftMixin {
     @Shadow
     protected abstract void resize(int width, int height);
 
-    @Unique
-    private boolean grug$titleSet = false;
+    @Unique private boolean grug$titleSet = false;
 
-    @Unique
-    private boolean grug$testsKeyPressed = false;
+    @Unique private boolean grug$testsKeyPressed = false;
 
-    @Unique
-    private boolean grug$resolutionKeyPressed = false;
+    @Unique private boolean grug$resolutionKeyPressed = false;
 
     /** Last cursor position printed to chat, or Integer.MIN_VALUE when nothing has been printed. */
-    @Unique
-    private int grug$lastCursorX = Integer.MIN_VALUE;
+    @Unique private int grug$lastCursorX = Integer.MIN_VALUE;
 
-    @Unique
-    private int grug$lastCursorY = Integer.MIN_VALUE;
+    @Unique private int grug$lastCursorY = Integer.MIN_VALUE;
 
     /** Cursor position before a run parked it in a corner, so it can be put back afterwards. */
-    @Unique
-    private int grug$savedCursorX = 0;
+    @Unique private int grug$savedCursorX = 0;
 
-    @Unique
-    private int grug$savedCursorY = 0;
+    @Unique private int grug$savedCursorY = 0;
 
-    @Unique
-    private boolean grug$cursorParked = false;
+    @Unique private boolean grug$cursorParked = false;
 
-    @Unique
-    private boolean grug$ciTestsRan = false;
+    @Unique private boolean grug$ciTestsRan = false;
 
-    @Unique
-    private GrugTestRunner grug$testRunner = null;
+    @Unique private GrugTestRunner grug$testRunner = null;
 
-    @Unique
-    private boolean grug$testRunnerFromCI = false;
+    @Unique private boolean grug$testRunnerFromCI = false;
 
     /** Non-null exactly while the window is forced to 1280x720, whoever forced it. */
-    @Unique
-    private DisplayMode grug$savedDisplayMode = null;
+    @Unique private DisplayMode grug$savedDisplayMode = null;
 
     /** True only while R (not M) is the reason the window is forced, so only R restores it. */
-    @Unique
-    private boolean grug$resolutionForcedByTestRun = false;
+    @Unique private boolean grug$resolutionForcedByTestRun = false;
 
     /** Whether GL_DITHER was on before a test run turned it off, so it can be put back. */
-    @Unique
-    private boolean grug$ditherWasEnabled = false;
+    @Unique private boolean grug$ditherWasEnabled = false;
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void onClientTick(CallbackInfo ci) {
@@ -99,7 +85,9 @@ public abstract class MinecraftMixin {
         }
 
         // CI auto-execution
-        if ("true".equals(System.getenv("GRUG_CI")) && !this.grug$ciTestsRan && this.player != null) {
+        if ("true".equals(System.getenv("GRUG_CI"))
+                && !this.grug$ciTestsRan
+                && this.player != null) {
             System.out.println("[GRUG CI] CI mode active & player loaded. Firing tests!");
             this.grug$ciTestsRan = true;
             this.startTestRunner(true);
@@ -187,8 +175,7 @@ public abstract class MinecraftMixin {
                     Util.getMainWorkerExecutor(),
                     TickScheduler.CLIENT_RENDER_END::distributed,
                     AssetsReloaderImpl.COMPLETED_UNIT_FUTURE,
-                    (reloader, formatString, location) -> {
-                    }, // No-op profiler
+                    (reloader, formatString, location) -> {}, // No-op profiler
                     AssetsReloaderImpl.RESOURCE_PACK_MANAGER.createResourcePacks());
         }
 
@@ -236,7 +223,9 @@ public abstract class MinecraftMixin {
         this.grug$testRunnerFromCI = fromCI;
     }
 
-    /** Puts the window and the GL state back the way this run found them, if this run changed them. */
+    /**
+     * Puts the window and the GL state back the way this run found them, if this run changed them.
+     */
     @Unique
     private void finishTestRun() {
         if (this.grug$resolutionForcedByTestRun) {
@@ -257,9 +246,9 @@ public abstract class MinecraftMixin {
     }
 
     /**
-     * Moves the cursor to the window's corner while a screen is open, so a screenshot doesn't record
-     * the slot-hover highlight. The window-corner position is outside every centered GUI panel, and
-     * the cursor itself is never drawn into the framebuffer.
+     * Moves the cursor to the window's corner while a screen is open, so a screenshot doesn't
+     * record the slot-hover highlight. The window-corner position is outside every centered GUI
+     * panel, and the cursor itself is never drawn into the framebuffer.
      */
     @Unique
     private void parkCursor() {
@@ -315,7 +304,8 @@ public abstract class MinecraftMixin {
                 Window window = enclosingWindow(mc.canvas);
                 if (window != null) {
                     Insets insets = window.getInsets();
-                    window.setSize(mode.getWidth() + insets.left + insets.right,
+                    window.setSize(
+                            mode.getWidth() + insets.left + insets.right,
                             mode.getHeight() + insets.top + insets.bottom);
                     window.validate();
                 }
@@ -323,17 +313,26 @@ public abstract class MinecraftMixin {
 
             this.resize(mode.getWidth(), mode.getHeight());
         } catch (Exception e) {
-            // Resolution changes are finicky across platforms, so report rather than crash the client.
-            InitListener.LOGGER.error("Failed to switch the window to "
-                    + mode.getWidth() + "x" + mode.getHeight(), e);
-            sendRedMessage("Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight() + ".");
+            // Resolution changes are finicky across platforms, so report rather than crash the
+            // client.
+            InitListener.LOGGER.error(
+                    "Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight(),
+                    e);
+            sendRedMessage(
+                    "Failed to switch the window to "
+                            + mode.getWidth()
+                            + "x"
+                            + mode.getHeight()
+                            + ".");
         }
     }
 
     /** The Window a component lives in, however many containers deep it is. */
     @Unique
     private static Window enclosingWindow(Component component) {
-        for (Container ancestor = component.getParent(); ancestor != null; ancestor = ancestor.getParent()) {
+        for (Container ancestor = component.getParent();
+                ancestor != null;
+                ancestor = ancestor.getParent()) {
             if (ancestor instanceof Window) {
                 return (Window) ancestor;
             }
@@ -354,8 +353,10 @@ public abstract class MinecraftMixin {
     private void updateCursorPositionReadout() {
         Minecraft mc = (Minecraft) (Object) this;
 
-        // Only meaningful at the test resolution, with a free cursor. While the mouse is grabbed for
-        // camera control Mouse.getX/Y accumulate movement deltas rather than pointing at a pixel, so
+        // Only meaningful at the test resolution, with a free cursor. While the mouse is grabbed
+        // for
+        // camera control Mouse.getX/Y accumulate movement deltas rather than pointing at a pixel,
+        // so
         // printing them would just fill chat with drift. A screen being open is what ungrabs it.
         if (mc.displayWidth != GrugScreenshots.WIDTH
                 || mc.displayHeight != GrugScreenshots.HEIGHT
@@ -384,8 +385,7 @@ public abstract class MinecraftMixin {
 
     @Unique
     private void sendMessage(String text, String prefix) {
-        if (this.player == null || text == null)
-            return;
+        if (this.player == null || text == null) return;
 
         String[] lines = text.split("\n");
         for (String line : lines) {

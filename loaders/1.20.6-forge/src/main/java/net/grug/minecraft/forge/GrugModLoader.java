@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge;
 
 import com.mojang.logging.LogUtils;
+
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge.block.GrugBlock;
@@ -52,6 +53,7 @@ import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
+
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 
@@ -76,51 +78,68 @@ public class GrugModLoader {
         return ClientForgeEvents.grug$testRunner != null;
     }
 
-    public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(ForgeRegistries.BLOCKS, MODID);
-    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister
-            .create(ForgeRegistries.BLOCK_ENTITY_TYPES, MODID);
-    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, MODID);
-    public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(ForgeRegistries.MENU_TYPES,
-            MODID);
-    public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister
-            .create(Registries.CREATIVE_MODE_TAB, MODID);
+    public static final DeferredRegister<Block> BLOCKS =
+            DeferredRegister.create(ForgeRegistries.BLOCKS, MODID);
+    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
+            DeferredRegister.create(ForgeRegistries.BLOCK_ENTITY_TYPES, MODID);
+    public static final DeferredRegister<Item> ITEMS =
+            DeferredRegister.create(ForgeRegistries.ITEMS, MODID);
+    public static final DeferredRegister<MenuType<?>> MENUS =
+            DeferredRegister.create(ForgeRegistries.MENU_TYPES, MODID);
+    public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
+            DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
     private static final Map<String, Long> blockFiles = new HashMap<>();
     private static final Map<String, Long> itemFiles = new HashMap<>();
     private static final List<RegistryObject<GrugBlock>> registeredGrugBlocks = new ArrayList<>();
-    private static final List<RegistryObject<? extends Item>> registeredGrugItems = new ArrayList<>();
+    private static final List<RegistryObject<? extends Item>> registeredGrugItems =
+            new ArrayList<>();
 
     public static volatile boolean reloadClientResources = false;
 
-    public static final KeyMapping RUN_TESTS_KEY = new KeyMapping(
-            "key.grug.run_tests",
-            GLFW.GLFW_KEY_R,
-            "key.categories.grug");
+    public static final KeyMapping RUN_TESTS_KEY =
+            new KeyMapping("key.grug.run_tests", GLFW.GLFW_KEY_R, "key.categories.grug");
 
-    public static final KeyMapping FORCE_RESOLUTION_KEY = new KeyMapping(
-            "key.grug.force_test_resolution",
-            GLFW.GLFW_KEY_M,
-            "key.categories.grug");
+    public static final KeyMapping FORCE_RESOLUTION_KEY =
+            new KeyMapping(
+                    "key.grug.force_test_resolution", GLFW.GLFW_KEY_M, "key.categories.grug");
 
-    public static final RegistryObject<MenuType<GrugMenu>> GRUG_MENU = MENUS.register("grug_menu",
-            () -> IForgeMenuType.create((windowId, inv, data) -> {
-                net.minecraft.core.BlockPos pos = data.readBlockPos();
-                GrugGuiBuilder builder = GrugMenu.readBuilder(data);
-                net.minecraft.world.Container container = (net.minecraft.world.Container) inv.player.level()
-                        .getBlockEntity(pos);
-                return new GrugMenu(null, windowId, inv, container, builder);
-            }));
+    public static final RegistryObject<MenuType<GrugMenu>> GRUG_MENU =
+            MENUS.register(
+                    "grug_menu",
+                    () ->
+                            IForgeMenuType.create(
+                                    (windowId, inv, data) -> {
+                                        net.minecraft.core.BlockPos pos = data.readBlockPos();
+                                        GrugGuiBuilder builder = GrugMenu.readBuilder(data);
+                                        net.minecraft.world.Container container =
+                                                (net.minecraft.world.Container)
+                                                        inv.player.level().getBlockEntity(pos);
+                                        return new GrugMenu(
+                                                null, windowId, inv, container, builder);
+                                    }));
 
-    public static final RegistryObject<CreativeModeTab> GRUG_TAB = CREATIVE_MODE_TABS.register("grug_tab",
-            () -> CreativeModeTab.builder()
-                    .title(Component.literal("Grug Mods"))
-                    .icon(() -> !registeredGrugItems.isEmpty() ? new ItemStack(registeredGrugItems.get(0).get())
-                            : new ItemStack(Blocks.STONE))
-                    .displayItems((parameters, output) -> {
-                        for (var itemReg : registeredGrugItems) {
-                            output.accept(itemReg.get());
-                        }
-                    }).build());
+    public static final RegistryObject<CreativeModeTab> GRUG_TAB =
+            CREATIVE_MODE_TABS.register(
+                    "grug_tab",
+                    () ->
+                            CreativeModeTab.builder()
+                                    .title(Component.literal("Grug Mods"))
+                                    .icon(
+                                            () ->
+                                                    !registeredGrugItems.isEmpty()
+                                                            ? new ItemStack(
+                                                                    registeredGrugItems
+                                                                            .get(0)
+                                                                            .get())
+                                                            : new ItemStack(Blocks.STONE))
+                                    .displayItems(
+                                            (parameters, output) -> {
+                                                for (var itemReg : registeredGrugItems) {
+                                                    output.accept(itemReg.get());
+                                                }
+                                            })
+                                    .build());
 
     public static RegistryObject<BlockEntityType<GrugBlockEntity>> GRUG_BLOCK_ENTITY;
 
@@ -134,10 +153,17 @@ public class GrugModLoader {
         MENUS.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 
-        GRUG_BLOCK_ENTITY = BLOCK_ENTITIES.register("grug_block_entity", () -> {
-            Block[] blockArray = registeredGrugBlocks.stream().map(RegistryObject::get).toArray(Block[]::new);
-            return BlockEntityType.Builder.of(GrugBlockEntity::new, blockArray).build(null);
-        });
+        GRUG_BLOCK_ENTITY =
+                BLOCK_ENTITIES.register(
+                        "grug_block_entity",
+                        () -> {
+                            Block[] blockArray =
+                                    registeredGrugBlocks.stream()
+                                            .map(RegistryObject::get)
+                                            .toArray(Block[]::new);
+                            return BlockEntityType.Builder.of(GrugBlockEntity::new, blockArray)
+                                    .build(null);
+                        });
         BLOCK_ENTITIES.register(modEventBus);
 
         modEventBus.addListener(this::onAddPackFinders);
@@ -159,26 +185,33 @@ public class GrugModLoader {
 
     private void onAddPackFinders(AddPackFindersEvent event) {
         PackType type = event.getPackType();
-        PackLocationInfo info = new PackLocationInfo(
-                "grug_resources_" + type.name(),
-                Component.literal("Grug Mod " + (type == PackType.CLIENT_RESOURCES ? "Resources" : "Data")),
-                PackSource.BUILT_IN,
-                Optional.empty());
-        Pack pack = Pack.readMetaAndCreate(
-                info,
-                new Pack.ResourcesSupplier() {
-                    @Override
-                    public PackResources openPrimary(PackLocationInfo locationInfo) {
-                        return new GrugPackResources(locationInfo);
-                    }
+        PackLocationInfo info =
+                new PackLocationInfo(
+                        "grug_resources_" + type.name(),
+                        Component.literal(
+                                "Grug Mod "
+                                        + (type == PackType.CLIENT_RESOURCES
+                                                ? "Resources"
+                                                : "Data")),
+                        PackSource.BUILT_IN,
+                        Optional.empty());
+        Pack pack =
+                Pack.readMetaAndCreate(
+                        info,
+                        new Pack.ResourcesSupplier() {
+                            @Override
+                            public PackResources openPrimary(PackLocationInfo locationInfo) {
+                                return new GrugPackResources(locationInfo);
+                            }
 
-                    @Override
-                    public PackResources openFull(PackLocationInfo locationInfo, Pack.Metadata metadata) {
-                        return openPrimary(locationInfo);
-                    }
-                },
-                type,
-                new PackSelectionConfig(true, Pack.Position.TOP, false));
+                            @Override
+                            public PackResources openFull(
+                                    PackLocationInfo locationInfo, Pack.Metadata metadata) {
+                                return openPrimary(locationInfo);
+                            }
+                        },
+                        type,
+                        new PackSelectionConfig(true, Pack.Position.TOP, false));
         if (pack != null) {
             event.addRepositorySource(consumer -> consumer.accept(pack));
         }
@@ -211,17 +244,22 @@ public class GrugModLoader {
 
         for (FileInfo file : files) {
             if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
-                throw new RuntimeException("Failed to compile " + file.path() + ":\n" + file.errorString());
+                throw new RuntimeException(
+                        "Failed to compile " + file.path() + ":\n" + file.errorString());
             }
 
             String[] pathParts = file.path().replace('\\', '/').split("/");
             if (pathParts.length < 2 || !pathParts[1].equals("code")) {
-                throw new RuntimeException("Grug file misplaced! '" + file.path() + "' must be inside 'code/'.");
+                throw new RuntimeException(
+                        "Grug file misplaced! '" + file.path() + "' must be inside 'code/'.");
             }
 
             Grug.fileIds.put(file.path(), file.fileId());
 
-            String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0] : file.entityName();
+            String cleanName =
+                    file.entityName().contains("-")
+                            ? file.entityName().split("-")[0]
+                            : file.entityName();
 
             if ("Block".equals(file.entityType())) {
                 blockFiles.put(cleanName, file.fileId());
@@ -258,12 +296,20 @@ public class GrugModLoader {
             Grug.blockDataByFileId.put(blockFileId, blockData);
             Grug.currentlyInitializingBlock = null;
 
-            var blockReg = BLOCKS.register(cleanName, () -> new GrugBlock(
-                    BlockBehaviour.Properties.of().mapColor(MapColor.STONE).strength(blockData.hardness),
-                    blockFileId));
+            var blockReg =
+                    BLOCKS.register(
+                            cleanName,
+                            () ->
+                                    new GrugBlock(
+                                            BlockBehaviour.Properties.of()
+                                                    .mapColor(MapColor.STONE)
+                                                    .strength(blockData.hardness),
+                                            blockFileId));
             registeredGrugBlocks.add(blockReg);
 
-            var itemReg = ITEMS.register(cleanName, () -> new BlockItem(blockReg.get(), new Item.Properties()));
+            var itemReg =
+                    ITEMS.register(
+                            cleanName, () -> new BlockItem(blockReg.get(), new Item.Properties()));
             registeredGrugItems.add(itemReg);
         }
 
@@ -295,12 +341,14 @@ public class GrugModLoader {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
-            String[] updatedResources = Grug.update(errorMsg -> {
-                LOGGER.error(errorMsg);
-                synchronized (Grug.runtimeErrorQueue) {
-                    Grug.runtimeErrorQueue.add(errorMsg);
-                }
-            });
+            String[] updatedResources =
+                    Grug.update(
+                            errorMsg -> {
+                                LOGGER.error(errorMsg);
+                                synchronized (Grug.runtimeErrorQueue) {
+                                    Grug.runtimeErrorQueue.add(errorMsg);
+                                }
+                            });
             for (String resource : updatedResources) {
                 LOGGER.info("Reloading changed resource: {}", resource);
                 reloadClientResources = true;
@@ -308,15 +356,20 @@ public class GrugModLoader {
         }
     }
 
-    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+    @Mod.EventBusSubscriber(
+            modid = MODID,
+            bus = Mod.EventBusSubscriber.Bus.MOD,
+            value = Dist.CLIENT)
     public static class ClientModEvents {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
-            event.enqueueWork(() -> {
-                MenuScreens.register(GRUG_MENU.get(),
-                        (GrugMenu menu, Inventory inv, Component title) -> new GrugScreen(menu, inv, title,
-                                menu.layout));
-            });
+            event.enqueueWork(
+                    () -> {
+                        MenuScreens.register(
+                                GRUG_MENU.get(),
+                                (GrugMenu menu, Inventory inv, Component title) ->
+                                        new GrugScreen(menu, inv, title, menu.layout));
+                    });
         }
 
         @SubscribeEvent
@@ -326,7 +379,10 @@ public class GrugModLoader {
         }
     }
 
-    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+    @Mod.EventBusSubscriber(
+            modid = MODID,
+            bus = Mod.EventBusSubscriber.Bus.FORGE,
+            value = Dist.CLIENT)
     public static class ClientForgeEvents {
 
         private static boolean grug$titleSet = false;
@@ -360,7 +416,8 @@ public class GrugModLoader {
                         File savesDir = new File(mc.gameDirectory, "saves");
                         File[] saves = savesDir.listFiles(File::isDirectory);
                         if (saves != null && saves.length > 0) {
-                            mc.createWorldOpenFlows().openWorld(saves[0].getName(), () -> mc.setScreen(null));
+                            mc.createWorldOpenFlows()
+                                    .openWorld(saves[0].getName(), () -> mc.setScreen(null));
                         }
                     }
                 }
@@ -373,7 +430,9 @@ public class GrugModLoader {
                     toggleResolution(mc);
                 }
 
-                if ("true".equals(System.getenv("GRUG_CI")) && !grug$testsRan && mc.player != null
+                if ("true".equals(System.getenv("GRUG_CI"))
+                        && !grug$testsRan
+                        && mc.player != null
                         && mc.getSingleplayerServer() != null) {
                     grug$testsRan = true;
                     startTestRunner(mc, true);
@@ -456,30 +515,39 @@ public class GrugModLoader {
             if (runner == null || mc.getSingleplayerServer() == null || mc.player == null) {
                 return;
             }
-            // Push the execution onto the server thread to prevent ghost blocks & crashes. The whole
+            // Push the execution onto the server thread to prevent ghost blocks & crashes. The
+            // whole
             // advance happens there, so the runner's state is only ever touched by one thread.
-            mc.getSingleplayerServer().execute(() -> {
-                Player serverPlayer = mc.getSingleplayerServer().getPlayerList().getPlayer(mc.player.getUUID());
-                if (serverPlayer == null) {
-                    return;
-                }
-                // Tasks queued before an earlier one finished the run are stale; the runner has
-                // already been cleared, so skip them rather than dereferencing a null.
-                if (grug$testRunner != runner) {
-                    return;
-                }
-                runner.tick(serverPlayer);
-                if (runner.isFinished()) {
-                    boolean fromCI = grug$testRunnerFromCI;
-                    grug$testRunner = null;
-                    grug$testRunnerFromCI = false;
-                    grug$testRunFinished = true;
-                    // The hotkey path leaves the game running so another R press can start a fresh run.
-                    if (fromCI) {
-                        mc.stop();
-                    }
-                }
-            });
+            mc.getSingleplayerServer()
+                    .execute(
+                            () -> {
+                                Player serverPlayer =
+                                        mc.getSingleplayerServer()
+                                                .getPlayerList()
+                                                .getPlayer(mc.player.getUUID());
+                                if (serverPlayer == null) {
+                                    return;
+                                }
+                                // Tasks queued before an earlier one finished the run are stale;
+                                // the runner has
+                                // already been cleared, so skip them rather than dereferencing a
+                                // null.
+                                if (grug$testRunner != runner) {
+                                    return;
+                                }
+                                runner.tick(serverPlayer);
+                                if (runner.isFinished()) {
+                                    boolean fromCI = grug$testRunnerFromCI;
+                                    grug$testRunner = null;
+                                    grug$testRunnerFromCI = false;
+                                    grug$testRunFinished = true;
+                                    // The hotkey path leaves the game running so another R press
+                                    // can start a fresh run.
+                                    if (fromCI) {
+                                        mc.stop();
+                                    }
+                                }
+                            });
         }
 
         /** M: toggle the window between its current size and the test resolution. */
@@ -509,14 +577,15 @@ public class GrugModLoader {
             }
             if (grug$cursorParked) {
                 grug$cursorParked = false;
-                GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), grug$savedCursorX, grug$savedCursorY);
+                GLFW.glfwSetCursorPos(
+                        mc.getWindow().getWindow(), grug$savedCursorX, grug$savedCursorY);
             }
         }
 
         /**
          * Moves the cursor to the window's top-left corner while a screen is open, so a screenshot
-         * doesn't record the slot-hover highlight. GLFW cursor coordinates are window pixels with the
-         * origin at the top left, and the corner is outside every centered GUI panel.
+         * doesn't record the slot-hover highlight. GLFW cursor coordinates are window pixels with
+         * the origin at the top left, and the corner is outside every centered GUI panel.
          */
         private static void parkCursor(Minecraft mc) {
             long window = mc.getWindow().getWindow();
@@ -543,9 +612,9 @@ public class GrugModLoader {
         }
 
         /**
-         * Prints the cursor position in the screenshot-crop convention (origin top left, framebuffer
-         * pixels). Only prints when it changed, and only while a screen is open and the window is at
-         * the test resolution.
+         * Prints the cursor position in the screenshot-crop convention (origin top left,
+         * framebuffer pixels). Only prints when it changed, and only while a screen is open and the
+         * window is at the test resolution.
          */
         private static void updateCursorPositionReadout(Minecraft mc) {
             if (mc.getWindow().getWidth() != GrugScreenshots.WIDTH
@@ -562,10 +631,18 @@ public class GrugModLoader {
             double[] cursorY = new double[1];
             GLFW.glfwGetCursorPos(mc.getWindow().getWindow(), cursorX, cursorY);
 
-            int screenX = (int) Math.round(cursorX[0] * mc.getWindow().getWidth()
-                    / (double) mc.getWindow().getScreenWidth());
-            int screenY = (int) Math.round(cursorY[0] * mc.getWindow().getHeight()
-                    / (double) mc.getWindow().getScreenHeight());
+            int screenX =
+                    (int)
+                            Math.round(
+                                    cursorX[0]
+                                            * mc.getWindow().getWidth()
+                                            / (double) mc.getWindow().getScreenWidth());
+            int screenY =
+                    (int)
+                            Math.round(
+                                    cursorY[0]
+                                            * mc.getWindow().getHeight()
+                                            / (double) mc.getWindow().getScreenHeight());
 
             if (screenX == grug$lastCursorX && screenY == grug$lastCursorY) {
                 return;
@@ -580,8 +657,7 @@ public class GrugModLoader {
         }
 
         private static void sendMessage(Player player, String text, String prefix) {
-            if (player == null || text == null)
-                return;
+            if (player == null || text == null) return;
 
             String[] lines = text.split("\n");
             for (String line : lines) {
@@ -593,7 +669,8 @@ public class GrugModLoader {
                     if (splitIndex == -1) {
                         splitIndex = maxLength;
                     }
-                    player.sendSystemMessage(Component.literal(prefix + line.substring(0, splitIndex)));
+                    player.sendSystemMessage(
+                            Component.literal(prefix + line.substring(0, splitIndex)));
                     line = line.substring(splitIndex).trim();
                 }
                 if (!line.isEmpty()) {

@@ -42,7 +42,8 @@ public class GameFunctions {
         GrugCore.getAdapter().useBlockForTest(Grug.entityData.get(levelId).object, x, y, z);
     }
 
-    public static void Test_assert_screenshot_equals(String referencePath, double x1, double y1, double x2, double y2) {
+    public static void Test_assert_screenshot_equals(
+            String referencePath, double x1, double y1, double x2, double y2) {
         GrugCore.getAdapter().assertScreenshotEquals(referencePath, x1, y1, x2, y2);
     }
 
@@ -60,12 +61,14 @@ public class GameFunctions {
 
     public static long BlockPos_above_n(long blockPosId, double n) {
         BlockPos pos = (BlockPos) Grug.entityData.get(blockPosId).object;
-        return Grug.addEntity(GrugEntityType.BlockPos, new BlockPos(pos.x(), pos.y() + (int) n, pos.z()));
+        return Grug.addEntity(
+                GrugEntityType.BlockPos, new BlockPos(pos.x(), pos.y() + (int) n, pos.z()));
     }
 
     public static long BlockPos_center(long blockPosId) {
         BlockPos pos = (BlockPos) Grug.entityData.get(blockPosId).object;
-        return Grug.addEntity(GrugEntityType.Vec3, new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
+        return Grug.addEntity(
+                GrugEntityType.Vec3, new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
     }
 
     public static long Color_rgb(double r, double g, double b) {
@@ -86,12 +89,14 @@ public class GameFunctions {
 
     public static void GUI_add_crafting_grid(long guiId, double startSlot, double x, double y) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
-        builder.craftingGrids.add(new GrugGuiBuilder.CraftingGridDef((int) startSlot, (int) x, (int) y));
+        builder.craftingGrids.add(
+                new GrugGuiBuilder.CraftingGridDef((int) startSlot, (int) x, (int) y));
     }
 
     public static void GUI_add_crafting_result(long guiId, double slot, double x, double y) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
-        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef((int) slot, (int) x, (int) y));
+        builder.craftingResults.add(
+                new GrugGuiBuilder.CraftingResultDef((int) slot, (int) x, (int) y));
     }
 
     public static void GUI_add_output_slot(long guiId, double slot, double x, double y) {
@@ -99,8 +104,8 @@ public class GameFunctions {
         builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, true));
     }
 
-    public static void GUI_add_player_inventory(long guiId, double mainX, double mainY, double hotbarX,
-            double hotbarY) {
+    public static void GUI_add_player_inventory(
+            long guiId, double mainX, double mainY, double hotbarX, double hotbarY) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         builder.hasPlayerInventory = true;
         builder.playerInvX = (int) mainX;
@@ -129,8 +134,13 @@ public class GameFunctions {
         int inventorySize = (int) GrugCore.getAdapter().getInventorySize(be);
         OptionalInt badSlot = builder.firstSlotOutsideInventory(inventorySize);
         if (badSlot.isPresent()) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "GUI.open: The GUI uses slot " + badSlot.getAsInt()
-                    + ", but the block entity only has " + inventorySize + " inventory slots.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
+                    "GUI.open: The GUI uses slot "
+                            + badSlot.getAsInt()
+                            + ", but the block entity only has "
+                            + inventorySize
+                            + " inventory slots.");
             return;
         }
 
@@ -142,16 +152,19 @@ public class GameFunctions {
     }
 
     public static long Level_get_block_entity(long levelId, double x, double y, double z) {
-        Object be = GrugCore.getAdapter().getBlockEntity(Grug.entityData.get(levelId).object, x, y, z);
+        Object be =
+                GrugCore.getAdapter().getBlockEntity(Grug.entityData.get(levelId).object, x, y, z);
         // TODO: Should this not call Grug.gameFunctionErrorHappened when be is null?
         if (be != null) {
-            return Grug.addEntity(GrugEntityType.Option,
+            return Grug.addEntity(
+                    GrugEntityType.Option,
                     new GrugOption(Grug.addEntity(GrugEntityType.BlockEntity, be)));
         }
         return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
-    public static void Level_place_block(long levelId, double x, double y, double z, String blockName) {
+    public static void Level_place_block(
+            long levelId, double x, double y, double z, String blockName) {
         GrugCore.getAdapter().placeBlock(Grug.entityData.get(levelId).object, x, y, z, blockName);
     }
 
@@ -212,14 +225,17 @@ public class GameFunctions {
     // Host functions
 
     public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
-        GrugCore.getAdapter().consumeCraftingIngredients(GameFunctionHelpers.resolveBlockEntity(blockEntityId),
-                startSlot);
+        GrugCore.getAdapter()
+                .consumeCraftingIngredients(
+                        GameFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
     }
 
     public static double count_item_in_inventory(long blockEntityId, long itemId, double damage) {
-        return GrugCore.getAdapter().countItemInInventory(
-                GameFunctionHelpers.resolveBlockEntity(blockEntityId),
-                Grug.entityData.get(itemId).object, damage);
+        return GrugCore.getAdapter()
+                .countItemInInventory(
+                        GameFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        Grug.entityData.get(itemId).object,
+                        damage);
     }
 
     public static void drop_inventory(long levelId, double x, double y, double z) {
@@ -236,39 +252,54 @@ public class GameFunctions {
         return java.util.Objects.equals(a, b);
     }
 
-    public static double extract_item_from_inventory(long blockEntityId, long itemId, double damage, double amount) {
-        return GrugCore.getAdapter().extractItemFromInventory(
-                GameFunctionHelpers.resolveBlockEntity(blockEntityId),
-                Grug.entityData.get(itemId).object, damage, amount);
+    public static double extract_item_from_inventory(
+            long blockEntityId, long itemId, double damage, double amount) {
+        return GrugCore.getAdapter()
+                .extractItemFromInventory(
+                        GameFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        Grug.entityData.get(itemId).object,
+                        damage,
+                        amount);
     }
 
     public static long get_block_entity_level(long blockEntityId) {
-        Object level = GrugCore.getAdapter().getBlockEntityLevel(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
+        Object level =
+                GrugCore.getAdapter()
+                        .getBlockEntityLevel(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
         return Grug.addEntity(GrugEntityType.Level, level);
     }
 
     public static long get_block_pos_of_block_entity(long blockEntityId) {
-        BlockPos pos = GrugCore.getAdapter()
-                .getBlockPosOfBlockEntity(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
+        BlockPos pos =
+                GrugCore.getAdapter()
+                        .getBlockPosOfBlockEntity(
+                                GameFunctionHelpers.resolveBlockEntity(blockEntityId));
         return Grug.addEntity(GrugEntityType.BlockPos, pos);
     }
 
     public static double get_inventory_size(long blockEntityId) {
-        return GrugCore.getAdapter().getInventorySize(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
+        return GrugCore.getAdapter()
+                .getInventorySize(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
     }
 
     public static double get_item_count_in_slot(long blockEntityId, double slot) {
-        return GrugCore.getAdapter().getItemCountInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+        return GrugCore.getAdapter()
+                .getItemCountInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
     }
 
     public static double get_item_damage_in_slot(long blockEntityId, double slot) {
-        return GrugCore.getAdapter().getItemDamageInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+        return GrugCore.getAdapter()
+                .getItemDamageInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
     }
 
     public static long get_item_in_slot(long blockEntityId, double slot) {
-        Object item = GrugCore.getAdapter().getItemInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+        Object item =
+                GrugCore.getAdapter()
+                        .getItemInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
         if (item != null) {
-            return Grug.addEntity(GrugEntityType.Option, new GrugOption(Grug.addEntity(GrugEntityType.Item, item)));
+            return Grug.addEntity(
+                    GrugEntityType.Option,
+                    new GrugOption(Grug.addEntity(GrugEntityType.Item, item)));
         }
         return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
@@ -304,19 +335,27 @@ public class GameFunctions {
 
     public static <T, U> void print2(T a, U b) {
         synchronized (Grug.printQueue) {
-            Grug.printQueue.add(GameFunctionHelpers.prettyFormat(a) + " " + GameFunctionHelpers.prettyFormat(b));
+            Grug.printQueue.add(
+                    GameFunctionHelpers.prettyFormat(a)
+                            + " "
+                            + GameFunctionHelpers.prettyFormat(b));
         }
     }
 
     public static <T, U, V> void print3(T a, U b, V c) {
         synchronized (Grug.printQueue) {
-            Grug.printQueue.add(GameFunctionHelpers.prettyFormat(a) + " " + GameFunctionHelpers.prettyFormat(b) + " "
-                    + GameFunctionHelpers.prettyFormat(c));
+            Grug.printQueue.add(
+                    GameFunctionHelpers.prettyFormat(a)
+                            + " "
+                            + GameFunctionHelpers.prettyFormat(b)
+                            + " "
+                            + GameFunctionHelpers.prettyFormat(c));
         }
     }
 
     public static long resource_location(String resourceLocationString) {
-        return Grug.addEntity(GrugEntityType.ResourceLocation,
+        return Grug.addEntity(
+                GrugEntityType.ResourceLocation,
                 GrugCore.getAdapter().createResourceLocation(resourceLocationString));
     }
 
@@ -325,7 +364,8 @@ public class GameFunctions {
         String cleanName = parts.length == 2 ? parts[1] : entityString;
 
         if (!Grug.entityFileIdsByName.containsKey(cleanName)) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "set_block_entity: Block entity script '" + entityString + "' does not exist.");
             return;
         }
@@ -333,8 +373,8 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.blockEntityString = entityString;
         } else {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "set_block_entity: Can only be called during a Block's init().");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "set_block_entity: Can only be called during a Block's init().");
         }
     }
 
@@ -342,41 +382,56 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null)
             Grug.currentlyInitializingBlock.hardness = (float) value;
         else
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "set_hardness: Can only be called during a Block's init().");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "set_hardness: Can only be called during a Block's init().");
     }
 
     public static void set_inventory_size(double size) {
         if (Grug.currentlyInitializingBlock != null)
             Grug.currentlyInitializingBlock.inventorySize = (int) size;
         else
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr,
                     "set_inventory_size: Can only be called during a Block's init().");
     }
 
     public static void set_item_count_in_slot(long blockEntityId, double slot, double count) {
-        GrugCore.getAdapter().setItemCountInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot, count);
+        GrugCore.getAdapter()
+                .setItemCountInSlot(
+                        GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot, count);
     }
 
-    public static void set_item_in_slot(long blockEntityId, double slot, long itemId, double count) {
-        GrugCore.getAdapter().setItemInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot,
-                Grug.entityData.get(itemId).object, count);
+    public static void set_item_in_slot(
+            long blockEntityId, double slot, long itemId, double count) {
+        GrugCore.getAdapter()
+                .setItemInSlot(
+                        GameFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        slot,
+                        Grug.entityData.get(itemId).object,
+                        count);
     }
 
     public static void set_material(String materialName) {
         if (Grug.currentlyInitializingBlock != null)
             Grug.currentlyInitializingBlock.material = materialName;
         else
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "set_material: Can only be called during a Block's init().");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "set_material: Can only be called during a Block's init().");
     }
 
     public static double take_item_from_slot(long blockEntityId, double slot, double amount) {
-        return GrugCore.getAdapter().takeItemFromSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot,
-                amount);
+        return GrugCore.getAdapter()
+                .takeItemFromSlot(
+                        GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot, amount);
     }
 
-    public static void update_recipe_output(long blockEntityId, double startSlot, double outputSlot) {
-        GrugCore.getAdapter().updateRecipeOutput(GameFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot,
-                outputSlot);
+    public static void update_recipe_output(
+            long blockEntityId, double startSlot, double outputSlot) {
+        GrugCore.getAdapter()
+                .updateRecipeOutput(
+                        GameFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        startSlot,
+                        outputSlot);
     }
 
     public static long vec3(double x, double y, double z) {

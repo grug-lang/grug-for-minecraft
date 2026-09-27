@@ -14,11 +14,13 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 import net.ornithemc.osl.resource.loader.api.resource.manager.ResourceManager;
+
 import org.lwjgl.opengl.GL11;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
+
+import javax.imageio.ImageIO;
 
 /** Client-only. Never reference this class from code that runs on a dedicated server. */
 public class GrugScreen extends InventoryMenuScreen {
@@ -28,59 +30,78 @@ public class GrugScreen extends InventoryMenuScreen {
     private int textureId = -1;
 
     /** In Alpha the screen itself owns the slots, there is no separate menu object. */
-    public GrugScreen(PlayerInventory playerInventory, Inventory blockInventory, GrugGuiBuilder layout) {
+    public GrugScreen(
+            PlayerInventory playerInventory, Inventory blockInventory, GrugGuiBuilder layout) {
         super();
         this.layout = layout;
         this.texturePath = toResourcePath(layout.texturePath);
 
         for (GrugGuiBuilder.SlotDef def : layout.blockSlots) {
-            this.menuSlots.add(new InventoryMenuSlot(this, blockInventory, def.index(), def.x(), def.y()));
+            this.menuSlots.add(
+                    new InventoryMenuSlot(this, blockInventory, def.index(), def.x(), def.y()));
         }
 
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 3; col++) {
-                    this.menuSlots.add(new InventoryMenuSlot(this, blockInventory, grid.startSlot() + col + row * 3,
-                            grid.x() + col * 18, grid.y() + row * 18));
+                    this.menuSlots.add(
+                            new InventoryMenuSlot(
+                                    this,
+                                    blockInventory,
+                                    grid.startSlot() + col + row * 3,
+                                    grid.x() + col * 18,
+                                    grid.y() + row * 18));
                 }
             }
         }
 
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
-            this.menuSlots.add(new InventoryMenuSlot(this, blockInventory, res.slot(), res.x(), res.y()) {
-                @Override
-                public boolean isItemAllowed(ItemStack stack) {
-                    return false;
-                }
+            this.menuSlots.add(
+                    new InventoryMenuSlot(this, blockInventory, res.slot(), res.x(), res.y()) {
+                        @Override
+                        public boolean isItemAllowed(ItemStack stack) {
+                            return false;
+                        }
 
-                @Override
-                public void onItemRemoved() {
-                    super.onItemRemoved();
-                    if (blockInventory instanceof GrugBlockEntity gbe) {
-                        // Alpha does not tell us which stack was taken, so the amount is unknown
-                        gbe.notifyOutputTaken(res.slot(), 0);
-                    }
-                }
-            });
+                        @Override
+                        public void onItemRemoved() {
+                            super.onItemRemoved();
+                            if (blockInventory instanceof GrugBlockEntity gbe) {
+                                // Alpha does not tell us which stack was taken, so the amount is
+                                // unknown
+                                gbe.notifyOutputTaken(res.slot(), 0);
+                            }
+                        }
+                    });
         }
 
         if (layout.hasPlayerInventory) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 9; col++) {
-                    this.menuSlots.add(new InventoryMenuSlot(this, playerInventory, col + row * 9 + 9,
-                            layout.playerInvX + col * 18, layout.playerInvY + row * 18));
+                    this.menuSlots.add(
+                            new InventoryMenuSlot(
+                                    this,
+                                    playerInventory,
+                                    col + row * 9 + 9,
+                                    layout.playerInvX + col * 18,
+                                    layout.playerInvY + row * 18));
                 }
             }
             for (int col = 0; col < 9; col++) {
-                this.menuSlots.add(new InventoryMenuSlot(this, playerInventory, col,
-                        layout.hotbarX + col * 18, layout.hotbarY));
+                this.menuSlots.add(
+                        new InventoryMenuSlot(
+                                this,
+                                playerInventory,
+                                col,
+                                layout.hotbarX + col * 18,
+                                layout.hotbarY));
             }
         }
     }
 
     /**
-     * Grug gives paths like "buildcraft/assets/grug/textures/gui/crafting.png".
-     * GrugResourcePack resolves paths relative to a mod dir, so drop the mod name.
+     * Grug gives paths like "buildcraft/assets/grug/textures/gui/crafting.png". GrugResourcePack
+     * resolves paths relative to a mod dir, so drop the mod name.
      */
     private static String toResourcePath(String path) {
         int assetsIdx = path.indexOf("/assets/");
@@ -88,12 +109,13 @@ public class GrugScreen extends InventoryMenuScreen {
     }
 
     /**
-     * Opens the screen for a singleplayer client. Alpha singleplayer has no
-     * server, so `Block.use` runs on the client and no packets are needed.
+     * Opens the screen for a singleplayer client. Alpha singleplayer has no server, so `Block.use`
+     * runs on the client and no packets are needed.
      */
     public static void open(PlayerEntity player, Inventory inventory, GrugGuiBuilder layout) {
         if (!(player instanceof ClientPlayerEntity) || player instanceof LocalClientPlayerEntity) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "GUI.open: Opening a GUI in multiplayer is not supported yet.");
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "GUI.open: Opening a GUI in multiplayer is not supported yet.");
             return;
         }
 
@@ -101,8 +123,8 @@ public class GrugScreen extends InventoryMenuScreen {
     }
 
     /**
-     * Alpha has no texture pack layer, so TextureManager.load(String) cannot see the
-     * mod directory. Read the image through OSL's resource manager instead.
+     * Alpha has no texture pack layer, so TextureManager.load(String) cannot see the mod directory.
+     * Read the image through OSL's resource manager instead.
      */
     private int loadTexture() {
         try (InputStream is = ResourceManager.client().getResource(texturePath)) {

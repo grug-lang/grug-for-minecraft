@@ -2,7 +2,9 @@
 import json
 import sys
 from pathlib import Path
+
 import jsonschema
+
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parent
@@ -52,11 +54,15 @@ def main() -> int:
             print(f"PASSED: {rel_path}")
 
     if has_error:
-        print("Validation failed: one or more about.json files do not conform to schema.", file=sys.stderr)
+        print(
+            "Validation failed: one or more about.json files do not conform to schema.",
+            file=sys.stderr,
+        )
         return 1
 
     print("All about.json files validated successfully.")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

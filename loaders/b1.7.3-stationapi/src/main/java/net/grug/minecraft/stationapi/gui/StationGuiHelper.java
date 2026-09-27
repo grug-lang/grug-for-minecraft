@@ -5,11 +5,12 @@ import net.modificationstation.stationapi.api.network.packet.MessagePacket;
 
 public class StationGuiHelper {
 
-    public static void writeBuilderToPacket(GrugGuiBuilder builder, MessagePacket messagePacket, int syncId, int x,
-            int y, int z) {
-        String guiIdStr = (messagePacket.strings != null && messagePacket.strings.length > 0)
-                ? messagePacket.strings[0]
-                : "";
+    public static void writeBuilderToPacket(
+            GrugGuiBuilder builder, MessagePacket messagePacket, int syncId, int x, int y, int z) {
+        String guiIdStr =
+                (messagePacket.strings != null && messagePacket.strings.length > 0)
+                        ? messagePacket.strings[0]
+                        : "";
 
         // Add texts to the strings array
         String[] strings = new String[2 + builder.texts.size()];
@@ -21,8 +22,12 @@ public class StationGuiHelper {
         messagePacket.strings = strings;
 
         // 13 base elements + dynamic slots + grids + results + texts
-        int numInts = 13 + (builder.blockSlots.size() * 4) + (builder.craftingGrids.size() * 3)
-                + (builder.craftingResults.size() * 3) + (builder.texts.size() * 3);
+        int numInts =
+                13
+                        + (builder.blockSlots.size() * 4)
+                        + (builder.craftingGrids.size() * 3)
+                        + (builder.craftingResults.size() * 3)
+                        + (builder.texts.size() * 3);
         int[] ints = new int[numInts];
 
         ints[0] = syncId;
@@ -81,27 +86,36 @@ public class StationGuiHelper {
 
         int blockSlotsCount = message.ints[idx++];
         for (int i = 0; i < blockSlotsCount; i++) {
-            builder.blockSlots.add(new GrugGuiBuilder.SlotDef(
-                    message.ints[idx++], message.ints[idx++], message.ints[idx++],
-                    message.ints[idx++] == 1));
+            builder.blockSlots.add(
+                    new GrugGuiBuilder.SlotDef(
+                            message.ints[idx++],
+                            message.ints[idx++],
+                            message.ints[idx++],
+                            message.ints[idx++] == 1));
         }
 
         int gridCount = message.ints[idx++];
         for (int i = 0; i < gridCount; i++) {
-            builder.craftingGrids.add(new GrugGuiBuilder.CraftingGridDef(
-                    message.ints[idx++], message.ints[idx++], message.ints[idx++]));
+            builder.craftingGrids.add(
+                    new GrugGuiBuilder.CraftingGridDef(
+                            message.ints[idx++], message.ints[idx++], message.ints[idx++]));
         }
 
         int resultsCount = message.ints[idx++];
         for (int i = 0; i < resultsCount; i++) {
-            builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(
-                    message.ints[idx++], message.ints[idx++], message.ints[idx++]));
+            builder.craftingResults.add(
+                    new GrugGuiBuilder.CraftingResultDef(
+                            message.ints[idx++], message.ints[idx++], message.ints[idx++]));
         }
 
         int textCount = message.ints[idx++];
         for (int i = 0; i < textCount; i++) {
-            builder.texts.add(new GrugGuiBuilder.TextDef(
-                    message.strings[2 + i], message.ints[idx++], message.ints[idx++], message.ints[idx++]));
+            builder.texts.add(
+                    new GrugGuiBuilder.TextDef(
+                            message.strings[2 + i],
+                            message.ints[idx++],
+                            message.ints[idx++],
+                            message.ints[idx++]));
         }
 
         return builder;

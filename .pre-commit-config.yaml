@@ -1,0 +1,26 @@
+# Formats and lints the tracked Python and Java sources.
+#
+# Install the git hooks once with `pre-commit install`. CI runs the same hooks over every file with
+# `pre-commit run --all-files`, so a file that is not already formatted fails the build.
+#
+# The Java hook needs a JDK on PATH (CI installs JDK 21; google-java-format itself is downloaded and
+# cached by .github/scripts/google-java-format.sh).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      # Fix what it can, then let the formatter clean up the result.
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: google-java-format
+        name: google-java-format (AOSP)
+        entry: .github/scripts/google-java-format.sh
+        language: script
+        # AOSP style is 4-space indentation with a 100-column limit, matching this repository.
+        args: [--aosp, --replace]
+        files: \.java$
+        require_serial: true

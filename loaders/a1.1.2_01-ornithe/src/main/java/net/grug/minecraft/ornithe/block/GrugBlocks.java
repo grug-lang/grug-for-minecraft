@@ -8,8 +8,6 @@ import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.item.GrugItem;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
 import net.ornithemc.osl.blocks.api.BlockRegistry;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 
@@ -32,10 +30,12 @@ public final class GrugBlocks {
     private static int nextItemSpriteId = 160;
 
     public static void init() {
-        GrugModLoader.LOGGER.info("Registering dynamic grug blocks and items in Ornithe (Alpha 1.1.2_01)...");
+        GrugModLoader.LOGGER.info(
+                "Registering dynamic grug blocks and items in Ornithe (Alpha 1.1.2_01)...");
 
         try {
-            Method registerMethod = BlockEntity.class.getDeclaredMethod("register", Class.class, String.class);
+            Method registerMethod =
+                    BlockEntity.class.getDeclaredMethod("register", Class.class, String.class);
             registerMethod.setAccessible(true);
             registerMethod.invoke(null, GrugBlockEntity.class, "grug:generic_block_entity");
         } catch (Exception e) {
@@ -85,10 +85,7 @@ public final class GrugBlocks {
                 block.sprite = blockSprite;
             }
 
-            BlockRegistry.register(
-                    blockId,
-                    NamespacedIdentifiers.from("grug", cleanName),
-                    block);
+            BlockRegistry.register(blockId, NamespacedIdentifiers.from("grug", cleanName), block);
         }
 
         // Register Dynamic Items
@@ -135,8 +132,7 @@ public final class GrugBlocks {
     }
 
     private static Material stringToMaterial(String materialName) {
-        if (materialName == null)
-            return Material.STONE;
+        if (materialName == null) return Material.STONE;
         return switch (materialName.toLowerCase()) {
             case "air" -> Material.AIR;
             case "organic", "dirt", "grass" -> Material.GRASS;

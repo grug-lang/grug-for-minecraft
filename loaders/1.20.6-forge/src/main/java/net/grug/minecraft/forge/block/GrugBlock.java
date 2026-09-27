@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -50,17 +51,20 @@ public class GrugBlock extends Block implements EntityBlock {
 
     @Nullable
     @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
-            BlockEntityType<T> type) {
-        return level.isClientSide() ? null : (level0, pos0, state0, blockEntity) -> {
-            if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
-                grugBlockEntity.tick();
-            }
-        };
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(
+            Level level, BlockState state, BlockEntityType<T> type) {
+        return level.isClientSide()
+                ? null
+                : (level0, pos0, state0, blockEntity) -> {
+                    if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+                        grugBlockEntity.tick();
+                    }
+                };
     }
 
     @Override
-    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+    public void onRemove(
+            BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
         if (!state.is(newState.getBlock())) {
             long blockHandle = Grug.createEntity(this.blockFileId);
             if (blockHandle != 0) {
@@ -73,13 +77,15 @@ public class GrugBlock extends Block implements EntityBlock {
     }
 
     @Override
-    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
-            BlockHitResult hit) {
+    protected InteractionResult useWithoutItem(
+            BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
             long worldId = Grug.addEntity(GrugEntityType.Level, level);
             long playerId = Grug.addEntity(GrugEntityType.Player, player);
-            boolean handled = ExportFns.Block_use(blockHandle, worldId, pos.getX(), pos.getY(), pos.getZ(), playerId);
+            boolean handled =
+                    ExportFns.Block_use(
+                            blockHandle, worldId, pos.getX(), pos.getY(), pos.getZ(), playerId);
             Grug.destroyEntity(blockHandle);
 
             if (handled) {

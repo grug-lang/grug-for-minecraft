@@ -1,10 +1,10 @@
 package net.grug.minecraft.stationapi.block;
 
-import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugEntityType;
+import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.PlayerEntity;

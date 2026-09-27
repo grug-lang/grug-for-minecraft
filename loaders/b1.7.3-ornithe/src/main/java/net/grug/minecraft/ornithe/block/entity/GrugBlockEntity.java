@@ -24,31 +24,26 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     private boolean sized = false;
 
     private void ensureSized() {
-        if (sized || world == null)
-            return;
+        if (sized || world == null) return;
 
         Block block = Block.BY_ID[world.getBlock(x, y, z)];
-        if (!(block instanceof GrugBlock grugBlock))
-            return;
+        if (!(block instanceof GrugBlock grugBlock)) return;
 
         stacks = new ItemStack[grugBlock.getInventorySize()];
         sized = true;
     }
 
     private void initGrug() {
-        if (entityHandle != 0 || initAttempted)
-            return;
+        if (entityHandle != 0 || initAttempted) return;
         initAttempted = true;
 
         ensureSized();
 
         Block block = Block.BY_ID[world.getBlock(x, y, z)];
-        if (!(block instanceof GrugBlock grugBlock))
-            return;
+        if (!(block instanceof GrugBlock grugBlock)) return;
 
         long fileId = grugBlock.getEntityFileId();
-        if (fileId == Grug.INVALID_GRUG_FILE_ID)
-            return;
+        if (fileId == Grug.INVALID_GRUG_FILE_ID) return;
 
         Grug.currentlyInitializingBlockEntity = this;
         entityHandle = Grug.createEntity(fileId);
@@ -98,16 +93,14 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     @Override
     public ItemStack getItem(int slot) {
         ensureSized();
-        if (slot < 0 || slot >= stacks.length)
-            return null;
+        if (slot < 0 || slot >= stacks.length) return null;
         return stacks[slot];
     }
 
     @Override
     public ItemStack removeItem(int slot, int amount) {
         ensureSized();
-        if (slot < 0 || slot >= stacks.length || stacks[slot] == null)
-            return null;
+        if (slot < 0 || slot >= stacks.length || stacks[slot] == null) return null;
 
         ItemStack result;
         if (stacks[slot].size <= amount) {
@@ -137,8 +130,7 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     @Override
     public void setItem(int slot, ItemStack stack) {
         ensureSized();
-        if (slot < 0 || slot >= stacks.length)
-            return;
+        if (slot < 0 || slot >= stacks.length) return;
 
         stacks[slot] = stack;
         if (stack != null && stack.size > getMaxStackSize()) {
@@ -152,7 +144,8 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         if (entityHandle != 0) {
             long fnId = Grug.getExportFnId("BlockEntity", "item_inserted");
             if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                ExportFns.BlockEntity_item_inserted(entityHandle, slot, stack != null ? stack.size : 0);
+                ExportFns.BlockEntity_item_inserted(
+                        entityHandle, slot, stack != null ? stack.size : 0);
             }
         }
     }

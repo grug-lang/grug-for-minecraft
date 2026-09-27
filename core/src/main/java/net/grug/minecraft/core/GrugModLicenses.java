@@ -14,8 +14,7 @@ import java.util.List;
  * maintaining a second implementation that could drift.
  */
 public final class GrugModLicenses {
-    private GrugModLicenses() {
-    }
+    private GrugModLicenses() {}
 
     /** Every violation of the LICENSE convention under {@code modsDirectory}, empty when valid. */
     public static List<String> validate(File modsDirectory) {

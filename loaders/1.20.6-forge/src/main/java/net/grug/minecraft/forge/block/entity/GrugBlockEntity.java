@@ -33,11 +33,9 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     }
 
     private void ensureSized() {
-        if (sized || level == null)
-            return;
+        if (sized || level == null) return;
         Block block = getBlockState().getBlock();
-        if (!(block instanceof GrugBlock grugBlock))
-            return;
+        if (!(block instanceof GrugBlock grugBlock)) return;
         stacks = NonNullList.withSize(grugBlock.getInventorySize(), ItemStack.EMPTY);
         sized = true;
     }
@@ -49,18 +47,15 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     }
 
     private void initGrug() {
-        if (entityHandle != 0 || initAttempted)
-            return;
+        if (entityHandle != 0 || initAttempted) return;
         initAttempted = true;
         ensureSized();
 
         Block block = getBlockState().getBlock();
-        if (!(block instanceof GrugBlock grugBlock))
-            return;
+        if (!(block instanceof GrugBlock grugBlock)) return;
 
         long fileId = grugBlock.getEntityFileId();
-        if (fileId == Grug.INVALID_GRUG_FILE_ID)
-            return;
+        if (fileId == Grug.INVALID_GRUG_FILE_ID) return;
 
         Grug.currentlyInitializingBlockEntity = this;
         entityHandle = Grug.createEntity(fileId);
@@ -72,8 +67,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     }
 
     public void tick() {
-        if (entityHandle == 0)
-            initGrug();
+        if (entityHandle == 0) initGrug();
 
         if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
             List<GrugObject> oldFnEntities = Grug.fnEntities;
@@ -104,8 +98,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     public boolean isEmpty() {
         ensureSized();
         for (ItemStack stack : stacks) {
-            if (!stack.isEmpty())
-                return false;
+            if (!stack.isEmpty()) return false;
         }
         return true;
     }
@@ -172,8 +165,11 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     public boolean stillValid(Player player) {
         if (this.level == null || this.level.getBlockEntity(this.worldPosition) != this)
             return false;
-        return player.distanceToSqr(this.worldPosition.getX() + 0.5D, this.worldPosition.getY() + 0.5D,
-                this.worldPosition.getZ() + 0.5D) <= 64.0D;
+        return player.distanceToSqr(
+                        this.worldPosition.getX() + 0.5D,
+                        this.worldPosition.getY() + 0.5D,
+                        this.worldPosition.getZ() + 0.5D)
+                <= 64.0D;
     }
 
     @Override

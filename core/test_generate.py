@@ -52,9 +52,7 @@ class TypeTableTest(unittest.TestCase):
             generate.build_signature(["id", "string"], "number"),
             "(JLjava/lang/String;)D",
         )
-        self.assertEqual(
-            generate.build_signature(["bool", "number", "id"], None), "(ZDJ)V"
-        )
+        self.assertEqual(generate.build_signature(["bool", "number", "id"], None), "(ZDJ)V")
 
     def test_grug_type_name(self):
         self.assertEqual(generate.grug_type_name("number"), "number")

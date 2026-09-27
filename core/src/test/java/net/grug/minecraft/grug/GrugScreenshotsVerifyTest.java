@@ -1,23 +1,25 @@
 package net.grug.minecraft.grug;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.awt.image.BufferedImage;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import javax.imageio.ImageIO;
+
 /**
- * Covers {@link GrugScreenshots#verify}: the any-reference match, bootstrapping a directory that has
- * no references yet, the mismatch path (artifact + magick-style diff), and the exact diff colors.
+ * Covers {@link GrugScreenshots#verify}: the any-reference match, bootstrapping a directory that
+ * has no references yet, the mismatch path (artifact + magick-style diff), and the exact diff
+ * colors.
  */
 class GrugScreenshotsVerifyTest {
 
@@ -26,8 +28,7 @@ class GrugScreenshotsVerifyTest {
     private static final int GREEN = 0x00FF00;
     private static final int BLUE = 0xFF0000;
 
-    @TempDir
-    Path temp;
+    @TempDir Path temp;
 
     private Path references;
     private Path artifacts;
@@ -91,9 +92,13 @@ class GrugScreenshotsVerifyTest {
         Path missing = temp.resolve("missing");
         BufferedImage capture = solid(2, 2, RED);
 
-        assertDoesNotThrow(() -> GrugScreenshots.verify(capture, missing.toFile(), REFERENCE_PATH,
-                artifacts.toFile()));
-        assertTrue(Files.exists(missing.resolve("1.png")), "the directory and its first reference are created");
+        assertDoesNotThrow(
+                () ->
+                        GrugScreenshots.verify(
+                                capture, missing.toFile(), REFERENCE_PATH, artifacts.toFile()));
+        assertTrue(
+                Files.exists(missing.resolve("1.png")),
+                "the directory and its first reference are created");
     }
 
     @Test
@@ -103,8 +108,11 @@ class GrugScreenshotsVerifyTest {
         BufferedImage capture = solid(2, 2, RED);
         capture.setRGB(1, 1, BLUE);
 
-        IllegalStateException error = assertThrows(IllegalStateException.class, () -> verify(capture));
-        assertTrue(error.getMessage().contains("matches none of the 1 reference image(s)"), error.getMessage());
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(capture));
+        assertTrue(
+                error.getMessage().contains("matches none of the 1 reference image(s)"),
+                error.getMessage());
         assertTrue(error.getMessage().contains("the closest (1.png)"), error.getMessage());
         assertTrue(error.getMessage().contains("as 2.png"), error.getMessage());
 
@@ -129,14 +137,18 @@ class GrugScreenshotsVerifyTest {
     void failsWhenAReferenceHasADifferentSize() throws Exception {
         write(references.resolve("1.png"), solid(2, 2, RED));
 
-        IllegalStateException error = assertThrows(IllegalStateException.class, () -> verify(solid(3, 3, RED)));
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(solid(3, 3, RED)));
         assertTrue(error.getMessage().contains("have to agree"), error.getMessage());
-        assertFalse(Files.exists(artifacts), "a stale reference is reported before anything is written");
+        assertFalse(
+                Files.exists(artifacts),
+                "a stale reference is reported before anything is written");
     }
 
     @Test
     void blendMatchesImageMagickDefaults() {
-        // #ffffffcc and #f1001ecc composited over srgb(58,95,138): the exact colors `magick compare`
+        // #ffffffcc and #f1001ecc composited over srgb(58,95,138): the exact colors `magick
+        // compare`
         // emits (verified byte-for-byte against it on a real capture/reference pair).
         assertEquals(0xD8DFE8, GrugScreenshots.blend(0xFFFFFF, 0x3A5F8A));
         assertEquals(0xCC1334, GrugScreenshots.blend(0xF1001E, 0x3A5F8A));
