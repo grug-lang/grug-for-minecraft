@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Covers {@link GrugScreenshots#verify}: the any-reference match, the mismatch path (artifact +
- * magick-style diff), update mode, and the exact diff colors.
+ * Covers {@link GrugScreenshots#verify}: the any-reference match, bootstrapping a directory that has
+ * no references yet, the mismatch path (artifact + magick-style diff), and the exact diff colors.
  */
 class GrugScreenshotsVerifyTest {
 
@@ -58,9 +58,9 @@ class GrugScreenshotsVerifyTest {
         return ImageIO.read(path.toFile());
     }
 
-    /** Drives the package-private seam with a temp artifacts directory and an explicit update flag. */
-    private void verify(BufferedImage capture, boolean update) {
-        GrugScreenshots.verify(capture, references.toFile(), REFERENCE_PATH, artifacts.toFile(), update);
+    /** Drives the package-private seam with a temp artifacts directory. */
+    private void verify(BufferedImage capture) {
+        GrugScreenshots.verify(capture, references.toFile(), REFERENCE_PATH, artifacts.toFile());
     }
 
     @Test
@@ -69,8 +69,31 @@ class GrugScreenshotsVerifyTest {
         write(references.resolve("2.png"), solid(2, 2, GREEN));
 
         // It skips 1.png and matches 2.png.
-        assertDoesNotThrow(() -> verify(solid(2, 2, GREEN), false));
+        assertDoesNotThrow(() -> verify(solid(2, 2, GREEN)));
         assertFalse(Files.exists(artifacts), "a passing capture leaves no artifacts");
+    }
+
+    @Test
+    void bootstrapsTheFirstReferenceIntoAnEmptyDirectory() throws Exception {
+        BufferedImage capture = solid(2, 2, GREEN);
+
+        assertDoesNotThrow(() -> verify(capture));
+        assertTrue(Files.exists(references.resolve("1.png")), "the first reference is written");
+        assertEquals(capture.getRGB(0, 0), read(references.resolve("1.png")).getRGB(0, 0));
+        assertFalse(Files.exists(artifacts), "bootstrapping doesn't write an artifact");
+
+        // A re-run now compares against the reference it just bootstrapped.
+        assertDoesNotThrow(() -> verify(capture));
+    }
+
+    @Test
+    void bootstrapsWhenTheReferenceDirectoryDoesNotExist() throws Exception {
+        Path missing = temp.resolve("missing");
+        BufferedImage capture = solid(2, 2, RED);
+
+        assertDoesNotThrow(() -> GrugScreenshots.verify(capture, missing.toFile(), REFERENCE_PATH,
+                artifacts.toFile()));
+        assertTrue(Files.exists(missing.resolve("1.png")), "the directory and its first reference are created");
     }
 
     @Test
@@ -80,11 +103,13 @@ class GrugScreenshotsVerifyTest {
         BufferedImage capture = solid(2, 2, RED);
         capture.setRGB(1, 1, BLUE);
 
-        IllegalStateException error = assertThrows(IllegalStateException.class, () -> verify(capture, false));
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> verify(capture));
         assertTrue(error.getMessage().contains("matches none of the 1 reference image(s)"), error.getMessage());
-        assertTrue(error.getMessage().contains("closest (1.png)"), error.getMessage());
+        assertTrue(error.getMessage().contains("the closest (1.png)"), error.getMessage());
+        assertTrue(error.getMessage().contains("as 2.png"), error.getMessage());
 
-        Path artifact = artifacts.resolve(REFERENCE_PATH).resolve("1.png");
+        // The artifact is named after the free slot, so accepting it is a plain copy.
+        Path artifact = artifacts.resolve(REFERENCE_PATH).resolve("2.png");
         assertTrue(Files.exists(artifact), "the unmatched capture is written for CI to collect");
         assertEquals(capture.getRGB(0, 0), read(artifact).getRGB(0, 0));
         assertEquals(capture.getRGB(1, 1), read(artifact).getRGB(1, 1));
@@ -101,49 +126,12 @@ class GrugScreenshotsVerifyTest {
     }
 
     @Test
-    void reportsNoReferencesWhenTheDirectoryIsEmpty() throws Exception {
-        IllegalStateException error = assertThrows(IllegalStateException.class,
-                () -> verify(solid(2, 2, RED), false));
-        assertTrue(error.getMessage().contains("there are no reference images"), error.getMessage());
-        assertTrue(Files.exists(artifacts.resolve(REFERENCE_PATH).resolve("1.png")));
-        assertFalse(Files.exists(artifacts.resolve(REFERENCE_PATH).resolve("diff.png")));
-    }
-
-    @Test
     void failsWhenAReferenceHasADifferentSize() throws Exception {
         write(references.resolve("1.png"), solid(2, 2, RED));
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
-                () -> verify(solid(3, 3, RED), false));
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> verify(solid(3, 3, RED)));
         assertTrue(error.getMessage().contains("have to agree"), error.getMessage());
         assertFalse(Files.exists(artifacts), "a stale reference is reported before anything is written");
-    }
-
-    @Test
-    void updateModeAddsTheReferenceThenIsIdempotent() throws Exception {
-        BufferedImage capture = solid(2, 2, GREEN);
-
-        assertDoesNotThrow(() -> verify(capture, true));
-        assertTrue(Files.exists(references.resolve("1.png")), "the first run writes 1.png");
-        assertEquals(capture.getRGB(0, 0), read(references.resolve("1.png")).getRGB(0, 0));
-
-        // A second run now matches the reference it just wrote, so it adds nothing.
-        assertDoesNotThrow(() -> verify(capture, true));
-        assertFalse(Files.exists(references.resolve("2.png")), "an existing reference stops a duplicate");
-    }
-
-    @Test
-    void updateModeFillsANumberingGap() throws Exception {
-        write(references.resolve("1.png"), solid(2, 2, RED));
-        write(references.resolve("3.png"), solid(2, 2, GREEN));
-
-        BufferedImage capture = solid(2, 2, BLUE);
-        assertDoesNotThrow(() -> verify(capture, true));
-
-        // The smallest free number is used, rather than appending after the maximum.
-        assertTrue(Files.exists(references.resolve("2.png")), "the gap is filled");
-        assertFalse(Files.exists(references.resolve("4.png")));
-        assertEquals(capture.getRGB(0, 0), read(references.resolve("2.png")).getRGB(0, 0));
     }
 
     @Test
