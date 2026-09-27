@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge.gui;
 
+import net.grug.minecraft.forge.GrugModLoader;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -43,6 +44,14 @@ public class GrugScreen extends AbstractContainerScreen<GrugMenu> {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // A captured frame must not depend on where the cursor happens to be: the game highlights the
+        // slot under the mouse and tooltips follow it. During a test run, render as if the mouse is
+        // outside the GUI, so a screenshot is deterministic regardless of the real cursor's position
+        // or how quickly moving it away takes effect.
+        if (GrugModLoader.isTestRunActive()) {
+            mouseX = -1_000_000;
+            mouseY = -1_000_000;
+        }
         this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         this.renderTooltip(guiGraphics, mouseX, mouseY);
