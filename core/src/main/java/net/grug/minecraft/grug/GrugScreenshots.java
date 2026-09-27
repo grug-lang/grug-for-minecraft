@@ -24,10 +24,11 @@ import java.util.regex.Pattern;
  * all of them. It also means a contributor can add their own environment's rendering with a one-file
  * pull request.
  *
- * <p>In {@code GRUG_UPDATE_SCREENSHOTS} mode a capture that matches nothing is appended as the next
- * free number, so re-running is idempotent and an existing reference is never overwritten. A capture
- * that matches nothing in a normal run is written to the screenshot-artifacts directory (mirroring
- * the reference path) so CI can upload it, which is how missing references get collected.
+ * <p>A directory with no references yet is bootstrapped: the first capture is written as
+ * {@code 1.png} and accepted, so a new screenshot test doesn't need its directory created by hand.
+ * A capture that matches none of an existing directory's references is instead written to the
+ * screenshot-artifacts directory (mirroring the reference path) so CI can upload it, and the test
+ * fails; promoting that artifact into the reference directory is how a new rendering is accepted.
  */
 public final class GrugScreenshots {
     /** Screenshot tests are pixel-exact against references captured at this resolution. */
@@ -56,20 +57,28 @@ public final class GrugScreenshots {
     }
 
     /**
-     * Passes if {@code capture} equals one of the numbered PNGs in {@code referenceDirectory}, adds
-     * it as a new reference in update mode, and otherwise reports the closest miss and writes the
-     * capture to the artifacts directory.
+     * Passes if {@code capture} equals one of the numbered PNGs in {@code referenceDirectory},
+     * bootstraps that directory with the capture when it has no references yet, and otherwise reports
+     * the closest miss and writes the capture to the artifacts directory.
      */
     public static void verify(BufferedImage capture, File referenceDirectory, String referencePath) {
         verify(capture, referenceDirectory, referencePath,
-                new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY),
-                "true".equals(System.getenv("GRUG_UPDATE_SCREENSHOTS")));
+                new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY));
     }
 
-    /** The real entry point, with the artifacts directory and update mode passed in so tests can drive them. */
+    /** The real entry point, with the artifacts directory passed in so tests can drive it. */
     static void verify(BufferedImage capture, File referenceDirectory, String referencePath,
-            File artifactsRoot, boolean update) {
+            File artifactsRoot) {
         List<File> references = listReferences(referenceDirectory);
+
+        // No accepted rendering yet, so this is a brand-new screenshot test: create the directory and
+        // accept the capture as its first reference instead of failing. A committed directory always
+        // has at least one PNG -- git can't store an empty one -- so this only ever happens for a
+        // local author on their first run; CI never reaches it.
+        if (references.isEmpty()) {
+            addReference(capture, referenceDirectory, referencePath);
+            return;
+        }
 
         int closestDifference = Integer.MAX_VALUE;
         String closestName = null;
@@ -100,19 +109,10 @@ public final class GrugScreenshots {
             }
         }
 
-        if (update) {
-            addReference(capture, referenceDirectory, referencePath);
-            return;
-        }
-
-        File artifact = writeArtifact(capture, referencePath, artifactsRoot);
-        int pixels = capture.getWidth() * capture.getHeight();
-
-        if (references.isEmpty()) {
-            throw Grug.fatal("Screenshot mismatch against " + referencePath + ": there are no reference"
-                    + " images. The capture was written to " + artifact
-                    + "; run with GRUG_UPDATE_SCREENSHOTS=true to accept it.");
-        }
+        // The capture is named after the free slot it would fill, so accepting it is a plain copy of
+        // the artifact into the reference directory.
+        int targetNumber = nextNumber(referenceDirectory);
+        File artifact = writeArtifact(capture, referencePath, artifactsRoot, targetNumber);
 
         // The closest reference is the useful one to diff against: it keeps the highlighted area as
         // small as possible, so a localized red patch reads as a change while an all-red frame reads
@@ -120,11 +120,15 @@ public final class GrugScreenshots {
         // since a pixel only counts as matching when the capture and that reference agree there.
         File diff = closestImage == null ? null : writeDiff(capture, closestImage, referencePath, artifactsRoot);
 
+        String difference = closestName == null
+                ? "none of them could be read"
+                : "the closest (" + closestName + ") differs in " + closestDifference + " of "
+                        + (capture.getWidth() * capture.getHeight()) + " pixels";
+
         throw Grug.fatal("Screenshot mismatch against " + referencePath + ": the capture matches none of the "
-                + references.size() + " reference image(s), and differs from the closest (" + closestName
-                + ") in " + closestDifference + " of " + pixels + " pixels. The capture was written to "
-                + artifact
-                + (diff == null ? "." : " and a diff against the closest reference to " + diff + "."));
+                + references.size() + " reference image(s): " + difference + ". The capture was written to "
+                + artifact + (diff == null ? "." : " and a diff to " + diff + ".")
+                + " To accept it, copy the capture into " + referenceDirectory + " as " + targetNumber + ".png.");
     }
 
     /**
@@ -219,35 +223,47 @@ public final class GrugScreenshots {
         return Integer.parseInt(file.getName().substring(0, file.getName().length() - 4));
     }
 
-    /** Adds the capture as the next free reference, unless an existing one already matches it. */
+    /**
+     * Writes the capture as the directory's first reference, creating the directory if needed. Only
+     * called when the directory has no references yet, so this always writes {@code 1.png}.
+     */
     private static void addReference(BufferedImage capture, File directory, String referencePath) {
         if (!directory.exists() && !directory.mkdirs()) {
-            throw Grug.fatal("Screenshot update: could not create the reference directory " + referencePath
+            throw Grug.fatal("Screenshot: could not create the reference directory " + referencePath
                     + " (" + directory + ").");
         }
         try {
             File reference = new File(directory, nextNumber(directory) + ".png");
             ImageIO.write(capture, "png", reference);
-            System.out.println("[GRUG CI] Wrote screenshot reference " + referencePath + "/"
-                    + reference.getName() + " (" + capture.getWidth() + "x" + capture.getHeight() + ")");
+            String message = "Wrote the first screenshot reference " + referencePath + "/"
+                    + reference.getName() + " (" + capture.getWidth() + "x" + capture.getHeight()
+                    + "); re-run to verify it.";
+            System.out.println("[GRUG CI] " + message);
+            synchronized (Grug.printQueue) {
+                Grug.printQueue.add(message);
+            }
         } catch (Exception e) {
-            throw Grug.fatal("Screenshot update: failed to write a reference for " + referencePath + ": " + e);
+            throw Grug.fatal("Screenshot: failed to write a reference for " + referencePath + ": " + e);
         }
     }
 
-    private static File writeArtifact(BufferedImage capture, String referencePath, File artifactsRoot) {
+    /**
+     * Writes the unmatched capture to the artifacts directory under the given number, which is the
+     * free slot in the reference directory, so promoting it is a plain copy.
+     */
+    private static File writeArtifact(BufferedImage capture, String referencePath, File artifactsRoot, int number) {
         try {
             File directory = artifactDirectory(referencePath, artifactsRoot);
             if (!directory.exists() && !directory.mkdirs()) {
-                return new File(directory, "unwritten.png");
+                return new File(directory, number + ".png");
             }
-            File artifact = new File(directory, nextNumber(directory) + ".png");
+            File artifact = new File(directory, number + ".png");
             ImageIO.write(capture, "png", artifact);
             return artifact;
         } catch (Exception e) {
             // The artifact is a convenience for collecting missing references; never let failing to
             // write it hide the actual screenshot mismatch.
-            return new File(referencePath, "unwritten.png");
+            return new File(referencePath, number + ".png");
         }
     }
 

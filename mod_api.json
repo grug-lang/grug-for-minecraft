@@ -174,13 +174,14 @@
 					]
 				},
 				"assert_screenshot_equals": {
-					"description": "Captures the given pixel rectangle of the current frame and fails the test unless the capture is pixel-identical to one of the reference PNGs accepted for this UI. `reference` names a directory of numbered PNGs (0.png, 1.png, ...), because the same UI renders differently on each Minecraft version and each accepted appearance gets its own file. With `GRUG_UPDATE_SCREENSHOTS=true`, a capture that matches none of them is added as a new numbered reference instead of failing; otherwise it is written to the `grug-screenshot-artifacts` directory so CI can collect it. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
+					"description": "Captures the given pixel rectangle of the current frame and fails the test unless the capture is pixel-identical to one of the reference PNGs accepted for this UI. `reference` names a directory of numbered PNGs (1.png, 2.png, ...), because the same UI renders differently on each Minecraft version and each accepted appearance gets its own file. A directory with no references yet is bootstrapped: the capture is written as 1.png and accepted. A capture that matches none of an existing directory's references is written to the `grug-screenshot-artifacts` directory (with a diff image) so CI can collect it, and the test fails; copy that capture into the reference directory to accept it. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
 					"parameters": [
 						{
 							"name": "reference",
 							"type": {
 								"name": "resource",
-								"resource_extension": ""
+								"resource_extension": "",
+								"optional": true
 							}
 						},
 						{
