@@ -55,20 +55,25 @@ Use the following Gradle commands to build and run the specific mod loader envir
 ### Screenshot Tests
 
 Alongside the logic tests, a test can assert that a screen looks exactly right, by comparing a
-rectangle of the rendered frame against a reference PNG committed next to it. A test does this with
+rectangle of the rendered frame against reference PNGs committed next to it. A test does this with
 `Test.assert_screenshot_equals(reference, x1, y1, x2, y2)`, where the rectangle is in pixels with the
 origin at the top left of the window.
 
-Graphics tests are **singleplayer-only**, and currently only work on **Alpha 1.1.2_01 with
-Ornithe**. Both limits come from the game rather than from grug: `GUI.open` already refuses to open a
-screen in multiplayer, and the other three loaders don't implement the screenshot functions yet, so a
-test should check `Test.graphics_tests_supported()` before using them.
+Graphics tests are **singleplayer-only**. That limit comes from the game rather than from grug:
+`GUI.open` already refuses to open a screen in multiplayer. Every supported loader implements the
+screenshot functions, but a test should still guard them with `Test.graphics_tests_supported()`.
 
-Screenshot tests are captured at a fixed **1280x720**, and the comparison is exact — a single
-differing pixel fails the test. CI already runs at that resolution on a pinned `ubuntu-24.04` image so
-that Mesa and the font stack stay identical between runs.
+`reference` names a **directory** of numbered PNGs (`0.png`, `1.png`, ...), not a single file, and the
+assertion passes if the capture is pixel-identical to *any* of them. The same UI renders differently
+on each Minecraft version and platform (fonts, item sprites, GUI scaling), so every accepted
+appearance gets its own file and one shared `.grug` test stays green on all of them. Adding a new
+accepted rendering is a one-file pull request.
 
-To find the coordinates for a new test, on the Alpha 1.1.2_01 client:
+Screenshot tests are captured at a fixed **1280x720**, and each comparison is exact — a single
+differing pixel from every reference fails the test. CI already runs at that resolution on a pinned
+`ubuntu-24.04` image so that Mesa and the font stack stay identical between runs.
+
+To find the coordinates for a new test, on any loader:
 
 | Key | What it does |
 | :--- | :--- |
@@ -78,12 +83,17 @@ To find the coordinates for a new test, on the Alpha 1.1.2_01 client:
 These are letters rather than function keys so they can't collide with a vanilla default binding,
 and so they don't need an Fn key on laptops. `M` and `R` are unbound in every vanilla version.
 
-Beware that Alpha draws its GUI scaled: it lays the screen out in a fixed 426x240 space and scales
-that up to the window, so at 1280x720 everything is drawn 3x. The coordinates the M readout reports
-are real screen pixels and are what the crop should use; the scaling is just a reminder that they
-won't match the numbers in the screen's own layout code.
+Beware that the game draws its GUI scaled: it lays the screen out in a fixed virtual space and
+scales that up to the window, so at 1280x720 everything is drawn 3x. The coordinates the M readout
+reports are real screen pixels and are what the crop should use; the scaling is just a reminder that
+they won't match the numbers in the screen's own layout code.
 
-To regenerate a reference image after an intentional change, run the test with
-`GRUG_UPDATE_SCREENSHOTS=true` set. It writes the capture to the reference path instead of comparing
-against it. Do this on the same platform CI uses (`ubuntu-24.04` with the same Xvfb display) and
-commit the result, or every later run will fail.
+To add a reference for a new platform or version, run the test with `GRUG_UPDATE_SCREENSHOTS=true`
+set. A capture that matches none of the existing references is added as the next numbered PNG (an
+existing reference is never overwritten). A normal run that matches none writes the capture to
+`grug-screenshot-artifacts/<reference path>/` so CI can upload it for collection.
+
+Because each comparison is exact, references are tied to the rendering stack. Generate them on the
+same platform CI uses (`ubuntu-24.04` with the same Xvfb display) or they will not match. After an
+intentional UI change, delete the directory and regenerate it on each accepted platform, or the test
+will keep passing against the stale references.
