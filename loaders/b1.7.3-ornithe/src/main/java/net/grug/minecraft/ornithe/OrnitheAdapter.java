@@ -5,13 +5,16 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
+import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.inventory.DummyCraftingInventory;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
 import net.minecraft.crafting.CraftingManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
@@ -23,10 +26,13 @@ import net.minecraft.world.World;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
+import org.lwjgl.opengl.GL11;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 public class OrnitheAdapter implements ModLoaderAdapter {
@@ -427,27 +433,190 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean supportsGraphicsTests() {
-        return false;
+        return true;
     }
+
+    private boolean graphicsCameraSaved = false;
+    private double savedX, savedY, savedZ;
+    private float savedYaw, savedPitch;
 
     @Override
     public Vec3 setupGraphicsTestCamera() {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
-        return null;
+        PlayerEntity player = MinecraftInstance.get().player;
+        if (player == null) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.setup_graphics_camera: There is no local player to move.");
+            return null;
+        }
+
+        savedX = player.x;
+        savedY = player.y;
+        savedZ = player.z;
+        savedYaw = player.yaw;
+        savedPitch = player.pitch;
+        graphicsCameraSaved = true;
+
+        // Level the view so the frame doesn't depend on which way the player was looking, but
+        // deliberately do NOT move them: teleporting into a chunk the client hasn't lit yet crashes
+        // this generation of the game. A screenshot test crops a rectangle with the GUI centred, so
+        // the terrain behind it never matters.
+        player.setPositionAndAngles(player.x, player.y, player.z, 0.0F, 0.0F);
+
+        return new Vec3(player.x, player.y + 3.0, player.z);
     }
 
     @Override
     public void restoreCameraAfterGraphicsTest() {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+        if (!graphicsCameraSaved) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera first.");
+            return;
+        }
+        graphicsCameraSaved = false;
+
+        PlayerEntity player = MinecraftInstance.get().player;
+        if (player != null) {
+            player.setPositionAndAngles(savedX, savedY, savedZ, savedYaw, savedPitch);
+        }
     }
 
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.use_block is not supported on this loader yet.");
+        if (!(levelObj instanceof World world)) {
+            return;
+        }
+        PlayerEntity player = MinecraftInstance.get().player;
+        if (player == null) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.use_block: There is no local player to right-click with.");
+            return;
+        }
+
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+
+        // World.getBlock() hands back a block id rather than a Block in this generation.
+        int blockId = world.getBlock(blockX, blockY, blockZ);
+        Block block = (blockId >= 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
+
+        if (block instanceof GrugBlock grugBlock) {
+            // Go through the block's own use() so the test drives the same code path a real
+            // right-click does, instead of a copy of the block's GUI layout.
+            grugBlock.use(world, blockX, blockY, blockZ, player);
+        } else {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.use_block: There is no grug block at " + blockX + ", " + blockY + ", " + blockZ + ".");
+        }
     }
 
     @Override
     public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+        // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
+        // rather than as a mysterious capture failure.
+        String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
+        if (bad == null)
+            bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
+        if (bad == null)
+            bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
+        if (bad == null)
+            bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
+        if (bad != null) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
+            return;
+        }
+        if (x2 <= x1 || y2 <= y1) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: the rectangle is empty, since ("
+                            + (int) x2 + "," + (int) y2 + ") is not below and right of ("
+                            + (int) x1 + "," + (int) y1 + ")");
+            return;
+        }
+
+        // A defensive safety net rather than the primary sizing mechanism: R forces 1280x720 around
+        // a test run. If that ever stops happening, a mismatch here is much easier to diagnose than
+        // a screen of subtly wrong pixels.
+        Minecraft mc = MinecraftInstance.get();
+        if (mc.width != GrugScreenshots.WIDTH || mc.height != GrugScreenshots.HEIGHT) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: the window is " + mc.width + "x" + mc.height
+                            + ", but screenshot tests are captured at " + GrugScreenshots.WIDTH + "x"
+                            + GrugScreenshots.HEIGHT);
+            return;
+        }
+
+        BufferedImage capture = captureRectangle((int) x1, (int) y1, (int) x2, (int) y2, mc.height);
+        if (capture == null) {
+            return; // captureRectangle already reported why
+        }
+
+        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
+        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
+        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
+        File referenceDirectory = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
+        GrugScreenshots.verify(capture, referenceDirectory, referencePath);
+    }
+
+    /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
+    private static String checkCoordinate(String name, double value, int limit) {
+        if (value < 0 || value > limit) {
+            return name + " is " + (int) value + ", which is outside the " + GrugScreenshots.WIDTH + "x"
+                    + GrugScreenshots.HEIGHT + " frame (0 to " + limit + ")";
+        }
+        return null;
+    }
+
+    /**
+     * Reads back a rectangle of the frame that's currently on screen. Runs from Minecraft.tick(),
+     * i.e. after the previous frame was rendered but before this one is drawn, so the frame of
+     * interest is whatever was drawn most recently. On LWJGL 2 that is the back buffer, which is also
+     * GL's default read buffer.
+     *
+     * <p>Coordinate convention: the rectangle (x1,y1,x2,y2) is in screen space with the origin at the
+     * top left, but GL's origin is the bottom left. A screen row y is therefore GL row height-1-y,
+     * which puts the bottom edge of the crop at GL row height-y2. glReadPixels fills the buffer
+     * bottom row first, so rows are written into the image in reverse to land the right way up.
+     */
+    private static BufferedImage captureRectangle(int x1, int y1, int x2, int y2, int windowHeight) {
+        int width = x2 - x1;
+        int height = y2 - y1;
+        int glY = windowHeight - y2;
+
+        ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
+
+        try {
+            GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        } catch (RuntimeException e) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: the pixel readback failed unexpectedly: " + e);
+            return null;
+        }
+        int glError = GL11.glGetError();
+        if (glError != GL11.GL_NO_ERROR) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: glReadPixels failed with GL error 0x"
+                            + Integer.toHexString(glError)
+                            + ", so the capture cannot be trusted. A multisampled or otherwise "
+                            + "unreadable framebuffer is the usual cause.");
+            return null;
+        }
+
+        try {
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            for (int row = 0; row < height; row++) {
+                for (int column = 0; column < width; column++) {
+                    int index = (row * width + column) * 4;
+                    int r = pixels.get(index) & 0xFF;
+                    int g = pixels.get(index + 1) & 0xFF;
+                    int b = pixels.get(index + 2) & 0xFF;
+                    image.setRGB(column, height - 1 - row, (r << 16) | (g << 8) | b);
+                }
+            }
+            return image;
+        } catch (RuntimeException e) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: could not build an image from the readback: " + e);
+            return null;
+        }
     }
 }
