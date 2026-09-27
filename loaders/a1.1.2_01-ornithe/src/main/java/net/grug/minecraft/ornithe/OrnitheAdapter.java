@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.GrugBlock;
@@ -29,7 +30,6 @@ import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 import org.lwjgl.opengl.GL11;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.lang.reflect.Field;
@@ -510,22 +510,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
     }
 
-    /** Screenshot tests are pixel-exact against a reference captured at this resolution. */
-    public static final int TEST_SCREENSHOT_WIDTH = 1280;
-    public static final int TEST_SCREENSHOT_HEIGHT = 720;
-
     @Override
     public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure. (1300 instead of 130 is an easy mistake to
         // make while writing a new test, and is the whole reason this lists the offending name.)
-        String bad = checkCoordinate("x1", x1, TEST_SCREENSHOT_WIDTH);
+        String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
         if (bad == null)
-            bad = checkCoordinate("y1", y1, TEST_SCREENSHOT_HEIGHT);
+            bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
         if (bad == null)
-            bad = checkCoordinate("x2", x2, TEST_SCREENSHOT_WIDTH);
+            bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
         if (bad == null)
-            bad = checkCoordinate("y2", y2, TEST_SCREENSHOT_HEIGHT);
+            bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
         if (bad != null) {
             Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
             return;
@@ -542,11 +538,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // around a test run. If that ever stops happening, a mismatch here is much easier to
         // diagnose than a screen of subtly wrong pixels.
         Minecraft mc = MinecraftInstance.get();
-        if (mc.width != TEST_SCREENSHOT_WIDTH || mc.height != TEST_SCREENSHOT_HEIGHT) {
+        if (mc.width != GrugScreenshots.WIDTH || mc.height != GrugScreenshots.HEIGHT) {
             Grug.gameFunctionErrorHappened(Grug.statePtr,
                     "Test.assert_screenshot_equals: the window is " + mc.width + "x" + mc.height
-                            + ", but screenshot tests are captured at " + TEST_SCREENSHOT_WIDTH + "x"
-                            + TEST_SCREENSHOT_HEIGHT);
+                            + ", but screenshot tests are captured at " + GrugScreenshots.WIDTH + "x"
+                            + GrugScreenshots.HEIGHT);
             return;
         }
 
@@ -556,23 +552,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
 
         // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the file on disk. This is deliberately NOT GrugResourcePack's
-        // new File(modDir, path) pattern, which expects the mod name already stripped off.
-        File referenceFile = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
-
-        if ("true".equals(System.getenv("GRUG_UPDATE_SCREENSHOTS"))) {
-            writeReferenceImage(capture, referenceFile, referencePath);
-            return;
-        }
-
-        compareAgainstReference(capture, referenceFile, referencePath);
+        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
+        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
+        File referenceDirectory = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
+        GrugScreenshots.verify(capture, referenceDirectory, referencePath);
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
     private static String checkCoordinate(String name, double value, int limit) {
         if (value < 0 || value > limit) {
-            return name + " is " + (int) value + ", which is outside the " + TEST_SCREENSHOT_WIDTH + "x"
-                    + TEST_SCREENSHOT_HEIGHT + " frame (0 to " + limit + ")";
+            return name + " is " + (int) value + ", which is outside the " + GrugScreenshots.WIDTH + "x"
+                    + GrugScreenshots.HEIGHT + " frame (0 to " + limit + ")";
         }
         return null;
     }
@@ -643,91 +633,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     "Test.assert_screenshot_equals: could not build an image from the readback: " + e);
             return null;
         }
-    }
-
-    private static void writeReferenceImage(BufferedImage capture, File referenceFile, String referencePath) {
-        try {
-            File parent = referenceFile.getParentFile();
-            if (parent != null && !parent.exists()) {
-                parent.mkdirs();
-            }
-            ImageIO.write(capture, "png", referenceFile);
-        } catch (Exception e) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.assert_screenshot_equals: failed to write the reference image to "
-                            + referencePath + ": " + e);
-            return;
-        }
-        System.out.println("[GRUG CI] Wrote screenshot reference " + referencePath + " ("
-                + capture.getWidth() + "x" + capture.getHeight() + ")");
-    }
-
-    private static void compareAgainstReference(BufferedImage capture, File referenceFile, String referencePath) {
-        BufferedImage reference;
-        try {
-            reference = ImageIO.read(referenceFile);
-        } catch (Exception e) {
-            reference = null;
-        }
-
-        if (reference == null) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr,
-                    "Test.assert_screenshot_equals: could not read the reference image " + referencePath
-                            + ". Re-run with GRUG_UPDATE_SCREENSHOTS=true to create it.");
-            return;
-        }
-
-        if (reference.getWidth() != capture.getWidth() || reference.getHeight() != capture.getHeight()) {
-            throw Grug.fatal("Screenshot mismatch against " + referencePath + ": the reference is "
-                    + reference.getWidth() + "x" + reference.getHeight() + " but the capture is "
-                    + capture.getWidth() + "x" + capture.getHeight()
-                    + ". The crop rectangle and the reference image have to agree.");
-        }
-
-        // No tolerance: CI is pinned to ubuntu-24.04 precisely so that this can be exact.
-        int differing = 0;
-        int worstDelta = 0;
-        int firstX = -1;
-        int firstY = -1;
-        int firstExpected = 0;
-        int firstActual = 0;
-
-        for (int y = 0; y < capture.getHeight(); y++) {
-            for (int x = 0; x < capture.getWidth(); x++) {
-                int expected = reference.getRGB(x, y);
-                int actual = capture.getRGB(x, y);
-                if (expected == actual) {
-                    continue;
-                }
-                if (differing == 0) {
-                    firstX = x;
-                    firstY = y;
-                    firstExpected = expected;
-                    firstActual = actual;
-                }
-                differing++;
-                worstDelta = Math.max(worstDelta, maxChannelDelta(expected, actual));
-            }
-        }
-
-        if (differing > 0) {
-            // Say how much differs, not just where. A handful of pixels off by one is dithering
-            // rather than a layout change, and that difference isn't worth reading one coordinate
-            // at a time to discover.
-            throw Grug.fatal("Screenshot mismatch against " + referencePath + ": " + differing
-                    + " of " + (capture.getWidth() * capture.getHeight()) + " pixels differ, by at most "
-                    + worstDelta + " per channel. First difference at pixel (" + firstX + "," + firstY
-                    + "): expected 0x" + Integer.toHexString(firstExpected) + " but got 0x"
-                    + Integer.toHexString(firstActual));
-        }
-    }
-
-    private static int maxChannelDelta(int a, int b) {
-        int worst = 0;
-        for (int shift = 0; shift <= 16; shift += 8) {
-            worst = Math.max(worst, Math.abs(((a >> shift) & 0xFF) - ((b >> shift) & 0xFF)));
-        }
-        return worst;
     }
 
     @Override
