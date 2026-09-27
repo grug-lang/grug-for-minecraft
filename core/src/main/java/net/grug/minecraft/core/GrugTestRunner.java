@@ -81,6 +81,7 @@ public class GrugTestRunner {
             // Nothing left to run.
             if (passedCount == totalCount) {
                 System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
+                GrugCoverage.dump();
             }
             finished = true;
             return;

@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""Combine the per-runner JaCoCo artifacts that CI uploads into one coverage report.
+
+The core job and every loader matrix leg upload:
+
+    coverage-exec-<runner>/<name>.exec
+    coverage-classes-<runner>/...
+
+A single combined JaCoCo report is not possible, because different loaders compile different classes
+with the same fully-qualified names (net.grug.minecraft.ornithe.OrnitheAdapter exists in both Ornithe
+loaders, with different bytecode), and JaCoCo refuses to analyse two different classes with the same
+name. So we generate one report per runner, and then sum their CSVs into one combined CSV that feeds
+the coverage badges.
+
+Core is special: every loader run executes core's classes, so core's report unions every runner's
+exec data. Each loader's report only uses its own exec and its own class files. Classes listed in
+EXCLUDED_CLASSES are dropped from every report.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+CORE = "core"
+
+# These loaders compile shared/ornithe as an extra source directory.
+ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
+
+# Classes that are mechanically derived from one template and parameterized only by the type tables
+# in core/generate.py, so their per-permutation coverage adds nothing over testing those tables
+# directly (see core/test_generate.py). ExportFns is deliberately not excluded: its wrappers map to
+# distinct API callbacks.
+EXCLUDED_CLASSES = {"GenericGameFunctions"}
+
+
+def filtered_classes(source: Path, destination: Path) -> Path:
+    """Copy source's class files to destination, dropping the excluded classes."""
+    if not EXCLUDED_CLASSES:
+        return source
+    for path in source.rglob("*.class"):
+        if path.stem.split("$", 1)[0] in EXCLUDED_CLASSES:
+            continue
+        target = destination / path.relative_to(source)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+    return destination
+
+
+def discover_runners(artifacts: Path) -> dict[str, dict]:
+    runners: dict[str, dict] = {}
+    for entry in sorted(artifacts.iterdir()):
+        if not entry.is_dir():
+            continue
+        if entry.name.startswith("coverage-exec-"):
+            runner = entry.name[len("coverage-exec-"):]
+            runners.setdefault(runner, {})["exec"] = sorted(entry.glob("*.exec"))
+        elif entry.name.startswith("coverage-classes-"):
+            runner = entry.name[len("coverage-classes-"):]
+            runners.setdefault(runner, {})["classes"] = entry
+    return runners
+
+
+def source_dirs(runner: str) -> list[Path]:
+    if runner == CORE:
+        return [
+            Path("core/src/main/java"),
+            Path("core/build/generated/sources/grug"),
+        ]
+    dirs = [Path("loaders") / runner / "src/main/java"]
+    if runner in ORNITHE_LOADERS:
+        dirs.append(Path("shared/ornithe/src/main/java"))
+    return dirs
+
+
+def jacoco_report(
+    cli: Path,
+    execs: list[Path],
+    classes: Path,
+    sources: list[Path],
+    csv_path: Path,
+    xml_path: Path,
+) -> None:
+    command = ["java", "-jar", str(cli), "report", *map(str, execs)]
+    command += ["--classfiles", str(classes)]
+    for source in sources:
+        if source.is_dir():
+            command += ["--sourcefiles", str(source)]
+    command += ["--csv", str(csv_path), "--xml", str(xml_path)]
+    subprocess.run(command, check=True)
+
+
+def sum_csvs(csv_paths: list[Path], out_path: Path) -> None:
+    header: list[str] | None = None
+    totals: dict[tuple[str, str, str], list] = {}
+    for path in csv_paths:
+        with path.open(newline="") as handle:
+            reader = csv.reader(handle)
+            rows = list(reader)
+        if not rows:
+            continue
+        if header is None:
+            header = rows[0]
+        for row in rows[1:]:
+            key = (row[0], row[1], row[2])
+            values = totals.setdefault(key, [row[0], row[1], row[2]] + [0] * (len(row) - 3))
+            for i in range(3, len(row)):
+                values[i] += int(row[i])
+    with out_path.open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(header)
+        for key in sorted(totals):
+            writer.writerow(totals[key])
+
+
+def print_totals(combined: Path) -> None:
+    missed = covered = branch_missed = branch_covered = 0
+    with combined.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            missed += int(row["INSTRUCTION_MISSED"])
+            covered += int(row["INSTRUCTION_COVERED"])
+            branch_missed += int(row["BRANCH_MISSED"])
+            branch_covered += int(row["BRANCH_COVERED"])
+
+    def percent(not_covered: int, have_covered: int) -> str:
+        total = not_covered + have_covered
+        return f"{100 * have_covered / total:.1f}%" if total else "n/a"
+
+    print(f"combined instruction coverage: {percent(missed, covered)}")
+    print(f"combined branch coverage:      {percent(branch_missed, branch_covered)}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--artifacts", required=True, type=Path, help="Directory of downloaded artifacts")
+    parser.add_argument("--jacoco-cli", required=True, type=Path, help="Path to the JaCoCo CLI jar")
+    parser.add_argument("--output", required=True, type=Path, help="Directory to write reports to")
+    args = parser.parse_args()
+
+    args.output.mkdir(parents=True, exist_ok=True)
+    runners = discover_runners(args.artifacts)
+    if CORE not in runners:
+        print("error: no coverage-exec-core artifact found", file=sys.stderr)
+        return 1
+
+    all_execs = [exec_file for info in runners.values() for exec_file in info.get("exec", [])]
+    csv_paths: list[Path] = []
+    for runner, info in sorted(runners.items()):
+        execs = all_execs if runner == CORE else info.get("exec", [])
+        classes = info.get("classes")
+        if not execs or classes is None:
+            print(f"warning: skipping {runner}: missing exec data or class files", file=sys.stderr)
+            continue
+        # Kept out of coverage/report so it isn't uploaded with the report artifact.
+        classes = filtered_classes(classes, args.output.parent / "filtered-classes" / runner)
+        csv_path = args.output / f"{runner}.csv"
+        jacoco_report(
+            args.jacoco_cli,
+            execs,
+            classes,
+            source_dirs(runner),
+            csv_path,
+            args.output / f"{runner}.xml",
+        )
+        csv_paths.append(csv_path)
+        print(f"reported {runner}")
+
+    combined = args.output / "combined.csv"
+    sum_csvs(csv_paths, combined)
+    print_totals(combined)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
