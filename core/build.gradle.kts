@@ -69,7 +69,7 @@ fun runCommand(command: List<String>, workingDir: File? = null) {
 }
 
 val grugRsDir = layout.buildDirectory.dir("grug-rs").get().asFile
-val grugRsBranch = "grug-for-minecraft-fixes"
+val grugRsBranch = "optional-resource"
 
 val cloneGrugRs = tasks.register("cloneGrugRs") {
     doLast {
