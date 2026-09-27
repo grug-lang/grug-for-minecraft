@@ -11,7 +11,7 @@
 	"licenses": [
 		{
 			"name": "BSD Zero Clause License",
-			"url": "https://opensource.org/license/0bsd"
+			"url": "https://spdx.org/licenses/0BSD.html"
 		}
 	]
 }
