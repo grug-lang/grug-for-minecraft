@@ -2,6 +2,7 @@ package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugScreenshots;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -9,11 +10,11 @@ import java.util.Map;
 /**
  * Drives every {@code *-Test.grug} file, one real game tick at a time.
  *
- * <p>This used to be a single blocking call that ran each test to completion, which meant zero
- * real ticks (and so zero rendered frames) ever elapsed during a test. That's fine for pure logic
- * tests, but useless for anything that needs to screenshot actual rendered output. A test now
- * spreads itself over as many ticks as it needs by calling {@code Test.not_done()}, and real frames
- * render between those invocations via the normal game loop.
+ * <p>This used to be a single blocking call that ran each test to completion, which meant zero real
+ * ticks (and so zero rendered frames) ever elapsed during a test. That's fine for pure logic tests,
+ * but useless for anything that needs to screenshot actual rendered output. A test now spreads
+ * itself over as many ticks as it needs by calling {@code Test.not_done()}, and real frames render
+ * between those invocations via the normal game loop.
  */
 public class GrugTestRunner {
     /** How many ticks a single test may run for before we give up on it. */
@@ -28,6 +29,7 @@ public class GrugTestRunner {
 
     /** 0 when no test is active, meaning "start the next one". */
     private long currentEntityHandle = 0;
+
     private long currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private int currentTick = 0;
 
@@ -36,8 +38,9 @@ public class GrugTestRunner {
     public GrugTestRunner() {
         // A run refuses to start on a malformed screenshots/ tree. This is the same check CI hits,
         // so an author sees every violation locally before it ever reaches a pull request.
-        List<String> referenceErrors = GrugScreenshots
-                .validateReferenceTrees(GrugCore.getAdapter().getGrugModsDirectory());
+        List<String> referenceErrors =
+                GrugScreenshots.validateReferenceTrees(
+                        GrugCore.getAdapter().getGrugModsDirectory());
         if (!referenceErrors.isEmpty()) {
             this.tests = new ArrayList<>();
             this.totalCount = 0;
@@ -61,7 +64,8 @@ public class GrugTestRunner {
         }
         this.totalCount = tests.size();
 
-        String startMsg = "Running " + totalCount + " " + (totalCount == 1 ? "test" : "tests") + "...";
+        String startMsg =
+                "Running " + totalCount + " " + (totalCount == 1 ? "test" : "tests") + "...";
         System.out.println("[GRUG CI] " + startMsg);
 
         synchronized (Grug.printQueue) {
@@ -74,8 +78,7 @@ public class GrugTestRunner {
      * {@code Test.run()} call for it. Meant to be called once per real Minecraft tick.
      */
     public void tick(Object player) {
-        if (finished)
-            return;
+        if (finished) return;
 
         if (currentEntityHandle == 0 && !startNextTest()) {
             // Nothing left to run.
@@ -113,8 +116,10 @@ public class GrugTestRunner {
             // unsupported loader or an out-of-bounds crop) or the script itself errored. Either way
             // it did not run to completion, so it certainly did not pass. The reason has already
             // been logged and queued for chat by Grug.onRuntimeError.
-            fail(path, "The test script reported a runtime error and stopped early. "
-                    + "See the error above for the reason.");
+            fail(
+                    path,
+                    "The test script reported a runtime error and stopped early. "
+                            + "See the error above for the reason.");
             return;
         }
 
@@ -125,8 +130,12 @@ public class GrugTestRunner {
             if (currentTick + 1 >= DEFAULT_MAX_TEST_TICKS) {
                 // Deliberately loud: a test that keeps asking for more ticks should hang for the
                 // whole budget and then say so, rather than quietly passing or running forever.
-                fail(path, "Test exceeded " + DEFAULT_MAX_TEST_TICKS
-                        + " ticks without finishing (did it forget to stop calling Test.not_done()?)");
+                fail(
+                        path,
+                        "Test exceeded "
+                                + DEFAULT_MAX_TEST_TICKS
+                                + " ticks without finishing (did it forget to stop calling"
+                                + " Test.not_done()?)");
                 return;
             }
             currentTick++;

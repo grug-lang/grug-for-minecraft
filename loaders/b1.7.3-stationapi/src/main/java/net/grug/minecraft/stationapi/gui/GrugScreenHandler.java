@@ -23,40 +23,50 @@ public class GrugScreenHandler extends ScreenHandler {
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 3; col++) {
-                    this.addSlot(new Slot(blockInventory, grid.startSlot() + col + row * 3, grid.x() + col * 18,
-                            grid.y() + row * 18));
+                    this.addSlot(
+                            new Slot(
+                                    blockInventory,
+                                    grid.startSlot() + col + row * 3,
+                                    grid.x() + col * 18,
+                                    grid.y() + row * 18));
                 }
             }
         }
 
         // Crafting Results (Real Slots!)
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
-            this.addSlot(new Slot(blockInventory, res.slot(), res.x(), res.y()) {
-                @Override
-                public boolean canInsert(ItemStack stack) {
-                    return false; // Prevent player from inserting manually
-                }
+            this.addSlot(
+                    new Slot(blockInventory, res.slot(), res.x(), res.y()) {
+                        @Override
+                        public boolean canInsert(ItemStack stack) {
+                            return false; // Prevent player from inserting manually
+                        }
 
-                @Override
-                public void onTakeItem(ItemStack stack) {
-                    super.onTakeItem(stack);
-                    if (blockInventory instanceof GrugBlockEntity gbe) {
-                        gbe.notifyOutputTaken(res.slot(), stack != null ? stack.count : 0);
-                    }
-                }
-            });
+                        @Override
+                        public void onTakeItem(ItemStack stack) {
+                            super.onTakeItem(stack);
+                            if (blockInventory instanceof GrugBlockEntity gbe) {
+                                gbe.notifyOutputTaken(res.slot(), stack != null ? stack.count : 0);
+                            }
+                        }
+                    });
         }
 
         // Player Inventory
         if (layout.hasPlayerInventory) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 9; col++) {
-                    this.addSlot(new Slot(player.inventory, col + row * 9 + 9, layout.playerInvX + col * 18,
-                            layout.playerInvY + row * 18));
+                    this.addSlot(
+                            new Slot(
+                                    player.inventory,
+                                    col + row * 9 + 9,
+                                    layout.playerInvX + col * 18,
+                                    layout.playerInvY + row * 18));
                 }
             }
             for (int col = 0; col < 9; col++) {
-                this.addSlot(new Slot(player.inventory, col, layout.hotbarX + col * 18, layout.hotbarY));
+                this.addSlot(
+                        new Slot(player.inventory, col, layout.hotbarX + col * 18, layout.hotbarY));
             }
         }
     }

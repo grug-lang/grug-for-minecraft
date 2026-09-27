@@ -17,8 +17,7 @@ public class WeakGrugValueMap {
     public GrugObject get(long id) {
         cleanup();
         WeakValue ref = map.get(id);
-        if (ref == null)
-            return null;
+        if (ref == null) return null;
         return ref.get();
     }
 
@@ -31,8 +30,7 @@ public class WeakGrugValueMap {
 
     public void clear() {
         map.clear();
-        while (queue.poll() != null) {
-        }
+        while (queue.poll() != null) {}
     }
 
     public int size() {

@@ -1,0 +1,9 @@
+# Python formatting and linting shared by the local pre-commit hook and CI.
+#
+# line-length matches the rest of the repository (100 columns). The lint selection is ruff's
+# default pyflakes/pycodestyle set plus import sorting; add rules deliberately rather than
+# inheriting every default so upgrades stay predictable.
+line-length = 100
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I"]

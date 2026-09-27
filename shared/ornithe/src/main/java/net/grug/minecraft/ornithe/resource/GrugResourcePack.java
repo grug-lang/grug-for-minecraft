@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.resource;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
@@ -52,14 +53,13 @@ public class GrugResourcePack extends AbstractResourcePack {
 
     @Override
     public InputStream getResource(String path) throws IOException {
-        if (path == null)
-            return null;
-        if (path.startsWith("/"))
-            path = path.substring(1);
+        if (path == null) return null;
+        if (path.startsWith("/")) path = path.substring(1);
 
         // Supply a dummy pack.mcmeta in-memory so OSL can read the pack properties
         if (path.equals("pack.mcmeta")) {
-            String mcmeta = "{\"pack\":{\"pack_format\":1,\"description\":\"Grug Generated Resources\"}}";
+            String mcmeta =
+                    "{\"pack\":{\"pack_format\":1,\"description\":\"Grug Generated Resources\"}}";
             return new ByteArrayInputStream(mcmeta.getBytes(StandardCharsets.UTF_8));
         }
 
@@ -131,13 +131,14 @@ public class GrugResourcePack extends AbstractResourcePack {
 
     @Override
     public IOSupplier<InputStream> getResource(ResourceType type, NamespacedIdentifier id) {
-        if (id == null)
-            return null;
+        if (id == null) return null;
 
         String namespace = id.namespace();
         String path = id.identifier();
 
-        if (type == ResourceType.CLIENT_ASSETS && path.startsWith("lang/") && path.endsWith(".lang")) {
+        if (type == ResourceType.CLIENT_ASSETS
+                && path.startsWith("lang/")
+                && path.endsWith(".lang")) {
             return () -> openJsonAsLang("lang/" + path.substring(5, path.length() - 5) + ".lang");
         }
 
@@ -167,12 +168,10 @@ public class GrugResourcePack extends AbstractResourcePack {
         if (modDirs != null) {
             for (File modDir : modDirs) {
                 File assetsDir = new File(modDir, "assets");
-                if (!assetsDir.exists())
-                    continue;
+                if (!assetsDir.exists()) continue;
 
                 File[] nsDirs = assetsDir.listFiles(File::isDirectory);
-                if (nsDirs == null)
-                    continue;
+                if (nsDirs == null) continue;
 
                 for (File nsDir : nsDirs) {
                     File jsonFile = new File(nsDir, "lang/" + jsonFileName);
@@ -190,18 +189,17 @@ public class GrugResourcePack extends AbstractResourcePack {
 
                                 if (key.startsWith("block.")) {
                                     key = "tile." + key.substring(6);
-                                    if (!key.endsWith(".name"))
-                                        key += ".name";
+                                    if (!key.endsWith(".name")) key += ".name";
                                 } else if (key.startsWith("item.")) {
-                                    if (!key.endsWith(".name"))
-                                        key += ".name";
+                                    if (!key.endsWith(".name")) key += ".name";
                                 }
 
                                 String line = key + "=" + value + "\n";
                                 out.write(line.getBytes(StandardCharsets.UTF_8));
                             }
                         } catch (Exception e) {
-                            GrugModLoader.LOGGER.error("Failed to parse JSON lang file: " + jsonFile, e);
+                            GrugModLoader.LOGGER.error(
+                                    "Failed to parse JSON lang file: " + jsonFile, e);
                         }
                     }
                 }
@@ -216,7 +214,8 @@ public class GrugResourcePack extends AbstractResourcePack {
     }
 
     @Override
-    public void findResources(ResourceType type, String namespace, String path, ResourceConsumer consumer) {
+    public void findResources(
+            ResourceType type, String namespace, String path, ResourceConsumer consumer) {
         String baseDir = type == ResourceType.SERVER_DATA ? "data" : "assets";
         File[] modDirs = GrugModLoader.getActiveGrugModsDir().listFiles(File::isDirectory);
 
@@ -225,28 +224,43 @@ public class GrugResourcePack extends AbstractResourcePack {
                 File targetDir = new File(modDir, baseDir + "/" + namespace + "/" + path);
                 if (targetDir.exists() && targetDir.isDirectory()) {
                     try (java.util.stream.Stream<Path> stream = Files.walk(targetDir.toPath())) {
-                        stream.filter(Files::isRegularFile).forEach(p -> {
-                            String rel = new File(modDir, baseDir + "/" + namespace).toPath()
-                                    .relativize(p).toString().replace('\\', '/');
+                        stream.filter(Files::isRegularFile)
+                                .forEach(
+                                        p -> {
+                                            String rel =
+                                                    new File(modDir, baseDir + "/" + namespace)
+                                                            .toPath()
+                                                            .relativize(p)
+                                                            .toString()
+                                                            .replace('\\', '/');
 
-                            if (type == ResourceType.CLIENT_ASSETS && rel.startsWith("lang/")
-                                    && rel.endsWith(".json")) {
-                                String langRel = rel.substring(0, rel.length() - 5) + ".lang";
-                                NamespacedIdentifier targetId = NamespacedIdentifiers.from(namespace, langRel);
-                                IOSupplier<InputStream> supplier = getResource(type, targetId);
-                                if (supplier != null) {
-                                    consumer.accept(targetId, supplier);
-                                }
-                            }
+                                            if (type == ResourceType.CLIENT_ASSETS
+                                                    && rel.startsWith("lang/")
+                                                    && rel.endsWith(".json")) {
+                                                String langRel =
+                                                        rel.substring(0, rel.length() - 5)
+                                                                + ".lang";
+                                                NamespacedIdentifier targetId =
+                                                        NamespacedIdentifiers.from(
+                                                                namespace, langRel);
+                                                IOSupplier<InputStream> supplier =
+                                                        getResource(type, targetId);
+                                                if (supplier != null) {
+                                                    consumer.accept(targetId, supplier);
+                                                }
+                                            }
 
-                            NamespacedIdentifier targetId = NamespacedIdentifiers.from(namespace, rel);
-                            IOSupplier<InputStream> supplier = getResource(type, targetId);
-                            if (supplier != null) {
-                                consumer.accept(targetId, supplier);
-                            }
-                        });
+                                            NamespacedIdentifier targetId =
+                                                    NamespacedIdentifiers.from(namespace, rel);
+                                            IOSupplier<InputStream> supplier =
+                                                    getResource(type, targetId);
+                                            if (supplier != null) {
+                                                consumer.accept(targetId, supplier);
+                                            }
+                                        });
                     } catch (Exception e) {
-                        GrugModLoader.LOGGER.error("Failed to walk resource directory: " + targetDir, e);
+                        GrugModLoader.LOGGER.error(
+                                "Failed to walk resource directory: " + targetDir, e);
                     }
                 }
             }

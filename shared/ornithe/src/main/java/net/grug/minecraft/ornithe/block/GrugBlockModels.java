@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.block;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
 import net.grug.minecraft.ornithe.GrugModLoader;
 
 import java.io.File;
@@ -14,23 +15,19 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Resolves which texture each face of a grug block uses by reading its model
- * JSON (the same file the Forge and StationAPI loaders use) straight from the
- * grug mods directory.
+ * Resolves which texture each face of a grug block uses by reading its model JSON (the same file
+ * the Forge and StationAPI loaders use) straight from the grug mods directory.
  *
- * Face indices match Block.getSprite(int side): 0 down, 1 up, 2 north, 3 south,
- * 4 west, 5 east.
+ * <p>Face indices match Block.getSprite(int side): 0 down, 1 up, 2 north, 3 south, 4 west, 5 east.
  */
 public final class GrugBlockModels {
     private static final int MAX_DEPTH = 8;
 
-    private GrugBlockModels() {
-    }
+    private GrugBlockModels() {}
 
     /**
-     * @return 6 texture references ("namespace:path", indexed by face), or null if
-     *         the block has no usable model, in which case the caller should fall
-     *         back to a single texture.
+     * @return 6 texture references ("namespace:path", indexed by face), or null if the block has no
+     *     usable model, in which case the caller should fall back to a single texture.
      */
     public static String[] resolveFaceTextures(String blockName) {
         Map<String, String> textures = new HashMap<>();
@@ -45,7 +42,8 @@ public final class GrugBlockModels {
             // Children are visited first, so putIfAbsent lets them override parents
             JsonElement texturesElement = model.get("textures");
             if (texturesElement != null && texturesElement.isJsonObject()) {
-                for (Map.Entry<String, JsonElement> entry : texturesElement.getAsJsonObject().entrySet()) {
+                for (Map.Entry<String, JsonElement> entry :
+                        texturesElement.getAsJsonObject().entrySet()) {
                     textures.putIfAbsent(entry.getKey(), entry.getValue().getAsString());
                 }
             }
@@ -81,28 +79,38 @@ public final class GrugBlockModels {
             parent = parent.substring("minecraft:".length());
         }
         return switch (parent) {
-            case "block/cube_all" -> new String[] { "all", "all", "all", "all", "all", "all" };
-            case "block/cube_bottom_top" -> new String[] { "bottom", "top", "side", "side", "side", "side" };
-            case "block/cube_column" -> new String[] { "end", "end", "side", "side", "side", "side" };
-            case "block/cube_top" -> new String[] { "side", "top", "side", "side", "side", "side" };
-            case "block/cube" -> new String[] { "down", "up", "north", "south", "west", "east" };
+            case "block/cube_all" -> new String[] {"all", "all", "all", "all", "all", "all"};
+            case "block/cube_bottom_top" ->
+                    new String[] {"bottom", "top", "side", "side", "side", "side"};
+            case "block/cube_column" -> new String[] {"end", "end", "side", "side", "side", "side"};
+            case "block/cube_top" -> new String[] {"side", "top", "side", "side", "side", "side"};
+            case "block/cube" -> new String[] {"down", "up", "north", "south", "west", "east"};
             default -> null;
         };
     }
 
-    private static String[] resolveKeys(String blockName, String[] faceKeys, Map<String, String> textures) {
+    private static String[] resolveKeys(
+            String blockName, String[] faceKeys, Map<String, String> textures) {
         String[] result = new String[faceKeys.length];
         for (int face = 0; face < faceKeys.length; face++) {
             String ref = lookup(textures, faceKeys[face]);
             if (ref == null || ref.startsWith("minecraft:")) {
-                GrugModLoader.LOGGER.warn("Block '" + blockName + "': texture key '" + faceKeys[face]
-                        + "' is missing or not a grug texture, falling back to a single texture");
+                GrugModLoader.LOGGER.warn(
+                        "Block '"
+                                + blockName
+                                + "': texture key '"
+                                + faceKeys[face]
+                                + "' is missing or not a grug texture, falling back to a single"
+                                + " texture");
                 return null;
             }
             result[face] = ref;
         }
-        GrugModLoader.LOGGER.info("Block '" + blockName + "' face textures (down, up, north, south, west, east): "
-                + Arrays.toString(result));
+        GrugModLoader.LOGGER.info(
+                "Block '"
+                        + blockName
+                        + "' face textures (down, up, north, south, west, east): "
+                        + Arrays.toString(result));
         return result;
     }
 
@@ -131,7 +139,8 @@ public final class GrugBlockModels {
         for (File modDir : modDirs) {
             File file = new File(modDir, "assets/" + namespace + "/models/" + path + ".json");
             if (file.isFile()) {
-                try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+                try (Reader reader =
+                        Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
                     return JsonParser.parseReader(reader).getAsJsonObject();
                 } catch (Exception e) {
                     GrugModLoader.LOGGER.error("Failed to parse model JSON: " + file, e);

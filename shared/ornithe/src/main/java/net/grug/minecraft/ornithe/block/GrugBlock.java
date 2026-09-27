@@ -14,7 +14,9 @@ import net.minecraft.world.World;
 public class GrugBlock extends BlockWithBlockEntity {
     public final long blockFileId;
 
-    /** Sprite per face (down, up, north, south, west, east), or null to use `sprite` for all faces. */
+    /**
+     * Sprite per face (down, up, north, south, west, east), or null to use `sprite` for all faces.
+     */
     public int[] faceSprites;
 
     public GrugBlock(int id, long blockFileId, Material material, float strength) {

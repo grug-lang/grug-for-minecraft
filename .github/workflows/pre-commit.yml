@@ -1,0 +1,51 @@
+name: Pre-commit
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    name: pre-commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # The Java hook shells out to `java -jar`; google-java-format itself is fetched by the hook.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # ~/.cache/pre-commit holds the hook environments (ruff); the other directory holds the
+      # pinned google-java-format jar.
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pre-commit
+            ~/.cache/grug-google-java-format
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      # --show-diff-on-failure prints exactly what a formatter or autofix changed, so a failing run
+      # is self-explanatory.
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure --color=always

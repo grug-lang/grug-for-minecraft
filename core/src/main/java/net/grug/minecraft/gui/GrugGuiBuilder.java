@@ -18,7 +18,9 @@ public class GrugGuiBuilder {
         this.texturePath = texturePath;
     }
 
-    /** The first block inventory slot used by this GUI that is not in [0, inventorySize), if any. */
+    /**
+     * The first block inventory slot used by this GUI that is not in [0, inventorySize), if any.
+     */
     public OptionalInt firstSlotOutsideInventory(int inventorySize) {
         for (SlotDef def : blockSlots) {
             if (isOutside(def.index(), inventorySize)) {
@@ -44,15 +46,11 @@ public class GrugGuiBuilder {
         return slot < 0 || slot >= inventorySize;
     }
 
-    public record SlotDef(int index, int x, int y, boolean isOutput) {
-    }
+    public record SlotDef(int index, int x, int y, boolean isOutput) {}
 
-    public record CraftingGridDef(int startSlot, int x, int y) {
-    }
+    public record CraftingGridDef(int startSlot, int x, int y) {}
 
-    public record CraftingResultDef(int slot, int x, int y) {
-    }
+    public record CraftingResultDef(int slot, int x, int y) {}
 
-    public record TextDef(String text, int x, int y, int color) {
-    }
+    public record TextDef(String text, int x, int y, int color) {}
 }

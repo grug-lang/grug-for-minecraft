@@ -30,7 +30,8 @@ public final class Grug {
 
     // Set by GrugTestRunner immediately before each Test.run() call; read by Test.tick().
     public static int currentTestTick = 0;
-    // Set by Test.not_done(); reset to false by GrugTestRunner immediately before each Test.run() call.
+    // Set by Test.not_done(); reset to false by GrugTestRunner immediately before each Test.run()
+    // call.
     public static boolean testNotDone = false;
 
     public static final Map<String, GrugBlockData> declaredBlocks = new HashMap<>();
@@ -54,8 +55,7 @@ public final class Grug {
     }
 
     public static synchronized void load() {
-        if (loaded)
-            return;
+        if (loaded) return;
         try {
             File tempFile = File.createTempFile("libadapter", ".so");
             tempFile.deleteOnExit();
@@ -80,27 +80,25 @@ public final class Grug {
 
     public static void init(File modApiJson, File modsDir) {
         load();
-        if (statePtr != 0)
-            return;
+        if (statePtr != 0) return;
         statePtr = nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
     }
 
     public static FileInfo[] compileAllFiles() {
-        if (statePtr == 0)
-            throw new IllegalStateException("grug_state is not initialized");
+        if (statePtr == 0) throw new IllegalStateException("grug_state is not initialized");
         return nativeCompileAllFiles(statePtr);
     }
 
     public static String[] update(Consumer<String> onError) {
-        if (statePtr == 0)
-            return new String[0];
+        if (statePtr == 0) return new String[0];
 
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
         List<String> reloadTriggers = new ArrayList<>();
 
         for (FileInfo file : updatedFiles) {
             if (file.fileId() == INVALID_GRUG_FILE_ID) {
-                String errorMsg = "Failed to hot-reload " + file.fileName() + ":\n" + file.errorString();
+                String errorMsg =
+                        "Failed to hot-reload " + file.fileName() + ":\n" + file.errorString();
                 GrugCore.getAdapter().logError(errorMsg);
                 if (onError != null) {
                     onError.accept(errorMsg);
@@ -108,8 +106,10 @@ public final class Grug {
             } else {
                 String[] pathParts = file.path().replace('\\', '/').split("/");
                 if (pathParts.length < 2 || !pathParts[1].equals("code")) {
-                    String errorMsg = "Ignored " + file.path()
-                            + ": grug files must be placed inside the 'code/' directory!";
+                    String errorMsg =
+                            "Ignored "
+                                    + file.path()
+                                    + ": grug files must be placed inside the 'code/' directory!";
                     GrugCore.getAdapter().logError(errorMsg);
                     if (onError != null) {
                         onError.accept(errorMsg);
@@ -122,14 +122,20 @@ public final class Grug {
 
                 // Maintain the dynamic entity linking map
                 if ("BlockEntity".equals(file.entityType())) {
-                    String cleanName = file.entityName().contains("-") ? file.entityName().split("-")[0]
-                            : file.entityName();
+                    String cleanName =
+                            file.entityName().contains("-")
+                                    ? file.entityName().split("-")[0]
+                                    : file.entityName();
                     entityFileIdsByName.put(cleanName, file.fileId());
                 }
 
                 if (!isNew) {
                     GrugCore.getAdapter()
-                            .logInfo("Successfully hot-reloaded " + file.path() + " with file ID " + file.fileId());
+                            .logInfo(
+                                    "Successfully hot-reloaded "
+                                            + file.path()
+                                            + " with file ID "
+                                            + file.fileId());
 
                     GrugBlockData blockData = blockDataByFileId.get(file.fileId());
                     if (blockData != null) {
@@ -175,16 +181,14 @@ public final class Grug {
         long id = ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
 
         entityData.put(id, grugObject);
-        if (fnEntities != null)
-            fnEntities.add(grugObject);
+        if (fnEntities != null) fnEntities.add(grugObject);
         return id;
     }
 
     public static void addEntityWithId(long id, GrugEntityType type, Object object) {
         GrugObject grugObject = new GrugObject(type, object);
         entityData.put(id, grugObject);
-        if (fnEntities != null)
-            fnEntities.add(grugObject);
+        if (fnEntities != null) fnEntities.add(grugObject);
     }
 
     public static long createEntity(long fileId) {
@@ -211,15 +215,16 @@ public final class Grug {
     private static final ThreadLocal<RuntimeException> pendingFatal = new ThreadLocal<>();
 
     /**
-     * For invariants that must never be broken. Use as {@code throw Grug.fatal("...")}.
-     * This crashes the game, even when thrown inside a game function that a script called.
+     * For invariants that must never be broken. Use as {@code throw Grug.fatal("...")}. This
+     * crashes the game, even when thrown inside a game function that a script called.
      */
     public static RuntimeException fatal(String message) {
         return fatal(message, null);
     }
 
     public static RuntimeException fatal(String message, Throwable cause) {
-        RuntimeException error = new IllegalStateException("Broken grug invariant: " + message, cause);
+        RuntimeException error =
+                new IllegalStateException("Broken grug invariant: " + message, cause);
         if (pendingFatal.get() == null) {
             pendingFatal.set(error);
         }
@@ -252,7 +257,8 @@ public final class Grug {
 
     private static native long nativeGetExportFnId(long statePtr, String entityType, String fnName);
 
-    private static native boolean nativeCallExportFn(long statePtr, long entityHandle, long exportFnId);
+    private static native boolean nativeCallExportFn(
+            long statePtr, long entityHandle, long exportFnId);
 
     private static native void nativeDestroyEntity(long statePtr, long entityHandle);
 

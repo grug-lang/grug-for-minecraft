@@ -16,7 +16,11 @@ public class GrugMenu extends AbstractContainerMenu {
     private final Container blockContainer;
     public final GrugGuiBuilder layout;
 
-    public GrugMenu(MenuType<?> menuType, int containerId, Inventory playerInventory, Container blockContainer,
+    public GrugMenu(
+            MenuType<?> menuType,
+            int containerId,
+            Inventory playerInventory,
+            Container blockContainer,
             GrugGuiBuilder layout) {
         super(menuType, containerId);
         this.blockContainer = blockContainer;
@@ -31,41 +35,50 @@ public class GrugMenu extends AbstractContainerMenu {
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 3; col++) {
-                    this.addSlot(new Slot(blockContainer, grid.startSlot() + col + row * 3,
-                            grid.x() + col * 18, grid.y() + row * 18));
+                    this.addSlot(
+                            new Slot(
+                                    blockContainer,
+                                    grid.startSlot() + col + row * 3,
+                                    grid.x() + col * 18,
+                                    grid.y() + row * 18));
                 }
             }
         }
 
         // Crafting Results
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
-            this.addSlot(new Slot(blockContainer, res.slot(), res.x(), res.y()) {
-                @Override
-                public boolean mayPlace(ItemStack stack) {
-                    return false;
-                }
+            this.addSlot(
+                    new Slot(blockContainer, res.slot(), res.x(), res.y()) {
+                        @Override
+                        public boolean mayPlace(ItemStack stack) {
+                            return false;
+                        }
 
-                @Override
-                public void onTake(Player player, ItemStack stack) {
-                    super.onTake(player, stack);
-                    if (blockContainer instanceof GrugBlockEntity gbe) {
-                        gbe.notifyOutputTaken(res.slot(), stack.getCount());
-                    }
-                }
-            });
+                        @Override
+                        public void onTake(Player player, ItemStack stack) {
+                            super.onTake(player, stack);
+                            if (blockContainer instanceof GrugBlockEntity gbe) {
+                                gbe.notifyOutputTaken(res.slot(), stack.getCount());
+                            }
+                        }
+                    });
         }
 
         // Player Inventory
         if (layout.hasPlayerInventory) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 9; col++) {
-                    this.addSlot(new Slot(playerInventory, col + row * 9 + 9,
-                            layout.playerInvX + col * 18, layout.playerInvY + row * 18));
+                    this.addSlot(
+                            new Slot(
+                                    playerInventory,
+                                    col + row * 9 + 9,
+                                    layout.playerInvX + col * 18,
+                                    layout.playerInvY + row * 18));
                 }
             }
             for (int col = 0; col < 9; col++) {
-                this.addSlot(new Slot(playerInventory, col,
-                        layout.hotbarX + col * 18, layout.hotbarY));
+                this.addSlot(
+                        new Slot(playerInventory, col, layout.hotbarX + col * 18, layout.hotbarY));
             }
         }
     }
@@ -120,23 +133,30 @@ public class GrugMenu extends AbstractContainerMenu {
 
         int slots = buf.readInt();
         for (int i = 0; i < slots; i++) {
-            b.blockSlots
-                    .add(new GrugGuiBuilder.SlotDef(buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean()));
+            b.blockSlots.add(
+                    new GrugGuiBuilder.SlotDef(
+                            buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean()));
         }
 
         int grids = buf.readInt();
         for (int i = 0; i < grids; i++) {
-            b.craftingGrids.add(new GrugGuiBuilder.CraftingGridDef(buf.readInt(), buf.readInt(), buf.readInt()));
+            b.craftingGrids.add(
+                    new GrugGuiBuilder.CraftingGridDef(
+                            buf.readInt(), buf.readInt(), buf.readInt()));
         }
 
         int results = buf.readInt();
         for (int i = 0; i < results; i++) {
-            b.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(buf.readInt(), buf.readInt(), buf.readInt()));
+            b.craftingResults.add(
+                    new GrugGuiBuilder.CraftingResultDef(
+                            buf.readInt(), buf.readInt(), buf.readInt()));
         }
 
         int texts = buf.readInt();
         for (int i = 0; i < texts; i++) {
-            b.texts.add(new GrugGuiBuilder.TextDef(buf.readUtf(), buf.readInt(), buf.readInt(), buf.readInt()));
+            b.texts.add(
+                    new GrugGuiBuilder.TextDef(
+                            buf.readUtf(), buf.readInt(), buf.readInt(), buf.readInt()));
         }
         return b;
     }
@@ -156,18 +176,21 @@ public class GrugMenu extends AbstractContainerMenu {
                 // The shift-click originated from the player's own inventory
                 if (index >= customSlotCount && index < customSlotCount + 27) {
                     // Main Inventory -> Hotbar
-                    if (!this.moveItemStackTo(stackInSlot, customSlotCount + 27, customSlotCount + 36, false)) {
+                    if (!this.moveItemStackTo(
+                            stackInSlot, customSlotCount + 27, customSlotCount + 36, false)) {
                         return ItemStack.EMPTY;
                     }
                 } else if (index >= customSlotCount + 27 && index < customSlotCount + 36) {
                     // Hotbar -> Main Inventory
-                    if (!this.moveItemStackTo(stackInSlot, customSlotCount, customSlotCount + 27, false)) {
+                    if (!this.moveItemStackTo(
+                            stackInSlot, customSlotCount, customSlotCount + 27, false)) {
                         return ItemStack.EMPTY;
                     }
                 }
             } else {
                 // The shift-click originated from the custom GUI
-                if (!this.moveItemStackTo(stackInSlot, customSlotCount, customSlotCount + 36, true)) {
+                if (!this.moveItemStackTo(
+                        stackInSlot, customSlotCount, customSlotCount + 36, true)) {
                     return ItemStack.EMPTY;
                 }
             }

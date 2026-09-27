@@ -3,9 +3,10 @@ package net.grug.minecraft.ornithe.client;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.minecraft.client.render.texture.DynamicTexture;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
+
+import javax.imageio.ImageIO;
 
 public class GrugStaticTexture extends DynamicTexture {
     public GrugStaticTexture(int sprite, int atlas, InputStream is) {
@@ -19,7 +20,14 @@ public class GrugStaticTexture extends DynamicTexture {
                 int[] rgb = new int[256];
 
                 // Read a 16x16 chunk from the top-left of the image
-                image.getRGB(0, 0, Math.min(16, image.getWidth()), Math.min(16, image.getHeight()), rgb, 0, 16);
+                image.getRGB(
+                        0,
+                        0,
+                        Math.min(16, image.getWidth()),
+                        Math.min(16, image.getHeight()),
+                        rgb,
+                        0,
+                        16);
 
                 for (int i = 0; i < 256; i++) {
                     int argb = rgb[i];

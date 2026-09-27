@@ -5,16 +5,15 @@ package net.grug.minecraft.core;
  *
  * <p>CI attaches JaCoCo to every loader's {@code runClient}, but {@code run-loader.sh} terminates
  * the game as soon as the tests pass, which can interrupt the agent's shutdown-hook write and leave
- * a truncated exec file. Dumping the data from {@link GrugTestRunner} as soon as the tests are known
- * to have passed makes that write deterministic.
+ * a truncated exec file. Dumping the data from {@link GrugTestRunner} as soon as the tests are
+ * known to have passed makes that write deterministic.
  *
  * <p>The agent classes are resolved through the system class loader, since the mod class loader
- * doesn't necessarily delegate to it. The reflection keeps JaCoCo out of core's build, and this is a
- * no-op during normal gameplay.
+ * doesn't necessarily delegate to it. The reflection keeps JaCoCo out of core's build, and this is
+ * a no-op during normal gameplay.
  */
 public final class GrugCoverage {
-    private GrugCoverage() {
-    }
+    private GrugCoverage() {}
 
     public static void dump() {
         try {

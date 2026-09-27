@@ -15,10 +15,12 @@ public class GameFunctionHelpers {
     public static Object resolveBlockEntity(long blockEntityId) {
         GrugObject obj = Grug.entityData.get(blockEntityId);
         if (obj == null && Grug.currentlyInitializingBlockEntity != null) {
-            Grug.addEntityWithId(blockEntityId, GrugEntityType.BlockEntity, Grug.currentlyInitializingBlockEntity);
+            Grug.addEntityWithId(
+                    blockEntityId,
+                    GrugEntityType.BlockEntity,
+                    Grug.currentlyInitializingBlockEntity);
             return Grug.currentlyInitializingBlockEntity;
         }
         return obj != null ? obj.object : null;
     }
-
 }

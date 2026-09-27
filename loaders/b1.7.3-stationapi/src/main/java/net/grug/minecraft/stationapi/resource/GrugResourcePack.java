@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.modificationstation.stationapi.api.resource.InputSupplier;
 import net.modificationstation.stationapi.api.resource.ResourcePack;
@@ -63,8 +64,7 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
     @Override
     public InputSupplier<InputStream> open(ResourceType type, Identifier id) {
-        if (id == null)
-            return null;
+        if (id == null) return null;
 
         String path = id.getPath();
         String diskPath = path.startsWith("stationapi/") ? path.substring(11) : path;
@@ -102,7 +102,8 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
     private InputSupplier<InputStream> openJsonAsLang(Namespace namespace, String diskPath) {
         // Extract language code from diskPath (e.g. "lang/en_US.lang" -> "en_US")
-        String langName = diskPath.substring("lang/".length(), diskPath.length() - ".lang".length());
+        String langName =
+                diskPath.substring("lang/".length(), diskPath.length() - ".lang".length());
         String jsonFileName = langName.toLowerCase() + ".json";
 
         return () -> {
@@ -112,10 +113,14 @@ public class GrugResourcePack extends AbstractFileResourcePack {
 
             if (modDirs != null) {
                 for (File modDir : modDirs) {
-                    File jsonFile = new File(modDir, "assets/" + namespace + "/lang/" + jsonFileName);
+                    File jsonFile =
+                            new File(modDir, "assets/" + namespace + "/lang/" + jsonFileName);
                     if (!jsonFile.exists()) {
                         // Fallback check for exact-cased JSON files (e.g. en_US.json)
-                        jsonFile = new File(modDir, "assets/" + namespace + "/lang/" + langName + ".json");
+                        jsonFile =
+                                new File(
+                                        modDir,
+                                        "assets/" + namespace + "/lang/" + langName + ".json");
                     }
 
                     if (jsonFile.exists()) {
@@ -142,7 +147,8 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                                 out.write(line.getBytes(StandardCharsets.UTF_8));
                             }
                         } catch (Exception e) {
-                            InitListener.LOGGER.error("Failed to parse JSON lang file: " + jsonFile, e);
+                            InitListener.LOGGER.error(
+                                    "Failed to parse JSON lang file: " + jsonFile, e);
                         }
                     }
                 }
@@ -156,7 +162,10 @@ public class GrugResourcePack extends AbstractFileResourcePack {
     }
 
     @Override
-    public void findResources(ResourceType type, Namespace namespace, String prefix,
+    public void findResources(
+            ResourceType type,
+            Namespace namespace,
+            String prefix,
             ResourcePack.ResultConsumer consumer) {
         String diskPrefix = prefix.startsWith("stationapi/") ? prefix.substring(11) : prefix;
 
@@ -175,59 +184,85 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                 if (targetDir.exists() && targetDir.isDirectory()) {
                     try (java.util.stream.Stream<Path> stream = Files.walk(targetDir.toPath())) {
                         stream.filter(Files::isRegularFile)
-                                .filter(p -> {
-                                    String str = p.toString();
-                                    return str.endsWith(".png") || str.endsWith(".json");
-                                })
-                                .forEach(p -> {
-                                    String relativePath = new File(modDir, baseDir + "/" + namespace).toPath()
-                                            .relativize(p).toString().replace('\\', '/');
+                                .filter(
+                                        p -> {
+                                            String str = p.toString();
+                                            return str.endsWith(".png") || str.endsWith(".json");
+                                        })
+                                .forEach(
+                                        p -> {
+                                            String relativePath =
+                                                    new File(modDir, baseDir + "/" + namespace)
+                                                            .toPath()
+                                                            .relativize(p)
+                                                            .toString()
+                                                            .replace('\\', '/');
 
-                                    // If a JSON lang file is discovered, expose virtual .lang IDs to StationAPI
-                                    if (relativePath.startsWith("lang/") && relativePath.endsWith(".json")) {
-                                        String langName = relativePath.substring("lang/".length(),
-                                                relativePath.length() - ".json".length());
+                                            // If a JSON lang file is discovered, expose virtual
+                                            // .lang IDs to StationAPI
+                                            if (relativePath.startsWith("lang/")
+                                                    && relativePath.endsWith(".json")) {
+                                                String langName =
+                                                        relativePath.substring(
+                                                                "lang/".length(),
+                                                                relativePath.length()
+                                                                        - ".json".length());
 
-                                        Identifier targetId1 = Identifier.of(namespace,
-                                                "stationapi/lang/" + langName + ".lang");
-                                        if (discoveredIds.add(targetId1)) {
-                                            InputSupplier<InputStream> supplier = this.open(type, targetId1);
-                                            if (supplier != null) {
-                                                consumer.accept(targetId1, supplier);
-                                            }
-                                        }
+                                                Identifier targetId1 =
+                                                        Identifier.of(
+                                                                namespace,
+                                                                "stationapi/lang/"
+                                                                        + langName
+                                                                        + ".lang");
+                                                if (discoveredIds.add(targetId1)) {
+                                                    InputSupplier<InputStream> supplier =
+                                                            this.open(type, targetId1);
+                                                    if (supplier != null) {
+                                                        consumer.accept(targetId1, supplier);
+                                                    }
+                                                }
 
-                                        // Register en_US.lang alias for StationAPI's default locale if en_us.json is
-                                        // present
-                                        if (langName.equalsIgnoreCase("en_us")) {
-                                            Identifier targetId2 = Identifier.of(namespace,
-                                                    "stationapi/lang/en_US.lang");
-                                            if (discoveredIds.add(targetId2)) {
-                                                InputSupplier<InputStream> supplier = this.open(type, targetId2);
-                                                if (supplier != null) {
-                                                    consumer.accept(targetId2, supplier);
+                                                // Register en_US.lang alias for StationAPI's
+                                                // default locale if en_us.json is
+                                                // present
+                                                if (langName.equalsIgnoreCase("en_us")) {
+                                                    Identifier targetId2 =
+                                                            Identifier.of(
+                                                                    namespace,
+                                                                    "stationapi/lang/en_US.lang");
+                                                    if (discoveredIds.add(targetId2)) {
+                                                        InputSupplier<InputStream> supplier =
+                                                                this.open(type, targetId2);
+                                                        if (supplier != null) {
+                                                            consumer.accept(targetId2, supplier);
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                Identifier targetId =
+                                                        Identifier.of(
+                                                                namespace,
+                                                                "stationapi/" + relativePath);
+                                                if (discoveredIds.add(targetId)) {
+                                                    InputSupplier<InputStream> supplier =
+                                                            this.open(type, targetId);
+                                                    if (supplier != null) {
+                                                        consumer.accept(targetId, supplier);
+                                                    }
                                                 }
                                             }
-                                        }
-                                    } else {
-                                        Identifier targetId = Identifier.of(namespace, "stationapi/" + relativePath);
-                                        if (discoveredIds.add(targetId)) {
-                                            InputSupplier<InputStream> supplier = this.open(type, targetId);
-                                            if (supplier != null) {
-                                                consumer.accept(targetId, supplier);
-                                            }
-                                        }
-                                    }
-                                });
+                                        });
                     } catch (Exception e) {
-                        InitListener.LOGGER.error("Failed to walk resource directory: " + targetDir, e);
+                        InitListener.LOGGER.error(
+                                "Failed to walk resource directory: " + targetDir, e);
                     }
                 }
             }
         }
     }
 
-    private static InputSupplier<InputStream> mergeTagFragments(Namespace namespace, String diskPath) {
+    private static InputSupplier<InputStream> mergeTagFragments(
+            Namespace namespace, String diskPath) {
         JsonArray mergedValues = new JsonArray();
         boolean found = false;
 
@@ -262,6 +297,5 @@ public class GrugResourcePack extends AbstractFileResourcePack {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 }

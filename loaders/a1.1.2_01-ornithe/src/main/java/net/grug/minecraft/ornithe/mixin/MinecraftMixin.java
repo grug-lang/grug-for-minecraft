@@ -10,6 +10,7 @@ import net.minecraft.client.gui.GameGui;
 import net.minecraft.client.options.KeyBinding;
 import net.ornithemc.osl.keybinds.api.KeybindEvents;
 import net.ornithemc.osl.keybinds.api.KeybindRegistry;
+
 import org.lwjgl.LWJGLException;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -33,11 +34,9 @@ import java.awt.Window;
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {
 
-    @Shadow
-    public ClientPlayerEntity player;
+    @Shadow public ClientPlayerEntity player;
 
-    @Shadow
-    public GameGui gui;
+    @Shadow public GameGui gui;
 
     @Shadow
     public abstract void shutdown();
@@ -48,64 +47,52 @@ public abstract class MinecraftMixin {
     @Shadow
     protected abstract void resize(int width, int height);
 
-    @Unique
-    private boolean grug$titleSet = false;
+    @Unique private boolean grug$titleSet = false;
 
-    @Unique
-    private static KeyBinding grug$runTestsKey;
+    @Unique private static KeyBinding grug$runTestsKey;
 
-    @Unique
-    private boolean grug$testsKeyPressed = false;
+    @Unique private boolean grug$testsKeyPressed = false;
 
-    @Unique
-    private static KeyBinding grug$forceResolutionKey;
+    @Unique private static KeyBinding grug$forceResolutionKey;
 
-    @Unique
-    private boolean grug$resolutionKeyPressed = false;
+    @Unique private boolean grug$resolutionKeyPressed = false;
 
     /** Last cursor position printed to chat, or Integer.MIN_VALUE when nothing has been printed. */
-    @Unique
-    private int grug$lastCursorX = Integer.MIN_VALUE;
+    @Unique private int grug$lastCursorX = Integer.MIN_VALUE;
 
-    @Unique
-    private int grug$lastCursorY = Integer.MIN_VALUE;
+    @Unique private int grug$lastCursorY = Integer.MIN_VALUE;
 
     /** Cursor position before a run parked it in a corner, so it can be put back afterwards. */
-    @Unique
-    private int grug$savedCursorX = 0;
+    @Unique private int grug$savedCursorX = 0;
 
-    @Unique
-    private int grug$savedCursorY = 0;
+    @Unique private int grug$savedCursorY = 0;
 
-    @Unique
-    private boolean grug$cursorParked = false;
+    @Unique private boolean grug$cursorParked = false;
 
-    @Unique
-    private boolean grug$ciTestsRan = false;
+    @Unique private boolean grug$ciTestsRan = false;
 
-    @Unique
-    private GrugTestRunner grug$testRunner = null;
+    @Unique private GrugTestRunner grug$testRunner = null;
 
-    @Unique
-    private boolean grug$testRunnerFromCI = false;
+    @Unique private boolean grug$testRunnerFromCI = false;
 
     /** Non-null exactly while the window is forced to 1280x720, whoever forced it. */
-    @Unique
-    private DisplayMode grug$savedDisplayMode = null;
+    @Unique private DisplayMode grug$savedDisplayMode = null;
 
     /** True only while R (not M) is the reason the window is forced, so only R restores it. */
-    @Unique
-    private boolean grug$resolutionForcedByTestRun = false;
+    @Unique private boolean grug$resolutionForcedByTestRun = false;
 
     /** Whether GL_DITHER was on before a test run turned it off, so it can be put back. */
-    @Unique
-    private boolean grug$ditherWasEnabled = false;
+    @Unique private boolean grug$ditherWasEnabled = false;
 
     static {
-        KeybindEvents.REGISTER_KEYBINDS.register(() -> {
-            grug$runTestsKey = KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_R, "Grug");
-            grug$forceResolutionKey = KeybindRegistry.register("key.grug.force_test_resolution", Keyboard.KEY_M, "Grug");
-        });
+        KeybindEvents.REGISTER_KEYBINDS.register(
+                () -> {
+                    grug$runTestsKey =
+                            KeybindRegistry.register("key.grug.run_tests", Keyboard.KEY_R, "Grug");
+                    grug$forceResolutionKey =
+                            KeybindRegistry.register(
+                                    "key.grug.force_test_resolution", Keyboard.KEY_M, "Grug");
+                });
     }
 
     @Inject(method = "tick", at = @At("HEAD"))
@@ -120,7 +107,9 @@ public abstract class MinecraftMixin {
         }
 
         // CI auto-execution
-        if ("true".equals(System.getenv("GRUG_CI")) && !this.grug$ciTestsRan && this.player != null) {
+        if ("true".equals(System.getenv("GRUG_CI"))
+                && !this.grug$ciTestsRan
+                && this.player != null) {
             System.out.println("[GRUG CI] CI mode active & player loaded. Firing tests!");
             this.grug$ciTestsRan = true;
             this.startTestRunner(true);
@@ -247,7 +236,9 @@ public abstract class MinecraftMixin {
         this.grug$testRunnerFromCI = fromCI;
     }
 
-    /** Puts the window and the GL state back the way this run found them, if this run changed them. */
+    /**
+     * Puts the window and the GL state back the way this run found them, if this run changed them.
+     */
     @Unique
     private void finishTestRun() {
         if (this.grug$resolutionForcedByTestRun) {
@@ -268,9 +259,9 @@ public abstract class MinecraftMixin {
     }
 
     /**
-     * Moves the cursor to the window's corner while a screen is open, so a screenshot doesn't record
-     * the slot-hover highlight. The window-corner position is outside every centered GUI panel, and
-     * the cursor itself is never drawn into the framebuffer.
+     * Moves the cursor to the window's corner while a screen is open, so a screenshot doesn't
+     * record the slot-hover highlight. The window-corner position is outside every centered GUI
+     * panel, and the cursor itself is never drawn into the framebuffer.
      */
     @Unique
     private void parkCursor() {
@@ -289,8 +280,7 @@ public abstract class MinecraftMixin {
     /** Switches the window to the resolution screenshot tests are captured at. */
     @Unique
     private void applyTestDisplayMode() {
-        this.applyDisplayMode(new DisplayMode(
-                GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
+        this.applyDisplayMode(new DisplayMode(GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
     }
 
     /**
@@ -298,11 +288,12 @@ public abstract class MinecraftMixin {
      *
      * <p>Deliberately not {@code Display.getDisplayMode()}. Alpha parents the LWJGL Display to an
      * AWT Canvas, and LWJGL documents that in that mode the Display "inherits the size of the
-     * parent, disregarding the currently set display mode": {@code getDisplayMode()} keeps reporting
-     * the mode the Display was created with (the desktop resolution), and {@code setDisplayMode()}
-     * doesn't resize anything. So saving {@code getDisplayMode()} and later restoring it resized the
-     * window to the desktop resolution instead of the size the player had, which is why R left the
-     * window small and zoomed. {@code Display.getWidth()/getHeight()} do report the canvas size here.
+     * parent, disregarding the currently set display mode": {@code getDisplayMode()} keeps
+     * reporting the mode the Display was created with (the desktop resolution), and {@code
+     * setDisplayMode()} doesn't resize anything. So saving {@code getDisplayMode()} and later
+     * restoring it resized the window to the desktop resolution instead of the size the player had,
+     * which is why R left the window small and zoomed. {@code Display.getWidth()/getHeight()} do
+     * report the canvas size here.
      */
     @Unique
     private static DisplayMode currentWindowDisplayMode() {
@@ -315,8 +306,8 @@ public abstract class MinecraftMixin {
      * <p>{@code Display.setDisplayMode()} alone isn't enough: it's a no-op while the Display is
      * parented to Alpha's Canvas. The Canvas's size is in turn owned by the layout of whatever
      * contains it, so it isn't enough to size the Canvas directly either. That's what originally
-     * left the game rendering 1280x720 clipped inside an 854x480 window. The top-level Window has to
-     * be resized, and the layout then sizes everything below it.
+     * left the game rendering 1280x720 clipped inside an 854x480 window. The top-level Window has
+     * to be resized, and the layout then sizes everything below it.
      *
      * <p>The Canvas is deliberately not assumed to be a direct child of a Frame. Fabric launches
      * Alpha as an applet, so it actually sits in MinecraftApplet, inside AppletLauncher, inside
@@ -343,7 +334,8 @@ public abstract class MinecraftMixin {
                 Window window = enclosingWindow(mc.canvas);
                 if (window != null) {
                     Insets insets = window.getInsets();
-                    window.setSize(mode.getWidth() + insets.left + insets.right,
+                    window.setSize(
+                            mode.getWidth() + insets.left + insets.right,
                             mode.getHeight() + insets.top + insets.bottom);
                     window.validate();
                 }
@@ -351,17 +343,26 @@ public abstract class MinecraftMixin {
 
             this.resize(mode.getWidth(), mode.getHeight());
         } catch (LWJGLException e) {
-            // Resolution changes are finicky across platforms, so report rather than crash the client.
-            GrugModLoader.LOGGER.error("Failed to switch the window to "
-                    + mode.getWidth() + "x" + mode.getHeight(), e);
-            sendRedMessage("Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight() + ".");
+            // Resolution changes are finicky across platforms, so report rather than crash the
+            // client.
+            GrugModLoader.LOGGER.error(
+                    "Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight(),
+                    e);
+            sendRedMessage(
+                    "Failed to switch the window to "
+                            + mode.getWidth()
+                            + "x"
+                            + mode.getHeight()
+                            + ".");
         }
     }
 
     /** The Window a component lives in, however many containers deep it is. */
     @Unique
     private static Window enclosingWindow(Component component) {
-        for (Container ancestor = component.getParent(); ancestor != null; ancestor = ancestor.getParent()) {
+        for (Container ancestor = component.getParent();
+                ancestor != null;
+                ancestor = ancestor.getParent()) {
             if (ancestor instanceof Window) {
                 return (Window) ancestor;
             }
@@ -383,8 +384,10 @@ public abstract class MinecraftMixin {
     private void updateCursorPositionReadout() {
         Minecraft mc = (Minecraft) (Object) this;
 
-        // Only meaningful at the test resolution, with a free cursor. While the mouse is grabbed for
-        // camera control Mouse.getX/Y accumulate movement deltas rather than pointing at a pixel, so
+        // Only meaningful at the test resolution, with a free cursor. While the mouse is grabbed
+        // for
+        // camera control Mouse.getX/Y accumulate movement deltas rather than pointing at a pixel,
+        // so
         // printing them would just fill chat with drift. A screen being open is what ungrabs it.
         if (mc.width != GrugScreenshots.WIDTH
                 || mc.height != GrugScreenshots.HEIGHT
@@ -415,8 +418,7 @@ public abstract class MinecraftMixin {
 
     @Unique
     private void sendMessage(String text, String prefix) {
-        if (this.player == null || text == null)
-            return;
+        if (this.player == null || text == null) return;
 
         String[] lines = text.split("\n");
         for (String line : lines) {

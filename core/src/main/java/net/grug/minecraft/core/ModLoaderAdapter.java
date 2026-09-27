@@ -46,7 +46,8 @@ public interface ModLoaderAdapter {
 
     void dropInventory(Object levelObj, double x, double y, double z);
 
-    double extractItemFromInventory(Object blockEntityObj, Object itemObj, double damage, double amount);
+    double extractItemFromInventory(
+            Object blockEntityObj, Object itemObj, double damage, double amount);
 
     Object getBlockEntity(Object levelObj, double x, double y, double z);
 

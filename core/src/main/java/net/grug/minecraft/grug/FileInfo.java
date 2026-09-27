@@ -7,5 +7,4 @@ public record FileInfo(
         String entityType,
         String entityName,
         long fileId,
-        String errorString) {
-}
+        String errorString) {}
