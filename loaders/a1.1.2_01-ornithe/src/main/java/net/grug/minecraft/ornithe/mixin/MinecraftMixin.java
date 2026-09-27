@@ -2,8 +2,8 @@ package net.grug.minecraft.ornithe.mixin;
 
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.ornithe.GrugModLoader;
-import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
 import net.minecraft.client.gui.GameGui;
@@ -248,7 +248,7 @@ public abstract class MinecraftMixin {
     @Unique
     private void applyTestDisplayMode() {
         this.applyDisplayMode(new DisplayMode(
-                OrnitheAdapter.TEST_SCREENSHOT_WIDTH, OrnitheAdapter.TEST_SCREENSHOT_HEIGHT));
+                GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
     }
 
     /**
@@ -344,8 +344,8 @@ public abstract class MinecraftMixin {
         // Only meaningful at the test resolution, with a free cursor. While the mouse is grabbed for
         // camera control Mouse.getX/Y accumulate movement deltas rather than pointing at a pixel, so
         // printing them would just fill chat with drift. A screen being open is what ungrabs it.
-        if (mc.width != OrnitheAdapter.TEST_SCREENSHOT_WIDTH
-                || mc.height != OrnitheAdapter.TEST_SCREENSHOT_HEIGHT
+        if (mc.width != GrugScreenshots.WIDTH
+                || mc.height != GrugScreenshots.HEIGHT
                 || Mouse.isGrabbed()) {
             // Forget the last position too, so the readout comes back as soon as it's meaningful
             // again even if the cursor hasn't moved since it was last printed.

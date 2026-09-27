@@ -1,7 +1,7 @@
 # The graphics half of this test needs a singleplayer client that can actually render a frame:
-# GUI.open refuses in multiplayer, and so far only a1.1.2_01-ornithe implements screenshots. CI
-# runs this same file against all four loaders, so ask before touching any of it. The other three
-# run the logic test on tick 0 and finish immediately, exactly as they did before.
+# GUI.open refuses in multiplayer, and only some loaders implement screenshots (ask
+# Test.graphics_tests_supported()). CI runs this same file against every loader; the ones that
+# don't support graphics run the logic test on tick 0 and finish immediately.
 # The graphics_* block entities below are member variables rather than locals because they have
 # to survive across ticks: they're created on tick 0 and read back several ticks later in
 # _test_graphics_check(). grug only allows variable declarations at member scope, which is why
@@ -138,8 +138,10 @@ local _test_graphics_check() {
     # aren't reproducible: captured over and over, they drift by one and move around, reaching 5px in
     # from the edge. Insetting well past that costs none of the layout, which is all far inside.
     # To re-derive these: press M to force 1280x720, open this GUI, and hover a corner of the panel
-    # to read the pixel off the chat readout.
-    Test.assert_screenshot_equals(r"screenshots/autocrafting_table_gui.png", 386, 121, 894, 599)
+    # to read the pixel off the chat readout. The reference is a directory holding one numbered PNG
+    # per accepted rendering of this rectangle (0.png, 1.png, ...): the same UI looks different on
+    # each Minecraft version and platform, and the assertion passes if the capture matches any of them.
+    Test.assert_screenshot_equals(r"screenshots/autocrafting_table_gui", 386, 121, 894, 599)
 
     # The screenshot only means something if it shows live block data, so check the inventory it was
     # rendered from. These block entities were set up on tick 0 and are read back here, several ticks
