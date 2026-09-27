@@ -49,6 +49,28 @@ jobs:
       - name: Test core
         run: ./gradlew :core:test -Dgrug.activeLoader=a1.1.2_01-ornithe
 
+      # The generated adapter/bridge code is mechanically derived, so its type tables are tested
+      # directly rather than being chased for coverage.
+      - name: Test the grug adapter generator
+        run: python3 core/test_generate.py
+
+      # The coverage job downloads these to build the combined report that feeds the badges.
+      - name: Upload the coverage exec
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-exec-core
+          path: core/build/jacoco/test.exec
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload the compiled classes
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-classes-core
+          path: core/build/classes/java/main
+          if-no-files-found: error
+          retention-days: 7
+
   build:
     name: ${{ matrix.dir }}
     needs: discover
@@ -88,6 +110,35 @@ jobs:
       - name: Run tests (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" run
 
+      # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
+      # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
+      - name: Stage the compiled classes
+        run: |
+          mkdir -p coverage-classes
+          for dir in \
+            "loaders/${{ matrix.dir }}/build/classes/java/main" \
+            "loaders/${{ matrix.dir }}/build/sourcesSets/main"; do
+            if [ -d "$dir" ]; then
+              cp -r "$dir/." coverage-classes/
+            fi
+          done
+
+      - name: Upload the coverage exec
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-exec-${{ matrix.dir }}
+          path: loaders/${{ matrix.dir }}/build/jacoco/runClient.exec
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload the compiled classes
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-classes-${{ matrix.dir }}
+          path: coverage-classes
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload logs and crash reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -111,4 +162,68 @@ jobs:
           name: loader-${{ matrix.dir }}-screenshots
           path: loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
           if-no-files-found: ignore
+          retention-days: 7
+
+  # Combines the exec data collected by the core and loader jobs into the two README badges.
+  #
+  # Temporary, until every loader reaches 100% coverage: once CI enforces 100% as a required check
+  # the badges are constant, so this job and the committed SVGs are deleted.
+  coverage:
+    name: coverage report
+    needs: [core, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Download the coverage data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage/artifacts
+
+      # Resolved through Gradle so the CLI stays in sync with the jacoco plugin's version.
+      - name: Locate the JaCoCo CLI
+        id: jacoco
+        run: |
+          cli=$(./gradlew -q :core:printJacocoCliPath -Dgrug.activeLoader=a1.1.2_01-ornithe | grep '^JACOCO_CLI=' | cut -d= -f2)
+          echo "cli=$cli" >> "$GITHUB_OUTPUT"
+
+      - name: Combine the coverage data
+        run: |
+          python3 .github/scripts/combine-coverage.py \
+            --artifacts coverage/artifacts \
+            --jacoco-cli "${{ steps.jacoco.outputs.cli }}" \
+            --output coverage/report
+
+      - name: Generate the coverage badges
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          generate-branches-badge: true
+          jacoco-csv-file: coverage/report/combined.csv
+          # Matches grug-for-python's badge filename.
+          coverage-badge-filename: coverage.svg
+
+      # main is protected, so CI never pushes the regenerated badges. Download this artifact to
+      # refresh the committed badges in a PR when they drift.
+      - name: Upload the coverage badges
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badges
+          path: .github/badges/*.svg
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload the coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/report
           retention-days: 7

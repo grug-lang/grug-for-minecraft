@@ -5,6 +5,8 @@ plugins {
     id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
 }
 
+apply from: '../../gradle/jacoco-loader.gradle'
+
 version = mod_version
 group = mod_group_id
 

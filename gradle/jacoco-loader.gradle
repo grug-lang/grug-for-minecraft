@@ -1,0 +1,41 @@
+// Attaches the JaCoCo agent to this loader's runClient task, so that a game run records coverage to
+// <loader>/build/jacoco/runClient.exec for CI to merge into the coverage badges.
+//
+// Applied by every loader's build (the loaders' runClient tasks all extend JavaExec): the built-in
+// Loom RunGameTask and ForgeGradle MinecraftRunTask both do. Instrumentation is limited to this
+// project's classes, since instrumenting all of Minecraft would produce a huge exec for no benefit.
+//
+// The agent is attached in doFirst so that resolving grugJacocoAgent doesn't happen at configuration
+// time, and only when GRUG_CI is set, so a plain local runClient stays uninstrumented.
+//
+// The agent does not dump on exit: run-loader.sh terminates the game as soon as the tests pass,
+// which can interrupt the shutdown-hook write. Instead GrugCoverage.dump() flushes the data from
+// inside the game as soon as the tests are known to have passed.
+apply plugin: 'jacoco'
+
+repositories {
+    mavenCentral()
+}
+
+// configurations.jacocoAgent resolves the unshaded artifact, which is not a valid -javaagent jar
+// (it has no Premain-Class), so resolve the runtime classifier explicitly.
+configurations {
+    grugJacocoAgent
+}
+
+dependencies {
+    grugJacocoAgent "org.jacoco:org.jacoco.agent:${jacoco.toolVersion}:runtime"
+}
+
+def grugJacocoExecFile = layout.buildDirectory.file('jacoco/runClient.exec')
+
+tasks.withType(JavaExec).matching { it.name == 'runClient' }.configureEach {
+    doFirst {
+        if (System.getenv('GRUG_CI') != 'true') {
+            return
+        }
+        def agent = configurations.grugJacocoAgent.singleFile
+        jvmArgs "-javaagent:${agent}=destfile=${grugJacocoExecFile.get().asFile.absolutePath}," +
+            "append=false,dumponexit=false,includes=net.grug.*:net.minecraft.crafting.*"
+    }
+}

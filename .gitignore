@@ -33,3 +33,7 @@ bin/
 
 diff.diff
 log.log
+
+# Python bytecode
+__pycache__/
+*.pyc

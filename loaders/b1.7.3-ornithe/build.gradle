@@ -4,6 +4,8 @@ plugins {
     id 'ploceus' version '1.17.7'
 }
 
+apply from: '../../gradle/jacoco-loader.gradle'
+
 base {
     archivesName = project.properties["archives_base_name"]
 }

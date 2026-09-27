@@ -1,8 +1,10 @@
 import java.io.File
+import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
 
 plugins {
     id("java-library")
     id("maven-publish")
+    id("jacoco")
 }
 
 group = providers.gradleProperty("maven_group").get()
@@ -28,6 +30,32 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+// Handy locally: ./gradlew :core:jacocoTestReport. CI generates the badges from the combined
+// per-runner report in .github/workflows/build.yml instead.
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        csv.required.set(true)
+    }
+}
+
+// The CI coverage job builds one report per runner from the uploaded exec/class artifacts using the
+// JaCoCo CLI. Exposing the jar here keeps the CLI version in sync with the jacoco plugin's.
+val jacocoCli: Configuration by configurations.creating {
+    isTransitive = false
+}
+val jacocoToolVersion = the<JacocoPluginExtension>().toolVersion
+
+dependencies {
+    jacocoCli("org.jacoco:org.jacoco.cli:$jacocoToolVersion:nodeps")
+}
+
+tasks.register("printJacocoCliPath") {
+    doLast {
+        println("JACOCO_CLI=${jacocoCli.singleFile.absolutePath}")
+    }
 }
 
 val generatedResourcesDir = layout.buildDirectory
