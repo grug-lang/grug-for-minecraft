@@ -81,3 +81,15 @@ jobs:
             loaders/${{ matrix.dir }}/run/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
+
+      # A screenshot that matched none of a reference's accepted PNGs is written here, mirroring the
+      # reference path. Download this artifact and drop the numbered PNGs into the reference
+      # directory to accept this platform's rendering.
+      - name: Upload unmatched screenshot captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: loader-${{ matrix.dir }}-screenshots
+          path: loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
