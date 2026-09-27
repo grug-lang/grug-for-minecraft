@@ -20,11 +20,14 @@ import org.lwjgl.input.Keyboard;
 public class ClientInitListener {
 
     public static KeyBinding runTestsKey;
+    public static KeyBinding forceResolutionKey;
 
     @EventListener
     public void registerKeyBindings(KeyBindingRegisterEvent event) {
         runTestsKey = new KeyBinding("key.grug.run_tests", Keyboard.KEY_R);
         event.keyBindings.add(runTestsKey);
+        forceResolutionKey = new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);
+        event.keyBindings.add(forceResolutionKey);
     }
 
     @EventListener
