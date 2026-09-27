@@ -75,7 +75,7 @@ file must be a lowercase `.png` named after a positive number. A test run refuse
 violation, so an author sees every problem locally; CI fails the same way, because it runs the exact
 same check rather than a second implementation.
 
-Screenshot tests are captured at a fixed **1280x720**, and each comparison is exact — a single
+Screenshot tests are captured at a fixed **1280x720**, and each comparison is exact: a single
 differing pixel from every reference fails the test. CI already runs at that resolution on a pinned
 `ubuntu-24.04` image so that Mesa and the font stack stay identical between runs.
 
