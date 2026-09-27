@@ -43,6 +43,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public File getGrugModsDirectory() {
+        return InitListener.getActiveGrugModsDir();
+    }
+
+    @Override
     public boolean isDevelopmentEnvironment() {
         return FabricLoader.getInstance().isDevelopmentEnvironment();
     }

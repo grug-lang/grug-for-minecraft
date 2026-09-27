@@ -63,11 +63,17 @@ Graphics tests are **singleplayer-only**. That limit comes from the game rather 
 `GUI.open` already refuses to open a screen in multiplayer. Every supported loader implements the
 screenshot functions, but a test should still guard them with `Test.graphics_tests_supported()`.
 
-`reference` names a **directory** of numbered PNGs (`0.png`, `1.png`, ...), not a single file, and the
+`reference` names a **directory** of numbered PNGs (`1.png`, `2.png`, ...), not a single file, and the
 assertion passes if the capture is pixel-identical to *any* of them. The same UI renders differently
 on each Minecraft version and platform (fonts, item sprites, GUI scaling), so every accepted
 appearance gets its own file and one shared `.grug` test stays green on all of them. Adding a new
 accepted rendering is a one-file pull request.
+
+A mod's `screenshots/` tree is checked: every directory under it must be either a **group** (only
+subdirectories) or a **reference** (only `1.png`, `2.png`, ... with no gaps), never both, and every
+file must be a lowercase `.png` named after a positive number. A test run refuses to start on a
+violation, so an author sees every problem locally; CI fails the same way, because it runs the exact
+same check rather than a second implementation.
 
 Screenshot tests are captured at a fixed **1280x720**, and each comparison is exact — a single
 differing pixel from every reference fails the test. CI already runs at that resolution on a pinned

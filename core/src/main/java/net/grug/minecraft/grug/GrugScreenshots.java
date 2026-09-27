@@ -7,13 +7,17 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Reference-image handling shared by every loader's {@code Test.assert_screenshot_equals()}.
  *
- * <p>The reference path names a directory of numbered PNGs ({@code 0.png}, {@code 1.png}, ...). The
+ * <p>The reference path names a directory of numbered PNGs ({@code 1.png}, {@code 2.png}, ...). The
  * assertion passes when the capture is pixel-identical to any one of them. There is deliberately no
  * single canonical image: the same UI renders differently on each Minecraft version (fonts, item
  * sprites, GUI scaling), so every accepted appearance gets its own file and one test stays green on
@@ -30,7 +34,8 @@ public final class GrugScreenshots {
     public static final int WIDTH = 1280;
     public static final int HEIGHT = 720;
 
-    private static final Pattern REFERENCE_NAME = Pattern.compile("[0-9]+\\.png");
+    /** A leaf entry: a lowercase .png whose name is a positive number (1, 2, ...). */
+    private static final Pattern REFERENCE_NAME = Pattern.compile("[1-9][0-9]*\\.png");
 
     /** Where a capture that matched no reference is stashed for CI to upload. */
     private static final String ARTIFACTS_DIRECTORY = "grug-screenshot-artifacts";
@@ -110,7 +115,79 @@ public final class GrugScreenshots {
                 + (diff == null ? "." : " and a diff against the closest reference to " + diff + "."));
     }
 
-    /** The numbered references in a directory, ordered 0, 1, 2, ... If it doesn't exist, empty. */
+    /**
+     * Checks the reference trees under a mods directory against the {@code screenshots/} convention,
+     * returning every violation (empty when the tree is valid). The convention is that, under a
+     * mod's {@code screenshots/}, every directory is either a group (subdirectories only) or a
+     * reference (only {@code 1.png}, {@code 2.png}, ... with no gaps), the two are never mixed, and
+     * a name is exactly a lowercase {@code .png} of a positive number.
+     *
+     * <p>This is deliberately the only implementation of the rules: the loaders run it before a test
+     * run so authors see violations locally, and CI fails through the very same path, so the two
+     * can't drift apart.
+     */
+    public static List<String> validateReferenceTrees(File modsDirectory) {
+        List<String> errors = new ArrayList<>();
+        File[] modDirectories = modsDirectory.listFiles(File::isDirectory);
+        if (modDirectories == null) {
+            return errors;
+        }
+        for (File modDirectory : modDirectories) {
+            File screenshots = new File(modDirectory, "screenshots");
+            if (screenshots.isDirectory()) {
+                validateReferenceDirectory(screenshots, modDirectory.getName() + "/screenshots", errors);
+            }
+        }
+        return errors;
+    }
+
+    private static void validateReferenceDirectory(File directory, String path, List<String> errors) {
+        File[] entries = directory.listFiles();
+        if (entries == null) {
+            return;
+        }
+
+        List<File> subdirectories = new ArrayList<>();
+        List<File> files = new ArrayList<>();
+        for (File entry : entries) {
+            (entry.isDirectory() ? subdirectories : files).add(entry);
+        }
+
+        if (!subdirectories.isEmpty() && !files.isEmpty()) {
+            errors.add(path + " mixes reference PNGs with subdirectories; a directory is either a"
+                    + " group of subdirectories or a directory of numbered PNGs, never both.");
+        }
+
+        if (!files.isEmpty()) {
+            Set<Integer> numbers = new TreeSet<>();
+            for (File file : files) {
+                if (!REFERENCE_NAME.matcher(file.getName()).matches()) {
+                    errors.add(path + "/" + file.getName() + " is not a valid reference name;"
+                            + " references are numbered from 1 (1.png, 2.png, ...) with the exact"
+                            + " lowercase .png extension.");
+                    continue;
+                }
+                numbers.add(referenceNumber(file));
+            }
+
+            int expected = 1;
+            for (int number : numbers) {
+                if (number != expected) {
+                    errors.add(path + " is missing " + expected + ".png, so its references are not"
+                            + " numbered 1, 2, 3, ... without gaps.");
+                    // Report the gap once, rather than cascading it into every later number.
+                    break;
+                }
+                expected++;
+            }
+        }
+
+        for (File subdirectory : subdirectories) {
+            validateReferenceDirectory(subdirectory, path + "/" + subdirectory.getName(), errors);
+        }
+    }
+
+    /** The numbered references in a directory, ordered 1, 2, 3, ... If it doesn't exist, empty. */
     private static List<File> listReferences(File directory) {
         List<File> references = new ArrayList<>();
         File[] files = directory.listFiles();
@@ -209,15 +286,20 @@ public final class GrugScreenshots {
         return (r << 16) | (g << 8) | b;
     }
 
+    /** The smallest number at or above 1 not already used, so gaps get filled rather than left. */
     private static int nextNumber(File directory) {
-        int next = 0;
+        Set<Integer> used = new HashSet<>();
         File[] files = directory.listFiles();
         if (files != null) {
             for (File file : files) {
                 if (REFERENCE_NAME.matcher(file.getName()).matches()) {
-                    next = Math.max(next, referenceNumber(file) + 1);
+                    used.add(referenceNumber(file));
                 }
             }
+        }
+        int next = 1;
+        while (used.contains(next)) {
+            next++;
         }
         return next;
     }

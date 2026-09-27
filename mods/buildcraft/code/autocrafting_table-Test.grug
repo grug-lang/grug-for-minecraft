@@ -139,7 +139,7 @@ local _test_graphics_check() {
     # from the edge. Insetting well past that costs none of the layout, which is all far inside.
     # To re-derive these: press M to force 1280x720, open this GUI, and hover a corner of the panel
     # to read the pixel off the chat readout. The reference is a directory holding one numbered PNG
-    # per accepted rendering of this rectangle (0.png, 1.png, ...): the same UI looks different on
+    # per accepted rendering of this rectangle (1.png, 2.png, ...): the same UI looks different on
     # each Minecraft version and platform, and the assertion passes if the capture matches any of them.
     Test.assert_screenshot_equals(r"screenshots/autocrafting_table_gui", 386, 121, 894, 599)
 

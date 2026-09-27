@@ -45,6 +45,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public File getGrugModsDirectory() {
+        return GrugModLoader.getActiveGrugModsDir();
+    }
+
+    @Override
     public boolean isDevelopmentEnvironment() {
         return FabricLoader.getInstance().isDevelopmentEnvironment();
     }

@@ -10,6 +10,9 @@ public interface ModLoaderAdapter {
 
     File getGameDirectory();
 
+    /** The directory the loaded grug mods live in, which is what the screenshot tree is under. */
+    File getGrugModsDirectory();
+
     boolean isDevelopmentEnvironment();
 
     void registerBlock(String namespace, String name, long fileId);

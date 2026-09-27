@@ -1,6 +1,7 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugScreenshots;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,25 @@ public class GrugTestRunner {
     private boolean finished = false;
 
     public GrugTestRunner() {
+        // A run refuses to start on a malformed screenshots/ tree. This is the same check CI hits,
+        // so an author sees every violation locally before it ever reaches a pull request.
+        List<String> referenceErrors = GrugScreenshots
+                .validateReferenceTrees(GrugCore.getAdapter().getGrugModsDirectory());
+        if (!referenceErrors.isEmpty()) {
+            this.tests = new ArrayList<>();
+            this.totalCount = 0;
+            this.finished = true;
+            synchronized (Grug.runtimeErrorQueue) {
+                Grug.runtimeErrorQueue.add("FAIL screenshot reference directories");
+                System.out.println("[GRUG CI] FAIL screenshot reference directories");
+                for (String error : referenceErrors) {
+                    Grug.runtimeErrorQueue.add(error);
+                    System.out.println("[GRUG CI] " + error);
+                }
+            }
+            return;
+        }
+
         this.tests = new ArrayList<>();
         for (Map.Entry<String, Long> entry : Grug.fileIds.entrySet()) {
             if (entry.getKey().endsWith("-Test.grug")) {

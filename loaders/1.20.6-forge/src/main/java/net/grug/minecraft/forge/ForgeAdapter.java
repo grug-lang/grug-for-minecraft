@@ -56,6 +56,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public File getGrugModsDirectory() {
+        return GrugModLoader.getActiveGrugModsDir();
+    }
+
+    @Override
     public boolean isDevelopmentEnvironment() {
         return !FMLEnvironment.production;
     }
