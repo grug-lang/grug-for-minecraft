@@ -30,6 +30,25 @@ jobs:
           print("matrix=" + json.dumps(loaders))
           EOF
 
+  core:
+    name: core tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # The active-loader property scopes the settings to core plus one no-op loader, so this job
+      # doesn't configure every loader's build plugins just to run core's JUnit tests.
+      - name: Test core
+        run: ./gradlew :core:test -Dgrug.activeLoader=a1.1.2_01-ornithe
+
   build:
     name: ${{ matrix.dir }}
     needs: discover

@@ -61,6 +61,14 @@ public final class GrugScreenshots {
      * capture to the artifacts directory.
      */
     public static void verify(BufferedImage capture, File referenceDirectory, String referencePath) {
+        verify(capture, referenceDirectory, referencePath,
+                new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY),
+                "true".equals(System.getenv("GRUG_UPDATE_SCREENSHOTS")));
+    }
+
+    /** The real entry point, with the artifacts directory and update mode passed in so tests can drive them. */
+    static void verify(BufferedImage capture, File referenceDirectory, String referencePath,
+            File artifactsRoot, boolean update) {
         List<File> references = listReferences(referenceDirectory);
 
         int closestDifference = Integer.MAX_VALUE;
@@ -92,12 +100,12 @@ public final class GrugScreenshots {
             }
         }
 
-        if ("true".equals(System.getenv("GRUG_UPDATE_SCREENSHOTS"))) {
+        if (update) {
             addReference(capture, referenceDirectory, referencePath);
             return;
         }
 
-        File artifact = writeArtifact(capture, referencePath);
+        File artifact = writeArtifact(capture, referencePath, artifactsRoot);
         int pixels = capture.getWidth() * capture.getHeight();
 
         if (references.isEmpty()) {
@@ -110,7 +118,7 @@ public final class GrugScreenshots {
         // small as possible, so a localized red patch reads as a change while an all-red frame reads
         // as a rendering no reference represents yet. The faded background is the capture either way,
         // since a pixel only counts as matching when the capture and that reference agree there.
-        File diff = closestImage == null ? null : writeDiff(capture, closestImage, referencePath);
+        File diff = closestImage == null ? null : writeDiff(capture, closestImage, referencePath, artifactsRoot);
 
         throw Grug.fatal("Screenshot mismatch against " + referencePath + ": the capture matches none of the "
                 + references.size() + " reference image(s), and differs from the closest (" + closestName
@@ -227,9 +235,9 @@ public final class GrugScreenshots {
         }
     }
 
-    private static File writeArtifact(BufferedImage capture, String referencePath) {
+    private static File writeArtifact(BufferedImage capture, String referencePath, File artifactsRoot) {
         try {
-            File directory = artifactDirectory(referencePath);
+            File directory = artifactDirectory(referencePath, artifactsRoot);
             if (!directory.exists() && !directory.mkdirs()) {
                 return new File(directory, "unwritten.png");
             }
@@ -244,8 +252,8 @@ public final class GrugScreenshots {
     }
 
     /** Where a capture that matched no reference, and its diff, is stashed for CI to upload. */
-    private static File artifactDirectory(String referencePath) {
-        return new File(new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY), referencePath);
+    private static File artifactDirectory(String referencePath, File artifactsRoot) {
+        return new File(artifactsRoot, referencePath);
     }
 
     /**
@@ -255,7 +263,8 @@ public final class GrugScreenshots {
      * highlight, {@code #ffffffcc} lowlight) composited over the capture, so this is pixel-identical
      * to {@code magick compare capture reference diff}.
      */
-    private static File writeDiff(BufferedImage capture, BufferedImage reference, String referencePath) {
+    private static File writeDiff(BufferedImage capture, BufferedImage reference, String referencePath,
+            File artifactsRoot) {
         try {
             int width = capture.getWidth();
             int height = capture.getHeight();
@@ -269,7 +278,7 @@ public final class GrugScreenshots {
                     diff.setRGB(x, y, blend(matches ? DIFF_LOWLIGHT : DIFF_HIGHLIGHT, actual));
                 }
             }
-            File directory = artifactDirectory(referencePath);
+            File directory = artifactDirectory(referencePath, artifactsRoot);
             if (!directory.exists() && !directory.mkdirs()) {
                 return new File(directory, "diff.png");
             }
@@ -282,7 +291,7 @@ public final class GrugScreenshots {
     }
 
     /** Composites a highlight/lowlight color over a capture pixel using ImageMagick's 0xCC alpha. */
-    private static int blend(int foreground, int background) {
+    static int blend(int foreground, int background) {
         int inverse = 255 - DIFF_ALPHA;
         int r = (((foreground >> 16) & 0xFF) * DIFF_ALPHA + ((background >> 16) & 0xFF) * inverse + 127) / 255;
         int g = (((foreground >> 8) & 0xFF) * DIFF_ALPHA + ((background >> 8) & 0xFF) * inverse + 127) / 255;
