@@ -335,6 +335,9 @@ public class GrugModLoader {
         private static int grug$savedWindowHeight;
         private static int grug$lastCursorX = Integer.MIN_VALUE;
         private static int grug$lastCursorY = Integer.MIN_VALUE;
+        private static double grug$savedCursorX;
+        private static double grug$savedCursorY;
+        private static boolean grug$cursorParked = false;
         private static volatile boolean grug$testRunFinished = false;
 
         @SubscribeEvent
@@ -390,6 +393,14 @@ public class GrugModLoader {
                 } else {
                     grug$lastCursorX = Integer.MIN_VALUE;
                     grug$lastCursorY = Integer.MIN_VALUE;
+                }
+
+                // A captured frame must not depend on where the invisible cursor happens to be: the
+                // game highlights the slot under the mouse and tooltips follow it, so park the
+                // cursor in a corner outside the centered GUI for the duration of a run. The cursor
+                // isn't drawn into the framebuffer, so this only removes that incidental state.
+                if (grug$testRunner != null && mc.screen != null) {
+                    parkCursor(mc);
                 }
 
                 // Intercept the flag from the server tick thread
@@ -490,6 +501,30 @@ public class GrugModLoader {
                 grug$resolutionForced = false;
                 grug$resolutionForcedByTestRun = false;
                 applyWindowSize(mc, grug$savedWindowWidth, grug$savedWindowHeight);
+            }
+            if (grug$cursorParked) {
+                grug$cursorParked = false;
+                GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), grug$savedCursorX, grug$savedCursorY);
+            }
+        }
+
+        /**
+         * Moves the cursor to the window's top-left corner while a screen is open, so a screenshot
+         * doesn't record the slot-hover highlight. GLFW cursor coordinates are window pixels with the
+         * origin at the top left, and the corner is outside every centered GUI panel.
+         */
+        private static void parkCursor(Minecraft mc) {
+            long window = mc.getWindow().getWindow();
+            double[] x = new double[1];
+            double[] y = new double[1];
+            GLFW.glfwGetCursorPos(window, x, y);
+            if (!grug$cursorParked) {
+                grug$savedCursorX = x[0];
+                grug$savedCursorY = y[0];
+                grug$cursorParked = true;
+            }
+            if (x[0] != 0.0 || y[0] != 0.0) {
+                GLFW.glfwSetCursorPos(window, 0.0, 0.0);
             }
         }
 
