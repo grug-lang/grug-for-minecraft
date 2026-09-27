@@ -91,7 +91,9 @@ they won't match the numbers in the screen's own layout code.
 To add a reference for a new platform or version, run the test with `GRUG_UPDATE_SCREENSHOTS=true`
 set. A capture that matches none of the existing references is added as the next numbered PNG (an
 existing reference is never overwritten). A normal run that matches none writes the capture to
-`grug-screenshot-artifacts/<reference path>/` so CI can upload it for collection.
+`grug-screenshot-artifacts/<reference path>/` so CI can upload it for collection, along with a
+`diff.png` that highlights the pixels differing from the closest reference in red over a faded copy
+of the capture (the same rendering ImageMagick's `compare` produces, computed in-process).
 
 Because each comparison is exact, references are tied to the rendering stack. Generate them on the
 same platform CI uses (`ubuntu-24.04` with the same Xvfb display) or they will not match. After an
