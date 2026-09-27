@@ -71,6 +71,11 @@ public class GrugModLoader {
     public static final String MODID = "grug";
     public static final Logger LOGGER = LogUtils.getLogger();
 
+    /** Whether a screenshot test run (the R hotkey or CI) is currently active. */
+    public static boolean isTestRunActive() {
+        return ClientForgeEvents.grug$testRunner != null;
+    }
+
     public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(ForgeRegistries.BLOCKS, MODID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister
             .create(ForgeRegistries.BLOCK_ENTITY_TYPES, MODID);
