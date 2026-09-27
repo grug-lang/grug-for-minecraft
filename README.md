@@ -73,6 +73,10 @@ Screenshot tests are captured at a fixed **1280x720**, and each comparison is ex
 differing pixel from every reference fails the test. CI already runs at that resolution on a pinned
 `ubuntu-24.04` image so that Mesa and the font stack stay identical between runs.
 
+While a test run has a screen open, the mouse cursor is parked in a corner of the window, so the
+slot-hover highlight (and any tooltip) can't leak into a capture. The cursor is never drawn into the
+framebuffer, so this only removes that incidental state.
+
 To find the coordinates for a new test, on any loader:
 
 | Key | What it does |

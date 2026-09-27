@@ -70,6 +70,16 @@ public abstract class MinecraftMixin {
     @Unique
     private int grug$lastCursorY = Integer.MIN_VALUE;
 
+    /** Cursor position before a run parked it in a corner, so it can be put back afterwards. */
+    @Unique
+    private int grug$savedCursorX = 0;
+
+    @Unique
+    private int grug$savedCursorY = 0;
+
+    @Unique
+    private boolean grug$cursorParked = false;
+
     @Unique
     private boolean grug$ciTestsRan = false;
 
@@ -174,6 +184,14 @@ public abstract class MinecraftMixin {
             this.grug$lastCursorY = Integer.MIN_VALUE;
         }
 
+        // A captured frame must not depend on where the invisible cursor happens to be: the game
+        // highlights the slot under the mouse and tooltips follow it, so park the cursor in a
+        // corner outside the centered GUI for the duration of a run. The cursor isn't drawn into
+        // the framebuffer, so this only removes that incidental state.
+        if (this.grug$testRunner != null && !Mouse.isGrabbed()) {
+            this.parkCursor();
+        }
+
         String[] updatedResources = Grug.update(this::sendRedMessage);
         boolean reloadClientResources = false;
 
@@ -242,6 +260,30 @@ public abstract class MinecraftMixin {
             GL11.glEnable(GL11.GL_DITHER);
         }
         this.grug$ditherWasEnabled = false;
+
+        if (this.grug$cursorParked) {
+            this.grug$cursorParked = false;
+            Mouse.setCursorPosition(this.grug$savedCursorX, this.grug$savedCursorY);
+        }
+    }
+
+    /**
+     * Moves the cursor to the window's corner while a screen is open, so a screenshot doesn't record
+     * the slot-hover highlight. The window-corner position is outside every centered GUI panel, and
+     * the cursor itself is never drawn into the framebuffer.
+     */
+    @Unique
+    private void parkCursor() {
+        if (!this.grug$cursorParked) {
+            this.grug$savedCursorX = Mouse.getX();
+            this.grug$savedCursorY = Mouse.getY();
+            this.grug$cursorParked = true;
+        }
+        if (Mouse.getX() != 0 || Mouse.getY() != 0) {
+            // LWJGL's Mouse uses OpenGL window coordinates (origin bottom-left), so (0,0) is a
+            // corner. The game re-reads it every poll, so this has to be reapplied each tick.
+            Mouse.setCursorPosition(0, 0);
+        }
     }
 
     /** Switches the window to the resolution screenshot tests are captured at. */
