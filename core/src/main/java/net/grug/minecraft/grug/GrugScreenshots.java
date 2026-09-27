@@ -34,8 +34,12 @@ public final class GrugScreenshots {
     public static final int WIDTH = 1280;
     public static final int HEIGHT = 720;
 
-    /** A leaf entry: a lowercase .png whose name is a positive number (1, 2, ...). */
-    private static final Pattern REFERENCE_NAME = Pattern.compile("[1-9][0-9]*\\.png");
+    /**
+     * A leaf entry: a lowercase .png whose name is a positive number (1, 2, ...), capped at nine
+     * digits. The cap keeps the number inside an int; without it a name like 9999999999.png would
+     * match and then throw out of the validator instead of being reported.
+     */
+    private static final Pattern REFERENCE_NAME = Pattern.compile("[1-9][0-9]{0,8}\\.png");
 
     /** Where a capture that matched no reference is stashed for CI to upload. */
     private static final String ARTIFACTS_DIRECTORY = "grug-screenshot-artifacts";
