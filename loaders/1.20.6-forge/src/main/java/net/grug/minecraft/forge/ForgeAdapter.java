@@ -1,19 +1,25 @@
 package net.grug.minecraft.forge;
 
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Screenshot;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -29,14 +35,17 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import org.slf4j.Logger;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 
 public class ForgeAdapter implements ModLoaderAdapter {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -355,27 +364,195 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean supportsGraphicsTests() {
-        return false;
+        return true;
     }
+
+    private boolean graphicsCameraSaved = false;
+    private double savedX, savedY, savedZ;
+    private float savedYaw, savedPitch;
 
     @Override
     public Vec3 setupGraphicsTestCamera() {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
-        return null;
+        // The test runner is driven from the integrated server thread, but the camera is the client
+        // player's, so client-side work is marshalled onto the client (render) thread.
+        final Vec3[] result = new Vec3[1];
+        onClientThread(() -> {
+            Player player = Minecraft.getInstance().player;
+            if (player == null) {
+                Grug.gameFunctionErrorHappened(Grug.statePtr,
+                        "Test.setup_graphics_camera: There is no local player to move.");
+                return;
+            }
+
+            savedX = player.getX();
+            savedY = player.getY();
+            savedZ = player.getZ();
+            savedYaw = player.getYRot();
+            savedPitch = player.getXRot();
+            graphicsCameraSaved = true;
+
+            // Level the view so the frame doesn't depend on which way the player was looking. Do not
+            // move them: the screenshot crops a rectangle with the GUI centred, so terrain behind it
+            // never matters, and moving risks loading unlit chunks.
+            player.setYRot(0.0F);
+            player.setXRot(0.0F);
+
+            result[0] = new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
+        });
+        return result[0];
     }
 
     @Override
     public void restoreCameraAfterGraphicsTest() {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+        if (!graphicsCameraSaved) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera first.");
+            return;
+        }
+        graphicsCameraSaved = false;
+
+        onClientThread(() -> {
+            Player player = Minecraft.getInstance().player;
+            if (player != null) {
+                player.setPos(savedX, savedY, savedZ);
+                player.setYRot(savedYaw);
+                player.setXRot(savedPitch);
+            }
+        });
     }
 
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.use_block is not supported on this loader yet.");
+        if (!(levelObj instanceof Level)) {
+            return;
+        }
+        onClientThread(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player == null || mc.gameMode == null) {
+                Grug.gameFunctionErrorHappened(Grug.statePtr,
+                        "Test.use_block: There is no local player to right-click with.");
+                return;
+            }
+            net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(
+                    (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+            // Drive a real right-click through the interaction manager, so the block's own use code
+            // runs rather than a copy of its GUI layout.
+            BlockHitResult hit = new BlockHitResult(
+                    new net.minecraft.world.phys.Vec3(x + 0.5, y + 0.5, z + 0.5), Direction.UP, pos, false);
+            mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
+        });
     }
 
     @Override
     public void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2) {
-        Grug.gameFunctionErrorHappened(Grug.statePtr, "Graphics tests are not supported on this loader yet.");
+        // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
+        // rather than as a mysterious capture failure.
+        String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
+        if (bad == null)
+            bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
+        if (bad == null)
+            bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
+        if (bad == null)
+            bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
+        if (bad != null) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
+            return;
+        }
+        if (x2 <= x1 || y2 <= y1) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: the rectangle is empty, since ("
+                            + (int) x2 + "," + (int) y2 + ") is not below and right of ("
+                            + (int) x1 + "," + (int) y1 + ")");
+            return;
+        }
+
+        // A defensive safety net rather than the primary sizing mechanism: R forces 1280x720 around
+        // a test run. If that ever stops happening, a mismatch here is much easier to diagnose than
+        // a screen of subtly wrong pixels.
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getWindow().getWidth() != GrugScreenshots.WIDTH
+                || mc.getWindow().getHeight() != GrugScreenshots.HEIGHT) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr,
+                    "Test.assert_screenshot_equals: the window is " + mc.getWindow().getWidth() + "x"
+                            + mc.getWindow().getHeight() + ", but screenshot tests are captured at "
+                            + GrugScreenshots.WIDTH + "x" + GrugScreenshots.HEIGHT);
+            return;
+        }
+
+        BufferedImage capture = captureOnClientThread((int) x1, (int) y1, (int) x2, (int) y2);
+        if (capture == null) {
+            return; // capture already reported why
+        }
+
+        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
+        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
+        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
+        File referenceDirectory = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
+        GrugScreenshots.verify(capture, referenceDirectory, referencePath);
+    }
+
+    /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
+    private static String checkCoordinate(String name, double value, int limit) {
+        if (value < 0 || value > limit) {
+            return name + " is " + (int) value + ", which is outside the " + GrugScreenshots.WIDTH + "x"
+                    + GrugScreenshots.HEIGHT + " frame (0 to " + limit + ")";
+        }
+        return null;
+    }
+
+    private static BufferedImage captureOnClientThread(int x1, int y1, int x2, int y2) {
+        final BufferedImage[] result = new BufferedImage[1];
+        onClientThread(() -> result[0] = capture(x1, y1, x2, y2));
+        return result[0];
+    }
+
+    /**
+     * Reads back a rectangle of the last rendered frame. Runs on the client thread and downloads the
+     * main render target's colour texture (the same path vanilla screenshots use), which is Y-flipped
+     * so the image's origin is the top left, matching the crop convention.
+     */
+    private static BufferedImage capture(int x1, int y1, int x2, int y2) {
+        RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
+        NativeImage image = Screenshot.takeScreenshot(target);
+        try {
+            int width = x2 - x1;
+            int height = y2 - y1;
+            BufferedImage out = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            for (int row = 0; row < height; row++) {
+                for (int column = 0; column < width; column++) {
+                    // NativeImage stores pixels as ABGR (so they upload to GL as RGBA).
+                    int pixel = image.getPixelRGBA(x1 + column, y1 + row);
+                    int r = pixel & 0xFF;
+                    int g = (pixel >> 8) & 0xFF;
+                    int b = (pixel >> 16) & 0xFF;
+                    out.setRGB(column, row, (r << 16) | (g << 8) | b);
+                }
+            }
+            return out;
+        } finally {
+            image.close();
+        }
+    }
+
+    /** Runs a task on the client (render) thread, blocking until it has finished. */
+    private static void onClientThread(Runnable task) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.isSameThread()) {
+            task.run();
+            return;
+        }
+        CountDownLatch latch = new CountDownLatch(1);
+        mc.execute(() -> {
+            try {
+                task.run();
+            } finally {
+                latch.countDown();
+            }
+        });
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

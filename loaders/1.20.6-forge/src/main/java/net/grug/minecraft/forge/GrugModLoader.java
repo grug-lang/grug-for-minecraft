@@ -12,6 +12,7 @@ import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -89,6 +90,11 @@ public class GrugModLoader {
     public static final KeyMapping RUN_TESTS_KEY = new KeyMapping(
             "key.grug.run_tests",
             GLFW.GLFW_KEY_R,
+            "key.categories.grug");
+
+    public static final KeyMapping FORCE_RESOLUTION_KEY = new KeyMapping(
+            "key.grug.force_test_resolution",
+            GLFW.GLFW_KEY_M,
             "key.categories.grug");
 
     public static final RegistryObject<MenuType<GrugMenu>> GRUG_MENU = MENUS.register("grug_menu",
@@ -311,6 +317,7 @@ public class GrugModLoader {
         @SubscribeEvent
         public static void onKeyRegister(RegisterKeyMappingsEvent event) {
             event.register(RUN_TESTS_KEY);
+            event.register(FORCE_RESOLUTION_KEY);
         }
     }
 
@@ -321,6 +328,14 @@ public class GrugModLoader {
         private static boolean grug$testsRan = false;
         private static GrugTestRunner grug$testRunner = null;
         private static boolean grug$testRunnerFromCI = false;
+
+        private static boolean grug$resolutionForced = false;
+        private static boolean grug$resolutionForcedByTestRun = false;
+        private static int grug$savedWindowWidth;
+        private static int grug$savedWindowHeight;
+        private static int grug$lastCursorX = Integer.MIN_VALUE;
+        private static int grug$lastCursorY = Integer.MIN_VALUE;
+        private static volatile boolean grug$testRunFinished = false;
 
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -346,6 +361,10 @@ public class GrugModLoader {
                     startTestRunner(mc, false);
                 }
 
+                while (FORCE_RESOLUTION_KEY.consumeClick()) {
+                    toggleResolution(mc);
+                }
+
                 if ("true".equals(System.getenv("GRUG_CI")) && !grug$testsRan && mc.player != null
                         && mc.getSingleplayerServer() != null) {
                     grug$testsRan = true;
@@ -355,6 +374,23 @@ public class GrugModLoader {
                 // The runner does one Test.run() call per real tick, so that real ticks (and real
                 // rendered frames) elapse between a test's own invocations.
                 advanceTestRunner(mc);
+
+                // The run finishes on the server thread; restoring the window has to happen here on
+                // the client thread.
+                if (grug$testRunFinished) {
+                    grug$testRunFinished = false;
+                    finishTestRun(mc);
+                }
+
+                // While M is holding the window at the test resolution, keep the cursor's
+                // screenshot-crop coordinates in chat. A test run is excluded because it forces the
+                // same resolution for its own reasons and nobody is aiming a cursor at it.
+                if (grug$resolutionForced && grug$testRunner == null) {
+                    updateCursorPositionReadout(mc);
+                } else {
+                    grug$lastCursorX = Integer.MIN_VALUE;
+                    grug$lastCursorY = Integer.MIN_VALUE;
+                }
 
                 // Intercept the flag from the server tick thread
                 // to trigger a client-side reload
@@ -388,13 +424,20 @@ public class GrugModLoader {
             if (grug$testRunner != null) {
                 return;
             }
+            // Screenshot tests only compare equal at 1280x720. If M already forced that size, leave
+            // its state alone: this run didn't set it up, so it must not undo it.
+            if (!grug$resolutionForced) {
+                saveAndForceResolution(mc);
+                grug$resolutionForcedByTestRun = true;
+            }
             grug$testRunner = new GrugTestRunner();
             grug$testRunnerFromCI = fromCI;
             advanceTestRunner(mc);
         }
 
         private static void advanceTestRunner(Minecraft mc) {
-            if (grug$testRunner == null || mc.getSingleplayerServer() == null || mc.player == null) {
+            GrugTestRunner runner = grug$testRunner;
+            if (runner == null || mc.getSingleplayerServer() == null || mc.player == null) {
                 return;
             }
             // Push the execution onto the server thread to prevent ghost blocks & crashes. The whole
@@ -404,17 +447,92 @@ public class GrugModLoader {
                 if (serverPlayer == null) {
                     return;
                 }
-                grug$testRunner.tick(serverPlayer);
-                if (grug$testRunner.isFinished()) {
+                // Tasks queued before an earlier one finished the run are stale; the runner has
+                // already been cleared, so skip them rather than dereferencing a null.
+                if (grug$testRunner != runner) {
+                    return;
+                }
+                runner.tick(serverPlayer);
+                if (runner.isFinished()) {
                     boolean fromCI = grug$testRunnerFromCI;
                     grug$testRunner = null;
                     grug$testRunnerFromCI = false;
+                    grug$testRunFinished = true;
                     // The hotkey path leaves the game running so another R press can start a fresh run.
                     if (fromCI) {
                         mc.stop();
                     }
                 }
             });
+        }
+
+        /** M: toggle the window between its current size and the test resolution. */
+        private static void toggleResolution(Minecraft mc) {
+            if (!grug$resolutionForced) {
+                saveAndForceResolution(mc);
+                grug$resolutionForcedByTestRun = false;
+            } else {
+                grug$resolutionForced = false;
+                grug$resolutionForcedByTestRun = false;
+                applyWindowSize(mc, grug$savedWindowWidth, grug$savedWindowHeight);
+            }
+        }
+
+        private static void saveAndForceResolution(Minecraft mc) {
+            grug$savedWindowWidth = mc.getWindow().getScreenWidth();
+            grug$savedWindowHeight = mc.getWindow().getScreenHeight();
+            grug$resolutionForced = true;
+            applyWindowSize(mc, GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT);
+        }
+
+        private static void finishTestRun(Minecraft mc) {
+            if (grug$resolutionForcedByTestRun) {
+                grug$resolutionForced = false;
+                grug$resolutionForcedByTestRun = false;
+                applyWindowSize(mc, grug$savedWindowWidth, grug$savedWindowHeight);
+            }
+        }
+
+        private static void applyWindowSize(Minecraft mc, int width, int height) {
+            mc.getWindow().setWindowed(width, height);
+            // The framebuffer fields only catch up when the GLFW callback is pumped, and the
+            // screenshot size check reads them immediately, so set them explicitly too.
+            mc.getWindow().setWidth(width);
+            mc.getWindow().setHeight(height);
+            mc.resizeDisplay();
+        }
+
+        /**
+         * Prints the cursor position in the screenshot-crop convention (origin top left, framebuffer
+         * pixels). Only prints when it changed, and only while a screen is open and the window is at
+         * the test resolution.
+         */
+        private static void updateCursorPositionReadout(Minecraft mc) {
+            if (mc.getWindow().getWidth() != GrugScreenshots.WIDTH
+                    || mc.getWindow().getHeight() != GrugScreenshots.HEIGHT
+                    || mc.screen == null
+                    || mc.getWindow().getScreenWidth() == 0
+                    || mc.getWindow().getScreenHeight() == 0) {
+                grug$lastCursorX = Integer.MIN_VALUE;
+                grug$lastCursorY = Integer.MIN_VALUE;
+                return;
+            }
+
+            double[] cursorX = new double[1];
+            double[] cursorY = new double[1];
+            GLFW.glfwGetCursorPos(mc.getWindow().getWindow(), cursorX, cursorY);
+
+            int screenX = (int) Math.round(cursorX[0] * mc.getWindow().getWidth()
+                    / (double) mc.getWindow().getScreenWidth());
+            int screenY = (int) Math.round(cursorY[0] * mc.getWindow().getHeight()
+                    / (double) mc.getWindow().getScreenHeight());
+
+            if (screenX == grug$lastCursorX && screenY == grug$lastCursorY) {
+                return;
+            }
+            grug$lastCursorX = screenX;
+            grug$lastCursorY = screenY;
+            sendMessage(mc.player, "Cursor: " + screenX + ", " + screenY, "");
         }
 
         private static void sendRedMessage(Player player, String text) {
