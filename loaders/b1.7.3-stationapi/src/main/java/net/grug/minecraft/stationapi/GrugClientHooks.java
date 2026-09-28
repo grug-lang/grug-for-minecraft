@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi;
 
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.stationapi.events.init.ClientInitListener;
 import net.grug.minecraft.stationapi.events.init.InitListener;
@@ -98,47 +99,9 @@ public class GrugClientHooks {
             }
         }
 
-        // Test runner hotkey logic
-        if (ClientInitListener.runTestsKey != null) {
-            boolean isKeyDown = Keyboard.isKeyDown(ClientInitListener.runTestsKey.code);
-            if (isKeyDown && !testsKeyPressed) {
-                testsKeyPressed = true;
-                startTestRunner(false);
-            } else if (!isKeyDown) {
-                testsKeyPressed = false;
-            }
-        }
-
-        // M: force the window to the resolution screenshot tests are captured at
-        if (ClientInitListener.forceResolutionKey != null) {
-            boolean isKeyDown = Keyboard.isKeyDown(ClientInitListener.forceResolutionKey.code);
-            if (isKeyDown && !resolutionKeyPressed) {
-                resolutionKeyPressed = true;
-                if (savedDisplayMode == null) {
-                    savedDisplayMode = currentWindowDisplayMode();
-                    applyTestDisplayMode();
-                } else {
-                    DisplayMode previous = savedDisplayMode;
-                    savedDisplayMode = null;
-                    resolutionForcedByTestRun = false;
-                    applyDisplayMode(previous);
-                }
-            } else if (!isKeyDown) {
-                resolutionKeyPressed = false;
-            }
-        }
-
-        // While M is holding the window at the test resolution, keep the cursor's screenshot-crop
-        // coordinates in chat. A test run is excluded because it forces the same resolution for its
-        // own reasons and nobody is aiming a cursor at it.
-        if (savedDisplayMode != null && testRunner == null) {
-            updateCursorPositionReadout();
-        } else {
-            // Forget the last position while inactive, so the readout reappears the moment M is
-            // switched back on even if the cursor hasn't moved since it was last on.
-            lastCursorX = Integer.MIN_VALUE;
-            lastCursorY = Integer.MIN_VALUE;
-        }
+        handleTestRunnerHotkey();
+        handleResolutionHotkey();
+        updateCursorReadout();
 
         // A captured frame must not depend on where the invisible cursor happens to be: the game
         // highlights the slot under the mouse and tooltips follow it, so park the cursor in a
@@ -182,6 +145,38 @@ public class GrugClientHooks {
                     sendMessage(Grug.printQueue.poll(), "");
                 }
             }
+        }
+    }
+
+    @GrugGenerated("dev-only: pressing R starts a test run by hand")
+    private void handleTestRunnerHotkey() {
+        if (ClientInitListener.runTestsKey == null) return;
+        boolean isKeyDown = Keyboard.isKeyDown(ClientInitListener.runTestsKey.code);
+        if (isKeyDown && !testsKeyPressed) {
+            testsKeyPressed = true;
+            startTestRunner(false);
+        } else if (!isKeyDown) {
+            testsKeyPressed = false;
+        }
+    }
+
+    @GrugGenerated("dev-only: pressing M forces the test resolution by hand")
+    private void handleResolutionHotkey() {
+        if (ClientInitListener.forceResolutionKey == null) return;
+        boolean isKeyDown = Keyboard.isKeyDown(ClientInitListener.forceResolutionKey.code);
+        if (isKeyDown && !resolutionKeyPressed) {
+            resolutionKeyPressed = true;
+            if (savedDisplayMode == null) {
+                savedDisplayMode = currentWindowDisplayMode();
+                applyTestDisplayMode();
+            } else {
+                DisplayMode previous = savedDisplayMode;
+                savedDisplayMode = null;
+                resolutionForcedByTestRun = false;
+                applyDisplayMode(previous);
+            }
+        } else if (!isKeyDown) {
+            resolutionKeyPressed = false;
         }
     }
 
@@ -237,6 +232,7 @@ public class GrugClientHooks {
      * record the slot-hover highlight. The window-corner position is outside every centered GUI
      * panel, and the cursor itself is never drawn into the framebuffer.
      */
+    @GrugGenerated("dev-only: cursor parking")
     private void parkCursor() {
         if (!cursorParked) {
             savedCursorX = Mouse.getX();
@@ -330,7 +326,16 @@ public class GrugClientHooks {
      * <p>This shares its flip with captureRectangle() in StationApiAdapter: LWJGL's Mouse counts Y
      * from the bottom of the window, like GL does, whereas the crop rectangle counts from the top.
      */
-    private void updateCursorPositionReadout() {
+    @GrugGenerated("dev-only: cursor-coordinate readout")
+    private void updateCursorReadout() {
+        if (savedDisplayMode == null || testRunner != null) {
+            // Forget the last position while inactive, so the readout reappears the moment M is
+            // switched back on even if the cursor hasn't moved since it was last on.
+            lastCursorX = Integer.MIN_VALUE;
+            lastCursorY = Integer.MIN_VALUE;
+            return;
+        }
+
         // Only meaningful at the test resolution, with a free cursor. While the mouse is grabbed
         // for camera control Mouse.getX/Y accumulate movement deltas rather than pointing at a
         // pixel, so printing them would just fill chat with drift. A screen being open is what
