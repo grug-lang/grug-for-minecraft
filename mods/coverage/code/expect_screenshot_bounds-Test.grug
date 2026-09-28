@@ -1,0 +1,7 @@
+# An out-of-bounds crop coordinate must be reported before any capture is attempted.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("is -1, which is outside")
+        Test.assert_screenshot_equals(r"screenshots/dummy", -1, 0, 10, 10)
+    }
+}
