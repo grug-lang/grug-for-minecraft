@@ -1,4 +1,4 @@
-# Test.assert(false, ...) throws a Java exception rather than calling gameFunctionErrorHappened,
+# Test.assert(false, ...) throws a Java exception rather than calling hostFunctionErrorHappened,
 # which is the other kind of abort the runner has to accept for an expected error.
 export run() {
     Test.expect_error("Assertion failed")

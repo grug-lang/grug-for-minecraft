@@ -70,7 +70,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         Inventory inventory = (Inventory) blockEntityObj;
         GrugGuiBuilder builder = (GrugGuiBuilder) guiBuilderObj;
         if (FabricLoader.getInstance().getEnvironmentType() != EnvType.CLIENT) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "GUI.open: Opening a GUI on a dedicated server is not supported yet.");
             return;
@@ -439,7 +439,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public Vec3 setupGraphicsTestCamera() {
         PlayerEntity player = MinecraftInstance.get().player;
         if (player == null) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
             return null;
         }
@@ -464,7 +464,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
         if (!graphicsCameraSaved) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.restore_camera: No saved position; call Test.setup_graphics_camera"
                             + " first.");
@@ -484,7 +484,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         World world = (World) levelObj;
         PlayerEntity player = MinecraftInstance.get().player;
         if (player == null) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
             return;
         }
@@ -502,7 +502,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             // right-click does, instead of a copy of the block's GUI layout.
             grugBlock.use(world, blockX, blockY, blockZ, player);
         } else {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.use_block: There is no grug block at "
                             + blockX
@@ -525,11 +525,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
         if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
         if (bad != null) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
             return;
         }
         if (x2 <= x1 || y2 <= y1) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.assert_screenshot_equals: the rectangle is empty, since ("
                             + (int) x2
@@ -548,7 +548,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // a screen of subtly wrong pixels.
         Minecraft mc = MinecraftInstance.get();
         if (mc.width != GrugScreenshots.WIDTH || mc.height != GrugScreenshots.HEIGHT) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.assert_screenshot_equals: the window is "
                             + mc.width
@@ -615,14 +615,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         try {
             GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
         } catch (RuntimeException e) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.assert_screenshot_equals: the pixel readback failed unexpectedly: " + e);
             return null;
         }
         int glError = GL11.glGetError();
         if (glError != GL11.GL_NO_ERROR) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.assert_screenshot_equals: glReadPixels failed with GL error 0x"
                             + Integer.toHexString(glError)
@@ -644,7 +644,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
             return image;
         } catch (RuntimeException e) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.assert_screenshot_equals: could not build an image from the readback: "
                             + e);

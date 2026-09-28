@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-/** Covers {@link GameFunctionHelpers}' argument formatting and block-entity resolution. */
-class GameFunctionHelpersTest {
+/** Covers {@link HostFunctionHelpers}' argument formatting and block-entity resolution. */
+class HostFunctionHelpersTest {
 
     @AfterEach
     void restoreInitializingBlockEntity() {
@@ -17,36 +17,36 @@ class GameFunctionHelpersTest {
 
     @Test
     void prettyFormatPrintsAPlainValue() {
-        assertEquals("42.0", GameFunctionHelpers.prettyFormat(42.0));
+        assertEquals("42.0", HostFunctionHelpers.prettyFormat(42.0));
     }
 
     @Test
     void prettyFormatUnwrapsAnEntityId() {
         long id = Grug.addEntity(GrugEntityType.Item, "diamond");
-        assertEquals("diamond", GameFunctionHelpers.prettyFormat(id));
+        assertEquals("diamond", HostFunctionHelpers.prettyFormat(id));
     }
 
     @Test
     void prettyFormatReportsAnUnknownId() {
-        assertEquals("<id:987654321 (invalid)>", GameFunctionHelpers.prettyFormat(987654321L));
+        assertEquals("<id:987654321 (invalid)>", HostFunctionHelpers.prettyFormat(987654321L));
     }
 
     @Test
     void prettyFormatReportsAnEntityWithANullObject() {
         long id = Grug.addEntity(GrugEntityType.Item, null);
-        assertEquals("<id:" + id + " (invalid)>", GameFunctionHelpers.prettyFormat(id));
+        assertEquals("<id:" + id + " (invalid)>", HostFunctionHelpers.prettyFormat(id));
     }
 
     @Test
     void resolveBlockEntityReturnsTheStoredObject() {
         Object blockEntity = new Object();
         long id = Grug.addEntity(GrugEntityType.BlockEntity, blockEntity);
-        assertSame(blockEntity, GameFunctionHelpers.resolveBlockEntity(id));
+        assertSame(blockEntity, HostFunctionHelpers.resolveBlockEntity(id));
     }
 
     @Test
     void resolveBlockEntityReturnsNullWhenUnknownAndNotInitializing() {
-        assertNull(GameFunctionHelpers.resolveBlockEntity(555555L));
+        assertNull(HostFunctionHelpers.resolveBlockEntity(555555L));
     }
 
     @Test
@@ -55,7 +55,7 @@ class GameFunctionHelpersTest {
         Grug.currentlyInitializingBlockEntity = initializing;
 
         long id = 444444L;
-        assertSame(initializing, GameFunctionHelpers.resolveBlockEntity(id));
+        assertSame(initializing, HostFunctionHelpers.resolveBlockEntity(id));
         assertSame(initializing, Grug.entityData.get(id).object);
     }
 }

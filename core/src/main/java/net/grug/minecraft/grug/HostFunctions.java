@@ -5,10 +5,10 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 
 import java.util.OptionalInt;
 
-public class GameFunctions {
+public class HostFunctions {
 
     @GrugGenerated("utility class: never instantiated")
-    private GameFunctions() {}
+    private HostFunctions() {}
 
     // Entities
 
@@ -16,7 +16,7 @@ public class GameFunctions {
         if (!condition) {
             // A runtime error, not Grug.fatal: a failed assertion should fail just the test, not
             // take the whole game down.
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Assertion failed: " + message);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Assertion failed: " + message);
         }
     }
 
@@ -32,7 +32,7 @@ public class GameFunctions {
     @GrugGenerated("no local player: impossible while a test runs")
     private static long addPlayer(Object player) {
         if (player == null) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.get_player: There is no local player.");
             return 0;
         }
@@ -40,7 +40,7 @@ public class GameFunctions {
     }
 
     public static void Test_round_trip_nbt(long blockEntityId) {
-        GrugCore.getAdapter().roundTripNbt(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
+        GrugCore.getAdapter().roundTripNbt(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
     }
 
     /**
@@ -64,7 +64,7 @@ public class GameFunctions {
             java.nio.file.Files.write(
                     file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } catch (Exception e) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_comment: " + e);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_comment: " + e);
         }
     }
 
@@ -88,7 +88,7 @@ public class GameFunctions {
             java.nio.file.Files.write(
                     file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } catch (Exception e) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_newline: " + e);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_newline: " + e);
         }
     }
 
@@ -113,7 +113,7 @@ public class GameFunctions {
             java.nio.file.Files.write(
                     file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } catch (Exception e) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_corruption: " + e);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_corruption: " + e);
         }
     }
 
@@ -215,13 +215,13 @@ public class GameFunctions {
     public static void GUI_open(long guiId, long playerId, long blockEntityId) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
         Object player = Grug.entityData.get(playerId).object;
-        Object be = GameFunctionHelpers.resolveBlockEntity(blockEntityId);
+        Object be = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
 
         // A script can pass any block entity, including ones without an inventory
         int inventorySize = (int) GrugCore.getAdapter().getInventorySize(be);
         OptionalInt badSlot = builder.firstSlotOutsideInventory(inventorySize);
         if (badSlot.isPresent()) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "GUI.open: The GUI uses slot "
                             + badSlot.getAsInt()
@@ -241,7 +241,7 @@ public class GameFunctions {
     public static long Level_get_block_entity(long levelId, double x, double y, double z) {
         Object be =
                 GrugCore.getAdapter().getBlockEntity(Grug.entityData.get(levelId).object, x, y, z);
-        // TODO: Should this not call Grug.gameFunctionErrorHappened when be is null?
+        // TODO: Should this not call Grug.hostFunctionErrorHappened when be is null?
         if (be != null) {
             return Grug.addEntity(
                     GrugEntityType.Option,
@@ -259,7 +259,7 @@ public class GameFunctions {
         return ((GrugOption) Grug.entityData.get(optionId).object).has();
     }
 
-    // The generated GenericGameFunctions bridge resolves Option's $Value generic down to one of the
+    // The generated GenericHostFunctions bridge resolves Option's $Value generic down to one of the
     // four base types before calling in, so set() needs an overload per base type to keep the JNI
     // calls from autoboxing. grug's type inference fixes $Value at the Option's declaration, so
     // only
@@ -293,7 +293,7 @@ public class GameFunctions {
     public static Object Option_unwrap(long optionId) {
         GrugOption opt = (GrugOption) Grug.entityData.get(optionId).object;
         if (!opt.has()) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Tried to unwrap an empty Option!");
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Tried to unwrap an empty Option!");
             return null;
         }
         return opt.value();
@@ -320,13 +320,13 @@ public class GameFunctions {
     public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
         GrugCore.getAdapter()
                 .consumeCraftingIngredients(
-                        GameFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
     }
 
     public static double count_item_in_inventory(long blockEntityId, long itemId, double damage) {
         return GrugCore.getAdapter()
                 .countItemInInventory(
-                        GameFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
                         Grug.entityData.get(itemId).object,
                         damage);
     }
@@ -355,7 +355,7 @@ public class GameFunctions {
             long blockEntityId, long itemId, double damage, double amount) {
         return GrugCore.getAdapter()
                 .extractItemFromInventory(
-                        GameFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
                         Grug.entityData.get(itemId).object,
                         damage,
                         amount);
@@ -364,7 +364,7 @@ public class GameFunctions {
     public static long get_block_entity_level(long blockEntityId) {
         Object level =
                 GrugCore.getAdapter()
-                        .getBlockEntityLevel(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
+                        .getBlockEntityLevel(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
         return Grug.addEntity(GrugEntityType.Level, level);
     }
 
@@ -372,24 +372,24 @@ public class GameFunctions {
         BlockPos pos =
                 GrugCore.getAdapter()
                         .getBlockPosOfBlockEntity(
-                                GameFunctionHelpers.resolveBlockEntity(blockEntityId));
+                                HostFunctionHelpers.resolveBlockEntity(blockEntityId));
         return Grug.addEntity(GrugEntityType.BlockPos, pos);
     }
 
     public static double get_item_count_in_slot(long blockEntityId, double slot) {
         return GrugCore.getAdapter()
-                .getItemCountInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+                .getItemCountInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
     }
 
     public static double get_item_damage_in_slot(long blockEntityId, double slot) {
         return GrugCore.getAdapter()
-                .getItemDamageInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+                .getItemDamageInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
     }
 
     public static long get_item_in_slot(long blockEntityId, double slot) {
         Object item =
                 GrugCore.getAdapter()
-                        .getItemInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+                        .getItemInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
         if (item != null) {
             return Grug.addEntity(
                     GrugEntityType.Option,
@@ -423,27 +423,27 @@ public class GameFunctions {
 
     public static <T> void print(T a) {
         synchronized (Grug.printQueue) {
-            Grug.printQueue.add(GameFunctionHelpers.prettyFormat(a));
+            Grug.printQueue.add(HostFunctionHelpers.prettyFormat(a));
         }
     }
 
     public static <T, U> void print2(T a, U b) {
         synchronized (Grug.printQueue) {
             Grug.printQueue.add(
-                    GameFunctionHelpers.prettyFormat(a)
+                    HostFunctionHelpers.prettyFormat(a)
                             + " "
-                            + GameFunctionHelpers.prettyFormat(b));
+                            + HostFunctionHelpers.prettyFormat(b));
         }
     }
 
     public static <T, U, V> void print3(T a, U b, V c) {
         synchronized (Grug.printQueue) {
             Grug.printQueue.add(
-                    GameFunctionHelpers.prettyFormat(a)
+                    HostFunctionHelpers.prettyFormat(a)
                             + " "
-                            + GameFunctionHelpers.prettyFormat(b)
+                            + HostFunctionHelpers.prettyFormat(b)
                             + " "
-                            + GameFunctionHelpers.prettyFormat(c));
+                            + HostFunctionHelpers.prettyFormat(c));
         }
     }
 
@@ -457,7 +457,7 @@ public class GameFunctions {
         String cleanName = entityString.substring(entityString.lastIndexOf(':') + 1);
 
         if (!Grug.entityFileIdsByName.containsKey(cleanName)) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "set_block_entity: Block entity script '" + entityString + "' does not exist.");
             return;
@@ -466,7 +466,7 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null) {
             Grug.currentlyInitializingBlock.blockEntityString = entityString;
         } else {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "set_block_entity: Can only be called during a Block's init().");
         }
     }
@@ -475,7 +475,7 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null)
             Grug.currentlyInitializingBlock.hardness = (float) value;
         else
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "set_hardness: Can only be called during a Block's init().");
     }
 
@@ -483,7 +483,7 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null)
             Grug.currentlyInitializingBlock.inventorySize = (int) size;
         else
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "set_inventory_size: Can only be called during a Block's init().");
     }
@@ -491,14 +491,14 @@ public class GameFunctions {
     public static void set_item_count_in_slot(long blockEntityId, double slot, double count) {
         GrugCore.getAdapter()
                 .setItemCountInSlot(
-                        GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot, count);
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, count);
     }
 
     public static void set_item_in_slot(
             long blockEntityId, double slot, long itemId, double count) {
         GrugCore.getAdapter()
                 .setItemInSlot(
-                        GameFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
                         slot,
                         Grug.entityData.get(itemId).object,
                         count);
@@ -508,21 +508,21 @@ public class GameFunctions {
         if (Grug.currentlyInitializingBlock != null)
             Grug.currentlyInitializingBlock.material = materialName;
         else
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "set_material: Can only be called during a Block's init().");
     }
 
     public static double take_item_from_slot(long blockEntityId, double slot, double amount) {
         return GrugCore.getAdapter()
                 .takeItemFromSlot(
-                        GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot, amount);
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, amount);
     }
 
     public static void update_recipe_output(
             long blockEntityId, double startSlot, double outputSlot) {
         GrugCore.getAdapter()
                 .updateRecipeOutput(
-                        GameFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
                         startSlot,
                         outputSlot);
     }

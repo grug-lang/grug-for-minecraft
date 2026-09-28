@@ -162,7 +162,7 @@ val generateGrugAdapter = tasks.register("generateGrugAdapter") {
         .resolve("net/grug/minecraft/grug/ExportFns.java")
 
     val generatedGenericFnsJava = generatedJavaDir
-        .resolve("net/grug/minecraft/grug/GenericGameFunctions.java")
+        .resolve("net/grug/minecraft/grug/GenericHostFunctions.java")
 
     inputs.file(modApiJson)
     inputs.file(generatorScript)

@@ -39,7 +39,7 @@ public class GrugScreen extends InventoryMenuScreen {
      */
     public static void open(PlayerEntity player, Inventory inventory, GrugGuiBuilder layout) {
         if (!(player instanceof ClientPlayerEntity) || player instanceof LocalClientPlayerEntity) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "GUI.open: Opening a GUI in multiplayer is not supported yet.");
             return;
         }

@@ -11,7 +11,7 @@ public record GrugOption(Object value) {
         if (!(o instanceof GrugOption other)) return false;
 
         // Delegate to our smart equality function to resolve the inner IDs!
-        return GameFunctions.equals(this.value, other.value);
+        return HostFunctions.equals(this.value, other.value);
     }
 
     @Override

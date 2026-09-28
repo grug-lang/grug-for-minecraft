@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests the type tables generate.py uses to turn grug types into Java and JNI types.
 
-These tables are the only type-dependent input to the generated GenericGameFunctions trampolines, so
+These tables are the only type-dependent input to the generated GenericHostFunctions trampolines, so
 a bug there breaks every combination that contains one type rather than a single bad permutation.
 Testing the tables directly is exhaustive over that failure domain, where exercising the trampolines'
 4^n permutations is not.

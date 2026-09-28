@@ -389,7 +389,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private void setupCameraOnClient(Vec3[] result) {
         Player player = Minecraft.getInstance().player;
         if (player == null) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
             return;
         }
@@ -414,7 +414,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
         if (!graphicsCameraSaved) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.restore_camera: No saved position; call Test.setup_graphics_camera"
                             + " first.");
@@ -445,7 +445,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private void useBlockOnClient(double x, double y, double z) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.gameMode == null) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
             return;
         }
@@ -474,11 +474,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
         if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
         if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
         if (bad != null) {
-            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.assert_screenshot_equals: " + bad);
             return;
         }
         if (x2 <= x1 || y2 <= y1) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.assert_screenshot_equals: the rectangle is empty, since ("
                             + (int) x2
@@ -498,7 +498,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         Minecraft mc = Minecraft.getInstance();
         if (mc.getWindow().getWidth() != GrugScreenshots.WIDTH
                 || mc.getWindow().getHeight() != GrugScreenshots.HEIGHT) {
-            Grug.gameFunctionErrorHappened(
+            Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.assert_screenshot_equals: the window is "
                             + mc.getWindow().getWidth()

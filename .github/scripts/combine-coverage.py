@@ -33,7 +33,7 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 
 # Classes deliberately left out of the combined report, kept in one place so the exclusions stay
 # reviewable:
-# - GenericGameFunctions is mechanically derived from one template and parameterized only by the
+# - GenericHostFunctions is mechanically derived from one template and parameterized only by the
 #   type tables in core/generate.py, so its per-permutation coverage adds nothing over testing those
 #   tables directly (see core/test_generate.py). ExportFns is deliberately not excluded: its
 #   remaining wrappers map to distinct callbacks.
@@ -47,7 +47,7 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 #   CI cannot drive without a per-loader test harness. The testable logic behind them lives in
 #   net.grug.* helpers (GrugResourceIndex, GrugGuiBuilder) which stay measured.
 EXCLUDED_CLASSES = {
-    "GenericGameFunctions",
+    "GenericHostFunctions",
     "MinecraftMixin",
     "TitleScreenMixin",
     "ResourcePackManagerMixin",
