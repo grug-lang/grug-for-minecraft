@@ -85,6 +85,31 @@ public class GameFunctions {
         }
     }
 
+    /**
+     * Prepends or removes an invalid marker on a grug file, so a test can drive Grug.update's
+     * hot-reload failure path (and the error callbacks) before restoring it.
+     */
+    public static void Test_toggle_mod_file_corruption(String relativePath) {
+        java.io.File file =
+                new java.io.File(GrugCore.getAdapter().getGrugModsDirectory(), relativePath);
+        String marker = "!\n";
+        try {
+            String content =
+                    new String(
+                            java.nio.file.Files.readAllBytes(file.toPath()),
+                            java.nio.charset.StandardCharsets.UTF_8);
+            if (content.startsWith(marker)) {
+                content = content.substring(marker.length());
+            } else {
+                content = marker + content;
+            }
+            java.nio.file.Files.write(
+                    file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_corruption: " + e);
+        }
+    }
+
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());

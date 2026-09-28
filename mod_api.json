@@ -259,6 +259,17 @@
 						}
 					]
 				},
+				"toggle_mod_file_corruption": {
+					"description": "Prepends or removes an invalid marker on a grug file, so a test can drive Grug.update's hot-reload failure path.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"get_origin": {
 					"description": "Gets the origin coordinates for running isolated tests.",
 					"return_type": {
