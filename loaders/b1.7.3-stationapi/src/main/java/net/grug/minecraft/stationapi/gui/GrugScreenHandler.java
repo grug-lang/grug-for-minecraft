@@ -14,11 +14,6 @@ public class GrugScreenHandler extends ScreenHandler {
     public GrugScreenHandler(PlayerEntity player, Inventory blockInventory, GrugGuiBuilder layout) {
         this.blockInventory = blockInventory;
 
-        // Standard Slots
-        for (GrugGuiBuilder.SlotDef def : layout.blockSlots) {
-            this.addSlot(new Slot(blockInventory, def.index(), def.x(), def.y()));
-        }
-
         // Crafting Grids (Standard Slots)
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             for (int row = 0; row < 3; row++) {

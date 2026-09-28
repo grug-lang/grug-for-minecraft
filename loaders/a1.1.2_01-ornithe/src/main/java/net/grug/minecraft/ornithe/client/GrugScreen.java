@@ -36,11 +36,6 @@ public class GrugScreen extends InventoryMenuScreen {
         this.layout = layout;
         this.texturePath = toResourcePath(layout.texturePath);
 
-        for (GrugGuiBuilder.SlotDef def : layout.blockSlots) {
-            this.menuSlots.add(
-                    new InventoryMenuSlot(this, blockInventory, def.index(), def.x(), def.y()));
-        }
-
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 3; col++) {

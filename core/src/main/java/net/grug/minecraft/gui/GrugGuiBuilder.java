@@ -6,7 +6,6 @@ import java.util.OptionalInt;
 
 public class GrugGuiBuilder {
     public final String texturePath;
-    public final List<SlotDef> blockSlots = new ArrayList<>();
     public final List<CraftingGridDef> craftingGrids = new ArrayList<>();
     public final List<CraftingResultDef> craftingResults = new ArrayList<>();
     public final List<TextDef> texts = new ArrayList<>();
@@ -22,11 +21,6 @@ public class GrugGuiBuilder {
      * The first block inventory slot used by this GUI that is not in [0, inventorySize), if any.
      */
     public OptionalInt firstSlotOutsideInventory(int inventorySize) {
-        for (SlotDef def : blockSlots) {
-            if (isOutside(def.index(), inventorySize)) {
-                return OptionalInt.of(def.index());
-            }
-        }
         for (CraftingGridDef grid : craftingGrids) {
             for (int i = 0; i < 9; i++) {
                 if (isOutside(grid.startSlot() + i, inventorySize)) {
@@ -45,8 +39,6 @@ public class GrugGuiBuilder {
     private static boolean isOutside(int slot, int inventorySize) {
         return slot < 0 || slot >= inventorySize;
     }
-
-    public record SlotDef(int index, int x, int y, boolean isOutput) {}
 
     public record CraftingGridDef(int startSlot, int x, int y) {}
 

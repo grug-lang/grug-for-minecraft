@@ -411,29 +411,6 @@
 						}
 					]
 				},
-				"add_output_slot": {
-					"description": "Adds a read-only/result slot linked to the BlockEntity.",
-					"parameters": [
-						{
-							"name": "slot",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
 				"add_player_inventory": {
 					"description": "Automatically lays out the player's main inventory and hotbar.",
 					"parameters": [
@@ -457,29 +434,6 @@
 						},
 						{
 							"name": "hotbar_y",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"add_slot": {
-					"description": "Adds a standard inventory slot linked to the BlockEntity.",
-					"parameters": [
-						{
-							"name": "slot",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
 							"type": {
 								"name": "number"
 							}
@@ -828,20 +782,6 @@
 			"description": "Gets the world position of a BlockEntity.",
 			"return_type": {
 				"name": "BlockPos"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"get_inventory_size": {
-			"description": "Gets the size of an inventory block entity.",
-			"return_type": {
-				"name": "number"
 			},
 			"parameters": [
 				{
@@ -1227,32 +1167,6 @@
 				},
 				{
 					"name": "output_slot",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"vec3": {
-			"description": "Creates a new Vec3.",
-			"return_type": {
-				"name": "Vec3"
-			},
-			"parameters": [
-				{
-					"name": "x",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "y",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "z",
 					"type": {
 						"name": "number"
 					}

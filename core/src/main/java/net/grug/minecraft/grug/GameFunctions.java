@@ -99,11 +99,6 @@ public class GameFunctions {
                 new GrugGuiBuilder.CraftingResultDef((int) slot, (int) x, (int) y));
     }
 
-    public static void GUI_add_output_slot(long guiId, double slot, double x, double y) {
-        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
-        builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, true));
-    }
-
     public static void GUI_add_player_inventory(
             long guiId, double mainX, double mainY, double hotbarX, double hotbarY) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
@@ -112,11 +107,6 @@ public class GameFunctions {
         builder.playerInvY = (int) mainY;
         builder.hotbarX = (int) hotbarX;
         builder.hotbarY = (int) hotbarY;
-    }
-
-    public static void GUI_add_slot(long guiId, double slot, double x, double y) {
-        GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
-        builder.blockSlots.add(new GrugGuiBuilder.SlotDef((int) slot, (int) x, (int) y, false));
     }
 
     public static void GUI_add_text(long guiId, String text, double x, double y, long colorId) {
@@ -277,11 +267,6 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.BlockPos, pos);
     }
 
-    public static double get_inventory_size(long blockEntityId) {
-        return GrugCore.getAdapter()
-                .getInventorySize(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
-    }
-
     public static double get_item_count_in_slot(long blockEntityId, double slot) {
         return GrugCore.getAdapter()
                 .getItemCountInSlot(GameFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
@@ -432,10 +417,6 @@ public class GameFunctions {
                         GameFunctionHelpers.resolveBlockEntity(blockEntityId),
                         startSlot,
                         outputSlot);
-    }
-
-    public static long vec3(double x, double y, double z) {
-        return Grug.addEntity(GrugEntityType.Vec3, new Vec3(x, y, z));
     }
 
     public static long vec3_zero() {
