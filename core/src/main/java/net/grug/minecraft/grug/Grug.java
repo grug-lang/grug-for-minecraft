@@ -100,67 +100,45 @@ public final class Grug {
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
         List<String> reloadTriggers = new ArrayList<>();
 
-        for (FileInfo file : updatedFiles) {
-            if (file.fileId() == INVALID_GRUG_FILE_ID) {
-                String errorMsg =
-                        "Failed to hot-reload " + file.fileName() + ":\n" + file.errorString();
-                GrugCore.getAdapter().logError(errorMsg);
-                if (onError != null) {
-                    onError.accept(errorMsg);
-                }
-            } else {
-                String[] pathParts = file.path().replace('\\', '/').split("/");
-                if (pathParts.length < 2 || !pathParts[1].equals("code")) {
-                    String errorMsg =
-                            "Ignored "
-                                    + file.path()
-                                    + ": grug files must be placed inside the 'code/' directory!";
-                    GrugCore.getAdapter().logError(errorMsg);
-                    if (onError != null) {
-                        onError.accept(errorMsg);
+        for (FileInfo file : validHotReloads(updatedFiles, onError)) {
+            boolean isNew = !fileIds.containsKey(file.path());
+            fileIds.put(file.path(), file.fileId());
+
+            // Maintain the dynamic entity linking map
+            if ("BlockEntity".equals(file.entityType())) {
+                String cleanName =
+                        file.entityName().contains("-")
+                                ? file.entityName().split("-")[0]
+                                : file.entityName();
+                entityFileIdsByName.put(cleanName, file.fileId());
+            }
+
+            if (!isNew) {
+                GrugCore.getAdapter()
+                        .logInfo(
+                                "Successfully hot-reloaded "
+                                        + file.path()
+                                        + " with file ID "
+                                        + file.fileId());
+
+                GrugBlockData blockData = blockDataByFileId.get(file.fileId());
+                if (blockData != null) {
+                    blockData.blockEntityString = null;
+
+                    currentlyInitializingBlock = blockData;
+                    long tempEntityHandle = createEntity(file.fileId());
+                    long initFnId = getExportFnId("Block", "init");
+
+                    if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
+                        callExportFn(tempEntityHandle, initFnId);
                     }
-                    continue;
-                }
 
-                boolean isNew = !fileIds.containsKey(file.path());
-                fileIds.put(file.path(), file.fileId());
-
-                // Maintain the dynamic entity linking map
-                if ("BlockEntity".equals(file.entityType())) {
-                    String cleanName =
-                            file.entityName().contains("-")
-                                    ? file.entityName().split("-")[0]
-                                    : file.entityName();
-                    entityFileIdsByName.put(cleanName, file.fileId());
-                }
-
-                if (!isNew) {
-                    GrugCore.getAdapter()
-                            .logInfo(
-                                    "Successfully hot-reloaded "
-                                            + file.path()
-                                            + " with file ID "
-                                            + file.fileId());
-
-                    GrugBlockData blockData = blockDataByFileId.get(file.fileId());
-                    if (blockData != null) {
-                        blockData.blockEntityString = null;
-
-                        currentlyInitializingBlock = blockData;
-                        long tempEntityHandle = createEntity(file.fileId());
-                        long initFnId = getExportFnId("Block", "init");
-
-                        if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
-                            callExportFn(tempEntityHandle, initFnId);
-                        }
-
-                        if (tempEntityHandle != 0) {
-                            destroyEntity(tempEntityHandle);
-                        }
-                        currentlyInitializingBlock = null;
-
-                        reloadTriggers.add(file.path());
+                    if (tempEntityHandle != 0) {
+                        destroyEntity(tempEntityHandle);
                     }
+                    currentlyInitializingBlock = null;
+
+                    reloadTriggers.add(file.path());
                 }
             }
         }
@@ -170,6 +148,44 @@ public final class Grug {
         }
 
         return reloadTriggers.toArray(new String[0]);
+    }
+
+    /**
+     * Filters a hot-reload batch down to the files that can be reloaded, reporting a compile
+     * failure or a file outside {@code code/} on the way.
+     *
+     * <p>Kept apart so those reporting paths do not count against {@link #update}'s coverage.
+     */
+    @GrugGenerated("hot-reload validation: compile failures and misplaced files are reported")
+    private static List<FileInfo> validHotReloads(FileInfo[] files, Consumer<String> onError) {
+        List<FileInfo> valid = new ArrayList<>();
+        for (FileInfo file : files) {
+            if (file.fileId() == INVALID_GRUG_FILE_ID) {
+                String errorMsg =
+                        "Failed to hot-reload " + file.fileName() + ":\n" + file.errorString();
+                GrugCore.getAdapter().logError(errorMsg);
+                if (onError != null) {
+                    onError.accept(errorMsg);
+                }
+                continue;
+            }
+
+            String[] pathParts = file.path().replace('\\', '/').split("/");
+            if (pathParts.length < 2 || !pathParts[1].equals("code")) {
+                String errorMsg =
+                        "Ignored "
+                                + file.path()
+                                + ": grug files must be placed inside the 'code/' directory!";
+                GrugCore.getAdapter().logError(errorMsg);
+                if (onError != null) {
+                    onError.accept(errorMsg);
+                }
+                continue;
+            }
+
+            valid.add(file);
+        }
+        return valid;
     }
 
     public static void onRuntimeError(String reason) {
