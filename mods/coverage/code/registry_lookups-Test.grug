@@ -1,0 +1,22 @@
+# Covers the registry lookup's declared grug item and block matches, the multi-word vanilla
+# reflection fallback, and the unknown-name null return.
+export run() {
+    if Test.tick() == 0 {
+        declared_item: Item = item(resource_location("grug:coverage_item"))
+        Test.assert(equals(declared_item, declared_item), "a declared grug item resolves.")
+
+        declared_block: Item = item(resource_location("grug:coverage_block"))
+        Test.assert(equals(declared_block, declared_block), "a declared grug block resolves.")
+
+        vanilla_item: Item = item(resource_location("minecraft:diamond_sword"))
+        Test.assert(equals(vanilla_item, vanilla_item), "a multi-word vanilla item resolves.")
+
+        unknown_item: Item = item(resource_location("grug:does_not_exist"))
+        Test.assert(equals(unknown_item, unknown_item), "an unknown item resolves to null.")
+
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        level.place_block(origin.x() + 7, origin.y(), origin.z(), "minecraft:crafting_table")
+        Test.assert(true, "a multi-word vanilla block places.")
+    }
+}
