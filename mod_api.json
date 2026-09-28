@@ -274,6 +274,9 @@
 							}
 						}
 					]
+				},
+				"expect_error": {
+					"description": "Marks the current test as expecting the next host call to fail. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised."
 				}
 			}
 		}

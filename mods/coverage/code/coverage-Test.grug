@@ -1,7 +1,4 @@
 # Exercises mod_api entry points that no real mod path reaches yet, so they stay covered.
-# Placing foo_block makes examplemod's BlockEntity run its own module-level calls (above_n, item,
-# item_stack, item_entity, set_delta_movement, spawn, vec3_zero) and its 10-tick spawn, which is
-# why the test waits a few ticks rather than finishing on tick 0.
 export run() {
     if Test.tick() == 0 {
         level: Level = Test.get_client_level()
@@ -11,12 +8,12 @@ export run() {
         z: number = origin.z()
 
         level.place_block(x, y, z, "grug:foo_block")
-        table_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-        Test.assert(table_opt.has(), "foo_block has no block entity after being placed.")
-        table: BlockEntity = table_opt.unwrap()
+        block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
+        block: BlockEntity = block_opt.unwrap()
 
-        # BlockPos.above_n directly, in addition to the copy foo_block's script runs.
-        above: BlockPos = get_block_pos_of_block_entity(table).above_n(2)
+        # BlockPos.above_n directly, in addition to the copy examplemod's block entity runs.
+        above: BlockPos = get_block_pos_of_block_entity(block).above_n(2)
         Test.assert(above.center().y() > origin.y(), "above_n did not move the position up.")
 
         # item / resource_location / item_stack / item_entity / Entity.set_delta_movement /
@@ -31,7 +28,23 @@ export run() {
         level.place_block(x + 2, y, z, "minecraft:chest")
         chest_opt: Option[BlockEntity] = level.get_block_entity(x + 2, y, z)
         Test.assert(chest_opt.has(), "chest has no block entity after being placed.")
+        chest: BlockEntity = chest_opt.unwrap()
         drop_inventory(level, x + 2, y, z)
+
+        # get_item_in_slot's empty-slot branch on the now-empty chest.
+        empty_item: Option[Item] = get_item_in_slot(chest, 0)
+        Test.assert(not empty_item.has(), "The emptied chest still reports an item.")
+
+        # Option.set for the number, bool and string overloads.
+        number_opt: Option[number] = Option.new()
+        number_opt.set(1)
+        bool_opt: Option[bool] = Option.new()
+        bool_opt.set(true)
+        string_opt: Option[string] = Option.new()
+        string_opt.set("value")
+
+        # equals' non-entity fallback branch.
+        Test.assert(equals("a", "a"), "equals should compare two strings.")
 
         # The print family.
         print("print")
@@ -40,7 +53,7 @@ export run() {
 
         Test.not_done()
     } else if Test.tick() < 15 {
-        # Let foo_block's BlockEntity tick far enough to run its 10-tick spawn once.
+        # Let examplemod's foo_block entity tick far enough to run its 10-tick spawn once.
         Test.not_done()
     }
 }

@@ -34,6 +34,11 @@ public final class Grug {
     // call.
     public static boolean testNotDone = false;
 
+    // Set by Test.expect_error(); reset to false by GrugTestRunner immediately before each
+    // Test.run() call. While set, an export function that aborts on a host error counts as a pass,
+    // which is how the error branches of host functions get exercised.
+    public static boolean testExpectsError = false;
+
     public static final Map<String, GrugBlockData> declaredBlocks = new HashMap<>();
     public static final Map<Long, GrugBlockData> blockDataByFileId = new HashMap<>();
 

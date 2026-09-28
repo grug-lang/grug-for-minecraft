@@ -11,8 +11,9 @@ public class GameFunctions {
 
     public static void Test_assert(boolean condition, String message) {
         if (!condition) {
-            // TODO: I don't think calling Grug.fatal() is a good idea, since that quits MC
-            throw Grug.fatal("Assertion failed: " + message);
+            // A runtime error, not Grug.fatal: a failed assertion should fail just the test, not
+            // take the whole game down.
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Assertion failed: " + message);
         }
     }
 
@@ -55,6 +56,11 @@ public class GameFunctions {
     // TODO: Change to me.not_done() once entities can have methods
     public static void Test_not_done() {
         Grug.testNotDone = true;
+    }
+
+    // TODO: Change to me.expect_error() once entities can have methods
+    public static void Test_expect_error() {
+        Grug.testExpectsError = true;
     }
 
     // Classes

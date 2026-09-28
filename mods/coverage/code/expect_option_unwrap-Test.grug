@@ -1,0 +1,6 @@
+# Unwrapping an empty Option must report an error rather than returning a value.
+export run() {
+    Test.expect_error()
+    empty: Option[Item] = Option.new()
+    empty.unwrap()
+}
