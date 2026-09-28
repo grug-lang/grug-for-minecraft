@@ -22,6 +22,16 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Level, level);
     }
 
+    public static long Test_get_player() {
+        Object player = GrugCore.getAdapter().getPlayer();
+        if (player == null) {
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "Test.get_player: There is no local player.");
+            return 0;
+        }
+        return Grug.addEntity(GrugEntityType.Player, player);
+    }
+
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());

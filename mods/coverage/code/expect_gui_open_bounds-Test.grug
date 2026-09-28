@@ -1,0 +1,22 @@
+# GUI.open must reject a slot that falls outside the block entity's inventory.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        x: number = origin.x()
+        y: number = origin.y()
+        z: number = origin.z()
+
+        level.place_block(x, y, z, "grug:coverage_block")
+        block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        Test.assert(block_opt.has(), "coverage_block has no block entity after being placed.")
+
+        # coverage_block has a 9-slot inventory, so a grid starting at slot 9 is out of range.
+        layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+        layout.add_crafting_grid(9, 0, 0)
+
+        player: Player = Test.get_player()
+        Test.expect_error("GUI.open: The GUI uses slot")
+        layout.open(player, block_opt.unwrap())
+    }
+}

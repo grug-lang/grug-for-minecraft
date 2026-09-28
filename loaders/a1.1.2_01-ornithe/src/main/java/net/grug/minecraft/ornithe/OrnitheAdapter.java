@@ -346,6 +346,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Object getPlayer() {
+        return MinecraftInstance.get().player;
+    }
+
+    @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
         if (blockEntityObj instanceof BlockEntity be) {
             return new BlockPos(be.x, be.y, be.z);
