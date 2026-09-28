@@ -50,11 +50,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public boolean isDevelopmentEnvironment() {
-        return FabricLoader.getInstance().isDevelopmentEnvironment();
-    }
-
-    @Override
     public void logInfo(String message) {
         GrugModLoader.LOGGER.info(message);
     }
@@ -63,20 +58,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void logError(String message) {
         GrugModLoader.LOGGER.error(message);
     }
-
-    // --- Registration Methods ---
-
-    @Override
-    public void registerBlock(String namespace, String name, long fileId) {}
-
-    @Override
-    public void registerItem(String namespace, String name, long fileId) {}
-
-    @Override
-    public void registerBlockEntity(String namespace, String name) {}
-
-    @Override
-    public void reloadRecipe(String resourcePath) {}
 
     // --- GUI & Inventory Methods ---
 

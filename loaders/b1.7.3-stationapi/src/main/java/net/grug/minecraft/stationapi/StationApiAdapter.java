@@ -15,7 +15,6 @@ import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
 import net.grug.minecraft.stationapi.gui.StationGuiHelper;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
@@ -48,24 +47,6 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return InitListener.getActiveGrugModsDir();
     }
 
-    @Override
-    public boolean isDevelopmentEnvironment() {
-        return FabricLoader.getInstance().isDevelopmentEnvironment();
-    }
-
-    @Override
-    public void registerBlock(String namespace, String name, long fileId) {
-        Identifier blockId = Identifier.of(namespace + ":" + name);
-        new GrugBlock(blockId, fileId, Material.STONE, 0.0f)
-                .setTranslationKey(blockId.namespace, blockId.path);
-    }
-
-    @Override
-    public void registerItem(String namespace, String name, long fileId) {}
-
-    @Override
-    public void registerBlockEntity(String namespace, String name) {}
-
     /**
      * Note: Although StationAPI is based on Fabric, it targets Minecraft Beta 1.7.3. Therefore, we
      * do not have access to modern UI abstractions like
@@ -93,11 +74,6 @@ public class StationApiAdapter implements ModLoaderAdapter {
                                 builder, messagePacket, syncId, be.x, be.y, be.z);
                     });
         }
-    }
-
-    @Override
-    public void reloadRecipe(String resourcePath) {
-        InitListener.handlePossibleRecipeUpdate(resourcePath);
     }
 
     // --- Logging Abstraction ---
