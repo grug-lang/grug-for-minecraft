@@ -3,11 +3,14 @@ export run() {
     if Test.tick() == 0 {
         number_opt: Option[number] = Option.new()
         number_opt.set(1)
+        Test.assert(number_opt.unwrap() == 1, "number set should round-trip.")
 
         bool_opt: Option[bool] = Option.new()
         bool_opt.set(true)
+        Test.assert(bool_opt.unwrap(), "bool set should round-trip.")
 
         string_opt: Option[string] = Option.new()
         string_opt.set("value")
+        Test.assert(string_opt.unwrap() == "value", "string set should round-trip.")
     }
 }

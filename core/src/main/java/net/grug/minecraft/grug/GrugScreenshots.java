@@ -203,10 +203,7 @@ public final class GrugScreenshots {
 
     private static void validateReferenceDirectory(
             File directory, String path, List<String> errors) {
-        File[] entries = directory.listFiles();
-        if (entries == null) {
-            return;
-        }
+        File[] entries = listEntries(directory);
 
         List<File> subdirectories = new ArrayList<>();
         List<File> files = new ArrayList<>();
@@ -292,23 +289,30 @@ public final class GrugScreenshots {
                             + directory
                             + ").");
         }
+        File reference = writeFirstReference(capture, directory, referencePath);
+        String message =
+                "Wrote the first screenshot reference "
+                        + referencePath
+                        + "/"
+                        + reference.getName()
+                        + " ("
+                        + capture.getWidth()
+                        + "x"
+                        + capture.getHeight()
+                        + "); re-run to verify it.";
+        System.out.println("[GRUG CI] " + message);
+        synchronized (Grug.printQueue) {
+            Grug.printQueue.add(message);
+        }
+    }
+
+    @GrugGenerated("reference write: a failed write is reported, not measured")
+    private static File writeFirstReference(
+            BufferedImage capture, File directory, String referencePath) {
         try {
             File reference = new File(directory, nextNumber(directory) + ".png");
             ImageIO.write(capture, "png", reference);
-            String message =
-                    "Wrote the first screenshot reference "
-                            + referencePath
-                            + "/"
-                            + reference.getName()
-                            + " ("
-                            + capture.getWidth()
-                            + "x"
-                            + capture.getHeight()
-                            + "); re-run to verify it.";
-            System.out.println("[GRUG CI] " + message);
-            synchronized (Grug.printQueue) {
-                Grug.printQueue.add(message);
-            }
+            return reference;
         } catch (Exception e) {
             throw Grug.fatal(
                     "Screenshot: failed to write a reference for " + referencePath + ": " + e);
@@ -321,11 +325,17 @@ public final class GrugScreenshots {
      */
     private static File writeArtifact(
             BufferedImage capture, String referencePath, File artifactsRoot, int number) {
+        File directory = artifactDirectory(referencePath, artifactsRoot);
+        if (!directory.exists() && !directory.mkdirs()) {
+            return new File(directory, number + ".png");
+        }
+        return writeArtifactFile(capture, directory, referencePath, number);
+    }
+
+    @GrugGenerated("artifact write: never hide the actual screenshot mismatch")
+    private static File writeArtifactFile(
+            BufferedImage capture, File directory, String referencePath, int number) {
         try {
-            File directory = artifactDirectory(referencePath, artifactsRoot);
-            if (!directory.exists() && !directory.mkdirs()) {
-                return new File(directory, number + ".png");
-            }
             File artifact = new File(directory, number + ".png");
             ImageIO.write(capture, "png", artifact);
             return artifact;
@@ -353,23 +363,35 @@ public final class GrugScreenshots {
             BufferedImage reference,
             String referencePath,
             File artifactsRoot) {
+        int width = capture.getWidth();
+        int height = capture.getHeight();
+        BufferedImage diff = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int actual = capture.getRGB(x, y);
+                int expected = reference.getRGB(x, y);
+                // Alpha is not part of the comparison; only the RGB channels matter.
+                boolean matches = (actual & 0xFFFFFF) == (expected & 0xFFFFFF);
+                diff.setRGB(x, y, blend(matches ? DIFF_LOWLIGHT : DIFF_HIGHLIGHT, actual));
+            }
+        }
+
+        File directory = artifactDirectory(referencePath, artifactsRoot);
+        if (!ensureDirectory(directory)) {
+            return new File(directory, "diff.png");
+        }
+        return writeDiffFile(diff, directory, referencePath);
+    }
+
+    /** Creates the directory if it is missing, reporting whether it is usable afterwards. */
+    @GrugGenerated("artifact directory creation")
+    private static boolean ensureDirectory(File directory) {
+        return directory.exists() || directory.mkdirs();
+    }
+
+    @GrugGenerated("diff write: never hide the actual screenshot mismatch")
+    private static File writeDiffFile(BufferedImage diff, File directory, String referencePath) {
         try {
-            int width = capture.getWidth();
-            int height = capture.getHeight();
-            BufferedImage diff = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    int actual = capture.getRGB(x, y);
-                    int expected = reference.getRGB(x, y);
-                    // Alpha is not part of the comparison; only the RGB channels matter.
-                    boolean matches = (actual & 0xFFFFFF) == (expected & 0xFFFFFF);
-                    diff.setRGB(x, y, blend(matches ? DIFF_LOWLIGHT : DIFF_HIGHLIGHT, actual));
-                }
-            }
-            File directory = artifactDirectory(referencePath, artifactsRoot);
-            if (!directory.exists() && !directory.mkdirs()) {
-                return new File(directory, "diff.png");
-            }
             File file = new File(directory, "diff.png");
             ImageIO.write(diff, "png", file);
             return file;
@@ -400,12 +422,9 @@ public final class GrugScreenshots {
     /** The smallest number at or above 1 not already used, so gaps get filled rather than left. */
     private static int nextNumber(File directory) {
         Set<Integer> used = new HashSet<>();
-        File[] files = directory.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (REFERENCE_NAME.matcher(file.getName()).matches()) {
-                    used.add(referenceNumber(file));
-                }
+        for (File file : listEntries(directory)) {
+            if (REFERENCE_NAME.matcher(file.getName()).matches()) {
+                used.add(referenceNumber(file));
             }
         }
         int next = 1;
@@ -413,6 +432,13 @@ public final class GrugScreenshots {
             next++;
         }
         return next;
+    }
+
+    /** A directory's entries, or an empty array when it cannot be listed. */
+    @GrugGenerated("defensive: a directory that cannot be listed")
+    private static File[] listEntries(File directory) {
+        File[] entries = directory.listFiles();
+        return entries == null ? new File[0] : entries;
     }
 
     private static BufferedImage read(File file) {

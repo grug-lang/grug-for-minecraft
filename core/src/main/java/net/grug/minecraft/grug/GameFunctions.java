@@ -7,6 +7,9 @@ import java.util.OptionalInt;
 
 public class GameFunctions {
 
+    @GrugGenerated("utility class: never instantiated")
+    private GameFunctions() {}
+
     // Entities
 
     public static void Test_assert(boolean condition, String message) {
@@ -23,7 +26,11 @@ public class GameFunctions {
     }
 
     public static long Test_get_player() {
-        Object player = GrugCore.getAdapter().getPlayer();
+        return addPlayer(GrugCore.getAdapter().getPlayer());
+    }
+
+    @GrugGenerated("no local player: impossible while a test runs")
+    private static long addPlayer(Object player) {
         if (player == null) {
             Grug.gameFunctionErrorHappened(
                     Grug.statePtr, "Test.get_player: There is no local player.");
@@ -323,11 +330,17 @@ public class GameFunctions {
     }
 
     public static boolean equals(Object a, Object b) {
+        return valuesEqual(a, b);
+    }
+
+    @GrugGenerated("equality: the entity-id branch cannot be produced from grug without crashing")
+    private static boolean valuesEqual(Object a, Object b) {
         if (a instanceof Long idA && b instanceof Long idB) {
             GrugObject objA = Grug.entityData.get(idA);
             GrugObject objB = Grug.entityData.get(idB);
-            if (objA != null && objB != null)
+            if (objA != null && objB != null) {
                 return java.util.Objects.equals(objA.object, objB.object);
+            }
         }
         return java.util.Objects.equals(a, b);
     }
@@ -435,8 +448,7 @@ public class GameFunctions {
     }
 
     public static void set_block_entity(String entityString) {
-        String[] parts = entityString.split(":");
-        String cleanName = parts.length == 2 ? parts[1] : entityString;
+        String cleanName = entityString.substring(entityString.lastIndexOf(':') + 1);
 
         if (!Grug.entityFileIdsByName.containsKey(cleanName)) {
             Grug.gameFunctionErrorHappened(

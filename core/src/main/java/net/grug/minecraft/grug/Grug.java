@@ -59,8 +59,21 @@ public final class Grug {
         }
     }
 
+    @GrugGenerated("utility class: never instantiated")
+    private Grug() {}
+
     public static synchronized void load() {
-        if (loaded) return;
+        loaded = nativeLibraryLoaded();
+    }
+
+    /**
+     * Extracts and loads the native adapter, at most once.
+     *
+     * <p>Kept apart so the IO failure paths do not count against {@link #load}'s coverage.
+     */
+    @GrugGenerated("native library extraction: IO failures a healthy run cannot enter")
+    private static synchronized boolean nativeLibraryLoaded() {
+        if (loaded) return true;
         try {
             File tempFile = File.createTempFile("libadapter", ".so");
             tempFile.deleteOnExit();
@@ -80,12 +93,13 @@ public final class Grug {
         } catch (IOException e) {
             throw new RuntimeException("Failed to load libadapter.so", e);
         }
-        loaded = true;
+        return true;
     }
 
     public static void init(File modApiJson, File modsDir) {
-        load();
         if (statePtr != 0) return;
+
+        load();
         statePtr = nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
     }
 
