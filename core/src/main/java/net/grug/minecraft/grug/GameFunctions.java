@@ -261,17 +261,21 @@ public class GameFunctions {
 
     // The generated GenericGameFunctions bridge resolves Option's $Value generic down to one of the
     // four base types before calling in, so set() needs an overload per base type to keep the JNI
-    // calls from autoboxing.
+    // calls from autoboxing. grug's type inference fixes $Value at the Option's declaration, so
+    // only
+    // the overload matching the declared type is ever selected; the others are dead but required
+    // for
+    // the bridge to compile.
     public static void Option_set(long optionId, double value) {
         setOptionValue(optionId, value);
     }
 
-    @GrugGenerated("Option.set(bool): grug never dispatches Option.set here (reported unused)")
+    @GrugGenerated("Option.set(bool): $Value is fixed at the Option's declaration")
     public static void Option_set(long optionId, boolean value) {
         setOptionValue(optionId, value);
     }
 
-    @GrugGenerated("Option.set(string): grug never dispatches Option.set here (reported unused)")
+    @GrugGenerated("Option.set(string): $Value is fixed at the Option's declaration")
     public static void Option_set(long optionId, String value) {
         setOptionValue(optionId, value);
     }
