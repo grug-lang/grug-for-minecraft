@@ -1,0 +1,4 @@
+# Exercises the Item registration and asset path.
+export init() {
+    print("coverage_item")
+}
