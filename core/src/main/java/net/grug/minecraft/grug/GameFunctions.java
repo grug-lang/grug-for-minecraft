@@ -36,6 +36,31 @@ public class GameFunctions {
         GrugCore.getAdapter().roundTripNbt(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
     }
 
+    /**
+     * Prepends or removes a marker comment on a mod file, so a test can trigger {@link
+     * Grug#update}'s hot-reload path without rewriting the file's content itself.
+     */
+    public static void Test_toggle_mod_file_comment(String relativePath) {
+        java.io.File file =
+                new java.io.File(GrugCore.getAdapter().getGrugModsDirectory(), relativePath);
+        String marker = "# grug-hot-reload-test\n";
+        try {
+            String content =
+                    new String(
+                            java.nio.file.Files.readAllBytes(file.toPath()),
+                            java.nio.charset.StandardCharsets.UTF_8);
+            if (content.startsWith(marker)) {
+                content = content.substring(marker.length());
+            } else {
+                content = marker + content;
+            }
+            java.nio.file.Files.write(
+                    file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_comment: " + e);
+        }
+    }
+
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());

@@ -1,0 +1,15 @@
+# Toggles a marker comment on a grug file across ticks, so Grug.update's hot-reload path runs, then
+# restores the file.
+export run() {
+    if Test.tick() == 0 {
+        Test.not_done()
+    } else if Test.tick() == 1 {
+        Test.toggle_mod_file_comment("coverage/code/coverage_block-Block.grug")
+        Test.not_done()
+    } else if Test.tick() < 6 {
+        # Give Grug.update a tick or two to notice and hot-reload the change.
+        Test.not_done()
+    } else {
+        Test.toggle_mod_file_comment("coverage/code/coverage_block-Block.grug")
+    }
+}

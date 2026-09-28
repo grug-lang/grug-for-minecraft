@@ -237,6 +237,17 @@
 						}
 					]
 				},
+				"toggle_mod_file_comment": {
+					"description": "Prepends or removes a marker comment on a mod file, so a test can trigger Grug.update's hot-reload path.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"get_origin": {
 					"description": "Gets the origin coordinates for running isolated tests.",
 					"return_type": {
