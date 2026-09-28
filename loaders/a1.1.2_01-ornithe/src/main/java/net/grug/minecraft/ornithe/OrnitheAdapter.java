@@ -334,16 +334,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public Object getItemFromRegistry(Object resourceLocationObj) {
-        if (resourceLocationObj == null) return null;
-        String path;
-        if (resourceLocationObj instanceof NamespacedIdentifier nid) {
-            path = nid.identifier();
-        } else {
-            path = resourceLocationObj.toString();
-            if (path.contains(":")) {
-                path = path.split(":", 2)[1];
-            }
-        }
+        String path = ((NamespacedIdentifier) resourceLocationObj).identifier();
 
         // Match custom grug items first
         for (Map.Entry<String, net.grug.minecraft.grug.GrugItemData> entry :
@@ -432,10 +423,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (itemObj instanceof Item item) {
             return new ItemStack(item);
         }
-        if (itemObj instanceof Block block) {
-            return new ItemStack(block);
-        }
-        return null;
+        return new ItemStack((Block) itemObj);
     }
 
     @Override
