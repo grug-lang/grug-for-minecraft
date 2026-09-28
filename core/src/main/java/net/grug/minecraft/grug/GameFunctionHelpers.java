@@ -2,6 +2,9 @@ package net.grug.minecraft.grug;
 
 public class GameFunctionHelpers {
 
+    @GrugGenerated("utility class: never instantiated")
+    private GameFunctionHelpers() {}
+
     public static String prettyFormat(Object value) {
         if (value instanceof Long id) {
             GrugObject grugObj = Grug.entityData.get(id);

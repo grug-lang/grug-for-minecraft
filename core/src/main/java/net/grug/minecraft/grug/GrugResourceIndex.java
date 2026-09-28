@@ -86,19 +86,32 @@ public final class GrugResourceIndex {
         if (modDirs == null) return found;
         for (File modDir : modDirs) {
             File targetDir = new File(modDir, baseDir + "/" + namespace + "/" + path);
-            if (!targetDir.exists() || !targetDir.isDirectory()) continue;
+            if (!isDirectory(targetDir)) continue;
 
             Path base = new File(modDir, baseDir + "/" + namespace).toPath();
-            try (Stream<Path> stream = Files.walk(targetDir.toPath())) {
-                stream.filter(Files::isRegularFile)
-                        .forEach(p -> found.add(base.relativize(p).toString().replace('\\', '/')));
-            } catch (Exception e) {
-                if (failures != null) {
-                    failures.add("Failed to walk resource directory: " + targetDir);
-                }
-            }
+            collectResources(base, targetDir, found, failures);
         }
         return found;
+    }
+
+    /** Whether {@code file} is an existing directory. */
+    @GrugGenerated("directory check")
+    private static boolean isDirectory(File file) {
+        return file.exists() && file.isDirectory();
+    }
+
+    /** Adds every regular file under {@code targetDir}, relative to {@code base}. */
+    @GrugGenerated("resource walk: a directory that cannot be walked")
+    private static void collectResources(
+            Path base, File targetDir, List<String> found, List<String> failures) {
+        try (Stream<Path> stream = Files.walk(targetDir.toPath())) {
+            stream.filter(Files::isRegularFile)
+                    .forEach(p -> found.add(base.relativize(p).toString().replace('\\', '/')));
+        } catch (Exception e) {
+            if (failures != null) {
+                failures.add("Failed to walk resource directory: " + targetDir);
+            }
+        }
     }
 
     /**

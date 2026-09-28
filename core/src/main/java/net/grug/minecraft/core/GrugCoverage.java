@@ -1,5 +1,7 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.GrugGenerated;
+
 /**
  * Flushes the JaCoCo agent's coverage data when a JaCoCo agent is attached.
  *
@@ -15,6 +17,7 @@ package net.grug.minecraft.core;
 public final class GrugCoverage {
     private GrugCoverage() {}
 
+    @GrugGenerated("CI coverage dump: only has work when a JaCoCo agent is attached")
     public static void dump() {
         try {
             ClassLoader loader = ClassLoader.getSystemClassLoader();
