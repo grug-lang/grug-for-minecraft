@@ -1,0 +1,43 @@
+# Exercises the inventory host functions across filled, empty, whole-stack and zero-count cases.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        x: number = origin.x()
+        y: number = origin.y()
+        z: number = origin.z()
+
+        level.place_block(x, y, z, "minecraft:chest")
+        chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        Test.assert(chest_opt.has(), "chest has no block entity after being placed.")
+        chest: BlockEntity = chest_opt.unwrap()
+        diamond: Item = item(resource_location("minecraft:diamond"))
+
+        set_item_in_slot(chest, 0, diamond, 5)
+        Test.assert(get_item_count_in_slot(chest, 0) == 5, "Expected 5 diamonds in slot 0.")
+        get_item_damage_in_slot(chest, 0)
+        Test.assert(get_item_in_slot(chest, 0).has(), "Slot 0 should report an item.")
+
+        # An empty slot takes the null branches.
+        Test.assert(get_item_count_in_slot(chest, 1) == 0, "Slot 1 should be empty.")
+        Test.assert(not get_item_in_slot(chest, 1).has(), "Slot 1 should report no item.")
+
+        # Taking more than the stack holds empties the slot.
+        Test.assert(take_item_from_slot(chest, 0, 10) == 5, "Taking 10 should remove the 5 present.")
+        Test.assert(get_item_count_in_slot(chest, 0) == 0, "Slot 0 should now be empty.")
+
+        # A zero count clears the slot; a positive count leaves a partial stack.
+        set_item_in_slot(chest, 0, diamond, 3)
+        set_item_count_in_slot(chest, 0, 0)
+        Test.assert(get_item_count_in_slot(chest, 0) == 0, "A zero count should clear the slot.")
+        set_item_in_slot(chest, 0, diamond, 3)
+        set_item_count_in_slot(chest, 0, 1)
+        Test.assert(get_item_count_in_slot(chest, 0) == 1, "A count of 1 should leave 1.")
+
+        # Counting and extracting across the inventory.
+        set_item_in_slot(chest, 0, diamond, 4)
+        Test.assert(count_item_in_inventory(chest, diamond, 0) == 4, "Expected 4 diamonds.")
+        Test.assert(extract_item_from_inventory(chest, diamond, 0, 2) == 2, "Expected to extract 2.")
+        Test.assert(count_item_in_inventory(chest, diamond, 0) == 2, "Expected 2 diamonds left.")
+    }
+}
