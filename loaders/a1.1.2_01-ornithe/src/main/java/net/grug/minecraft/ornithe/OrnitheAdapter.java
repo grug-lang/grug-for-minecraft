@@ -66,11 +66,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         // The player and builder types cannot be wrong because of a script, so cast directly.
         PlayerEntity player = (PlayerEntity) playerObj;
-        if (!(blockEntityObj instanceof Inventory inventory)) {
-            Grug.gameFunctionErrorHappened(
-                    Grug.statePtr, "GUI.open: The block entity has no inventory.");
-            return;
-        }
+        Inventory inventory = (Inventory) blockEntityObj;
         GrugGuiBuilder builder = (GrugGuiBuilder) guiBuilderObj;
         if (FabricLoader.getInstance().getEnvironmentType() != EnvType.CLIENT) {
             Grug.gameFunctionErrorHappened(
@@ -84,20 +80,19 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void consumeCraftingIngredients(Object blockEntityObj, double startSlot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            // Alpha has no recipe remainders (like the empty bucket from a milk bucket)
-            for (int i = 0; i < 9; i++) {
-                int slot = (int) startSlot + i;
-                if (inv.getItem(slot) != null) {
-                    inv.removeItem(slot, 1);
-                }
+        Inventory inv = (Inventory) blockEntityObj;
+        // Alpha has no recipe remainders (like the empty bucket from a milk bucket)
+        for (int i = 0; i < 9; i++) {
+            int slot = (int) startSlot + i;
+            if (inv.getItem(slot) != null) {
+                inv.removeItem(slot, 1);
             }
         }
     }
 
     @Override
     public double countItemInInventory(Object blockEntityObj, Object itemObj, double damage) {
-        if (!(blockEntityObj instanceof Inventory inv)) return 0;
+        Inventory inv = (Inventory) blockEntityObj;
         Item item = (Item) itemObj;
         int total = 0;
         for (int i = 0; i < inv.getSize(); i++) {
@@ -110,16 +105,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void dropInventory(Object levelObj, double x, double y, double z) {
-        if (!(levelObj instanceof World world)) return;
+        World world = (World) levelObj;
         BlockEntity be =
                 world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
-        if (be instanceof Inventory inv) {
-            for (int i = 0; i < inv.getSize(); i++) {
-                ItemStack stack = inv.getItem(i);
-                if (stack != null) {
-                    world.addEntity(new ItemEntity(world, x, y, z, stack));
-                    inv.setItem(i, null);
-                }
+        Inventory inv = (Inventory) be;
+        for (int i = 0; i < inv.getSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (stack != null) {
+                world.addEntity(new ItemEntity(world, x, y, z, stack));
+                inv.setItem(i, null);
             }
         }
     }
@@ -127,7 +121,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public double extractItemFromInventory(
             Object blockEntityObj, Object itemObj, double damage, double amount) {
-        if (!(blockEntityObj instanceof Inventory inv)) return 0;
+        Inventory inv = (Inventory) blockEntityObj;
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.getSize() && remainingToExtract > 0; i++) {
@@ -143,79 +137,67 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack removed = inv.removeItem((int) slot, (int) amount);
-            if (removed != null) {
-                if (blockEntityObj instanceof GrugBlockEntity gbe) {
-                    gbe.notifyOutputTaken((int) slot, removed.size);
-                }
-                return removed.size;
+        Inventory inv = (Inventory) blockEntityObj;
+        ItemStack removed = inv.removeItem((int) slot, (int) amount);
+        if (removed != null) {
+            if (blockEntityObj instanceof GrugBlockEntity gbe) {
+                gbe.notifyOutputTaken((int) slot, removed.size);
             }
+            return removed.size;
         }
         return 0;
     }
 
     @Override
     public double getInventorySize(Object blockEntityObj) {
-        return (blockEntityObj instanceof Inventory inv) ? inv.getSize() : 0;
+        return ((Inventory) blockEntityObj).getSize();
     }
 
     @Override
     public double getItemCountInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack stack = inv.getItem((int) slot);
-            return stack != null ? stack.size : 0;
-        }
-        return 0;
+        ItemStack stack = ((Inventory) blockEntityObj).getItem((int) slot);
+        return stack != null ? stack.size : 0;
     }
 
     @Override
     public double getItemDamageInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack stack = inv.getItem((int) slot);
-            return stack != null ? stack.metadata : 0;
-        }
-        return 0;
+        ItemStack stack = ((Inventory) blockEntityObj).getItem((int) slot);
+        return stack != null ? stack.metadata : 0;
     }
 
     @Override
     public Object getItemInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack stack = inv.getItem((int) slot);
-            return (stack != null) ? stack.getItem() : null;
-        }
-        return null;
+        ItemStack stack = ((Inventory) blockEntityObj).getItem((int) slot);
+        return (stack != null) ? stack.getItem() : null;
     }
 
     @Override
     public void setItemCountInSlot(Object blockEntityObj, double slot, double count) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack stack = inv.getItem((int) slot);
-            if (stack != null) {
-                if (count <= 0) inv.setItem((int) slot, null);
-                else stack.size = (int) count;
-            }
+        Inventory inv = (Inventory) blockEntityObj;
+        ItemStack stack = inv.getItem((int) slot);
+        if (stack != null) {
+            if (count <= 0) inv.setItem((int) slot, null);
+            else stack.size = (int) count;
         }
     }
 
     @Override
     public void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count) {
-        if (blockEntityObj instanceof Inventory inv)
-            inv.setItem((int) slot, new ItemStack((Item) itemObj, (int) count));
+        Inventory inv = (Inventory) blockEntityObj;
+        inv.setItem((int) slot, new ItemStack((Item) itemObj, (int) count));
     }
 
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            // Alpha recipes match on item ids only, with -1 for an empty cell
-            int[] ids = new int[9];
-            for (int i = 0; i < 9; i++) {
-                ItemStack stack = inv.getItem((int) startSlot + i);
-                ids[i] = stack != null ? stack.id : -1;
-            }
-            ItemStack result = CraftingManager.getInstance().getResult(ids);
-            inv.setItem((int) outputSlot, result != null ? result.copy() : null);
+        Inventory inv = (Inventory) blockEntityObj;
+        // Alpha recipes match on item ids only, with -1 for an empty cell
+        int[] ids = new int[9];
+        for (int i = 0; i < 9; i++) {
+            ItemStack stack = inv.getItem((int) startSlot + i);
+            ids[i] = stack != null ? stack.id : -1;
         }
+        ItemStack result = CraftingManager.getInstance().getResult(ids);
+        inv.setItem((int) outputSlot, result != null ? result.copy() : null);
     }
 
     // --- World & Entity Methods ---
