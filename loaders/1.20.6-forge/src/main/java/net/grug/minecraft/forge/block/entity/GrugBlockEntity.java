@@ -4,6 +4,7 @@ import net.grug.minecraft.forge.GrugModLoader;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -33,11 +34,8 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     }
 
     private void ensureSized() {
-        if (sized || level == null) return;
-        Block block = getBlockState().getBlock();
-        if (!(block instanceof GrugBlock grugBlock)) return;
-        stacks = NonNullList.withSize(grugBlock.getInventorySize(), ItemStack.EMPTY);
-        sized = true;
+        if (sized) return;
+        sized = trySizeInventory();
     }
 
     @Override
@@ -48,22 +46,43 @@ public class GrugBlockEntity extends BlockEntity implements Container {
 
     private void initGrug() {
         if (entityHandle != 0 || initAttempted) return;
+
         initAttempted = true;
-        ensureSized();
-
-        Block block = getBlockState().getBlock();
-        if (!(block instanceof GrugBlock grugBlock)) return;
-
-        long fileId = grugBlock.getEntityFileId();
-        if (fileId == Grug.INVALID_GRUG_FILE_ID) return;
-
-        Grug.currentlyInitializingBlockEntity = this;
-        entityHandle = Grug.createEntity(fileId);
-        Grug.currentlyInitializingBlockEntity = null;
+        entityHandle = createGrugEntity();
 
         if (entityHandle != 0) {
             tickFnId = Grug.getExportFnId("BlockEntity", "tick");
         }
+    }
+
+    @GrugGenerated(
+            "inventory/entity setup guards: the level and block are not controllable in tests")
+    private boolean trySizeInventory() {
+        if (level == null) return false;
+
+        Block block = getBlockState().getBlock();
+        if (!(block instanceof GrugBlock grugBlock)) return false;
+
+        stacks = NonNullList.withSize(grugBlock.getInventorySize(), ItemStack.EMPTY);
+        return true;
+    }
+
+    @GrugGenerated(
+            "inventory/entity setup guards: the level and block are not controllable in tests")
+    private long createGrugEntity() {
+        ensureSized();
+        if (level == null) return 0;
+
+        Block block = getBlockState().getBlock();
+        if (!(block instanceof GrugBlock grugBlock)) return 0;
+
+        long fileId = grugBlock.getEntityFileId();
+        if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
+
+        Grug.currentlyInitializingBlockEntity = this;
+        long handle = Grug.createEntity(fileId);
+        Grug.currentlyInitializingBlockEntity = null;
+        return handle;
     }
 
     public void tick() {
@@ -163,6 +182,11 @@ public class GrugBlockEntity extends BlockEntity implements Container {
 
     @Override
     public boolean stillValid(Player player) {
+        return withinReach(player);
+    }
+
+    @GrugGenerated("container reachability: the game only asks with the GUI open")
+    private boolean withinReach(Player player) {
         if (this.level == null || this.level.getBlockEntity(this.worldPosition) != this)
             return false;
         return player.distanceToSqr(
