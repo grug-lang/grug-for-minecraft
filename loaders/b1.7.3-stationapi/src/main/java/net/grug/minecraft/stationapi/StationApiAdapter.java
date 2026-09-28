@@ -231,6 +231,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void roundTripNbt(Object blockEntityObj) {
+        if (blockEntityObj instanceof net.minecraft.block.entity.BlockEntity be) {
+            net.minecraft.nbt.NbtCompound nbt = new net.minecraft.nbt.NbtCompound();
+            be.writeNbt(nbt);
+            be.readNbt(nbt);
+        }
+    }
+
+    @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
         return new BlockPos(be.x, be.y, be.z);

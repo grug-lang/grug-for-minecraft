@@ -86,6 +86,12 @@ public interface ModLoaderAdapter {
     /** The local client player, or null when there is none. Lets a test drive GUI.open directly. */
     Object getPlayer();
 
+    /**
+     * Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load
+     * paths without the game actually saving and reloading a world.
+     */
+    void roundTripNbt(Object blockEntityObj);
+
     Vec3 getTestOrigin();
 
     boolean supportsGraphicsTests();

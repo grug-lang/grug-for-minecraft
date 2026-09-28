@@ -1,0 +1,21 @@
+# Serialises a block entity's NBT and reads it back, covering the save/load paths without a real
+# world save.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        x: number = origin.x()
+        y: number = origin.y()
+        z: number = origin.z()
+
+        level.place_block(x, y, z, "grug:coverage_block")
+        block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        Test.assert(block_opt.has(), "coverage_block has no block entity after being placed.")
+        block: BlockEntity = block_opt.unwrap()
+
+        diamond: Item = item(resource_location("minecraft:diamond"))
+        set_item_in_slot(block, 0, diamond, 3)
+        Test.round_trip_nbt(block)
+        Test.assert(get_item_count_in_slot(block, 0) == 3, "The item should survive an NBT round trip.")
+    }
+}
