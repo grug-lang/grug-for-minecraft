@@ -63,6 +63,19 @@ EXCLUDED_CLASSES = {
     "GrugCraftingInventory",
     "GrugStaticTexture",
     "DummyCraftingInventory",
+    # Loader startup and registration only runs inside a real game bootstrap, which a headless CI
+    # cannot drive. The logic they carry beyond wiring (file classification, the LICENSE gate,
+    # recipe parsing, the adapters) lives in measured classes instead.
+    "GrugModLoader",
+    "ClientGrugModLoader",
+    "InitListener",
+    "ClientInitListener",
+    "ClientModEvents",
+    # The client tick hook drives the run, the resolution swap and the cursor readout; the parts CI
+    # can reach pass through measured helpers, and the rest is dev-only window/cursor tooling.
+    "GrugClientHooks",
+    # Render/model glue, like the resource-pack classes above.
+    "GrugBlockModels",
 }
 
 
