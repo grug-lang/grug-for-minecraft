@@ -192,4 +192,60 @@ class GrugScreenshotsVerifyTest {
         assertEquals(0xD8DFE8, GrugScreenshots.blend(0xFFFFFF, 0x3A5F8A));
         assertEquals(0xCC1334, GrugScreenshots.blend(0xF1001E, 0x3A5F8A));
     }
+
+    @Test
+    void failsWhenAReferenceHasADifferentHeight() throws Exception {
+        write(references.resolve("1.png"), solid(2, 2, RED));
+
+        // Same width, different height: the width check passes and the height check runs.
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(solid(2, 3, RED)));
+        assertTrue(error.getMessage().contains("have to agree"), error.getMessage());
+    }
+
+    @Test
+    void reportsTheClosestOfSeveralReferences() throws Exception {
+        write(references.resolve("1.png"), solid(2, 2, RED));
+        write(references.resolve("2.png"), solid(2, 2, GREEN));
+
+        BufferedImage capture = solid(2, 2, RED);
+        capture.setRGB(1, 1, BLUE);
+
+        // 1.png differs in one pixel, 2.png in all four, so the closer one wins.
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(capture));
+        assertTrue(error.getMessage().contains("the closest (1.png)"), error.getMessage());
+    }
+
+    @Test
+    void fallsBackToTheReferencePathWhenTheArtifactsRootIsAFile() throws Exception {
+        write(references.resolve("1.png"), solid(2, 2, RED));
+
+        Path artifactsFile = temp.resolve("artifacts-is-a-file");
+        Files.writeString(artifactsFile, "not a directory");
+
+        BufferedImage capture = solid(2, 2, RED);
+        capture.setRGB(1, 1, BLUE);
+
+        assertThrows(
+                IllegalStateException.class,
+                () ->
+                        GrugScreenshots.verify(
+                                capture,
+                                references.toFile(),
+                                REFERENCE_PATH,
+                                artifactsFile.toFile()));
+    }
+
+    @Test
+    void treatsADirectoryNamedLikeAReferenceAsUnreadable() throws Exception {
+        // listReferences sorts a directory named 1.png as a reference; reading it throws, which the
+        // read seam turns into "couldn't be read". notes.txt exercises the non-reference name.
+        Files.createDirectories(references.resolve("1.png"));
+        Files.writeString(references.resolve("notes.txt"), "not a reference");
+
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(solid(2, 2, RED)));
+        assertTrue(error.getMessage().contains("none of them could be read"), error.getMessage());
+    }
 }

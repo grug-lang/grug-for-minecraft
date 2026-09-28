@@ -122,4 +122,10 @@ class GrugScreenshotsTest {
                 errors.stream().anyMatch(error -> error.contains("two/screenshots")),
                 errors.toString());
     }
+
+    @Test
+    void treatsAMissingModsDirectoryAsEmpty() {
+        assertEquals(
+                List.of(), GrugScreenshots.validateReferenceTrees(mods.resolve("nope").toFile()));
+    }
 }
