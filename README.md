@@ -13,6 +13,10 @@ In the video above, four different Minecraft environments all hot-reload the sam
 > [!NOTE]
 > `mod_api.json` is currently frozen. We will not be expanding the API until comprehensive test coverage and Continuous Integration (CI) pipelines are fully established. Once expansion resumes, new API additions will initially be limited to features Minecraft Alpha supports, so that mods stay compatible across every supported version from Alpha onward.
 
+Coverage and CI are now in place: the test suites and the combined coverage gate run on every pull
+request, and everything that can be measured is at 100% instruction and branch coverage. The
+constant "100%" badges above reflect that; CI fails the build if coverage drops below it.
+
 ## Licensing
 
 If a mod contains copyrighted material or prohibits redistribution, please [open a GitHub issue](https://github.com/grug-lang/grug-for-minecraft/issues) with supporting evidence.
@@ -63,7 +67,7 @@ origin at the top left of the window.
 
 Graphics tests are **singleplayer-only**. That limit comes from the game rather than from grug:
 `GUI.open` already refuses to open a screen in multiplayer. Every supported loader implements the
-screenshot functions, but a test should still guard them with `Test.graphics_tests_supported()`.
+screenshot functions.
 
 `reference` names a **directory** of numbered PNGs (`1.png`, `2.png`, ...), not a single file, and the
 assertion passes if the capture is pixel-identical to *any* of them. The same UI renders differently
