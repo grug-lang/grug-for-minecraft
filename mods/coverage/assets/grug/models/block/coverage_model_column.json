@@ -1,0 +1,7 @@
+{
+  "parent": "block/cube_column",
+  "textures": {
+    "end": "grug:block/coverage_block",
+    "side": "grug:block/coverage_block"
+  }
+}

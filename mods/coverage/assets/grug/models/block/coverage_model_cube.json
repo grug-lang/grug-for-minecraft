@@ -1,0 +1,11 @@
+{
+  "parent": "block/cube",
+  "textures": {
+    "down": "grug:block/coverage_block",
+    "up": "grug:block/coverage_block",
+    "north": "grug:block/coverage_block",
+    "south": "grug:block/coverage_block",
+    "west": "grug:block/coverage_block",
+    "east": "grug:block/coverage_block"
+  }
+}
