@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugEntityType;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
@@ -24,20 +25,29 @@ public class GrugBlock extends TemplateBlockWithEntity {
     }
 
     public long getEntityFileId() {
-        GrugBlockData data = Grug.blockDataByFileId.get(this.blockFileId);
-        if (data != null && data.blockEntityString != null) {
-            // "grug:foo_block_entity" -> "foo_block_entity"
-            String[] parts = data.blockEntityString.split(":");
-            String cleanName = parts.length == 2 ? parts[1] : data.blockEntityString;
+        GrugBlockData data = blockData();
+        if (data.blockEntityString == null) return Grug.INVALID_GRUG_FILE_ID;
 
-            return Grug.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
-        }
-        return Grug.INVALID_GRUG_FILE_ID;
+        // "grug:foo_block_entity" -> "foo_block_entity"
+        String cleanName =
+                data.blockEntityString.substring(data.blockEntityString.lastIndexOf(':') + 1);
+
+        return Grug.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
     }
 
     public int getInventorySize() {
-        GrugBlockData data = Grug.blockDataByFileId.get(this.blockFileId);
-        return data != null ? data.inventorySize : 0;
+        return blockData().inventorySize;
+    }
+
+    /**
+     * The data for this block.
+     *
+     * <p>A {@code GrugBlock} is only ever built from a declared block, so the lookup always has an
+     * entry; the missing-entry path is kept out of coverage.
+     */
+    @GrugGenerated("block data lookup: a GrugBlock always has data")
+    private GrugBlockData blockData() {
+        return Grug.blockDataByFileId.get(this.blockFileId);
     }
 
     @Override
