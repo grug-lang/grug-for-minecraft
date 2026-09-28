@@ -186,22 +186,18 @@ public final class Grug {
         long id = ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
 
         entityData.put(id, grugObject);
-        if (fnEntities != null) fnEntities.add(grugObject);
+        fnEntities.add(grugObject);
         return id;
     }
 
     public static void addEntityWithId(long id, GrugEntityType type, Object object) {
         GrugObject grugObject = new GrugObject(type, object);
         entityData.put(id, grugObject);
-        if (fnEntities != null) fnEntities.add(grugObject);
+        fnEntities.add(grugObject);
     }
 
     public static long createEntity(long fileId) {
         return nativeCreateEntity(statePtr, fileId);
-    }
-
-    public static long getEntityId(long entityHandle) {
-        return nativeGetEntityId(statePtr, entityHandle);
     }
 
     public static long getExportFnId(String entityType, String fnName) {
@@ -236,6 +232,7 @@ public final class Grug {
         return error;
     }
 
+    @GrugGenerated("invariant: a pending fatal is rethrown by callExportFn when one was set")
     public static void throwPendingFatal() {
         RuntimeException error = pendingFatal.get();
         if (error != null) {
@@ -257,8 +254,6 @@ public final class Grug {
     private static native FileInfo[] nativeUpdate(long statePtr);
 
     private static native long nativeCreateEntity(long statePtr, long fileId);
-
-    private static native long nativeGetEntityId(long statePtr, long entityHandle);
 
     private static native long nativeGetExportFnId(long statePtr, String entityType, String fnName);
 
