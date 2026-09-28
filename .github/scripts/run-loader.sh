@@ -13,6 +13,12 @@ PHASE="$2"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
+# Beta/Alpha's chunk renderer sorts chunks with a comparator that is not transitive whenever two
+# chunks share a distance, which makes TimSort abort the render thread with "Comparison method
+# violates its general contract!" and kills the run. The legacy merge sort tolerates it. The
+# property has to reach the forked game JVM, so pass it to every JVM the launcher starts.
+export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Djava.util.Arrays.useLegacyMergeSort=true"
+
 LOADER_DIR="loaders/${LOADER}"
 if [ ! -d "$LOADER_DIR" ]; then
   echo "No such loader directory: $LOADER_DIR" >&2
