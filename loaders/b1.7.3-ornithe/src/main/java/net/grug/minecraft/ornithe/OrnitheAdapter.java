@@ -224,27 +224,21 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void setEntityDeltaMovement(Object entityObj, double dx, double dy, double dz) {
-        if (entityObj instanceof Entity entity) {
-            entity.velocityX = dx;
-            entity.velocityY = dy;
-            entity.velocityZ = dz;
-        }
+        Entity entity = (Entity) entityObj;
+        entity.velocityX = dx;
+        entity.velocityY = dy;
+        entity.velocityZ = dz;
     }
 
     @Override
     public void spawnEntity(Object levelObj, Object entityObj) {
-        if (levelObj instanceof World world && entityObj instanceof Entity entity) {
-            world.addEntity(entity);
-        }
+        ((World) levelObj).addEntity((Entity) entityObj);
     }
 
     @Override
     public Object getBlockEntity(Object levelObj, double x, double y, double z) {
-        if (levelObj instanceof World world) {
-            return world.getBlockEntity(
-                    (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
-        }
-        return null;
+        return ((World) levelObj)
+                .getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
 
     @Override
@@ -314,10 +308,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
-        if (blockEntityObj instanceof BlockEntity be) {
-            return be.world;
-        }
-        return null;
+        return ((BlockEntity) blockEntityObj).world;
     }
 
     @Override
@@ -332,19 +323,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void roundTripNbt(Object blockEntityObj) {
-        if (blockEntityObj instanceof BlockEntity be) {
-            NbtCompound nbt = new NbtCompound();
-            be.writeNbt(nbt);
-            be.readNbt(nbt);
-        }
+        BlockEntity be = (BlockEntity) blockEntityObj;
+        NbtCompound nbt = new NbtCompound();
+        be.writeNbt(nbt);
+        be.readNbt(nbt);
     }
 
     @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
-        if (blockEntityObj instanceof BlockEntity be) {
-            return new BlockPos(be.x, be.y, be.z);
-        }
-        return null;
+        BlockEntity be = (BlockEntity) blockEntityObj;
+        return new BlockPos(be.x, be.y, be.z);
     }
 
     @Override
@@ -413,10 +401,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public Object createItemEntity(
             Object levelObj, double x, double y, double z, Object itemStackObj) {
-        if (levelObj instanceof World world && itemStackObj instanceof ItemStack stack) {
-            return new ItemEntity(world, x, y, z, stack);
-        }
-        return null;
+        return new ItemEntity((World) levelObj, x, y, z, (ItemStack) itemStackObj);
     }
 
     @Override

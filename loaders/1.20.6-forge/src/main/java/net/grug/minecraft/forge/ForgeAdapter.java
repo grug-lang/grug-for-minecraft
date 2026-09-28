@@ -208,13 +208,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public void roundTripNbt(Object blockEntityObj) {
-        if (blockEntityObj instanceof BlockEntity be) {
-            Level level = be.getLevel();
-            if (level != null) {
-                CompoundTag tag = be.saveWithoutMetadata(level.registryAccess());
-                be.loadWithComponents(tag, level.registryAccess());
-            }
-        }
+        BlockEntity be = (BlockEntity) blockEntityObj;
+        Level level = be.getLevel();
+        CompoundTag tag = be.saveWithoutMetadata(level.registryAccess());
+        be.loadWithComponents(tag, level.registryAccess());
     }
 
     @Override
