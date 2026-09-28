@@ -237,19 +237,26 @@
 						}
 					]
 				},
-				"toggle_mod_file_comment": {
-					"description": "Prepends or removes a marker comment on a mod file, so a test can trigger Grug.update's hot-reload path.",
+				"set_mod_file_state": {
+					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it.",
 					"parameters": [
 						{
 							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "state",
+							"description": "One of \"normal\", \"invalid\" (fails to compile) or \"no_trailing_newline\" (still valid JSON).",
 							"type": {
 								"name": "string"
 							}
 						}
 					]
 				},
-				"toggle_mod_file_newline": {
-					"description": "Adds or removes a trailing newline on a mod file, keeping JSON valid so it can drive the recipe hot-reload path.",
+				"hot_reload_count": {
+					"description": "How many changes to relative_path the engine has reported so far, so a test can wait until its own file write has been observed instead of assuming it was.",
 					"parameters": [
 						{
 							"name": "relative_path",
@@ -257,18 +264,10 @@
 								"name": "string"
 							}
 						}
-					]
-				},
-				"toggle_mod_file_corruption": {
-					"description": "Prepends or removes an invalid marker on a grug file, so a test can drive Grug.update's hot-reload failure path.",
-					"parameters": [
-						{
-							"name": "relative_path",
-							"type": {
-								"name": "string"
-							}
-						}
-					]
+					],
+					"return_type": {
+						"name": "number"
+					}
 				},
 				"get_origin": {
 					"description": "Gets the origin coordinates for running isolated tests.",

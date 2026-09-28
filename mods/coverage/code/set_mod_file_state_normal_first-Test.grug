@@ -1,0 +1,4 @@
+# Putting a file into "normal" before it was ever disturbed must be a no-op, not a crash.
+export run() {
+    Test.set_mod_file_state("coverage/code/coverage_block-Block.grug", "normal")
+}

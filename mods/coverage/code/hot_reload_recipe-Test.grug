@@ -1,22 +1,18 @@
-# Toggles a trailing newline on a recipe, so the loaders' recipe hot-reload path runs, then toggles
-# it straight back. A trailing newline keeps the JSON valid, unlike the comment marker used for code
-# files.
-# The toggle and its undo happen in the same tick on purpose. The toggle is a flip, so leaving them
-# ticks apart (undone only once the hot reload has been observed) means an aborted run can leave the
-# fixture flipped, which shows up as a dirty working tree. Doing both here shrinks that window to the
-# gap between two consecutive writes, and the reload only needs the file to have changed, not for the
-# change to persist across ticks.
+# Removes the trailing newline from a recipe, so the loaders' recipe hot-reload path runs, then
+# restores it. Removing a newline keeps the JSON valid, unlike the invalid state used for code files.
+change_baseline: number = -1
+path: string = "coverage/data/grug/recipes/crafting/result_item.json"
+
 export run() {
     if Test.tick() == 0 {
         Test.not_done()
     } else if Test.tick() == 1 {
-        Test.toggle_mod_file_newline("coverage/data/grug/recipes/crafting/result_item.json")
-        Test.toggle_mod_file_newline("coverage/data/grug/recipes/crafting/result_item.json")
+        change_baseline = Test.hot_reload_count(path)
+        Test.set_mod_file_state(path, "no_trailing_newline")
         Test.not_done()
-    } else if Test.tick() < 20 {
-        # Give the loaders a tick or two to notice and re-register the recipe.
+    } else if Test.hot_reload_count(path) <= change_baseline {
         Test.not_done()
     } else {
-        Test.assert(true, "The recipe hot-reload was observed.")
+        Test.set_mod_file_state(path, "normal")
     }
 }

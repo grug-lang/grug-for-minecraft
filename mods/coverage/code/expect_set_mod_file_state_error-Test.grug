@@ -1,0 +1,5 @@
+# Putting a missing mod file into a state must report an IO error rather than doing nothing.
+export run() {
+    Test.expect_error("Test.set_mod_file_state")
+    Test.set_mod_file_state("does/not/exist.grug", "invalid")
+}

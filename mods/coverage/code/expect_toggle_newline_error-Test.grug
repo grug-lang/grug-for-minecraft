@@ -1,7 +1,0 @@
-# A missing path must make Test.toggle_mod_file_newline report an IO error.
-export run() {
-    if Test.tick() == 0 {
-        Test.expect_error("Test.toggle_mod_file_newline")
-        Test.toggle_mod_file_newline("does/not/exist.grug")
-    }
-}
