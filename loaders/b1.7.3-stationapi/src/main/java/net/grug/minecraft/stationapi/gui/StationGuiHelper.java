@@ -21,10 +21,9 @@ public class StationGuiHelper {
         }
         messagePacket.strings = strings;
 
-        // 13 base elements + dynamic slots + grids + results + texts
+        // 13 base elements + grids + results + texts
         int numInts =
                 13
-                        + (builder.blockSlots.size() * 4)
                         + (builder.craftingGrids.size() * 3)
                         + (builder.craftingResults.size() * 3)
                         + (builder.texts.size() * 3);
@@ -41,13 +40,6 @@ public class StationGuiHelper {
         ints[8] = builder.hotbarY;
 
         int idx = 9;
-        ints[idx++] = builder.blockSlots.size();
-        for (GrugGuiBuilder.SlotDef def : builder.blockSlots) {
-            ints[idx++] = def.index();
-            ints[idx++] = def.x();
-            ints[idx++] = def.y();
-            ints[idx++] = def.isOutput() ? 1 : 0;
-        }
 
         ints[idx++] = builder.craftingGrids.size();
         for (GrugGuiBuilder.CraftingGridDef grid : builder.craftingGrids) {
@@ -83,16 +75,6 @@ public class StationGuiHelper {
         builder.hotbarY = message.ints[8];
 
         int idx = 9;
-
-        int blockSlotsCount = message.ints[idx++];
-        for (int i = 0; i < blockSlotsCount; i++) {
-            builder.blockSlots.add(
-                    new GrugGuiBuilder.SlotDef(
-                            message.ints[idx++],
-                            message.ints[idx++],
-                            message.ints[idx++],
-                            message.ints[idx++] == 1));
-        }
 
         int gridCount = message.ints[idx++];
         for (int i = 0; i < gridCount; i++) {

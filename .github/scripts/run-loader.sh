@@ -65,7 +65,11 @@ if [ "$PHASE" = run ]; then
     exit 1
   fi
 
-  echo "==> Unzipping test-saves/${SAVE_ZIP} into ${LOADER_DIR}/run/saves/"
+  # Replace the run's saves with a pristine copy every launch. The game autosaves into run/, so
+  # reusing the directory lets the world and the player's health/position drift between runs; a
+  # mutated world is what made the screenshot test flaky.
+  echo "==> Replacing ${LOADER_DIR}/run/saves with a fresh copy of test-saves/${SAVE_ZIP}"
+  rm -rf "${REPO_ROOT}/${LOADER_DIR}/run/saves"
   mkdir -p "${REPO_ROOT}/${LOADER_DIR}/run/saves/"
   unzip -q -o "${REPO_ROOT}/test-saves/${SAVE_ZIP}" -d "${REPO_ROOT}/${LOADER_DIR}/run/saves/"
 fi

@@ -23,14 +23,7 @@ public class ResourcePackManagerMixin {
                                     "Lcom/google/common/collect/ImmutableSet;copyOf([Ljava/lang/Object;)Lcom/google/common/collect/ImmutableSet;",
                             remap = false))
     private ImmutableSet<ResourcePackProvider> addProvider(Object[] providers) {
-        ImmutableSet.Builder<ResourcePackProvider> builder = ImmutableSet.builder();
-
-        for (Object provider : providers) {
-            builder.add((ResourcePackProvider) provider);
-        }
-
-        builder.add(new GrugResourcePackProvider());
-
-        return builder.build();
+        // The list building lives in GrugResourcePackProvider so JaCoCo can measure it.
+        return GrugResourcePackProvider.withGrugProvider(providers);
     }
 }

@@ -30,7 +30,6 @@ public class WeakGrugValueMap {
 
     public void clear() {
         map.clear();
-        while (queue.poll() != null) {}
     }
 
     public int size() {

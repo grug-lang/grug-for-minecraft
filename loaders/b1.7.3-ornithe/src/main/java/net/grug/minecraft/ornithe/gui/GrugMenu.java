@@ -17,10 +17,6 @@ public class GrugMenu extends InventoryMenu {
     public GrugMenu(PlayerEntity player, Inventory blockInventory, GrugGuiBuilder layout) {
         this.blockInventory = blockInventory;
 
-        for (GrugGuiBuilder.SlotDef def : layout.blockSlots) {
-            this.addSlot(new InventorySlot(blockInventory, def.index(), def.x(), def.y()));
-        }
-
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 3; col++) {

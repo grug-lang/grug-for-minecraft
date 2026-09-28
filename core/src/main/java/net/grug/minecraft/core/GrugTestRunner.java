@@ -62,6 +62,10 @@ public class GrugTestRunner {
                 tests.add(entry);
             }
         }
+        // Tests share one world, so run them in a stable order. Otherwise a logic test's placed
+        // blocks and spawned entities can land in a screenshot test's frame, and HashMap iteration
+        // order would decide whether the run passes.
+        tests.sort(Map.Entry.comparingByKey());
         this.totalCount = tests.size();
 
         String startMsg =

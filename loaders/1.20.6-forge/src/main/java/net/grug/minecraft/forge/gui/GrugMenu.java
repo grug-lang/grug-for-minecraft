@@ -26,11 +26,6 @@ public class GrugMenu extends AbstractContainerMenu {
         this.blockContainer = blockContainer;
         this.layout = layout;
 
-        // Standard Slots
-        for (GrugGuiBuilder.SlotDef def : layout.blockSlots) {
-            this.addSlot(new Slot(blockContainer, def.index(), def.x(), def.y()));
-        }
-
         // Crafting Grids
         for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
             for (int row = 0; row < 3; row++) {
@@ -92,14 +87,6 @@ public class GrugMenu extends AbstractContainerMenu {
         buf.writeInt(builder.hotbarX);
         buf.writeInt(builder.hotbarY);
 
-        buf.writeInt(builder.blockSlots.size());
-        for (GrugGuiBuilder.SlotDef def : builder.blockSlots) {
-            buf.writeInt(def.index());
-            buf.writeInt(def.x());
-            buf.writeInt(def.y());
-            buf.writeBoolean(def.isOutput());
-        }
-
         buf.writeInt(builder.craftingGrids.size());
         for (GrugGuiBuilder.CraftingGridDef def : builder.craftingGrids) {
             buf.writeInt(def.startSlot());
@@ -130,13 +117,6 @@ public class GrugMenu extends AbstractContainerMenu {
         b.playerInvY = buf.readInt();
         b.hotbarX = buf.readInt();
         b.hotbarY = buf.readInt();
-
-        int slots = buf.readInt();
-        for (int i = 0; i < slots; i++) {
-            b.blockSlots.add(
-                    new GrugGuiBuilder.SlotDef(
-                            buf.readInt(), buf.readInt(), buf.readInt(), buf.readBoolean()));
-        }
 
         int grids = buf.readInt();
         for (int i = 0; i < grids; i++) {
