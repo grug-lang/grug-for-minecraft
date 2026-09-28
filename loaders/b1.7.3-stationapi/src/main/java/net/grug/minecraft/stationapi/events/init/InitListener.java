@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugFileIndex;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugModsExtractor;
 import net.grug.minecraft.stationapi.StationApiAdapter;
@@ -72,6 +73,7 @@ public class InitListener {
         LOGGER.info(NAMESPACE.toString());
     }
 
+    @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     public static File getActiveGrugModsDir() {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
 
@@ -378,6 +380,7 @@ public class InitListener {
         String type;
     }
 
+    @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     private static void extractDefaultGrugMods(Path targetGrugDir) {
         Path markerFile = targetGrugDir.resolve(".examples_generated.txt");
 

@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugFileIndex;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsExtractor;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.ornithemc.osl.blocks.api.BlockEvents;
@@ -99,6 +100,7 @@ public class GrugModLoader implements ModInitializer {
         LOGGER.info("Compiled " + files.length + " grug files successfully.");
     }
 
+    @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     public static File getActiveGrugModsDir() {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
 
@@ -111,6 +113,7 @@ public class GrugModLoader implements ModInitializer {
         return new File(gameDir, "grug_mods");
     }
 
+    @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     private static void extractDefaultGrugMods(Path targetGrugDir) {
         Path markerFile = targetGrugDir.resolve(".examples_generated.txt");
 
