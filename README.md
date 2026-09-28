@@ -54,62 +54,9 @@ Use the following Gradle commands to build and run the specific mod loader envir
 | **Beta 1.7.3** | StationAPI | `./gradlew :loaders:b1.7.3-stationapi:runClient` |
 | **Alpha 1.1.2_01** | Ornithe | `./gradlew :loaders:a1.1.2_01-ornithe:runClient` |
 
-Alongside the logic tests, a test can assert that a screen looks exactly right, by comparing a
-rectangle of the rendered frame against reference PNGs committed next to it. A test does this with
-`Test.assert_screenshot_equals(reference, x1, y1, x2, y2)`, where the rectangle is in pixels with the
-origin at the top left of the window.
-
-Graphics tests are **singleplayer-only**. That limit comes from the game rather than from grug:
-`GUI.open` already refuses to open a screen in multiplayer. Every supported loader implements the
-screenshot functions.
-
-`reference` names a **directory** of numbered PNGs (`1.png`, `2.png`, ...), not a single file, and the
-assertion passes if the capture is pixel-identical to *any* of them. The same UI renders differently
-on each Minecraft version and platform (fonts, item sprites, GUI scaling), so every accepted
-appearance gets its own file and one shared `.grug` test stays green on all of them. Adding a new
-accepted rendering is a one-file pull request.
-
-A mod's `screenshots/` tree is checked: every directory under it must be either a **group** (only
-subdirectories) or a **reference** (only `1.png`, `2.png`, ... with no gaps), never both, and every
-file must be a lowercase `.png` named after a positive number. A test run refuses to start on a
-violation, so an author sees every problem locally; CI fails the same way, because it runs the exact
-same check rather than a second implementation.
-
-Screenshot tests are captured at a fixed **1280x720**, and each comparison is exact: a single
-differing pixel from every reference fails the test. CI already runs at that resolution on a pinned
-`ubuntu-24.04` image so that Mesa and the font stack stay identical between runs.
-
-While a test run has a screen open, the mouse cursor is parked in a corner of the window, so the
-slot-hover highlight (and any tooltip) can't leak into a capture. The cursor is never drawn into the
-framebuffer, so this only removes that incidental state.
-
-To find the coordinates for a new test, on any loader:
+### Test Keys
 
 | Key | What it does |
 | :--- | :--- |
 | **M** | Toggles the window between its current size and a forced 1280x720. While it's on, the cursor's pixel position is kept in chat, in the same top-left-origin convention `Test.assert_screenshot_equals` takes: open the screen you're writing a test against, hover the pixel you want, and read the coordinate off the latest `Cursor:` line. Press M first, or the coordinates you read won't be the ones CI sees. |
 | **R** | Runs every test. It forces 1280x720 for the duration of the run and restores the previous resolution afterwards, so tests always run at the resolution their references were captured at. |
-
-These are letters rather than function keys so they can't collide with a vanilla default binding,
-and so they don't need an Fn key on laptops. `M` and `R` are unbound in every vanilla version.
-
-Beware that the game draws its GUI scaled: it lays the screen out in a fixed virtual space and
-scales that up to the window, so at 1280x720 everything is drawn 3x. The coordinates the M readout
-reports are real screen pixels and are what the crop should use; the scaling is just a reminder that
-they won't match the numbers in the screen's own layout code.
-
-A brand-new test needs no reference directory: its first run creates the directory and writes the
-capture as `1.png`, telling you it did. From then on the test compares against that reference.
-
-To add a reference for a new platform or version, run the test and let it fail: the capture is written
-to `grug-screenshot-artifacts/<reference path>/<n>.png`, where `<n>` is the number it would take in
-the reference directory, along with a `diff.png` that highlights the pixels differing from the
-closest reference in red over a faded copy of the capture (the same rendering ImageMagick's `compare`
-produces, computed in-process). CI uploads that directory, which is how missing references for a
-platform get collected. To accept the capture, copy it into the reference directory under the same
-name and re-run.
-
-Because each comparison is exact, references are tied to the rendering stack. Generate them on the
-same platform CI uses (`ubuntu-24.04` with the same Xvfb display) or they will not match. After an
-intentional UI change, delete the directory and regenerate it on each accepted platform, or the test
-will keep passing against the stale references.
