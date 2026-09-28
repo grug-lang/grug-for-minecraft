@@ -1,0 +1,20 @@
+# Placing foo_block makes examplemod's BlockEntity run its module-level calls and its 10-tick
+# spawn, so this waits a few ticks rather than finishing on tick 0.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        x: number = origin.x()
+        y: number = origin.y()
+        z: number = origin.z()
+
+        level.place_block(x, y, z, "grug:foo_block")
+        block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
+
+        Test.not_done()
+    } else if Test.tick() < 15 {
+        # Let the block entity tick far enough to run its 10-tick spawn once.
+        Test.not_done()
+    }
+}

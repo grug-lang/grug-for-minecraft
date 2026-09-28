@@ -1,0 +1,8 @@
+# Covers the print family.
+export run() {
+    if Test.tick() == 0 {
+        print("print")
+        print2("print2", 2)
+        print3("print3", 2, true)
+    }
+}
