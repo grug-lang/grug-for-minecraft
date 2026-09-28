@@ -38,7 +38,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.server.ServerLifecycleHooks;
@@ -64,32 +63,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public boolean isDevelopmentEnvironment() {
-        return !FMLEnvironment.production;
-    }
-
-    @Override
-    public void registerBlock(String namespace, String name, long fileId) {
-        // Registration is already dynamically handled in GrugModLoader
-        // TODO: Should this method be removed from the ModLoaderAdapter interface,
-        // cause StationAPI has this method *not* empty?
-    }
-
-    @Override
-    public void registerItem(String namespace, String name, long fileId) {
-        // Registration is already dynamically handled in GrugModLoader
-        // TODO: Should this method be removed from the ModLoaderAdapter interface,
-        // cause StationAPI has this method empty?
-    }
-
-    @Override
-    public void registerBlockEntity(String namespace, String name) {
-        // Registration is already dynamically handled in GrugModLoader
-        // TODO: Should this method be removed from the ModLoaderAdapter interface,
-        // cause StationAPI has this method empty?
-    }
-
-    @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         if (playerObj instanceof ServerPlayer serverPlayer) {
             if (blockEntityObj instanceof BlockEntity be) {
@@ -108,12 +81,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         buf -> GrugMenu.writeMenuData(buf, be.getBlockPos(), builder));
             }
         }
-    }
-
-    @Override
-    public void reloadRecipe(String resourcePath) {
-        // Recipe hot-reloading needs advanced integration with Forge's RecipeManager
-        // TODO: Implement
     }
 
     @Override

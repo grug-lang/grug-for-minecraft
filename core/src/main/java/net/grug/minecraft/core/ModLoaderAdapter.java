@@ -13,17 +13,7 @@ public interface ModLoaderAdapter {
     /** The directory the loaded grug mods live in, which is what the screenshot tree is under. */
     File getGrugModsDirectory();
 
-    boolean isDevelopmentEnvironment();
-
-    void registerBlock(String namespace, String name, long fileId);
-
-    void registerItem(String namespace, String name, long fileId);
-
-    void registerBlockEntity(String namespace, String name);
-
     void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj);
-
-    void reloadRecipe(String resourcePath);
 
     // --- Logging Abstraction --- TODO: Give this section a better title
 
