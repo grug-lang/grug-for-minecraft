@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugModsExtractor;
 import net.grug.minecraft.stationapi.StationApiAdapter;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
@@ -45,8 +46,10 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -153,26 +156,26 @@ public class InitListener {
 
         return switch (materialName.toLowerCase()) {
             case "air" -> Material.AIR;
-            case "solid_organic" -> Material.SOLID_ORGANIC;
-            case "soil" -> Material.SOIL;
+            case "organic", "solid_organic" -> Material.SOLID_ORGANIC;
+            case "dirt", "grass", "soil" -> Material.SOIL;
             case "wood" -> Material.WOOD;
             case "stone" -> Material.STONE;
-            case "metal" -> Material.METAL;
+            case "metal", "iron" -> Material.METAL;
             case "water" -> Material.WATER;
             case "lava" -> Material.LAVA;
             case "leaves" -> Material.LEAVES;
             case "plant" -> Material.PLANT;
             case "sponge" -> Material.SPONGE;
-            case "wool" -> Material.WOOL;
+            case "cloth", "wool" -> Material.WOOL;
             case "fire" -> Material.FIRE;
             case "sand" -> Material.SAND;
             case "piston_breakable" -> Material.PISTON_BREAKABLE;
             case "glass" -> Material.GLASS;
             case "tnt" -> Material.TNT;
-            case "unused" -> Material.UNUSED;
+            case "coral", "unused" -> Material.UNUSED;
             case "ice" -> Material.ICE;
             case "snow_layer" -> Material.SNOW_LAYER;
-            case "snow_block" -> Material.SNOW_BLOCK;
+            case "snow", "snow_block" -> Material.SNOW_BLOCK;
             case "cactus" -> Material.CACTUS;
             case "clay" -> Material.CLAY;
             case "pumpkin" -> Material.PUMPKIN;
@@ -394,13 +397,6 @@ public class InitListener {
     private static void extractDefaultGrugMods(Path targetGrugDir) {
         Path markerFile = targetGrugDir.resolve(".examples_generated.txt");
 
-        // If the marker file exists, the player already generated them.
-        // We respect their right to delete the 'examplemod' folder without it coming
-        // back.
-        if (Files.exists(markerFile)) {
-            return;
-        }
-
         Optional<ModContainer> modContainer =
                 FabricLoader.getInstance().getModContainer(NAMESPACE.toString());
         if (modContainer.isEmpty()) return;
@@ -408,35 +404,14 @@ public class InitListener {
         Optional<Path> defaultModsPath = modContainer.get().findPath("mods");
         if (defaultModsPath.isEmpty()) return;
 
-        Path srcRoot = defaultModsPath.get();
-        try (Stream<Path> stream = Files.walk(srcRoot)) {
-            stream.forEach(
-                    source -> {
-                        try {
-                            Path relative = srcRoot.relativize(source);
-                            Path target = targetGrugDir.resolve(relative.toString());
-
-                            if (Files.isDirectory(source)) {
-                                if (!Files.exists(target)) Files.createDirectories(target);
-                            } else {
-                                if (!Files.exists(target))
-                                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-                            }
-                        } catch (IOException e) {
-                            LOGGER.error("Failed to extract default grug mod file: " + source, e);
-                        }
-                    });
-
-            // Write the marker file so we never forcefully extract again
-            String msg =
-                    "This file tells the mod that the default examples have already been"
-                        + " generated.\n"
-                        + "If you delete the example folders, they won't come back.\n"
-                        + "If you WANT the examples back, delete this file and restart the game.\n";
-            Files.writeString(markerFile, msg);
-
+        List<String> errors = new ArrayList<>();
+        try {
+            GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile, errors);
         } catch (IOException e) {
             LOGGER.error("Failed to walk mods directory", e);
+        }
+        for (String error : errors) {
+            LOGGER.error(error);
         }
     }
 }

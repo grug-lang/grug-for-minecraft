@@ -1,0 +1,4 @@
+# Fixture block: exercises one StationAPI stringToMaterial case.
+export init() {
+    set_material("snow_layer")
+}
