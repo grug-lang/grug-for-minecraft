@@ -223,6 +223,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Object getPlayer() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        return mc != null ? mc.player : null;
+    }
+
+    @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
         return new BlockPos(be.x, be.y, be.z);

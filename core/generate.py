@@ -274,6 +274,10 @@ def collect_exports(mod_api: Dict[str, Any]) -> List[Dict[str, Any]]:
     exports: List[Dict[str, Any]] = []
     for entity_name, entity_decl in mod_api.get("entities", {}).items():
         for fn_decl in entity_decl.get("export_functions", []):
+            if fn_decl.get("engine_called"):
+                # The engine invokes these through Grug.callExportFn, so an ExportFns wrapper and
+                # its JNI entry point would never run.
+                continue
             fn_name = fn_decl["name"]
             param_list = [
                 (p["name"], grug_type_name(p["type"])) for p in fn_decl.get("parameters", [])

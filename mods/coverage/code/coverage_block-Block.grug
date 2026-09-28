@@ -3,5 +3,5 @@ export init() {
     set_hardness(1)
     set_material("stone")
     set_inventory_size(9)
-    set_block_entity(e"grug:foo_block_entity")
+    set_block_entity(e"foo_block_entity")
 }

@@ -234,6 +234,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Object getPlayer() {
+        return Minecraft.getInstance().player;
+    }
+
+    @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
         net.minecraft.core.BlockPos pos = ((BlockEntity) blockEntityObj).getBlockPos();
         return new BlockPos(pos.getX(), pos.getY(), pos.getZ());

@@ -5,7 +5,8 @@
 			"export_functions": [
 				{
 					"name": "init",
-					"description": "Called once at registration time to declare the block's assets."
+					"description": "Called once at registration time to declare the block's assets.",
+					"engine_called": true
 				},
 				{
 					"name": "on_break",
@@ -134,7 +135,8 @@
 				},
 				{
 					"name": "tick",
-					"description": "Called every game tick, so every 0.05 seconds."
+					"description": "Called every game tick, so every 0.05 seconds.",
+					"engine_called": true
 				}
 			]
 		},
@@ -143,7 +145,8 @@
 			"export_functions": [
 				{
 					"name": "init",
-					"description": "Called once at registration time to declare the item's assets."
+					"description": "Called once at registration time to declare the item's assets.",
+					"engine_called": true
 				}
 			]
 		},
@@ -152,7 +155,8 @@
 			"export_functions": [
 				{
 					"name": "run",
-					"description": "Runs the test."
+					"description": "Runs the test.",
+					"engine_called": true
 				}
 			],
 			"static_methods": {
@@ -214,6 +218,12 @@
 					"description": "Gets the current client level.",
 					"return_type": {
 						"name": "Level"
+					}
+				},
+				"get_player": {
+					"description": "Gets the local client player, for tests that need to call a method taking a Player.",
+					"return_type": {
+						"name": "Player"
 					}
 				},
 				"get_origin": {

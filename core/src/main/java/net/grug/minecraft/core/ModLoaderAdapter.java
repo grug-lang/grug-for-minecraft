@@ -83,6 +83,9 @@ public interface ModLoaderAdapter {
 
     Object getClientLevel();
 
+    /** The local client player, or null when there is none. Lets a test drive GUI.open directly. */
+    Object getPlayer();
+
     Vec3 getTestOrigin();
 
     boolean supportsGraphicsTests();
