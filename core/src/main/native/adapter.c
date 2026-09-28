@@ -75,7 +75,7 @@ extern struct grug_files_slice grug_compile_all_files(void* state);
 // --- JNI Caching (declared extern in adapter_shared.h) ---
 jint jni_version;
 JavaVM* jvm;
-jclass game_functions_class;
+jclass host_functions_class;
 static jclass grug_class;
 static jmethodID jm_on_runtime_error;
 
@@ -117,11 +117,11 @@ Java_net_grug_minecraft_grug_Grug_initGrugAdapter(JNIEnv *env, jclass clazz) {
     grug_class = (*env)->NewGlobalRef(env, clazz);
     jm_on_runtime_error = (*env)->GetStaticMethodID(env, grug_class, "onRuntimeError", "(Ljava/lang/String;)V");
 
-    jclass local_gf = (*env)->FindClass(env, "net/grug/minecraft/grug/GameFunctions");
+    jclass local_gf = (*env)->FindClass(env, "net/grug/minecraft/grug/HostFunctions");
     if (!local_gf) return;
-    game_functions_class = (*env)->NewGlobalRef(env, local_gf);
+    host_functions_class = (*env)->NewGlobalRef(env, local_gf);
 
-    resolve_generated_method_ids(env, game_functions_class);
+    resolve_generated_method_ids(env, host_functions_class);
 }
 
 JNIEXPORT jlong JNICALL
@@ -297,7 +297,7 @@ Java_net_grug_minecraft_grug_Grug_nativeGetUpdatedResources(JNIEnv *env, jclass 
 extern void grug_set_runtime_error(void* state, const char* message);
 
 JNIEXPORT void JNICALL
-Java_net_grug_minecraft_grug_Grug_gameFunctionErrorHappened(JNIEnv *env, jclass clazz, jlong statePtr, jstring message) {
+Java_net_grug_minecraft_grug_Grug_hostFunctionErrorHappened(JNIEnv *env, jclass clazz, jlong statePtr, jstring message) {
     const char *c_message = (*env)->GetStringUTFChars(env, message, NULL);
     
     grug_set_runtime_error((void*)(intptr_t)statePtr, c_message);

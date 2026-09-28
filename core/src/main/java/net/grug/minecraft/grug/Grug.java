@@ -300,5 +300,5 @@ public final class Grug {
 
     private static native String[] nativeGetUpdatedResources(long statePtr);
 
-    public static native void gameFunctionErrorHappened(long statePtr, String message);
+    public static native void hostFunctionErrorHappened(long statePtr, String message);
 }

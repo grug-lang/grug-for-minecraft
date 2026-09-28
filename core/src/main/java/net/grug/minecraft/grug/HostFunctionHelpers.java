@@ -1,9 +1,9 @@
 package net.grug.minecraft.grug;
 
-public class GameFunctionHelpers {
+public class HostFunctionHelpers {
 
     @GrugGenerated("utility class: never instantiated")
-    private GameFunctionHelpers() {}
+    private HostFunctionHelpers() {}
 
     public static String prettyFormat(Object value) {
         if (value instanceof Long id) {
