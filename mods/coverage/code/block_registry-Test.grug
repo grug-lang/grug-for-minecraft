@@ -15,10 +15,16 @@ export run() {
         # An unknown block is logged and left unplaced.
         level.place_block(x + 6, y, z, "grug:does_not_exist")
 
-        # A custom grug item and a vanilla one.
+        # Custom and vanilla items.
         custom: Item = item(resource_location("grug:coverage_item"))
         vanilla: Item = item(resource_location("minecraft:diamond"))
         custom_stack: ItemStack = item_stack(custom)
         vanilla_stack: ItemStack = item_stack(vanilla)
+
+        # A custom block's item and a vanilla block's item.
+        custom_block_item: Item = item(resource_location("grug:coverage_block"))
+        vanilla_block_item: Item = item(resource_location("minecraft:stone"))
+        custom_block_stack: ItemStack = item_stack(custom_block_item)
+        vanilla_block_stack: ItemStack = item_stack(vanilla_block_item)
     }
 }
