@@ -21,6 +21,44 @@ public class GrugTestRunner {
     // TODO: Allow individual tests to override this budget.
     public static final int DEFAULT_MAX_TEST_TICKS = 200; // 10 seconds at 20 ticks/sec
 
+    /**
+     * The grug operations the runner needs, so a Java test can drive the runner's state machine
+     * without the native library attached.
+     */
+    public interface TestEntityOps {
+        long createEntity(long fileId);
+
+        long getExportFnId(String entityType, String fnName);
+
+        boolean callExportFn(long entityHandle, long exportFnId);
+
+        void destroyEntity(long entityHandle);
+    }
+
+    private static final TestEntityOps NATIVE_OPS =
+            new TestEntityOps() {
+                @Override
+                public long createEntity(long fileId) {
+                    return Grug.createEntity(fileId);
+                }
+
+                @Override
+                public long getExportFnId(String entityType, String fnName) {
+                    return Grug.getExportFnId(entityType, fnName);
+                }
+
+                @Override
+                public boolean callExportFn(long entityHandle, long exportFnId) {
+                    return Grug.callExportFn(entityHandle, exportFnId);
+                }
+
+                @Override
+                public void destroyEntity(long entityHandle) {
+                    Grug.destroyEntity(entityHandle);
+                }
+            };
+
+    private final TestEntityOps ops;
     private final List<Map.Entry<String, Long>> tests;
     private final int totalCount;
 
@@ -36,11 +74,23 @@ public class GrugTestRunner {
     private boolean finished = false;
 
     public GrugTestRunner() {
+        this(
+                Grug.fileIds,
+                GrugScreenshots.validateReferenceTrees(
+                        GrugCore.getAdapter().getGrugModsDirectory()));
+    }
+
+    /** Visible for tests: builds a runner over the given files without touching GrugCore. */
+    public GrugTestRunner(Map<String, Long> fileIds, List<String> referenceErrors) {
+        this(fileIds, referenceErrors, NATIVE_OPS);
+    }
+
+    public GrugTestRunner(
+            Map<String, Long> fileIds, List<String> referenceErrors, TestEntityOps ops) {
+        this.ops = ops;
+
         // A run refuses to start on a malformed screenshots/ tree. This is the same check CI hits,
         // so an author sees every violation locally before it ever reaches a pull request.
-        List<String> referenceErrors =
-                GrugScreenshots.validateReferenceTrees(
-                        GrugCore.getAdapter().getGrugModsDirectory());
         if (!referenceErrors.isEmpty()) {
             this.tests = new ArrayList<>();
             this.totalCount = 0;
@@ -57,7 +107,7 @@ public class GrugTestRunner {
         }
 
         this.tests = new ArrayList<>();
-        for (Map.Entry<String, Long> entry : Grug.fileIds.entrySet()) {
+        for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
             if (entry.getKey().endsWith("-Test.grug")) {
                 tests.add(entry);
             }
@@ -101,7 +151,7 @@ public class GrugTestRunner {
 
         boolean completed;
         try {
-            completed = Grug.callExportFn(currentEntityHandle, currentRunFnId);
+            completed = ops.callExportFn(currentEntityHandle, currentRunFnId);
         } catch (Exception e) {
             // Same fail-fast behavior as before: the first failing test aborts the whole run.
             String msg = e.getMessage();
@@ -204,12 +254,12 @@ public class GrugTestRunner {
         System.out.println("[GRUG CI] Executing test: " + path);
 
         try {
-            currentEntityHandle = Grug.createEntity(entry.getValue());
+            currentEntityHandle = ops.createEntity(entry.getValue());
             if (currentEntityHandle == 0) {
                 throw new RuntimeException("Failed to create an entity for the test.");
             }
 
-            currentRunFnId = Grug.getExportFnId("Test", "run");
+            currentRunFnId = ops.getExportFnId("Test", "run");
             if (currentRunFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
                 throw new RuntimeException("Test entity missing 'run' export function.");
             }
@@ -242,7 +292,7 @@ public class GrugTestRunner {
 
     private void destroyCurrentEntity() {
         if (currentEntityHandle != 0) {
-            Grug.destroyEntity(currentEntityHandle);
+            ops.destroyEntity(currentEntityHandle);
             currentEntityHandle = 0;
             currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
         }
