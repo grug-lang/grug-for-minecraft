@@ -43,78 +43,72 @@ public class HostFunctions {
         GrugCore.getAdapter().roundTripNbt(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
     }
 
+    /** The original contents of each file a test has put into a non-normal state. */
+    private static final java.util.Map<String, String> modFileOriginals = new java.util.HashMap<>();
+
     /**
-     * Prepends or removes a marker comment on a mod file, so a test can trigger {@link
-     * Grug#update}'s hot-reload path without rewriting the file's content itself.
+     * Puts a mod file into a named state, remembering its original contents the first time so the
+     * {@code "normal"} state restores them exactly.
+     *
+     * <p>Idempotent on purpose: a hot-reload test sets a state, waits for {@link
+     * #Test_hot_reload_count}, then sets it back to {@code "normal"}, so an aborted run leaves the
+     * file disturbed rather than flipped, and a re-run sets the same state again.
      */
-    public static void Test_toggle_mod_file_comment(String relativePath) {
+    public static void Test_set_mod_file_state(String relativePath, String state) {
         java.io.File file =
                 new java.io.File(GrugCore.getAdapter().getGrugModsDirectory(), relativePath);
-        String marker = "# grug-hot-reload-test\n";
         try {
-            String content =
-                    new String(
-                            java.nio.file.Files.readAllBytes(file.toPath()),
-                            java.nio.charset.StandardCharsets.UTF_8);
-            if (content.startsWith(marker)) {
-                content = content.substring(marker.length());
-            } else {
-                content = marker + content;
+            java.nio.file.Path path = file.toPath();
+            String key = relativePath.replace('\\', '/');
+
+            if ("normal".equals(state)) {
+                String original = modFileOriginals.remove(key);
+                if (original == null) return;
+                java.nio.file.Files.write(
+                        path, original.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                return;
             }
+
+            String contents =
+                    new String(
+                            java.nio.file.Files.readAllBytes(path),
+                            java.nio.charset.StandardCharsets.UTF_8);
+            // Only remember the pristine contents while the file is still normal, so restoring
+            // after
+            // a re-run cannot record an already-disturbed state as the original.
+            modFileOriginals.putIfAbsent(key, contents);
+
+            if ("invalid".equals(state)) {
+                contents = "!\n" + contents;
+            } else if ("no_trailing_newline".equals(state)) {
+                if (contents.endsWith("\n")) {
+                    contents = contents.substring(0, contents.length() - 1);
+                }
+            } else {
+                throw new IllegalArgumentException(
+                        "Unknown mod file state '"
+                                + state
+                                + "'. Expected \"normal\", \"invalid\" or"
+                                + " \"no_trailing_newline\".");
+            }
+
             java.nio.file.Files.write(
-                    file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    path, contents.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } catch (Exception e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_comment: " + e);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.set_mod_file_state: " + e);
         }
     }
 
     /**
-     * Adds or removes a trailing newline on a mod file. Unlike the comment marker this keeps a JSON
-     * file valid, so it can drive the recipe hot-reload path.
+     * How many changes to {@code relativePath} the engine has reported so far.
+     *
+     * <p>A hot-reload test records this, changes the file, then waits for the count to rise instead
+     * of assuming its write was observed. That makes the test independent of filesystem timestamp
+     * granularity, and idempotent: an aborted run leaves the file disturbed, but a re-run sets the
+     * same state rather than flipping past it.
      */
-    public static void Test_toggle_mod_file_newline(String relativePath) {
-        java.io.File file =
-                new java.io.File(GrugCore.getAdapter().getGrugModsDirectory(), relativePath);
-        try {
-            String content =
-                    new String(
-                            java.nio.file.Files.readAllBytes(file.toPath()),
-                            java.nio.charset.StandardCharsets.UTF_8);
-            if (content.endsWith("\n")) {
-                content = content.substring(0, content.length() - 1);
-            } else {
-                content = content + "\n";
-            }
-            java.nio.file.Files.write(
-                    file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_newline: " + e);
-        }
-    }
-
-    /**
-     * Prepends or removes an invalid marker on a grug file, so a test can drive Grug.update's
-     * hot-reload failure path (and the error callbacks) before restoring it.
-     */
-    public static void Test_toggle_mod_file_corruption(String relativePath) {
-        java.io.File file =
-                new java.io.File(GrugCore.getAdapter().getGrugModsDirectory(), relativePath);
-        String marker = "!\n";
-        try {
-            String content =
-                    new String(
-                            java.nio.file.Files.readAllBytes(file.toPath()),
-                            java.nio.charset.StandardCharsets.UTF_8);
-            if (content.startsWith(marker)) {
-                content = content.substring(marker.length());
-            } else {
-                content = marker + content;
-            }
-            java.nio.file.Files.write(
-                    file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_corruption: " + e);
-        }
+    public static double Test_hot_reload_count(String relativePath) {
+        return Grug.reportedChangeCount(relativePath);
     }
 
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000

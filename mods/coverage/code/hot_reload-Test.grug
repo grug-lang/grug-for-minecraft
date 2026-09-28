@@ -1,15 +1,21 @@
-# Toggles a marker comment on a grug file across ticks, so Grug.update's hot-reload path runs, then
-# restores the file.
+# Puts a grug file into an invalid state, waits until the engine reports it saw the change, then
+# restores it, so Grug.update's hot-reload failure path runs.
+# Waiting on Test.hot_reload_count rather than sleeping a fixed number of ticks is what makes this
+# reliable: it does not matter how quickly the filesystem reports the modification, including on
+# filesystems with coarse timestamps.
+change_baseline: number = -1
+path: string = "coverage/code/coverage_block-Block.grug"
+
 export run() {
     if Test.tick() == 0 {
         Test.not_done()
     } else if Test.tick() == 1 {
-        Test.toggle_mod_file_comment("coverage/code/coverage_block-Block.grug")
+        change_baseline = Test.hot_reload_count(path)
+        Test.set_mod_file_state(path, "invalid")
         Test.not_done()
-    } else if Test.tick() < 20 {
-        # Give Grug.update a tick or two to notice and hot-reload the change.
+    } else if Test.hot_reload_count(path) <= change_baseline {
         Test.not_done()
     } else {
-        Test.toggle_mod_file_comment("coverage/code/coverage_block-Block.grug")
+        Test.set_mod_file_state(path, "normal")
     }
 }

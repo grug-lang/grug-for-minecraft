@@ -1,0 +1,5 @@
+# An unknown state must report an error rather than silently doing nothing.
+export run() {
+    Test.expect_error("Unknown mod file state")
+    Test.set_mod_file_state("coverage/code/coverage_block-Block.grug", "not_a_state")
+}

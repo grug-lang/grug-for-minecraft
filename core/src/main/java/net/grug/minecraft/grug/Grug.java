@@ -114,7 +114,16 @@ public final class Grug {
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
         List<String> reloadTriggers = new ArrayList<>();
 
+        // Count every reported change, including files that failed to compile. A test that waits
+        // for
+        // its own write to be noticed has to be able to observe the failure path too, and a broken
+        // file never reaches validHotReloads' loop body.
+        for (FileInfo file : updatedFiles) {
+            noteReportedChange(file.path());
+        }
+
         for (FileInfo file : validHotReloads(updatedFiles, onError)) {
+            noteReportedChange(file.path());
             fileIds.put(file.path(), file.fileId());
 
             // Maintain the dynamic entity linking map
@@ -137,10 +146,29 @@ public final class Grug {
         }
 
         for (String resource : nativeGetUpdatedResources(statePtr)) {
+            noteReportedChange(resource);
             reloadTriggers.add(resource);
         }
 
         return reloadTriggers.toArray(new String[0]);
+    }
+
+    /**
+     * Per-path counts of the changes {@link #update} has reported, so a test can wait until the
+     * engine has actually noticed a file it changed instead of assuming a write was observed.
+     *
+     * <p>Keyed by the path {@code update} reports, which is the same relative path a test passes to
+     * the {@code Test} helpers.
+     */
+    private static final Map<String, Integer> reportedChangeCounts = new HashMap<>();
+
+    private static void noteReportedChange(String path) {
+        reportedChangeCounts.merge(path.replace('\\', '/'), 1, Integer::sum);
+    }
+
+    /** How many changes to {@code path} the engine has reported so far, or 0 if none. */
+    public static int reportedChangeCount(String path) {
+        return reportedChangeCounts.getOrDefault(path.replace('\\', '/'), 0);
     }
 
     /**

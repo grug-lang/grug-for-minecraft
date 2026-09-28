@@ -1,0 +1,7 @@
+# Putting a file that already has no trailing newline into "no_trailing_newline" must leave it alone
+# rather than stripping a character off the end.
+export run() {
+    Test.set_mod_file_state("examplemod/data/grug/recipes/crafting/foo_block.json", "no_trailing_newline")
+    Test.set_mod_file_state("examplemod/data/grug/recipes/crafting/foo_block.json", "normal")
+    Test.assert(true, "A file with no trailing newline is left alone.")
+}

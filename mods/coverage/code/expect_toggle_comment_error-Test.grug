@@ -1,7 +1,0 @@
-# A missing path must make Test.toggle_mod_file_comment report an IO error.
-export run() {
-    if Test.tick() == 0 {
-        Test.expect_error("Test.toggle_mod_file_comment")
-        Test.toggle_mod_file_comment("does/not/exist.grug")
-    }
-}
