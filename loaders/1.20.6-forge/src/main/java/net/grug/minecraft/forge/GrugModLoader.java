@@ -173,6 +173,7 @@ public class GrugModLoader {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(this);
     }
 
+    @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     public static File getActiveGrugModsDir() {
         File gameDir = FMLLoader.getGamePath().toFile();
 
