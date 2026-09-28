@@ -59,8 +59,8 @@ public class GameFunctions {
     }
 
     // TODO: Change to me.expect_error() once entities can have methods
-    public static void Test_expect_error() {
-        Grug.testExpectsError = true;
+    public static void Test_expect_error(String message) {
+        Grug.testExpectedError = message;
     }
 
     // Classes

@@ -115,13 +115,24 @@ public class GrugTestRunner {
         }
 
         if (!completed) {
-            if (Grug.testExpectsError) {
-                // The script aborted because a host function errored, which is exactly what the
-                // test asked it to. Drop the queued error rather than reporting it to chat.
+            if (Grug.testExpectedError != null) {
+                // The script aborted because a host function errored. Accept it only if the message
+                // matches what the test asked to see, so a test cannot pass on the wrong error.
+                String actual;
                 synchronized (Grug.runtimeErrorQueue) {
+                    actual = String.join("\n", Grug.runtimeErrorQueue);
                     Grug.runtimeErrorQueue.clear();
                 }
                 Grug.printQueue.clear();
+                if (!actual.contains(Grug.testExpectedError)) {
+                    fail(
+                            path,
+                            "Expected an error containing '"
+                                    + Grug.testExpectedError
+                                    + "', but got: "
+                                    + actual);
+                    return;
+                }
                 System.out.println("[GRUG CI] PASS " + path + " (expected error)");
                 passedCount++;
                 destroyCurrentEntity();
@@ -161,8 +172,12 @@ public class GrugTestRunner {
         }
 
         // The test stopped asking for ticks, so it's done.
-        if (Grug.testExpectsError) {
-            fail(path, "Test expected a host function error, but it completed without one.");
+        if (Grug.testExpectedError != null) {
+            fail(
+                    path,
+                    "Test expected an error containing '"
+                            + Grug.testExpectedError
+                            + "', but it completed without one.");
             return;
         }
         System.out.println("[GRUG CI] PASS " + path);
@@ -205,7 +220,7 @@ public class GrugTestRunner {
         }
 
         currentTick = 0;
-        Grug.testExpectsError = false;
+        Grug.testExpectedError = null;
         return true;
     }
 

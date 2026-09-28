@@ -276,7 +276,15 @@
 					]
 				},
 				"expect_error": {
-					"description": "Marks the current test as expecting the next host call to fail. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised."
+					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised.",
+					"parameters": [
+						{
+							"name": "message",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
 				}
 			}
 		}
