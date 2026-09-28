@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.ModContainer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugModsExtractor;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.ornithemc.osl.blocks.api.BlockEvents;
 import net.ornithemc.osl.entrypoints.api.ModInitializer;
@@ -18,10 +19,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 public class GrugModLoader implements ModInitializer {
 
@@ -128,44 +130,20 @@ public class GrugModLoader implements ModInitializer {
     private static void extractDefaultGrugMods(Path targetGrugDir) {
         Path markerFile = targetGrugDir.resolve(".examples_generated.txt");
 
-        if (Files.exists(markerFile)) {
-            return;
-        }
-
         Optional<ModContainer> modContainer = FabricLoader.getInstance().getModContainer(MOD_ID);
         if (modContainer.isEmpty()) return;
 
         Optional<Path> defaultModsPath = modContainer.get().findPath("mods");
         if (defaultModsPath.isEmpty()) return;
 
-        Path srcRoot = defaultModsPath.get();
-        try (Stream<Path> stream = Files.walk(srcRoot)) {
-            stream.forEach(
-                    source -> {
-                        try {
-                            Path relative = srcRoot.relativize(source);
-                            Path target = targetGrugDir.resolve(relative.toString());
-
-                            if (Files.isDirectory(source)) {
-                                if (!Files.exists(target)) Files.createDirectories(target);
-                            } else {
-                                if (!Files.exists(target))
-                                    Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-                            }
-                        } catch (IOException e) {
-                            LOGGER.error("Failed to extract default grug mod file: " + source, e);
-                        }
-                    });
-
-            String msg =
-                    "This file tells the mod that the default examples have already been"
-                        + " generated.\n"
-                        + "If you delete the example folders, they won't come back.\n"
-                        + "If you WANT the examples back, delete this file and restart the game.\n";
-            Files.writeString(markerFile, msg);
-
+        List<String> errors = new ArrayList<>();
+        try {
+            GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile, errors);
         } catch (IOException e) {
             LOGGER.error("Failed to walk mods directory", e);
+        }
+        for (String error : errors) {
+            LOGGER.error(error);
         }
     }
 }
