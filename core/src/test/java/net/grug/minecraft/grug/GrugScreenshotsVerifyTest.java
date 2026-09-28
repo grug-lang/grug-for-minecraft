@@ -146,6 +146,45 @@ class GrugScreenshotsVerifyTest {
     }
 
     @Test
+    void fallsBackWhenTheArtifactCannotBeWritten() throws Exception {
+        write(references.resolve("1.png"), solid(2, 2, RED));
+        // Directories where the artifact and diff files would go, so ImageIO.write fails and the
+        // fallback paths run.
+        Path artifactDir = artifacts.resolve(REFERENCE_PATH);
+        Files.createDirectories(artifactDir.resolve("2.png"));
+        Files.createDirectories(artifactDir.resolve("diff.png"));
+
+        BufferedImage capture = solid(2, 2, RED);
+        capture.setRGB(1, 1, BLUE);
+
+        assertThrows(IllegalStateException.class, () -> verify(capture));
+    }
+
+    @Test
+    void treatsAnUnreadableReferenceAsNoMatch() throws Exception {
+        Files.writeString(references.resolve("1.png"), "not a png");
+
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(solid(2, 2, RED)));
+        assertTrue(error.getMessage().contains("none of them could be read"), error.getMessage());
+    }
+
+    @Test
+    void failsWhenTheReferenceDirectoryCannotBeCreated() throws Exception {
+        Path blocked = temp.resolve("blocked");
+        Files.writeString(blocked, "a file, not a directory");
+
+        assertThrows(
+                IllegalStateException.class,
+                () ->
+                        GrugScreenshots.verify(
+                                solid(2, 2, RED),
+                                blocked.resolve("child").toFile(),
+                                REFERENCE_PATH,
+                                artifacts.toFile()));
+    }
+
+    @Test
     void blendMatchesImageMagickDefaults() {
         // #ffffffcc and #f1001ecc composited over srgb(58,95,138): the exact colors `magick
         // compare`
