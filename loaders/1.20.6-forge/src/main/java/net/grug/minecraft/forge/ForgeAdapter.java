@@ -9,6 +9,7 @@ import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -376,6 +377,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private float savedYaw, savedPitch;
 
     @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public Vec3 setupGraphicsTestCamera() {
         // The test runner is driven from the integrated server thread, but the camera is the client
         // player's, so client-side work is marshalled onto the client (render) thread.
@@ -411,6 +413,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
         if (!graphicsCameraSaved) {
             Grug.gameFunctionErrorHappened(
@@ -433,6 +436,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         onClientThread(
                 () -> {
@@ -460,6 +464,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void assertScreenshotEquals(
             String referencePath, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
@@ -519,6 +524,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private static String checkCoordinate(String name, double value, int limit) {
         if (value < 0 || value > limit) {
             return name

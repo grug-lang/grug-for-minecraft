@@ -4,6 +4,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -334,6 +335,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     private float savedYaw, savedPitch;
 
     @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public Vec3 setupGraphicsTestCamera() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
@@ -362,6 +364,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
         if (!graphicsCameraSaved) {
             Grug.gameFunctionErrorHappened(
@@ -381,6 +384,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         @SuppressWarnings("deprecation")
@@ -420,6 +424,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void assertScreenshotEquals(
             String referencePath, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
@@ -481,6 +486,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private static String checkCoordinate(String name, double value, int limit) {
         if (value < 0 || value > limit) {
             return name
@@ -509,6 +515,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * the buffer bottom row first, so rows are written into the image in reverse to land the right
      * way up.
      */
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private static BufferedImage captureRectangle(
             int x1, int y1, int x2, int y2, int windowHeight) {
         int width = x2 - x1;
