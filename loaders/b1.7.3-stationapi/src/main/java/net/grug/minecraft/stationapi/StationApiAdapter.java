@@ -329,11 +329,6 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return new Vec3(mc.player.x, mc.player.y + 3.0, mc.player.z);
     }
 
-    @Override
-    public boolean supportsGraphicsTests() {
-        return true;
-    }
-
     private boolean graphicsCameraSaved = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;

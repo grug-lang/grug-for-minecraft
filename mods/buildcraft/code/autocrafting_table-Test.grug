@@ -1,7 +1,6 @@
-# The graphics half of this test needs a singleplayer client that can actually render a frame:
-# GUI.open refuses in multiplayer, and only some loaders implement screenshots (ask
-# Test.graphics_tests_supported()). CI runs this same file against every loader; the ones that
-# don't support graphics run the logic test on tick 0 and finish immediately.
+# This test needs a singleplayer client that can actually render a frame: GUI.open refuses in
+# multiplayer. Every loader implements screenshots, so CI runs the graphics half against all of
+# them.
 # The graphics_* block entities below are member variables rather than locals because they have
 # to survive across ticks: they're created on tick 0 and read back several ticks later in
 # _test_graphics_check(). grug only allows variable declarations at member scope, which is why
@@ -19,10 +18,8 @@ export run() {
         # Runs before the camera setup, so it still builds at the player's own origin.
         _test_logic()
 
-        if Test.graphics_tests_supported() {
-            _test_graphics_setup()
-            Test.not_done()
-        }
+        _test_graphics_setup()
+        Test.not_done()
     } else if Test.tick() < 40 {
         # How long the opened GUI takes to reach the framebuffer. Measured on the CI stack: the
         # frame is still the level-loading screen at tick 0, is blank by tick 10, and first holds the

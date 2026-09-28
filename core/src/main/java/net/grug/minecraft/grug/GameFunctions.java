@@ -90,10 +90,6 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());
     }
 
-    public static boolean Test_graphics_tests_supported() {
-        return GrugCore.getAdapter().supportsGraphicsTests();
-    }
-
     public static long Test_setup_graphics_camera() {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().setupGraphicsTestCamera());
     }
