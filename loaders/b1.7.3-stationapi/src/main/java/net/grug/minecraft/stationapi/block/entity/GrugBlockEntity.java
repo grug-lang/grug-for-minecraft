@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi.block.entity;
 
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.minecraft.block.Block;
@@ -29,35 +30,49 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     private boolean sized = false;
 
     private void ensureSized() {
-        if (sized || world == null) return;
-
-        Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
-        if (!(block instanceof GrugBlock grugBlock)) return;
-
-        stacks = new ItemStack[grugBlock.getInventorySize()];
-        sized = true;
+        if (sized) return;
+        sized = trySizeInventory();
     }
 
     private void initGrug() {
         if (entityHandle != 0 || initAttempted) return;
+
         initAttempted = true;
-
-        ensureSized();
-
-        Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
-        if (!(block instanceof GrugBlock)) return;
-
-        long fileId = ((GrugBlock) block).getEntityFileId();
-
-        if (fileId == Grug.INVALID_GRUG_FILE_ID) return;
-
-        Grug.currentlyInitializingBlockEntity = this;
-        entityHandle = Grug.createEntity(fileId);
-        Grug.currentlyInitializingBlockEntity = null;
+        entityHandle = createGrugEntity();
 
         if (entityHandle != 0) {
             tickFnId = Grug.getExportFnId("BlockEntity", "tick");
         }
+    }
+
+    @GrugGenerated(
+            "inventory/entity setup guards: the world and block are not controllable in tests")
+    private boolean trySizeInventory() {
+        if (world == null) return false;
+
+        Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
+        if (!(block instanceof GrugBlock grugBlock)) return false;
+
+        stacks = new ItemStack[grugBlock.getInventorySize()];
+        return true;
+    }
+
+    @GrugGenerated(
+            "inventory/entity setup guards: the world and block are not controllable in tests")
+    private long createGrugEntity() {
+        ensureSized();
+        if (world == null) return 0;
+
+        Block block = Block.BLOCKS[world.getBlockId(x, y, z)];
+        if (!(block instanceof GrugBlock)) return 0;
+
+        long fileId = ((GrugBlock) block).getEntityFileId();
+        if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
+
+        Grug.currentlyInitializingBlockEntity = this;
+        long handle = Grug.createEntity(fileId);
+        Grug.currentlyInitializingBlockEntity = null;
+        return handle;
     }
 
     @Override
@@ -179,6 +194,11 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
 
     @Override
     public boolean canPlayerUse(PlayerEntity player) {
+        return withinReach(player);
+    }
+
+    @GrugGenerated("container reachability: the game only asks with the GUI open")
+    private boolean withinReach(PlayerEntity player) {
         return world.getBlockEntity(x, y, z) == this
                 && player.getSquaredDistance(x + 0.5D, y + 0.5D, z + 0.5D) <= 64D;
     }
