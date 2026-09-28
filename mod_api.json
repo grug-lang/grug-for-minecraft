@@ -226,6 +226,17 @@
 						"name": "Player"
 					}
 				},
+				"round_trip_nbt": {
+					"description": "Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load paths without a real world save.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				},
 				"get_origin": {
 					"description": "Gets the origin coordinates for running isolated tests.",
 					"return_type": {

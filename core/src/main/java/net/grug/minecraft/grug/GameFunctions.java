@@ -32,6 +32,10 @@ public class GameFunctions {
         return Grug.addEntity(GrugEntityType.Player, player);
     }
 
+    public static void Test_round_trip_nbt(long blockEntityId) {
+        GrugCore.getAdapter().roundTripNbt(GameFunctionHelpers.resolveBlockEntity(blockEntityId));
+    }
+
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());

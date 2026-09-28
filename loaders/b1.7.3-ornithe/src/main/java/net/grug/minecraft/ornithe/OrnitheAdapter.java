@@ -22,6 +22,7 @@ import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.world.World;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
@@ -346,6 +347,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public Object getPlayer() {
         return MinecraftInstance.get().player;
+    }
+
+    @Override
+    public void roundTripNbt(Object blockEntityObj) {
+        if (blockEntityObj instanceof BlockEntity be) {
+            NbtCompound nbt = new NbtCompound();
+            be.writeNbt(nbt);
+            be.readNbt(nbt);
+        }
     }
 
     @Override

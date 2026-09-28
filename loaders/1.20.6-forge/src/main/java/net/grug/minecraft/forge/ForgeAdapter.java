@@ -15,6 +15,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -236,6 +237,17 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public Object getPlayer() {
         return Minecraft.getInstance().player;
+    }
+
+    @Override
+    public void roundTripNbt(Object blockEntityObj) {
+        if (blockEntityObj instanceof BlockEntity be) {
+            Level level = be.getLevel();
+            if (level != null) {
+                CompoundTag tag = be.saveWithoutMetadata(level.registryAccess());
+                be.loadWithComponents(tag, level.registryAccess());
+            }
+        }
     }
 
     @Override
