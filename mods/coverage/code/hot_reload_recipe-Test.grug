@@ -1,0 +1,15 @@
+# Toggles a trailing newline on a recipe, so the loaders' recipe hot-reload path runs, then restores
+# it. A trailing newline keeps the JSON valid, unlike the comment marker used for code files.
+export run() {
+    if Test.tick() == 0 {
+        Test.not_done()
+    } else if Test.tick() == 1 {
+        Test.toggle_mod_file_newline("coverage/data/grug/recipes/crafting/result_item.json")
+        Test.not_done()
+    } else if Test.tick() < 6 {
+        # Give the loaders a tick or two to notice and re-register the recipe.
+        Test.not_done()
+    } else {
+        Test.toggle_mod_file_newline("coverage/data/grug/recipes/crafting/result_item.json")
+    }
+}
