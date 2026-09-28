@@ -445,11 +445,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return new Vec3(player.x, player.y + 3.0, player.z);
     }
 
-    @Override
-    public boolean supportsGraphicsTests() {
-        return true;
-    }
-
     private boolean graphicsCameraSaved = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;

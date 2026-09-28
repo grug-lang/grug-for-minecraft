@@ -265,12 +265,6 @@
 						"name": "Vec3"
 					}
 				},
-				"graphics_tests_supported": {
-					"description": "Checks whether this loader can run graphics (screenshot) tests. On a loader that can't, the other graphics test functions below report a host function error, so tests should check this first and skip that half of the test instead of calling them.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
 				"not_done": {
 					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Will eventually be replaced by `me.not_done()` once entities can have methods."
 				},

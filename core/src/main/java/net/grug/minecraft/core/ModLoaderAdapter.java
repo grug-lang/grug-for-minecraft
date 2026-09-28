@@ -84,8 +84,6 @@ public interface ModLoaderAdapter {
 
     Vec3 getTestOrigin();
 
-    boolean supportsGraphicsTests();
-
     Vec3 setupGraphicsTestCamera();
 
     void restoreCameraAfterGraphicsTest();

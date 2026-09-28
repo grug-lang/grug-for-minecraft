@@ -374,11 +374,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
     }
 
-    @Override
-    public boolean supportsGraphicsTests() {
-        return true;
-    }
-
     private boolean graphicsCameraSaved = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
