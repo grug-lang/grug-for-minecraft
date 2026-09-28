@@ -1,4 +1,4 @@
-# grug for Minecraft · ![Coverage](.github/badges/coverage.svg) ![Branches](.github/badges/branches.svg)
+# grug for Minecraft · ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) ![Branches](https://img.shields.io/badge/branches-100%25-brightgreen)
 
 [grug](https://github.com/grug-lang/grug)'s primary goal is to serve as a faithful digital preservation format for mods, so that players can continue enjoying the hard work of mod authors for decades to come.
 

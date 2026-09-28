@@ -54,7 +54,7 @@ jobs:
       - name: Test the grug adapter generator
         run: python3 core/test_generate.py
 
-      # The coverage job downloads these to build the combined report that feeds the badges.
+      # The coverage job downloads these to build the combined report the coverage gate checks.
       - name: Upload the coverage exec
         uses: actions/upload-artifact@v4
         with:
@@ -164,10 +164,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Combines the exec data collected by the core and loader jobs into the two README badges.
-  #
-  # Temporary, until every loader reaches 100% coverage: once CI enforces 100% as a required check
-  # the badges are constant, so this job and the committed SVGs are deleted.
+  # Combines the exec data collected by the core and loader jobs and fails the build unless the
+  # measured set is fully covered. Classes a headless CI cannot drive (mixins, loader startup,
+  # render/resource glue, and the loader game-API guards that cannot be produced by a test) are
+  # excluded in combine-coverage.py; everything that remains must be at 100%.
   coverage:
     name: coverage report
     needs: [core, build]
@@ -196,30 +196,13 @@ jobs:
           cli=$(./gradlew -q :core:printJacocoCliPath -Dgrug.activeLoader=a1.1.2_01-ornithe | grep '^JACOCO_CLI=' | cut -d= -f2)
           echo "cli=$cli" >> "$GITHUB_OUTPUT"
 
-      - name: Combine the coverage data
+      - name: Combine the coverage data and require 100%
         run: |
           python3 .github/scripts/combine-coverage.py \
             --artifacts coverage/artifacts \
             --jacoco-cli "${{ steps.jacoco.outputs.cli }}" \
-            --output coverage/report
-
-      - name: Generate the coverage badges
-        uses: cicirello/jacoco-badge-generator@v2
-        with:
-          generate-branches-badge: true
-          jacoco-csv-file: coverage/report/combined.csv
-          # Matches grug-for-python's badge filename.
-          coverage-badge-filename: coverage.svg
-
-      # main is protected, so CI never pushes the regenerated badges. Download this artifact to
-      # refresh the committed badges in a PR when they drift.
-      - name: Upload the coverage badges
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-badges
-          path: .github/badges/*.svg
-          if-no-files-found: error
-          retention-days: 7
+            --output coverage/report \
+            --require-100
 
       - name: Upload the coverage report
         uses: actions/upload-artifact@v4
