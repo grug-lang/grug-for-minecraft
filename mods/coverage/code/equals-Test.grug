@@ -1,0 +1,6 @@
+# Covers equals' non-entity fallback branch.
+export run() {
+    if Test.tick() == 0 {
+        Test.assert(equals("a", "a"), "equals should compare two strings.")
+    }
+}

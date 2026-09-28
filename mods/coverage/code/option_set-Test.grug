@@ -1,0 +1,13 @@
+# Covers the Option.set overloads for number, bool and string.
+export run() {
+    if Test.tick() == 0 {
+        number_opt: Option[number] = Option.new()
+        number_opt.set(1)
+
+        bool_opt: Option[bool] = Option.new()
+        bool_opt.set(true)
+
+        string_opt: Option[string] = Option.new()
+        string_opt.set("value")
+    }
+}

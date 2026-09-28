@@ -1,0 +1,17 @@
+# Covers drop_inventory and get_item_in_slot's empty-slot branch on a fresh chest.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        x: number = origin.x() + 2
+
+        level.place_block(x, origin.y(), origin.z(), "minecraft:chest")
+        chest_opt: Option[BlockEntity] = level.get_block_entity(x, origin.y(), origin.z())
+        Test.assert(chest_opt.has(), "chest has no block entity after being placed.")
+
+        drop_inventory(level, x, origin.y(), origin.z())
+
+        empty_item: Option[Item] = get_item_in_slot(chest_opt.unwrap(), 0)
+        Test.assert(not empty_item.has(), "The emptied chest still reports an item.")
+    }
+}

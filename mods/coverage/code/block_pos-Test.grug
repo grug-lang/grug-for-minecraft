@@ -1,0 +1,17 @@
+# Covers get_block_pos_of_block_entity + BlockPos.above_n + BlockPos.center.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        x: number = origin.x()
+        y: number = origin.y()
+        z: number = origin.z()
+
+        level.place_block(x, y, z, "grug:foo_block")
+        block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
+
+        above: BlockPos = get_block_pos_of_block_entity(block_opt.unwrap()).above_n(2)
+        Test.assert(above.center().y() > origin.y(), "above_n did not move the position up.")
+    }
+}

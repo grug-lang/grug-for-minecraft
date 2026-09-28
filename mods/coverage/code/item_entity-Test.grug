@@ -1,0 +1,14 @@
+# Covers item + resource_location + item_stack + item_entity + Entity.set_delta_movement +
+# Entity.spawn + vec3_zero.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+
+        diamond: Item = item(resource_location("minecraft:diamond"))
+        stack: ItemStack = item_stack(diamond)
+        entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
+        entity.entity().set_delta_movement(vec3_zero())
+        entity.entity().spawn(level)
+    }
+}
