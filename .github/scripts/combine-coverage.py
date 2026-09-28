@@ -31,11 +31,27 @@ CORE = "core"
 # These loaders compile shared/ornithe as an extra source directory.
 ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 
-# Classes that are mechanically derived from one template and parameterized only by the type tables
-# in core/generate.py, so their per-permutation coverage adds nothing over testing those tables
-# directly (see core/test_generate.py). ExportFns is deliberately not excluded: its wrappers map to
-# distinct API callbacks.
-EXCLUDED_CLASSES = {"GenericGameFunctions"}
+# Classes deliberately left out of the combined report, kept in one place so the exclusions stay
+# reviewable:
+# - GenericGameFunctions is mechanically derived from one template and parameterized only by the
+#   type tables in core/generate.py, so its per-permutation coverage adds nothing over testing those
+#   tables directly (see core/test_generate.py). ExportFns is deliberately not excluded: its
+#   remaining wrappers map to distinct callbacks.
+# - Mixin classes can never be measured: Mixin copies a mixin's methods into its target without
+#   defining the mixin class, so JaCoCo never instruments them. The logic they used to hold lives in
+#   measured net.grug.* helpers instead.
+# - ServerGrugModLoader only runs on a dedicated server, which CI does not launch.
+# - GrugRecipeHelper is a shim around the package-private CraftingManager.registerShaped; the
+#   parsing it delegates to (GrugRecipeParser) is measured.
+EXCLUDED_CLASSES = {
+    "GenericGameFunctions",
+    "MinecraftMixin",
+    "TitleScreenMixin",
+    "ResourcePackManagerMixin",
+    "GrugMixin",
+    "ServerGrugModLoader",
+    "GrugRecipeHelper",
+}
 
 
 def filtered_classes(source: Path, destination: Path) -> Path:
