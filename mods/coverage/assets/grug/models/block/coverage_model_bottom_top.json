@@ -1,0 +1,8 @@
+{
+  "parent": "block/cube_bottom_top",
+  "textures": {
+    "top": "grug:block/coverage_block",
+    "bottom": "grug:block/coverage_block",
+    "side": "grug:block/coverage_block"
+  }
+}

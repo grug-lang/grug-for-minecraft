@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "grug:block/coverage_model_noname"
+    }
+  }
+}
