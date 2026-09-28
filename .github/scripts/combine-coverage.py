@@ -74,6 +74,12 @@ EXCLUDED_CLASSES = {
     # The client tick hook drives the run, the resolution swap and the cursor readout; the parts CI
     # can reach pass through measured helpers, and the rest is dev-only window/cursor tooling.
     "GrugClientHooks",
+    # The loader's own block/entity and registration implementations only run through the game's
+    # world and GUI APIs, which a headless CI cannot drive. The game-independent logic they use
+    # (inventory math, entity handles, file classification) lives in measured core classes.
+    "GrugBlockEntity",
+    "GrugBlock",
+    "GrugBlocks",
     # Render/model glue, like the resource-pack classes above.
     "GrugBlockModels",
 }

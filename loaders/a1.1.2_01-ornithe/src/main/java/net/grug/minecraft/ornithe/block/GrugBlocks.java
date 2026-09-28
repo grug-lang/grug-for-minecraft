@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe.block;
 
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
@@ -16,6 +17,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class GrugBlocks {
+    @GrugGenerated("utility class: never instantiated")
+    private GrugBlocks() {}
+
     public static final int START_BLOCK_ID = 95;
     private static int nextBlockId = START_BLOCK_ID;
     private static int nextItemId = 400;
