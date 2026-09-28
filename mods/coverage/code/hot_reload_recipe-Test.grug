@@ -6,7 +6,7 @@ export run() {
     } else if Test.tick() == 1 {
         Test.toggle_mod_file_newline("coverage/data/grug/recipes/crafting/result_item.json")
         Test.not_done()
-    } else if Test.tick() < 6 {
+    } else if Test.tick() < 20 {
         # Give the loaders a tick or two to notice and re-register the recipe.
         Test.not_done()
     } else {

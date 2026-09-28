@@ -6,7 +6,7 @@ export run() {
     } else if Test.tick() == 1 {
         Test.toggle_mod_file_corruption("coverage/code/coverage_block-Block.grug")
         Test.not_done()
-    } else if Test.tick() < 6 {
+    } else if Test.tick() < 20 {
         # Give Grug.update a tick or two to notice and try to hot-reload the broken file.
         Test.not_done()
     } else {
