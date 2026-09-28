@@ -1,0 +1,7 @@
+# A missing path must make Test.toggle_mod_file_corruption report an IO error.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("Test.toggle_mod_file_corruption")
+        Test.toggle_mod_file_corruption("does/not/exist.grug")
+    }
+}
