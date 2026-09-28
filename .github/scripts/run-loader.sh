@@ -120,35 +120,59 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 echo "==> Launching $LOADER, waiting up to ${timeout_secs}s for the tests to pass..."
-: > "$LOG_FILE"
 
-# Follow the log in the background so we get real-time output in the CI console
-tail -f "$LOG_FILE" &
-tail_pid=$!
+# The one known upstream flake this harness retries: Forge can tesselate a liquid on a background
+# section-compile task before the block atlas is uploaded, which crashes the client. It is a
+# vanilla/Forge ordering bug (see the atlas-race issue), not something the tests or grug cause, and
+# the signature is specific enough that a retry cannot mask a real failure.
+ATLAS_RACE_MSG="Tried to lookup sprite, but atlas is not initialized"
+MAX_ATTEMPTS=2
 
-# setsid gives the launch its own process group so cleanup can kill Gradle and the game together.
-setsid ./gradlew "${task_prefix}runClient" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
-gradle_pid=$!
+run_once() {
+  : > "$LOG_FILE"
 
-status=timeout
-reached_title=false
-deadline=$((SECONDS + timeout_secs))
-while [ "$SECONDS" -lt "$deadline" ]; do
-  if [ "$reached_title" = false ] && grep -q -F "$BOOT_MSG" "$LOG_FILE"; then
-    echo "==> $LOADER reached the title screen. Waiting for tests to complete..."
-    reached_title=true
+  # Follow the log in the background so we get real-time output in the CI console
+  tail -f "$LOG_FILE" &
+  tail_pid=$!
+
+  # setsid gives the launch its own process group so cleanup can kill Gradle and the game together.
+  setsid ./gradlew "${task_prefix}runClient" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
+  gradle_pid=$!
+
+  status=timeout
+  reached_title=false
+  deadline=$((SECONDS + timeout_secs))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if [ "$reached_title" = false ] && grep -q -F "$BOOT_MSG" "$LOG_FILE"; then
+      echo "==> $LOADER reached the title screen. Waiting for tests to complete..."
+      reached_title=true
+    fi
+
+    if grep -q -F "$SUCCESS_MSG" "$LOG_FILE"; then status=success; break; fi
+    if grep -q "FAIL " "$LOG_FILE"; then status=failed; break; fi
+    if grep -q -E "$crash_re" "$LOG_FILE"; then status=crashed; break; fi
+    if ! kill -0 "$gradle_pid" 2>/dev/null; then status=exited; break; fi
+    sleep 1
+  done
+
+  # Kill tail manually so it doesn't leak into the next steps
+  [ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
+  tail_pid=""
+}
+
+attempt=1
+while true; do
+  run_once
+
+  # Retry once on the atlas race only. The line below is greppable in CI logs, so how often this
+  # fires is measurable.
+  if [ "$status" = crashed ] && grep -q -F "$ATLAS_RACE_MSG" "$LOG_FILE" && [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+    echo "==> $LOADER hit the known Forge atlas race (attempt $attempt/$MAX_ATTEMPTS); retrying once."
+    attempt=$((attempt + 1))
+    continue
   fi
-
-  if grep -q -F "$SUCCESS_MSG" "$LOG_FILE"; then status=success; break; fi
-  if grep -q "FAIL " "$LOG_FILE"; then status=failed; break; fi
-  if grep -q -E "$crash_re" "$LOG_FILE"; then status=crashed; break; fi
-  if ! kill -0 "$gradle_pid" 2>/dev/null; then status=exited; break; fi
-  sleep 1
+  break
 done
-
-# Kill tail manually so it doesn't leak into the next steps
-[ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
-tail_pid=""
 
 case "$status" in
   success)
