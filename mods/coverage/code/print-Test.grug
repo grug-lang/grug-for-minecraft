@@ -4,5 +4,9 @@ export run() {
         print("print")
         print2("print2", 2)
         print3("print3", 2, true)
+        # A long message with no spaces forces the mid-word split branch.
+        print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        # An empty line takes the isEmpty branch.
+        print("")
     }
 }
