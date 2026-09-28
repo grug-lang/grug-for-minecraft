@@ -80,6 +80,25 @@ if [ "$PHASE" = run ]; then
   unzip -q -o "${REPO_ROOT}/test-saves/${SAVE_ZIP}" -d "${REPO_ROOT}/${LOADER_DIR}/run/saves/"
 fi
 
+# Forge's early load window is cosmetic and can only hurt a headless CI run: it creates its GL window
+# from a scheduled task with a hard 10-second deadline, and when it misses that deadline it aborts
+# with "Failed to initialize graphics window" and blocks forever in a TinyFileDialogs message box
+# (there is no desktop), so the game never reaches the title screen. That is the Forge CI flake. The
+# switch lives in the game's config file rather than a system property, and run/ is not committed, so
+# write it here before the game reads it. earlyWindowControl=false makes Forge use its DummyProvider,
+# which just means there is no loading screen.
+if [ "$PHASE" = run ] && grep -q "net.minecraftforge.gradle" "${LOADER_DIR}/build.gradle" 2>/dev/null; then
+  FML_CONFIG="${REPO_ROOT}/${LOADER_DIR}/run/config/fml.toml"
+  mkdir -p "$(dirname "$FML_CONFIG")"
+  if [ -f "$FML_CONFIG" ] && grep -q "^earlyWindowControl" "$FML_CONFIG"; then
+    sed -i 's/^earlyWindowControl.*/earlyWindowControl = false/' "$FML_CONFIG"
+  elif [ -f "$FML_CONFIG" ]; then
+    printf '\n#Disable the cosmetic early load window (CI has no desktop to fall back to).\nearlyWindowControl = false\n' >> "$FML_CONFIG"
+  else
+    printf '#Disable the cosmetic early load window (CI has no desktop to fall back to).\nearlyWindowControl = false\n' > "$FML_CONFIG"
+  fi
+fi
+
 timeout_secs="${GRUG_CI_RUN_TIMEOUT:-120}"
 crash_re='Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to'
 
