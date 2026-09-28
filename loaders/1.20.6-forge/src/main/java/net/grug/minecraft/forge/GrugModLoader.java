@@ -12,6 +12,7 @@ import net.grug.minecraft.forge.resource.GrugPackResources;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -422,13 +423,7 @@ public class GrugModLoader {
                     }
                 }
 
-                while (RUN_TESTS_KEY.consumeClick()) {
-                    startTestRunner(mc, false);
-                }
-
-                while (FORCE_RESOLUTION_KEY.consumeClick()) {
-                    toggleResolution(mc);
-                }
+                handleDevHotkeys(mc);
 
                 if ("true".equals(System.getenv("GRUG_CI"))
                         && !grug$testsRan
@@ -449,15 +444,7 @@ public class GrugModLoader {
                     finishTestRun(mc);
                 }
 
-                // While M is holding the window at the test resolution, keep the cursor's
-                // screenshot-crop coordinates in chat. A test run is excluded because it forces the
-                // same resolution for its own reasons and nobody is aiming a cursor at it.
-                if (grug$resolutionForced && grug$testRunner == null) {
-                    updateCursorPositionReadout(mc);
-                } else {
-                    grug$lastCursorX = Integer.MIN_VALUE;
-                    grug$lastCursorY = Integer.MIN_VALUE;
-                }
+                updateCursorReadout(mc);
 
                 // A captured frame must not depend on where the invisible cursor happens to be: the
                 // game highlights the slot under the mouse and tooltips follow it, so park the
@@ -491,6 +478,26 @@ public class GrugModLoader {
                         }
                     }
                 }
+            }
+        }
+
+        @GrugGenerated("dev-only: R runs tests and M forces the test resolution")
+        private static void handleDevHotkeys(Minecraft mc) {
+            while (RUN_TESTS_KEY.consumeClick()) {
+                startTestRunner(mc, false);
+            }
+            while (FORCE_RESOLUTION_KEY.consumeClick()) {
+                toggleResolution(mc);
+            }
+        }
+
+        @GrugGenerated("dev-only: cursor-coordinate readout while M holds the test resolution")
+        private static void updateCursorReadout(Minecraft mc) {
+            if (grug$resolutionForced && grug$testRunner == null) {
+                updateCursorPositionReadout(mc);
+            } else {
+                grug$lastCursorX = Integer.MIN_VALUE;
+                grug$lastCursorY = Integer.MIN_VALUE;
             }
         }
 
@@ -551,6 +558,7 @@ public class GrugModLoader {
         }
 
         /** M: toggle the window between its current size and the test resolution. */
+        @GrugGenerated("dev-only: M forces the test resolution by hand")
         private static void toggleResolution(Minecraft mc) {
             if (!grug$resolutionForced) {
                 saveAndForceResolution(mc);
@@ -587,6 +595,7 @@ public class GrugModLoader {
          * doesn't record the slot-hover highlight. GLFW cursor coordinates are window pixels with
          * the origin at the top left, and the corner is outside every centered GUI panel.
          */
+        @GrugGenerated("dev-only: cursor parking")
         private static void parkCursor(Minecraft mc) {
             long window = mc.getWindow().getWindow();
             double[] x = new double[1];
@@ -616,6 +625,7 @@ public class GrugModLoader {
          * framebuffer pixels). Only prints when it changed, and only while a screen is open and the
          * window is at the test resolution.
          */
+        @GrugGenerated("dev-only: cursor-coordinate readout")
         private static void updateCursorPositionReadout(Minecraft mc) {
             if (mc.getWindow().getWidth() != GrugScreenshots.WIDTH
                     || mc.getWindow().getHeight() != GrugScreenshots.HEIGHT
