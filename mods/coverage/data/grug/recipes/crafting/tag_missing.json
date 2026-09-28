@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "T"
+  ],
+  "key": {
+    "T": {
+      "tag": "grug:does_not_exist"
+    }
+  },
+  "result": {
+    "id": "grug:coverage_item"
+  }
+}
