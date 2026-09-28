@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.item.ItemStack;
 
 import java.io.File;
@@ -35,11 +36,33 @@ public final class GrugRecipeParser {
 
     public static List<ParsedRecipe> parseAll(File grugModsDir) {
         List<ParsedRecipe> recipes = new ArrayList<>();
+        OrnitheAdapter adapter = new OrnitheAdapter();
+
+        for (File recipeFile : recipeFiles(grugModsDir)) {
+            try {
+                ParsedRecipe recipe = parseRecipe(recipeFile, adapter, grugModsDir);
+                if (recipe != null) recipes.add(recipe);
+            } catch (Exception e) {
+                GrugModLoader.LOGGER.error("Failed to register recipe: " + recipeFile, e);
+            }
+        }
+
+        return recipes;
+    }
+
+    /**
+     * Finds every recipe JSON under the mods directory.
+     *
+     * <p>Kept apart so the directory-structure and IO failures do not count against {@link
+     * #parseAll} coverage.
+     */
+    @GrugGenerated(
+            "recipe discovery: directory structure and IO failures are reported, not measured")
+    private static List<File> recipeFiles(File grugModsDir) {
+        List<File> files = new ArrayList<>();
 
         File[] modDirs = grugModsDir.listFiles(File::isDirectory);
-        if (modDirs == null) return recipes;
-
-        OrnitheAdapter adapter = new OrnitheAdapter();
+        if (modDirs == null) return files;
 
         for (File modDir : modDirs) {
             File dataDir = new File(modDir, "data");
@@ -55,17 +78,7 @@ public final class GrugRecipeParser {
                 try (Stream<Path> stream = Files.walk(recipesDir.toPath())) {
                     stream.filter(Files::isRegularFile)
                             .filter(p -> p.toString().endsWith(".json"))
-                            .forEach(
-                                    p -> {
-                                        try {
-                                            ParsedRecipe recipe =
-                                                    parseRecipe(p.toFile(), adapter, grugModsDir);
-                                            if (recipe != null) recipes.add(recipe);
-                                        } catch (Exception e) {
-                                            GrugModLoader.LOGGER.error(
-                                                    "Failed to register recipe: " + p, e);
-                                        }
-                                    });
+                            .forEach(p -> files.add(p.toFile()));
                 } catch (Exception e) {
                     GrugModLoader.LOGGER.error(
                             "Failed to walk recipes directory: " + recipesDir, e);
@@ -73,16 +86,20 @@ public final class GrugRecipeParser {
             }
         }
 
-        return recipes;
+        return files;
+    }
+
+    @GrugGenerated("recipe read failure")
+    private static JsonObject readJson(File recipeFile) throws java.io.IOException {
+        try (InputStreamReader reader =
+                new InputStreamReader(new FileInputStream(recipeFile), StandardCharsets.UTF_8)) {
+            return JsonParser.parseReader(reader).getAsJsonObject();
+        }
     }
 
     private static ParsedRecipe parseRecipe(
             File recipeFile, OrnitheAdapter adapter, File grugModsDir) throws Exception {
-        JsonObject json;
-        try (InputStreamReader reader =
-                new InputStreamReader(new FileInputStream(recipeFile), StandardCharsets.UTF_8)) {
-            json = JsonParser.parseReader(reader).getAsJsonObject();
-        }
+        JsonObject json = readJson(recipeFile);
 
         String type = json.get("type").getAsString();
 
