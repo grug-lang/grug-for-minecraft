@@ -1,5 +1,5 @@
 # set_block_entity must reject a script that does not exist.
 export run() {
-    Test.expect_error()
+    Test.expect_error("does not exist")
     set_block_entity(e"does_not_exist")
 }

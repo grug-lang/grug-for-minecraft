@@ -1,5 +1,5 @@
 # set_hardness is only legal during a Block's init(), so calling it here must report an error.
 export run() {
-    Test.expect_error()
+    Test.expect_error("set_hardness")
     set_hardness(1)
 }
