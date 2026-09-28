@@ -39,5 +39,12 @@ export run() {
         Test.assert(count_item_in_inventory(chest, diamond, 0) == 4, "Expected 4 diamonds.")
         Test.assert(extract_item_from_inventory(chest, diamond, 0, 2) == 2, "Expected to extract 2.")
         Test.assert(count_item_in_inventory(chest, diamond, 0) == 2, "Expected 2 diamonds left.")
+
+        # Out-of-range slots must be ignored rather than crash.
+        Test.assert(get_item_count_in_slot(chest, 999) == 0, "An out-of-range slot should read as empty.")
+        Test.assert(not get_item_in_slot(chest, 999).has(), "An out-of-range slot should have no item.")
+        Test.assert(take_item_from_slot(chest, 999, 1) == 0, "Taking from an out-of-range slot should remove nothing.")
+        set_item_count_in_slot(chest, 999, 1)
+        set_item_in_slot(chest, 999, diamond, 1)
     }
 }
