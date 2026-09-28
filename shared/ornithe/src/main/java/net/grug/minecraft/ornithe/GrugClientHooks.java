@@ -216,6 +216,7 @@ public class GrugClientHooks {
     /**
      * Puts the window and the GL state back the way this run found them, if this run changed them.
      */
+    @GrugGenerated("test-run window and dither tooling")
     private void finishTestRun() {
         if (resolutionForcedByTestRun) {
             DisplayMode previous = savedDisplayMode;
@@ -254,6 +255,7 @@ public class GrugClientHooks {
     }
 
     /** Switches the window to the resolution screenshot tests are captured at. */
+    @GrugGenerated("test-run window and dither tooling")
     private void applyTestDisplayMode() {
         applyDisplayMode(new DisplayMode(GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
     }
@@ -266,6 +268,7 @@ public class GrugClientHooks {
      * and {@code getDisplayMode()} keeps reporting the mode it was created with (the desktop
      * resolution). {@code Display.getWidth()/getHeight()} report the canvas size here.
      */
+    @GrugGenerated("test-run window and dither tooling")
     private static DisplayMode currentWindowDisplayMode() {
         return new DisplayMode(Display.getWidth(), Display.getHeight());
     }
@@ -278,6 +281,7 @@ public class GrugClientHooks {
      * The top-level Window has to be resized, and the layout then sizes everything below it. The
      * Canvas is deliberately not assumed to be a direct child of a Frame; the launcher may wrap it.
      */
+    @GrugGenerated("test-run window and dither tooling")
     private void applyDisplayMode(DisplayMode mode) {
         try {
             Display.setDisplayMode(mode);
@@ -313,6 +317,7 @@ public class GrugClientHooks {
     }
 
     /** The Window a component lives in, however many containers deep it is. */
+    @GrugGenerated("test-run window and dither tooling")
     private static Window enclosingWindow(Component component) {
         for (Container ancestor = component.getParent();
                 ancestor != null;
