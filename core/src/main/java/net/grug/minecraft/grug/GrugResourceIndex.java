@@ -1,0 +1,155 @@
+package net.grug.minecraft.grug;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+
+/**
+ * The filesystem half of the generated resource pack.
+ *
+ * <p>Lives in {@code net.grug.*} so Java tests can drive it against a scratch directory instead of
+ * a running game; the loaders' {@code ResourcePack} classes are thin adapters over this.
+ */
+public final class GrugResourceIndex {
+    private GrugResourceIndex() {}
+
+    /** The first mod directory that has {@code baseDir/namespace/path}, or null. */
+    public static File findResource(File modsDir, String baseDir, String namespace, String path) {
+        File[] modDirs = modsDir.listFiles(File::isDirectory);
+        if (modDirs == null) return null;
+        for (File modDir : modDirs) {
+            File file = new File(modDir, baseDir + "/" + namespace + "/" + path);
+            if (file.exists()) return file;
+        }
+        return null;
+    }
+
+    /** The first mod directory that has {@code relativePath} directly, or null. */
+    public static File findDirectResource(File modsDir, String relativePath) {
+        File[] modDirs = modsDir.listFiles(File::isDirectory);
+        if (modDirs == null) return null;
+        for (File modDir : modDirs) {
+            File file = new File(modDir, relativePath);
+            if (file.exists()) return file;
+        }
+        return null;
+    }
+
+    /** Every namespace that has an {@code assets/} or {@code data/} directory under any mod. */
+    public static Set<String> findNamespaces(File modsDir) {
+        Set<String> namespaces = new HashSet<>();
+        File[] modDirs = modsDir.listFiles(File::isDirectory);
+        if (modDirs == null) return namespaces;
+        for (File modDir : modDirs) {
+            namespaces.addAll(namesUnder(new File(modDir, "assets")));
+            namespaces.addAll(namesUnder(new File(modDir, "data")));
+        }
+        return namespaces;
+    }
+
+    private static Set<String> namesUnder(File parent) {
+        Set<String> names = new HashSet<>();
+        File[] dirs = parent.listFiles(File::isDirectory);
+        if (dirs != null) {
+            for (File dir : dirs) {
+                names.add(dir.getName());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * The paths, relative to {@code baseDir/namespace}, of every regular file under {@code
+     * baseDir/namespace/path} in any mod.
+     *
+     * @param failures collects a message for a directory that could not be walked, if non-null.
+     */
+    public static List<String> findResources(
+            File modsDir, String baseDir, String namespace, String path, List<String> failures) {
+        List<String> found = new ArrayList<>();
+        File[] modDirs = modsDir.listFiles(File::isDirectory);
+        if (modDirs == null) return found;
+        for (File modDir : modDirs) {
+            File targetDir = new File(modDir, baseDir + "/" + namespace + "/" + path);
+            if (!targetDir.exists() || !targetDir.isDirectory()) continue;
+
+            Path base = new File(modDir, baseDir + "/" + namespace).toPath();
+            try (Stream<Path> stream = Files.walk(targetDir.toPath())) {
+                stream.filter(Files::isRegularFile)
+                        .forEach(p -> found.add(base.relativize(p).toString().replace('\\', '/')));
+            } catch (Exception e) {
+                if (failures != null) {
+                    failures.add("Failed to walk resource directory: " + targetDir);
+                }
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Merges every mod's {@code <langName>.json} (or the lowercased variant) into one legacy {@code
+     * .lang} byte stream, rewriting modern {@code block.}/{@code item.} keys. Returns null when no
+     * mod ships the language.
+     */
+    public static byte[] mergeLang(File modsDir, String langName) {
+        String jsonFileName = langName.toLowerCase() + ".json";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        boolean foundAny = false;
+
+        File[] modDirs = modsDir.listFiles(File::isDirectory);
+        if (modDirs == null) return null;
+
+        for (File modDir : modDirs) {
+            File assetsDir = new File(modDir, "assets");
+            File[] nsDirs = assetsDir.listFiles(File::isDirectory);
+            if (nsDirs == null) continue;
+
+            for (File nsDir : nsDirs) {
+                File jsonFile = new File(nsDir, "lang/" + jsonFileName);
+                if (!jsonFile.exists()) {
+                    jsonFile = new File(nsDir, "lang/" + langName + ".json");
+                }
+                if (!jsonFile.exists()) continue;
+
+                foundAny = true;
+                try (Reader reader =
+                        new InputStreamReader(
+                                new FileInputStream(jsonFile), StandardCharsets.UTF_8)) {
+                    JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
+                    for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+                        String key = entry.getKey();
+                        String value = entry.getValue().getAsString();
+
+                        if (key.startsWith("block.")) {
+                            key = "tile." + key.substring(6);
+                            if (!key.endsWith(".name")) key += ".name";
+                        } else if (key.startsWith("item.")) {
+                            if (!key.endsWith(".name")) key += ".name";
+                        }
+
+                        out.write((key + "=" + value + "\n").getBytes(StandardCharsets.UTF_8));
+                    }
+                } catch (Exception e) {
+                    // A malformed language file is skipped rather than failing the whole merge.
+                }
+            }
+        }
+
+        return foundAny ? out.toByteArray() : null;
+    }
+}
