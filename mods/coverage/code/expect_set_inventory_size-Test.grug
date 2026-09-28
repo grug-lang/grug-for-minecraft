@@ -1,0 +1,5 @@
+# set_inventory_size is only legal during a Block's init(), so calling it here must report an error.
+export run() {
+    Test.expect_error()
+    set_inventory_size(9)
+}

@@ -1,0 +1,6 @@
+# Test.assert(false, ...) throws a Java exception rather than calling gameFunctionErrorHappened,
+# which is the other kind of abort the runner has to accept for an expected error.
+export run() {
+    Test.expect_error()
+    Test.assert(false, "This assertion is expected to fail.")
+}

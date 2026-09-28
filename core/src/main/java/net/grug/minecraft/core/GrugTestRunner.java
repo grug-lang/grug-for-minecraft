@@ -115,6 +115,20 @@ public class GrugTestRunner {
         }
 
         if (!completed) {
+            if (Grug.testExpectsError) {
+                // The script aborted because a host function errored, which is exactly what the
+                // test asked it to. Drop the queued error rather than reporting it to chat.
+                synchronized (Grug.runtimeErrorQueue) {
+                    Grug.runtimeErrorQueue.clear();
+                }
+                Grug.printQueue.clear();
+                System.out.println("[GRUG CI] PASS " + path + " (expected error)");
+                passedCount++;
+                destroyCurrentEntity();
+                nextTestIndex++;
+                currentTick = 0;
+                return;
+            }
             // The script aborted partway through: either a host function reported a runtime error
             // (Grug.gameFunctionErrorHappened, which is how the graphics functions refuse an
             // unsupported loader or an out-of-bounds crop) or the script itself errored. Either way
@@ -147,6 +161,10 @@ public class GrugTestRunner {
         }
 
         // The test stopped asking for ticks, so it's done.
+        if (Grug.testExpectsError) {
+            fail(path, "Test expected a host function error, but it completed without one.");
+            return;
+        }
         System.out.println("[GRUG CI] PASS " + path);
 
         synchronized (Grug.printQueue) {
@@ -187,6 +205,7 @@ public class GrugTestRunner {
         }
 
         currentTick = 0;
+        Grug.testExpectsError = false;
         return true;
     }
 

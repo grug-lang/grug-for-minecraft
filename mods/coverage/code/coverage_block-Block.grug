@@ -1,0 +1,7 @@
+# Covers the success branches of the host functions that are only legal while a Block's init() runs.
+export init() {
+    set_hardness(1)
+    set_material("stone")
+    set_inventory_size(9)
+    set_block_entity(e"grug:foo_block_entity")
+}

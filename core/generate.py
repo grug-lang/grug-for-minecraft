@@ -432,9 +432,21 @@ def generate_generic_java_bridge(functions: List[Dict[str, Any]]) -> str:
 
             if resolved_return:
                 cast_type = java_class_type(resolved_return)
+                # A generic host call can return null after reporting a runtime error (for example
+                # Option.unwrap on an empty Option). Unboxing that null would throw before the grug
+                # VM can see the error, so fall back to a type-appropriate default and let the VM
+                # abort the script.
+                default_value = {
+                    "number": "0.0",
+                    "bool": "false",
+                    "string": '""',
+                    "resource": '""',
+                    "entity": '""',
+                }.get(resolved_return, "0L")
                 lines.append(
-                    f"        return ({cast_type}) GameFunctions.{base_name}({call_args});"
+                    f"        {cast_type} result = ({cast_type}) GameFunctions.{base_name}({call_args});"
                 )
+                lines.append(f"        return result == null ? {default_value} : result;")
             else:
                 lines.append(f"        GameFunctions.{base_name}({call_args});")
 
