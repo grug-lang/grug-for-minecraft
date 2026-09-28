@@ -1,0 +1,14 @@
+# Hot-reloads a BlockEntity script, so Grug.update's BlockEntity entity-linking branch runs, then
+# restores it.
+export run() {
+    if Test.tick() == 0 {
+        Test.not_done()
+    } else if Test.tick() == 1 {
+        Test.toggle_mod_file_comment("examplemod/code/foo_block_entity-BlockEntity.grug")
+        Test.not_done()
+    } else if Test.tick() < 20 {
+        Test.not_done()
+    } else {
+        Test.toggle_mod_file_comment("examplemod/code/foo_block_entity-BlockEntity.grug")
+    }
+}
