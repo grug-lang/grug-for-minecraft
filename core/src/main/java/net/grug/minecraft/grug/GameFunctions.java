@@ -61,6 +61,30 @@ public class GameFunctions {
         }
     }
 
+    /**
+     * Adds or removes a trailing newline on a mod file. Unlike the comment marker this keeps a JSON
+     * file valid, so it can drive the recipe hot-reload path.
+     */
+    public static void Test_toggle_mod_file_newline(String relativePath) {
+        java.io.File file =
+                new java.io.File(GrugCore.getAdapter().getGrugModsDirectory(), relativePath);
+        try {
+            String content =
+                    new String(
+                            java.nio.file.Files.readAllBytes(file.toPath()),
+                            java.nio.charset.StandardCharsets.UTF_8);
+            if (content.endsWith("\n")) {
+                content = content.substring(0, content.length() - 1);
+            } else {
+                content = content + "\n";
+            }
+            java.nio.file.Files.write(
+                    file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            Grug.gameFunctionErrorHappened(Grug.statePtr, "Test.toggle_mod_file_newline: " + e);
+        }
+    }
+
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());

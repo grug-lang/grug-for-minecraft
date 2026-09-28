@@ -248,6 +248,17 @@
 						}
 					]
 				},
+				"toggle_mod_file_newline": {
+					"description": "Adds or removes a trailing newline on a mod file, keeping JSON valid so it can drive the recipe hot-reload path.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"get_origin": {
 					"description": "Gets the origin coordinates for running isolated tests.",
 					"return_type": {
