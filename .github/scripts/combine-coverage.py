@@ -52,6 +52,7 @@ EXCLUDED_CLASSES = {
     "TitleScreenMixin",
     "ResourcePackManagerMixin",
     "GrugMixin",
+    "LiquidBlockRendererMixin",
     "ServerGrugModLoader",
     "GrugRecipeHelper",
     "GrugResourcePack",
