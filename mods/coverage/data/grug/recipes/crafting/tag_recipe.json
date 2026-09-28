@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["X"],
+  "key": {
+    "X": { "tag": "grug:coverage_tag" }
+  },
+  "result": { "id": "minecraft:stick", "count": 1 }
+}

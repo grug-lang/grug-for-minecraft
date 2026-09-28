@@ -1,5 +1,6 @@
-# Drives the adapter's odd branches: an empty-slot damage read, a count/extract that never matches,
-# consuming a crafting ingredient, and taking from a vanilla (non-grug) block entity.
+# Drives the adapter's odd branches: an empty-slot damage read, a count/extract that never matches
+# (wrong item and wrong damage), consuming a crafting ingredient, taking from a vanilla (non-grug)
+# block entity, and dropping a non-empty inventory.
 export run() {
     if Test.tick() == 0 {
         level: Level = Test.get_client_level()
@@ -18,10 +19,13 @@ export run() {
         diamond: Item = item(resource_location("minecraft:diamond"))
         iron: Item = item(resource_location("minecraft:iron_ingot"))
 
-        # A diamond does not match an iron ingot, so nothing is counted or extracted.
         set_item_in_slot(chest, 0, diamond, 2)
+
+        # A diamond does not match an iron ingot, and a damage of 5 does not match the diamond's 0.
         Test.assert(count_item_in_inventory(chest, iron, 0) == 0, "no iron should be counted.")
+        Test.assert(count_item_in_inventory(chest, diamond, 5) == 0, "wrong damage should miss.")
         Test.assert(extract_item_from_inventory(chest, iron, 0, 5) == 0, "no iron to extract.")
+        Test.assert(extract_item_from_inventory(chest, diamond, 5, 5) == 0, "wrong damage misses.")
 
         # Consuming one crafting ingredient leaves the rest of the stack.
         consume_crafting_ingredients(chest, 0)
@@ -29,5 +33,10 @@ export run() {
 
         # Taking from a vanilla block entity skips the grug entity hook.
         Test.assert(take_item_from_slot(chest, 0, 1) == 1, "taking from the chest should work.")
+
+        # Dropping a non-empty inventory takes the stacked-items path.
+        set_item_in_slot(chest, 0, diamond, 3)
+        drop_inventory(level, x, origin.y(), origin.z())
+        Test.assert(get_item_count_in_slot(chest, 0) == 0, "the drop should empty the chest.")
     }
 }

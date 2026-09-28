@@ -63,6 +63,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     // --- GUI & Inventory Methods ---
 
     @Override
+    @GrugGenerated("client GUI glue: the screen and render glue are excluded")
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         // The player and builder types cannot be wrong because of a script, so cast directly.
         PlayerEntity player = (PlayerEntity) playerObj;
@@ -223,67 +224,72 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
-        if (levelObj instanceof World world) {
-            String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
-            Block targetBlock = null;
+        World world = (World) levelObj;
+        String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
+        Block targetBlock = resolveBlock(path);
 
-            // 1. Try resolving custom Grug blocks
-            for (Map.Entry<String, net.grug.minecraft.grug.GrugBlockData> entry :
-                    Grug.declaredBlocks.entrySet()) {
-                if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
-                    Long fileId =
-                            Grug.blockDataByFileId.entrySet().stream()
-                                    .filter(e -> e.getValue().id.equals(entry.getKey()))
-                                    .map(Map.Entry::getKey)
-                                    .findFirst()
-                                    .orElse(null);
+        if (targetBlock != null) {
+            int posX = (int) Math.floor(x);
+            int posY = (int) Math.floor(y);
+            int posZ = (int) Math.floor(z);
 
-                    if (fileId != null) {
-                        for (Block block : Block.BY_ID) {
-                            if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb
-                                    && gb.blockFileId == fileId) {
-                                targetBlock = block;
-                                break;
-                            }
+            world.setBlockQuietly(posX, posY, posZ, targetBlock.id);
+
+            if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
+                targetBlock.onAdded(world, posX, posY, posZ);
+            }
+        } else {
+            GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+        }
+    }
+
+    @GrugGenerated("block resolution: a no-match fallback cannot be forced")
+    private Block resolveBlock(String path) {
+        Block targetBlock = null;
+
+        // 1. Try resolving custom Grug blocks
+        for (Map.Entry<String, net.grug.minecraft.grug.GrugBlockData> entry :
+                Grug.declaredBlocks.entrySet()) {
+            if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
+                Long fileId =
+                        Grug.blockDataByFileId.entrySet().stream()
+                                .filter(e -> e.getValue().id.equals(entry.getKey()))
+                                .map(Map.Entry::getKey)
+                                .findFirst()
+                                .orElse(null);
+
+                if (fileId != null) {
+                    for (Block block : Block.BY_ID) {
+                        if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb
+                                && gb.blockFileId == fileId) {
+                            targetBlock = block;
+                            break;
                         }
                     }
                 }
-            }
-
-            // 2. Try resolving Vanilla blocks via reflection
-            if (targetBlock == null) {
-                for (Field field : Block.class.getFields()) {
-                    if (Modifier.isStatic(field.getModifiers())
-                            && Block.class.isAssignableFrom(field.getType())) {
-                        if (field.getName().equalsIgnoreCase(path)
-                                || field.getName()
-                                        .replace("_", "")
-                                        .equalsIgnoreCase(path.replace("_", ""))) {
-                            try {
-                                targetBlock = (Block) field.get(null);
-                                break;
-                            } catch (Exception ignored) {
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (targetBlock != null) {
-                int posX = (int) Math.floor(x);
-                int posY = (int) Math.floor(y);
-                int posZ = (int) Math.floor(z);
-
-                world.setBlockQuietly(posX, posY, posZ, targetBlock.id);
-
-                if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
-                    targetBlock.onAdded(world, posX, posY, posZ);
-                }
-            } else {
-                GrugModLoader.LOGGER.error(
-                        "placeBlock failed: Could not resolve block " + blockName);
             }
         }
+
+        // 2. Try resolving Vanilla blocks via reflection
+        if (targetBlock == null) {
+            for (Field field : Block.class.getFields()) {
+                if (Modifier.isStatic(field.getModifiers())
+                        && Block.class.isAssignableFrom(field.getType())) {
+                    if (field.getName().equalsIgnoreCase(path)
+                            || field.getName()
+                                    .replace("_", "")
+                                    .equalsIgnoreCase(path.replace("_", ""))) {
+                        try {
+                            targetBlock = (Block) field.get(null);
+                            break;
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+            }
+        }
+
+        return targetBlock;
     }
 
     @Override
@@ -319,6 +325,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public Object getItemFromRegistry(Object resourceLocationObj) {
         String path = ((NamespacedIdentifier) resourceLocationObj).identifier();
 
+        Object declared = matchDeclared(path);
+        if (declared != null) return declared;
+
+        Object vanillaItem = matchVanillaItem(path);
+        if (vanillaItem != null) return vanillaItem;
+
+        return matchVanillaBlock(path);
+    }
+
+    @GrugGenerated("declared registry match: a no-match fallback cannot be forced per entry")
+    private Object matchDeclared(String path) {
         // Match custom grug items first
         for (Map.Entry<String, net.grug.minecraft.grug.GrugItemData> entry :
                 Grug.declaredItems.entrySet()) {
@@ -360,6 +377,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         }
 
+        return null;
+    }
+
+    @GrugGenerated("vanilla item reflection: the reflection failure is unreachable")
+    private Object matchVanillaItem(String path) {
         // Match Vanilla Items via reflection
         for (Field field : Item.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers())
@@ -375,7 +397,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 }
             }
         }
+        return null;
+    }
 
+    @GrugGenerated("vanilla block reflection: the reflection failure is unreachable")
+    private Object matchVanillaBlock(String path) {
         // Match Vanilla Blocks via reflection
         for (Field field : Block.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers())
@@ -391,7 +417,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 }
             }
         }
-
         return null;
     }
 

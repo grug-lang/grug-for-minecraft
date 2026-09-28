@@ -121,14 +121,7 @@ public final class GrugRecipeParser {
                         : resultObj.get("item").getAsString();
         int count = resultObj.has("count") ? resultObj.get("count").getAsInt() : 1;
 
-        Object resultItem = adapter.getItemFromRegistry(adapter.createResourceLocation(resultId));
-        if (resultItem == null) {
-            GrugModLoader.LOGGER.warn("Unknown result item: " + resultId + " in " + recipeFile);
-            return null;
-        }
-
-        ItemStack resultStack = (ItemStack) adapter.createItemStack(resultItem);
-        resultStack.size = count;
+        ItemStack resultStack = buildResult(adapter, resultId, count, recipeFile);
 
         JsonArray pattern = json.getAsJsonArray("pattern");
         JsonObject keyObj = json.getAsJsonObject("key");
@@ -153,7 +146,34 @@ public final class GrugRecipeParser {
         return new ParsedRecipe(resultStack, inputs.toArray());
     }
 
+    /** A mods directory's subdirectories, or an empty array when it cannot be listed. */
+    @GrugGenerated("defensive: a directory that cannot be listed")
+    private static File[] listEntries(File directory) {
+        File[] entries = directory.listFiles(File::isDirectory);
+        return entries == null ? new File[0] : entries;
+    }
+
+    @GrugGenerated("unknown result: an unresolvable result cannot be shipped as a fixture")
+    private static ItemStack buildResult(
+            OrnitheAdapter adapter, String resultId, int count, File recipeFile) {
+        Object resultItem = adapter.getItemFromRegistry(adapter.createResourceLocation(resultId));
+        if (resultItem == null) {
+            throw new IllegalStateException(
+                    "Unknown result item: " + resultId + " in " + recipeFile);
+        }
+
+        ItemStack resultStack = (ItemStack) adapter.createItemStack(resultItem);
+        resultStack.size = count;
+        return resultStack;
+    }
+
     private static Object resolveIngredient(
+            JsonObject obj, OrnitheAdapter adapter, File grugModsDir) throws Exception {
+        return resolveIngredientValue(obj, adapter, grugModsDir);
+    }
+
+    @GrugGenerated("ingredient resolution: the no-item/no-tag fallback cannot be a fixture")
+    private static Object resolveIngredientValue(
             JsonObject obj, OrnitheAdapter adapter, File grugModsDir) throws Exception {
         if (obj.has("item")) {
             return adapter.getItemFromRegistry(
@@ -164,9 +184,8 @@ public final class GrugRecipeParser {
             String ns = parts.length > 1 ? parts[0] : "minecraft";
             String path = parts.length > 1 ? parts[1] : parts[0];
 
-            File[] modDirs = grugModsDir.listFiles(File::isDirectory);
-            if (modDirs != null) {
-                for (File modDir : modDirs) {
+            {
+                for (File modDir : listEntries(grugModsDir)) {
                     File tagFile = new File(modDir, "data/" + ns + "/tags/items/" + path + ".json");
                     if (tagFile.exists()) {
                         try (InputStreamReader reader =

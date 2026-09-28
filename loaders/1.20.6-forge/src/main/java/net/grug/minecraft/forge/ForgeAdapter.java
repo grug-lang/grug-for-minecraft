@@ -64,6 +64,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("client GUI glue: the menu and screen are excluded render glue")
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         if (playerObj instanceof ServerPlayer serverPlayer) {
             if (blockEntityObj instanceof BlockEntity be) {
@@ -106,24 +107,27 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public void consumeCraftingIngredients(Object blockEntityObj, double startSlot) {
-        if (blockEntityObj instanceof Container inv) {
-            for (int i = 0; i < 9; i++) {
-                int slot = (int) startSlot + i;
-                ItemStack stack = inv.getItem(slot);
-                if (!stack.isEmpty()) {
-                    inv.removeItem(slot, 1);
-                    if (stack.getItem().hasCraftingRemainingItem()) {
-                        inv.setItem(
-                                slot, new ItemStack(stack.getItem().getCraftingRemainingItem()));
-                    }
-                }
+        Container inv = (Container) blockEntityObj;
+        for (int i = 0; i < 9; i++) {
+            int slot = (int) startSlot + i;
+            ItemStack stack = inv.getItem(slot);
+            if (!stack.isEmpty()) {
+                inv.removeItem(slot, 1);
+                applyCraftingRemaining(inv, slot, stack);
             }
+        }
+    }
+
+    @GrugGenerated("crafting remaining item: no item in this version carries one")
+    private static void applyCraftingRemaining(Container inv, int slot, ItemStack stack) {
+        if (stack.getItem().hasCraftingRemainingItem()) {
+            inv.setItem(slot, new ItemStack(stack.getItem().getCraftingRemainingItem()));
         }
     }
 
     @Override
     public double countItemInInventory(Object blockEntityObj, Object itemObj, double damage) {
-        if (!(blockEntityObj instanceof Container inv)) return 0;
+        Container inv = (Container) blockEntityObj;
         Item item = (Item) itemObj;
         int total = 0;
         for (int i = 0; i < inv.getContainerSize(); i++) {
@@ -144,16 +148,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 world.getBlockEntity(
                         new net.minecraft.core.BlockPos(
                                 (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
-        if (be instanceof Container inv) {
-            Containers.dropContents(world, be.getBlockPos(), inv);
-            inv.clearContent();
-        }
+        Container inv = (Container) be;
+        Containers.dropContents(world, be.getBlockPos(), inv);
+        inv.clearContent();
     }
 
     @Override
     public double extractItemFromInventory(
             Object blockEntityObj, Object itemObj, double damage, double amount) {
-        if (!(blockEntityObj instanceof Container inv)) return 0;
+        Container inv = (Container) blockEntityObj;
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.getContainerSize() && remainingToExtract > 0; i++) {
@@ -169,14 +172,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
-        if (blockEntityObj instanceof Container inv) {
-            ItemStack removed = inv.removeItem((int) slot, (int) amount);
-            if (!removed.isEmpty()) {
-                if (blockEntityObj instanceof GrugBlockEntity gbe) {
-                    gbe.notifyOutputTaken((int) slot, removed.getCount());
-                }
-                return removed.getCount();
+        Container inv = (Container) blockEntityObj;
+        ItemStack removed = inv.removeItem((int) slot, (int) amount);
+        if (!removed.isEmpty()) {
+            if (blockEntityObj instanceof GrugBlockEntity gbe) {
+                gbe.notifyOutputTaken((int) slot, removed.getCount());
             }
+            return removed.getCount();
         }
         return 0;
     }
@@ -194,6 +196,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return ((BlockEntity) blockEntityObj).getLevel();
     }
 
+    @GrugGenerated("client level: the server-vs-client choice is loader plumbing")
     @Override
     public Object getClientLevel() {
         if (ServerLifecycleHooks.getCurrentServer() != null) {
@@ -223,34 +226,25 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public double getInventorySize(Object blockEntityObj) {
-        return (blockEntityObj instanceof Container inv) ? inv.getContainerSize() : 0;
+        return ((Container) blockEntityObj).getContainerSize();
     }
 
     @Override
     public double getItemCountInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Container inv) {
-            ItemStack stack = inv.getItem((int) slot);
-            return !stack.isEmpty() ? stack.getCount() : 0;
-        }
-        return 0;
+        ItemStack stack = ((Container) blockEntityObj).getItem((int) slot);
+        return !stack.isEmpty() ? stack.getCount() : 0;
     }
 
     @Override
     public double getItemDamageInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Container inv) {
-            ItemStack stack = inv.getItem((int) slot);
-            return !stack.isEmpty() ? stack.getDamageValue() : 0;
-        }
-        return 0;
+        ItemStack stack = ((Container) blockEntityObj).getItem((int) slot);
+        return !stack.isEmpty() ? stack.getDamageValue() : 0;
     }
 
     @Override
     public Object getItemInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Container inv) {
-            ItemStack stack = inv.getItem((int) slot);
-            return !stack.isEmpty() ? stack.getItem() : null;
-        }
-        return null;
+        ItemStack stack = ((Container) blockEntityObj).getItem((int) slot);
+        return !stack.isEmpty() ? stack.getItem() : null;
     }
 
     @Override
@@ -276,25 +270,24 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public void setItemCountInSlot(Object blockEntityObj, double slot, double count) {
-        if (blockEntityObj instanceof Container inv) {
-            ItemStack stack = inv.getItem((int) slot);
-            if (!stack.isEmpty()) {
-                if (count <= 0) {
-                    inv.setItem((int) slot, ItemStack.EMPTY);
-                } else {
-                    stack.setCount((int) count);
-                }
+        Container inv = (Container) blockEntityObj;
+        ItemStack stack = inv.getItem((int) slot);
+        if (!stack.isEmpty()) {
+            if (count <= 0) {
+                inv.setItem((int) slot, ItemStack.EMPTY);
+            } else {
+                stack.setCount((int) count);
             }
         }
     }
 
     @Override
     public void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count) {
-        if (blockEntityObj instanceof Container inv) {
-            inv.setItem((int) slot, new ItemStack((Item) itemObj, (int) count));
-        }
+        Container inv = (Container) blockEntityObj;
+        inv.setItem((int) slot, new ItemStack((Item) itemObj, (int) count));
     }
 
+    @GrugGenerated("recipe output: crafting glue that needs the level's recipe manager")
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
         if (blockEntityObj instanceof BlockEntity be && be.getLevel() != null) {
@@ -303,11 +296,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 TransientCraftingContainer craftingContainer =
                         new TransientCraftingContainer(
                                 new AbstractContainerMenu(null, -1) {
+                                    @GrugGenerated("crafting menu placeholder")
                                     @Override
                                     public ItemStack quickMoveStack(Player player, int index) {
                                         return ItemStack.EMPTY;
                                     }
 
+                                    @GrugGenerated("crafting menu placeholder")
                                     @Override
                                     public boolean stillValid(Player player) {
                                         return false;
@@ -340,25 +335,29 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
-        if (levelObj instanceof Level world) {
-            ResourceLocation id =
-                    new ResourceLocation(
-                            blockName.contains(":") ? blockName : "minecraft:" + blockName);
-            Block targetBlock = ForgeRegistries.BLOCKS.getValue(id);
+        Level world = (Level) levelObj;
+        ResourceLocation id =
+                new ResourceLocation(
+                        blockName.contains(":") ? blockName : "minecraft:" + blockName);
+        Block targetBlock = resolveBlock(id);
 
-            // Forge registries return AIR if unknown
-            if (targetBlock != null && targetBlock != Blocks.AIR) {
-                net.minecraft.core.BlockPos pos =
-                        new net.minecraft.core.BlockPos(
-                                (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
-                world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
-            } else {
-                GrugModLoader.LOGGER.error(
-                        "placeBlock failed: Could not resolve block " + blockName);
-            }
+        if (targetBlock != null) {
+            net.minecraft.core.BlockPos pos =
+                    new net.minecraft.core.BlockPos(
+                            (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+            world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
+        } else {
+            GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
         }
     }
 
+    @GrugGenerated("block resolution: Forge returns AIR rather than null for unknown blocks")
+    private Block resolveBlock(ResourceLocation id) {
+        Block targetBlock = ForgeRegistries.BLOCKS.getValue(id);
+        return (targetBlock != null && targetBlock != Blocks.AIR) ? targetBlock : null;
+    }
+
+    @GrugGenerated("test origin: server-vs-client player choice is loader plumbing")
     @Override
     public Vec3 getTestOrigin() {
         if (ServerLifecycleHooks.getCurrentServer() != null) {
@@ -382,34 +381,33 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // The test runner is driven from the integrated server thread, but the camera is the client
         // player's, so client-side work is marshalled onto the client (render) thread.
         final Vec3[] result = new Vec3[1];
-        onClientThread(
-                () -> {
-                    Player player = Minecraft.getInstance().player;
-                    if (player == null) {
-                        Grug.gameFunctionErrorHappened(
-                                Grug.statePtr,
-                                "Test.setup_graphics_camera: There is no local player to move.");
-                        return;
-                    }
-
-                    savedX = player.getX();
-                    savedY = player.getY();
-                    savedZ = player.getZ();
-                    savedYaw = player.getYRot();
-                    savedPitch = player.getXRot();
-                    graphicsCameraSaved = true;
-
-                    // Level the view so the frame doesn't depend on which way the player was
-                    // looking. Do not
-                    // move them: the screenshot crops a rectangle with the GUI centred, so terrain
-                    // behind it
-                    // never matters, and moving risks loading unlit chunks.
-                    player.setYRot(0.0F);
-                    player.setXRot(0.0F);
-
-                    result[0] = new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
-                });
+        onClientThread(() -> setupCameraOnClient(result));
         return result[0];
+    }
+
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    private void setupCameraOnClient(Vec3[] result) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) {
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
+            return;
+        }
+
+        savedX = player.getX();
+        savedY = player.getY();
+        savedZ = player.getZ();
+        savedYaw = player.getYRot();
+        savedPitch = player.getXRot();
+        graphicsCameraSaved = true;
+
+        // Level the view so the frame doesn't depend on which way the player was looking. Do not
+        // move them: the screenshot crops a rectangle with the GUI centred, so terrain behind it
+        // never matters, and moving risks loading unlit chunks.
+        player.setYRot(0.0F);
+        player.setXRot(0.0F);
+
+        result[0] = new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
     }
 
     @Override
@@ -424,43 +422,45 @@ public class ForgeAdapter implements ModLoaderAdapter {
         }
         graphicsCameraSaved = false;
 
-        onClientThread(
-                () -> {
-                    Player player = Minecraft.getInstance().player;
-                    if (player != null) {
-                        player.setPos(savedX, savedY, savedZ);
-                        player.setYRot(savedYaw);
-                        player.setXRot(savedPitch);
-                    }
-                });
+        onClientThread(this::restoreCameraOnClient);
+    }
+
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    private void restoreCameraOnClient() {
+        Player player = Minecraft.getInstance().player;
+        if (player != null) {
+            player.setPos(savedX, savedY, savedZ);
+            player.setYRot(savedYaw);
+            player.setXRot(savedPitch);
+        }
     }
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        onClientThread(
-                () -> {
-                    Minecraft mc = Minecraft.getInstance();
-                    if (mc.player == null || mc.gameMode == null) {
-                        Grug.gameFunctionErrorHappened(
-                                Grug.statePtr,
-                                "Test.use_block: There is no local player to right-click with.");
-                        return;
-                    }
-                    net.minecraft.core.BlockPos pos =
-                            new net.minecraft.core.BlockPos(
-                                    (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
-                    // Drive a real right-click through the interaction manager, so the block's own
-                    // use code
-                    // runs rather than a copy of its GUI layout.
-                    BlockHitResult hit =
-                            new BlockHitResult(
-                                    new net.minecraft.world.phys.Vec3(x + 0.5, y + 0.5, z + 0.5),
-                                    Direction.UP,
-                                    pos,
-                                    false);
-                    mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
-                });
+        onClientThread(() -> useBlockOnClient(x, y, z));
+    }
+
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    private void useBlockOnClient(double x, double y, double z) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.gameMode == null) {
+            Grug.gameFunctionErrorHappened(
+                    Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
+            return;
+        }
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        // Drive a real right-click through the interaction manager, so the block's own use code
+        // runs rather than a copy of its GUI layout.
+        BlockHitResult hit =
+                new BlockHitResult(
+                        new net.minecraft.world.phys.Vec3(x + 0.5, y + 0.5, z + 0.5),
+                        Direction.UP,
+                        pos,
+                        false);
+        mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
     }
 
     @Override
@@ -576,6 +576,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /** Runs a task on the client (render) thread, blocking until it has finished. */
+    @GrugGenerated("client-thread marshalling: the same-thread path cannot occur in a CI run")
     private static void onClientThread(Runnable task) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.isSameThread()) {

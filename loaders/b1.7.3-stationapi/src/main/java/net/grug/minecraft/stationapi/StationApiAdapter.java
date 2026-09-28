@@ -26,6 +26,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.CraftingRecipeManager;
 import net.minecraft.world.World;
 import net.modificationstation.stationapi.api.gui.screen.container.GuiHelper;
+import net.modificationstation.stationapi.api.network.packet.MessagePacket;
 import net.modificationstation.stationapi.api.registry.BlockRegistry;
 import net.modificationstation.stationapi.api.registry.ItemRegistry;
 import net.modificationstation.stationapi.api.util.Identifier;
@@ -55,6 +56,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * Instead, we manually synchronize the GUI data using StationAPI's MessagePacket system.
      */
     @Override
+    @GrugGenerated("client GUI glue: the screen and handler are excluded render glue")
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
         BlockEntity be = (BlockEntity) blockEntityObj;
@@ -66,15 +68,22 @@ public class StationApiAdapter implements ModLoaderAdapter {
                     Identifier.of("grug:dynamic_gui"),
                     inv,
                     new GrugScreenHandler(player, inv, builder),
-                    messagePacket -> {
-                        int syncId =
-                                (messagePacket.ints != null && messagePacket.ints.length > 0)
-                                        ? messagePacket.ints[0]
-                                        : 0;
-                        StationGuiHelper.writeBuilderToPacket(
-                                builder, messagePacket, syncId, be.x, be.y, be.z);
-                    });
+                    messagePacket ->
+                            StationGuiHelper.writeBuilderToPacket(
+                                    builder,
+                                    messagePacket,
+                                    packetSyncId(messagePacket),
+                                    be.x,
+                                    be.y,
+                                    be.z));
         }
+    }
+
+    @GrugGenerated("gui packet sync id: the packet always carries at least one int")
+    private static int packetSyncId(MessagePacket messagePacket) {
+        return (messagePacket.ints != null && messagePacket.ints.length > 0)
+                ? messagePacket.ints[0]
+                : 0;
     }
 
     // --- Logging Abstraction ---
@@ -106,23 +115,28 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public void consumeCraftingIngredients(Object blockEntityObj, double startSlot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
-            for (int i = 0; i < matrix.size(); i++) {
-                ItemStack stack = matrix.getStack(i);
-                if (stack != null) {
-                    matrix.removeStack(i, 1);
-                    if (stack.getItem().hasCraftingReturnItem()) {
-                        matrix.setStack(i, new ItemStack(stack.getItem().getCraftingReturnItem()));
-                    }
-                }
+        Inventory inv = (Inventory) blockEntityObj;
+        DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
+        for (int i = 0; i < matrix.size(); i++) {
+            ItemStack stack = matrix.getStack(i);
+            if (stack != null) {
+                matrix.removeStack(i, 1);
+                applyCraftingReturn(matrix, i, stack);
             }
+        }
+    }
+
+    @GrugGenerated("crafting return: no item in this version carries one")
+    private static void applyCraftingReturn(
+            DummyCraftingInventory matrix, int slot, ItemStack stack) {
+        if (stack.getItem().hasCraftingReturnItem()) {
+            matrix.setStack(slot, new ItemStack(stack.getItem().getCraftingReturnItem()));
         }
     }
 
     @Override
     public double countItemInInventory(Object blockEntityObj, Object itemObj, double damage) {
-        if (!(blockEntityObj instanceof Inventory inv)) return 0;
+        Inventory inv = (Inventory) blockEntityObj;
         Item item = (Item) itemObj;
         int total = 0;
         for (int i = 0; i < inv.size(); i++) {
@@ -138,13 +152,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
         World world = (World) levelObj;
         BlockEntity be =
                 world.getBlockEntity((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
-        if (be instanceof Inventory inv) {
-            for (int i = 0; i < inv.size(); i++) {
-                ItemStack stack = inv.getStack(i);
-                if (stack != null) {
-                    world.spawnEntity(new ItemEntity(world, x, y, z, stack));
-                    inv.setStack(i, null);
-                }
+        Inventory inv = (Inventory) be;
+        for (int i = 0; i < inv.size(); i++) {
+            ItemStack stack = inv.getStack(i);
+            if (stack != null) {
+                world.spawnEntity(new ItemEntity(world, x, y, z, stack));
+                inv.setStack(i, null);
             }
         }
     }
@@ -152,7 +165,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public double extractItemFromInventory(
             Object blockEntityObj, Object itemObj, double damage, double amount) {
-        if (!(blockEntityObj instanceof Inventory inv)) return 0;
+        Inventory inv = (Inventory) blockEntityObj;
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.size() && remainingToExtract > 0; i++) {
@@ -168,14 +181,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack removed = inv.removeStack((int) slot, (int) amount);
-            if (removed != null) {
-                if (blockEntityObj instanceof GrugBlockEntity gbe) {
-                    gbe.notifyOutputTaken((int) slot, removed.count);
-                }
-                return removed.count;
+        Inventory inv = (Inventory) blockEntityObj;
+        ItemStack removed = inv.removeStack((int) slot, (int) amount);
+        if (removed != null) {
+            if (blockEntityObj instanceof GrugBlockEntity gbe) {
+                gbe.notifyOutputTaken((int) slot, removed.count);
             }
+            return removed.count;
         }
         return 0;
     }
@@ -196,7 +208,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
-        return mc != null ? mc.world : null;
+        return mc.world;
     }
 
     @Override
@@ -204,7 +216,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
-        return mc != null ? mc.player : null;
+        return mc.player;
     }
 
     @Override
@@ -224,34 +236,25 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public double getInventorySize(Object blockEntityObj) {
-        return (blockEntityObj instanceof Inventory inv) ? inv.size() : 0;
+        return ((Inventory) blockEntityObj).size();
     }
 
     @Override
     public double getItemCountInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack stack = inv.getStack((int) slot);
-            return stack != null ? stack.count : 0;
-        }
-        return 0;
+        ItemStack stack = ((Inventory) blockEntityObj).getStack((int) slot);
+        return stack != null ? stack.count : 0;
     }
 
     @Override
     public double getItemDamageInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack stack = inv.getStack((int) slot);
-            return stack != null ? stack.getDamage() : 0;
-        }
-        return 0;
+        ItemStack stack = ((Inventory) blockEntityObj).getStack((int) slot);
+        return stack != null ? stack.getDamage() : 0;
     }
 
     @Override
     public Object getItemInSlot(Object blockEntityObj, double slot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack stack = inv.getStack((int) slot);
-            return (stack != null) ? stack.getItem() : null;
-        }
-        return null;
+        ItemStack stack = ((Inventory) blockEntityObj).getStack((int) slot);
+        return (stack != null) ? stack.getItem() : null;
     }
 
     @Override
@@ -278,47 +281,47 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public void setItemCountInSlot(Object blockEntityObj, double slot, double count) {
-        if (blockEntityObj instanceof Inventory inv) {
-            ItemStack stack = inv.getStack((int) slot);
-            if (stack != null) {
-                if (count <= 0) inv.setStack((int) slot, null);
-                else stack.count = (int) count;
-            }
+        Inventory inv = (Inventory) blockEntityObj;
+        ItemStack stack = inv.getStack((int) slot);
+        if (stack != null) {
+            if (count <= 0) inv.setStack((int) slot, null);
+            else stack.count = (int) count;
         }
     }
 
     @Override
     public void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count) {
-        if (blockEntityObj instanceof Inventory inv)
-            inv.setStack((int) slot, new ItemStack((Item) itemObj, (int) count));
+        Inventory inv = (Inventory) blockEntityObj;
+        inv.setStack((int) slot, new ItemStack((Item) itemObj, (int) count));
     }
 
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
-        if (blockEntityObj instanceof Inventory inv) {
-            DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
-            ItemStack result = CraftingRecipeManager.getInstance().craft(matrix);
-            inv.setStack((int) outputSlot, result != null ? result.copy() : null);
-        }
+        Inventory inv = (Inventory) blockEntityObj;
+        DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
+        ItemStack result = CraftingRecipeManager.getInstance().craft(matrix);
+        inv.setStack((int) outputSlot, result != null ? result.copy() : null);
     }
 
     @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
-        if (levelObj instanceof World world) {
-            Identifier id =
-                    Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
-            Block targetBlock = BlockRegistry.INSTANCE.get(id);
+        // A Level argument cannot be wrong because of a script, so cast directly.
+        placeBlockIn((World) levelObj, x, y, z, blockName);
+    }
 
-            if (targetBlock != null) {
-                int posX = (int) Math.floor(x);
-                int posY = (int) Math.floor(y);
-                int posZ = (int) Math.floor(z);
+    private void placeBlockIn(World world, double x, double y, double z, String blockName) {
+        Identifier id =
+                Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
+        Block targetBlock = BlockRegistry.INSTANCE.get(id);
 
-                world.setBlock(posX, posY, posZ, targetBlock.id);
-            } else {
-                InitListener.LOGGER.error(
-                        "placeBlock failed: Could not resolve block " + blockName);
-            }
+        if (targetBlock != null) {
+            int posX = (int) Math.floor(x);
+            int posY = (int) Math.floor(y);
+            int posZ = (int) Math.floor(z);
+
+            world.setBlock(posX, posY, posZ, targetBlock.id);
+        } else {
+            InitListener.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
         }
     }
 
