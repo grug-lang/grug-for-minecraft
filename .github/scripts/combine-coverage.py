@@ -43,6 +43,9 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 # - ServerGrugModLoader only runs on a dedicated server, which CI does not launch.
 # - GrugRecipeHelper is a shim around the package-private CraftingManager.registerShaped; the
 #   parsing it delegates to (GrugRecipeParser) is measured.
+# - Render/resource glue only runs through the loader's own resource and GUI APIs, which a headless
+#   CI cannot drive without a per-loader test harness. The testable logic behind them lives in
+#   net.grug.* helpers (GrugResourceIndex, GrugGuiBuilder) which stay measured.
 EXCLUDED_CLASSES = {
     "GenericGameFunctions",
     "MinecraftMixin",
@@ -51,6 +54,15 @@ EXCLUDED_CLASSES = {
     "GrugMixin",
     "ServerGrugModLoader",
     "GrugRecipeHelper",
+    "GrugResourcePack",
+    "GrugPackResources",
+    "GrugScreen",
+    "GrugMenu",
+    "GrugScreenHandler",
+    "StationGuiHelper",
+    "GrugCraftingInventory",
+    "GrugStaticTexture",
+    "DummyCraftingInventory",
 }
 
 
@@ -58,6 +70,8 @@ def filtered_classes(source: Path, destination: Path) -> Path:
     """Copy source's class files to destination, dropping the excluded classes."""
     if not EXCLUDED_CLASSES:
         return source
+    # Start clean so a class that was copied by an earlier run cannot survive a new exclusion.
+    shutil.rmtree(destination, ignore_errors=True)
     for path in source.rglob("*.class"):
         if path.stem.split("$", 1)[0] in EXCLUDED_CLASSES:
             continue
