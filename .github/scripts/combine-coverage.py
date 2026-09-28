@@ -9,8 +9,8 @@ The core job and every loader matrix leg upload:
 A single combined JaCoCo report is not possible, because different loaders compile different classes
 with the same fully-qualified names (net.grug.minecraft.ornithe.OrnitheAdapter exists in both Ornithe
 loaders, with different bytecode), and JaCoCo refuses to analyse two different classes with the same
-name. So we generate one report per runner, and then sum their CSVs into one combined CSV that feeds
-the coverage badges.
+name. So we generate one report per runner, and then sum their CSVs into one combined CSV that the
+coverage gate reads.
 
 Core is special: every loader run executes core's classes, so core's report unions every runner's
 exec data. Each loader's report only uses its own exec and its own class files. Classes listed in
@@ -166,7 +166,7 @@ def sum_csvs(csv_paths: list[Path], out_path: Path) -> None:
             writer.writerow(totals[key])
 
 
-def print_totals(combined: Path) -> None:
+def print_totals(combined: Path) -> tuple[int, int, int, int]:
     missed = covered = branch_missed = branch_covered = 0
     with combined.open(newline="") as handle:
         for row in csv.DictReader(handle):
@@ -181,6 +181,7 @@ def print_totals(combined: Path) -> None:
 
     print(f"combined instruction coverage: {percent(missed, covered)}")
     print(f"combined branch coverage:      {percent(branch_missed, branch_covered)}")
+    return missed, covered, branch_missed, branch_covered
 
 
 def main() -> int:
@@ -190,6 +191,11 @@ def main() -> int:
     )
     parser.add_argument("--jacoco-cli", required=True, type=Path, help="Path to the JaCoCo CLI jar")
     parser.add_argument("--output", required=True, type=Path, help="Directory to write reports to")
+    parser.add_argument(
+        "--require-100",
+        action="store_true",
+        help="Exit non-zero unless instruction and branch coverage are both 100%%.",
+    )
     args = parser.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -222,7 +228,17 @@ def main() -> int:
 
     combined = args.output / "combined.csv"
     sum_csvs(csv_paths, combined)
-    print_totals(combined)
+    missed, _covered, branch_missed, _branch_covered = print_totals(combined)
+    if args.require_100 and (missed or branch_missed):
+        print(
+            "error: coverage is not 100% ("
+            + str(missed)
+            + " instructions and "
+            + str(branch_missed)
+            + " branches missed)",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
