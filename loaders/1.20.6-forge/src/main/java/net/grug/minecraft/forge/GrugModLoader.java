@@ -12,6 +12,7 @@ import net.grug.minecraft.forge.resource.GrugPackResources;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugScreenshots;
@@ -243,31 +244,16 @@ public class GrugModLoader {
 
         FileInfo[] files = Grug.compileAllFiles();
 
-        for (FileInfo file : files) {
-            if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
-                throw new RuntimeException(
-                        "Failed to compile " + file.path() + ":\n" + file.errorString());
-            }
-
-            String[] pathParts = file.path().replace('\\', '/').split("/");
-            if (pathParts.length < 2 || !pathParts[1].equals("code")) {
-                throw new RuntimeException(
-                        "Grug file misplaced! '" + file.path() + "' must be inside 'code/'.");
-            }
-
+        for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
+            FileInfo file = entry.file();
             Grug.fileIds.put(file.path(), file.fileId());
 
-            String cleanName =
-                    file.entityName().contains("-")
-                            ? file.entityName().split("-")[0]
-                            : file.entityName();
-
-            if ("Block".equals(file.entityType())) {
-                blockFiles.put(cleanName, file.fileId());
-            } else if ("BlockEntity".equals(file.entityType())) {
-                Grug.entityFileIdsByName.put(cleanName, file.fileId());
-            } else if ("Item".equals(file.entityType())) {
-                itemFiles.put(cleanName, file.fileId());
+            switch (entry.entityType()) {
+                case "Block" -> blockFiles.put(entry.cleanName(), file.fileId());
+                case "BlockEntity" ->
+                        Grug.entityFileIdsByName.put(entry.cleanName(), file.fileId());
+                case "Item" -> itemFiles.put(entry.cleanName(), file.fileId());
+                default -> {}
             }
         }
 
