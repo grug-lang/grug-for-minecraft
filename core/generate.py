@@ -297,6 +297,9 @@ def generate_java_exports(exports: List[Dict[str, Any]]) -> str:
         "package net.grug.minecraft.grug;",
         "",
         "public class ExportFns {",
+        "",
+        '    @GrugGenerated("utility class: never instantiated")',
+        "    private ExportFns() {}",
     ]
     for exp in exports:
         entity_type = exp["entity_type"]

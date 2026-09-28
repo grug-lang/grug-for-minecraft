@@ -239,4 +239,20 @@ class GrugResourceIndexTest {
         assertTrue(merged.contains("tile.grug.foo.name=Foo"), merged);
         assertTrue(merged.contains("item.grug.bar.name=Bar"), merged);
     }
+
+    @Test
+    void findNamespacesReturnsEmptyForANonDirectory() {
+        assertTrue(GrugResourceIndex.findNamespaces(new File(mods.toFile(), "missing")).isEmpty());
+    }
+
+    @Test
+    void mergeLangSkipsALangDirectoryWithoutTheLanguage() throws IOException {
+        Files.createDirectories(mods.resolve("mymod/assets/grug/lang"));
+        write("zzmod/assets/grug/lang/en_us.json", "{\"key\": \"Value\"}");
+        String merged =
+                new String(
+                        GrugResourceIndex.mergeLang(mods.toFile(), "en_us"),
+                        StandardCharsets.UTF_8);
+        assertTrue(merged.contains("key=Value"), merged);
+    }
 }

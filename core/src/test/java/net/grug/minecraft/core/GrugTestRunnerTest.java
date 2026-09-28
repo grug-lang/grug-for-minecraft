@@ -19,6 +19,7 @@ class GrugTestRunnerTest {
         long exportFnId = 1;
         boolean completed = true;
         RuntimeException throwOnCall;
+        RuntimeException throwOnCreate;
         Runnable onCall;
         int created;
         int destroyed;
@@ -26,6 +27,7 @@ class GrugTestRunnerTest {
         @Override
         public long createEntity(long fileId) {
             created++;
+            if (throwOnCreate != null) throw throwOnCreate;
             return nextHandle++;
         }
 
@@ -62,7 +64,9 @@ class GrugTestRunnerTest {
 
     /** The runner only marks itself finished on the tick after the last test passes. */
     private void runToEnd(GrugTestRunner runner) {
-        for (int i = 0; i < GrugTestRunner.DEFAULT_MAX_TEST_TICKS + 5 && !runner.isFinished(); i++) {
+        for (int i = 0;
+                i < GrugTestRunner.DEFAULT_MAX_TEST_TICKS + 5 && !runner.isFinished();
+                i++) {
             runner.tick(null);
         }
     }
@@ -240,5 +244,50 @@ class GrugTestRunnerTest {
         assertTrue(runner.isFinished());
         assertTrue(ops.created == 2);
         assertTrue(ops.destroyed == 2);
+    }
+
+    @Test
+    void tickIsANoOpAfterTheRunnerFinished() {
+        FakeOps ops = new FakeOps();
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        runToEnd(runner);
+        int destroyedAfterFinish = ops.destroyed;
+
+        runner.tick(null);
+
+        assertTrue(runner.isFinished());
+        assertTrue(ops.destroyed == destroyedAfterFinish);
+    }
+
+    @Test
+    void failsWhenCallingTheRunFunctionThrowsAPlainMessage() {
+        FakeOps ops = new FakeOps();
+        ops.throwOnCall = new IllegalStateException("a plain failure");
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        runToEnd(runner);
+        assertTrue(runner.isFinished());
+        assertTrue(Grug.runtimeErrorQueue.stream().anyMatch(m -> m.equals("a plain failure")));
+    }
+
+    @Test
+    void failsWhenCallingTheRunFunctionThrowsWithoutAMessage() {
+        FakeOps ops = new FakeOps();
+        ops.throwOnCall = new IllegalStateException();
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        runToEnd(runner);
+        assertTrue(runner.isFinished());
+        assertTrue(
+                Grug.runtimeErrorQueue.stream().anyMatch(m -> m.contains("IllegalStateException")));
+    }
+
+    @Test
+    void failsWhenCreatingTheEntityThrowsWithoutAMessage() {
+        FakeOps ops = new FakeOps();
+        ops.throwOnCreate = new IllegalStateException();
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        runToEnd(runner);
+        assertTrue(runner.isFinished());
+        assertTrue(
+                Grug.runtimeErrorQueue.stream().anyMatch(m -> m.contains("IllegalStateException")));
     }
 }

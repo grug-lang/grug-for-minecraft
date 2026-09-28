@@ -1,12 +1,16 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
 
 import java.io.File;
 import java.util.List;
 
 public class GrugCore {
     private static ModLoaderAdapter adapter;
+
+    @GrugGenerated("utility class: never instantiated")
+    private GrugCore() {}
 
     public static void initialize(
             ModLoaderAdapter loaderAdapter, File modApiJson, File grugModsDir) {

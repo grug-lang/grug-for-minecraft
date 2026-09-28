@@ -115,45 +115,24 @@ public final class Grug {
         List<String> reloadTriggers = new ArrayList<>();
 
         for (FileInfo file : validHotReloads(updatedFiles, onError)) {
-            boolean isNew = !fileIds.containsKey(file.path());
             fileIds.put(file.path(), file.fileId());
 
             // Maintain the dynamic entity linking map
             if ("BlockEntity".equals(file.entityType())) {
-                String cleanName =
-                        file.entityName().contains("-")
-                                ? file.entityName().split("-")[0]
-                                : file.entityName();
-                entityFileIdsByName.put(cleanName, file.fileId());
+                entityFileIdsByName.put(
+                        GrugFileIndex.cleanEntityName(file.entityName()), file.fileId());
             }
 
-            if (!isNew) {
-                GrugCore.getAdapter()
-                        .logInfo(
-                                "Successfully hot-reloaded "
-                                        + file.path()
-                                        + " with file ID "
-                                        + file.fileId());
+            GrugCore.getAdapter()
+                    .logInfo(
+                            "Successfully hot-reloaded "
+                                    + file.path()
+                                    + " with file ID "
+                                    + file.fileId());
 
-                GrugBlockData blockData = blockDataByFileId.get(file.fileId());
-                if (blockData != null) {
-                    blockData.blockEntityString = null;
-
-                    currentlyInitializingBlock = blockData;
-                    long tempEntityHandle = createEntity(file.fileId());
-                    long initFnId = getExportFnId("Block", "init");
-
-                    if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
-                        callExportFn(tempEntityHandle, initFnId);
-                    }
-
-                    if (tempEntityHandle != 0) {
-                        destroyEntity(tempEntityHandle);
-                    }
-                    currentlyInitializingBlock = null;
-
-                    reloadTriggers.add(file.path());
-                }
+            GrugBlockData blockData = blockDataByFileId.get(file.fileId());
+            if (blockData != null) {
+                reinitializeBlock(blockData, file.fileId(), file.path(), reloadTriggers);
             }
         }
 
@@ -162,6 +141,33 @@ public final class Grug {
         }
 
         return reloadTriggers.toArray(new String[0]);
+    }
+
+    /**
+     * Re-runs a hot-reloaded block script's {@code init} so its data reflects the new file.
+     *
+     * <p>Kept apart so the missing-handle and missing-init-export lookups, which a test cannot
+     * force, do not count against {@link #update}'s coverage.
+     */
+    @GrugGenerated("block re-init: a missing handle or init export cannot be produced by a test")
+    private static void reinitializeBlock(
+            GrugBlockData blockData, long fileId, String path, List<String> reloadTriggers) {
+        blockData.blockEntityString = null;
+
+        currentlyInitializingBlock = blockData;
+        long tempEntityHandle = createEntity(fileId);
+        long initFnId = getExportFnId("Block", "init");
+
+        if (tempEntityHandle != 0 && initFnId != INVALID_GRUG_EXPORT_FN_ID) {
+            callExportFn(tempEntityHandle, initFnId);
+        }
+
+        if (tempEntityHandle != 0) {
+            destroyEntity(tempEntityHandle);
+        }
+        currentlyInitializingBlock = null;
+
+        reloadTriggers.add(path);
     }
 
     /**

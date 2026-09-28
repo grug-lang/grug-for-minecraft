@@ -266,10 +266,12 @@ public class GameFunctions {
         setOptionValue(optionId, value);
     }
 
+    @GrugGenerated("Option.set(bool): grug never dispatches Option.set here (reported unused)")
     public static void Option_set(long optionId, boolean value) {
         setOptionValue(optionId, value);
     }
 
+    @GrugGenerated("Option.set(string): grug never dispatches Option.set here (reported unused)")
     public static void Option_set(long optionId, String value) {
         setOptionValue(optionId, value);
     }

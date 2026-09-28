@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -65,5 +66,17 @@ class GrugModsExtractorTest {
         GrugModsExtractor.extract(src, target, marker, new ArrayList<>());
 
         assertEquals("existing", Files.readString(target.resolve("a.txt")));
+    }
+
+    @Test
+    void collectsAnErrorWhenAFileCannotBeCopied() throws IOException {
+        Path src = source();
+        Path target = tmp.resolve("target-is-a-file");
+        Files.writeString(target, "not a directory");
+        List<String> errors = new ArrayList<>();
+
+        GrugModsExtractor.extract(src, target, tmp.resolve("marker.txt"), errors);
+
+        assertFalse(errors.isEmpty(), "a failed copy should be reported");
     }
 }

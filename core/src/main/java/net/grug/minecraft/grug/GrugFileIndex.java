@@ -33,6 +33,11 @@ public final class GrugFileIndex {
         }
     }
 
+    /** The entity name with any {@code -suffix} stripped, as the loaders key their registries. */
+    public static String cleanEntityName(String entityName) {
+        return entityName.contains("-") ? entityName.split("-")[0] : entityName;
+    }
+
     /**
      * Classifies every compiled file, rejecting one that failed to compile or that sits outside a
      * {@code code/} directory.
@@ -53,10 +58,7 @@ public final class GrugFileIndex {
                                 + "' must be placed inside a 'code/' directory.");
             }
 
-            String cleanName =
-                    file.entityName().contains("-")
-                            ? file.entityName().split("-")[0]
-                            : file.entityName();
+            String cleanName = cleanEntityName(file.entityName());
             result.add(new Entry(file, cleanName));
         }
         return result;
