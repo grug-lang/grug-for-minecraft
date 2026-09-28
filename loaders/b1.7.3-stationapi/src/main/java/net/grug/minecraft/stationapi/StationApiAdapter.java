@@ -382,9 +382,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        if (!(levelObj instanceof World world)) {
-            return;
-        }
+        World world = (World) levelObj;
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();

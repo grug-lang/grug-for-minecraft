@@ -434,9 +434,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        if (!(levelObj instanceof Level)) {
-            return;
-        }
         onClientThread(
                 () -> {
                     Minecraft mc = Minecraft.getInstance();
