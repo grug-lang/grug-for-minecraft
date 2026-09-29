@@ -19,12 +19,26 @@ export run() {
     Test.assert(get_item_count_in_slot(be, 0) == 64, "The first slot should be full.")
     Test.assert(get_item_count_in_slot(be, 1) == 36, "The second slot should hold the rest.")
 
-    # Filling the rest reports exactly the remaining capacity: 9 * 64 - 100.
+    # Topping up exactly the partial stack's remaining room consumes the whole amount, so the insert
+    # loop exits on remaining == 0 rather than only ever running out of slots.
+    topped: number = insert_item_into_inventory(be, diamond, 0, 28)
+    Test.assert(topped == 28, "The partial stack should take exactly its remaining room.")
+    Test.assert(get_item_count_in_slot(be, 1) == 64, "The second slot should then be full.")
+
+    # Filling the rest reports exactly the remaining capacity: 9 * 64 - 128.
     inserted_rest: number = insert_item_into_inventory(be, diamond, 0, 1000)
-    Test.assert(inserted_rest == 476, "Only the remaining capacity should accept diamonds.")
+    Test.assert(inserted_rest == 448, "Only the remaining capacity should accept diamonds.")
     Test.assert(get_item_count_in_slot(be, 8) == 64, "The last slot should be full.")
 
     # A full inventory takes nothing more.
     inserted_full: number = insert_item_into_inventory(be, diamond, 0, 10)
     Test.assert(inserted_full == 0, "A full inventory should take nothing.")
+
+    # A different item, or the same item at a different damage, is not the stack to top up, so the
+    # adapters' non-matching comparison branches are exercised rather than only the matching path.
+    other: Item = item(resource_location("grug:coverage_item"))
+    Test.assert(insert_item_into_inventory(be, other, 0, 1) == 0, "A different item should not top up.")
+
+    damaged: Item = item(resource_location("minecraft:diamond"))
+    Test.assert(insert_item_into_inventory(be, damaged, 1, 1) == 0, "A different damage should not top up.")
 }
