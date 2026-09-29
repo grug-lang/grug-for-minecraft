@@ -413,8 +413,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public double countItemEntities(
-            Object levelObj, double x, double y, double z, double radius) {
+    public double countItemEntities(Object levelObj, double x, double y, double z, double radius) {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;
         int count = 0;
