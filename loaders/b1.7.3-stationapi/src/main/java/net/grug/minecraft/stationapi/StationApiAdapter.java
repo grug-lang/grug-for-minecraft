@@ -359,6 +359,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
             return "minecraft:air";
         }
 
+        return blockName(id);
+    }
+
+    @GrugGenerated("block names: an out-of-range id and an unregistered block cannot be forced")
+    private String blockName(int id) {
         Block block = (id >= 0 && id < Block.BLOCKS.length) ? Block.BLOCKS[id] : null;
         if (block == null) {
             return "minecraft:unknown";
