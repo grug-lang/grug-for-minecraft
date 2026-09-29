@@ -1,0 +1,15 @@
+# The redstone engine is active while its block position is receiving a redstone signal. The active
+# state is derived from the world, so it is recomputed every tick rather than persisted.
+active: bool = false
+
+# TODO: Change to me.level() and me.block_pos() once entities can have methods
+level: Level = get_block_entity_level(me)
+pos: BlockPos = get_block_pos_of_block_entity(me)
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+export tick() {
+    active = level.has_neighbor_signal(x, y, z)
+}
