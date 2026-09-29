@@ -43,10 +43,20 @@ jobs:
           python3 recreation.py verify "mods/${{ inputs.mod }}/about.json" \
             --output reference-artifact.jar
 
-      - name: Upload the verified artifact
+      # The install layout a reference run wants, so a maintainer can download it and launch the
+      # reference by hand while the automated launch is still open.
+      - name: Stage the install layout
+        run: |
+          python3 recreation.py stage "mods/${{ inputs.mod }}/about.json" \
+            --artifact reference-artifact.jar \
+            --destination reference-staged
+
+      - name: Upload the verified artifact and its staged layout
         uses: actions/upload-artifact@v4
         with:
-          name: reference-artifact-${{ inputs.mod }}
-          path: reference-artifact.jar
+          name: reference-${{ inputs.mod }}
+          path: |
+            reference-artifact.jar
+            reference-staged
           if-no-files-found: error
           retention-days: 7

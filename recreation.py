@@ -113,12 +113,76 @@ def install_plan(recreation: dict) -> str:
     return "\n".join(lines)
 
 
+def stage_install(recreation: dict, artifact_path: Path, destination: Path) -> list:
+    """Writes the install into destination, returning the paths it created.
+
+    Only a mods_folder install is automated. The other types need a loader, a launcher, or a build
+    this script cannot drive, so they are reported rather than half-done.
+    """
+    install = recreation["install"]
+    if install["type"] != "mods_folder":
+        raise ValueError(
+            f"Staging a {install['type']} install is not automated;"
+            " recreation.py plan says what it involves."
+        )
+
+    destination.mkdir(parents=True, exist_ok=True)
+    created = []
+    for name in install["files"]:
+        target = destination / name
+        if not (target.exists() and target.samefile(artifact_path)):
+            shutil.copyfile(artifact_path, target)
+        created.append(target)
+    return created
+
+
+def stage_command(recreation: dict, args) -> int:
+    """Stages an already downloaded artifact, verifying it before it touches the destination."""
+    if args.destination is None:
+        print("FAILED: stage needs --destination.", file=sys.stderr)
+        return 1
+
+    artifact_path = args.artifact if args.artifact is not None else args.output
+    if not artifact_path.is_file():
+        print(
+            f"FAILED: {artifact_path} is not a file. Run verify first, or pass --artifact.",
+            file=sys.stderr,
+        )
+        return 1
+
+    errors = verify_artifact(recreation, artifact_path)
+    if errors:
+        print(f"FAILED: {artifact_path} does not match the pinned artifact:", file=sys.stderr)
+        for error in errors:
+            print(f"  - {error}", file=sys.stderr)
+        return 1
+
+    try:
+        created = stage_install(recreation, artifact_path, args.destination)
+    except ValueError as error:
+        print(f"FAILED: {error}", file=sys.stderr)
+        return 1
+
+    runtime = recreation["runtime"]
+    for path in created:
+        print(f"Staged {path}")
+    print(
+        "Run the reference with GRUG_REFERENCE=1 and GRUG_MODS_DIR pointing at a harness-only"
+        " mods directory, using the loader the runtime names:"
+        f" Minecraft {runtime['minecraft']} with {runtime['loader']} {runtime['loader_version']}."
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=["plan", "verify"],
-        help="plan prints what running the reference involves; verify downloads and hashes it",
+        choices=["plan", "verify", "stage"],
+        help=(
+            "plan prints what running the reference involves; verify downloads and hashes the"
+            " artifact; stage writes the install into --destination"
+        ),
     )
     parser.add_argument("about", type=Path, help="path to a mod's about.json")
     parser.add_argument(
@@ -126,6 +190,16 @@ def main() -> int:
         type=Path,
         default=Path("reference-artifact"),
         help="where verify writes the downloaded artifact",
+    )
+    parser.add_argument(
+        "--artifact",
+        type=Path,
+        help="an already downloaded artifact for stage, verified before it is used",
+    )
+    parser.add_argument(
+        "--destination",
+        type=Path,
+        help="the reference runtime's mods folder for stage",
     )
     args = parser.parse_args()
 
@@ -142,6 +216,9 @@ def main() -> int:
     if artifact is None:
         print(f"FAILED: {args.about} has no artifact to verify.", file=sys.stderr)
         return 1
+
+    if args.command == "stage":
+        return stage_command(recreation, args)
 
     try:
         args.output.parent.mkdir(parents=True, exist_ok=True)

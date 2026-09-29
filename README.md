@@ -46,9 +46,11 @@ The `artifact` tier of that workflow downloads the pinned artifact and checks it
 ```sh
 python3 recreation.py plan mods/buildcraft/about.json
 python3 recreation.py verify mods/buildcraft/about.json --output reference-artifact.jar
+python3 recreation.py stage mods/buildcraft/about.json \
+  --artifact reference-artifact.jar --destination loaders/b1.7.3-stationapi/run/mods
 ```
 
-`recreation.py plan` prints the runtime, the pinned reference, the install, and the capture settings, so a reviewer can see what running the reference would involve without running it.
+`recreation.py plan` prints the runtime, the pinned reference, the install, and the capture settings, so a reviewer can see what running the reference would involve without running it. `stage` writes that install into the reference's mods folder, verifying the artifact first and refusing an install type it cannot automate rather than half-doing it.
 
 ### Running the reference
 

@@ -111,6 +111,24 @@ class RecreationTest(unittest.TestCase):
         )
         self.assertIn('config: {"name": "Reference"}', recreation.install_plan(block))
 
+    def test_stage_mods_folder_copies_the_artifact(self):
+        destination = Path(self.directory.name) / "mods"
+        created = recreation.stage_install(recreation_block(), self.artifact, destination)
+        self.assertEqual([destination / "reference.jar"], created)
+        self.assertEqual(PAYLOAD, (destination / "reference.jar").read_bytes())
+
+    def test_stage_is_idempotent(self):
+        destination = Path(self.directory.name) / "mods"
+        recreation.stage_install(recreation_block(), self.artifact, destination)
+        recreation.stage_install(recreation_block(), self.artifact, destination)
+        self.assertEqual(PAYLOAD, (destination / "reference.jar").read_bytes())
+
+    def test_stage_rejects_an_unautomated_install(self):
+        block = recreation_block(install={"type": "installer", "files": ["setup.exe"]})
+        with self.assertRaises(ValueError) as context:
+            recreation.stage_install(block, self.artifact, Path(self.directory.name) / "staged")
+        self.assertIn("installer", str(context.exception))
+
     def test_every_install_type_in_the_schema_has_a_summary(self):
         # The union lives in the schema, the summaries, and the plan. A type added to the schema
         # without a summary would only fail with a KeyError at plan time, so pin the two together.
