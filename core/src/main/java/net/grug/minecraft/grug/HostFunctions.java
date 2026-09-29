@@ -378,6 +378,11 @@ public class HostFunctions {
         return Grug.addEntity(GrugEntityType.BlockPos, pos);
     }
 
+    public static double get_inventory_size(long blockEntityId) {
+        return GrugCore.getAdapter()
+                .getInventorySize(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+    }
+
     public static double get_item_count_in_slot(long blockEntityId, double slot) {
         return GrugCore.getAdapter()
                 .getItemCountInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
