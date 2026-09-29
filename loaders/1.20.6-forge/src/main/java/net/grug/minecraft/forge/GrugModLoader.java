@@ -15,6 +15,7 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.KeyMapping;
@@ -176,6 +177,14 @@ public class GrugModLoader {
     @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     public static File getActiveGrugModsDir() {
         File gameDir = FMLLoader.getGamePath().toFile();
+
+        File override = GrugReference.modsDirOverride();
+        if (override != null) {
+            if (!override.isDirectory()) {
+                throw Grug.fatal("GRUG_MODS_DIR is not a directory: " + override);
+            }
+            return override;
+        }
 
         if (!FMLEnvironment.production) {
             File devGrugDir = new File(gameDir, "../../../mods");

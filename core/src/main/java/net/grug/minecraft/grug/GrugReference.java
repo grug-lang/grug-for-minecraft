@@ -1,5 +1,7 @@
 package net.grug.minecraft.grug;
 
+import java.io.File;
+
 /**
  * Whether this run is driving the reference mod rather than the grug port.
  *
@@ -18,11 +20,34 @@ public final class GrugReference {
     /** The system property equivalent, so a run can be forced without a wrapper script. */
     public static final String PROPERTY = "grug.reference";
 
+    /** The environment variable that points a run at a grug mods directory of its choosing. */
+    public static final String MODS_DIR_ENV_VAR = "GRUG_MODS_DIR";
+
+    /** The system property equivalent of {@link #MODS_DIR_ENV_VAR}. */
+    public static final String MODS_DIR_PROPERTY = "grug.mods.dir";
+
     private GrugReference() {}
 
     /** Whether this run is the reference run. Normal runs and tests get {@code false}. */
     public static boolean isReferenceRun() {
         return isTruthy(System.getProperty(PROPERTY, System.getenv(ENV_VAR)));
+    }
+
+    /**
+     * The grug mods directory a run wants instead of the loader's own, or null to let the loader
+     * choose. A reference run points this at a harness-only directory so no grug port loads
+     * alongside the reference mod.
+     *
+     * <p>A set-but-missing path is returned as-is rather than treated as unset: silently falling
+     * back would load the port into what is supposed to be a reference run, which is the one
+     * failure a reference run must never hide. The loader reports it instead.
+     */
+    public static File modsDirOverride() {
+        String value = System.getProperty(MODS_DIR_PROPERTY, System.getenv(MODS_DIR_ENV_VAR));
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        return new File(value);
     }
 
     /**

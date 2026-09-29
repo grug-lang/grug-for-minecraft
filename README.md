@@ -50,6 +50,17 @@ python3 recreation.py verify mods/buildcraft/about.json --output reference-artif
 
 `recreation.py plan` prints the runtime, the pinned reference, the install, and the capture settings, so a reviewer can see what running the reference would involve without running it.
 
+### Running the reference
+
+A reference run loads the harness and the real mod but no grug port, so the loaders read `GRUG_MODS_DIR` (or `-Dgrug.mods.dir`) and use that directory instead of their own. With `GRUG_REFERENCE=1` that is enough to launch the reference:
+
+```sh
+GRUG_REFERENCE=1 GRUG_MODS_DIR=/path/to/harness-only-mods \
+  .github/scripts/run-loader.sh b1.7.3-stationapi run
+```
+
+Which mods belong in that directory is still open: a reference run loads no port, so a recreation test cannot live in the port it tests without also loading that port's blocks and items.
+
 ## Long-term Plans
 
 This repository aims to become a thoroughly vetted, centralized host for grug mods via the `mods/` directory at its root, rather than depending on external platforms like Modrinth or CurseForge. Support for downloading mods through APIs like Modrinth's may be added eventually, but isn't a priority given the `mods/` directory already covers hosting, discovery, and vetting on its own. Because `mod_api.json` restricts what mods can do, CI will be able to auto-merge pull requests that only modify grug code and come from a GitHub account listed as an author in the mod's `about.json`, while reviewers focus on resource files.

@@ -1,10 +1,16 @@
 package net.grug.minecraft.grug;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.File;
+import java.nio.file.Path;
 
 /**
  * Covers {@link GrugReference}'s flag parsing, which decides which branch a recreation test takes.
@@ -12,8 +18,9 @@ import org.junit.jupiter.api.Test;
 class GrugReferenceTest {
 
     @AfterEach
-    void clearTheProperty() {
+    void clearTheProperties() {
         System.clearProperty(GrugReference.PROPERTY);
+        System.clearProperty(GrugReference.MODS_DIR_PROPERTY);
     }
 
     @Test
@@ -45,5 +52,25 @@ class GrugReferenceTest {
 
         System.setProperty(GrugReference.PROPERTY, "false");
         assertFalse(GrugReference.isReferenceRun());
+    }
+
+    @Test
+    void modsDirOverrideReturnsADirectoryThatExists(@TempDir Path directory) {
+        System.setProperty(GrugReference.MODS_DIR_PROPERTY, directory.toString());
+        assertEquals(directory.toFile(), GrugReference.modsDirOverride());
+    }
+
+    @Test
+    void modsDirOverrideReturnsAMissingPathRatherThanFallingBack() {
+        // Falling back silently would load the port into a reference run, so a missing path is
+        // returned for the loader to report instead of being treated as unset.
+        System.setProperty(GrugReference.MODS_DIR_PROPERTY, "/no/such/grug/mods/directory");
+        assertEquals(new File("/no/such/grug/mods/directory"), GrugReference.modsDirOverride());
+    }
+
+    @Test
+    void modsDirOverrideIsNullForAnEmptyValue() {
+        System.setProperty(GrugReference.MODS_DIR_PROPERTY, "");
+        assertNull(GrugReference.modsDirOverride());
     }
 }
