@@ -143,7 +143,15 @@ def main() -> int:
         print(f"FAILED: {args.about} has no artifact to verify.", file=sys.stderr)
         return 1
 
-    download_artifact(recreation, args.output)
+    try:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        download_artifact(recreation, args.output)
+    except Exception as error:
+        # A missing or moved artifact degrades regenerating the goldens, never verifying the port,
+        # so this reports and exits rather than tracing back.
+        print(f"FAILED: could not download {artifact['url']}: {error}", file=sys.stderr)
+        return 1
+
     errors = verify_artifact(recreation, args.output)
     if errors:
         print(f"FAILED: {args.output} does not match the pinned artifact:", file=sys.stderr)

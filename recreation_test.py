@@ -111,6 +111,14 @@ class RecreationTest(unittest.TestCase):
         )
         self.assertIn('config: {"name": "Reference"}', recreation.install_plan(block))
 
+    def test_every_install_type_in_the_schema_has_a_summary(self):
+        # The union lives in the schema, the summaries, and the plan. A type added to the schema
+        # without a summary would only fail with a KeyError at plan time, so pin the two together.
+        root = Path(recreation.__file__).resolve().parent
+        schema = json.loads((root / "about_schema.json").read_text(encoding="utf-8"))
+        schema_types = schema["definitions"]["install"]["properties"]["type"]["enum"]
+        self.assertEqual(sorted(schema_types), sorted(recreation.INSTALL_SUMMARIES))
+
 
 if __name__ == "__main__":
     unittest.main()

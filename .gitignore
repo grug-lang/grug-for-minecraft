@@ -37,3 +37,7 @@ log.log
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Recreation artifacts downloaded by recreation.py
+reference-artifact
+reference-artifact.*

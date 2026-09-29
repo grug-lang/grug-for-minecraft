@@ -504,7 +504,32 @@
                             "minimum": 0,
                             "maximum": 100
                         }
-                    }
+                    },
+                    "allOf": [
+                        {
+                            "if": {
+                                "properties": {
+                                    "mode": {
+                                        "const": "tolerance"
+                                    }
+                                }
+                            },
+                            "then": {
+                                "anyOf": [
+                                    {
+                                        "required": [
+                                            "max_channel_delta"
+                                        ]
+                                    },
+                                    {
+                                        "required": [
+                                            "max_pixel_percent"
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    ]
                 }
             }
         },
