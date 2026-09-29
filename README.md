@@ -29,7 +29,7 @@ The block is self-contained and declarative. `reference` pins the source revisio
 
 `install` is a tagged union keyed by how the reference is installed, not a list of steps: `mods_folder`, `jarmod`, `coremod`, `javaagent`, `tweak_class`, `launcher_profile`, `server_plugin`, `datapack`, `installer` and `source_build`, each with the files, libraries, config and JVM arguments it needs. Nothing executable is stored inline; a hash-pinned artifact is the only source of bytes.
 
-One rule jsonschema cannot express is enforced by `about_schema.py`: `artifact.mirrors` may only be non-empty when `artifact.redistribution.allowed` is true, because a mirror redistributes the artifact.
+One rule jsonschema cannot express is enforced by `about_schema.py`: `artifact.mirrors` may only be non-empty when `artifact.redistribution.allowed` is true, because a mirror redistributes the artifact. The schema itself rejects a `tolerance` diff that names no tolerance, since `max_channel_delta` or `max_pixel_percent` is what makes "tolerance" mean anything.
 
 ### One test, both sides
 

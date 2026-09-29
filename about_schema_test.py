@@ -161,6 +161,33 @@ class RecreationSchemaTest(unittest.TestCase):
         del recreation["reference"]["revision"]
         self.assertInvalid(self.mod_with(recreation), "'revision' is a required property")
 
+    def test_a_tolerance_diff_needs_a_tolerance(self):
+        recreation = base_recreation()
+        recreation["capture"]["diff"] = {"mode": "tolerance"}
+        # The rule is an if/then around an anyOf, so jsonschema's message is the generic one rather
+        # than naming the missing field.
+        self.assertInvalid(self.mod_with(recreation), "is not valid under any of")
+
+    def test_a_tolerance_diff_with_max_channel_delta_is_valid(self):
+        recreation = base_recreation()
+        recreation["capture"]["diff"] = {"mode": "tolerance", "max_channel_delta": 8}
+        self.assertValid(self.mod_with(recreation))
+
+    def test_a_tolerance_diff_with_max_pixel_percent_is_valid(self):
+        recreation = base_recreation()
+        recreation["capture"]["diff"] = {"mode": "tolerance", "max_pixel_percent": 1.0}
+        self.assertValid(self.mod_with(recreation))
+
+    def test_an_exact_diff_needs_no_tolerance(self):
+        recreation = base_recreation()
+        recreation["capture"]["diff"] = {"mode": "exact"}
+        self.assertValid(self.mod_with(recreation))
+
+    def test_an_unknown_diff_mode_is_rejected(self):
+        recreation = base_recreation()
+        recreation["capture"]["diff"] = {"mode": "vibes"}
+        self.assertInvalid(self.mod_with(recreation), "is not one of")
+
     def test_an_unknown_recreation_property_is_rejected(self):
         recreation = copy.deepcopy(base_recreation())
         recreation["bogus"] = 1
