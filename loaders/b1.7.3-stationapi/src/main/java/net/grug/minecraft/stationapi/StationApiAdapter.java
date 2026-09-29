@@ -383,8 +383,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public double countItemEntities(
-            Object levelObj, double x, double y, double z, double radius) {
+    public double countItemEntities(Object levelObj, double x, double y, double z, double radius) {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;
         int count = 0;
@@ -399,6 +398,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
             }
         }
         return count;
+    }
+
+    @Override
+    public void notifyNeighbors(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        world.notifyNeighbors((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z), 0);
     }
 
     @Override

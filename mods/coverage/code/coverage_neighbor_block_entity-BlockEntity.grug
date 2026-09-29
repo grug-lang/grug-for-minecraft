@@ -1,0 +1,10 @@
+# Resolving me in the member scope registers the block entity's me handle, which a later host call
+# needs. The autocrafting table does the same.
+level: Level = get_block_entity_level(me)
+
+# Drops a marker into slot 0 whenever a neighbour changes, so a test can observe that the loader
+# delivered the on_neighbor_change hook.
+export on_neighbor_change() {
+    marker: Item = item(resource_location("minecraft:diamond"))
+    set_item_in_slot(me, 0, marker, 1)
+}

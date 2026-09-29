@@ -85,6 +85,15 @@ public class GrugBlock extends BlockWithBlockEntity {
     }
 
     @Override
+    public void neighborChanged(World world, int x, int y, int z, int side) {
+        BlockEntity blockEntity = world.getBlockEntity(x, y, z);
+        if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+            grugBlockEntity.notifyNeighborChanged();
+        }
+        super.neighborChanged(world, x, y, z, side);
+    }
+
+    @Override
     protected BlockEntity createBlockEntity() {
         return new GrugBlockEntity();
     }

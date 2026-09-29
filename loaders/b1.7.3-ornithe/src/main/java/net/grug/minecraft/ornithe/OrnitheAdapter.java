@@ -310,6 +310,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return count;
     }
 
+    @Override
+    public void notifyNeighbors(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        world.updateNeighbors((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z), 0);
+    }
+
     private String blockName(int id) {
         if (id == 0) {
             return "minecraft:air";
