@@ -297,6 +297,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return world.hasNeighborSignal(
+                (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    @Override
     public double countItemEntities(Object levelObj, double x, double y, double z, double radius) {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;

@@ -253,6 +253,12 @@ public class HostFunctions {
         GrugCore.getAdapter().placeBlock(Grug.entityData.get(levelId).object, x, y, z, blockName);
     }
 
+    public static boolean Level_has_neighbor_signal(
+            long levelId, double x, double y, double z) {
+        return GrugCore.getAdapter()
+                .hasNeighborSignal(Grug.entityData.get(levelId).object, x, y, z);
+    }
+
     public static String Level_get_block(long levelId, double x, double y, double z) {
         return GrugCore.getAdapter().getBlock(Grug.entityData.get(levelId).object, x, y, z);
     }

@@ -1,0 +1,24 @@
+# Covers Level.has_neighbor_signal(), the redstone query the redstone engine needs.
+# A redstone torch does not power the block it is attached to, but it does power the block above
+# it, so a torch placed on top of a stone block should make the block above the torch report a
+# signal. A block far from any torch should not.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:stone")
+
+    # The lit redstone torch is named differently across loaders: StationAPI calls the lit one
+    # "redstone_torch_lit" and the unlit one "redstone_torch", while the Ornithe and Forge loaders
+    # call the lit one "redstone_torch". Placing both leaves the lit torch in place everywhere,
+    # because an unknown block name is ignored. See the cross-loader block naming issue.
+    level.place_block(x, y + 1, z, "minecraft:redstone_torch")
+    level.place_block(x, y + 1, z, "minecraft:redstone_torch_lit")
+
+    Test.assert(level.has_neighbor_signal(x, y + 2, z), "The block above a redstone torch should be powered.")
+
+    Test.assert(not level.has_neighbor_signal(x + 8, y + 8, z + 8), "A block away from any torch should not be powered.")
+}

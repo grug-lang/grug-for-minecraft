@@ -1,0 +1,7 @@
+{
+    "variants": {
+        "": {
+            "model": "grug:block/redstone_engine"
+        }
+    }
+}

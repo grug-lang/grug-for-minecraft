@@ -76,6 +76,8 @@ public interface ModLoaderAdapter {
 
     boolean isAir(Object levelObj, double x, double y, double z);
 
+    boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
+
     double countItemEntities(Object levelObj, double x, double y, double z, double radius);
 
     void notifyNeighbors(Object levelObj, double x, double y, double z);
