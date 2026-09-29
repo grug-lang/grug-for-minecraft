@@ -948,6 +948,20 @@
 				}
 			]
 		},
+		"get_inventory_size": {
+			"description": "The number of slots in a block entity's inventory.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				}
+			]
+		},
 		"get_item_count_in_slot": {
 			"description": "Gets the size of the item stack in a slot.",
 			"return_type": {

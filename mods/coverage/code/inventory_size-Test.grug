@@ -1,0 +1,18 @@
+# Covers get_inventory_size(), which the wooden pipe needs to walk a neighbour inventory's slots.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_block")
+    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(block_opt.has(), "The coverage block should have a block entity.")
+    Test.assert(get_inventory_size(block_opt.unwrap()) == 9, "The coverage block should have 9 slots.")
+
+    level.place_block(x, y, z, "minecraft:chest")
+    chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(chest_opt.has(), "The chest should have a block entity.")
+    Test.assert(get_inventory_size(chest_opt.unwrap()) == 27, "A chest should have 27 slots.")
+}
