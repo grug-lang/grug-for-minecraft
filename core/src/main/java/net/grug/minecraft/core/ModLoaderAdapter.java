@@ -47,6 +47,9 @@ public interface ModLoaderAdapter {
 
     double getInventorySize(Object blockEntityObj);
 
+    double insertItemIntoInventory(
+            Object blockEntityObj, Object itemObj, double damage, double amount);
+
     double getItemCountInSlot(Object blockEntityObj, double slot);
 
     double getItemDamageInSlot(Object blockEntityObj, double slot);

@@ -363,6 +363,16 @@ public class HostFunctions {
                         amount);
     }
 
+    public static double insert_item_into_inventory(
+            long blockEntityId, long itemId, double damage, double amount) {
+        return GrugCore.getAdapter()
+                .insertItemIntoInventory(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        Grug.entityData.get(itemId).object,
+                        damage,
+                        amount);
+    }
+
     public static long get_block_entity_level(long blockEntityId) {
         Object level =
                 GrugCore.getAdapter()
