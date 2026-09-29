@@ -39,7 +39,7 @@ One rule jsonschema cannot express is enforced by `about_schema.py`: `artifact.m
 
 Verifying the port needs only the port and the committed goldens, and runs on every push. Regenerating the goldens is the only part that needs the reference artifact, and it is a separate manual job (`Regenerate Goldens`), so losing the artifact degrades regenerating rather than verifying.
 
-The goldens are the numbered PNGs under a mod's `screenshots/` directory, the same ones `Test.assert_screenshot_equals` accepts, so a recreation test reuses the existing capture and comparison path rather than growing a second one.
+The goldens live under a mod's `screenshots/` directory as numbered PNGs, the same layout `Test.assert_screenshot_equals` accepts, so a recreation test reuses the existing capture and comparison path rather than growing a second one.
 
 The `artifact` tier of that workflow downloads the pinned artifact and checks it against the pinned hash before anything uses it:
 
