@@ -15,6 +15,61 @@
 			"note": "Required by MMPL 1.0.1 Section 6, since this port derives from MMPL-licensed code."
 		}
 	],
+	"recreation": {
+		"fidelity": "behavioral",
+		"reference": {
+			"name": "Buildcraft StationAPI",
+			"repository": {
+				"url": "https://github.com/DanyGames2014/Buildcraft"
+			},
+			"revision": "07dd217902262bc9878386ca2c53c44909a19335"
+		},
+		"artifact": {
+			"url": "https://cdn.modrinth.com/data/E5alYVeX/versions/Ujf0zqgZ/Buildcraft-1.7.0.jar",
+			"sha256": "c268c11cde83d41d577d3c44ff2cf04af1bc968b9b9dd87f6b23759e67aa1127",
+			"size": 1249830,
+			"redistribution": {
+				"allowed": false,
+				"basis": "Minecraft Mod Public License 1.0.1",
+				"note": "MMPL 1.0.1 does not clearly permit redistributing the unmodified jar, so no mirror is listed. The Reference install downloads it from Modrinth by hash instead."
+			}
+		},
+		"runtime": {
+			"minecraft": "b1.7.3",
+			"loader": "stationapi",
+			"loader_version": "2.0.0-alpha.6.2",
+			"java": "17"
+		},
+		"install": {
+			"type": "mods_folder",
+			"files": [
+				"Buildcraft-1.7.0.jar"
+			]
+		},
+		"capture": {
+			"width": 1280,
+			"height": 720,
+			"ticks": 40,
+			"camera": "graphics",
+			"diff": {
+				"mode": "tolerance",
+				"max_channel_delta": 8,
+				"max_pixel_percent": 1.0
+			}
+		},
+		"deviations": [
+			{
+				"what": "The wooden pipe renders as a cube instead of a centre with arms.",
+				"why": "grug only supports blockstate/model JSON until the block-entity rendering hook lands.",
+				"status": "open"
+			},
+			{
+				"what": "The wooden pipe moves items one slot at a time instead of via travelling item entities.",
+				"why": "The port starts with the observable chest-to-chest behaviour; the reference routes through a connection matrix.",
+				"status": "open"
+			}
+		]
+	},
 	"derived_from": [
 		{
 			"name": "Buildcraft StationAPI",

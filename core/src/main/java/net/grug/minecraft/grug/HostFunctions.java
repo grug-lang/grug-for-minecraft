@@ -116,6 +116,10 @@ public class HostFunctions {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());
     }
 
+    public static boolean Test_is_reference() {
+        return GrugReference.isReferenceRun();
+    }
+
     public static long Test_setup_graphics_camera() {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().setupGraphicsTestCamera());
     }
