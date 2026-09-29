@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsExtractor;
+import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.ornithemc.osl.blocks.api.BlockEvents;
 import net.ornithemc.osl.entrypoints.api.ModInitializer;
@@ -103,6 +104,14 @@ public class GrugModLoader implements ModInitializer {
     @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     public static File getActiveGrugModsDir() {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
+
+        File override = GrugReference.modsDirOverride();
+        if (override != null) {
+            if (!override.isDirectory()) {
+                throw Grug.fatal("GRUG_MODS_DIR is not a directory: " + override);
+            }
+            return override;
+        }
 
         if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
             File devGrugDir = new File(gameDir, "../../../mods");
