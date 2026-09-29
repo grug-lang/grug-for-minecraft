@@ -1,0 +1,30 @@
+# Covers insert_item_into_inventory(), which the wooden pipe uses to push an item into a neighbour.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_block")
+    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(block_opt.has(), "The coverage block should have a block entity.")
+    be: BlockEntity = block_opt.unwrap()
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+
+    # The coverage block has 9 slots, so 100 diamonds fill one 64 stack and part of the next.
+    inserted: number = insert_item_into_inventory(be, diamond, 0, 100)
+    Test.assert(inserted == 100, "All 100 diamonds should fit.")
+    Test.assert(get_item_count_in_slot(be, 0) == 64, "The first slot should be full.")
+    Test.assert(get_item_count_in_slot(be, 1) == 36, "The second slot should hold the rest.")
+
+    # Filling the rest reports exactly the remaining capacity: 9 * 64 - 100.
+    inserted_rest: number = insert_item_into_inventory(be, diamond, 0, 1000)
+    Test.assert(inserted_rest == 476, "Only the remaining capacity should accept diamonds.")
+    Test.assert(get_item_count_in_slot(be, 8) == 64, "The last slot should be full.")
+
+    # A full inventory takes nothing more.
+    inserted_full: number = insert_item_into_inventory(be, diamond, 0, 10)
+    Test.assert(inserted_full == 0, "A full inventory should take nothing.")
+}
