@@ -257,6 +257,12 @@ public class HostFunctions {
         return GrugCore.getAdapter().isAir(Grug.entityData.get(levelId).object, x, y, z);
     }
 
+    public static double Level_count_item_entities(
+            long levelId, double x, double y, double z, double radius) {
+        return GrugCore.getAdapter()
+                .countItemEntities(Grug.entityData.get(levelId).object, x, y, z, radius);
+    }
+
     public static boolean Option_has(long optionId) {
         return ((GrugOption) Grug.entityData.get(optionId).object).has();
     }

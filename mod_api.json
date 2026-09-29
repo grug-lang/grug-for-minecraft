@@ -671,6 +671,38 @@
 							}
 						}
 					]
+				},
+				"count_item_entities": {
+					"description": "The number of item entities within radius blocks of the specified coordinates.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},

@@ -405,6 +405,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return world.getBlockState(pos).isAir();
     }
 
+    @Override
+    public double countItemEntities(Object levelObj, double x, double y, double z, double radius) {
+        Level world = (Level) levelObj;
+        net.minecraft.world.phys.AABB box =
+                new net.minecraft.world.phys.AABB(
+                        x - radius, y - radius, z - radius, x + radius, y + radius, z + radius);
+        return world.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box)
+                .size();
+    }
+
     @GrugGenerated("block resolution: Forge returns AIR rather than null for unknown blocks")
     private Block resolveBlock(ResourceLocation id) {
         Block targetBlock = ForgeRegistries.BLOCKS.getValue(id);
