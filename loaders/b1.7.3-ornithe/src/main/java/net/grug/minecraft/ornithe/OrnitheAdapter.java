@@ -239,6 +239,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
     }
 
+    @Override
+    public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return world.hasNeighborSignal(
+                (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
     @GrugGenerated("block resolution: a no-match fallback cannot be forced")
     private Block resolveBlock(String path) {
         Block targetBlock = null;
