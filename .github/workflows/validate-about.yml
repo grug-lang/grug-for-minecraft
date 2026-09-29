@@ -5,12 +5,14 @@ on:
     paths:
       - 'about_schema.json'
       - 'about_schema.py'
+      - 'about_schema_test.py'
       - 'mods/**/about.json'
       - '.github/workflows/validate-about.yml'
   pull_request:
     paths:
       - 'about_schema.json'
       - 'about_schema.py'
+      - 'about_schema_test.py'
       - 'mods/**/about.json'
       - '.github/workflows/validate-about.yml'
 
@@ -34,3 +36,7 @@ jobs:
       - name: Validate about.json files
         run: |
           python3 about_schema.py
+
+      - name: Test the schema and its recreation rules
+        run: |
+          python3 about_schema_test.py

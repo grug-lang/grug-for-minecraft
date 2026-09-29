@@ -21,6 +21,33 @@ Every mod must ship its license text as a non-empty `LICENSE` file next to its `
 
 [`mods/examplemod`](mods/examplemod) is the reference mod that tutorials and other mods are meant to copy from. It's licensed under the [BSD Zero Clause License](https://spdx.org/licenses/0BSD.html), the license grug recommends for all mods written from scratch, so that snippets and files can be copied between mods as freely as possible.
 
+## Recreating a mod
+
+A mod that recreates another mod carries a `recreation` block in its `about.json`. It records what is being recreated, how to install and run the reference, and how captures are compared, so the recreation can be verified against the real thing instead of against a memory of it.
+
+The block is self-contained and declarative. `reference` pins the source revision, `artifact` pins the exact bytes by `sha256` (the hash is the authority, not the url), `runtime` names the environment the reference runs in, `install` says how the reference is installed, `capture` fixes the viewport, camera, tick count and diff tolerance, and `deviations` lists the differences that are intentional so a reader does not "fix" them.
+
+`install` is a tagged union keyed by how the reference is installed, not a list of steps: `mods_folder`, `jarmod`, `coremod`, `javaagent`, `tweak_class`, `launcher_profile`, `server_plugin`, `datapack`, `installer` and `source_build`, each with the files, libraries, config and JVM arguments it needs. Nothing executable is stored inline; a hash-pinned artifact is the only source of bytes.
+
+One rule jsonschema cannot express is enforced by `about_schema.py`: `artifact.mirrors` may only be non-empty when `artifact.redistribution.allowed` is true, because a mirror redistributes the artifact.
+
+### One test, both sides
+
+`Test.is_reference()` is true only in the reference run, which sets `GRUG_REFERENCE=1` (or `-Dgrug.reference=1`) and loads no grug port. A recreation test branches on it for block names and setup, and asserts shared state (vanilla blocks, chest contents, dropped item entities) that both sides must produce, so one test file covers the port on every loader and the real mod on its own.
+
+### Two tiers
+
+Verifying the port needs only the port and the committed goldens, and runs on every push. Regenerating the goldens is the only part that needs the reference artifact, and it is a separate manual job (`Regenerate Goldens`), so losing the artifact degrades regenerating rather than verifying.
+
+The `artifact` tier of that workflow downloads the pinned artifact and checks it against the pinned hash before anything uses it:
+
+```sh
+python3 recreation.py plan mods/buildcraft/about.json
+python3 recreation.py verify mods/buildcraft/about.json --output reference-artifact.jar
+```
+
+`recreation.py plan` prints the runtime, the pinned reference, the install, and the capture settings, so a reviewer can see what running the reference would involve without running it.
+
 ## Long-term Plans
 
 This repository aims to become a thoroughly vetted, centralized host for grug mods via the `mods/` directory at its root, rather than depending on external platforms like Modrinth or CurseForge. Support for downloading mods through APIs like Modrinth's may be added eventually, but isn't a priority given the `mods/` directory already covers hosting, discovery, and vetting on its own. Because `mod_api.json` restricts what mods can do, CI will be able to auto-merge pull requests that only modify grug code and come from a GitHub account listed as an author in the mod's `about.json`, while reviewers focus on resource files.

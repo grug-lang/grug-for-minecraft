@@ -1,0 +1,52 @@
+name: Regenerate Goldens
+
+# The second tier. Verifying a port runs on every push and needs only the port and the committed
+# goldens, so it can never be broken by losing the reference. This job is the only one that needs
+# the reference artifact, and it is manual and best-effort on purpose: if the artifact disappears,
+# verifying the port still works and only regenerating the goldens is degraded.
+#
+# This job fetches and hash-verifies the artifact and prints what installing and running the
+# reference involves. Actually launching the reference runtime and committing the captures is the
+# next step; see the recreation section of the README for what it still needs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mod:
+        description: Mod directory under mods/ whose recreation block to use.
+        required: true
+        default: buildcraft
+
+permissions:
+  contents: read
+
+jobs:
+  artifact:
+    name: Fetch and verify the reference artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Show what the reference run involves
+        run: python3 recreation.py plan "mods/${{ inputs.mod }}/about.json"
+
+      # The pin is the hash, so a moved url or a mirror is fine and a changed byte is not.
+      - name: Download and verify the artifact by hash
+        run: |
+          python3 recreation.py verify "mods/${{ inputs.mod }}/about.json" \
+            --output reference-artifact.jar
+
+      - name: Upload the verified artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-artifact-${{ inputs.mod }}
+          path: reference-artifact.jar
+          if-no-files-found: error
+          retention-days: 7

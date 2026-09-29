@@ -38,6 +38,70 @@
                 "$ref": "#/definitions/license"
             }
         },
+        "recreation": {
+            "description": "How this mod recreates a reference: what it targets, how to install and run the reference, and how captures are compared. Present only for recreation mods.",
+            "type": "object",
+            "required": [
+                "fidelity",
+                "reference",
+                "runtime",
+                "install",
+                "capture"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "fidelity": {
+                    "description": "exact reproduces the reference pixel for pixel, behavioral matches its observable behaviour without promising pixels, and inspired only takes design cues.",
+                    "enum": [
+                        "exact",
+                        "behavioral",
+                        "inspired"
+                    ]
+                },
+                "reference": {
+                    "type": "object",
+                    "required": [
+                        "name",
+                        "repository",
+                        "revision"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "repository": {
+                            "$ref": "#/definitions/repository"
+                        },
+                        "revision": {
+                            "description": "The pinned revision of the reference, e.g. a commit hash. Not a branch or tag.",
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "artifact": {
+                    "$ref": "#/definitions/artifact"
+                },
+                "runtime": {
+                    "$ref": "#/definitions/runtime"
+                },
+                "install": {
+                    "$ref": "#/definitions/install"
+                },
+                "capture": {
+                    "$ref": "#/definitions/capture"
+                },
+                "deviations": {
+                    "description": "Intentional differences from the reference. A non-empty list says the difference is deliberate, so a reader does not 'fix' it.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/deviation"
+                    }
+                }
+            }
+        },
         "derived_from": {
             "type": "array",
             "items": {
@@ -110,6 +174,364 @@
                 },
                 "note": {
                     "type": "string"
+                }
+            }
+        },
+        "artifact": {
+            "description": "The reference build to diff against. The sha256 is the authority, not the url: a mirror or a moved url is fine as long as the bytes hash the same.",
+            "type": "object",
+            "required": [
+                "url",
+                "sha256",
+                "size",
+                "redistribution"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "sha256": {
+                    "description": "Lowercase hex sha256 of the artifact.",
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                },
+                "size": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "redistribution": {
+                    "type": "object",
+                    "required": [
+                        "allowed"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "allowed": {
+                            "description": "Whether the reference license permits redistributing the unmodified artifact.",
+                            "type": "boolean"
+                        },
+                        "basis": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "note": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "mirrors": {
+                    "description": "Extra urls serving the same bytes. Only permitted when redistribution is allowed.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uri"
+                    }
+                }
+            }
+        },
+        "runtime": {
+            "description": "The environment the reference runs in.",
+            "type": "object",
+            "required": [
+                "minecraft",
+                "loader",
+                "loader_version",
+                "java"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "minecraft": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "loader": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "loader_version": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "java": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
+        "install": {
+            "description": "A tagged union keyed by how the reference is installed into its runtime, not a step array. files and libs are paths and coordinates the runtime resolves; config is a runtime-specific object; jvm_args are extra launcher arguments.",
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "enum": [
+                        "mods_folder",
+                        "jarmod",
+                        "coremod",
+                        "javaagent",
+                        "tweak_class",
+                        "launcher_profile",
+                        "server_plugin",
+                        "datapack",
+                        "installer",
+                        "source_build"
+                    ]
+                },
+                "files": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "libs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "config": {
+                    "type": "object"
+                },
+                "jvm_args": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "mods_folder"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "files"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "jarmod"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "files"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "coremod"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "files"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "javaagent"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "files"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "tweak_class"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "files"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "launcher_profile"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "config"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "server_plugin"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "files"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "datapack"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "files"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "installer"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "files"
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "type": {
+                                "const": "source_build"
+                            }
+                        }
+                    },
+                    "then": {
+                        "required": [
+                            "config"
+                        ]
+                    }
+                }
+            ]
+        },
+        "capture": {
+            "type": "object",
+            "required": [
+                "width",
+                "height",
+                "ticks"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "width": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "height": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "ticks": {
+                    "description": "How many game ticks to advance before capturing, so the world settles the same way on both sides.",
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "camera": {
+                    "description": "A named camera preset both sides set up before capturing.",
+                    "type": "string",
+                    "minLength": 1
+                },
+                "diff": {
+                    "type": "object",
+                    "required": [
+                        "mode"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "mode": {
+                            "enum": [
+                                "exact",
+                                "tolerance"
+                            ]
+                        },
+                        "max_channel_delta": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255
+                        },
+                        "max_pixel_percent": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100
+                        }
+                    }
+                }
+            }
+        },
+        "deviation": {
+            "type": "object",
+            "required": [
+                "what",
+                "why",
+                "status"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "what": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "why": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "status": {
+                    "enum": [
+                        "open",
+                        "accepted",
+                        "wontfix",
+                        "fixed"
+                    ]
                 }
             }
         }
