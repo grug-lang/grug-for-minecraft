@@ -1,0 +1,33 @@
+# Covers the redstone engine block and its block entity.
+# The engine derives its active flag from the redstone signal at its position, and the redstone query
+# itself is covered by coverage/code/redstone_signal-Test.grug. grug block entities do not expose
+# member state to tests yet, so the flag's observable effects (its rendering, and powering a wooden
+# pipe) are covered by the rendering work and the wooden pipe tests.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 6
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:redstone_engine")
+
+    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+
+    Test.round_trip_nbt(engine_opt.unwrap())
+
+    # A redstone torch powers the block above it but not the block it is attached to, so the torch
+    # goes below the engine, standing on a stone block. The lit torch is named differently on
+    # StationAPI, so both names are placed and the lit one wins. See the cross-loader block naming
+    # issue.
+    level.place_block(x, y - 2, z, "minecraft:stone")
+    level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+    level.place_block(x, y - 1, z, "minecraft:redstone_torch_lit")
+
+    Test.assert(level.has_neighbor_signal(x, y, z), "The engine should be powered by an adjacent torch.")
+
+    if Test.tick() < 3 {
+        Test.not_done()
+    }
+}
