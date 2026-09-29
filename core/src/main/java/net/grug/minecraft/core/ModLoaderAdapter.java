@@ -69,6 +69,8 @@ public interface ModLoaderAdapter {
 
     void placeBlock(Object levelObj, double x, double y, double z, String blockName);
 
+    boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
+
     double takeItemFromSlot(Object blockEntityObj, double slot, double amount);
 
     /**

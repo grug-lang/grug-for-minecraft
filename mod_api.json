@@ -582,6 +582,32 @@
 							}
 						}
 					]
+				},
+				"has_neighbor_signal": {
+					"description": "Whether the block at the specified coordinates is receiving a redstone signal from a neighboring block.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},
