@@ -377,6 +377,24 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
     }
 
+    public String getBlock(Object levelObj, double x, double y, double z) {
+        Level world = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        Block block = world.getBlockState(pos).getBlock();
+        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block).toString();
+    }
+
+    @Override
+    public boolean isAir(Object levelObj, double x, double y, double z) {
+        Level world = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        return world.getBlockState(pos).isAir();
+    }
+
     @GrugGenerated("block resolution: Forge returns AIR rather than null for unknown blocks")
     private Block resolveBlock(ResourceLocation id) {
         Block targetBlock = ForgeRegistries.BLOCKS.getValue(id);
