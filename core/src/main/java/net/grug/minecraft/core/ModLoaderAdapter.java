@@ -78,6 +78,8 @@ public interface ModLoaderAdapter {
 
     boolean isAir(Object levelObj, double x, double y, double z);
 
+    double countItemEntities(Object levelObj, double x, double y, double z, double radius);
+
     double takeItemFromSlot(Object blockEntityObj, double slot, double amount);
 
     /**

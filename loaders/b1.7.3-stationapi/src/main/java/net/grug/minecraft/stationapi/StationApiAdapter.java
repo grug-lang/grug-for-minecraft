@@ -413,6 +413,25 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double countItemEntities(
+            Object levelObj, double x, double y, double z, double radius) {
+        World world = (World) levelObj;
+        double radiusSquared = radius * radius;
+        int count = 0;
+        for (Object entity : world.entities) {
+            if (entity instanceof ItemEntity item) {
+                double dx = item.x - x;
+                double dy = item.y - y;
+                double dz = item.z - z;
+                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    @Override
     public Vec3 getTestOrigin() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
