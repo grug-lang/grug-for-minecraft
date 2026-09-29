@@ -69,6 +69,10 @@ public interface ModLoaderAdapter {
 
     void placeBlock(Object levelObj, double x, double y, double z, String blockName);
 
+    String getBlock(Object levelObj, double x, double y, double z);
+
+    boolean isAir(Object levelObj, double x, double y, double z);
+
     double takeItemFromSlot(Object blockEntityObj, double slot, double amount);
 
     Object getClientLevel();

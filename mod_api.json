@@ -619,6 +619,58 @@
 							}
 						}
 					]
+				},
+				"get_block": {
+					"description": "The name of the block at the specified coordinates, e.g. \"minecraft:stone\" or \"grug:wooden_pipe\".",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"is_air": {
+					"description": "Whether the block at the specified coordinates is air.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},

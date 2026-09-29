@@ -36,9 +36,14 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class OrnitheAdapter implements ModLoaderAdapter {
+
+    /** Block id to name, populated lazily: a reverse lookup scans every block field. */
+    private final Map<Integer, String> blockNamesById = new HashMap<>();
 
     @Override
     public File getGameDirectory() {
@@ -241,6 +246,59 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         } else {
             GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
         }
+    }
+
+    @Override
+    public String getBlock(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return blockName(
+                world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
+    }
+
+    @Override
+    public boolean isAir(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
+    }
+
+    private String blockName(int id) {
+        if (id == 0) {
+            return "minecraft:air";
+        }
+
+        String cached = blockNamesById.get(id);
+        if (cached != null) {
+            return cached;
+        }
+
+        String name = "minecraft:unknown";
+        Block block = (id >= 0 && id < Block.BY_ID.length) ? Block.BY_ID[id] : null;
+
+        if (block instanceof GrugBlock grugBlock) {
+            net.grug.minecraft.grug.GrugBlockData data =
+                    Grug.blockDataByFileId.get(grugBlock.blockFileId);
+            if (data != null) {
+                name = data.id;
+            }
+        } else if (block != null) {
+            // Vanilla blocks have no registry on this version, so the name has to come back out of
+            // the static fields that resolveBlock searches going the other way.
+            for (Field field : Block.class.getFields()) {
+                if (Modifier.isStatic(field.getModifiers())
+                        && Block.class.isAssignableFrom(field.getType())) {
+                    try {
+                        if (field.get(null) == block) {
+                            name = "minecraft:" + field.getName().toLowerCase(Locale.ROOT);
+                            break;
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
+
+        blockNamesById.put(id, name);
+        return name;
     }
 
     @GrugGenerated("block resolution: a no-match fallback cannot be forced")

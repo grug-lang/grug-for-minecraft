@@ -326,6 +326,30 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public String getBlock(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        int id = world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+
+        if (id == 0) {
+            return "minecraft:air";
+        }
+
+        Block block = (id >= 0 && id < Block.BLOCKS.length) ? Block.BLOCKS[id] : null;
+        if (block == null) {
+            return "minecraft:unknown";
+        }
+
+        Identifier key = BlockRegistry.INSTANCE.getId(block);
+        return key == null ? "minecraft:unknown" : key.toString();
+    }
+
+    @Override
+    public boolean isAir(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
+    }
+
+    @Override
     public Vec3 getTestOrigin() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
