@@ -71,6 +71,10 @@ public interface ModLoaderAdapter {
 
     boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
 
+    String getBlock(Object levelObj, double x, double y, double z);
+
+    boolean isAir(Object levelObj, double x, double y, double z);
+
     double takeItemFromSlot(Object blockEntityObj, double slot, double amount);
 
     /**
