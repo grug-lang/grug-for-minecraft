@@ -1,0 +1,31 @@
+# Covers get_inventory_size, insert_item_into_inventory and take_item_from_slot against a vanilla
+# chest, not just a grug block entity. The wooden pipe moves items between chests, so a
+# chest-specific bug in those three would only ever show up as the pipe's problem.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(chest_opt.has(), "The chest should have a block entity.")
+    chest: BlockEntity = chest_opt.unwrap()
+
+    Test.assert(get_inventory_size(chest) == 27, "A chest should expose 27 slots.")
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+
+    inserted: number = insert_item_into_inventory(chest, diamond, 0, 1)
+    Test.assert(inserted == 1, "Inserting one item into a chest should report one.")
+    Test.assert(get_item_count_in_slot(chest, 0) == 1, "The chest should then hold one item.")
+
+    inserted_again: number = insert_item_into_inventory(chest, diamond, 0, 1)
+    Test.assert(inserted_again == 1, "Inserting into the same stack should report one.")
+    Test.assert(get_item_count_in_slot(chest, 0) == 2, "The chest should then hold two items.")
+
+    taken: number = take_item_from_slot(chest, 0, 1)
+    Test.assert(taken == 1, "Taking one item from a chest should report one.")
+    Test.assert(get_item_count_in_slot(chest, 0) == 1, "The chest should then hold one item again.")
+}
