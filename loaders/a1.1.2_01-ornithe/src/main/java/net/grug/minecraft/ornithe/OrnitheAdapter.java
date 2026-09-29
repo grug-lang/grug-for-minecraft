@@ -322,6 +322,24 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
     }
 
+    @Override
+    public double countItemEntities(Object levelObj, double x, double y, double z, double radius) {
+        World world = (World) levelObj;
+        double radiusSquared = radius * radius;
+        int count = 0;
+        for (Object entity : world.entities) {
+            if (entity instanceof ItemEntity item) {
+                double dx = item.x - x;
+                double dy = item.y - y;
+                double dz = item.z - z;
+                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
     @GrugGenerated(
             "block names: an out-of-range id, a grug block with no data and the reflection fallback"
                     + " all cannot be forced from a headless test")
