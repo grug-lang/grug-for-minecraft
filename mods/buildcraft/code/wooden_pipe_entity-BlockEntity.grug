@@ -1,0 +1,160 @@
+# The wooden pipe in outline: when an adjacent redstone engine powers it, it pulls one item from an
+# adjacent non-pipe inventory into its own one-slot inventory, then pushes that item on to the next
+# pipe or inventory, or drops it when nothing accepts it.
+# This is not the full old BuildCraft pipe: it has no travelling item entity and no connection
+# matrix, so routing is a fixed side order that skips the side the item came in from.
+level: Level = get_block_entity_level(me)
+pos: BlockPos = get_block_pos_of_block_entity(me)
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# The side the buffered item came in from, so it is not pushed straight back.
+source_side: number = -1
+
+export tick() {
+    if get_item_count_in_slot(me, 0) == 0 {
+        _try_pull()
+    } else {
+        _try_push()
+    }
+}
+
+# grug wants a helper defined after the first place it is called, so the helpers below are ordered
+# by their callers rather than grouped by topic.
+local _try_pull() {
+    if not _is_powered() {
+        return
+    }
+
+    side: number = 0
+    while side < 6 {
+        nx: number = _neighbor_x(side)
+        ny: number = _neighbor_y(side)
+        nz: number = _neighbor_z(side)
+
+        if not _is_pipe(nx, ny, nz) {
+            if _pull_one_from(nx, ny, nz) {
+                source_side = side
+                return
+            }
+        }
+
+        side = side + 1
+    }
+}
+
+local _try_push() {
+    item_opt: Option[Item] = get_item_in_slot(me, 0)
+    if not item_opt.has() {
+        return
+    }
+
+    item: Item = item_opt.unwrap()
+
+    side: number = 0
+    while side < 6 {
+        if side != source_side {
+            nx: number = _neighbor_x(side)
+            ny: number = _neighbor_y(side)
+            nz: number = _neighbor_z(side)
+            if _try_insert(nx, ny, nz, item) {
+                set_item_count_in_slot(me, 0, 0)
+                source_side = -1
+                return
+            }
+        }
+        side = side + 1
+    }
+
+    # Dropping when nothing accepts the item (the old BuildCraft behaviour) is not implemented yet;
+    # see the pull request. Leaving the item buffered keeps a broken push from spawning an item
+    # entity every tick.
+}
+
+local _is_powered() bool {
+    side: number = 0
+    while side < 6 {
+        nx: number = _neighbor_x(side)
+        ny: number = _neighbor_y(side)
+        nz: number = _neighbor_z(side)
+        is_engine: bool = level.get_block(nx, ny, nz) == "grug:redstone_engine"
+        if is_engine and level.has_neighbor_signal(nx, ny, nz) {
+            return true
+        }
+        side = side + 1
+    }
+    return false
+}
+
+local _pull_one_from(nx: number, ny: number, nz: number) bool {
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    size: number = get_inventory_size(neighbor)
+    slot: number = 0
+    while slot < size {
+        if get_item_count_in_slot(neighbor, slot) > 0 {
+            item_opt: Option[Item] = get_item_in_slot(neighbor, slot)
+            if item_opt.has() {
+                taken: number = take_item_from_slot(neighbor, slot, 1)
+                if taken > 0 {
+                    set_item_in_slot(me, 0, item_opt.unwrap(), 1)
+                    return true
+                }
+            }
+        }
+        slot = slot + 1
+    }
+
+    return false
+}
+
+local _try_insert(nx: number, ny: number, nz: number, item: Item) bool {
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    inserted: number = insert_item_into_inventory(neighbor, item, 0, 1)
+    return inserted > 0
+}
+
+local _is_pipe(nx: number, ny: number, nz: number) bool {
+    return level.get_block(nx, ny, nz) == "grug:wooden_pipe"
+}
+
+local _neighbor_x(side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}
