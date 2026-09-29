@@ -100,6 +100,10 @@ local _pull_one_from(nx: number, ny: number, nz: number) bool {
         if get_item_count_in_slot(neighbor, slot) > 0 {
             item_opt: Option[Item] = get_item_in_slot(neighbor, slot)
             if item_opt.has() {
+                # take_item_from_slot, not extract_item_from_inventory. They look interchangeable,
+                # but only the former calls removeItem and then fires output_taken, which is what
+                # drives the autocrafting table's restock and craft loop. extract_item_from_inventory
+                # only fires item_extracted, which the table ignores for its output slot.
                 taken: number = take_item_from_slot(neighbor, slot, 1)
                 if taken > 0 {
                     set_item_in_slot(me, 0, item_opt.unwrap(), 1)
