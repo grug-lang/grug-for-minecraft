@@ -180,6 +180,39 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double insertItemIntoInventory(
+            Object blockEntityObj, Object itemObj, double damage, double amount) {
+        Inventory inv = (Inventory) blockEntityObj;
+        Item item = (Item) itemObj;
+        int meta = (int) damage;
+        int maxSize = new ItemStack(item, 1, meta).getMaxCount();
+        int remaining = (int) amount;
+
+        // Top up existing stacks first, then use empty slots, like a player's inventory fills.
+        for (int i = 0; i < inv.size() && remaining > 0; i++) {
+            ItemStack stack = inv.getStack(i);
+            if (stack != null && stack.getItem() == item && stack.getDamage() == meta) {
+                int room = maxSize - stack.count;
+                if (room > 0) {
+                    int add = Math.min(room, remaining);
+                    stack.count += add;
+                    remaining -= add;
+                }
+            }
+        }
+
+        for (int i = 0; i < inv.size() && remaining > 0; i++) {
+            if (inv.getStack(i) == null) {
+                int add = Math.min(maxSize, remaining);
+                inv.setStack(i, new ItemStack(item, add, meta));
+                remaining -= add;
+            }
+        }
+
+        return amount - remaining;
+    }
+
+    @Override
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
         Inventory inv = (Inventory) blockEntityObj;
         ItemStack removed = inv.removeStack((int) slot, (int) amount);

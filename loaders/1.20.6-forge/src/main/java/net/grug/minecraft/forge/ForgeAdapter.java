@@ -171,6 +171,41 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double insertItemIntoInventory(
+            Object blockEntityObj, Object itemObj, double damage, double amount) {
+        Container inv = (Container) blockEntityObj;
+        Item item = (Item) itemObj;
+        int meta = (int) damage;
+        int maxSize = new ItemStack(item).getMaxStackSize();
+        int remaining = (int) amount;
+
+        // Top up existing stacks first, then use empty slots, like a player's inventory fills.
+        for (int i = 0; i < inv.getContainerSize() && remaining > 0; i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!stack.isEmpty() && stack.is(item) && stack.getDamageValue() == meta) {
+                int room = maxSize - stack.getCount();
+                if (room > 0) {
+                    int add = Math.min(room, remaining);
+                    stack.grow(add);
+                    remaining -= add;
+                }
+            }
+        }
+
+        for (int i = 0; i < inv.getContainerSize() && remaining > 0; i++) {
+            if (inv.getItem(i).isEmpty()) {
+                int add = Math.min(maxSize, remaining);
+                ItemStack stack = new ItemStack(item, add);
+                stack.setDamageValue(meta);
+                inv.setItem(i, stack);
+                remaining -= add;
+            }
+        }
+
+        return amount - remaining;
+    }
+
+    @Override
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
         Container inv = (Container) blockEntityObj;
         ItemStack removed = inv.removeItem((int) slot, (int) amount);

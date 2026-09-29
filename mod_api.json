@@ -948,6 +948,38 @@
 				}
 			]
 		},
+		"insert_item_into_inventory": {
+			"description": "Inserts up to amount of an item with the given damage into a block entity's inventory, returning how many were actually inserted.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				},
+				{
+					"name": "damage",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "amount",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"get_inventory_size": {
 			"description": "The number of slots in a block entity's inventory.",
 			"return_type": {

@@ -142,6 +142,41 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double insertItemIntoInventory(
+            Object blockEntityObj, Object itemObj, double damage, double amount) {
+        Inventory inv = (Inventory) blockEntityObj;
+        Item item = (Item) itemObj;
+        int meta = (int) damage;
+        int maxSize = new ItemStack(item, 1).getMaxSize();
+        int remaining = (int) amount;
+
+        // Top up existing stacks first, then use empty slots, like a player's inventory fills.
+        for (int i = 0; i < inv.getSize() && remaining > 0; i++) {
+            ItemStack stack = inv.getItem(i);
+            if (stack != null && stack.getItem() == item && stack.metadata == meta) {
+                int room = maxSize - stack.size;
+                if (room > 0) {
+                    int add = Math.min(room, remaining);
+                    stack.size += add;
+                    remaining -= add;
+                }
+            }
+        }
+
+        for (int i = 0; i < inv.getSize() && remaining > 0; i++) {
+            if (inv.getItem(i) == null) {
+                int add = Math.min(maxSize, remaining);
+                ItemStack stack = new ItemStack(item, add);
+                stack.metadata = meta;
+                inv.setItem(i, stack);
+                remaining -= add;
+            }
+        }
+
+        return amount - remaining;
+    }
+
+    @Override
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
         Inventory inv = (Inventory) blockEntityObj;
         ItemStack removed = inv.removeItem((int) slot, (int) amount);
