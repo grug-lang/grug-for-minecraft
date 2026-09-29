@@ -7,6 +7,14 @@ export run() {
     y: number = origin.y() + 20
     z: number = origin.z()
 
+    # Terrain can reach 20 blocks above the origin (a hill on the seed, or a block left by an earlier
+    # test at the same offset), so climb until the spot is air instead of trusting the offset.
+    steps: number = 0
+    while not level.is_air(x, y, z) and steps < 64 {
+        y = y + 1
+        steps = steps + 1
+    }
+
     Test.assert(level.is_air(x, y, z), "The test spot should start as air.")
     Test.assert(level.get_block(x, y, z) == "minecraft:air", "Air should be named minecraft:air.")
 
