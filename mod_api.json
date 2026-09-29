@@ -80,6 +80,11 @@
 			"description": "A block entity.",
 			"export_functions": [
 				{
+					"name": "on_neighbor_change",
+					"description": "Called when a neighbouring block changes, so a machine can re-evaluate its connections instead of polling every tick.",
+					"parameters": []
+				},
+				{
 					"name": "item_extracted",
 					"description": "Called immediately when an item is removed from a slot.",
 					"parameters": [
@@ -243,6 +248,35 @@
 					"return_type": {
 						"name": "bool"
 					}
+				},
+				"notify_neighbors": {
+					"description": "Test only: notifies the neighbours of a position as if the block there had changed, so a test can deliver an on_neighbor_change without a non-quiet block write.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				},
 				"not_done": {
 					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Will eventually be replaced by `me.not_done()` once entities can have methods."

@@ -128,6 +128,10 @@ public class HostFunctions {
         GrugCore.getAdapter().restoreCameraAfterGraphicsTest();
     }
 
+    public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
+        GrugCore.getAdapter().notifyNeighbors(Grug.entityData.get(levelId).object, x, y, z);
+    }
+
     public static void Test_use_block(long levelId, double x, double y, double z) {
         GrugCore.getAdapter().useBlockForTest(Grug.entityData.get(levelId).object, x, y, z);
     }

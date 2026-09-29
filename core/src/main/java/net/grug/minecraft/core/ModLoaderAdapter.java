@@ -80,6 +80,8 @@ public interface ModLoaderAdapter {
 
     double countItemEntities(Object levelObj, double x, double y, double z, double radius);
 
+    void notifyNeighbors(Object levelObj, double x, double y, double z);
+
     double takeItemFromSlot(Object blockEntityObj, double slot, double amount);
 
     /**

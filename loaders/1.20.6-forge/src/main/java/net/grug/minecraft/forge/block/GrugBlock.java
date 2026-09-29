@@ -87,6 +87,21 @@ public class GrugBlock extends Block implements EntityBlock {
     }
 
     @Override
+    public void neighborChanged(
+            BlockState state,
+            Level level,
+            BlockPos pos,
+            Block block,
+            BlockPos fromPos,
+            boolean isMoving) {
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+            grugBlockEntity.notifyNeighborChanged();
+        }
+        super.neighborChanged(state, level, pos, block, fromPos, isMoving);
+    }
+
+    @Override
     protected InteractionResult useWithoutItem(
             BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         long blockHandle = Grug.createEntity(this.blockFileId);

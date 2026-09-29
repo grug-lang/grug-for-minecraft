@@ -440,6 +440,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 .size();
     }
 
+    @Override
+    public void notifyNeighbors(Object levelObj, double x, double y, double z) {
+        Level world = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        world.updateNeighborsAt(pos, world.getBlockState(pos).getBlock());
+    }
+
     @GrugGenerated("block resolution: Forge returns AIR rather than null for unknown blocks")
     private Block resolveBlock(ResourceLocation id) {
         Block targetBlock = ForgeRegistries.BLOCKS.getValue(id);

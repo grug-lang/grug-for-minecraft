@@ -340,6 +340,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return count;
     }
 
+    @Override
+    public void notifyNeighbors(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        world.updateNeighbors((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z), 0);
+    }
+
     @GrugGenerated(
             "block names: an out-of-range id, a grug block with no data and the reflection fallback"
                     + " all cannot be forced from a headless test")
