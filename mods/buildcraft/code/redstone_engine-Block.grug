@@ -1,0 +1,5 @@
+export init() {
+    set_hardness(2.5)
+    set_material("wood")
+    set_block_entity(e"redstone_engine_entity")
+}
