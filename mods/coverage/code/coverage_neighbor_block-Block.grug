@@ -1,0 +1,6 @@
+export init() {
+    set_hardness(1)
+    set_material("stone")
+    set_block_entity(e"coverage_neighbor_block_entity")
+    set_inventory_size(1)
+}

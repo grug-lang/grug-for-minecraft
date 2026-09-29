@@ -431,6 +431,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void notifyNeighbors(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        world.notifyNeighbors((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z), 0);
+    }
+
+    @Override
     public Vec3 getTestOrigin() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
