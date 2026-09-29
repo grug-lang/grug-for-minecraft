@@ -9,7 +9,9 @@ export run() {
         z: number = origin.z()
 
         level.place_block(x, y, z, "grug:foo_block")
+        print(level.get_block(x, y, z))
         block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        print(block_opt.has())
         Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
 
         Test.not_done()

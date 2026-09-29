@@ -1,0 +1,57 @@
+# Covers the wooden pipe turning a corner: source chest to the west, target chest to the north.
+pipe_turn_source: Option[BlockEntity] = Option.new()
+pipe_turn_target: Option[BlockEntity] = Option.new()
+pipe_turn_self: Option[BlockEntity] = Option.new()
+
+export run() {
+    if Test.tick() == 0 {
+        _turn_setup()
+        Test.not_done()
+    } else if Test.tick() < 20 {
+        Test.not_done()
+    } else {
+        _turn_check()
+    }
+}
+
+local _turn_setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    level.place_block(x, y, z - 1, "minecraft:chest")
+
+    level.place_block(x, y - 3, z, "minecraft:stone")
+    level.place_block(x, y - 2, z, "minecraft:redstone_torch")
+    level.place_block(x, y - 2, z, "minecraft:redstone_torch_lit")
+    level.place_block(x, y - 1, z, "grug:redstone_engine")
+
+    source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    target_opt: Option[BlockEntity] = level.get_block_entity(x, y, z - 1)
+    self_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(source_opt.has(), "The source chest should have a block entity.")
+    Test.assert(target_opt.has(), "The target chest should have a block entity.")
+    Test.assert(self_opt.has(), "The pipe should have a block entity.")
+
+    pipe_turn_source.set(source_opt.unwrap())
+    pipe_turn_target.set(target_opt.unwrap())
+    pipe_turn_self.set(self_opt.unwrap())
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    set_item_in_slot(pipe_turn_source.unwrap(), 0, diamond, 1)
+}
+
+local _turn_check() {
+    source_count: number = get_item_count_in_slot(pipe_turn_source.unwrap(), 0)
+    target_count: number = get_item_count_in_slot(pipe_turn_target.unwrap(), 0)
+    pipe_count: number = get_item_count_in_slot(pipe_turn_self.unwrap(), 0)
+
+    Test.assert(source_count + target_count + pipe_count == 1, "The diamond should exist exactly once.")
+    Test.assert(source_count == 0, "The source chest should be empty.")
+    Test.assert(target_count == 1, "The north chest should hold the diamond.")
+    Test.assert(pipe_count == 0, "The pipe should not still be holding the diamond.")
+}
