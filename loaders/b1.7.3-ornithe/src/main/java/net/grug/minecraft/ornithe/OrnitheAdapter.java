@@ -283,6 +283,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
     }
 
+    @GrugGenerated(
+            "block names: an out-of-range id, a grug block with no data and the reflection fallback"
+                    + " all cannot be forced from a headless test")
     private String blockName(int id) {
         if (id == 0) {
             return "minecraft:air";
