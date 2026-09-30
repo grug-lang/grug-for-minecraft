@@ -281,7 +281,7 @@ public class HostFunctions {
         setOptionValue(optionId, value);
     }
 
-    // GrugOption is a record, so filling an Option in means replacing the object stored under its
+    // GrugOption is immutable, so filling an Option in means replacing the object stored under its
     // entity id rather than mutating it in place.
     private static void setOptionValue(long optionId, Object value) {
         Grug.addEntityWithId(optionId, GrugEntityType.Option, new GrugOption(value));
@@ -312,7 +312,7 @@ public class HostFunctions {
                             + ".");
             return 0;
         }
-        // GrugScreenshot is a record, so setting a tolerance replaces the object stored under the
+        // GrugScreenshot is immutable, so setting a tolerance replaces the object stored under the
         // entity id rather than mutating it in place, the same way Option.set works.
         Grug.addEntityWithId(screenshotId, GrugEntityType.Screenshot, new GrugScreenshot(percent));
         return screenshotId;
