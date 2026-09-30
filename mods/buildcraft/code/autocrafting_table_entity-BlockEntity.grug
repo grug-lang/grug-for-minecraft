@@ -100,13 +100,14 @@ local _count_required(target_item: Item, target_damage: number) number {
 }
 
 local _count_in_neighbors(item: Item, damage: number) number {
+    # Match BuildCraft's TileAutoWorkbench.getNearbyItem order: XNeg, XPos, YNeg, YPos, ZNeg, ZPos.
     total: number = 0
-    total = total + _count_in_neighbor(x + 1, y, z, item, damage)
     total = total + _count_in_neighbor(x - 1, y, z, item, damage)
-    total = total + _count_in_neighbor(x, y + 1, z, item, damage)
+    total = total + _count_in_neighbor(x + 1, y, z, item, damage)
     total = total + _count_in_neighbor(x, y - 1, z, item, damage)
-    total = total + _count_in_neighbor(x, y, z + 1, item, damage)
+    total = total + _count_in_neighbor(x, y + 1, z, item, damage)
     total = total + _count_in_neighbor(x, y, z - 1, item, damage)
+    total = total + _count_in_neighbor(x, y, z + 1, item, damage)
     return total
 }
 
@@ -121,19 +122,14 @@ local _count_in_neighbor(nx: number, ny: number, nz: number, item: Item, damage:
 local _extract_from_neighbors(item: Item, damage: number, amount: number) number {
     extracted: number = 0
 
-    pull: number = _extract_from_neighbor(x + 1, y, z, item, damage, amount - extracted)
+    # Same order as _count_in_neighbors, so the neighbours drained match BuildCraft: XNeg first.
+    pull: number = _extract_from_neighbor(x - 1, y, z, item, damage, amount - extracted)
     extracted = extracted + pull
     if extracted >= amount {
         return extracted
     }
 
-    pull = _extract_from_neighbor(x - 1, y, z, item, damage, amount - extracted)
-    extracted = extracted + pull
-    if extracted >= amount {
-        return extracted
-    }
-
-    pull = _extract_from_neighbor(x, y + 1, z, item, damage, amount - extracted)
+    pull = _extract_from_neighbor(x + 1, y, z, item, damage, amount - extracted)
     extracted = extracted + pull
     if extracted >= amount {
         return extracted
@@ -145,13 +141,19 @@ local _extract_from_neighbors(item: Item, damage: number, amount: number) number
         return extracted
     }
 
-    pull = _extract_from_neighbor(x, y, z + 1, item, damage, amount - extracted)
+    pull = _extract_from_neighbor(x, y + 1, z, item, damage, amount - extracted)
     extracted = extracted + pull
     if extracted >= amount {
         return extracted
     }
 
     pull = _extract_from_neighbor(x, y, z - 1, item, damage, amount - extracted)
+    extracted = extracted + pull
+    if extracted >= amount {
+        return extracted
+    }
+
+    pull = _extract_from_neighbor(x, y, z + 1, item, damage, amount - extracted)
     extracted = extracted + pull
     return extracted
 }

@@ -69,7 +69,8 @@ local _test_logic() {
     }
 
     # TODO: Change to table.take_item_from_slot() once entities can have methods
-    # Pull 1: 9 diamonds used (from grid). Restocks 9 from chests. (10 - 9 = 1 left in chests).
+    # Pull 1: 9 diamonds used (from grid). Restocks 9 from chests nearest first: BuildCraft drains
+    # the XNeg neighbour (chest 2, at x - 1) before XPos, so chest 2 empties and chest 1 keeps 1.
     take_item_from_slot(table, 9, 1)
 
     # Pull 2: 9 diamonds used (from grid). Restock fails (requires 9, has 1). Grid empties.
@@ -79,8 +80,8 @@ local _test_logic() {
     chest1_count: number = get_item_count_in_slot(chest1, 0)
     chest2_count: number = get_item_count_in_slot(chest2, 0)
 
-    Test.assert(chest1_count == 0, "Expected exactly 0 diamonds to remain in chest 1.")
-    Test.assert(chest2_count == 1, "Expected exactly 1 diamond to remain in chest 2.")
+    Test.assert(chest1_count == 1, "Expected exactly 1 diamond to remain in chest 1.")
+    Test.assert(chest2_count == 0, "Expected exactly 0 diamonds to remain in chest 2.")
 }
 
 local _test_graphics_setup() {
