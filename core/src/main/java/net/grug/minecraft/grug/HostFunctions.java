@@ -187,10 +187,9 @@ public class HostFunctions {
                 new GrugGuiBuilder.CraftingGridDef((int) startSlot, (int) x, (int) y));
     }
 
-    public static void GUI_add_crafting_result(long guiId, double slot, double x, double y) {
+    public static void GUI_add_crafting_result(long guiId, double x, double y) {
         GrugGuiBuilder builder = (GrugGuiBuilder) Grug.entityData.get(guiId).object;
-        builder.craftingResults.add(
-                new GrugGuiBuilder.CraftingResultDef((int) slot, (int) x, (int) y));
+        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef((int) x, (int) y));
     }
 
     public static void GUI_add_player_inventory(
@@ -537,19 +536,21 @@ public class HostFunctions {
                     Grug.statePtr, "set_material: Can only be called during a Block's init().");
     }
 
+    public static double take_crafting_result(long blockEntityId, double amount) {
+        return GrugCore.getAdapter()
+                .takeCraftingResult(HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount);
+    }
+
     public static double take_item_from_slot(long blockEntityId, double slot, double amount) {
         return GrugCore.getAdapter()
                 .takeItemFromSlot(
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, amount);
     }
 
-    public static void update_recipe_output(
-            long blockEntityId, double startSlot, double outputSlot) {
+    public static void update_recipe_output(long blockEntityId, double startSlot) {
         GrugCore.getAdapter()
                 .updateRecipeOutput(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        startSlot,
-                        outputSlot);
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
     }
 
     public static long vec3_zero() {

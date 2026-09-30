@@ -34,8 +34,11 @@ public class GrugContainer extends Container {
         }
 
         for (GrugGuiBuilder.CraftingResultDef result : layout.craftingResults) {
+            // The result is not an inventory slot; the block entity owns a one-slot container for
+            // it. Taking from that container is the same path take_crafting_result uses.
+            IInventory resultInventory = ((GrugBlockEntity) blockInventory).getResultInventory();
             addSlot(
-                    new Slot(blockInventory, result.slot(), result.x(), result.y()) {
+                    new Slot(resultInventory, 0, result.x(), result.y()) {
                         @Override
                         public boolean isItemValid(ItemStack stack) {
                             return false;
@@ -44,11 +47,8 @@ public class GrugContainer extends Container {
                         @Override
                         public void onPickupFromSlot(ItemStack stack) {
                             super.onPickupFromSlot(stack);
-                            if (blockInventory instanceof GrugBlockEntity) {
-                                ((GrugBlockEntity) blockInventory)
-                                        .notifyOutputTaken(
-                                                result.slot(), stack != null ? stack.stackSize : 0);
-                            }
+                            ((GrugBlockEntity) blockInventory)
+                                    .notifyOutputTaken(stack != null ? stack.stackSize : 0);
                         }
                     });
         }

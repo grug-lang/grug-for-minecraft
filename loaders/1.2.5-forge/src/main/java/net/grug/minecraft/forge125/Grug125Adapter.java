@@ -154,13 +154,66 @@ public class Grug125Adapter implements ModLoaderAdapter {
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
         IInventory inv = (IInventory) blockEntityObj;
         ItemStack removed = inv.decrStackSize((int) slot, (int) amount);
-        if (removed != null) {
-            if (blockEntityObj instanceof GrugBlockEntity) {
-                ((GrugBlockEntity) blockEntityObj).notifyOutputTaken((int) slot, removed.stackSize);
+        return removed != null ? removed.stackSize : 0;
+    }
+
+    @Override
+    public double takeCraftingResult(Object blockEntityObj, double amount) {
+        if (blockEntityObj instanceof GrugBlockEntity) {
+            GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
+            ItemStack removed = gbe.takeResultStack((int) amount);
+            if (removed != null) {
+                gbe.notifyOutputTaken(removed.stackSize);
+                return removed.stackSize;
             }
-            return removed.stackSize;
+            return 0;
         }
-        return 0;
+
+        // 1.2.5 has no generic result API: a real mod's tile only exposes its own extraction.
+        // BuildCraft's TileAutoWorkbench computes the result, so the reference harness calls
+        // extractItem(true, false) through reflection.
+        return extractReferenceResult(blockEntityObj, amount);
+    }
+
+    /**
+     * Pulls the computed result out of a reference tile that has no result container, by
+     * reflectively calling its own {@code extractItem(boolean, boolean)} (BuildCraft's {@code
+     * TileAutoWorkbench.extractItem(true, false)}). Fails loudly if the tile has no such method.
+     */
+    @GrugGenerated("reference result extraction: only BuildCraft's tile is exercised in CI")
+    private static double extractReferenceResult(Object blockEntityObj, double amount) {
+        java.lang.reflect.Method extractItem;
+        try {
+            extractItem =
+                    blockEntityObj
+                            .getClass()
+                            .getMethod("extractItem", boolean.class, boolean.class);
+        } catch (NoSuchMethodException e) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "take_crafting_result: "
+                            + blockEntityObj.getClass().getName()
+                            + " has no extractItem(boolean, boolean) method to pull a reference"
+                            + " result from.");
+            return 0;
+        }
+
+        int total = 0;
+        int remaining = (int) amount;
+        try {
+            while (remaining > 0) {
+                ItemStack result = (ItemStack) extractItem.invoke(blockEntityObj, true, false);
+                if (result == null) break;
+                total += result.stackSize;
+                remaining -= result.stackSize;
+            }
+        } catch (ReflectiveOperationException e) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "take_crafting_result: the reference tile's extractItem threw " + e + ".");
+            return 0;
+        }
+        return total;
     }
 
     @Override
@@ -203,11 +256,20 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
+    public void updateRecipeOutput(Object blockEntityObj, double startSlot) {
+        if (!(blockEntityObj instanceof GrugBlockEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "update_recipe_output: "
+                            + blockEntityObj.getClass().getName()
+                            + " has no crafting result container.");
+            return;
+        }
+        GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
         IInventory inv = (IInventory) blockEntityObj;
         DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
         ItemStack result = CraftingManager.getInstance().findMatchingRecipe(matrix);
-        inv.setInventorySlotContents((int) outputSlot, result != null ? result.copy() : null);
+        gbe.setResultStack(result != null ? result.copy() : null);
     }
 
     // --- Item Registry Methods ---

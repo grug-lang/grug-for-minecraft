@@ -42,8 +42,11 @@ public class GrugMenu extends AbstractContainerMenu {
 
         // Crafting Results
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
+            // The result is not an inventory slot; the block entity owns a one-slot container for
+            // it. Taking from that container is the same path take_crafting_result uses.
+            Container resultContainer = ((GrugBlockEntity) blockContainer).getResultContainer();
             this.addSlot(
-                    new Slot(blockContainer, res.slot(), res.x(), res.y()) {
+                    new Slot(resultContainer, 0, res.x(), res.y()) {
                         @Override
                         public boolean mayPlace(ItemStack stack) {
                             return false;
@@ -52,9 +55,7 @@ public class GrugMenu extends AbstractContainerMenu {
                         @Override
                         public void onTake(Player player, ItemStack stack) {
                             super.onTake(player, stack);
-                            if (blockContainer instanceof GrugBlockEntity gbe) {
-                                gbe.notifyOutputTaken(res.slot(), stack.getCount());
-                            }
+                            ((GrugBlockEntity) blockContainer).notifyOutputTaken(stack.getCount());
                         }
                     });
         }
@@ -96,7 +97,6 @@ public class GrugMenu extends AbstractContainerMenu {
 
         buf.writeInt(builder.craftingResults.size());
         for (GrugGuiBuilder.CraftingResultDef def : builder.craftingResults) {
-            buf.writeInt(def.slot());
             buf.writeInt(def.x());
             buf.writeInt(def.y());
         }
@@ -128,8 +128,7 @@ public class GrugMenu extends AbstractContainerMenu {
         int results = buf.readInt();
         for (int i = 0; i < results; i++) {
             b.craftingResults.add(
-                    new GrugGuiBuilder.CraftingResultDef(
-                            buf.readInt(), buf.readInt(), buf.readInt()));
+                    new GrugGuiBuilder.CraftingResultDef(buf.readInt(), buf.readInt()));
         }
 
         int texts = buf.readInt();

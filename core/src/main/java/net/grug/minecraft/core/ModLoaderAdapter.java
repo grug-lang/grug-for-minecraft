@@ -65,11 +65,18 @@ public interface ModLoaderAdapter {
 
     void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count);
 
-    void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot);
+    void updateRecipeOutput(Object blockEntityObj, double startSlot);
 
     void placeBlock(Object levelObj, double x, double y, double z, String blockName);
 
     double takeItemFromSlot(Object blockEntityObj, double slot, double amount);
+
+    /**
+     * Takes part of a block entity's crafting result. Unlike {@link #takeItemFromSlot} this is not
+     * an inventory slot: a grug block entity keeps the result in its own holder, and a reference
+     * tile computes it on demand.
+     */
+    double takeCraftingResult(Object blockEntityObj, double amount);
 
     Object getClientLevel();
 

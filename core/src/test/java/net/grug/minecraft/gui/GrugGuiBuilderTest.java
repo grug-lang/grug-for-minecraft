@@ -2,7 +2,6 @@ package net.grug.minecraft.gui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -36,17 +35,12 @@ class GrugGuiBuilderTest {
     }
 
     @Test
-    void aResultInsideTheInventoryIsAccepted() {
+    void aResultIsNotCheckedAgainstTheInventory() {
+        // A result has no slot at all, so it cannot be out of bounds no matter how small the
+        // inventory is.
         GrugGuiBuilder builder = new GrugGuiBuilder("texture");
-        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(3, 0, 0));
-        assertFalse(builder.firstSlotOutsideInventory(9).isPresent());
-    }
-
-    @Test
-    void aResultPastTheInventoryIsReported() {
-        GrugGuiBuilder builder = new GrugGuiBuilder("texture");
-        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(10, 0, 0));
-        assertEquals(10, builder.firstSlotOutsideInventory(9).getAsInt());
+        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(0, 0));
+        assertFalse(builder.firstSlotOutsideInventory(0).isPresent());
     }
 
     @Test
@@ -58,9 +52,10 @@ class GrugGuiBuilderTest {
     }
 
     @Test
-    void aSlotExactlyAtTheInventorySizeIsOutside() {
+    void aResultDoesNotHideABadGrid() {
         GrugGuiBuilder builder = new GrugGuiBuilder("texture");
-        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(9, 0, 0));
-        assertTrue(builder.firstSlotOutsideInventory(9).isPresent());
+        builder.craftingGrids.add(new GrugGuiBuilder.CraftingGridDef(9, 0, 0));
+        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef(0, 0));
+        assertEquals(9, builder.firstSlotOutsideInventory(9).getAsInt());
     }
 }

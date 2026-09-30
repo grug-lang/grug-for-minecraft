@@ -117,14 +117,8 @@
 				},
 				{
 					"name": "output_taken",
-					"description": "Called whenever an item leaves a crafting result slot, by any means.",
+					"description": "Called whenever an item leaves a crafting result, by any means.",
 					"parameters": [
-						{
-							"name": "slot",
-							"type": {
-								"name": "number"
-							}
-						},
 						{
 							"name": "amount",
 							"type": {
@@ -422,14 +416,8 @@
 					]
 				},
 				"add_crafting_result": {
-					"description": "Adds a crafting output slot.",
+					"description": "Adds a crafting result at the given GUI position. The result is not an inventory slot.",
 					"parameters": [
-						{
-							"name": "slot",
-							"type": {
-								"name": "number"
-							}
-						},
 						{
 							"name": "x",
 							"type": {
@@ -1214,8 +1202,28 @@
 				}
 			]
 		},
+		"take_crafting_result": {
+			"description": "Takes part of a block entity's crafting result. The result is not an inventory slot: a grug block entity holds it in a dedicated container, and a reference tile computes it on demand.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "amount",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"take_item_from_slot": {
-			"description": "Takes item(s) from a slot. TODO: This description should document what happens and the fn returns when a slot only contains 2 items, but the code tries to take 3 items. Does it just return 2?",
+			"description": "Takes item(s) from an inventory slot. TODO: This description should document what happens and the fn returns when a slot only contains 2 items, but the code tries to take 3 items. Does it just return 2?",
 			"return_type": {
 				"name": "number"
 			},
@@ -1241,7 +1249,7 @@
 			]
 		},
 		"update_recipe_output": {
-			"description": "Evaluates a 3x3 crafting grid and places the result in the output slot.",
+			"description": "Evaluates a 3x3 crafting grid and caches the result in the block entity's result container.",
 			"parameters": [
 				{
 					"name": "block_entity",
@@ -1251,12 +1259,6 @@
 				},
 				{
 					"name": "start_slot",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "output_slot",
 					"type": {
 						"name": "number"
 					}

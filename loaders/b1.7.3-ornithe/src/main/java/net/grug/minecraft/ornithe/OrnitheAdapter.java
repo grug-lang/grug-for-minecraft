@@ -141,12 +141,24 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
         Inventory inv = (Inventory) blockEntityObj;
         ItemStack removed = inv.removeItem((int) slot, (int) amount);
-        if (removed != null) {
-            if (blockEntityObj instanceof GrugBlockEntity gbe) {
-                gbe.notifyOutputTaken((int) slot, removed.size);
+        return removed != null ? removed.size : 0;
+    }
+
+    @Override
+    public double takeCraftingResult(Object blockEntityObj, double amount) {
+        if (blockEntityObj instanceof GrugBlockEntity gbe) {
+            ItemStack removed = gbe.takeResultStack((int) amount);
+            if (removed != null) {
+                gbe.notifyOutputTaken(removed.size);
+                return removed.size;
             }
-            return removed.size;
+            return 0;
         }
+
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "take_crafting_result: reference result extraction is not implemented for this"
+                        + " loader.");
         return 0;
     }
 
@@ -190,11 +202,19 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
+    public void updateRecipeOutput(Object blockEntityObj, double startSlot) {
+        if (!(blockEntityObj instanceof GrugBlockEntity gbe)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "update_recipe_output: "
+                            + blockEntityObj.getClass().getName()
+                            + " has no crafting result container.");
+            return;
+        }
         Inventory inv = (Inventory) blockEntityObj;
         DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
         ItemStack result = CraftingManager.getInstance().getResult(matrix);
-        inv.setItem((int) outputSlot, result != null ? result.copy() : null);
+        gbe.setResultStack(result != null ? result.copy() : null);
     }
 
     // --- World & Entity Methods ---

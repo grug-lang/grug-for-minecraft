@@ -174,12 +174,24 @@ public class ForgeAdapter implements ModLoaderAdapter {
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
         Container inv = (Container) blockEntityObj;
         ItemStack removed = inv.removeItem((int) slot, (int) amount);
-        if (!removed.isEmpty()) {
-            if (blockEntityObj instanceof GrugBlockEntity gbe) {
-                gbe.notifyOutputTaken((int) slot, removed.getCount());
+        return !removed.isEmpty() ? removed.getCount() : 0;
+    }
+
+    @Override
+    public double takeCraftingResult(Object blockEntityObj, double amount) {
+        if (blockEntityObj instanceof GrugBlockEntity gbe) {
+            ItemStack removed = gbe.takeResultStack((int) amount);
+            if (!removed.isEmpty()) {
+                gbe.notifyOutputTaken(removed.getCount());
+                return removed.getCount();
             }
-            return removed.getCount();
+            return 0;
         }
+
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "take_crafting_result: reference result extraction is not implemented for this"
+                        + " loader.");
         return 0;
     }
 
@@ -289,47 +301,53 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @GrugGenerated("recipe output: crafting glue that needs the level's recipe manager")
     @Override
-    public void updateRecipeOutput(Object blockEntityObj, double startSlot, double outputSlot) {
-        if (blockEntityObj instanceof BlockEntity be && be.getLevel() != null) {
-            Level level = be.getLevel();
-            if (be instanceof Container inv) {
-                TransientCraftingContainer craftingContainer =
-                        new TransientCraftingContainer(
-                                new AbstractContainerMenu(null, -1) {
-                                    @GrugGenerated("crafting menu placeholder")
-                                    @Override
-                                    public ItemStack quickMoveStack(Player player, int index) {
-                                        return ItemStack.EMPTY;
-                                    }
+    public void updateRecipeOutput(Object blockEntityObj, double startSlot) {
+        if (!(blockEntityObj instanceof GrugBlockEntity gbe)
+                || !(blockEntityObj instanceof BlockEntity be)
+                || be.getLevel() == null
+                || !(be instanceof Container inv)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "update_recipe_output: "
+                            + blockEntityObj.getClass().getName()
+                            + " has no crafting result container.");
+            return;
+        }
 
-                                    @GrugGenerated("crafting menu placeholder")
-                                    @Override
-                                    public boolean stillValid(Player player) {
-                                        return false;
-                                    }
-                                },
-                                3,
-                                3);
+        Level level = be.getLevel();
+        TransientCraftingContainer craftingContainer =
+                new TransientCraftingContainer(
+                        new AbstractContainerMenu(null, -1) {
+                            @GrugGenerated("crafting menu placeholder")
+                            @Override
+                            public ItemStack quickMoveStack(Player player, int index) {
+                                return ItemStack.EMPTY;
+                            }
 
-                int start = (int) startSlot;
-                for (int i = 0; i < 9; i++) {
-                    craftingContainer.setItem(i, inv.getItem(start + i));
-                }
+                            @GrugGenerated("crafting menu placeholder")
+                            @Override
+                            public boolean stillValid(Player player) {
+                                return false;
+                            }
+                        },
+                        3,
+                        3);
 
-                Optional<RecipeHolder<CraftingRecipe>> recipe =
-                        level.getRecipeManager()
-                                .getRecipeFor(RecipeType.CRAFTING, craftingContainer, level);
+        int start = (int) startSlot;
+        for (int i = 0; i < 9; i++) {
+            craftingContainer.setItem(i, inv.getItem(start + i));
+        }
 
-                if (recipe.isPresent()) {
-                    ItemStack result =
-                            recipe.get()
-                                    .value()
-                                    .assemble(craftingContainer, level.registryAccess());
-                    inv.setItem((int) outputSlot, result);
-                } else {
-                    inv.setItem((int) outputSlot, ItemStack.EMPTY);
-                }
-            }
+        Optional<RecipeHolder<CraftingRecipe>> recipe =
+                level.getRecipeManager()
+                        .getRecipeFor(RecipeType.CRAFTING, craftingContainer, level);
+
+        if (recipe.isPresent()) {
+            ItemStack result =
+                    recipe.get().value().assemble(craftingContainer, level.registryAccess());
+            gbe.setResultStack(result);
+        } else {
+            gbe.setResultStack(ItemStack.EMPTY);
         }
     }
 

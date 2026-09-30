@@ -12,6 +12,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -29,6 +30,13 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     private NonNullList<ItemStack> stacks = NonNullList.create();
     private boolean sized = false;
 
+    /**
+     * The cached recipe result, in a one-slot container of its own so it never takes an inventory
+     * address: {@link #getContainerSize()} reports only the grid. The adapter's recipe lookup fills
+     * it, the GUI result slot renders it, and taking from either path removes from this same slot.
+     */
+    private final SimpleContainer resultContainer = new SimpleContainer(1);
+
     public GrugBlockEntity(BlockPos pos, BlockState state) {
         super(GrugModLoader.BLOCK_ENTITIES.getEntries().iterator().next().get(), pos, state);
     }
@@ -36,6 +44,21 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     private void ensureSized() {
         if (sized) return;
         sized = trySizeInventory();
+    }
+
+    /** The one-slot container holding the cached crafting result. */
+    public Container getResultContainer() {
+        return resultContainer;
+    }
+
+    /** Caches the recipe result, or clears it when {@code stack} is empty. */
+    public void setResultStack(ItemStack stack) {
+        resultContainer.setItem(0, stack);
+    }
+
+    /** Removes up to {@code amount} from the cached result and returns what was removed. */
+    public ItemStack takeResultStack(int amount) {
+        return resultContainer.removeItem(0, amount);
     }
 
     @Override
@@ -170,12 +193,12 @@ public class GrugBlockEntity extends BlockEntity implements Container {
         }
     }
 
-    public void notifyOutputTaken(int slot, int amount) {
+    public void notifyOutputTaken(int amount) {
         initGrug();
         if (entityHandle != 0) {
             long fnId = Grug.getExportFnId("BlockEntity", "output_taken");
             if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                ExportFns.BlockEntity_output_taken(entityHandle, slot, amount);
+                ExportFns.BlockEntity_output_taken(entityHandle, amount);
             }
         }
     }
@@ -200,6 +223,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     public void clearContent() {
         ensureSized();
         stacks.clear();
+        resultContainer.clearContent();
     }
 
     @Override
@@ -212,6 +236,12 @@ public class GrugBlockEntity extends BlockEntity implements Container {
             ensureSized();
         }
         ContainerHelper.loadAllItems(tag, stacks, registries);
+
+        resultContainer.setItem(
+                0,
+                tag.contains("GrugResult")
+                        ? ItemStack.parseOptional(registries, tag.getCompound("GrugResult"))
+                        : ItemStack.EMPTY);
     }
 
     @Override
@@ -220,5 +250,10 @@ public class GrugBlockEntity extends BlockEntity implements Container {
         ensureSized();
         tag.putInt("GrugInvSize", stacks.size());
         ContainerHelper.saveAllItems(tag, stacks, registries);
+
+        ItemStack resultStack = resultContainer.getItem(0);
+        if (!resultStack.isEmpty()) {
+            tag.put("GrugResult", resultStack.save(registries));
+        }
     }
 }

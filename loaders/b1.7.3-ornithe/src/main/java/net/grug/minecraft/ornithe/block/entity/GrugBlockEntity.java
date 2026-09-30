@@ -9,6 +9,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
@@ -24,9 +25,31 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     private ItemStack[] stacks = new ItemStack[0];
     private boolean sized = false;
 
+    /**
+     * The cached recipe result, in a one-slot container of its own so it never takes an inventory
+     * address: {@link #getSize()} reports only the grid. The adapter's recipe lookup fills it, the
+     * GUI result slot renders it, and taking from either path removes from this same slot.
+     */
+    private final SimpleInventory resultInventory = new SimpleInventory("Crafting Result", 1);
+
     private void ensureSized() {
         if (sized) return;
         sized = trySizeInventory();
+    }
+
+    /** The one-slot container holding the cached crafting result. */
+    public Inventory getResultInventory() {
+        return resultInventory;
+    }
+
+    /** Caches the recipe result, or clears it when {@code stack} is null. */
+    public void setResultStack(ItemStack stack) {
+        resultInventory.setItem(0, stack);
+    }
+
+    /** Removes up to {@code amount} from the cached result and returns what was removed. */
+    public ItemStack takeResultStack(int amount) {
+        return resultInventory.removeItem(0, amount);
     }
 
     private void initGrug() {
@@ -166,13 +189,13 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         }
     }
 
-    public void notifyOutputTaken(int slot, int amount) {
+    public void notifyOutputTaken(int amount) {
         initGrug();
 
         if (entityHandle != 0) {
             long fnId = Grug.getExportFnId("BlockEntity", "output_taken");
             if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                ExportFns.BlockEntity_output_taken(entityHandle, slot, amount);
+                ExportFns.BlockEntity_output_taken(entityHandle, amount);
             }
         }
     }
@@ -217,6 +240,10 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
                 stacks[slot] = new ItemStack(itemNbt);
             }
         }
+
+        resultInventory.setItem(
+                0,
+                nbt.contains("GrugResult") ? new ItemStack(nbt.getCompound("GrugResult")) : null);
     }
 
     @Override
@@ -236,5 +263,10 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
             }
         }
         nbt.put("Items", items);
+
+        ItemStack resultStack = resultInventory.getItem(0);
+        if (resultStack != null) {
+            nbt.put("GrugResult", resultStack.writeNbt(new NbtCompound()));
+        }
     }
 }

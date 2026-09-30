@@ -25,7 +25,7 @@ public class StationGuiHelper {
         int numInts =
                 13
                         + (builder.craftingGrids.size() * 3)
-                        + (builder.craftingResults.size() * 3)
+                        + (builder.craftingResults.size() * 2)
                         + (builder.texts.size() * 3);
         int[] ints = new int[numInts];
 
@@ -50,7 +50,6 @@ public class StationGuiHelper {
 
         ints[idx++] = builder.craftingResults.size();
         for (GrugGuiBuilder.CraftingResultDef res : builder.craftingResults) {
-            ints[idx++] = res.slot();
             ints[idx++] = res.x();
             ints[idx++] = res.y();
         }
@@ -86,8 +85,7 @@ public class StationGuiHelper {
         int resultsCount = message.ints[idx++];
         for (int i = 0; i < resultsCount; i++) {
             builder.craftingResults.add(
-                    new GrugGuiBuilder.CraftingResultDef(
-                            message.ints[idx++], message.ints[idx++], message.ints[idx++]));
+                    new GrugGuiBuilder.CraftingResultDef(message.ints[idx++], message.ints[idx++]));
         }
 
         int textCount = message.ints[idx++];

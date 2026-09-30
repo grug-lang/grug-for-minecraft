@@ -10,22 +10,20 @@ z: number = center.z()
 
 export item_extracted(slot: number, amount: number) {
     if slot >= 0 and slot <= 8 {
-        update_recipe_output(me, 0, 9)
+        update_recipe_output(me, 0)
     }
 }
 
 export item_inserted(slot: number, amount: number) {
     if slot >= 0 and slot <= 8 {
-        update_recipe_output(me, 0, 9)
+        update_recipe_output(me, 0)
     }
 }
 
-export output_taken(slot: number, amount: number) {
-    if slot == 9 {
-        _try_restock_about_to_empty()
-        consume_crafting_ingredients(me, 0)
-        update_recipe_output(me, 0, 9)
-    }
+export output_taken(amount: number) {
+    _try_restock_about_to_empty()
+    consume_crafting_ingredients(me, 0)
+    update_recipe_output(me, 0)
 }
 
 local _try_restock_about_to_empty() {
