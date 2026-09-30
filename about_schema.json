@@ -95,7 +95,7 @@
                     "$ref": "#/definitions/install"
                 },
                 "deviations": {
-                    "description": "Intentional differences from the reference. A non-empty list says the difference is deliberate, so a reader does not 'fix' it.",
+                    "description": "Intentional differences from the reference. A non-empty list says the difference is deliberate, so a reader does not 'fix' it. An exact recreation has none.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/deviation"

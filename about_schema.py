@@ -124,6 +124,15 @@ def recreation_errors(data: dict) -> list:
             )
         )
 
+    if recreation.get("fidelity") == "exact" and recreation.get("deviations"):
+        errors.append(
+            (
+                "/recreation/deviations",
+                "an exact recreation has no deviations; a deliberate difference means the"
+                " fidelity is behavioral or inspired, so remove the deviations or lower it.",
+            )
+        )
+
     install = recreation.get("install")
     files = install.get("files") if isinstance(install, dict) else None
     if isinstance(files, list):
