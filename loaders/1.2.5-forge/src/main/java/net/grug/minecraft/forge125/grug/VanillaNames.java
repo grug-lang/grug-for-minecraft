@@ -14,10 +14,11 @@ import java.util.Map;
 /**
  * Resolves a {@code minecraft:...} resource name to a 1.2.5 block or item id.
  *
- * <p>The runtime is obfuscated, so the other loaders' trick of reflecting over named fields does not
- * work here: {@code Block.chest} is a one-letter field at run time. Instead the build dumps the dev
- * classes' names and ids into {@code /vanilla_names.txt}, and this reads them back. Names are keyed
- * by {@link #key(String)}, which ignores word order so {@code iron_ingot} matches {@code ingotIron}.
+ * <p>The runtime is obfuscated, so the other loaders' trick of reflecting over named fields does
+ * not work here: {@code Block.chest} is a one-letter field at run time. Instead the build dumps the
+ * dev classes' names and ids into {@code /vanilla_names.txt}, and this reads them back. Names are
+ * keyed by {@link #key(String)}, which ignores word order so {@code iron_ingot} matches {@code
+ * ingotIron}.
  *
  * <p>A few names genuinely changed between 1.2.5 and the names grug writes, so {@link #ALIASES}
  * carries those. This is a stopgap; a resource name that is not an alias or the same words in a
