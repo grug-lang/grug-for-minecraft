@@ -45,12 +45,14 @@ class GrugScreenshotsVerifyTest {
         // explicit off.
         System.setProperty(GrugReference.CI_PROPERTY, "0");
         System.setProperty(GrugReference.PROPERTY, "0");
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "0");
     }
 
     @AfterEach
     void clearTheFlags() {
         System.clearProperty(GrugReference.CI_PROPERTY);
         System.clearProperty(GrugReference.PROPERTY);
+        System.clearProperty(GrugReference.UPDATE_GOLDENS_PROPERTY);
     }
 
     private static BufferedImage solid(int width, int height, int rgb) {
@@ -207,6 +209,46 @@ class GrugScreenshotsVerifyTest {
         assertTrue(
                 Files.exists(references.resolve("1.png")),
                 "a reference run still captures its first reference");
+        assertEquals(capture.getRGB(0, 0), read(references.resolve("1.png")).getRGB(0, 0));
+    }
+
+    @Test
+    void acceptsAnUnmatchedCaptureWhenUpdatingGoldens() throws Exception {
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "1");
+        write(references.resolve("1.png"), solid(2, 2, RED));
+
+        BufferedImage capture = solid(2, 2, GREEN);
+        assertDoesNotThrow(() -> verify(capture));
+
+        assertTrue(Files.exists(references.resolve("2.png")), "the miss is accepted as 2.png");
+        assertEquals(capture.getRGB(0, 0), read(references.resolve("2.png")).getRGB(0, 0));
+        assertFalse(Files.exists(artifacts), "an accepted capture leaves no artifact");
+    }
+
+    @Test
+    void leavesAMatchAloneWhenUpdatingGoldens() throws Exception {
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "1");
+        write(references.resolve("1.png"), solid(2, 2, GREEN));
+
+        assertDoesNotThrow(() -> verify(solid(2, 2, GREEN)));
+
+        assertFalse(
+                Files.exists(references.resolve("2.png")),
+                "a capture that already matches adds no reference");
+        assertFalse(Files.exists(artifacts), "a matching capture leaves no artifact");
+    }
+
+    @Test
+    void acceptsTheFirstReferenceInCiWhenUpdatingGoldens() throws Exception {
+        System.setProperty(GrugReference.CI_PROPERTY, "1");
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "1");
+
+        BufferedImage capture = solid(2, 2, GREEN);
+        assertDoesNotThrow(() -> verify(capture));
+
+        assertTrue(
+                Files.exists(references.resolve("1.png")),
+                "an explicit update writes the first reference even in CI");
         assertEquals(capture.getRGB(0, 0), read(references.resolve("1.png")).getRGB(0, 0));
     }
 

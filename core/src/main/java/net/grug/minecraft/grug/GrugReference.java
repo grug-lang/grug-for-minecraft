@@ -32,6 +32,14 @@ public final class GrugReference {
     /** The system property equivalent of {@link #CI_ENV_VAR}. */
     public static final String CI_PROPERTY = "grug.ci";
 
+    /**
+     * The environment variable that makes a run accept new goldens instead of failing on a miss.
+     */
+    public static final String UPDATE_GOLDENS_ENV_VAR = "GRUG_UPDATE_GOLDENS";
+
+    /** The system property equivalent of {@link #UPDATE_GOLDENS_ENV_VAR}. */
+    public static final String UPDATE_GOLDENS_PROPERTY = "grug.update.goldens";
+
     private GrugReference() {}
 
     /** Whether this run is the reference run. Normal runs and tests get {@code false}. */
@@ -46,6 +54,18 @@ public final class GrugReference {
      */
     public static boolean isCiRun() {
         return isTruthy(System.getProperty(CI_PROPERTY, System.getenv(CI_ENV_VAR)));
+    }
+
+    /**
+     * Whether this run accepts new screenshot goldens instead of failing on a miss. An explicit,
+     * reviewable update: an unmatched capture is written into the mod's reference directory as the
+     * next number, so it lands in the working tree for the author to inspect and commit. CI does
+     * not set this, so a normal run never writes a golden, and the accept still happens through the
+     * same comparison the verifier uses.
+     */
+    public static boolean isUpdateGoldens() {
+        return isTruthy(
+                System.getProperty(UPDATE_GOLDENS_PROPERTY, System.getenv(UPDATE_GOLDENS_ENV_VAR)));
     }
 
     /**

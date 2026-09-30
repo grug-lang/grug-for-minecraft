@@ -31,7 +31,10 @@ import javax.imageio.ImageIO;
  * the run by name instead of being certified by the very capture it should verify. A capture that
  * matches none of an existing directory's references is instead written to the screenshot-artifacts
  * directory (mirroring the reference path) so CI can upload it, and the test fails; promoting that
- * artifact into the reference directory is how a new rendering is accepted.
+ * artifact into the reference directory is how a new rendering is accepted. Setting {@code
+ * GRUG_UPDATE_GOLDENS=1} (or a loader's {@code update-goldens} phase) accepts the miss into the
+ * reference directory as the next number instead, so the author reviews the new PNG in the working
+ * tree and commits it.
  */
 public final class GrugScreenshots {
     /** Screenshot tests are pixel-exact against references captured at this resolution. */
@@ -97,7 +100,9 @@ public final class GrugScreenshots {
         // committed: fail and name it instead of certifying the run's own capture. A reference run
         // may still capture its first reference, and a local author may still bootstrap.
         if (references.isEmpty()) {
-            if (GrugReference.isCiRun() && !GrugReference.isReferenceRun()) {
+            if (!GrugReference.isUpdateGoldens()
+                    && GrugReference.isCiRun()
+                    && !GrugReference.isReferenceRun()) {
                 throw Grug.fatal(
                         "Screenshot.equals: no committed reference image for "
                                 + referencePath
@@ -180,6 +185,30 @@ public final class GrugScreenshots {
         // of
         // the artifact into the reference directory.
         int targetNumber = nextNumber(referenceDirectory);
+
+        // An explicit golden update accepts the miss into the reference directory instead of
+        // stashing it, so the author reviews the new PNG in the working tree and commits it.
+        if (GrugReference.isUpdateGoldens()) {
+            File accepted =
+                    writeAcceptedReference(
+                            capture, referenceDirectory, referencePath, targetNumber);
+            String acceptedMessage =
+                    "Accepted screenshot reference "
+                            + referencePath
+                            + "/"
+                            + accepted.getName()
+                            + " ("
+                            + capture.getWidth()
+                            + "x"
+                            + capture.getHeight()
+                            + "); review and commit it.";
+            System.out.println("[GRUG CI] " + acceptedMessage);
+            synchronized (Grug.printQueue) {
+                Grug.printQueue.add(acceptedMessage);
+            }
+            return;
+        }
+
         File artifact = writeArtifact(capture, referencePath, artifactsRoot, targetNumber);
 
         // The closest reference is the useful one to diff against: it keeps the highlighted area as
@@ -218,7 +247,9 @@ public final class GrugScreenshots {
                         + referenceDirectory
                         + " as "
                         + targetNumber
-                        + ".png.");
+                        + ".png, or re-run with "
+                        + GrugReference.UPDATE_GOLDENS_ENV_VAR
+                        + "=1.");
     }
 
     /**
@@ -363,6 +394,27 @@ public final class GrugScreenshots {
         } catch (Exception e) {
             throw Grug.fatal(
                     "Screenshot: failed to write a reference for " + referencePath + ": " + e);
+        }
+    }
+
+    /**
+     * Writes an accepted capture into the reference directory at the free slot the mismatch named.
+     * Unlike the artifact write this fails loudly, because a golden that silently did not land
+     * would look accepted while the next run still misses.
+     */
+    @GrugGenerated("reference write: a failed write is reported, not measured")
+    private static File writeAcceptedReference(
+            BufferedImage capture, File directory, String referencePath, int number) {
+        try {
+            File reference = new File(directory, number + ".png");
+            ImageIO.write(capture, "png", reference);
+            return reference;
+        } catch (Exception e) {
+            throw Grug.fatal(
+                    "Screenshot: failed to write an accepted reference for "
+                            + referencePath
+                            + ": "
+                            + e);
         }
     }
 
