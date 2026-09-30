@@ -45,7 +45,7 @@ def base_recreation() -> dict:
         },
         "runtime": {
             "minecraft": "b1.7.3",
-            "loader": "stationapi",
+            "loader": "b1.7.3-stationapi",
             "loader_version": "1.0.0",
             "java": "17",
         },

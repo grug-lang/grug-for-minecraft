@@ -88,8 +88,8 @@ def install_plan(recreation: dict) -> str:
     operation = INSTALL_SUMMARIES[install["type"]]
 
     lines = [
-        f"Runtime: Minecraft {runtime['minecraft']} with {runtime['loader']}"
-        f" {runtime['loader_version']} on Java {runtime['java']}.",
+        f"Runtime: Minecraft {runtime['minecraft']}, loader directory {runtime['loader']},"
+        f" loader version {runtime['loader_version']}, Java {runtime['java']}.",
         f"Reference: {recreation['reference']['name']} at {recreation['reference']['revision']}.",
         f"Install ({install['type']}): {operation}",
     ]
@@ -168,8 +168,9 @@ def stage_command(recreation: dict, args) -> int:
         print(f"Staged {path}")
     print(
         "Run the reference with GRUG_REFERENCE=1 and GRUG_MODS_DIR pointing at a harness-only"
-        " mods directory, using the loader the runtime names:"
-        f" Minecraft {runtime['minecraft']} with {runtime['loader']} {runtime['loader_version']}."
+        f" mods directory: .github/scripts/run-loader.sh {runtime['loader']} run"
+        f" (Minecraft {runtime['minecraft']}, loader version {runtime['loader_version']},"
+        f" Java {runtime['java']})."
     )
     return 0
 

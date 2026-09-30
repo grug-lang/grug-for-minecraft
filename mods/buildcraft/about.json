@@ -36,7 +36,7 @@
 		},
 		"runtime": {
 			"minecraft": "b1.7.3",
-			"loader": "stationapi",
+			"loader": "b1.7.3-stationapi",
 			"loader_version": "2.0.0-alpha.6.2",
 			"java": "17"
 		},

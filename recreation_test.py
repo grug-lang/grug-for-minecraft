@@ -32,7 +32,7 @@ def recreation_block(**overrides) -> dict:
         },
         "runtime": {
             "minecraft": "b1.7.3",
-            "loader": "stationapi",
+            "loader": "b1.7.3-stationapi",
             "loader_version": "1.0.0",
             "java": "17",
         },
@@ -94,7 +94,8 @@ class RecreationTest(unittest.TestCase):
     def test_install_plan_names_the_runtime_and_the_files(self):
         plan = recreation.install_plan(recreation_block())
         self.assertIn("Minecraft b1.7.3", plan)
-        self.assertIn("stationapi 1.0.0", plan)
+        self.assertIn("loader directory b1.7.3-stationapi", plan)
+        self.assertIn("loader version 1.0.0", plan)
         self.assertIn("Java 17", plan)
         self.assertIn("mods_folder", plan)
         self.assertIn("reference.jar", plan)
