@@ -19,6 +19,7 @@ val activeLoader = System.getProperty("grug.activeLoader")
 // These loaders use their own Gradle wrapper because their build plugins
 // require a different Gradle version from the root Forge build.
 val standaloneLoaders = setOf(
+    "1.2.5-forge",
     "b1.7.3-ornithe",
     "a1.1.2_01-ornithe",
     "b1.7.3-stationapi",
@@ -32,6 +33,7 @@ if (activeLoader != null) {
     }
 } else {
     include("loaders:1.20.6-forge")
+    include("loaders:1.2.5-forge")
     include("loaders:b1.7.3-ornithe")
     include("loaders:b1.7.3-stationapi")
     include("loaders:a1.1.2_01-ornithe")

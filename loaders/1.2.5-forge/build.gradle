@@ -1,0 +1,396 @@
+// Build for the 1.2.5 Forge (Tekkit Classic) grug loader.
+//
+// Forge 1.2.5 predates ForgeGradle and Loom, so the build is a plain Java one that talks to a
+// pinned MCP snapshot directly:
+//
+//   1. fetch the MCP snapshot (build/mcp125);
+//   2. invert its client.srg plus fields/methods.csv into a dev -> notch srg (tools/invert_srg.py);
+//   3. compile GenerateVanillaNames against the MCP dev classes and run it to produce the
+//      resource-name table the obfuscated runtime reads back (vanilla_names.txt);
+//   4. compile the loader to Java 8 bytecode against the MCP dev classes;
+//   5. fix inherited member references (tools/FixInherited.java) and reobfuscate with SpecialSource;
+//   6. for runClient, reobfuscate the MCP dev classes into a pack-style runtime jar and launch the
+//      game with Java 8 under the freshly built loader jar.
+//
+// An existing snapshot checkout can be reused with -Pgrug.mcpSnapshot=/path/to/mcp125 (used for
+// local iteration so the 170 MB tree is not cloned into build/ every time).
+
+import java.io.ByteArrayOutputStream
+
+plugins {
+    id 'base'
+    id 'java'
+}
+
+group = 'net.grug'
+version = '1.0.0'
+
+def projectDirFile = project.projectDir
+def repoRoot = projectDirFile.parentFile.parentFile
+def buildDirFile = layout.buildDirectory.get().asFile
+def toolsDir = new File(projectDirFile, 'tools')
+
+def generatedResourcesDir = new File(buildDirFile, 'generated/resources')
+def genToolClasses = new File(buildDirFile, 'tools/vanilla-names')
+def fixToolClasses = new File(buildDirFile, 'tools/fixinherited')
+def reobfSrgFile = new File(buildDirFile, 'reobf.srg')
+def devJar = new File(buildDirFile, 'libs/grug-1.2.5-forge-dev.jar')
+def fixedJar = new File(buildDirFile, 'grug-1.2.5-forge-fixed.jar')
+def finalJar = new File(buildDirFile, 'grug-1.2.5-forge.jar')
+def runtimeDevJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-dev.jar')
+def runtimeJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime.jar')
+def nativesDir = new File(buildDirFile, 'natives')
+
+def runDir = new File(projectDirFile, 'run')
+def modsDir = new File(repoRoot, 'mods')
+
+def mcpProperty = findProperty('grug.mcpSnapshot')
+def mcpDir = mcpProperty ? file(mcpProperty) : new File(buildDirFile, 'mcp125')
+def mcpBin = new File(mcpDir, 'bin/minecraft')
+def mcpResources = new File(mcpDir, 'src/minecraft')
+def mcpMinecraftJar = new File(mcpDir, 'jars/bin/minecraft.jar')
+
+def MCP_REPO = 'https://github.com/pablo67340/Working-Minecraft-1.2.5-MCP-with-Forge.git'
+def MCP_COMMIT = 'b598d55f8a1e0e9cbda27517cfaa6d4a3224b202'
+
+repositories {
+    // grug-core is published to mavenLocal by the root build before this one runs.
+    mavenLocal()
+    mavenCentral()
+    // launchwrapper 1.5 is not on Maven Central.
+    maven { url = 'https://libraries.minecraft.net' }
+}
+
+configurations {
+    // Compile/run classpath for the vanilla-name generator (the MCP dev classes reference these).
+    genTool
+    // ASM used by tools/FixInherited.java.
+    fixInheritedTool
+    // The shaded SpecialSource jar (reobfuscation). Shaded, so no transitive deps.
+    specialSourceTool {
+        transitive = false
+    }
+    // Pack-style runtime libraries for launching the game.
+    runtimeLibs
+    // LWJGL 2 / JInput Linux natives for -Djava.library.path.
+    natives
+}
+
+dependencies {
+    // The loader compiles against the MCP-named, Forge-patched dev classes.
+    compileOnly files(mcpBin)
+    compileOnly 'org.lwjgl.lwjgl:lwjgl:2.9.0'
+    compileOnly 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
+    compileOnly 'net.java.jinput:jinput:2.0.5'
+
+    implementation 'net.grug:grug-core:1.0.0'
+    implementation 'com.google.guava:guava:33.2.1-jre'
+    implementation 'com.google.code.gson:gson:2.11.0'
+    implementation 'org.jetbrains:annotations:23.0.0'
+
+    genTool files(mcpBin, mcpMinecraftJar)
+    genTool 'org.lwjgl.lwjgl:lwjgl:2.9.0'
+    genTool 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
+    genTool 'net.java.jinput:jinput:2.0.5'
+    genTool 'com.google.guava:guava:33.2.1-jre'
+    genTool 'com.google.code.gson:gson:2.11.0'
+    genTool 'org.jetbrains:annotations:23.0.0'
+
+    fixInheritedTool 'org.ow2.asm:asm:9.7'
+    fixInheritedTool 'org.ow2.asm:asm-tree:9.7'
+
+    specialSourceTool 'net.md-5:SpecialSource:1.11.4:shaded'
+
+    runtimeLibs 'net.minecraft:launchwrapper:1.5'
+    runtimeLibs 'org.ow2.asm:asm-all:4.1'
+    runtimeLibs 'net.sf.jopt-simple:jopt-simple:4.5'
+    runtimeLibs 'net.java.jinput:jinput:2.0.5'
+    runtimeLibs 'org.lwjgl.lwjgl:lwjgl:2.9.0'
+    runtimeLibs 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
+    runtimeLibs 'net.grug:grug-core:1.0.0'
+    runtimeLibs 'com.google.guava:guava:33.2.1-jre'
+    runtimeLibs 'com.google.code.gson:gson:2.11.0'
+    runtimeLibs 'org.jetbrains:annotations:23.0.0'
+
+    natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0:natives-linux'
+    natives 'net.java.jinput:jinput-platform:2.0.5:natives-linux'
+}
+
+sourceSets {
+    main {
+        resources {
+            // Generated by generateVanillaNames, so it lands in the loader jar.
+            srcDir generatedResourcesDir
+        }
+    }
+}
+
+// -- Step 1: the MCP snapshot ------------------------------------------------------------------
+
+tasks.register('fetchMcpSnapshot', Exec) {
+    description = 'Clones the pinned 1.2.5 MCP snapshot with Forge into build/mcp125.'
+    outputs.dir mcpDir
+    onlyIf {
+        !(new File(mcpDir, '.git').isDirectory() && new File(mcpDir, 'conf/client.srg').isFile())
+    }
+    doFirst {
+        mcpDir.mkdirs()
+        workingDir = mcpDir
+        commandLine 'bash', '-c',
+            "set -e; git init -q; git remote add origin '${MCP_REPO}'; " +
+            "git fetch -q --depth 1 origin '${MCP_COMMIT}'; git checkout -q FETCH_HEAD"
+    }
+}
+
+// -- Step 2: the dev -> notch reobfuscation srg -------------------------------------------------
+
+tasks.register('reobfSrg', Exec) {
+    description = 'Builds the dev -> notch srg from the MCP client mapping.'
+    dependsOn 'fetchMcpSnapshot'
+    inputs.file new File(mcpDir, 'conf/client.srg')
+    inputs.file new File(mcpDir, 'conf/fields.csv')
+    inputs.file new File(mcpDir, 'conf/methods.csv')
+    outputs.file reobfSrgFile
+    doFirst {
+        reobfSrgFile.parentFile.mkdirs()
+        commandLine 'python3', new File(toolsDir, 'invert_srg.py').absolutePath,
+            new File(mcpDir, 'conf/client.srg').absolutePath,
+            new File(mcpDir, 'conf/fields.csv').absolutePath,
+            new File(mcpDir, 'conf/methods.csv').absolutePath,
+            reobfSrgFile.absolutePath
+    }
+}
+
+// -- Step 3: the vanilla name table -------------------------------------------------------------
+
+tasks.register('compileVanillaNamesTool', JavaCompile) {
+    description = 'Compiles GenerateVanillaNames against the MCP dev classes.'
+    dependsOn 'fetchMcpSnapshot'
+    source = fileTree(toolsDir) { include 'GenerateVanillaNames.java' }
+    classpath = configurations.genTool
+    destinationDirectory.set(genToolClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('generateVanillaNames', JavaExec) {
+    description = 'Runs GenerateVanillaNames to produce vanilla_names.txt as a resource.'
+    dependsOn 'compileVanillaNamesTool'
+    outputs.file new File(generatedResourcesDir, 'vanilla_names.txt')
+    classpath = files(genToolClasses) + configurations.genTool
+    mainClass.set('GenerateVanillaNames')
+    def buffer = new ByteArrayOutputStream()
+    doFirst {
+        generatedResourcesDir.mkdirs()
+        standardOutput = buffer
+        errorOutput = System.err
+    }
+    doLast {
+        new File(generatedResourcesDir, 'vanilla_names.txt')
+            .setText(buffer.toString('UTF-8'), 'UTF-8')
+    }
+}
+
+// -- Steps 4 and 5: compile and reobfuscate the loader ------------------------------------------
+
+tasks.named('compileJava', JavaCompile) {
+    dependsOn 'fetchMcpSnapshot'
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('processResources') {
+    dependsOn 'generateVanillaNames'
+}
+
+tasks.named('jar', Jar) {
+    archiveFileName = 'grug-1.2.5-forge-dev.jar'
+}
+
+tasks.register('compileFixInheritedTool', JavaCompile) {
+    description = 'Compiles tools/FixInherited.java.'
+    source = fileTree(toolsDir) { include 'FixInherited.java' }
+    classpath = configurations.fixInheritedTool
+    destinationDirectory.set(fixToolClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('fixInheritedJar', JavaExec) {
+    description = 'Rewrites inherited member references before reobfuscation.'
+    dependsOn tasks.named('jar'), 'compileFixInheritedTool', 'reobfSrg'
+    inputs.file devJar
+    outputs.file fixedJar
+    classpath = files(fixToolClasses) + configurations.fixInheritedTool
+    mainClass.set('FixInherited')
+    doFirst {
+        fixedJar.parentFile.mkdirs()
+        args = [devJar.absolutePath, mcpBin.absolutePath, reobfSrgFile.absolutePath, fixedJar.absolutePath]
+    }
+}
+
+tasks.register('reobfJar', Exec) {
+    description = 'Reobfuscates the loader with SpecialSource.'
+    dependsOn 'fixInheritedJar'
+    inputs.file fixedJar
+    inputs.file reobfSrgFile
+    outputs.file finalJar
+    doFirst {
+        finalJar.parentFile.mkdirs()
+        commandLine 'java', '-jar', configurations.specialSourceTool.singleFile.absolutePath,
+            '--in-jar', fixedJar.absolutePath,
+            '--out-jar', finalJar.absolutePath,
+            '--srg-in', reobfSrgFile.absolutePath
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn 'reobfJar'
+}
+
+// -- Step 6: the pack-style run -----------------------------------------------------------------
+
+tasks.register('runtimeDevJar', Jar) {
+    description = 'Packs the MCP dev classes into the pre-reobfuscation runtime jar.'
+    dependsOn 'fetchMcpSnapshot'
+    archiveFileName = runtimeDevJar.name
+    destinationDirectory.set(buildDirFile)
+    from(mcpBin) {
+        // Left over from the original obfuscated jar; the working pack runtime omits it.
+        exclude 'gk.class'
+    }
+}
+
+tasks.register('obfuscateRuntime', Exec) {
+    description = 'Reobfuscates the MCP dev classes into the pack-style runtime jar.'
+    dependsOn 'runtimeDevJar', 'reobfSrg'
+    inputs.file runtimeDevJar
+    inputs.file reobfSrgFile
+    outputs.file runtimeJar
+    doFirst {
+        runtimeJar.parentFile.mkdirs()
+        commandLine 'java', '-jar', configurations.specialSourceTool.singleFile.absolutePath,
+            '--in-jar', runtimeDevJar.absolutePath,
+            '--out-jar', runtimeJar.absolutePath,
+            '--srg-in', reobfSrgFile.absolutePath
+    }
+}
+
+tasks.register('extractNatives') {
+    description = 'Extracts the LWJGL 2 / JInput Linux natives for -Djava.library.path.'
+    outputs.dir nativesDir
+    doLast {
+        delete nativesDir
+        nativesDir.mkdirs()
+        configurations.natives.files.each { jar ->
+            copy {
+                from zipTree(jar)
+                into nativesDir
+                duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+            }
+        }
+    }
+}
+
+tasks.register('prepareRunDir') {
+    description = 'Stages a pristine test save and the freshly built loader jar into run/.'
+    dependsOn 'reobfJar'
+    outputs.upToDateWhen { false }
+    doLast {
+        def savesDir = new File(runDir, 'saves')
+        delete savesDir
+        savesDir.mkdirs()
+        def saveName = new File(projectDirFile, 'test-save.txt').text.trim()
+        def saveZip = new File(repoRoot, "test-saves/${saveName}")
+        if (!saveZip.isFile()) {
+            throw new GradleException("Missing test save: ${saveZip}")
+        }
+        copy {
+            from zipTree(saveZip)
+            into savesDir
+            duplicatesStrategy = DuplicatesStrategy.INCLUDE
+        }
+
+        def runModsDir = new File(runDir, 'mods')
+        delete runModsDir
+        runModsDir.mkdirs()
+        copy {
+            from finalJar
+            into runModsDir
+        }
+        new File(runDir, 'assets').mkdirs()
+    }
+}
+
+// Resolve the Java 8 the game must run on. The build/Gradle JVM stays modern; only the game JVM
+// here has to be 8. CI installs a JDK 8 alongside the build JDK and points GRUG_JAVA8 at it.
+def findJava8 = {
+    def candidates = []
+    def prop = findProperty('grug.java8')
+    if (prop) candidates << prop
+    ['GRUG_JAVA8', 'JAVA_HOME_8_X64', 'JAVA_HOME_8', 'JAVA8_HOME', 'JDK8_HOME'].each { key ->
+        def value = System.getenv(key)
+        if (value) candidates << value
+    }
+    candidates.addAll([
+        '/usr/lib/jvm/java-8-openjdk',
+        '/usr/lib/jvm/java-8-openjdk-amd64',
+        '/usr/lib/jvm/temurin-8-jdk-amd64',
+        '/usr/lib/jvm/zulu-8',
+        '/usr/lib/jvm/zulu8',
+    ])
+    for (candidate in candidates) {
+        def exe = new File(candidate, 'bin/java')
+        if (!exe.canExecute()) continue
+        def release = new File(candidate, 'release')
+        if (release.isFile()) {
+            def text = release.text
+            if (!(text.contains('JAVA_VERSION="1.8') || text.contains('JAVA_VERSION="8'))) continue
+        }
+        return exe.absolutePath
+    }
+    return null
+}
+
+tasks.register('runClient', Exec) {
+    description = 'Launches the reobfuscated loader in a pack-style 1.2.5 runtime on Java 8.'
+    dependsOn 'prepareRunDir', 'obfuscateRuntime', 'extractNatives'
+    workingDir = runDir
+    environment 'GRUG_CI', 'true'
+    environment 'GRUG_MODS_DIR', modsDir.absolutePath
+    doFirst {
+        def java8 = findJava8()
+        if (java8 == null) {
+            throw new GradleException(
+                'Java 8 is required to launch 1.2.5. Install it or set GRUG_JAVA8 / -Pgrug.java8.')
+        }
+
+        def classpath = []
+        classpath.addAll(configurations.runtimeLibs.files.collect { it.absolutePath })
+        classpath << mcpResources.absolutePath
+        classpath << runtimeJar.absolutePath
+        classpath << mcpMinecraftJar.absolutePath
+
+        def assetsDir = System.getenv('GRUG_ASSETS_DIR')
+        def assets = (assetsDir != null && !assetsDir.isEmpty())
+            ? new File(assetsDir)
+            : new File(runDir, 'assets')
+
+        def command = []
+        // CI wraps the whole job in xvfb-run, which sets DISPLAY; only add one for a bare local run.
+        if (!System.getenv('DISPLAY')) {
+            command += ['xvfb-run', '-a', '-s',
+                '-screen 0 1280x720x24 +extension RANDR +extension GLX']
+        }
+        command += [java8,
+            "-Djava.library.path=${nativesDir.absolutePath}",
+            '-Djava.util.Arrays.useLegacyMergeSort=true',
+            '-cp', classpath.join(File.pathSeparator),
+            'net.minecraft.launchwrapper.Launch',
+            '--username', 'Player',
+            '--session', '0',
+            '--gameDir', runDir.absolutePath,
+            '--assetsDir', assets.absolutePath]
+        commandLine command
+    }
+}

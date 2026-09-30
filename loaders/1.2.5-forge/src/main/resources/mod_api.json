@@ -1,0 +1,1241 @@
+{
+	"entities": {
+		"Block": {
+			"description": "A block.",
+			"export_functions": [
+				{
+					"name": "init",
+					"description": "Called once at registration time to declare the block's assets.",
+					"engine_called": true
+				},
+				{
+					"name": "on_break",
+					"description": "Called when the block is mined/broken.",
+					"parameters": [
+						{
+							"name": "world",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
+					"name": "use",
+					"description": "Called when a player right-clicks the block.",
+					"parameters": [
+						{
+							"name": "world",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
+				}
+			]
+		},
+		"BlockEntity": {
+			"description": "A block entity.",
+			"export_functions": [
+				{
+					"name": "item_extracted",
+					"description": "Called immediately when an item is removed from a slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
+					"name": "item_inserted",
+					"description": "Called immediately when an item is placed into a slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
+					"name": "output_taken",
+					"description": "Called whenever an item leaves a crafting result slot, by any means.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
+					"name": "tick",
+					"description": "Called every game tick, so every 0.05 seconds.",
+					"engine_called": true
+				}
+			]
+		},
+		"Item": {
+			"description": "An item.",
+			"export_functions": [
+				{
+					"name": "init",
+					"description": "Called once at registration time to declare the item's assets.",
+					"engine_called": true
+				}
+			]
+		},
+		"Test": {
+			"description": "Utility functions for automated tests.",
+			"export_functions": [
+				{
+					"name": "run",
+					"description": "Runs the test.",
+					"engine_called": true
+				}
+			],
+			"static_methods": {
+				"assert": {
+					"description": "Asserts a condition is true.",
+					"parameters": [
+						{
+							"name": "condition",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "message",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"assert_screenshot_equals": {
+					"description": "Captures the given pixel rectangle of the current frame and fails the test unless the capture is pixel-identical to one of the reference PNGs accepted for this UI. `reference` names a directory of numbered PNGs (1.png, 2.png, ...), because the same UI renders differently on each Minecraft version and each accepted appearance gets its own file. A directory with no references yet is bootstrapped: the capture is written as 1.png and accepted. A capture that matches none of an existing directory's references is written to the `grug-screenshot-artifacts` directory (with a diff image) so CI can collect it, and the test fails; copy that capture into the reference directory to accept it. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
+					"parameters": [
+						{
+							"name": "reference",
+							"type": {
+								"name": "resource",
+								"resource_extension": "",
+								"optional": true
+							}
+						},
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_client_level": {
+					"description": "Gets the current client level.",
+					"return_type": {
+						"name": "Level"
+					}
+				},
+				"get_player": {
+					"description": "Gets the local client player, for tests that need to call a method taking a Player.",
+					"return_type": {
+						"name": "Player"
+					}
+				},
+				"round_trip_nbt": {
+					"description": "Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load paths without a real world save.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				},
+				"set_mod_file_state": {
+					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "state",
+							"description": "One of \"normal\", \"invalid\" (fails to compile) or \"no_trailing_newline\" (still valid JSON).",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"hot_reload_count": {
+					"description": "How many changes to relative_path the engine has reported so far, so a test can wait until its own file write has been observed instead of assuming it was.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"get_origin": {
+					"description": "Gets the origin coordinates for running isolated tests.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
+				"not_done": {
+					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Will eventually be replaced by `me.not_done()` once entities can have methods."
+				},
+				"restore_camera": {
+					"description": "Restores the player to the position saved by the most recent `setup_graphics_camera` call."
+				},
+				"setup_graphics_camera": {
+					"description": "Saves the player's current position and rotation, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
+				"tick": {
+					"description": "Returns the current tick number within this test's execution, starting at 0. Will eventually be replaced by `me.tick()` once entities can have methods.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"use_block": {
+					"description": "Right-clicks the block at the given coordinates as the local player, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. Note that the player is the one the test is already running as, so this only does anything in singleplayer.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"expect_error": {
+					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised.",
+					"parameters": [
+						{
+							"name": "message",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"classes": {
+		"BlockPos": {
+			"description": "A position in the world.",
+			"methods": {
+				"above_n": {
+					"description": "Gets the BlockPosition N blocks up.",
+					"return_type": {
+						"name": "BlockPos"
+					},
+					"parameters": [
+						{
+							"name": "n",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"center": {
+					"description": "Gets the center of a BlockPosition.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				}
+			}
+		},
+		"Color": {
+			"description": "An RGB color.",
+			"static_methods": {
+				"rgb": {
+					"description": "Creates a new Color from RGB values, where each value is an integer from 0 to 255 (inclusive).",
+					"return_type": {
+						"name": "Color"
+					},
+					"parameters": [
+						{
+							"name": "r",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "g",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "b",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
+		},
+		"Entity": {
+			"description": "A generic entity.",
+			"methods": {
+				"set_delta_movement": {
+					"description": "Sets an Entity's delta movement.",
+					"parameters": [
+						{
+							"name": "vec3",
+							"type": {
+								"name": "Vec3"
+							}
+						}
+					]
+				},
+				"spawn": {
+					"description": "Spawns a new entity. Spawning the same entity twice is an error.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						}
+					]
+				}
+			}
+		},
+		"GUI": {
+			"description": "A dynamic GUI layout builder.",
+			"methods": {
+				"add_crafting_grid": {
+					"description": "Adds a 3x3 crafting grid.",
+					"parameters": [
+						{
+							"name": "start_slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_crafting_result": {
+					"description": "Adds a crafting output slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_player_inventory": {
+					"description": "Automatically lays out the player's main inventory and hotbar.",
+					"parameters": [
+						{
+							"name": "main_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "main_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "hotbar_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "hotbar_y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_text": {
+					"description": "Adds text to the GUI.",
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "color",
+							"type": {
+								"name": "Color"
+							}
+						}
+					]
+				},
+				"open": {
+					"description": "Opens the dynamically built GUI for the player.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						},
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				}
+			}
+		},
+		"ItemEntity": {
+			"description": "An item entity.",
+			"methods": {
+				"entity": {
+					"description": "Takes an ItemEntity, and returns it as an Entity.",
+					"return_type": {
+						"name": "Entity"
+					}
+				}
+			}
+		},
+		"Level": {
+			"description": "A dimension or world.",
+			"methods": {
+				"get_block_entity": {
+					"description": "Gets the BlockEntity at the specified coordinates.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "BlockEntity"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"place_block": {
+					"description": "Places a block in the world.",
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "block_name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				}
+			}
+		},
+		"Option": {
+			"description": "Indicates that a value may not be present.",
+			"used_generics": [
+				{
+					"name": "$Value"
+				}
+			],
+			"methods": {
+				"has": {
+					"description": "Checks if it has a value.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"set": {
+					"description": "Stores a value into the Option.",
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "$Value"
+							}
+						}
+					]
+				},
+				"unwrap": {
+					"description": "Gets the value if present, otherwise throws a runtime error.",
+					"return_type": {
+						"name": "$Value"
+					}
+				}
+			},
+			"static_methods": {
+				"new": {
+					"description": "Creates a new, empty Option.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "$Value"
+							}
+						]
+					}
+				}
+			}
+		},
+		"Vec3": {
+			"description": "A 3D vector.",
+			"methods": {
+				"x": {
+					"description": "Gets the X coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"y": {
+					"description": "Gets the Y coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"z": {
+					"description": "Gets the Z coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				}
+			}
+		}
+	},
+	"host_functions": {
+		"consume_crafting_ingredients": {
+			"description": "Consumes 1 set of ingredients from a 3x3 grid, leaving behind buckets if necessary.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "start_slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"count_item_in_inventory": {
+			"description": "Counts how many of a specific item are in an entire inventory.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				},
+				{
+					"name": "damage",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"drop_inventory": {
+			"description": "Drops the inventory of a block entity into the world.",
+			"parameters": [
+				{
+					"name": "level",
+					"type": {
+						"name": "Level"
+					}
+				},
+				{
+					"name": "x",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"equals": {
+			"description": "Checks if two values are equal. For objects like Items, this compares the underlying game object rather than the grug entity ID.",
+			"used_generics": [
+				{
+					"name": "$Type"
+				}
+			],
+			"return_type": {
+				"name": "bool"
+			},
+			"parameters": [
+				{
+					"name": "a",
+					"type": {
+						"name": "$Type"
+					}
+				},
+				{
+					"name": "b",
+					"type": {
+						"name": "$Type"
+					}
+				}
+			]
+		},
+		"extract_item_from_inventory": {
+			"description": "Extracts a specific amount of an item from an inventory.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				},
+				{
+					"name": "damage",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "amount",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"get_block_entity_level": {
+			"description": "Gets the Level (dimension) a BlockEntity is in.",
+			"return_type": {
+				"name": "Level"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				}
+			]
+		},
+		"get_block_pos_of_block_entity": {
+			"description": "Gets the world position of a BlockEntity.",
+			"return_type": {
+				"name": "BlockPos"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				}
+			]
+		},
+		"get_item_count_in_slot": {
+			"description": "Gets the size of the item stack in a slot.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"get_item_damage_in_slot": {
+			"description": "Gets the damage/metadata of the item stack in a slot.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"get_item_in_slot": {
+			"description": "Gets the Item in a specific inventory slot.",
+			"return_type": {
+				"name": "Option",
+				"generics": [
+					{
+						"name": "Item"
+					}
+				]
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"gui": {
+			"description": "Creates a new dynamic GUI layout using the specified background texture.",
+			"return_type": {
+				"name": "GUI"
+			},
+			"parameters": [
+				{
+					"name": "texture_path",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".png"
+					}
+				}
+			]
+		},
+		"item": {
+			"description": "Creates a new item.",
+			"return_type": {
+				"name": "Item"
+			},
+			"parameters": [
+				{
+					"name": "resource_location",
+					"type": {
+						"name": "ResourceLocation"
+					}
+				}
+			]
+		},
+		"item_entity": {
+			"description": "Creates a new ItemEntity.",
+			"return_type": {
+				"name": "ItemEntity"
+			},
+			"parameters": [
+				{
+					"name": "level",
+					"type": {
+						"name": "Level"
+					}
+				},
+				{
+					"name": "x",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "item_stack",
+					"type": {
+						"name": "ItemStack"
+					}
+				}
+			]
+		},
+		"item_stack": {
+			"description": "Creates a new ItemStack. Keep in mind that when two ItemStacks get close enough to each other, they merge, turning the original ItemStacks and entities into 'Air'. So if you call spawn_entity() to spawn an ItemStack, make sure that the ItemStack isn't reused later on to spawn more entities.",
+			"return_type": {
+				"name": "ItemStack"
+			},
+			"parameters": [
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				}
+			]
+		},
+		"print": {
+			"description": "Prints a value.",
+			"used_generics": [
+				{
+					"name": "$Value"
+				}
+			],
+			"parameters": [
+				{
+					"name": "value",
+					"type": {
+						"name": "$Value"
+					}
+				}
+			]
+		},
+		"print2": {
+			"description": "Prints two values.",
+			"used_generics": [
+				{
+					"name": "$Value1"
+				},
+				{
+					"name": "$Value2"
+				}
+			],
+			"parameters": [
+				{
+					"name": "a",
+					"type": {
+						"name": "$Value1"
+					}
+				},
+				{
+					"name": "b",
+					"type": {
+						"name": "$Value2"
+					}
+				}
+			]
+		},
+		"print3": {
+			"description": "Prints three values.",
+			"used_generics": [
+				{
+					"name": "$Value1"
+				},
+				{
+					"name": "$Value2"
+				},
+				{
+					"name": "$Value3"
+				}
+			],
+			"parameters": [
+				{
+					"name": "a",
+					"type": {
+						"name": "$Value1"
+					}
+				},
+				{
+					"name": "b",
+					"type": {
+						"name": "$Value2"
+					}
+				},
+				{
+					"name": "c",
+					"type": {
+						"name": "$Value3"
+					}
+				}
+			]
+		},
+		"resource_location": {
+			"description": "Creates a new ResourceLocation.",
+			"return_type": {
+				"name": "ResourceLocation"
+			},
+			"parameters": [
+				{
+					"name": "resource_location_string",
+					"type": {
+						"name": "string"
+					}
+				}
+			]
+		},
+		"set_block_entity": {
+			"description": "Declares the block entity script used by this block.",
+			"parameters": [
+				{
+					"name": "entity_string",
+					"type": {
+						"name": "entity",
+						"entity_type": "BlockEntity"
+					}
+				}
+			]
+		},
+		"set_hardness": {
+			"description": "Sets the mining hardness of the block.",
+			"parameters": [
+				{
+					"name": "value",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"set_inventory_size": {
+			"description": "Declares how many item slots this block's block entity has.",
+			"parameters": [
+				{
+					"name": "size",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"set_item_count_in_slot": {
+			"description": "Changes the amount of items in a specific slot.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "count",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"set_item_in_slot": {
+			"description": "Sets the item in a specific inventory slot.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				},
+				{
+					"name": "count",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"set_material": {
+			"description": "Sets the material of the block (e.g., 'wood', 'stone').",
+			"parameters": [
+				{
+					"name": "material_name",
+					"type": {
+						"name": "string"
+					}
+				}
+			]
+		},
+		"take_item_from_slot": {
+			"description": "Takes item(s) from a slot. TODO: This description should document what happens and the fn returns when a slot only contains 2 items, but the code tries to take 3 items. Does it just return 2?",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "amount",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"update_recipe_output": {
+			"description": "Evaluates a 3x3 crafting grid and places the result in the output slot.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "start_slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "output_slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"vec3_zero": {
+			"description": "Creates a new Vec3, initialized with all zeros.",
+			"return_type": {
+				"name": "Vec3"
+			}
+		}
+	}
+}

@@ -83,6 +83,16 @@ EXCLUDED_CLASSES = {
     "GrugBlocks",
     # Render/model glue, like the resource-pack classes above.
     "GrugBlockModels",
+    # 1.2.5 Forge runs on Java 8 with no JaCoCo agent (the loader cannot be instrumented without a
+    # Java 8 agent and a ModLoader-aware launch), so it contributes no exec data. Its own glue is
+    # excluded for the same reason as the other loaders': the entry point, adapter, GUI and world
+    # classes only run inside a real game bootstrap.
+    "mod_Grug",
+    "Grug125Adapter",
+    "GlBridge",
+    "GrugContainer",
+    "VanillaNames",
+    "GrugItem",
 }
 
 
