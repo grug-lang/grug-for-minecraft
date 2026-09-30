@@ -59,7 +59,6 @@ def base_recreation() -> dict:
             "java": "17",
         },
         "install": {"type": "mods_folder", "files": ["reference.jar"]},
-        "capture": {"width": 1280, "height": 720, "ticks": 20},
     }
 
 
@@ -202,21 +201,17 @@ class RecreationSchemaTest(unittest.TestCase):
             recreation["runtime"]["java"] = java
             self.assertValid(self.mod_with(recreation))
 
-    def test_a_capture_diff_is_rejected(self):
-        # The comparison is chosen by the test (.equals or .tolerance), so capture carries only the
-        # viewport and timing. A diff left in the metadata would drift away from the call that runs.
+    def test_a_capture_is_rejected(self):
+        # The test drives the capture: its tick branches decide when, the camera it sets up decides
+        # from where, and the screenshot call decides what. A capture block would be metadata
+        # nothing reads.
         recreation = base_recreation()
-        recreation["capture"]["diff"] = {"mode": "tolerance", "max_pixel_percent": 1.0}
+        recreation["capture"] = {"width": 1280, "height": 720, "ticks": 20}
         self.assertInvalid(self.mod_with(recreation), "Additional properties are not allowed")
 
     def test_an_unknown_recreation_property_is_rejected(self):
         recreation = copy.deepcopy(base_recreation())
         recreation["bogus"] = 1
-        self.assertInvalid(self.mod_with(recreation), "Additional properties are not allowed")
-
-    def test_an_unknown_capture_property_is_rejected(self):
-        recreation = base_recreation()
-        recreation["capture"]["bogus"] = 1
         self.assertInvalid(self.mod_with(recreation), "Additional properties are not allowed")
 
 

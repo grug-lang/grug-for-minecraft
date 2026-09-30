@@ -43,7 +43,6 @@ def recreation_block(**overrides) -> dict:
             "java": "17",
         },
         "install": {"type": "mods_folder", "files": ["reference.jar"]},
-        "capture": {"width": 1280, "height": 720, "ticks": 20},
     }
     block.update(overrides)
     return block
@@ -125,8 +124,6 @@ class RecreationTest(unittest.TestCase):
         self.assertIn("Java 17", plan)
         self.assertIn("mods_folder", plan)
         self.assertIn("reference.jar", plan)
-        self.assertIn("1280x720", plan)
-        self.assertIn("after 20 ticks", plan)
 
     def test_install_plan_lists_each_artifact_with_its_hash(self):
         block = recreation_block(

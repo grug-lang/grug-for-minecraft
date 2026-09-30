@@ -113,9 +113,6 @@ def install_plan(recreation: dict) -> str:
             f"  artifact: {artifact['name']} {artifact['url']} sha256 {artifact['sha256']}"
         )
 
-    capture = recreation["capture"]
-    lines.append(f"Capture: {capture['width']}x{capture['height']} after {capture['ticks']} ticks.")
-
     deviations = recreation.get("deviations", [])
     if deviations:
         lines.append(f"Intentional deviations: {len(deviations)} (see the recreation block).")
