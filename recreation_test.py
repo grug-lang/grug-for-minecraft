@@ -32,7 +32,6 @@ def recreation_block(**overrides) -> dict:
         "fidelity": "behavioral",
         "reference": {
             "name": "Reference",
-            "repository": {"url": "https://example.com/reference"},
             "revision": "0" * 40,
         },
         "artifacts": [artifact("reference.jar", PAYLOAD)],

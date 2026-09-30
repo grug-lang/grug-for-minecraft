@@ -61,17 +61,14 @@
                     "type": "object",
                     "required": [
                         "name",
-                        "repository",
                         "revision"
                     ],
                     "additionalProperties": false,
                     "properties": {
                         "name": {
+                            "description": "The name of the derived_from entry this recreation targets. Its repository comes from there instead of being repeated here.",
                             "type": "string",
                             "minLength": 1
-                        },
-                        "repository": {
-                            "$ref": "#/definitions/repository"
                         },
                         "revision": {
                             "description": "The pinned revision of the reference, e.g. a commit hash. Not a branch or tag.",

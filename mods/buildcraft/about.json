@@ -19,9 +19,6 @@
 		"fidelity": "behavioral",
 		"reference": {
 			"name": "BuildCraft",
-			"repository": {
-				"url": "https://github.com/BuildCraft/BuildCraft"
-			},
 			"revision": "90a7ea3baa630948a1c52b4788d2652d0f78ee96"
 		},
 		"artifacts": [

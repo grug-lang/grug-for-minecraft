@@ -2,9 +2,10 @@
 """Tests the recreation block's schema and the rules that jsonschema cannot express.
 
 The recreation block is what makes a port diffable against the real mod it recreates, so a mistake
-in it is a mistake in every recreation mod. The rules that matter most here are the three the schema
+in it is a mistake in every recreation mod. The rules that matter most here are the four the schema
 delegates to about_schema.py: a mirror needs redistribution rights, an exact recreation needs
-artifacts to diff against, and an exact recreation has no deviations.
+artifacts to diff against, an exact recreation has no deviations, and a reference names a
+derived_from entry.
 """
 
 import copy
@@ -32,6 +33,13 @@ def base_mod() -> dict:
         "authors": ["someone"],
         "repository": {"url": "https://example.com/mod"},
         "licenses": [{"name": "MIT", "url": "https://example.com/license"}],
+        "derived_from": [
+            {
+                "name": "Reference",
+                "repository": {"url": "https://example.com/reference"},
+                "licenses": [{"name": "MIT", "url": "https://example.com/reference-license"}],
+            }
+        ],
     }
 
 
@@ -40,7 +48,6 @@ def base_recreation() -> dict:
         "fidelity": "behavioral",
         "reference": {
             "name": "Reference",
-            "repository": {"url": "https://example.com/reference"},
             "revision": "0" * 40,
         },
         "artifacts": [
@@ -92,6 +99,16 @@ class RecreationSchemaTest(unittest.TestCase):
 
     def test_a_minimal_recreation_is_valid(self):
         self.assertValid(self.mod_with(base_recreation()))
+
+    def test_a_reference_must_name_a_derived_from_entry(self):
+        recreation = base_recreation()
+        recreation["reference"]["name"] = "Something Else"
+        self.assertInvalid(self.mod_with(recreation), "must name a derived_from entry")
+
+    def test_a_reference_without_derived_from_is_rejected(self):
+        mod = self.mod_with(base_recreation())
+        del mod["derived_from"]
+        self.assertInvalid(mod, "must name a derived_from entry")
 
     def test_recreation_is_optional(self):
         self.assertValid(base_mod())
