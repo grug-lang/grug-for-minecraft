@@ -2,6 +2,6 @@
 export run() {
     if Test.tick() == 0 {
         Test.expect_error("percent must be a whole number between 0 and 100")
-        Test.screenshot().tolerance(101).equals(r"screenshots/tolerance_solid", 590, 310, 690, 410)
+        Test.screenshot().tolerance(101).equals(r"screenshots/dummy", 590, 310, 690, 410)
     }
 }
