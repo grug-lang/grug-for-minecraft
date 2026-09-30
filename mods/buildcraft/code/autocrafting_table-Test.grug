@@ -166,7 +166,9 @@ local _test_graphics_check() {
 # sites would have to spell the branch out instead.
 local _autocrafting_table() string {
     if Test.is_reference() {
-        return "buildcraft:autocrafting_table"
+        # 1.2.5 has no block registry names, so the reference name is the one the real block set
+        # for itself: BuildCraft's autocrafting table calls setBlockName("autoWorkbenchBlock").
+        return "buildcraft:autoWorkbenchBlock"
     }
     return "grug:autocrafting_table"
 }
