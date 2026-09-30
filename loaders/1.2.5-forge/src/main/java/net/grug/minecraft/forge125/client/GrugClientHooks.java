@@ -45,7 +45,8 @@ public class GrugClientHooks {
     private boolean ditherWasEnabled = false;
 
     public void tick(Minecraft minecraft) {
-        if ("true".equals(System.getenv("GRUG_CI")) && !worldRequested
+        if ("true".equals(System.getenv("GRUG_CI"))
+                && !worldRequested
                 && minecraft.currentScreen instanceof GuiMainMenu) {
             if (!titleLogged) {
                 System.out.println("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
@@ -145,8 +146,9 @@ public class GrugClientHooks {
             Display.setDisplayMode(mode);
 
             if (mod_Grug.minecraft() != null && mod_Grug.minecraft().mcCanvas != null) {
-                mod_Grug.minecraft().mcCanvas.setPreferredSize(
-                        new Dimension(mode.getWidth(), mode.getHeight()));
+                mod_Grug.minecraft()
+                        .mcCanvas
+                        .setPreferredSize(new Dimension(mode.getWidth(), mode.getHeight()));
                 mod_Grug.minecraft().mcCanvas.setSize(mode.getWidth(), mode.getHeight());
 
                 Window window = enclosingWindow(mod_Grug.minecraft().mcCanvas);

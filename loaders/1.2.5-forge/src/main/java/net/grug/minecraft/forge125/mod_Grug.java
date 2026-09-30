@@ -6,7 +6,6 @@ import net.grug.minecraft.forge125.client.GrugClientHooks;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugFileIndex;
-
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.GuiScreen;
@@ -24,9 +23,9 @@ import java.util.logging.Logger;
 /**
  * The Forge 1.2.5 (Tekkit Classic era) entry point.
  *
- * <p>1.2.5 Forge sits on Risugami's ModLoader, so grug attaches as a {@code mod_} class rather
- * than through Mixin. ModLoader scans the classpath for those, so the loader jar only has to be on
- * the classpath, not in {@code mods/}.
+ * <p>1.2.5 Forge sits on Risugami's ModLoader, so grug attaches as a {@code mod_} class rather than
+ * through Mixin. ModLoader scans the classpath for those, so the loader jar only has to be on the
+ * classpath, not in {@code mods/}.
  */
 public class mod_Grug extends BaseMod {
 

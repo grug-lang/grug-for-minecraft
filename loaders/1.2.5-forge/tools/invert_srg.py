@@ -5,6 +5,7 @@ MCP's client.srg maps notch names to searge names (func_* / field_*). The
 decompiled dev classes use the human names from fields.csv / methods.csv, so the
 reobf map has to join the two and then invert.
 """
+
 import csv
 import sys
 
@@ -48,8 +49,12 @@ def main(srg_in, fields_csv, methods_csv, srg_out):
                 obf_cls, obf_mth = left.rsplit("/", 1)
                 dev_cls, searge = dev.rsplit("/", 1)
                 mds.append(
-                    (f"{dev_cls}/{methods.get(searge, searge)}", dev_desc,
-                     f"{obf_cls}/{obf_mth}", obf_desc)
+                    (
+                        f"{dev_cls}/{methods.get(searge, searge)}",
+                        dev_desc,
+                        f"{obf_cls}/{obf_mth}",
+                        obf_desc,
+                    )
                 )
             else:
                 raise SystemExit(f"unknown srg line: {line}")
