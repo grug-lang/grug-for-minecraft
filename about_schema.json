@@ -81,8 +81,13 @@
                         }
                     }
                 },
-                "artifact": {
-                    "$ref": "#/definitions/artifact"
+                "artifacts": {
+                    "description": "The reference builds to diff against, each staged under its name. Every sha256 is the authority, not the url: a mirror or a moved url is fine as long as the bytes hash the same.",
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/artifact"
+                    }
                 },
                 "runtime": {
                     "$ref": "#/definitions/runtime"
@@ -178,9 +183,10 @@
             }
         },
         "artifact": {
-            "description": "The reference build to diff against. The sha256 is the authority, not the url: a mirror or a moved url is fine as long as the bytes hash the same.",
+            "description": "One reference build to diff against, staged under its name.",
             "type": "object",
             "required": [
+                "name",
                 "url",
                 "sha256",
                 "size",
@@ -188,12 +194,17 @@
             ],
             "additionalProperties": false,
             "properties": {
+                "name": {
+                    "description": "The filename this artifact is staged as, and the name install.files refers to.",
+                    "type": "string",
+                    "minLength": 1
+                },
                 "url": {
                     "type": "string",
                     "format": "uri"
                 },
                 "sha256": {
-                    "description": "Lowercase hex sha256 of the artifact.",
+                    "description": "Lowercase hex sha256 of this artifact.",
                     "type": "string",
                     "pattern": "^[0-9a-f]{64}$"
                 },

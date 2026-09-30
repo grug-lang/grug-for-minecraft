@@ -1,4 +1,4 @@
-# Fixture block: exercises one StationAPI stringToMaterial case.
+# Fixture block: exercises one of the loader's stringToMaterial cases.
 export init() {
     set_material("cake")
 }

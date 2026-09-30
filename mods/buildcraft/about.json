@@ -1,7 +1,7 @@
 {
 	"name": "BuildCraft",
 	"version": "1.0.0",
-	"game_version": "beta-1.7.3",
+	"game_version": "1.2.5",
 	"authors": [
 		"MyNameIsTrez"
 	],
@@ -11,39 +11,90 @@
 	"licenses": [
 		{
 			"name": "Minecraft Mod Public License 1.0.1",
-			"url": "https://github.com/DanyGames2014/Buildcraft/blob/master/LICENSE",
-			"note": "Required by MMPL 1.0.1 Section 6, since this port derives from MMPL-licensed code."
+			"url": "https://www.mod-buildcraft.com/MMPL-1.0.txt",
+			"note": "Required by MMPL 1.0.1 Section 6, since this port recreates the MMPL-licensed BuildCraft 2.2.14. The 2.2.14 source tree carries no standalone license file, so this links the MMPL 1.0.1 text hosted at mod-buildcraft.com."
 		}
 	],
 	"recreation": {
 		"fidelity": "behavioral",
 		"reference": {
-			"name": "Buildcraft StationAPI",
+			"name": "BuildCraft",
 			"repository": {
-				"url": "https://github.com/DanyGames2014/Buildcraft"
+				"url": "https://github.com/BuildCraft/BuildCraft"
 			},
-			"revision": "07dd217902262bc9878386ca2c53c44909a19335"
+			"revision": "90a7ea3baa630948a1c52b4788d2652d0f78ee96"
 		},
-		"artifact": {
-			"url": "https://cdn.modrinth.com/data/E5alYVeX/versions/Ujf0zqgZ/Buildcraft-1.7.0.jar",
-			"sha256": "c268c11cde83d41d577d3c44ff2cf04af1bc968b9b9dd87f6b23759e67aa1127",
-			"size": 1249830,
-			"redistribution": {
-				"allowed": false,
-				"basis": "Minecraft Mod Public License 1.0.1",
-				"note": "MMPL 1.0.1 does not clearly permit redistributing the unmodified jar, so no mirror is listed. The Reference install downloads it from Modrinth by hash instead."
+		"artifacts": [
+			{
+				"name": "buildcraft-client-A-core-2.2.14.zip",
+				"url": "https://mod-buildcraft.com/releases/BuildCraft/2.2.14/buildcraft-client-A-core-2.2.14.zip",
+				"sha256": "6485943acfd42eaa0968912424ccd35c7da57823d9c61a7ba10027980f037ea8",
+				"size": 140437,
+				"redistribution": {
+					"allowed": false,
+					"basis": "Minecraft Mod Public License 1.0.1",
+					"note": "MMPL 1.0.1 does not clearly permit redistributing the unmodified zip, so verify downloads it from mod-buildcraft.com by hash."
+				}
+			},
+			{
+				"name": "buildcraft-client-B-builders-2.2.14.zip",
+				"url": "https://mod-buildcraft.com/releases/BuildCraft/2.2.14/buildcraft-client-B-builders-2.2.14.zip",
+				"sha256": "11570f4c6a316d0a6ea8bf2c18ae69ca64d4cb383fe22933b60d1302c752886c",
+				"size": 48417,
+				"redistribution": {
+					"allowed": false,
+					"basis": "Minecraft Mod Public License 1.0.1",
+					"note": "MMPL 1.0.1 does not clearly permit redistributing the unmodified zip, so verify downloads it from mod-buildcraft.com by hash."
+				}
+			},
+			{
+				"name": "buildcraft-client-B-energy-2.2.14.zip",
+				"url": "https://mod-buildcraft.com/releases/BuildCraft/2.2.14/buildcraft-client-B-energy-2.2.14.zip",
+				"sha256": "412f36ec44f66fddaeecc78f8b342d209a8f5723b3da84e3a6d833f2b4fb1a98",
+				"size": 47335,
+				"redistribution": {
+					"allowed": false,
+					"basis": "Minecraft Mod Public License 1.0.1",
+					"note": "MMPL 1.0.1 does not clearly permit redistributing the unmodified zip, so verify downloads it from mod-buildcraft.com by hash."
+				}
+			},
+			{
+				"name": "buildcraft-client-B-factory-2.2.14.zip",
+				"url": "https://mod-buildcraft.com/releases/BuildCraft/2.2.14/buildcraft-client-B-factory-2.2.14.zip",
+				"sha256": "ba54e5b865b94484d901c952b65f549cd27ea17a03a4b2895bb6706132c40324",
+				"size": 59751,
+				"redistribution": {
+					"allowed": false,
+					"basis": "Minecraft Mod Public License 1.0.1",
+					"note": "MMPL 1.0.1 does not clearly permit redistributing the unmodified zip, so verify downloads it from mod-buildcraft.com by hash."
+				}
+			},
+			{
+				"name": "buildcraft-client-B-transport-2.2.14.zip",
+				"url": "https://mod-buildcraft.com/releases/BuildCraft/2.2.14/buildcraft-client-B-transport-2.2.14.zip",
+				"sha256": "a49ba6e230821061d2e8721a4932e4c29a099a52e6a61f7c05d0d4e7d1a69c18",
+				"size": 97188,
+				"redistribution": {
+					"allowed": false,
+					"basis": "Minecraft Mod Public License 1.0.1",
+					"note": "MMPL 1.0.1 does not clearly permit redistributing the unmodified zip, so verify downloads it from mod-buildcraft.com by hash."
+				}
 			}
-		},
+		],
 		"runtime": {
-			"minecraft": "b1.7.3",
-			"loader": "b1.7.3-stationapi",
-			"loader_version": "2.0.0-alpha.6.2",
-			"java": "17"
+			"minecraft": "1.2.5",
+			"loader": "1.2.5-forge",
+			"loader_version": "2.2.106.176",
+			"java": "8"
 		},
 		"install": {
 			"type": "mods_folder",
 			"files": [
-				"Buildcraft-1.7.0.jar"
+				"buildcraft-client-A-core-2.2.14.zip",
+				"buildcraft-client-B-builders-2.2.14.zip",
+				"buildcraft-client-B-energy-2.2.14.zip",
+				"buildcraft-client-B-factory-2.2.14.zip",
+				"buildcraft-client-B-transport-2.2.14.zip"
 			]
 		},
 		"capture": {
@@ -72,21 +123,6 @@
 	},
 	"derived_from": [
 		{
-			"name": "Buildcraft StationAPI",
-			"repository": {
-				"url": "https://github.com/DanyGames2014/Buildcraft"
-			},
-			"licenses": [
-				{
-					"name": "Minecraft Mod Public License 1.0.1",
-					"url": "https://github.com/DanyGames2014/Buildcraft/blob/master/LICENSE"
-				}
-			],
-			"sources": [
-				"https://modrinth.com/mod/buildcraft-stationapi"
-			]
-		},
-		{
 			"name": "BuildCraft",
 			"repository": {
 				"url": "https://github.com/BuildCraft/BuildCraft"
@@ -94,8 +130,8 @@
 			"licenses": [
 				{
 					"name": "Minecraft Mod Public License 1.0.1",
-					"url": "https://github.com/BuildCraft/BuildCraft/blob/8.0.x-1.12.2/LICENSE",
-					"note": "The StationAPI port draws from multiple BuildCraft versions and unreleased builds, approximately spanning 2.2.x-6.5.x, while targeting feature parity with the Release 1.2.5 version. DanyGames2014, the StationAPI port author, confirmed that the referenced versions fall within the period when BuildCraft was licensed under MMPLv1."
+					"url": "https://www.mod-buildcraft.com/MMPL-1.0.txt",
+					"note": "The reference, BuildCraft 2.2.14, was released under MMPL 1.0.1; this port recreates that version. The 2.2.14 source tree carries no standalone license file, so this links the MMPL 1.0.1 text hosted at mod-buildcraft.com."
 				}
 			],
 			"credits": [
@@ -117,8 +153,7 @@
 				"https://modrinth.com/mod/buildcraft",
 				"https://www.minecraftinfo.com/bc/aboutbuildcraft.htm",
 				"https://mod-buildcraft.com/pages/hall-of-fame.html",
-				"https://blog.asie.pl/2015/01/buildcraft-history-and-design/",
-				"https://modrinth.com/user/DanyGames2014"
+				"https://blog.asie.pl/2015/01/buildcraft-history-and-design/"
 			]
 		}
 	]
