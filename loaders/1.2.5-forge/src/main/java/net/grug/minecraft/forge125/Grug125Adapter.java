@@ -381,6 +381,20 @@ public class Grug125Adapter implements ModLoaderAdapter {
             }
         }
 
+        // 3. A reference run places the real mod's block. 1.2.5 predates block registry names, so
+        //    fall back to the name the block set for itself: BuildCraft calls
+        //    setBlockName("autoWorkbenchBlock"), and Block stores that as
+        //    "tile.autoWorkbenchBlock".
+        if (targetBlock == null) {
+            String blockName = "tile." + path;
+            for (Block block : Block.blocksList) {
+                if (block != null && blockName.equals(block.getBlockName())) {
+                    targetBlock = block;
+                    break;
+                }
+            }
+        }
+
         return targetBlock;
     }
 
@@ -497,14 +511,17 @@ public class Grug125Adapter implements ModLoaderAdapter {
                         ? Block.blocksList[blockId]
                         : null;
 
-        if (block instanceof GrugBlock) {
+        if (block != null) {
             // Go through the block's own activation hook so the test drives the same code path a
-            // real right-click does, instead of a copy of the block's GUI layout.
+            // real right-click does, instead of a copy of the block's GUI layout. This is not
+            // restricted to grug blocks: real mods open their GUI from a server-side activation
+            // (BuildCraft's BlockAutoWorkbench does exactly this), and the test only has to trigger
+            // it, not reproduce it.
             block.blockActivated(world, blockX, blockY, blockZ, player);
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Test.use_block: There is no grug block at "
+                    "Test.use_block: There is no block at "
                             + blockX
                             + ", "
                             + blockY
