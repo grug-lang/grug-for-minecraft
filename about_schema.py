@@ -81,6 +81,24 @@ def recreation_errors(data: dict) -> list:
     if not isinstance(recreation, dict):
         return errors
 
+    reference = recreation.get("reference")
+    if isinstance(reference, dict):
+        name = reference.get("name")
+        derived_from = data.get("derived_from")
+        derived_names = set()
+        if isinstance(derived_from, list):
+            for entry in derived_from:
+                if isinstance(entry, dict) and isinstance(entry.get("name"), str):
+                    derived_names.add(entry["name"])
+        if isinstance(name, str) and name not in derived_names:
+            errors.append(
+                (
+                    "/recreation/reference/name",
+                    f"{name!r} must name a derived_from entry; a reference's repository comes"
+                    " from there rather than being repeated in the recreation block.",
+                )
+            )
+
     artifacts = recreation.get("artifacts")
     if not isinstance(artifacts, list):
         artifacts = []
