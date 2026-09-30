@@ -26,11 +26,26 @@ public final class GrugReference {
     /** The system property equivalent of {@link #MODS_DIR_ENV_VAR}. */
     public static final String MODS_DIR_PROPERTY = "grug.mods.dir";
 
+    /** The environment variable a CI run sets, so a run never certifies its own golden. */
+    public static final String CI_ENV_VAR = "GRUG_CI";
+
+    /** The system property equivalent of {@link #CI_ENV_VAR}. */
+    public static final String CI_PROPERTY = "grug.ci";
+
     private GrugReference() {}
 
     /** Whether this run is the reference run. Normal runs and tests get {@code false}. */
     public static boolean isReferenceRun() {
         return isTruthy(System.getProperty(PROPERTY, System.getenv(ENV_VAR)));
+    }
+
+    /**
+     * Whether this run is CI. A CI run must not capture a golden it is supposed to compare against,
+     * so the screenshot verifier branches on this. Anything but {@code 0} and {@code false} counts,
+     * exactly as for {@link #isReferenceRun()}.
+     */
+    public static boolean isCiRun() {
+        return isTruthy(System.getProperty(CI_PROPERTY, System.getenv(CI_ENV_VAR)));
     }
 
     /**

@@ -21,6 +21,7 @@ class GrugReferenceTest {
     void clearTheProperties() {
         System.clearProperty(GrugReference.PROPERTY);
         System.clearProperty(GrugReference.MODS_DIR_PROPERTY);
+        System.clearProperty(GrugReference.CI_PROPERTY);
     }
 
     @Test
@@ -52,6 +53,21 @@ class GrugReferenceTest {
 
         System.setProperty(GrugReference.PROPERTY, "false");
         assertFalse(GrugReference.isReferenceRun());
+    }
+
+    @Test
+    void isCiRunReadsTheProperty() {
+        System.setProperty(GrugReference.CI_PROPERTY, "1");
+        assertTrue(GrugReference.isCiRun());
+
+        System.setProperty(GrugReference.CI_PROPERTY, "0");
+        assertFalse(GrugReference.isCiRun());
+
+        System.setProperty(GrugReference.CI_PROPERTY, "true");
+        assertTrue(GrugReference.isCiRun());
+
+        System.setProperty(GrugReference.CI_PROPERTY, "false");
+        assertFalse(GrugReference.isCiRun());
     }
 
     @Test

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -19,8 +20,8 @@ import javax.imageio.ImageIO;
 /**
  * Covers {@link GrugScreenshots#verify}: the any-reference match, a match at the smallest tolerance
  * that passes, a miss below it, a tolerance higher than the capture needs, bootstrapping a
- * directory that has no references yet, the mismatch path (artifact + magick-style diff), and the
- * exact diff colors.
+ * directory that has no references yet (locally and on a reference run), refusing to bootstrap on a
+ * normal CI run, the mismatch path (artifact + magick-style diff), and the exact diff colors.
  */
 class GrugScreenshotsVerifyTest {
 
@@ -39,6 +40,17 @@ class GrugScreenshotsVerifyTest {
         references = temp.resolve("references");
         artifacts = temp.resolve("artifacts");
         Files.createDirectories(references);
+        // Pin the branch flags: the surrounding environment may already be a CI or reference run,
+        // and these tests exercise the local and reference bootstrap separately, so start from an
+        // explicit off.
+        System.setProperty(GrugReference.CI_PROPERTY, "0");
+        System.setProperty(GrugReference.PROPERTY, "0");
+    }
+
+    @AfterEach
+    void clearTheFlags() {
+        System.clearProperty(GrugReference.CI_PROPERTY);
+        System.clearProperty(GrugReference.PROPERTY);
     }
 
     private static BufferedImage solid(int width, int height, int rgb) {
@@ -167,6 +179,35 @@ class GrugScreenshotsVerifyTest {
         assertTrue(
                 Files.exists(missing.resolve("1.png")),
                 "the directory and its first reference are created");
+    }
+
+    @Test
+    void failsInCiWhenNoReferenceIsCommitted() {
+        System.setProperty(GrugReference.CI_PROPERTY, "1");
+
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(solid(2, 2, RED)));
+
+        assertTrue(error.getMessage().contains("no committed reference image"), error.getMessage());
+        assertTrue(error.getMessage().contains(REFERENCE_PATH), error.getMessage());
+        assertFalse(
+                Files.exists(references.resolve("1.png")),
+                "a CI run never writes the golden it is meant to verify against");
+        assertFalse(Files.exists(artifacts), "the missing golden is reported before anything else");
+    }
+
+    @Test
+    void bootstrapsInAReferenceRunEvenInCi() throws Exception {
+        System.setProperty(GrugReference.CI_PROPERTY, "1");
+        System.setProperty(GrugReference.PROPERTY, "1");
+
+        BufferedImage capture = solid(2, 2, GREEN);
+        assertDoesNotThrow(() -> verify(capture));
+
+        assertTrue(
+                Files.exists(references.resolve("1.png")),
+                "a reference run still captures its first reference");
+        assertEquals(capture.getRGB(0, 0), read(references.resolve("1.png")).getRGB(0, 0));
     }
 
     @Test
