@@ -28,10 +28,13 @@ public class GrugScreenHandler extends ScreenHandler {
             }
         }
 
-        // Crafting Results (Real Slots!)
+        // Crafting Results
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
+            // The result is not an inventory slot; the block entity owns a one-slot container for
+            // it. Taking from that container is the same path take_crafting_result uses.
+            Inventory resultInventory = ((GrugBlockEntity) blockInventory).getResultInventory();
             this.addSlot(
-                    new Slot(blockInventory, res.slot(), res.x(), res.y()) {
+                    new Slot(resultInventory, 0, res.x(), res.y()) {
                         @Override
                         public boolean canInsert(ItemStack stack) {
                             return false; // Prevent player from inserting manually
@@ -40,9 +43,8 @@ public class GrugScreenHandler extends ScreenHandler {
                         @Override
                         public void onTakeItem(ItemStack stack) {
                             super.onTakeItem(stack);
-                            if (blockInventory instanceof GrugBlockEntity gbe) {
-                                gbe.notifyOutputTaken(res.slot(), stack != null ? stack.count : 0);
-                            }
+                            ((GrugBlockEntity) blockInventory)
+                                    .notifyOutputTaken(stack != null ? stack.count : 0);
                         }
                     });
         }

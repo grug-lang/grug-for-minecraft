@@ -31,8 +31,11 @@ public class GrugMenu extends InventoryMenu {
         }
 
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
+            // The result is not an inventory slot; the block entity owns a one-slot container for
+            // it. Taking from that container is the same path take_crafting_result uses.
+            Inventory resultInventory = ((GrugBlockEntity) blockInventory).getResultInventory();
             this.addSlot(
-                    new InventorySlot(blockInventory, res.slot(), res.x(), res.y()) {
+                    new InventorySlot(resultInventory, 0, res.x(), res.y()) {
                         @Override
                         public boolean isItemAllowed(ItemStack stack) {
                             return false;
@@ -41,9 +44,8 @@ public class GrugMenu extends InventoryMenu {
                         @Override
                         public void onItemRemoved(ItemStack stack) {
                             super.onItemRemoved(stack);
-                            if (blockInventory instanceof GrugBlockEntity gbe) {
-                                gbe.notifyOutputTaken(res.slot(), stack != null ? stack.size : 0);
-                            }
+                            ((GrugBlockEntity) blockInventory)
+                                    .notifyOutputTaken(stack != null ? stack.size : 0);
                         }
                     });
         }

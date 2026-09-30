@@ -21,6 +21,9 @@ public class GrugGuiBuilder {
 
     /**
      * The first block inventory slot used by this GUI that is not in [0, inventorySize), if any.
+     *
+     * <p>A crafting result is not checked: it is not an inventory slot. The block entity holds it
+     * in a dedicated container, so only crafting grids name inventory slots.
      */
     public OptionalInt firstSlotOutsideInventory(int inventorySize) {
         for (CraftingGridDef grid : craftingGrids) {
@@ -28,11 +31,6 @@ public class GrugGuiBuilder {
                 if (isOutside(grid.startSlot() + i, inventorySize)) {
                     return OptionalInt.of(grid.startSlot() + i);
                 }
-            }
-        }
-        for (CraftingResultDef res : craftingResults) {
-            if (isOutside(res.slot(), inventorySize)) {
-                return OptionalInt.of(res.slot());
             }
         }
         return OptionalInt.empty();
@@ -86,21 +84,19 @@ public class GrugGuiBuilder {
         }
     }
 
+    /**
+     * A crafting result position. The result itself is not an inventory slot: the block entity
+     * holds it in a dedicated container that the GUI result slot is bound to.
+     */
     @GrugGenerated(
             "record-equivalent: JaCoCo filtered the generated members of the record this replaced")
     public static final class CraftingResultDef {
-        private final int slot;
         private final int x;
         private final int y;
 
-        public CraftingResultDef(int slot, int x, int y) {
-            this.slot = slot;
+        public CraftingResultDef(int x, int y) {
             this.x = x;
             this.y = y;
-        }
-
-        public int slot() {
-            return slot;
         }
 
         public int x() {
@@ -116,17 +112,17 @@ public class GrugGuiBuilder {
             if (this == o) return true;
             if (!(o instanceof CraftingResultDef)) return false;
             CraftingResultDef other = (CraftingResultDef) o;
-            return slot == other.slot && x == other.x && y == other.y;
+            return x == other.x && y == other.y;
         }
 
         @Override
         public int hashCode() {
-            return java.util.Objects.hash(slot, x, y);
+            return java.util.Objects.hash(x, y);
         }
 
         @Override
         public String toString() {
-            return "CraftingResultDef[slot=" + slot + ", x=" + x + ", y=" + y + "]";
+            return "CraftingResultDef[x=" + x + ", y=" + y + "]";
         }
     }
 

@@ -51,8 +51,11 @@ public class GrugScreen extends InventoryMenuScreen {
         }
 
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
+            // The result is not an inventory slot; the block entity owns a one-slot container for
+            // it. Taking from that container is the same path take_crafting_result uses.
+            Inventory resultInventory = ((GrugBlockEntity) blockInventory).getResultInventory();
             this.menuSlots.add(
-                    new InventoryMenuSlot(this, blockInventory, res.slot(), res.x(), res.y()) {
+                    new InventoryMenuSlot(this, resultInventory, 0, res.x(), res.y()) {
                         @Override
                         public boolean isItemAllowed(ItemStack stack) {
                             return false;
@@ -61,11 +64,9 @@ public class GrugScreen extends InventoryMenuScreen {
                         @Override
                         public void onItemRemoved() {
                             super.onItemRemoved();
-                            if (blockInventory instanceof GrugBlockEntity gbe) {
-                                // Alpha does not tell us which stack was taken, so the amount is
-                                // unknown
-                                gbe.notifyOutputTaken(res.slot(), 0);
-                            }
+                            // Alpha does not tell us which stack was taken, so the amount is
+                            // unknown
+                            ((GrugBlockEntity) blockInventory).notifyOutputTaken(0);
                         }
                     });
         }
