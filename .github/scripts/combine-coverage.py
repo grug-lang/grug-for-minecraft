@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Combine the per-runner JaCoCo artifacts that CI uploads into one coverage report.
 
-The core job and every loader matrix leg upload:
+The core job and every loader job upload:
 
     coverage-exec-<runner>/<name>.exec
     coverage-classes-<runner>/...
