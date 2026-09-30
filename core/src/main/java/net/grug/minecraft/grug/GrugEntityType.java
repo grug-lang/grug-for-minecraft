@@ -14,6 +14,7 @@ public enum GrugEntityType {
     Option,
     Player,
     ResourceLocation,
+    Screenshot,
     Vec3;
 
     private static final GrugEntityType[] values = GrugEntityType.values();

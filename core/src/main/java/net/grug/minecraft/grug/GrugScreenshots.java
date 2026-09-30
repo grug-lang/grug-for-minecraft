@@ -15,14 +15,15 @@ import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 
 /**
- * Reference-image handling shared by every loader's {@code Test.assert_screenshot_equals()}.
+ * Reference-image handling shared by every loader's {@code Screenshot.equals()}.
  *
- * <p>The reference path names a directory of numbered PNGs ({@code 1.png}, {@code 2.png}, ...). The
- * assertion passes when the capture is pixel-identical to any one of them. There is deliberately no
- * single canonical image: the same UI renders differently on each Minecraft version (fonts, item
- * sprites, GUI scaling), so every accepted appearance gets its own file and one test stays green on
- * all of them. It also means a contributor can add their own environment's rendering with a
- * one-file pull request.
+ * <p>The reference path names a directory of numbered PNGs ({@code 1.png}, {@code 2.png}, ...). By
+ * default the assertion passes when the capture is pixel-identical to any one of them, and a small
+ * per-pixel tolerance can allow each individual pixel to differ slightly where the rendering cannot
+ * be reproduced exactly. There is deliberately no single canonical image: the same UI renders
+ * differently on each Minecraft version (fonts, item sprites, GUI scaling), so every accepted
+ * appearance gets its own file and one test stays green on all of them. It also means a contributor
+ * can add their own environment's rendering with a one-file pull request.
  *
  * <p>A directory with no references yet is bootstrapped: the first capture is written as {@code
  * 1.png} and accepted, so a new screenshot test doesn't need its directory created by hand. A
@@ -57,17 +58,26 @@ public final class GrugScreenshots {
     private GrugScreenshots() {}
 
     /**
-     * Passes if {@code capture} equals one of the numbered PNGs in {@code referenceDirectory},
+     * Passes if {@code capture} matches one of the numbered PNGs in {@code referenceDirectory},
      * bootstraps that directory with the capture when it has no references yet, and otherwise
      * reports the closest miss and writes the capture to the artifacts directory.
+     *
+     * <p>With a {@code tolerancePercent} of 0 the capture must be pixel-identical to a reference;
+     * otherwise it passes when no single pixel changed by more than {@code 255 * percent / 100} on
+     * any channel. A pass whose least accepted reference needs less than {@code tolerancePercent}
+     * fails instead, so the stated tolerance is always the smallest integer that actually passes.
      */
     public static void verify(
-            BufferedImage capture, File referenceDirectory, String referencePath) {
+            BufferedImage capture,
+            File referenceDirectory,
+            String referencePath,
+            double tolerancePercent) {
         verify(
                 capture,
                 referenceDirectory,
                 referencePath,
-                new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY));
+                new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY),
+                tolerancePercent);
     }
 
     /** The real entry point, with the artifacts directory passed in so tests can drive it. */
@@ -75,7 +85,8 @@ public final class GrugScreenshots {
             BufferedImage capture,
             File referenceDirectory,
             String referencePath,
-            File artifactsRoot) {
+            File artifactsRoot,
+            double tolerancePercent) {
         List<File> references = listReferences(referenceDirectory);
 
         // No accepted rendering yet, so this is a brand-new screenshot test: create the directory
@@ -89,9 +100,13 @@ public final class GrugScreenshots {
             return;
         }
 
+        int totalPixels = capture.getWidth() * capture.getHeight();
         int closestDifference = Integer.MAX_VALUE;
         String closestName = null;
         BufferedImage closestImage = null;
+        // The smallest tolerance that would accept the capture. The assert passes if any reference
+        // matches, so this is the least slack any accepted reference needs.
+        int minimalPassingTolerance = Integer.MAX_VALUE;
         for (File reference : references) {
             BufferedImage image = read(reference);
             if (image == null) {
@@ -118,15 +133,38 @@ public final class GrugScreenshots {
                                 + ". The crop rectangle and every reference image have to agree.");
             }
 
-            int differing = countDifferences(image, capture);
-            if (differing == 0) {
-                return;
+            // The match is decided by the single worst pixel, so a small area that changed
+            // drastically cannot slip under a tolerance the way a count of differing pixels would.
+            int maxChange = maxPixelChange(image, capture);
+            if (matches(maxChange, tolerancePercent)) {
+                minimalPassingTolerance =
+                        Math.min(minimalPassingTolerance, requiredTolerance(maxChange));
             }
+            // The closest reference is still chosen by differing-pixel count: it keeps the
+            // highlighted area in the diff as small as possible for the human looking at it.
+            int differing = countDifferences(image, capture);
             if (differing < closestDifference) {
                 closestDifference = differing;
                 closestName = reference.getName();
                 closestImage = image;
             }
+        }
+
+        if (minimalPassingTolerance != Integer.MAX_VALUE) {
+            // A tolerance higher than the one that actually passes makes the assertion always
+            // accept, which hides regressions and stops being a test. Keep the stated number
+            // honest.
+            if (minimalPassingTolerance < tolerancePercent) {
+                throw Grug.fatal(
+                        "Screenshot.equals: the capture already passes at tolerance "
+                                + minimalPassingTolerance
+                                + ", so lower the "
+                                + (int) tolerancePercent
+                                + " to "
+                                + minimalPassingTolerance
+                                + ".");
+            }
+            return;
         }
 
         // The capture is named after the free slot it would fill, so accepting it is a plain copy
@@ -154,7 +192,7 @@ public final class GrugScreenshots {
                                 + ") differs in "
                                 + closestDifference
                                 + " of "
-                                + (capture.getWidth() * capture.getHeight())
+                                + totalPixels
                                 + " pixels";
 
         throw Grug.fatal(
@@ -447,6 +485,50 @@ public final class GrugScreenshots {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Whether a pixel change of {@code maxChange} (0 to 255) is accepted at the given tolerance:
+     * the change may be at most {@code 255 * percent / 100} on every channel. A change of 0 always
+     * passes, so percent 0 stays pixel-exact.
+     */
+    private static boolean matches(int maxChange, double tolerancePercent) {
+        if (maxChange == 0) return true;
+        return tolerancePercent > 0 && 100.0 * maxChange <= 255.0 * tolerancePercent;
+    }
+
+    /**
+     * The smallest integer tolerance that would accept a maximum pixel change of {@code maxChange}:
+     * {@code ceil(100 * maxChange / 255)}, or 0 when nothing changed. Integer arithmetic keeps the
+     * ceiling exact.
+     */
+    private static int requiredTolerance(int maxChange) {
+        if (maxChange == 0) return 0;
+        return (100 * maxChange + 254) / 255;
+    }
+
+    /**
+     * The largest change any single pixel underwent, as the maximum absolute per-channel difference
+     * between the two images (0 to 255). Alpha is not compared: only the RGB channels matter.
+     */
+    private static int maxPixelChange(BufferedImage a, BufferedImage b) {
+        int maxChange = 0;
+        for (int y = 0; y < a.getHeight(); y++) {
+            for (int x = 0; x < a.getWidth(); x++) {
+                int actual = a.getRGB(x, y);
+                int expected = b.getRGB(x, y);
+                int change =
+                        Math.max(
+                                Math.abs(((actual >> 16) & 0xFF) - ((expected >> 16) & 0xFF)),
+                                Math.max(
+                                        Math.abs(((actual >> 8) & 0xFF) - ((expected >> 8) & 0xFF)),
+                                        Math.abs((actual & 0xFF) - (expected & 0xFF))));
+                if (change > maxChange) {
+                    maxChange = change;
+                }
+            }
+        }
+        return maxChange;
     }
 
     private static int countDifferences(BufferedImage a, BufferedImage b) {

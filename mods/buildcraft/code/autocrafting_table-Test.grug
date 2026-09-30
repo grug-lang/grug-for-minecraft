@@ -142,7 +142,7 @@ local _test_graphics_check() {
     # to read the pixel off the chat readout. The reference is a directory holding one numbered PNG
     # per accepted rendering of this rectangle (1.png, 2.png, ...): the same UI looks different on
     # each Minecraft version and platform, and the assertion passes if the capture matches any of them.
-    Test.assert_screenshot_equals(r"screenshots/autocrafting_table_gui", 386, 121, 894, 599)
+    Test.screenshot().equals(r"screenshots/autocrafting_table_gui", 386, 121, 894, 599)
 
     # The screenshot only means something if it shows live block data, so check the inventory it was
     # rendered from. These block entities were set up on tick 0 and are read back here, several ticks

@@ -323,10 +323,10 @@ public class GrugClientHooks {
     }
 
     /**
-     * Reads the mouse position in the same top-left-origin convention
-     * Test.assert_screenshot_equals() takes, so a coordinate read off chat can be pasted straight
-     * into a crop rectangle. Called every tick while M holds the window at the test resolution, but
-     * only prints when the position changed, so a stationary mouse doesn't fill chat.
+     * Reads the mouse position in the same top-left-origin convention Screenshot.equals() takes, so
+     * a coordinate read off chat can be pasted straight into a crop rectangle. Called every tick
+     * while M holds the window at the test resolution, but only prints when the position changed,
+     * so a stationary mouse doesn't fill chat.
      *
      * <p>This shares its flip with captureRectangle() in StationApiAdapter: LWJGL's Mouse counts Y
      * from the bottom of the window, like GL does, whereas the crop rectangle counts from the top.
