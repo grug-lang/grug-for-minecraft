@@ -307,7 +307,7 @@ public class HostFunctions {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Screenshot.tolerance: percent must be a whole number between 0 and 100, but"
-                        + " got "
+                            + " got "
                             + percent
                             + ".");
             return 0;
