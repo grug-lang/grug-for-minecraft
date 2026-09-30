@@ -248,6 +248,7 @@
                     "minLength": 1
                 },
                 "loader": {
+                    "description": "The loader directory, named as run-loader.sh takes it, for example b1.7.3-stationapi. Naming the directory rather than the loader alone is what lets a recreation block map to a run command mechanically.",
                     "type": "string",
                     "minLength": 1
                 },
