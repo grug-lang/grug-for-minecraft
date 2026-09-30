@@ -356,7 +356,8 @@ tasks.register('runClient', Exec) {
     description = 'Launches the reobfuscated loader in a pack-style 1.2.5 runtime on Java 8.'
     dependsOn 'prepareRunDir', 'obfuscateRuntime', 'extractNatives'
     workingDir = runDir
-    environment 'GRUG_CI', 'true'
+    // GRUG_CI comes from the environment: run-loader.sh exports it, so CI runs the tests while a
+    // plain runClient just launches the game to play.
     environment 'GRUG_MODS_DIR', modsDir.absolutePath
     doFirst {
         def java8 = findJava8()
