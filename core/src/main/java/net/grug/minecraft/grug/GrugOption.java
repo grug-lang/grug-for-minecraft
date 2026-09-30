@@ -40,6 +40,9 @@ public final class GrugOption {
     }
 
     @Override
+    @GrugGenerated(
+            "record-equivalent member: the compiler generated this for a record and JaCoCo filtered"
+                    + " it")
     public String toString() {
         return "GrugOption[value=" + value + "]";
     }

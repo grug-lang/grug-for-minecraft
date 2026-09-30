@@ -1,5 +1,7 @@
 package net.grug.minecraft.grug;
 
+@GrugGenerated(
+        "record-equivalent: JaCoCo filtered the generated members of the record this replaced")
 public final class Color {
     private final int r;
     private final int g;

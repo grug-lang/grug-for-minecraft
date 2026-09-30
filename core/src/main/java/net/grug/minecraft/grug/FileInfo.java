@@ -2,6 +2,8 @@ package net.grug.minecraft.grug;
 
 import java.util.Objects;
 
+@GrugGenerated(
+        "record-equivalent: JaCoCo filtered the generated members of the record this replaced")
 public final class FileInfo {
     private final String path;
     private final String fileName;

@@ -1,5 +1,7 @@
 package net.grug.minecraft.gui;
 
+import net.grug.minecraft.grug.GrugGenerated;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalInt;
@@ -40,6 +42,8 @@ public class GrugGuiBuilder {
         return slot < 0 || slot >= inventorySize;
     }
 
+    @GrugGenerated(
+            "record-equivalent: JaCoCo filtered the generated members of the record this replaced")
     public static final class CraftingGridDef {
         private final int startSlot;
         private final int x;
@@ -82,6 +86,8 @@ public class GrugGuiBuilder {
         }
     }
 
+    @GrugGenerated(
+            "record-equivalent: JaCoCo filtered the generated members of the record this replaced")
     public static final class CraftingResultDef {
         private final int slot;
         private final int x;
@@ -124,6 +130,8 @@ public class GrugGuiBuilder {
         }
     }
 
+    @GrugGenerated(
+            "record-equivalent: JaCoCo filtered the generated members of the record this replaced")
     public static final class TextDef {
         private final String text;
         private final int x;
