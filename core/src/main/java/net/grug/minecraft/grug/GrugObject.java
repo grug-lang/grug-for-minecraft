@@ -25,7 +25,8 @@ public class GrugObject {
         // BlockEntity), so unwrap one level. The wrapped values never form a cycle: they are built
         // from immutable records and primitives, and collections were dropped from the API.
         int objectHash;
-        if (object instanceof GrugObject nested) {
+        if (object instanceof GrugObject) {
+            GrugObject nested = (GrugObject) object;
             objectHash = nested.hashCode();
         } else {
             objectHash = object == null ? 0 : object.hashCode();
@@ -41,7 +42,7 @@ public class GrugObject {
     private static String safeToString(Object obj) {
         if (obj == null) return "null";
         // A nested GrugObject formats itself the same way, so defer to it.
-        if (obj instanceof GrugObject nested) return nested.toString();
+        if (obj instanceof GrugObject) return ((GrugObject) obj).toString();
         return obj.toString();
     }
 }

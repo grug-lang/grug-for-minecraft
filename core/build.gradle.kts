@@ -13,6 +13,11 @@ version = providers.gradleProperty("mod_version").get()
 java.sourceCompatibility = JavaVersion.VERSION_17
 java.targetCompatibility = JavaVersion.VERSION_17
 
+// Core has to run on the Java 8 the 1.2.5 Forge loader boots with, so the main source is compiled
+// to Java 8 bytecode even though the build JVM and the tests stay on 17. Java 8 classes run
+// unchanged on the newer JVMs the other loaders use, so this constrains core rather than the matrix.
+// `--release` also pins the API to Java 8, which `sourceCompatibility` alone would not.
+
 repositories {
     mavenCentral()
 }
@@ -242,6 +247,7 @@ val buildGrugAdapter = tasks.register("buildGrugAdapter") {
 tasks.named<JavaCompile>("compileJava") {
     dependsOn(generateGrugAdapter)
     options.encoding = "UTF-8"
+    options.release.set(8)
 }
 
 tasks.named<ProcessResources>("processResources") {

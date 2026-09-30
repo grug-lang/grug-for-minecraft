@@ -335,7 +335,9 @@ public class HostFunctions {
 
     @GrugGenerated("equality: the entity-id branch cannot be produced from grug without crashing")
     private static boolean valuesEqual(Object a, Object b) {
-        if (a instanceof Long idA && b instanceof Long idB) {
+        if (a instanceof Long && b instanceof Long) {
+            Long idA = (Long) a;
+            Long idB = (Long) b;
             GrugObject objA = Grug.entityData.get(idA);
             GrugObject objB = Grug.entityData.get(idB);
             if (objA != null && objB != null) {
