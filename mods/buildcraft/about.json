@@ -101,12 +101,7 @@
 			"width": 1280,
 			"height": 720,
 			"ticks": 40,
-			"camera": "graphics",
-			"diff": {
-				"mode": "tolerance",
-				"max_channel_delta": 8,
-				"max_pixel_percent": 1.0
-			}
+			"camera": "graphics"
 		},
 		"deviations": [
 			{

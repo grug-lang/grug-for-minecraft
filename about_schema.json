@@ -492,56 +492,6 @@
                     "description": "A named camera preset both sides set up before capturing.",
                     "type": "string",
                     "minLength": 1
-                },
-                "diff": {
-                    "type": "object",
-                    "required": [
-                        "mode"
-                    ],
-                    "additionalProperties": false,
-                    "properties": {
-                        "mode": {
-                            "enum": [
-                                "exact",
-                                "tolerance"
-                            ]
-                        },
-                        "max_channel_delta": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 255
-                        },
-                        "max_pixel_percent": {
-                            "type": "number",
-                            "minimum": 0,
-                            "maximum": 100
-                        }
-                    },
-                    "allOf": [
-                        {
-                            "if": {
-                                "properties": {
-                                    "mode": {
-                                        "const": "tolerance"
-                                    }
-                                }
-                            },
-                            "then": {
-                                "anyOf": [
-                                    {
-                                        "required": [
-                                            "max_channel_delta"
-                                        ]
-                                    },
-                                    {
-                                        "required": [
-                                            "max_pixel_percent"
-                                        ]
-                                    }
-                                ]
-                            }
-                        }
-                    ]
                 }
             }
         },

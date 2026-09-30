@@ -114,11 +114,7 @@ def install_plan(recreation: dict) -> str:
         )
 
     capture = recreation["capture"]
-    diff = capture.get("diff", {})
-    lines.append(
-        f"Capture: {capture['width']}x{capture['height']} after {capture['ticks']} ticks,"
-        f" diff mode {diff.get('mode', 'exact')}."
-    )
+    lines.append(f"Capture: {capture['width']}x{capture['height']} after {capture['ticks']} ticks.")
 
     deviations = recreation.get("deviations", [])
     if deviations:
