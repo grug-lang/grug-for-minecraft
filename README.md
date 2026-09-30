@@ -21,56 +21,6 @@ Every mod must ship its license text as a non-empty `LICENSE` file next to its `
 
 [`mods/examplemod`](mods/examplemod) is the reference mod that tutorials and other mods are meant to copy from. It's licensed under the [BSD Zero Clause License](https://spdx.org/licenses/0BSD.html), the license grug recommends for all mods written from scratch, so that snippets and files can be copied between mods as freely as possible.
 
-## Recreating a mod
-
-A mod that recreates another mod carries a `recreation` block in its `about.json`. It records what is being recreated, how to install and run the reference, and how captures are compared, so the recreation can be verified against the real thing instead of against a memory of it.
-
-The block is self-contained and declarative. `reference` pins the source revision, `artifact` pins the exact bytes by `sha256` (the hash is the authority, not the url), `runtime` names the environment the reference runs in, `install` says how the reference is installed, `capture` fixes the viewport, camera, tick count and diff tolerance, and `deviations` lists the differences that are intentional so a reader does not "fix" them.
-
-`install` is a tagged union keyed by how the reference is installed, not a list of steps: `mods_folder`, `jarmod`, `coremod`, `javaagent`, `tweak_class`, `launcher_profile`, `server_plugin`, `datapack`, `installer` and `source_build`, each with the files, libraries, config and JVM arguments it needs. Nothing executable is stored inline; a hash-pinned artifact is the only source of bytes.
-
-One rule jsonschema cannot express is enforced by `about_schema.py`: `artifact.mirrors` may only be non-empty when `artifact.redistribution.allowed` is true, because a mirror redistributes the artifact. The schema itself rejects a `tolerance` diff that names no tolerance, since `max_channel_delta` or `max_pixel_percent` is what makes "tolerance" mean anything.
-
-### One test, both sides
-
-`Test.is_reference()` is true only in the reference run, which sets `GRUG_REFERENCE=1` (or `-Dgrug.reference=1`) and loads no grug port. A recreation test branches on it for block names and setup, and asserts shared state (vanilla blocks, chest contents, dropped item entities) that both sides must produce, so one test file covers the port on every loader and the real mod on its own.
-
-### Two tiers
-
-Verifying the port needs only the port and the committed goldens, and runs on every push. Regenerating the goldens is the only part that needs the reference artifact, and it is a separate manual job (`Regenerate Goldens`), so losing the artifact degrades regenerating rather than verifying.
-
-The goldens live under a mod's `screenshots/` directory as numbered PNGs, the same layout `Test.screenshot().equals` accepts, so a recreation test reuses the existing capture and comparison path rather than growing a second one.
-
-The `artifact` tier of that workflow downloads the pinned artifact and checks it against the pinned hash before anything uses it:
-
-```sh
-python3 recreation.py plan mods/buildcraft/about.json
-python3 recreation.py verify mods/buildcraft/about.json --output reference-artifact.jar
-python3 recreation.py stage mods/buildcraft/about.json \
-  --artifact reference-artifact.jar --destination loaders/b1.7.3-stationapi/run/mods
-```
-
-`recreation.py plan` prints the runtime, the pinned reference, the install, and the capture settings, so a reviewer can see what running the reference would involve without running it. `stage` writes that install into the reference's mods folder, verifying the artifact first and refusing an install type it cannot automate rather than half-doing it.
-
-### Running the reference
-
-A reference run loads the harness and the real mod but no grug port, so the loaders read `GRUG_MODS_DIR` (or `-Dgrug.mods.dir`) and use that directory instead of their own. With `GRUG_REFERENCE=1` that is enough to launch the reference:
-
-```sh
-GRUG_REFERENCE=1 GRUG_MODS_DIR=/path/to/harness-only-mods \
-  .github/scripts/run-loader.sh b1.7.3-stationapi run
-```
-
-Which mods belong in that directory is the harness question, and the answer is a harness-only directory holding the shared recreation tests and whatever the reference itself needs, not the port. A recreation test does not have to live in the port it tests: it is one file that branches on `Test.is_reference()` for the one thing that differs, the names, so `level.place_block(x, y, z, _autocrafting_table())` reads `grug:autocrafting_table` on the port and `buildcraft:autocrafting_table` in the reference. A plain string can be returned from a helper, which is why the branch hides in one; resource and entity strings cannot be returned from or passed to helpers, so those call sites spell the branch out with an `if`.
-
-### One launch per version
-
-A launch can only exercise one game version, so verifying recreations takes the loader matrix plus one launch per reference mod. Four launches run the port on `a1.1.2_01-ornithe`, `b1.7.3-ornithe`, `b1.7.3-stationapi` and `1.20.6-forge`, each running every grug mod's tests in one go, and a fifth runs `mods/buildcraft`'s recreation test against BuildCraft on `b1.7.3-stationapi`. A future reference such as a Mekanism machine would add a sixth launch, on whichever version that mod requires.
-
-The extra launch exists because a port and its reference need not share a version. A mod that only ever existed for a later version can still be ported to Alpha as grug code, but the real mod can only run on the version it was written for. That is also why the loader-version gap between a port and its reference does not matter: the reference launch uses the runtime `runtime` names, not the port's.
-
-That leaves two kinds of comparison. Graphics are compared across versions, and a screenshot call carries the tolerance it picks: the default is 0, so most captures are compared pixel-for-pixel, while a cross-version in-world capture passes a low tolerance where the lighting differs between versions. The tolerance is a last resort, and the chosen value should be as low as possible, because a high tolerance makes the assertion always pass and stops being a test. The crop is expressed per runtime, since GUI scale and panel position differ, and the port crop and the reference crop have to frame the same logical panel rather than the same pixels. Everything else, the behaviour, is verified on the port side, with assertions that encode what the reference produces and `deviations` for what is deliberately different.
-
 ## Long-term Plans
 
 This repository aims to become a thoroughly vetted, centralized host for grug mods via the `mods/` directory at its root, rather than depending on external platforms like Modrinth or CurseForge. Support for downloading mods through APIs like Modrinth's may be added eventually, but isn't a priority given the `mods/` directory already covers hosting, discovery, and vetting on its own. Because `mod_api.json` restricts what mods can do, CI will be able to auto-merge pull requests that only modify grug code and come from a GitHub account listed as an author in the mod's `about.json`, while reviewers focus on resource files.
