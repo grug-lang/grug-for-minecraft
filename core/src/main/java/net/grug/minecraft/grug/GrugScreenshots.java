@@ -25,11 +25,13 @@ import javax.imageio.ImageIO;
  * appearance gets its own file and one test stays green on all of them. It also means a contributor
  * can add their own environment's rendering with a one-file pull request.
  *
- * <p>A directory with no references yet is bootstrapped: the first capture is written as {@code
- * 1.png} and accepted, so a new screenshot test doesn't need its directory created by hand. A
- * capture that matches none of an existing directory's references is instead written to the
- * screenshot-artifacts directory (mirroring the reference path) so CI can upload it, and the test
- * fails; promoting that artifact into the reference directory is how a new rendering is accepted.
+ * <p>A directory with no references yet is bootstrapped locally, and for a reference run: the first
+ * capture is written as {@code 1.png} and accepted, so a new screenshot test doesn't need its
+ * directory created by hand. A normal CI run refuses to bootstrap, so an uncommitted golden fails
+ * the run by name instead of being certified by the very capture it should verify. A capture that
+ * matches none of an existing directory's references is instead written to the screenshot-artifacts
+ * directory (mirroring the reference path) so CI can upload it, and the test fails; promoting that
+ * artifact into the reference directory is how a new rendering is accepted.
  */
 public final class GrugScreenshots {
     /** Screenshot tests are pixel-exact against references captured at this resolution. */
@@ -89,13 +91,20 @@ public final class GrugScreenshots {
             double tolerancePercent) {
         List<File> references = listReferences(referenceDirectory);
 
-        // No accepted rendering yet, so this is a brand-new screenshot test: create the directory
-        // and
-        // accept the capture as its first reference instead of failing. A committed directory
-        // always
-        // has at least one PNG -- git can't store an empty one -- so this only ever happens for a
-        // local author on their first run; CI never reaches it.
+        // No accepted rendering yet, so this is a brand-new screenshot test or the first local run
+        // of an existing one. A committed directory always has at least one PNG, since git cannot
+        // store an empty one, so on a normal CI run an empty directory means the golden was never
+        // committed: fail and name it instead of certifying the run's own capture. A reference run
+        // may still capture its first reference, and a local author may still bootstrap.
         if (references.isEmpty()) {
+            if (GrugReference.isCiRun() && !GrugReference.isReferenceRun()) {
+                throw Grug.fatal(
+                        "Screenshot.equals: no committed reference image for "
+                                + referencePath
+                                + " in "
+                                + referenceDirectory
+                                + "; a golden must be committed, not captured during the run.");
+            }
             addReference(capture, referenceDirectory, referencePath);
             return;
         }
