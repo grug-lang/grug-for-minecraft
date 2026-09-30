@@ -1,0 +1,138 @@
+package net.grug.minecraft.forge125;
+
+import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.forge125.block.GrugBlocks;
+import net.grug.minecraft.forge125.client.GrugClientHooks;
+import net.grug.minecraft.grug.FileInfo;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugFileIndex;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.src.BaseMod;
+import net.minecraft.src.GuiScreen;
+import net.minecraft.src.ModLoader;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.Logger;
+
+/**
+ * The Forge 1.2.5 (Tekkit Classic era) entry point.
+ *
+ * <p>1.2.5 Forge sits on Risugami's ModLoader, so grug attaches as a {@code mod_} class rather
+ * than through Mixin. ModLoader scans the classpath for those, so the loader jar only has to be on
+ * the classpath, not in {@code mods/}.
+ */
+public class mod_Grug extends BaseMod {
+
+    public static final String MOD_ID = "grug";
+    public static final String VERSION = "1.0.0";
+    public static final Logger LOGGER = Logger.getLogger("grug");
+
+    public static final Map<String, Long> blockFiles = new HashMap<>();
+    public static final Map<String, Long> itemFiles = new HashMap<>();
+
+    private static GrugClientHooks clientHooks;
+
+    /** The running client, or null before it exists. */
+    public static Minecraft minecraft() {
+        return ModLoader.getMinecraftInstance();
+    }
+
+    @Override
+    public String getVersion() {
+        return VERSION;
+    }
+
+    @Override
+    public void load() {
+        LOGGER.info("Successfully loaded grug (Forge 1.2.5)!");
+
+        File gameDir = ModLoader.getMinecraftInstance().mcDataDir;
+        File runGrugDir = new File(gameDir, "grug_mods");
+        if (!runGrugDir.exists()) {
+            runGrugDir.mkdirs();
+        }
+
+        File modApiJson = new File(runGrugDir, "mod_api.json");
+        File activeGrugDir = getActiveGrugModsDir(runGrugDir);
+
+        try (InputStream in = mod_Grug.class.getResourceAsStream("/mod_api.json")) {
+            if (in == null) {
+                throw Grug.fatal("/mod_api.json is missing from the grug jar");
+            }
+            Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw Grug.fatal("Failed to copy mod_api.json", e);
+        }
+
+        GrugCore.initialize(new Grug125Adapter(), modApiJson, activeGrugDir);
+        FileInfo[] files = Grug.compileAllFiles();
+
+        blockFiles.clear();
+        itemFiles.clear();
+        for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
+            FileInfo file = entry.file();
+            Grug.fileIds.put(file.path(), file.fileId());
+            String entityType = entry.entityType();
+            if ("Block".equals(entityType)) {
+                blockFiles.put(entry.cleanName(), file.fileId());
+            } else if ("BlockEntity".equals(entityType)) {
+                Grug.entityFileIdsByName.put(entry.cleanName(), file.fileId());
+            } else if ("Item".equals(entityType)) {
+                itemFiles.put(entry.cleanName(), file.fileId());
+            }
+        }
+
+        LOGGER.info("Compiled " + files.length + " grug files successfully.");
+
+        GrugBlocks.init();
+
+        clientHooks = new GrugClientHooks();
+        ModLoader.setInGameHook(this, true, false);
+        // The title screen is a GUI and has no world yet, so the in-game hook never fires there;
+        // the GUI hook is what notices the title screen and kicks off the CI world load.
+        ModLoader.setInGUIHook(this, true, false);
+    }
+
+    /**
+     * The directory grug loads mods from. A reference run points this elsewhere so the port is not
+     * loaded alongside the mod it recreates; a dev run points at the repository's {@code mods/}.
+     */
+    public static File getActiveGrugModsDir(File runGrugDir) {
+        String override = System.getProperty("grug.mods.dir");
+        if (override == null) {
+            override = System.getenv("GRUG_MODS_DIR");
+        }
+        if (override != null && !override.isEmpty()) {
+            File dir = new File(override);
+            if (!dir.isDirectory()) {
+                throw Grug.fatal("Broken grug invariant: GRUG_MODS_DIR is not a directory: " + dir);
+            }
+            return dir;
+        }
+        return runGrugDir;
+    }
+
+    // ModLoader pumps this once per game tick, which is where the test runner is driven.
+    @Override
+    public boolean onTickInGame(float time, Minecraft minecraftInstance) {
+        if (clientHooks != null) {
+            clientHooks.tick(minecraftInstance);
+        }
+        return true;
+    }
+
+    @Override
+    public boolean onTickInGUI(float tick, Minecraft game, GuiScreen gui) {
+        if (clientHooks != null && game.thePlayer == null) {
+            clientHooks.tick(game);
+        }
+        return true;
+    }
+}

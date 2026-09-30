@@ -85,10 +85,26 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
+        id: java21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+
+      # The 1.2.5 loader boots its game on Java 8. Install a JDK 8 alongside the build JDK and hand
+      # its path to the loader through GRUG_JAVA8. JAVA_HOME goes back to 21 afterwards so the
+      # Gradle 9 wrapper the standalone loaders use can still run.
+      - name: Set up JDK 8 (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        id: java8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Restore JDK 21 for Gradle (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
 
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
       # screenshots pixel-for-pixel, which needs a stable Mesa/font stack
@@ -109,10 +125,16 @@ jobs:
 
       - name: Run tests (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" run
+        env:
+          # Empty for every loader except 1.2.5-forge; its game JVM uses this Java 8.
+          GRUG_JAVA8: ${{ steps.java8.outputs.path }}
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
+      # 1.2.5-forge has no JaCoCo agent, so it has neither exec data nor a report to contribute and
+      # is skipped by the two uploads below.
       - name: Stage the compiled classes
+        if: matrix.dir != '1.2.5-forge'
         run: |
           mkdir -p coverage-classes
           for dir in \
@@ -124,6 +146,7 @@ jobs:
           done
 
       - name: Upload the coverage exec
+        if: matrix.dir != '1.2.5-forge'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-exec-${{ matrix.dir }}
@@ -132,6 +155,7 @@ jobs:
           retention-days: 7
 
       - name: Upload the compiled classes
+        if: matrix.dir != '1.2.5-forge'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-classes-${{ matrix.dir }}

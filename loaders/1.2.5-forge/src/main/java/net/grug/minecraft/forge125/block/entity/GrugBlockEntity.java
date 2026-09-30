@@ -1,0 +1,266 @@
+package net.grug.minecraft.forge125.block.entity;
+
+import net.grug.minecraft.forge125.block.GrugBlock;
+import net.grug.minecraft.grug.ExportFns;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugObject;
+import net.minecraft.src.Block;
+import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.IInventory;
+import net.minecraft.src.ItemStack;
+import net.minecraft.src.NBTTagCompound;
+import net.minecraft.src.NBTTagList;
+import net.minecraft.src.TileEntity;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The tile entity behind every {@link GrugBlock}: a grug-scripted inventory and tick hook.
+ *
+ * <p>1.2.5 instantiates tile entities generically (through {@code TileEntity.createAndLoadEntity}
+ * and a registered class mapping), so the real inventory size is not known until the block is in
+ * the world. The backing array therefore starts empty and is sized lazily from the block.
+ */
+public class GrugBlockEntity extends TileEntity implements IInventory {
+    private long entityHandle = 0;
+    private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private boolean initAttempted = false;
+
+    private ItemStack[] stacks = new ItemStack[0];
+    private boolean sized = false;
+
+    private void ensureSized() {
+        if (sized) return;
+        sized = trySizeInventory();
+    }
+
+    private void initGrug() {
+        if (entityHandle != 0 || initAttempted) return;
+
+        initAttempted = true;
+        entityHandle = createGrugEntity();
+
+        if (entityHandle != 0) {
+            tickFnId = Grug.getExportFnId("BlockEntity", "tick");
+        }
+    }
+
+    @GrugGenerated(
+            "inventory/entity setup guards: the world and block are not controllable in tests")
+    private boolean trySizeInventory() {
+        if (worldObj == null) return false;
+
+        Block block = Block.blocksList[worldObj.getBlockId(xCoord, yCoord, zCoord)];
+        if (!(block instanceof GrugBlock)) return false;
+
+        stacks = new ItemStack[((GrugBlock) block).getInventorySize()];
+        return true;
+    }
+
+    @GrugGenerated(
+            "inventory/entity setup guards: the world and block are not controllable in tests")
+    private long createGrugEntity() {
+        ensureSized();
+        if (worldObj == null) return 0;
+
+        Block block = Block.blocksList[worldObj.getBlockId(xCoord, yCoord, zCoord)];
+        if (!(block instanceof GrugBlock)) return 0;
+
+        long fileId = ((GrugBlock) block).getEntityFileId();
+        if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
+
+        Grug.currentlyInitializingBlockEntity = this;
+        long handle = Grug.createEntity(fileId);
+        Grug.currentlyInitializingBlockEntity = null;
+        return handle;
+    }
+
+    @Override
+    public void updateEntity() {
+        super.updateEntity();
+
+        if (entityHandle == 0) {
+            initGrug();
+        }
+
+        if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+            List<GrugObject> oldFnEntities = Grug.fnEntities;
+            Grug.fnEntities = new ArrayList<GrugObject>();
+
+            Grug.callExportFn(entityHandle, tickFnId);
+
+            Grug.fnEntities = oldFnEntities;
+        }
+    }
+
+    @Override
+    public void invalidate() {
+        super.invalidate();
+
+        if (entityHandle != 0) {
+            Grug.destroyEntity(entityHandle);
+            entityHandle = 0;
+        }
+    }
+
+    // --- Inventory Implementation ---
+
+    @Override
+    public int getSizeInventory() {
+        ensureSized();
+        return stacks.length;
+    }
+
+    @Override
+    public ItemStack getStackInSlot(int slot) {
+        ensureSized();
+        if (slot < 0 || slot >= stacks.length) return null;
+        return stacks[slot];
+    }
+
+    @Override
+    public ItemStack decrStackSize(int slot, int amount) {
+        ensureSized();
+        if (slot < 0 || slot >= stacks.length || stacks[slot] == null) return null;
+
+        ItemStack result;
+        if (stacks[slot].stackSize <= amount) {
+            result = stacks[slot];
+            stacks[slot] = null;
+        } else {
+            result = stacks[slot].splitStack(amount);
+            if (stacks[slot].stackSize == 0) {
+                stacks[slot] = null;
+            }
+        }
+
+        onInventoryChanged();
+
+        initGrug();
+
+        if (entityHandle != 0) {
+            long fnId = Grug.getExportFnId("BlockEntity", "item_extracted");
+            if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                ExportFns.BlockEntity_item_extracted(entityHandle, slot, amount);
+            }
+        }
+
+        return result;
+    }
+
+    @Override
+    public void setInventorySlotContents(int slot, ItemStack stack) {
+        ensureSized();
+        if (slot < 0 || slot >= stacks.length) return;
+
+        stacks[slot] = stack;
+        if (stack != null && stack.stackSize > getInventoryStackLimit()) {
+            stack.stackSize = getInventoryStackLimit();
+        }
+
+        onInventoryChanged();
+
+        initGrug();
+
+        if (entityHandle != 0) {
+            long fnId = Grug.getExportFnId("BlockEntity", "item_inserted");
+            if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                ExportFns.BlockEntity_item_inserted(
+                        entityHandle, slot, stack != null ? stack.stackSize : 0);
+            }
+        }
+    }
+
+    @Override
+    public ItemStack getStackInSlotOnClosing(int slot) {
+        ensureSized();
+        if (slot < 0 || slot >= stacks.length) return null;
+
+        ItemStack stack = stacks[slot];
+        stacks[slot] = null;
+        return stack;
+    }
+
+    public void notifyOutputTaken(int slot, int amount) {
+        initGrug();
+
+        if (entityHandle != 0) {
+            long fnId = Grug.getExportFnId("BlockEntity", "output_taken");
+            if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                ExportFns.BlockEntity_output_taken(entityHandle, slot, amount);
+            }
+        }
+    }
+
+    @Override
+    public String getInvName() {
+        return "Grug Inventory";
+    }
+
+    @Override
+    public int getInventoryStackLimit() {
+        return 64;
+    }
+
+    @Override
+    public boolean isUseableByPlayer(EntityPlayer player) {
+        return withinReach(player);
+    }
+
+    @GrugGenerated("container reachability: the game only asks with the GUI open")
+    private boolean withinReach(EntityPlayer player) {
+        return worldObj.getBlockTileEntity(xCoord, yCoord, zCoord) == this
+                && player.getDistanceSq(xCoord + 0.5D, yCoord + 0.5D, zCoord + 0.5D) <= 64.0D;
+    }
+
+    @Override
+    public void openChest() {}
+
+    @Override
+    public void closeChest() {}
+
+    @Override
+    public void readFromNBT(NBTTagCompound nbt) {
+        super.readFromNBT(nbt);
+
+        // Recover the size from NBT before loading items, so a load does not depend on the world
+        // being present (it is not, during a test's NBT round trip).
+        if (nbt.hasKey("GrugInvSize")) {
+            stacks = new ItemStack[nbt.getInteger("GrugInvSize")];
+            sized = true;
+        } else {
+            ensureSized();
+        }
+
+        NBTTagList items = nbt.getTagList("Items");
+        for (int i = 0; i < items.tagCount(); i++) {
+            NBTTagCompound itemNbt = (NBTTagCompound) items.tagAt(i);
+            int slot = itemNbt.getByte("Slot") & 255;
+            if (slot < stacks.length) {
+                stacks[slot] = ItemStack.loadItemStackFromNBT(itemNbt);
+            }
+        }
+    }
+
+    @Override
+    public void writeToNBT(NBTTagCompound nbt) {
+        super.writeToNBT(nbt);
+        ensureSized();
+
+        // Save the size so readFromNBT does not need the world object.
+        nbt.setInteger("GrugInvSize", stacks.length);
+
+        NBTTagList items = new NBTTagList();
+        for (int i = 0; i < stacks.length; i++) {
+            if (stacks[i] != null) {
+                NBTTagCompound itemNbt = new NBTTagCompound();
+                itemNbt.setByte("Slot", (byte) i);
+                stacks[i].writeToNBT(itemNbt);
+                items.appendTag(itemNbt);
+            }
+        }
+        nbt.setTag("Items", items);
+    }
+}
