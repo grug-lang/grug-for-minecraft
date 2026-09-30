@@ -61,7 +61,15 @@ GRUG_REFERENCE=1 GRUG_MODS_DIR=/path/to/harness-only-mods \
   .github/scripts/run-loader.sh b1.7.3-stationapi run
 ```
 
-Which mods belong in that directory is still open: a reference run loads no port, so a recreation test cannot live in the port it tests without also loading that port's blocks and items.
+Which mods belong in that directory is the harness question, and the answer is a harness-only directory holding the shared recreation tests and whatever the reference itself needs, not the port. A recreation test does not have to live in the port it tests: it is one file that branches on `Test.is_reference()` for the one thing that differs, the names, so `level.place_block(x, y, z, _autocrafting_table())` reads `grug:autocrafting_table` on the port and `buildcraft:autocrafting_table` in the reference. A plain string can be returned from a helper, which is why the branch hides in one; resource and entity strings cannot be returned from or passed to helpers, so those call sites spell the branch out with an `if`.
+
+### One launch per version
+
+A launch can only exercise one game version, so verifying recreations takes the loader matrix plus one launch per reference mod. Four launches run the port on `a1.1.2_01-ornithe`, `b1.7.3-ornithe`, `b1.7.3-stationapi` and `1.20.6-forge`, each running every grug mod's tests in one go, and a fifth runs `mods/buildcraft`'s recreation test against BuildCraft on `b1.7.3-stationapi`. A future reference such as a Mekanism machine would add a sixth launch, on whichever version that mod requires.
+
+The extra launch exists because a port and its reference need not share a version. A mod that only ever existed for a later version can still be ported to Alpha as grug code, but the real mod can only run on the version it was written for. That is also why the loader-version gap between a port and its reference does not matter: the reference launch uses the runtime `runtime` names, not the port's.
+
+That leaves two kinds of comparison. Graphics are compared across versions, and only the GUI is meaningful, because GUI textures are not lit and so survive the lighting changes between versions. The crop is expressed per runtime, since GUI scale and panel position differ, and the port crop and the reference crop have to frame the same logical panel rather than the same pixels. Everything else, the behaviour, is verified on the port side, with assertions that encode what the reference produces and `deviations` for what is deliberately different.
 
 ## Long-term Plans
 
