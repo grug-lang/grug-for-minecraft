@@ -1,7 +1,9 @@
-# An out-of-bounds crop coordinate must be reported before any capture is attempted.
+# An out-of-bounds crop coordinate must be reported before any capture is attempted. Setting a valid
+# tolerance first is what keeps Screenshot.tolerance's accepted path covered in a game; the invalid
+# values have their own expect_ tests, and the crop still errors before any comparison runs.
 export run() {
     if Test.tick() == 0 {
         Test.expect_error("is -1, which is outside")
-        Test.screenshot().equals(r"screenshots/dummy", -1, 0, 10, 10)
+        Test.screenshot().tolerance(1).equals(r"screenshots/dummy", -1, 0, 10, 10)
     }
 }
