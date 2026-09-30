@@ -1,0 +1,19 @@
+# take_crafting_result on a non-grug block entity is the reference-extraction path. It is only
+# implemented on 1.2.5, so elsewhere it reports a host error naming the function rather than
+# returning a wrong number. The substring is shared by every loader's message.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        x: number = origin.x() + 6
+        y: number = origin.y()
+        z: number = origin.z()
+
+        level.place_block(x, y, z, "minecraft:chest")
+        be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        Test.assert(be_opt.has(), "chest has no block entity after being placed.")
+
+        Test.expect_error("take_crafting_result")
+        take_crafting_result(be_opt.unwrap(), 1)
+    }
+}
