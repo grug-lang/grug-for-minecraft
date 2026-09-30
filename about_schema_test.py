@@ -3,8 +3,8 @@
 
 The recreation block is what makes a port diffable against the real mod it recreates, so a mistake
 in it is a mistake in every recreation mod. The rules that matter most here are the two the schema
-delegates to about_schema.py: a mirror needs redistribution rights, and an exact recreation needs an
-artifact to diff against.
+delegates to about_schema.py: a mirror needs redistribution rights, and an exact recreation needs
+artifacts to diff against.
 """
 
 import copy
@@ -43,6 +43,15 @@ def base_recreation() -> dict:
             "repository": {"url": "https://example.com/reference"},
             "revision": "0" * 40,
         },
+        "artifacts": [
+            {
+                "name": "reference.jar",
+                "url": "https://example.com/reference.jar",
+                "sha256": "a" * 64,
+                "size": 10,
+                "redistribution": {"allowed": False},
+            }
+        ],
         "runtime": {
             "minecraft": "b1.7.3",
             "loader": "b1.7.3-stationapi",
@@ -91,40 +100,42 @@ class RecreationSchemaTest(unittest.TestCase):
     def test_an_exact_recreation_needs_an_artifact(self):
         recreation = base_recreation()
         recreation["fidelity"] = "exact"
-        self.assertInvalid(self.mod_with(recreation), "artifact")
+        del recreation["artifacts"]
+        self.assertInvalid(self.mod_with(recreation), "exact recreation needs artifacts")
 
     def test_an_exact_recreation_with_an_artifact_is_valid(self):
         recreation = base_recreation()
         recreation["fidelity"] = "exact"
-        recreation["artifact"] = {
-            "url": "https://example.com/reference.jar",
-            "sha256": "a" * 64,
-            "size": 10,
-            "redistribution": {"allowed": False},
-        }
         self.assertValid(self.mod_with(recreation))
 
     def test_a_mirror_without_redistribution_rights_is_rejected(self):
         recreation = base_recreation()
-        recreation["artifact"] = {
-            "url": "https://example.com/reference.jar",
-            "sha256": "a" * 64,
-            "size": 10,
-            "redistribution": {"allowed": False},
-            "mirrors": ["https://mirror.example.com/reference.jar"],
-        }
+        recreation["artifacts"][0]["mirrors"] = ["https://mirror.example.com/reference.jar"]
         self.assertInvalid(self.mod_with(recreation), "mirror")
 
     def test_a_mirror_with_redistribution_rights_is_accepted(self):
         recreation = base_recreation()
-        recreation["artifact"] = {
-            "url": "https://example.com/reference.jar",
-            "sha256": "a" * 64,
-            "size": 10,
-            "redistribution": {"allowed": True, "basis": "MIT"},
-            "mirrors": ["https://mirror.example.com/reference.jar"],
-        }
+        recreation["artifacts"][0]["redistribution"] = {"allowed": True, "basis": "MIT"}
+        recreation["artifacts"][0]["mirrors"] = ["https://mirror.example.com/reference.jar"]
         self.assertValid(self.mod_with(recreation))
+
+    def test_duplicate_artifact_names_are_rejected(self):
+        recreation = base_recreation()
+        recreation["artifacts"].append(
+            {
+                "name": "reference.jar",
+                "url": "https://example.com/other.jar",
+                "sha256": "b" * 64,
+                "size": 20,
+                "redistribution": {"allowed": False},
+            }
+        )
+        self.assertInvalid(self.mod_with(recreation), "unique")
+
+    def test_an_install_file_must_name_an_artifact(self):
+        recreation = base_recreation()
+        recreation["install"]["files"] = ["missing.jar"]
+        self.assertInvalid(self.mod_with(recreation), "not the name of any artifact")
 
     def test_an_unknown_install_type_is_rejected(self):
         recreation = base_recreation()
@@ -148,18 +159,48 @@ class RecreationSchemaTest(unittest.TestCase):
 
     def test_a_malformed_sha256_is_rejected(self):
         recreation = base_recreation()
-        recreation["artifact"] = {
-            "url": "https://example.com/reference.jar",
-            "sha256": "not-a-hash",
-            "size": 10,
-            "redistribution": {"allowed": False},
-        }
+        recreation["artifacts"][0]["sha256"] = "not-a-hash"
         self.assertInvalid(self.mod_with(recreation), "does not match")
 
     def test_a_reference_needs_a_revision(self):
         recreation = base_recreation()
         del recreation["reference"]["revision"]
         self.assertInvalid(self.mod_with(recreation), "'revision' is a required property")
+
+    def test_a_runtime_loader_must_be_a_loader_directory(self):
+        recreation = base_recreation()
+        recreation["runtime"]["loader"] = "no-such-loader"
+        self.assertInvalid(self.mod_with(recreation), "is not a directory under loaders/")
+
+    def test_a_runtime_minecraft_must_match_its_loader(self):
+        recreation = base_recreation()
+        recreation["runtime"]["minecraft"] = "1.20.6"
+        self.assertInvalid(self.mod_with(recreation), "is for 'b1.7.3'")
+
+    def test_every_known_loader_accepts_its_minecraft_version(self):
+        for loader, minecraft in about_schema.LOADER_MINECRAFT.items():
+            recreation = base_recreation()
+            recreation["runtime"]["loader"] = loader
+            recreation["runtime"]["minecraft"] = minecraft
+            self.assertValid(self.mod_with(recreation))
+
+    def test_every_known_loader_rejects_another_minecraft_version(self):
+        for loader in about_schema.LOADER_MINECRAFT:
+            recreation = base_recreation()
+            recreation["runtime"]["loader"] = loader
+            recreation["runtime"]["minecraft"] = "0.0.0"
+            self.assertInvalid(self.mod_with(recreation), "is for")
+
+    def test_a_runtime_java_must_be_supported(self):
+        recreation = base_recreation()
+        recreation["runtime"]["java"] = "12"
+        self.assertInvalid(self.mod_with(recreation), "must be one of 8, 17, 21")
+
+    def test_each_supported_java_version_is_valid(self):
+        for java in ("8", "17", "21"):
+            recreation = base_recreation()
+            recreation["runtime"]["java"] = java
+            self.assertValid(self.mod_with(recreation))
 
     def test_a_tolerance_diff_needs_a_tolerance(self):
         recreation = base_recreation()

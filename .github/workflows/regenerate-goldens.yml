@@ -2,10 +2,10 @@ name: Regenerate Goldens
 
 # The second tier. Verifying a port runs on every push and needs only the port and the committed
 # goldens, so it can never be broken by losing the reference. This job is the only one that needs
-# the reference artifact, and it is manual and best-effort on purpose: if the artifact disappears,
+# the reference artifacts, and it is manual and best-effort on purpose: if the artifacts disappear,
 # verifying the port still works and only regenerating the goldens is degraded.
 #
-# This job fetches and hash-verifies the artifact and prints what installing and running the
+# This job fetches and hash-verifies the artifacts and prints what installing and running the
 # reference involves. Actually launching the reference runtime and committing the captures is the
 # next step; see the recreation section of the README for what it still needs.
 
@@ -38,25 +38,25 @@ jobs:
         run: python3 recreation.py plan "mods/${{ inputs.mod }}/about.json"
 
       # The pin is the hash, so a moved url or a mirror is fine and a changed byte is not.
-      - name: Download and verify the artifact by hash
+      - name: Download and verify the artifacts by hash
         run: |
           python3 recreation.py verify "mods/${{ inputs.mod }}/about.json" \
-            --output reference-artifact.jar
+            --output reference-artifacts
 
       # The install layout a reference run wants, so a maintainer can download it and launch the
       # reference by hand while the automated launch is still open.
       - name: Stage the install layout
         run: |
           python3 recreation.py stage "mods/${{ inputs.mod }}/about.json" \
-            --artifact reference-artifact.jar \
+            --artifacts reference-artifacts \
             --destination reference-staged
 
-      - name: Upload the verified artifact and its staged layout
+      - name: Upload the verified artifacts and their staged layout
         uses: actions/upload-artifact@v4
         with:
           name: reference-${{ inputs.mod }}
           path: |
-            reference-artifact.jar
+            reference-artifacts
             reference-staged
           if-no-files-found: error
           retention-days: 7
