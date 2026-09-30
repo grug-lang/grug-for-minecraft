@@ -61,3 +61,18 @@ Use the following Gradle commands to build and run the specific mod loader envir
 | :--- | :--- |
 | **M** | Toggles the window between its current size and a forced 1280x720. While it's on, the cursor's pixel position is kept in chat, in the same top-left-origin convention `Test.screenshot().equals` takes: open the screen you're writing a test against, hover the pixel you want, and read the coordinate off the latest `Cursor:` line. Press M first, or the coordinates you read won't be the ones CI sees. |
 | **R** | Runs every test. It forces 1280x720 for the duration of the run and restores the previous resolution afterwards, so tests always run at the resolution their references were captured at. |
+
+### Accepting Screenshot References
+
+A screenshot test compares its capture against the numbered PNGs in the mod's `screenshots/<name>/`
+directory, so a rendering that none of them represents yet has to be accepted explicitly. Do that
+with the `update-goldens` phase instead of copying a file out of the artifacts directory by hand:
+
+```sh
+.github/scripts/run-loader.sh <loader-dir-name> update-goldens
+```
+
+The tests pass and every unmatched capture is written into the mod's reference directory as the next
+number, so the new PNG turns up in `git status` for you to review and commit. Running the reference
+itself with the same phase (with `GRUG_REFERENCE=1` and a harness-only `GRUG_MODS_DIR`) accepts the
+reference's own pixels rather than the port's.

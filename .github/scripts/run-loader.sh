@@ -3,8 +3,8 @@
 
 set -uo pipefail
 
-if [ "$#" -ne 2 ] || { [ "$2" != build ] && [ "$2" != run ]; }; then
-  echo "Usage: $0 <loader-dir-name> <build|run>" >&2
+if [ "$#" -ne 2 ] || { [ "$2" != build ] && [ "$2" != run ] && [ "$2" != update-goldens ]; }; then
+  echo "Usage: $0 <loader-dir-name> <build|run|update-goldens>" >&2
   exit 2
 fi
 LOADER="$1"
@@ -25,7 +25,7 @@ if [ ! -d "$LOADER_DIR" ]; then
   exit 2
 fi
 
-if [ "$PHASE" = run ] && [ -z "${DISPLAY:-}" ]; then
+if [ "$PHASE" != build ] && [ -z "${DISPLAY:-}" ]; then
   echo "DISPLAY is not set. Start an X server first, e.g. run under xvfb-run." >&2
   exit 2
 fi
@@ -36,6 +36,12 @@ LOG_FILE="${REPO_ROOT}/${LOADER_DIR}/run/ci-run-loader.log"
 # Exporting as an environment variable ensures it safely passes to the forked Minecraft JVM
 export GRUG_CI=true
 gradle_args=(-Dgrug.activeLoader="$LOADER" --stacktrace)
+
+# Accept unmatched screenshot captures into the mods' screenshots/ directories, so a contributor
+# reviews the new PNGs in the working tree instead of copying them out of the artifacts directory.
+if [ "$PHASE" = update-goldens ]; then
+  export GRUG_UPDATE_GOLDENS=1
+fi
 
 # Standalone loaders have their own Gradle wrapper and consume core via mavenLocal.
 if [ -f "${LOADER_DIR}/root.gradle" ]; then
@@ -57,7 +63,7 @@ EXPECTED_TESTS=$(find "${REPO_ROOT}/mods" -name "*-Test.grug" | wc -l | tr -d ' 
 SUCCESS_MSG="[GRUG CI] ALL ${EXPECTED_TESTS} TESTS PASSED"
 BOOT_MSG="[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL"
 
-if [ "$PHASE" = run ]; then
+if [ "$PHASE" != build ]; then
   if [ ! -f "${REPO_ROOT}/${LOADER_DIR}/test-save.txt" ]; then
     echo "==> ERROR: ${LOADER_DIR}/test-save.txt is missing. Every loader must specify a test save." >&2
     exit 1
@@ -87,7 +93,7 @@ fi
 # switch lives in the game's config file rather than a system property, and run/ is not committed, so
 # write it here before the game reads it. earlyWindowControl=false makes Forge use its DummyProvider,
 # which just means there is no loading screen.
-if [ "$PHASE" = run ] && grep -q "net.minecraftforge.gradle" "${LOADER_DIR}/build.gradle" 2>/dev/null; then
+if [ "$PHASE" != build ] && grep -q "net.minecraftforge.gradle" "${LOADER_DIR}/build.gradle" 2>/dev/null; then
   FML_CONFIG="${REPO_ROOT}/${LOADER_DIR}/run/config/fml.toml"
   mkdir -p "$(dirname "$FML_CONFIG")"
   if [ -f "$FML_CONFIG" ] && grep -q "^earlyWindowControl" "$FML_CONFIG"; then
