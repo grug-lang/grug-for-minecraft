@@ -177,42 +177,11 @@
 						}
 					]
 				},
-				"assert_screenshot_equals": {
-					"description": "Captures the given pixel rectangle of the current frame and fails the test unless the capture is pixel-identical to one of the reference PNGs accepted for this UI. `reference` names a directory of numbered PNGs (1.png, 2.png, ...), because the same UI renders differently on each Minecraft version and each accepted appearance gets its own file. A directory with no references yet is bootstrapped: the capture is written as 1.png and accepted. A capture that matches none of an existing directory's references is written to the `grug-screenshot-artifacts` directory (with a diff image) so CI can collect it, and the test fails; copy that capture into the reference directory to accept it. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
-					"parameters": [
-						{
-							"name": "reference",
-							"type": {
-								"name": "resource",
-								"resource_extension": "",
-								"optional": true
-							}
-						},
-						{
-							"name": "x1",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y1",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "x2",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y2",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
+				"screenshot": {
+					"description": "Starts a screenshot assertion for the current frame. Returns a builder whose `equals` captures a pixel rectangle and compares it against a directory of reference PNGs. The builder compares pixel-exactly by default; call `tolerance` first to allow a small percentage of differing pixels.",
+					"return_type": {
+						"name": "Screenshot"
+					}
 				},
 				"get_client_level": {
 					"description": "Gets the current client level.",
@@ -671,6 +640,63 @@
 							}
 						]
 					}
+				}
+			}
+		},
+		"Screenshot": {
+			"description": "A screenshot assertion under construction, returned by `Test.screenshot()`. Configure it with `tolerance`, then call `equals` to run the comparison.",
+			"methods": {
+				"equals": {
+					"description": "Captures the given pixel rectangle of the current frame and fails the test unless the capture matches one of the reference PNGs accepted for this UI, within this builder's tolerance. `reference` names a directory of numbered PNGs (1.png, 2.png, ...), because the same UI renders differently on each Minecraft version and each accepted appearance gets its own file. A directory with no references yet is bootstrapped: the capture is written as 1.png and accepted. A capture that matches none of an existing directory's references is written to the `grug-screenshot-artifacts` directory (with a diff image) so CI can collect it, and the test fails; copy that capture into the reference directory to accept it. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
+					"parameters": [
+						{
+							"name": "reference",
+							"type": {
+								"name": "resource",
+								"resource_extension": "",
+								"optional": true
+							}
+						},
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"tolerance": {
+					"description": "Sets the most any single pixel may differ before the comparison fails, as an integer percentage of the full 0 to 255 channel range, and returns this same builder so calls can be chained. A pixel's difference is the largest absolute change in any of its red, green or blue channels, and the comparison fails if any pixel changed by more than 255 * percent / 100. The default is 0, a pixel-exact comparison. The value must be the smallest integer that passes: a value higher than necessary fails with a message naming the smallest one, because a high tolerance makes the assertion always pass, at which point it stops being a test and hides real regressions instead of catching them. Tolerance is a last resort, so prefer the lowest percentage that works; a capture that is not reproducible from run to run is its own bug to fix (the crop, the camera, or the tick timing) rather than a reason to widen the tolerance.",
+					"return_type": {
+						"name": "Screenshot"
+					},
+					"parameters": [
+						{
+							"name": "percent",
+							"description": "A whole number from 0 to 100: the most any single pixel may differ, as a percentage of the 0 to 255 channel range. Must be the smallest integer that passes.",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},

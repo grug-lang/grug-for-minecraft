@@ -90,5 +90,16 @@ public interface ModLoaderAdapter {
 
     void useBlockForTest(Object levelObj, double x, double y, double z);
 
-    void assertScreenshotEquals(String referencePath, double x1, double y1, double x2, double y2);
+    /**
+     * Captures the rectangle and compares it against the reference directory. When {@code
+     * tolerancePercent} is 0 the capture must match pixel-for-pixel; otherwise it passes when at
+     * most that percentage of pixels differ.
+     */
+    void assertScreenshotEquals(
+            String referencePath,
+            double x1,
+            double y1,
+            double x2,
+            double y2,
+            double tolerancePercent);
 }

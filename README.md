@@ -39,7 +39,7 @@ One rule jsonschema cannot express is enforced by `about_schema.py`: `artifact.m
 
 Verifying the port needs only the port and the committed goldens, and runs on every push. Regenerating the goldens is the only part that needs the reference artifact, and it is a separate manual job (`Regenerate Goldens`), so losing the artifact degrades regenerating rather than verifying.
 
-The goldens live under a mod's `screenshots/` directory as numbered PNGs, the same layout `Test.assert_screenshot_equals` accepts, so a recreation test reuses the existing capture and comparison path rather than growing a second one.
+The goldens live under a mod's `screenshots/` directory as numbered PNGs, the same layout `Test.screenshot().equals` accepts, so a recreation test reuses the existing capture and comparison path rather than growing a second one.
 
 The `artifact` tier of that workflow downloads the pinned artifact and checks it against the pinned hash before anything uses it:
 
@@ -69,7 +69,7 @@ A launch can only exercise one game version, so verifying recreations takes the 
 
 The extra launch exists because a port and its reference need not share a version. A mod that only ever existed for a later version can still be ported to Alpha as grug code, but the real mod can only run on the version it was written for. That is also why the loader-version gap between a port and its reference does not matter: the reference launch uses the runtime `runtime` names, not the port's.
 
-That leaves two kinds of comparison. Graphics are compared across versions, and only the GUI is meaningful, because GUI textures are not lit and so survive the lighting changes between versions. The crop is expressed per runtime, since GUI scale and panel position differ, and the port crop and the reference crop have to frame the same logical panel rather than the same pixels. Everything else, the behaviour, is verified on the port side, with assertions that encode what the reference produces and `deviations` for what is deliberately different.
+That leaves two kinds of comparison. Graphics are compared across versions, and a screenshot call carries the tolerance it picks: the default is 0, so most captures are compared pixel-for-pixel, while a cross-version in-world capture passes a low tolerance where the lighting differs between versions. The tolerance is a last resort, and the chosen value should be as low as possible, because a high tolerance makes the assertion always pass and stops being a test. The crop is expressed per runtime, since GUI scale and panel position differ, and the port crop and the reference crop have to frame the same logical panel rather than the same pixels. Everything else, the behaviour, is verified on the port side, with assertions that encode what the reference produces and `deviations` for what is deliberately different.
 
 ## Long-term Plans
 
@@ -109,5 +109,5 @@ Use the following Gradle commands to build and run the specific mod loader envir
 
 | Key | What it does |
 | :--- | :--- |
-| **M** | Toggles the window between its current size and a forced 1280x720. While it's on, the cursor's pixel position is kept in chat, in the same top-left-origin convention `Test.assert_screenshot_equals` takes: open the screen you're writing a test against, hover the pixel you want, and read the coordinate off the latest `Cursor:` line. Press M first, or the coordinates you read won't be the ones CI sees. |
+| **M** | Toggles the window between its current size and a forced 1280x720. While it's on, the cursor's pixel position is kept in chat, in the same top-left-origin convention `Test.screenshot().equals` takes: open the screen you're writing a test against, hover the pixel you want, and read the coordinate off the latest `Cursor:` line. Press M first, or the coordinates you read won't be the ones CI sees. |
 | **R** | Runs every test. It forces 1280x720 for the duration of the run and restores the previous resolution afterwards, so tests always run at the resolution their references were captured at. |

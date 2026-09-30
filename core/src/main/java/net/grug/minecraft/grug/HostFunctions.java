@@ -132,9 +132,8 @@ public class HostFunctions {
         GrugCore.getAdapter().useBlockForTest(Grug.entityData.get(levelId).object, x, y, z);
     }
 
-    public static void Test_assert_screenshot_equals(
-            String referencePath, double x1, double y1, double x2, double y2) {
-        GrugCore.getAdapter().assertScreenshotEquals(referencePath, x1, y1, x2, y2);
+    public static long Test_screenshot() {
+        return Grug.addEntity(GrugEntityType.Screenshot, new GrugScreenshot(0));
     }
 
     // TODO: Change to me.tick() once entities can have methods
@@ -299,6 +298,32 @@ public class HostFunctions {
 
     public static long Option_new() {
         return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
+    }
+
+    public static long Screenshot_tolerance(long screenshotId, double percent) {
+        // A whole percentage only: a fractional value has no meaning for a pixel count, and the
+        // floor/ceiling arithmetic on the comparison side assumes an integer.
+        if (percent < 0 || percent > 100 || percent != Math.floor(percent)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Screenshot.tolerance: percent must be a whole number between 0 and 100, but"
+                        + " got "
+                            + percent
+                            + ".");
+            return 0;
+        }
+        // GrugScreenshot is a record, so setting a tolerance replaces the object stored under the
+        // entity id rather than mutating it in place, the same way Option.set works.
+        Grug.addEntityWithId(screenshotId, GrugEntityType.Screenshot, new GrugScreenshot(percent));
+        return screenshotId;
+    }
+
+    public static void Screenshot_equals(
+            long screenshotId, String referencePath, double x1, double y1, double x2, double y2) {
+        GrugScreenshot screenshot = (GrugScreenshot) Grug.entityData.get(screenshotId).object;
+        GrugCore.getAdapter()
+                .assertScreenshotEquals(
+                        referencePath, x1, y1, x2, y2, screenshot.tolerancePercent());
     }
 
     public static double Vec3_x(long vec3Id) {

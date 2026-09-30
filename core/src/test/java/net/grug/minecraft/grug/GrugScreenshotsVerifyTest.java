@@ -17,9 +17,10 @@ import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
 /**
- * Covers {@link GrugScreenshots#verify}: the any-reference match, bootstrapping a directory that
- * has no references yet, the mismatch path (artifact + magick-style diff), and the exact diff
- * colors.
+ * Covers {@link GrugScreenshots#verify}: the any-reference match, a match at the smallest tolerance
+ * that passes, a miss below it, a tolerance higher than the capture needs, bootstrapping a
+ * directory that has no references yet, the mismatch path (artifact + magick-style diff), and the
+ * exact diff colors.
  */
 class GrugScreenshotsVerifyTest {
 
@@ -59,9 +60,15 @@ class GrugScreenshotsVerifyTest {
         return ImageIO.read(path.toFile());
     }
 
-    /** Drives the package-private seam with a temp artifacts directory. */
+    /** Drives the package-private seam with a temp artifacts directory and an exact comparison. */
     private void verify(BufferedImage capture) {
-        GrugScreenshots.verify(capture, references.toFile(), REFERENCE_PATH, artifacts.toFile());
+        verify(capture, 0);
+    }
+
+    /** Drives the package-private seam with a tolerance percent. */
+    private void verify(BufferedImage capture, double tolerancePercent) {
+        GrugScreenshots.verify(
+                capture, references.toFile(), REFERENCE_PATH, artifacts.toFile(), tolerancePercent);
     }
 
     @Test
@@ -72,6 +79,67 @@ class GrugScreenshotsVerifyTest {
         // It skips 1.png and matches 2.png.
         assertDoesNotThrow(() -> verify(solid(2, 2, GREEN)));
         assertFalse(Files.exists(artifacts), "a passing capture leaves no artifacts");
+    }
+
+    @Test
+    void passesWhenTheToleranceIsExactlyTheSmallestThatPasses() throws Exception {
+        write(references.resolve("1.png"), solid(2, 2, 0));
+
+        // One pixel's red channel changes by 0x33 (51), so the per-pixel minimum is
+        // ceil(100 * 51 / 255) = 20 and a 20 tolerance has to pass.
+        BufferedImage capture = solid(2, 2, 0);
+        capture.setRGB(1, 1, 0x330000);
+
+        assertDoesNotThrow(() -> verify(capture, 20));
+        assertFalse(Files.exists(artifacts), "a capture within tolerance leaves no artifacts");
+    }
+
+    @Test
+    void failsWhenTheCaptureExceedsTolerance() throws Exception {
+        write(references.resolve("1.png"), solid(2, 2, 0));
+
+        // The same 51 needs 20, so a 19 tolerance is a genuine mismatch.
+        BufferedImage capture = solid(2, 2, 0);
+        capture.setRGB(1, 1, 0x330000);
+
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(capture, 19));
+        assertTrue(error.getMessage().contains("the closest (1.png)"), error.getMessage());
+    }
+
+    @Test
+    void failsWhenTheToleranceIsHigherThanTheCaptureNeeds() throws Exception {
+        write(references.resolve("1.png"), solid(2, 2, 0));
+
+        BufferedImage capture = solid(2, 2, 0);
+        capture.setRGB(1, 1, 0x330000);
+
+        // 20 is enough, so 21 is dishonest and has to be reported with the smaller value.
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(capture, 21));
+        assertTrue(
+                error.getMessage()
+                        .contains(
+                                "Screenshot.equals: the capture already passes at tolerance 20, so"
+                                        + " lower the 21 to 20."),
+                error.getMessage());
+    }
+
+    @Test
+    void reportsTheSmallestToleranceAcrossReferences() throws Exception {
+        // 1.png changes by 0x66 (102, needs 40%); 2.png changes by 0x33 (51, needs 20%). The assert
+        // passes if any reference matches, so the smaller value is the one that sets the minimum.
+        BufferedImage needsForty = solid(2, 2, 0);
+        needsForty.setRGB(1, 1, 0x660000);
+        write(references.resolve("1.png"), needsForty);
+        BufferedImage needsTwenty = solid(2, 2, 0);
+        needsTwenty.setRGB(1, 1, 0x330000);
+        write(references.resolve("2.png"), needsTwenty);
+
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(solid(2, 2, 0), 50));
+        assertTrue(
+                error.getMessage().contains("already passes at tolerance 20"), error.getMessage());
     }
 
     @Test
@@ -95,7 +163,7 @@ class GrugScreenshotsVerifyTest {
         assertDoesNotThrow(
                 () ->
                         GrugScreenshots.verify(
-                                capture, missing.toFile(), REFERENCE_PATH, artifacts.toFile()));
+                                capture, missing.toFile(), REFERENCE_PATH, artifacts.toFile(), 0));
         assertTrue(
                 Files.exists(missing.resolve("1.png")),
                 "the directory and its first reference are created");
@@ -181,7 +249,8 @@ class GrugScreenshotsVerifyTest {
                                 solid(2, 2, RED),
                                 blocked.resolve("child").toFile(),
                                 REFERENCE_PATH,
-                                artifacts.toFile()));
+                                artifacts.toFile(),
+                                0));
     }
 
     @Test
@@ -234,7 +303,8 @@ class GrugScreenshotsVerifyTest {
                                 capture,
                                 references.toFile(),
                                 REFERENCE_PATH,
-                                artifactsFile.toFile()));
+                                artifactsFile.toFile(),
+                                0));
     }
 
     @Test
