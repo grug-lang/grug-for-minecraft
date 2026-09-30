@@ -28,10 +28,16 @@ public final class GrugBlocks {
 
     /**
      * First id searched when handing out ids. Vanilla 1.2.5 stops at 124 (redstone lamp), so this
-     * is the start of the range Forge mods conventionally use. Ids are not taken blindly from here
-     * because a pack can have dozens of other mods already holding them.
+     * is just above it. Ids are not taken blindly from here because a pack can have dozens of other
+     * mods already holding them; the search below skips any that are taken.
      */
-    public static final int START_BLOCK_ID = 200;
+    public static final int START_BLOCK_ID = 125;
+
+    /**
+     * Block ids stop here. The top id is left free because some mods (Modular Force Field System in
+     * Tekkit Classic, for one) hardcode it instead of searching for a free one.
+     */
+    public static final int LAST_BLOCK_ID = 254;
 
     /** First item id searched, for the same reason. */
     public static final int START_ITEM_ID = 400;
@@ -91,6 +97,7 @@ public final class GrugBlocks {
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
             block.setBlockName("grug_" + cleanName);
+            mod_Grug.LOGGER.info("grug:" + cleanName + " got block id " + blockId);
 
             int blockSprite = nextBlockSpriteId++;
             BLOCK_SPRITES.put(cleanName, blockSprite);
@@ -126,6 +133,7 @@ public final class GrugBlocks {
             // Item shifts its id by 256 internally, so this lands at Item.itemsList[itemId].
             GrugItem item = new GrugItem(itemId - 256, itemFileId);
             item.setItemName(cleanName);
+            mod_Grug.LOGGER.info("grug:" + cleanName + " got item id " + itemId);
 
             int itemSprite = nextItemSpriteId++;
             ITEM_SPRITES.put(cleanName, itemSprite);
@@ -138,7 +146,7 @@ public final class GrugBlocks {
      * hold ids from that range, so taking the next one blindly would collide.
      */
     private static int allocateBlockId() {
-        for (int id = START_BLOCK_ID; id < Block.blocksList.length; id++) {
+        for (int id = START_BLOCK_ID; id <= LAST_BLOCK_ID; id++) {
             if (Block.blocksList[id] == null) return id;
         }
         throw Grug.fatal("No free block id for a grug block");

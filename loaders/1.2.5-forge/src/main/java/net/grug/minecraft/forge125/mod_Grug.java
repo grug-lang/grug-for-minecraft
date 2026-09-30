@@ -90,13 +90,25 @@ public class mod_Grug extends BaseMod {
 
         LOGGER.info("Compiled " + files.length + " grug files successfully.");
 
-        GrugBlocks.init();
-
         clientHooks = new GrugClientHooks();
         ModLoader.setInGameHook(this, true, false);
         // The title screen is a GUI and has no world yet, so the in-game hook never fires there;
         // the GUI hook is what notices the title screen and kicks off the CI world load.
         ModLoader.setInGUIHook(this, true, false);
+    }
+
+    /**
+     * Registers the dynamic blocks and items once every other mod has registered its own.
+     *
+     * <p>1.2.5 mods claim block ids during {@code load()}, and many hardcode the id they expect
+     * rather than searching for a free one (BuildCraft's factory module uses 169, Modular Force
+     * Field System uses 255). Registering during {@code load()} therefore steals an id and makes
+     * the other mod crash. Waiting until {@code modsLoaded()} means every other mod has claimed its
+     * ids already, so grug can take one that is genuinely free.
+     */
+    @Override
+    public void modsLoaded() {
+        GrugBlocks.init();
     }
 
     /**
