@@ -6,7 +6,8 @@ public class HostFunctionHelpers {
     private HostFunctionHelpers() {}
 
     public static String prettyFormat(Object value) {
-        if (value instanceof Long id) {
+        if (value instanceof Long) {
+            Long id = (Long) value;
             GrugObject grugObj = Grug.entityData.get(id);
             return (grugObj != null && grugObj.object != null)
                     ? prettyFormat(grugObj.object)

@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -45,6 +46,9 @@ public final class GrugModsExtractor {
                     });
         }
 
-        Files.writeString(marker, "The default examples have already been generated.\n");
+        Files.write(
+                marker,
+                "The default examples have already been generated.\n"
+                        .getBytes(StandardCharsets.UTF_8));
     }
 }
