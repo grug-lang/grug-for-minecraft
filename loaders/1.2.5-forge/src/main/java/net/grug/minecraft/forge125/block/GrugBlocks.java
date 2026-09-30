@@ -7,6 +7,8 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
+import net.minecraft.src.Block;
+import net.minecraft.src.Item;
 import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 
@@ -25,13 +27,14 @@ public final class GrugBlocks {
     private GrugBlocks() {}
 
     /**
-     * First block id handed out. Vanilla 1.2.5 stops at 124 (redstone lamp), so this is the start
-     * of the range Forge mods conventionally use.
+     * First id searched when handing out ids. Vanilla 1.2.5 stops at 124 (redstone lamp), so this
+     * is the start of the range Forge mods conventionally use. Ids are not taken blindly from here
+     * because a pack can have dozens of other mods already holding them.
      */
     public static final int START_BLOCK_ID = 200;
 
-    private static int nextBlockId = START_BLOCK_ID;
-    private static int nextItemId = 400;
+    /** First item id searched, for the same reason. */
+    public static final int START_ITEM_ID = 400;
 
     /** Block script clean name -> terrain sprite index. */
     public static final Map<String, Integer> BLOCK_SPRITES = new HashMap<String, Integer>();
@@ -84,7 +87,7 @@ public final class GrugBlocks {
             Grug.blockDataByFileId.put(blockFileId, blockData);
             Grug.currentlyInitializingBlock = null;
 
-            int blockId = nextBlockId++;
+            int blockId = allocateBlockId();
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
             block.setBlockName("grug_" + cleanName);
@@ -119,7 +122,7 @@ public final class GrugBlocks {
             Grug.declaredItems.put(fullId, itemData);
             Grug.itemDataByFileId.put(itemFileId, itemData);
 
-            int itemId = nextItemId++;
+            int itemId = allocateItemId();
             // Item shifts its id by 256 internally, so this lands at Item.itemsList[itemId].
             GrugItem item = new GrugItem(itemId - 256, itemFileId);
             item.setItemName(cleanName);
@@ -128,6 +131,25 @@ public final class GrugBlocks {
             ITEM_SPRITES.put(cleanName, itemSprite);
             item.setIconIndex(itemSprite);
         }
+    }
+
+    /**
+     * The first free block id at or after {@link #START_BLOCK_ID}. A pack's other mods may already
+     * hold ids from that range, so taking the next one blindly would collide.
+     */
+    private static int allocateBlockId() {
+        for (int id = START_BLOCK_ID; id < Block.blocksList.length; id++) {
+            if (Block.blocksList[id] == null) return id;
+        }
+        throw Grug.fatal("No free block id for a grug block");
+    }
+
+    /** The first free item slot at or after {@link #START_ITEM_ID}. */
+    private static int allocateItemId() {
+        for (int id = START_ITEM_ID; id < Item.itemsList.length; id++) {
+            if (Item.itemsList[id] == null) return id;
+        }
+        throw Grug.fatal("No free item id for a grug item");
     }
 
     private static Material stringToMaterial(String materialName) {
