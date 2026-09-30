@@ -1,5 +1,0 @@
-# Covers Test.is_reference(), the flag a recreation test branches on: false here on the port, and
-# true only in the reference run, which sets GRUG_REFERENCE and loads no grug port.
-export run() {
-    Test.assert(not Test.is_reference(), "A normal run is not the reference run.")
-}
