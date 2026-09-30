@@ -97,12 +97,6 @@
 				"buildcraft-client-B-transport-2.2.14.zip"
 			]
 		},
-		"capture": {
-			"width": 1280,
-			"height": 720,
-			"ticks": 40,
-			"camera": "graphics"
-		},
 		"deviations": [
 			{
 				"what": "The wooden pipe renders as a cube instead of a centre with arms.",

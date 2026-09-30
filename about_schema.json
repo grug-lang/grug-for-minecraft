@@ -39,14 +39,13 @@
             }
         },
         "recreation": {
-            "description": "How this mod recreates a reference: what it targets, how to install and run the reference, and how captures are compared. Present only for recreation mods.",
+            "description": "How this mod recreates a reference: what it targets, how to install and run the reference, and where it deliberately differs.",
             "type": "object",
             "required": [
                 "fidelity",
                 "reference",
                 "runtime",
-                "install",
-                "capture"
+                "install"
             ],
             "additionalProperties": false,
             "properties": {
@@ -94,9 +93,6 @@
                 },
                 "install": {
                     "$ref": "#/definitions/install"
-                },
-                "capture": {
-                    "$ref": "#/definitions/capture"
                 },
                 "deviations": {
                     "description": "Intentional differences from the reference. A non-empty list says the difference is deliberate, so a reader does not 'fix' it.",
@@ -465,35 +461,6 @@
                     }
                 }
             ]
-        },
-        "capture": {
-            "type": "object",
-            "required": [
-                "width",
-                "height",
-                "ticks"
-            ],
-            "additionalProperties": false,
-            "properties": {
-                "width": {
-                    "type": "integer",
-                    "minimum": 1
-                },
-                "height": {
-                    "type": "integer",
-                    "minimum": 1
-                },
-                "ticks": {
-                    "description": "How many game ticks to advance before capturing, so the world settles the same way on both sides.",
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "camera": {
-                    "description": "A named camera preset both sides set up before capturing.",
-                    "type": "string",
-                    "minLength": 1
-                }
-            }
         },
         "deviation": {
             "type": "object",
