@@ -2,9 +2,9 @@
 """Tests the recreation block's schema and the rules that jsonschema cannot express.
 
 The recreation block is what makes a port diffable against the real mod it recreates, so a mistake
-in it is a mistake in every recreation mod. The rules that matter most here are the two the schema
-delegates to about_schema.py: a mirror needs redistribution rights, and an exact recreation needs
-artifacts to diff against.
+in it is a mistake in every recreation mod. The rules that matter most here are the three the schema
+delegates to about_schema.py: a mirror needs redistribution rights, an exact recreation needs
+artifacts to diff against, and an exact recreation has no deviations.
 """
 
 import copy
@@ -105,6 +105,17 @@ class RecreationSchemaTest(unittest.TestCase):
     def test_an_exact_recreation_with_an_artifact_is_valid(self):
         recreation = base_recreation()
         recreation["fidelity"] = "exact"
+        self.assertValid(self.mod_with(recreation))
+
+    def test_an_exact_recreation_with_a_deviation_is_rejected(self):
+        recreation = base_recreation()
+        recreation["fidelity"] = "exact"
+        recreation["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
+        self.assertInvalid(self.mod_with(recreation), "exact recreation has no deviations")
+
+    def test_a_behavioral_recreation_with_a_deviation_is_valid(self):
+        recreation = base_recreation()
+        recreation["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
         self.assertValid(self.mod_with(recreation))
 
     def test_a_mirror_without_redistribution_rights_is_rejected(self):
