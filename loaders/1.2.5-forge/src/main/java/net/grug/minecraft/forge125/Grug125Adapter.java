@@ -531,6 +531,25 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double countItemEntities(Object levelObj, double x, double y, double z, double radius) {
+        World world = (World) levelObj;
+        double radiusSquared = radius * radius;
+        int count = 0;
+        for (Object entity : world.loadedEntityList) {
+            if (entity instanceof EntityItem) {
+                EntityItem item = (EntityItem) entity;
+                double dx = item.posX - x;
+                double dy = item.posY - y;
+                double dz = item.posZ - z;
+                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
         return ((TileEntity) blockEntityObj).worldObj;
     }
