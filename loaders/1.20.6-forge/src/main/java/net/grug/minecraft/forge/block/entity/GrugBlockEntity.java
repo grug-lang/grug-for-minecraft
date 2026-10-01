@@ -27,6 +27,12 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean initStarted = false;
 
+    /**
+     * The host entities this block entity's member scope created, rooted here so they live exactly
+     * as long as the block entity and are freed with it (the legacy GrugEntity.childEntities idea).
+     */
+    public final List<GrugObject> childEntities = new ArrayList<>();
+
     private NonNullList<ItemStack> stacks = NonNullList.create();
     private boolean sized = false;
 
@@ -103,7 +109,10 @@ public class GrugBlockEntity extends BlockEntity implements Container {
         if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
 
         Grug.currentlyInitializingBlockEntity = this;
+        List<GrugObject> oldFnEntities = Grug.fnEntities;
+        Grug.fnEntities = childEntities;
         long handle = Grug.createEntity(fileId);
+        Grug.fnEntities = oldFnEntities;
         Grug.currentlyInitializingBlockEntity = null;
         return handle;
     }
@@ -125,6 +134,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;
+            childEntities.clear();
         }
     }
 
