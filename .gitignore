@@ -41,3 +41,6 @@ __pycache__/
 # Recreation artifacts downloaded by recreation.py
 reference-artifact
 reference-artifact.*
+
+# Coverage artifacts written by combine-coverage.py, locally and in the coverage CI job
+coverage/
