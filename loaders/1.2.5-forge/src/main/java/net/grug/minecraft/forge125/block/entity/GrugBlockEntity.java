@@ -131,6 +131,22 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
     public void invalidate() {
         super.invalidate();
 
+        teardownGrugEntity();
+    }
+
+    @Override
+    public void onChunkUnload() {
+        super.onChunkUnload();
+
+        // 1.2.5 does not call invalidate() when a chunk unloads; it calls this instead and keeps
+        // the tile, re-adding it on the next load. Destroy the VM entity so it cannot outlive the
+        // tile (a stale entity fails to resolve its own handle on the next hot reload), and clear
+        // initStarted so updateEntity builds a fresh one once the chunk comes back.
+        teardownGrugEntity();
+        initStarted = false;
+    }
+
+    private void teardownGrugEntity() {
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;
