@@ -563,6 +563,12 @@ public class HostFunctions {
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, count);
     }
 
+    public static void set_item_damage_in_slot(long blockEntityId, double slot, double damage) {
+        GrugCore.getAdapter()
+                .setItemDamageInSlot(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, damage);
+    }
+
     public static void set_item_in_slot(
             long blockEntityId, double slot, long itemId, double count) {
         GrugCore.getAdapter()

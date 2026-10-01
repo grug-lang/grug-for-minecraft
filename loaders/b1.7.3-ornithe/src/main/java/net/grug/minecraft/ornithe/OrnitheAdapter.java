@@ -236,6 +236,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setItemDamageInSlot(Object blockEntityObj, double slot, double damage) {
+        ItemStack stack = ((Inventory) blockEntityObj).getItem((int) slot);
+        if (stack != null) {
+            stack.setDamage((int) damage);
+        }
+    }
+
+    @Override
     public void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count) {
         Inventory inv = (Inventory) blockEntityObj;
         inv.setItem((int) slot, new ItemStack((Item) itemObj, (int) count));

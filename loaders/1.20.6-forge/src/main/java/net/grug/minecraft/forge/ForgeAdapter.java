@@ -329,6 +329,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setItemDamageInSlot(Object blockEntityObj, double slot, double damage) {
+        ItemStack stack = ((Container) blockEntityObj).getItem((int) slot);
+        if (!stack.isEmpty()) {
+            stack.setDamageValue((int) damage);
+        }
+    }
+
+    @Override
     public void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count) {
         Container inv = (Container) blockEntityObj;
         inv.setItem((int) slot, new ItemStack((Item) itemObj, (int) count));

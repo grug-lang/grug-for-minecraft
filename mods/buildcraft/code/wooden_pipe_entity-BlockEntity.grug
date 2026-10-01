@@ -100,6 +100,8 @@ local _pull_one_from(nx: number, ny: number, nz: number) bool {
         if get_item_count_in_slot(neighbor, slot) > 0 {
             item_opt: Option[Item] = get_item_in_slot(neighbor, slot)
             if item_opt.has() {
+                # Read the damage before taking, because taking empties the slot.
+                damage: number = get_item_damage_in_slot(neighbor, slot)
                 # take_item_from_slot, not extract_item_from_inventory. They look interchangeable,
                 # but only the former calls removeItem and then fires output_taken, which is what
                 # drives the autocrafting table's restock and craft loop. extract_item_from_inventory
@@ -107,6 +109,7 @@ local _pull_one_from(nx: number, ny: number, nz: number) bool {
                 taken: number = take_item_from_slot(neighbor, slot, 1)
                 if taken > 0 {
                     set_item_in_slot(me, 0, item_opt.unwrap(), 1)
+                    set_item_damage_in_slot(me, 0, damage)
                     return true
                 }
             }
@@ -162,7 +165,7 @@ local _try_insert(nx: number, ny: number, nz: number, item: Item) bool {
     }
 
     neighbor: BlockEntity = neighbor_opt.unwrap()
-    inserted: number = insert_item_into_inventory(neighbor, item, 0, 1)
+    inserted: number = insert_item_into_inventory(neighbor, item, get_item_damage_in_slot(me, 0), 1)
     return inserted > 0
 }
 

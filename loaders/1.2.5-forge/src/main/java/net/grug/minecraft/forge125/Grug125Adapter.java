@@ -285,6 +285,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setItemDamageInSlot(Object blockEntityObj, double slot, double damage) {
+        ItemStack stack = ((IInventory) blockEntityObj).getStackInSlot((int) slot);
+        if (stack != null) {
+            stack.setItemDamage((int) damage);
+        }
+    }
+
+    @Override
     public void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count) {
         IInventory inv = (IInventory) blockEntityObj;
         inv.setInventorySlotContents((int) slot, new ItemStack((Item) itemObj, (int) count));

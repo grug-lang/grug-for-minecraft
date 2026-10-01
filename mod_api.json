@@ -1352,6 +1352,29 @@
 				}
 			]
 		},
+		"set_item_damage_in_slot": {
+			"description": "Changes the damage/metadata of the item stack in a specific slot.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "damage",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"set_item_in_slot": {
 			"description": "Sets the item in a specific inventory slot.",
 			"parameters": [

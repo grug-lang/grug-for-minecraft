@@ -66,6 +66,8 @@ public interface ModLoaderAdapter {
 
     void setItemCountInSlot(Object blockEntityObj, double slot, double count);
 
+    void setItemDamageInSlot(Object blockEntityObj, double slot, double damage);
+
     void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count);
 
     void updateRecipeOutput(Object blockEntityObj, double startSlot);
