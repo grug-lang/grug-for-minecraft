@@ -22,6 +22,12 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean initStarted = false;
 
+    /**
+     * The host entities this block entity's member scope created, rooted here so they live exactly
+     * as long as the block entity and are freed with it (the legacy GrugEntity.childEntities idea).
+     */
+    public final List<GrugObject> childEntities = new ArrayList<>();
+
     // Backing storage for the Inventory interface. Starts unsized because this
     // class is instantiated generically (via reflection during deserialization,
     // see InitListener#registerBlockEntities) before we know which grug block
@@ -93,7 +99,10 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
 
         Grug.currentlyInitializingBlockEntity = this;
+        List<GrugObject> oldFnEntities = Grug.fnEntities;
+        Grug.fnEntities = childEntities;
         long handle = Grug.createEntity(fileId);
+        Grug.fnEntities = oldFnEntities;
         Grug.currentlyInitializingBlockEntity = null;
         return handle;
     }
@@ -123,6 +132,7 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;
+            childEntities.clear();
         }
     }
 
