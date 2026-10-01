@@ -9,7 +9,7 @@
 # to survive across ticks: they're created on tick 0 and read back several ticks later in
 # _test_graphics_check(). grug only allows variable declarations at member scope, which is why
 # they're created empty up here and filled in with .set() during setup. They're also named
-# graphics_* because grug rejects a local that shadows a global, and _test_logic() below already
+# graphics_* because grug rejects a local that shadows a member, and _test_logic() below already
 # uses the plain names for its own.
 # (Note for whoever edits this next: grug's tokenizer has no way to write a bare '#' comment line,
 # and '+' only works on numbers, not strings.)

@@ -20,7 +20,7 @@ import java.util.List;
 public class GrugBlockEntity extends BlockEntity implements Inventory {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
-    private boolean initAttempted = false;
+    private boolean initStarted = false;
 
     private ItemStack[] stacks = new ItemStack[0];
     private boolean sized = false;
@@ -53,9 +53,9 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     }
 
     private void initGrug() {
-        if (entityHandle != 0 || initAttempted) return;
+        if (entityHandle != 0 || initStarted) return;
 
-        initAttempted = true;
+        initStarted = true;
         entityHandle = createGrugEntity();
 
         if (entityHandle != 0) {
