@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.PlayerControllerSP;
+import net.minecraft.src.TileEntity;
 import net.minecraft.src.WorldSettings;
 import net.minecraft.src.WorldType;
 
@@ -21,6 +22,8 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Insets;
 import java.awt.Window;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * The 1.2.5 client's per-tick work, driven from {@code mod_Grug.onTickInGame}.
@@ -83,6 +86,15 @@ public class GrugClientHooks {
         String[] updatedResources = Grug.update(this::logError);
         if (updatedResources.length > 0 && minecraft.renderEngine != null) {
             minecraft.renderEngine.refreshTextures();
+        }
+
+        // 1.2.5's client world can leave an invalidated tile entity in its render lists, so a
+        // block placed over a chest can still render that chest. Drop them before rendering.
+        if (minecraft.theWorld != null) {
+            dropInvalidTileEntities(minecraft.theWorld.loadedTileEntityList);
+        }
+        if (minecraft.renderGlobal != null) {
+            dropInvalidTileEntities(minecraft.renderGlobal.tileEntities);
         }
 
         if (minecraft.thePlayer != null) {
@@ -179,5 +191,22 @@ public class GrugClientHooks {
 
     private void logError(String text) {
         mod_Grug.LOGGER.severe(text);
+    }
+
+    /**
+     * Drops invalidated tile entities from a list.
+     *
+     * <p>1.2.5's client world leaves an invalidated tile entity's render references in place often
+     * enough that a chest replaced by another block is still rendered, and {@code
+     * TileEntityChestRenderer} then casts that block to a chest and crashes.
+     */
+    private static void dropInvalidTileEntities(List list) {
+        Iterator iterator = list.iterator();
+        while (iterator.hasNext()) {
+            Object entry = iterator.next();
+            if (entry instanceof TileEntity && ((TileEntity) entry).isInvalid()) {
+                iterator.remove();
+            }
+        }
     }
 }
