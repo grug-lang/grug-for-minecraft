@@ -34,6 +34,12 @@ public final class VanillaNames {
         ALIASES.put(key("crafting_table"), key("workbench"));
         ALIASES.put(key("enchanting_table"), key("enchantmenttable"));
 
+        // The other loaders call the lit torch "redstone_torch" and StationAPI calls it
+        // "redstone_torch_lit"; 1.2.5's MCP field is torchRedstoneActive. Map both grug names onto
+        // the lit torch so the cross-loader test places the same block everywhere. See #58.
+        ALIASES.put(key("redstone_torch"), key("torchRedstoneActive"));
+        ALIASES.put(key("redstone_torch_lit"), key("torchRedstoneActive"));
+
         try (InputStream in = VanillaNames.class.getResourceAsStream("/vanilla_names.txt")) {
             if (in == null) {
                 throw new IOException("/vanilla_names.txt is missing from the loader jar");
