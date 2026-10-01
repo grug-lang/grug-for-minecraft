@@ -1,0 +1,222 @@
+# The wooden pipe in outline: when an adjacent redstone engine powers it, it pulls one item from an
+# adjacent non-pipe inventory into its own one-slot inventory, then pushes that item on to the next
+# inventory or pipe, or drops it when nothing accepts it.
+# This is not the full old BuildCraft pipe: it has no travelling item entity and no connection
+# matrix. Instead it is one-slot buffered, it prefers a real inventory over another pipe so a chain
+# of pipes feeds forward, and it remembers the side it pushed out of so that it does not immediately
+# pump the same item back where it came from.
+level: Level = get_block_entity_level(me)
+pos: BlockPos = get_block_pos_of_block_entity(me)
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# The side the buffered item came in from, so it is not pushed straight back.
+source_side: number = -1
+
+# The side the last item was pushed out of, so the pipe does not pull it straight back in.
+output_side: number = -1
+
+export tick() {
+    if get_item_count_in_slot(me, 0) == 0 {
+        _try_pull()
+    } else {
+        _try_push()
+    }
+}
+
+# grug wants a helper defined after the first place it is called, so the helpers below are ordered
+# by their callers rather than grouped by topic.
+local _try_pull() {
+    if not _is_powered() {
+        return
+    }
+
+    side: number = 0
+    while side < 6 {
+        if side != output_side {
+            nx: number = _neighbor_x(side)
+            ny: number = _neighbor_y(side)
+            nz: number = _neighbor_z(side)
+
+            if not _is_pipe(nx, ny, nz) {
+                if _pull_one_from(nx, ny, nz) {
+                    source_side = side
+                    return
+                }
+            }
+        }
+
+        side = side + 1
+    }
+}
+
+local _try_push() {
+    item_opt: Option[Item] = get_item_in_slot(me, 0)
+    if not item_opt.has() {
+        return
+    }
+
+    item: Item = item_opt.unwrap()
+
+    # Real inventories first, so a pipe chain feeds forward instead of bouncing between pipes.
+    if _push_to_inventory(item) {
+        return
+    }
+
+    if _push_to_pipe(item) {
+        return
+    }
+
+    _drop()
+}
+
+local _is_powered() bool {
+    side: number = 0
+    while side < 6 {
+        nx: number = _neighbor_x(side)
+        ny: number = _neighbor_y(side)
+        nz: number = _neighbor_z(side)
+        is_engine: bool = level.get_block(nx, ny, nz) == "grug:redstone_engine"
+        if is_engine and level.has_neighbor_signal(nx, ny, nz) {
+            return true
+        }
+        side = side + 1
+    }
+    return false
+}
+
+local _pull_one_from(nx: number, ny: number, nz: number) bool {
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    size: number = get_inventory_size(neighbor)
+    slot: number = 0
+    while slot < size {
+        if get_item_count_in_slot(neighbor, slot) > 0 {
+            item_opt: Option[Item] = get_item_in_slot(neighbor, slot)
+            if item_opt.has() {
+                # take_item_from_slot, not extract_item_from_inventory. They look interchangeable,
+                # but only the former calls removeItem and then fires output_taken, which is what
+                # drives the autocrafting table's restock and craft loop. extract_item_from_inventory
+                # only fires item_extracted, which the table ignores for its output slot.
+                taken: number = take_item_from_slot(neighbor, slot, 1)
+                if taken > 0 {
+                    set_item_in_slot(me, 0, item_opt.unwrap(), 1)
+                    return true
+                }
+            }
+        }
+        slot = slot + 1
+    }
+
+    return false
+}
+
+local _push_to_inventory(item: Item) bool {
+    side: number = 0
+    while side < 6 {
+        if side != source_side {
+            nx: number = _neighbor_x(side)
+            ny: number = _neighbor_y(side)
+            nz: number = _neighbor_z(side)
+            if not _is_pipe(nx, ny, nz) {
+                if _try_insert(nx, ny, nz, item) {
+                    _finish_push(side)
+                    return true
+                }
+            }
+        }
+        side = side + 1
+    }
+    return false
+}
+
+local _push_to_pipe(item: Item) bool {
+    side: number = 0
+    while side < 6 {
+        if side != source_side {
+            nx: number = _neighbor_x(side)
+            ny: number = _neighbor_y(side)
+            nz: number = _neighbor_z(side)
+            if _is_pipe(nx, ny, nz) {
+                if _try_insert(nx, ny, nz, item) {
+                    _finish_push(side)
+                    return true
+                }
+            }
+        }
+        side = side + 1
+    }
+    return false
+}
+
+local _try_insert(nx: number, ny: number, nz: number, item: Item) bool {
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    inserted: number = insert_item_into_inventory(neighbor, item, 0, 1)
+    return inserted > 0
+}
+
+local _finish_push(side: number) {
+    set_item_count_in_slot(me, 0, 0)
+    output_side = side
+    source_side = -1
+}
+
+local _drop() {
+    item_opt: Option[Item] = get_item_in_slot(me, 0)
+    if not item_opt.has() {
+        return
+    }
+
+    stack: ItemStack = item_stack(item_opt.unwrap())
+    dropped: ItemEntity = item_entity(level, x, y + 0.5, z, stack)
+    dropped.entity().set_delta_movement(vec3_zero())
+    dropped.entity().spawn(level)
+    set_item_count_in_slot(me, 0, 0)
+    output_side = -1
+    source_side = -1
+}
+
+local _is_pipe(nx: number, ny: number, nz: number) bool {
+    return level.get_block(nx, ny, nz) == "grug:wooden_pipe"
+}
+
+local _neighbor_x(side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}

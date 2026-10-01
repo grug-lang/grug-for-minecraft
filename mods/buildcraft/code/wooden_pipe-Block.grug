@@ -1,0 +1,6 @@
+export init() {
+    set_hardness(0.5)
+    set_material("wood")
+    set_block_entity(e"wooden_pipe_entity")
+    set_inventory_size(1)
+}

@@ -290,10 +290,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             int posZ = (int) Math.floor(z);
 
             world.setBlockQuietly(posX, posY, posZ, targetBlock.id);
-
-            if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
-                targetBlock.onAdded(world, posX, posY, posZ);
-            }
         } else {
             GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
         }
