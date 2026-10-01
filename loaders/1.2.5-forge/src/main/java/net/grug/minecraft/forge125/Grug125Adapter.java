@@ -222,6 +222,41 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double insertItemIntoInventory(
+            Object blockEntityObj, Object itemObj, double damage, double amount) {
+        IInventory inventory = (IInventory) blockEntityObj;
+        Item item = (Item) itemObj;
+        int meta = (int) damage;
+        int maxStack = item.getItemStackLimit();
+        int remaining = (int) amount;
+
+        // Top up matching stacks first, then use empty slots, like a player's inventory fills.
+        for (int i = 0; i < inventory.getSizeInventory() && remaining > 0; i++) {
+            ItemStack stack = inventory.getStackInSlot(i);
+            if (stack != null && stack.getItem() == item && stack.getItemDamage() == meta) {
+                int room = maxStack - stack.stackSize;
+                if (room > 0) {
+                    int add = Math.min(room, remaining);
+                    stack.stackSize += add;
+                    remaining -= add;
+                }
+            }
+        }
+
+        for (int i = 0; i < inventory.getSizeInventory() && remaining > 0; i++) {
+            if (inventory.getStackInSlot(i) == null) {
+                int add = Math.min(maxStack, remaining);
+                ItemStack stack = new ItemStack(item, add);
+                stack.setItemDamage(meta);
+                inventory.setInventorySlotContents(i, stack);
+                remaining -= add;
+            }
+        }
+
+        return amount - remaining;
+    }
+
+    @Override
     public double getItemCountInSlot(Object blockEntityObj, double slot) {
         ItemStack stack = ((IInventory) blockEntityObj).getStackInSlot((int) slot);
         return stack != null ? stack.stackSize : 0;
