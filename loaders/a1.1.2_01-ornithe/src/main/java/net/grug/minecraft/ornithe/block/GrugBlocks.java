@@ -47,6 +47,12 @@ public final class GrugBlocks {
         }
 
         // Register Dynamic Blocks
+        //
+        // Alpha stores a block id in a signed byte, so an id of 128 or more reads back negative and
+        // crashes the chunk when the block is placed. Keep the highest dynamic id at 127 by
+        // starting just below it, rather than at a fixed 95 that overflows once there are enough
+        // grug blocks.
+        nextBlockId = 128 - GrugModLoader.blockFiles.size();
         for (Map.Entry<String, Long> entry : GrugModLoader.blockFiles.entrySet()) {
             String cleanName = entry.getKey();
             long blockFileId = entry.getValue();
