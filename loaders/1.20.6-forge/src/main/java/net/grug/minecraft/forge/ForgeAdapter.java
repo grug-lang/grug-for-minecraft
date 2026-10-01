@@ -314,8 +314,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public double getItemEntityDamage(Object itemEntityObj) {
-        ItemStack stack = ((ItemEntity) itemEntityObj).getItem();
-        return !stack.isEmpty() ? stack.getDamageValue() : 0;
+        return ((ItemEntity) itemEntityObj).getItem().getDamageValue();
     }
 
     @Override

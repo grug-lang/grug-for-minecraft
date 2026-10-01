@@ -323,8 +323,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public double getItemEntityDamage(Object itemEntityObj) {
-        ItemStack stack = ((ItemEntity) itemEntityObj).stack;
-        return stack != null ? stack.getDamage() : 0;
+        return ((ItemEntity) itemEntityObj).stack.getDamage();
     }
 
     @Override
