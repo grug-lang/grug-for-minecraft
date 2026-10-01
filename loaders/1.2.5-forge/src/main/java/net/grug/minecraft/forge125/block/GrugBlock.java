@@ -100,4 +100,13 @@ public class GrugBlock extends BlockContainer {
     public TileEntity getBlockEntity() {
         return new GrugBlockEntity();
     }
+
+    @Override
+    public void onNeighborBlockChange(World world, int x, int y, int z, int blockId) {
+        TileEntity tile = world.getBlockTileEntity(x, y, z);
+        if (tile instanceof GrugBlockEntity) {
+            ((GrugBlockEntity) tile).notifyNeighborChanged();
+        }
+        super.onNeighborBlockChange(world, x, y, z, blockId);
+    }
 }
