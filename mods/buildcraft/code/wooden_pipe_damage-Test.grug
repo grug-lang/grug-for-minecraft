@@ -1,0 +1,64 @@
+# Covers the wooden pipe preserving an item's damage while moving it from one chest to another.
+pipe_damage_source: Option[BlockEntity] = Option.new()
+pipe_damage_target: Option[BlockEntity] = Option.new()
+pipe_damage_self: Option[BlockEntity] = Option.new()
+
+export run() {
+    if Test.tick() == 0 {
+        _damage_setup()
+        Test.not_done()
+    } else if Test.tick() < 20 {
+        Test.not_done()
+    } else {
+        _damage_check()
+    }
+}
+
+local _damage_setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # The straight and corner pipe tests use bands at +30 and +40, so this one works in a clear band.
+    y: number = origin.y() + 50
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    level.place_block(x + 1, y, z, "minecraft:chest")
+
+    # A torch powers the block above it, but not the block it is attached to, and a standing torch
+    # does not power the block above its own base, so this puts the torch under the engine.
+    level.place_block(x, y - 3, z, "minecraft:stone")
+    level.place_block(x, y - 2, z, "minecraft:redstone_torch")
+    level.place_block(x, y - 2, z, "minecraft:redstone_torch_lit")
+    level.place_block(x, y - 1, z, "grug:redstone_engine")
+
+    source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    target_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    self_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(source_opt.has(), "The source chest should have a block entity.")
+    Test.assert(target_opt.has(), "The target chest should have a block entity.")
+    Test.assert(self_opt.has(), "The pipe should have a block entity.")
+    Test.assert(level.has_neighbor_signal(x, y - 1, z), "The engine should be powered by the torch.")
+
+    pipe_damage_source.set(source_opt.unwrap())
+    pipe_damage_target.set(target_opt.unwrap())
+    pipe_damage_self.set(self_opt.unwrap())
+
+    # A sword so the damage is meaningful; the pipe must not repair it in transit.
+    sword: Item = item(resource_location("minecraft:diamond_sword"))
+    set_item_in_slot(pipe_damage_source.unwrap(), 0, sword, 1)
+    set_item_damage_in_slot(pipe_damage_source.unwrap(), 0, 7)
+}
+
+local _damage_check() {
+    source_count: number = get_item_count_in_slot(pipe_damage_source.unwrap(), 0)
+    target_count: number = get_item_count_in_slot(pipe_damage_target.unwrap(), 0)
+    pipe_count: number = get_item_count_in_slot(pipe_damage_self.unwrap(), 0)
+    target_damage: number = get_item_damage_in_slot(pipe_damage_target.unwrap(), 0)
+
+    Test.assert(source_count + target_count + pipe_count == 1, "The sword should exist exactly once.")
+    Test.assert(source_count == 0, "The source chest should be empty.")
+    Test.assert(target_count == 1, "The target chest should hold the sword.")
+    Test.assert(target_damage == 7, "The moved sword should keep its damage.")
+}

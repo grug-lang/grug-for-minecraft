@@ -15,14 +15,23 @@ export run() {
 
         set_item_in_slot(block, 0, diamond, 5)
         Test.assert(get_item_count_in_slot(block, 0) == 5, "Expected 5 diamonds in slot 0.")
-        get_item_damage_in_slot(block, 0)
         Test.assert(get_item_in_slot(block, 0).has(), "Slot 0 should report an item.")
+
+        # Damage is only observable on a damageable item: newer versions clamp it to the item's
+        # max damage, which is 0 for a diamond, so a sword is used instead.
+        sword: Item = item(resource_location("minecraft:diamond_sword"))
+        set_item_in_slot(block, 0, sword, 1)
+        set_item_damage_in_slot(block, 0, 3)
+        Test.assert(get_item_damage_in_slot(block, 0) == 3, "Expected damage 3 on the sword.")
 
         # An empty slot takes the null branches.
         Test.assert(get_item_count_in_slot(block, 1) == 0, "Slot 1 should be empty.")
+        Test.assert(get_item_damage_in_slot(block, 1) == 0, "An empty slot should report no damage.")
+        set_item_damage_in_slot(block, 1, 4)
         Test.assert(not get_item_in_slot(block, 1).has(), "Slot 1 should report no item.")
 
         # Taking more than the stack holds empties the slot.
+        set_item_in_slot(block, 0, diamond, 5)
         Test.assert(take_item_from_slot(block, 0, 10) == 5, "Taking 10 should remove the 5 present.")
         Test.assert(get_item_count_in_slot(block, 0) == 0, "Slot 0 should now be empty.")
 
@@ -46,5 +55,6 @@ export run() {
         Test.assert(take_item_from_slot(block, 999, 1) == 0, "Taking from an out-of-range slot should remove nothing.")
         set_item_count_in_slot(block, 999, 1)
         set_item_in_slot(block, 999, diamond, 1)
+        set_item_damage_in_slot(block, 999, 1)
     }
 }

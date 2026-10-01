@@ -335,6 +335,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void setItemDamageInSlot(Object blockEntityObj, double slot, double damage) {
+        ItemStack stack = ((Inventory) blockEntityObj).getStack((int) slot);
+        if (stack != null) {
+            stack.setDamage((int) damage);
+        }
+    }
+
+    @Override
     public void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count) {
         Inventory inv = (Inventory) blockEntityObj;
         inv.setStack((int) slot, new ItemStack((Item) itemObj, (int) count));
