@@ -306,8 +306,26 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemStack(Object itemObj) {
-        return new ItemStack((Item) itemObj);
+    public Object createItemStack(Object itemObj, double damage) {
+        ItemStack stack = new ItemStack((Item) itemObj);
+        stack.setDamageValue((int) damage);
+        return stack;
+    }
+
+    @Override
+    public double getItemEntityDamage(Object itemEntityObj) {
+        ItemStack stack = ((ItemEntity) itemEntityObj).getItem();
+        return !stack.isEmpty() ? stack.getDamageValue() : 0;
+    }
+
+    @Override
+    public Object findItemEntity(Object levelObj, double x, double y, double z, double radius) {
+        Level world = (Level) levelObj;
+        net.minecraft.world.phys.AABB box =
+                new net.minecraft.world.phys.AABB(
+                        x - radius, y - radius, z - radius, x + radius, y + radius, z + radius);
+        java.util.List<ItemEntity> entities = world.getEntitiesOfClass(ItemEntity.class, box);
+        return entities.isEmpty() ? null : entities.get(0);
     }
 
     @Override

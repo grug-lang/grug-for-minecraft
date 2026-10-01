@@ -181,7 +181,7 @@ local _drop() {
         return
     }
 
-    stack: ItemStack = item_stack(item_opt.unwrap())
+    stack: ItemStack = item_stack(item_opt.unwrap(), get_item_damage_in_slot(me, 0))
     dropped: ItemEntity = item_entity(level, x, y + 0.5, z, stack)
     dropped.entity().set_delta_movement(vec3_zero())
     dropped.entity().spawn(level)

@@ -1,5 +1,5 @@
-# Covers Level.count_item_entities(), which the wooden pipe's drop tests need to assert an item was
-# dropped.
+# Covers Level.count_item_entities() and Level.find_item_entity(), which the wooden pipe's drop
+# tests need to assert an item was dropped.
 export run() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
@@ -8,13 +8,16 @@ export run() {
     z: number = origin.z()
 
     Test.assert(level.count_item_entities(x, y, z, 2) == 0, "There should be no item entities yet.")
+    Test.assert(not level.find_item_entity(x, y, z, 2).has(), "There should be no item entity yet.")
 
     diamond: Item = item(resource_location("minecraft:diamond"))
-    stack: ItemStack = item_stack(diamond)
+    stack: ItemStack = item_stack(diamond, 0)
     spawned: ItemEntity = item_entity(level, x, y, z, stack)
     spawned.entity().set_delta_movement(vec3_zero())
     spawned.entity().spawn(level)
 
     Test.assert(level.count_item_entities(x, y, z, 2) == 1, "The spawned item entity should be counted.")
     Test.assert(level.count_item_entities(x + 10, y, z, 2) == 0, "A far position should count none.")
+    Test.assert(level.find_item_entity(x, y, z, 2).has(), "The spawned item entity should be found.")
+    Test.assert(not level.find_item_entity(x + 10, y, z, 2).has(), "A far position should find no entity.")
 }

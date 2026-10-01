@@ -162,7 +162,7 @@ public final class GrugRecipeParser {
                     "Unknown result item: " + resultId + " in " + recipeFile);
         }
 
-        ItemStack resultStack = (ItemStack) adapter.createItemStack(resultItem);
+        ItemStack resultStack = (ItemStack) adapter.createItemStack(resultItem, 0);
         resultStack.size = count;
         return resultStack;
     }

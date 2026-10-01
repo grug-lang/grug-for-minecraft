@@ -238,6 +238,10 @@ public class HostFunctions {
         return itemEntityId;
     }
 
+    public static double ItemEntity_damage(long itemEntityId) {
+        return GrugCore.getAdapter().getItemEntityDamage(Grug.entityData.get(itemEntityId).object);
+    }
+
     public static long Level_get_block_entity(long levelId, double x, double y, double z) {
         Object be =
                 GrugCore.getAdapter().getBlockEntity(Grug.entityData.get(levelId).object, x, y, z);
@@ -272,6 +276,19 @@ public class HostFunctions {
             long levelId, double x, double y, double z, double radius) {
         return GrugCore.getAdapter()
                 .countItemEntities(Grug.entityData.get(levelId).object, x, y, z, radius);
+    }
+
+    public static long Level_find_item_entity(
+            long levelId, double x, double y, double z, double radius) {
+        Object entity =
+                GrugCore.getAdapter()
+                        .findItemEntity(Grug.entityData.get(levelId).object, x, y, z, radius);
+        if (entity != null) {
+            return Grug.addEntity(
+                    GrugEntityType.Option,
+                    new GrugOption(Grug.addEntity(GrugEntityType.ItemEntity, entity)));
+        }
+        return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
     public static boolean Option_has(long optionId) {
@@ -484,9 +501,9 @@ public class HostFunctions {
         return Grug.addEntity(GrugEntityType.ItemEntity, itemEntity);
     }
 
-    public static long item_stack(long itemId) {
+    public static long item_stack(long itemId, double damage) {
         Object itemObj = Grug.entityData.get(itemId).object;
-        Object itemStack = GrugCore.getAdapter().createItemStack(itemObj);
+        Object itemStack = GrugCore.getAdapter().createItemStack(itemObj, damage);
         return Grug.addEntity(GrugEntityType.ItemStack, itemStack);
     }
 
