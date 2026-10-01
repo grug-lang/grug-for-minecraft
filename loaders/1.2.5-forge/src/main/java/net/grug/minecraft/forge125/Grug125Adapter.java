@@ -461,6 +461,13 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return world.isBlockIndirectlyGettingPowered(
+                (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
         return ((TileEntity) blockEntityObj).worldObj;
     }
