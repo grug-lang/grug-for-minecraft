@@ -315,8 +315,33 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemStack(Object itemObj) {
-        return new ItemStack((Item) itemObj);
+    public Object createItemStack(Object itemObj, double damage) {
+        ItemStack stack = new ItemStack((Item) itemObj);
+        stack.setDamage((int) damage);
+        return stack;
+    }
+
+    @Override
+    public double getItemEntityDamage(Object itemEntityObj) {
+        ItemStack stack = ((ItemEntity) itemEntityObj).stack;
+        return stack != null ? stack.getDamage() : 0;
+    }
+
+    @Override
+    public Object findItemEntity(Object levelObj, double x, double y, double z, double radius) {
+        World world = (World) levelObj;
+        double radiusSquared = radius * radius;
+        for (Object entity : world.entities) {
+            if (entity instanceof ItemEntity item) {
+                double dx = item.x - x;
+                double dy = item.y - y;
+                double dz = item.z - z;
+                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                    return item;
+                }
+            }
+        }
+        return null;
     }
 
     @Override

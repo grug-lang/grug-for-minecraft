@@ -581,11 +581,38 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemStack(Object itemObj) {
+    public Object createItemStack(Object itemObj, double damage) {
+        ItemStack stack;
         if (itemObj instanceof Item item) {
-            return new ItemStack(item);
+            stack = new ItemStack(item);
+        } else {
+            stack = new ItemStack((Block) itemObj);
         }
-        return new ItemStack((Block) itemObj);
+        stack.metadata = (int) damage;
+        return stack;
+    }
+
+    @Override
+    public double getItemEntityDamage(Object itemEntityObj) {
+        ItemStack stack = ((ItemEntity) itemEntityObj).item;
+        return stack != null ? stack.metadata : 0;
+    }
+
+    @Override
+    public Object findItemEntity(Object levelObj, double x, double y, double z, double radius) {
+        World world = (World) levelObj;
+        double radiusSquared = radius * radius;
+        for (Object entity : world.entities) {
+            if (entity instanceof ItemEntity item) {
+                double dx = item.x - x;
+                double dy = item.y - y;
+                double dz = item.z - z;
+                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                    return item;
+                }
+            }
+        }
+        return null;
     }
 
     @Override

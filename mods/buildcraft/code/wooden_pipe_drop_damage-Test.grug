@@ -1,0 +1,60 @@
+# Covers the wooden pipe preserving an item's damage when it drops the item because nothing accepts it.
+pipe_drop_source: Option[BlockEntity] = Option.new()
+
+export run() {
+    if Test.tick() == 0 {
+        _drop_setup()
+        Test.not_done()
+    } else if Test.tick() < 15 {
+        Test.not_done()
+    } else {
+        _drop_check()
+    }
+}
+
+local _drop_setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # The other pipe tests use bands at +30, +40 and +50, so this one works in a clear band.
+    y: number = origin.y() + 55
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+
+    # A torch powers the block above it, but not the block it is attached to, and a standing torch
+    # does not power the block above its own base, so this puts the torch under the engine.
+    level.place_block(x, y - 3, z, "minecraft:stone")
+    level.place_block(x, y - 2, z, "minecraft:redstone_torch")
+    level.place_block(x, y - 2, z, "minecraft:redstone_torch_lit")
+    level.place_block(x, y - 1, z, "grug:redstone_engine")
+
+    source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    Test.assert(source_opt.has(), "The source chest should have a block entity.")
+    pipe_drop_source.set(source_opt.unwrap())
+
+    sword: Item = item(resource_location("minecraft:diamond_sword"))
+    set_item_in_slot(pipe_drop_source.unwrap(), 0, sword, 1)
+    set_item_damage_in_slot(pipe_drop_source.unwrap(), 0, 7)
+}
+
+local _drop_check() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 55
+    z: number = origin.z()
+
+    source_count: number = get_item_count_in_slot(pipe_drop_source.unwrap(), 0)
+    Test.assert(source_count == 0, "The source chest should be empty.")
+
+    # A wide radius, because the dropped item is not held in place.
+    found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
+    Test.assert(found.has(), "The pipe should have dropped the sword.")
+
+    if found.has() {
+        dropped: ItemEntity = found.unwrap()
+        Test.assert(dropped.damage() == 7, "The dropped sword should keep its damage.")
+    }
+}

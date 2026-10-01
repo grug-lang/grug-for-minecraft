@@ -30,7 +30,7 @@ export tick() {
     tick = 0
 
     # Create a diamond item stack
-    item_stack: ItemStack = item_stack(item)
+    item_stack: ItemStack = item_stack(item, 0)
 
     # Create a diamond item entity
     item_entity: ItemEntity = item_entity(level, x, y, z, item_stack)

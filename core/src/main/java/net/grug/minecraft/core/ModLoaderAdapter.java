@@ -60,7 +60,11 @@ public interface ModLoaderAdapter {
 
     Object createItemEntity(Object levelObj, double x, double y, double z, Object itemStackObj);
 
-    Object createItemStack(Object itemObj);
+    Object createItemStack(Object itemObj, double damage);
+
+    double getItemEntityDamage(Object itemEntityObj);
+
+    Object findItemEntity(Object levelObj, double x, double y, double z, double radius);
 
     Object createResourceLocation(String string);
 

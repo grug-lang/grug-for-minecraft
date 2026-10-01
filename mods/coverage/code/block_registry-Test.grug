@@ -18,13 +18,13 @@ export run() {
         # Custom and vanilla items.
         custom: Item = item(resource_location("grug:coverage_item"))
         vanilla: Item = item(resource_location("minecraft:diamond"))
-        custom_stack: ItemStack = item_stack(custom)
-        vanilla_stack: ItemStack = item_stack(vanilla)
+        custom_stack: ItemStack = item_stack(custom, 0)
+        vanilla_stack: ItemStack = item_stack(vanilla, 0)
 
         # A custom block's item and a vanilla block's item.
         custom_block_item: Item = item(resource_location("grug:coverage_block"))
         vanilla_block_item: Item = item(resource_location("minecraft:stone"))
-        custom_block_stack: ItemStack = item_stack(custom_block_item)
-        vanilla_block_stack: ItemStack = item_stack(vanilla_block_item)
+        custom_block_stack: ItemStack = item_stack(custom_block_item, 0)
+        vanilla_block_stack: ItemStack = item_stack(vanilla_block_item, 0)
     }
 }
