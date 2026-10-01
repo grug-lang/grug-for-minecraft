@@ -3,6 +3,7 @@ package net.grug.minecraft.grug;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,27 @@ class GrugOptionTest {
     @Test
     void hasIsTrueForAFilledOption() {
         assertTrue(new GrugOption("value").has());
+    }
+
+    @Test
+    void setReplacesTheValueAndPresence() {
+        GrugOption option = new GrugOption(null);
+        assertFalse(option.has());
+
+        option.set("value");
+
+        assertTrue(option.has());
+        assertEquals("value", option.value());
+    }
+
+    @Test
+    void setToNullEmptiesTheOption() {
+        GrugOption option = new GrugOption("value");
+
+        option.set(null);
+
+        assertFalse(option.has());
+        assertNull(option.value());
     }
 
     @Test

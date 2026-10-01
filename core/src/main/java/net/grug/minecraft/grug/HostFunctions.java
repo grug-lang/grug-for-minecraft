@@ -280,10 +280,17 @@ public class HostFunctions {
         setOptionValue(optionId, value);
     }
 
-    // GrugOption is immutable, so filling an Option in means replacing the object stored under its
-    // entity id rather than mutating it in place.
+    // Mutate the existing Option in place rather than replacing the object under its id: the
+    // replacement would be created during the current call and rooted only by that call's entity
+    // list, so a member Option could be collected once the call returned. Mutating in place keeps
+    // the object the member already points at.
     private static void setOptionValue(long optionId, Object value) {
-        Grug.addEntityWithId(optionId, GrugEntityType.Option, new GrugOption(value));
+        GrugObject existing = Grug.entityData.get(optionId);
+        if (existing == null) {
+            Grug.addEntityWithId(optionId, GrugEntityType.Option, new GrugOption(value));
+            return;
+        }
+        ((GrugOption) existing.object).set(value);
     }
 
     public static Object Option_unwrap(long optionId) {

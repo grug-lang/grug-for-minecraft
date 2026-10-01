@@ -1,10 +1,18 @@
 package net.grug.minecraft.grug;
 
 public final class GrugOption {
-    private final Object value;
+    private Object value;
+
+    /**
+     * The object an entity id value points at, held strongly so a member Option keeps its value
+     * alive across calls. It is replaced on every {@link #set}, so overwriting the Option releases
+     * the old value for the JVM to collect, which is what the hand-written legacy branch's
+     * HashMap/HashSet did by storing GrugObjects.
+     */
+    private GrugObject root;
 
     public GrugOption(Object value) {
-        this.value = value;
+        set(value);
     }
 
     public Object value() {
@@ -13,6 +21,24 @@ public final class GrugOption {
 
     public boolean has() {
         return value != null;
+    }
+
+    /** Replaces the value, releasing the old root and rooting an entity id's object. */
+    public void set(Object newValue) {
+        this.value = newValue;
+        this.root = rootOf(newValue);
+    }
+
+    /**
+     * The object an id value points at, or null when the value is not an id or the id is unknown.
+     * Options are not slots, so this strong reference is the only thing that keeps an entity alive
+     * after the call that created it returns.
+     */
+    private static GrugObject rootOf(Object newValue) {
+        if (!(newValue instanceof Long)) {
+            return null;
+        }
+        return Grug.entityData.get((Long) newValue);
     }
 
     @Override
