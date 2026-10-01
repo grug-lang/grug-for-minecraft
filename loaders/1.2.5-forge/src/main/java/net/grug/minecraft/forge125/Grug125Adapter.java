@@ -550,6 +550,33 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void notifyNeighbors(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        int bx = (int) Math.floor(x);
+        int by = (int) Math.floor(y);
+        int bz = (int) Math.floor(z);
+        int changedId = world.getBlockId(bx, by, bz);
+
+        if (!world.isRemote) {
+            world.notifyBlockChange(bx, by, bz, changedId);
+            return;
+        }
+
+        // 1.2.5 skips neighbour notification on the client, but the grug block entity runs there,
+        // so deliver the hook to the six neighbours directly.
+        int[][] offsets = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
+        for (int[] offset : offsets) {
+            int nx = bx + offset[0];
+            int ny = by + offset[1];
+            int nz = bz + offset[2];
+            int id = world.getBlockId(nx, ny, nz);
+            if (id > 0 && id < Block.blocksList.length && Block.blocksList[id] != null) {
+                Block.blocksList[id].onNeighborBlockChange(world, nx, ny, nz, changedId);
+            }
+        }
+    }
+
+    @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
         return ((TileEntity) blockEntityObj).worldObj;
     }

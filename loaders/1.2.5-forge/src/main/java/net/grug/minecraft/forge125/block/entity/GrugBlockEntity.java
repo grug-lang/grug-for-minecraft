@@ -127,6 +127,21 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
         }
     }
 
+    /**
+     * Called when a neighbouring block changes, so the script can re-evaluate its connections
+     * instead of polling every tick.
+     */
+    public void notifyNeighborChanged() {
+        initGrug();
+
+        if (entityHandle != 0) {
+            long fnId = Grug.getExportFnId("BlockEntity", "on_neighbor_change");
+            if (fnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                ExportFns.BlockEntity_on_neighbor_change(entityHandle);
+            }
+        }
+    }
+
     @Override
     public void invalidate() {
         super.invalidate();
