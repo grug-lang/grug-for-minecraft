@@ -252,7 +252,12 @@ public class HostFunctions {
     }
 
     public static boolean Option_has(long optionId) {
-        return ((GrugOption) Grug.entityData.get(optionId).object).has();
+        Object value = HostFunctionHelpers.entityObjectOrNull(optionId);
+        if (!(value instanceof GrugOption)) {
+            reportGoneEntity("Option.has", optionId);
+            return false;
+        }
+        return ((GrugOption) value).has();
     }
 
     // The generated GenericHostFunctions bridge resolves Option's $Value generic down to one of the
@@ -287,12 +292,28 @@ public class HostFunctions {
     }
 
     public static Object Option_unwrap(long optionId) {
-        GrugOption opt = (GrugOption) Grug.entityData.get(optionId).object;
+        Object value = HostFunctionHelpers.entityObjectOrNull(optionId);
+        if (!(value instanceof GrugOption)) {
+            reportGoneEntity("Option.unwrap", optionId);
+            return null;
+        }
+        GrugOption opt = (GrugOption) value;
         if (!opt.has()) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Tried to unwrap an empty Option!");
             return null;
         }
         return opt.value();
+    }
+
+    /**
+     * Reports an entity handle whose value is no longer in the weak entity map, when a live runtime
+     * is there to report it to. The accessors return a safe value instead of dereferencing null.
+     */
+    @GrugGenerated("gone handle: the live-runtime report cannot be forced in a unit test")
+    private static void reportGoneEntity(String context, long entityId) {
+        if (GrugCore.getAdapter() != null) {
+            Grug.onRuntimeError(context + ": the entity handle " + entityId + " is gone.");
+        }
     }
 
     public static long Option_new() {
@@ -326,15 +347,30 @@ public class HostFunctions {
     }
 
     public static double Vec3_x(long vec3Id) {
-        return ((Vec3) Grug.entityData.get(vec3Id).object).x();
+        Object value = HostFunctionHelpers.entityObjectOrNull(vec3Id);
+        if (!(value instanceof Vec3)) {
+            reportGoneEntity("Vec3.x", vec3Id);
+            return 0;
+        }
+        return ((Vec3) value).x();
     }
 
     public static double Vec3_y(long vec3Id) {
-        return ((Vec3) Grug.entityData.get(vec3Id).object).y();
+        Object value = HostFunctionHelpers.entityObjectOrNull(vec3Id);
+        if (!(value instanceof Vec3)) {
+            reportGoneEntity("Vec3.y", vec3Id);
+            return 0;
+        }
+        return ((Vec3) value).y();
     }
 
     public static double Vec3_z(long vec3Id) {
-        return ((Vec3) Grug.entityData.get(vec3Id).object).z();
+        Object value = HostFunctionHelpers.entityObjectOrNull(vec3Id);
+        if (!(value instanceof Vec3)) {
+            reportGoneEntity("Vec3.z", vec3Id);
+            return 0;
+        }
+        return ((Vec3) value).z();
     }
 
     // Host functions

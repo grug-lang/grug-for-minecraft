@@ -5,6 +5,16 @@ public class HostFunctionHelpers {
     @GrugGenerated("utility class: never instantiated")
     private HostFunctionHelpers() {}
 
+    /**
+     * The object stored under an entity id, or null when the id has no live value. The entity map
+     * is weak, so a handle can outlive its value, and an accessor branches on the null instead of
+     * dereferencing it.
+     */
+    public static Object entityObjectOrNull(long entityId) {
+        GrugObject obj = Grug.entityData.get(entityId);
+        return obj != null ? obj.object : null;
+    }
+
     public static String prettyFormat(Object value) {
         if (value instanceof Long) {
             Long id = (Long) value;
