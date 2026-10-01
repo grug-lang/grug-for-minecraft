@@ -594,8 +594,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public double getItemEntityDamage(Object itemEntityObj) {
-        ItemStack stack = ((ItemEntity) itemEntityObj).item;
-        return stack != null ? stack.metadata : 0;
+        return ((ItemEntity) itemEntityObj).item.metadata;
     }
 
     @Override
