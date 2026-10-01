@@ -27,6 +27,7 @@ import java.util.Map;
 public final class VanillaNames {
 
     private static final Map<String, Integer> BLOCKS = new HashMap<>();
+    private static final Map<Integer, String> BLOCK_NAMES = new HashMap<>();
     private static final Map<String, Integer> ITEMS = new HashMap<>();
     private static final Map<String, String> ALIASES = new HashMap<>();
 
@@ -53,6 +54,7 @@ public final class VanillaNames {
                 int id = Integer.parseInt(parts[2]);
                 if ("B".equals(parts[0])) {
                     BLOCKS.put(parts[1], id);
+                    BLOCK_NAMES.putIfAbsent(id, parts[1]);
                 } else if ("I".equals(parts[0])) {
                     ITEMS.put(parts[1], id);
                 }
@@ -66,6 +68,16 @@ public final class VanillaNames {
     public static int blockId(String path) {
         Integer id = BLOCKS.get(resolve(path));
         return id == null ? -1 : id;
+    }
+
+    /**
+     * The normalised name for a vanilla block id, or null. This is the reverse of {@link #key}, not
+     * the block's MCP field name, so multi-word blocks come back run together (for example {@code
+     * oreIron} becomes {@code ironore}). It is enough to name the single-word blocks the
+     * block-query test checks; canonical names across loaders are tracked separately.
+     */
+    public static String blockName(int id) {
+        return BLOCK_NAMES.get(id);
     }
 
     /** The item id (its shiftedIndex) for the name, or -1. */

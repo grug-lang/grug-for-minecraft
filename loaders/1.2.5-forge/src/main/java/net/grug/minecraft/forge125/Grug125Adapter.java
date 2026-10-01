@@ -468,6 +468,34 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public String getBlock(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        int id = world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        if (id == 0) {
+            return "minecraft:air";
+        }
+
+        if (id > 0 && id < Block.blocksList.length) {
+            Block block = Block.blocksList[id];
+            if (block instanceof GrugBlock) {
+                GrugBlockData data = Grug.blockDataByFileId.get(((GrugBlock) block).blockFileId);
+                if (data != null) {
+                    return data.id;
+                }
+            }
+        }
+
+        String name = VanillaNames.blockName(id);
+        return name == null ? "minecraft:unknown" : "minecraft:" + name;
+    }
+
+    @Override
+    public boolean isAir(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
+    }
+
+    @Override
     public Object getBlockEntityLevel(Object blockEntityObj) {
         return ((TileEntity) blockEntityObj).worldObj;
     }
