@@ -22,8 +22,8 @@ class GrugEntityRootTest {
     @AfterEach
     void clearState() {
         Grug.entityData.clear();
-        Grug.globalFnEntities.clear();
-        Grug.fnEntities = Grug.globalFnEntities;
+        Grug.retainedFnEntities.clear();
+        Grug.fnEntities = Grug.retainedFnEntities;
     }
 
     @Test

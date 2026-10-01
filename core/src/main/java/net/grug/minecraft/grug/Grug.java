@@ -45,8 +45,17 @@ public final class Grug {
     public static final Map<String, GrugItemData> declaredItems = new HashMap<>();
     public static final Map<Long, GrugItemData> itemDataByFileId = new HashMap<>();
 
-    public static final List<GrugObject> globalFnEntities = new ArrayList<>();
-    public static List<GrugObject> fnEntities = globalFnEntities;
+    /**
+     * The default strong root for host entities. A block-entity member scope points {@link
+     * #fnEntities} at its own owner list for the duration of a creation or tick, but everything
+     * created outside that window (including exports like {@code output_taken} and {@code
+     * item_inserted}, which do not swap the list) is retained here. It is not only member scope, so
+     * it is not named for members; once the rooting becomes explicit this may become {@code
+     * memberFnEntities}. See #89 and #93.
+     */
+    public static final List<GrugObject> retainedFnEntities = new ArrayList<>();
+
+    public static List<GrugObject> fnEntities = retainedFnEntities;
 
     public static final Map<String, Long> entityFileIdsByName = new HashMap<>();
 
