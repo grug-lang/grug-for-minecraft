@@ -12,6 +12,20 @@ This is a ~15 GB laptop. More than two Minecraft clients at once has hard-locked
 the desktop session. Run loaders serially, never more than two at a time, and never start a
 client while another Gradle build is launching a game.
 
+## Working alongside other agents
+
+- Work in your own git worktree, one per task, and run the session from there:
+  `git worktree add ../grug-<task> -b <branch>`. A shared checkout means two agents see each
+  other's edits, branches and test runs, and every confusing failure becomes unattributable.
+- Each worktree gets its own `loaders/*/run/`, so game runs and screenshot artifacts do not
+  collide through `run/saves`, `run/grug_mods` or the capture directory.
+- The two-client limit above is for the whole machine, not per agent. Check what is already
+  running (`pgrep -af java`) before starting a client, and wait rather than start a third.
+- The 1.2.5 loader clones a 170 MB MCP snapshot into `build/mcp125` in every worktree. Point a
+  new worktree at an existing checkout with `-Pgrug.mcpSnapshot=<path>` instead of cloning again.
+- The Gradle daemon and the `~/.gradle` caches are shared. Two builds can run at once, but they
+  can block on cache locks, so prefer to let another agent's build finish first.
+
 ## Where things live
 
 | path | what |
