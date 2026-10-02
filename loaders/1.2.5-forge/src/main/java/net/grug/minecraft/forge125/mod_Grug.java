@@ -1,5 +1,7 @@
 package net.grug.minecraft.forge125;
 
+import cpw.mods.fml.common.FMLCommonHandler;
+
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.GrugBlocks;
 import net.grug.minecraft.forge125.client.GrugClientHooks;
@@ -8,7 +10,6 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
-import net.minecraft.src.GuiScreen;
 import net.minecraft.src.ModLoader;
 
 import java.io.File;
@@ -35,8 +36,6 @@ public class mod_Grug extends BaseMod {
 
     public static final Map<String, Long> blockFiles = new HashMap<>();
     public static final Map<String, Long> itemFiles = new HashMap<>();
-
-    private static GrugClientHooks clientHooks;
 
     /** The running client, or null before it exists. */
     public static Minecraft minecraft() {
@@ -90,11 +89,11 @@ public class mod_Grug extends BaseMod {
 
         LOGGER.info("Compiled " + files.length + " grug files successfully.");
 
-        clientHooks = new GrugClientHooks();
-        ModLoader.setInGameHook(this, true, false);
-        // The title screen is a GUI and has no world yet, so the in-game hook never fires there;
-        // the GUI hook is what notices the title screen and kicks off the CI world load.
-        ModLoader.setInGUIHook(this, true, false);
+        // One handler for both cadences: ModLoader's hooks can only subscribe to render ticks or to
+        // game ticks, never both, and the test runner needs the game tick that the other four
+        // loaders drive it from, while the title screen is a GUI with no world and so needs the
+        // render tick. See #135.
+        FMLCommonHandler.instance().registerTickHandler(new GrugClientHooks());
     }
 
     /**
@@ -128,22 +127,5 @@ public class mod_Grug extends BaseMod {
             return dir;
         }
         return runGrugDir;
-    }
-
-    // ModLoader pumps this once per game tick, which is where the test runner is driven.
-    @Override
-    public boolean onTickInGame(float time, Minecraft minecraftInstance) {
-        if (clientHooks != null) {
-            clientHooks.tick(minecraftInstance);
-        }
-        return true;
-    }
-
-    @Override
-    public boolean onTickInGUI(float tick, Minecraft game, GuiScreen gui) {
-        if (clientHooks != null && game.thePlayer == null) {
-            clientHooks.tick(game);
-        }
-        return true;
     }
 }
