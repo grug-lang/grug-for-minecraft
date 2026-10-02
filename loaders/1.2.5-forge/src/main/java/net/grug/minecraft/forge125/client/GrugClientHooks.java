@@ -1,5 +1,8 @@
 package net.grug.minecraft.forge125.client;
 
+import cpw.mods.fml.common.ITickHandler;
+import cpw.mods.fml.common.TickType;
+
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.mod_Grug;
@@ -10,6 +13,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.KeyBinding;
+import net.minecraft.src.ModLoader;
 import net.minecraft.src.PlayerControllerSP;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.WorldSettings;
@@ -26,17 +30,29 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Insets;
 import java.awt.Window;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 
 /**
- * The 1.2.5 client's per-tick work, driven from {@code mod_Grug.onTickInGame}.
+ * The 1.2.5 client's per-tick work, split by the cadence each part needs.
  *
- * <p>1.2.5 has no Mixin, so this is a ModLoader hook rather than an injected method. It exists as
- * its own class so the runner logic stays out of the entry point, matching how the other loaders
- * keep their tick logic in {@code net.grug.*}.
+ * <p>1.2.5 has no Mixin, so this is an FML tick handler rather than an injected method. FML's
+ * ModLoader compatibility hooks can subscribe to render ticks or to game ticks but never both, and
+ * the game tick is the one the other four loaders drive the test runner from, while the tile entity
+ * workaround in {@link #renderTick} has to run before a frame renders. Subscribing to both keeps
+ * the runner on a game tick here too; see #135.
+ *
+ * <p>It exists as its own class so the runner logic stays out of the entry point, matching how the
+ * other loaders keep their tick logic in {@code net.grug.*}.
  */
-public class GrugClientHooks {
+public class GrugClientHooks implements ITickHandler {
+
+    /**
+     * GAME is the client tick, the cadence the other loaders drive the runner from, and RENDER
+     * fires once per frame for the work that has to happen before a frame is drawn.
+     */
+    private static final EnumSet<TickType> TICKS = EnumSet.of(TickType.GAME, TickType.RENDER);
 
     private boolean titleLogged = false;
     private boolean worldRequested = false;
@@ -84,22 +100,37 @@ public class GrugClientHooks {
     /** True only while a run has the pointer parked, so only that run restores it. */
     private boolean cursorParked = false;
 
-    public void tick(Minecraft minecraft) {
-        if ("true".equals(System.getenv("GRUG_CI"))
-                && !worldRequested
-                && minecraft.currentScreen instanceof GuiMainMenu) {
-            if (!titleLogged) {
-                System.out.println("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
-                titleLogged = true;
-            }
-            worldRequested = true;
-            // GuiSelectWorld creates the controller before loading; startWorld assumes it exists.
-            minecraft.playerController = new PlayerControllerSP(minecraft);
-            minecraft.startWorld(
-                    "World1", "World1", new WorldSettings(0L, 0, true, false, WorldType.DEFAULT));
-            minecraft.displayGuiScreen((GuiScreen) null);
+    @Override
+    public void tickStart(EnumSet<TickType> types, Object... data) {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (types.contains(TickType.GAME)) {
+            gameTick(minecraft);
         }
+        if (types.contains(TickType.RENDER)) {
+            renderTick(minecraft);
+        }
+    }
 
+    @Override
+    public void tickEnd(EnumSet<TickType> types, Object... data) {
+        // Everything runs at tick start, like the injected client tick hooks on the other loaders.
+    }
+
+    @Override
+    public EnumSet<TickType> ticks() {
+        return TICKS;
+    }
+
+    @Override
+    public String getLabel() {
+        return "grug";
+    }
+
+    /**
+     * The game tick, which is where the test runner is driven: one {@code Test.run()} call per game
+     * tick, the cadence the other four loaders use.
+     */
+    private void gameTick(Minecraft minecraft) {
         if ("true".equals(System.getenv("GRUG_CI")) && !ciTestsRan && minecraft.thePlayer != null) {
             // The runner starts as soon as the player exists, which can be before the client has
             // received the chunks the tests build in. Wait for them; a world that never arrives
@@ -126,7 +157,7 @@ public class GrugClientHooks {
             }
         }
 
-        // One Test.run() call per real tick, so real ticks separate a test's invocations.
+        // One Test.run() call per game tick, so ticks separate a test's invocations.
         if (testRunner != null) {
             testRunner.tick(minecraft.thePlayer);
             if (testRunner.isFinished()) {
@@ -147,30 +178,9 @@ public class GrugClientHooks {
             handleResolutionHotkey();
         }
 
-        // A captured frame must not depend on where the invisible pointer happens to be: 1.2.5's
-        // GuiContainer paints a 50% white highlight over the slot under the mouse, and a tooltip
-        // follows it, so a screenshot would record whichever slot the user last hovered. Park the
-        // pointer in a corner outside the centered GUI for the duration of a run. The pointer is
-        // not drawn into the framebuffer, so this only removes that incidental state. See #124.
-        if (testRunner != null && !Mouse.isGrabbed()) {
-            parkCursor();
-        }
-
         String[] updatedResources = Grug.update(this::logError);
         if (updatedResources.length > 0 && minecraft.renderEngine != null) {
             minecraft.renderEngine.refreshTextures();
-        }
-
-        // 1.2.5 renders RenderGlobal.tileEntities without checking isInvalid(), and only
-        // reconciles that list when a chunk's WorldRenderer rebuilds, so a chest replaced by
-        // another block can still be rendered until that rebuild. While the game is paused the
-        // loaded list has the same problem, because a paused world skips World.updateEntities but
-        // keeps rendering. Drop them before the frame renders. See #114.
-        if (minecraft.theWorld != null) {
-            dropInvalidTileEntities(minecraft.theWorld.loadedTileEntityList);
-        }
-        if (minecraft.renderGlobal != null) {
-            dropInvalidTileEntities(minecraft.renderGlobal.tileEntities);
         }
 
         if (minecraft.thePlayer != null) {
@@ -184,6 +194,48 @@ public class GrugClientHooks {
                     mod_Grug.LOGGER.info(Grug.printQueue.poll());
                 }
             }
+        }
+    }
+
+    /** The frame, for the work that has to happen before one is drawn. */
+    private void renderTick(Minecraft minecraft) {
+        // The title screen is a GUI and has no world yet, so the game tick never fires there; this
+        // is what notices the title screen and kicks off the CI world load.
+        if ("true".equals(System.getenv("GRUG_CI"))
+                && !worldRequested
+                && minecraft.currentScreen instanceof GuiMainMenu) {
+            if (!titleLogged) {
+                System.out.println("[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL");
+                titleLogged = true;
+            }
+            worldRequested = true;
+            // GuiSelectWorld creates the controller before loading; startWorld assumes it exists.
+            minecraft.playerController = new PlayerControllerSP(minecraft);
+            minecraft.startWorld(
+                    "World1", "World1", new WorldSettings(0L, 0, true, false, WorldType.DEFAULT));
+            minecraft.displayGuiScreen((GuiScreen) null);
+        }
+
+        // A captured frame must not depend on where the invisible pointer happens to be: 1.2.5's
+        // GuiContainer paints a 50% white highlight over the slot under the mouse, and a tooltip
+        // follows it, so a screenshot would record whichever slot the user last hovered. Park the
+        // pointer in a corner outside the centered GUI for the duration of a run. The pointer is
+        // not drawn into the framebuffer, so this only removes that incidental state. See #124.
+        if (testRunner != null && !Mouse.isGrabbed()) {
+            parkCursor();
+        }
+
+        // 1.2.5 renders RenderGlobal.tileEntities without checking isInvalid(), and only
+        // reconciles that list when a chunk's WorldRenderer rebuilds, so a chest replaced by
+        // another block can still be rendered until that rebuild. While the game is paused the
+        // loaded list has the same problem, because a paused world skips World.updateEntities but
+        // keeps rendering. Dropping them at the start of the render tick leaves them out of the
+        // frame that is about to be drawn. See #114.
+        if (minecraft.theWorld != null) {
+            dropInvalidTileEntities(minecraft.theWorld.loadedTileEntityList);
+        }
+        if (minecraft.renderGlobal != null) {
+            dropInvalidTileEntities(minecraft.renderGlobal.tileEntities);
         }
     }
 
