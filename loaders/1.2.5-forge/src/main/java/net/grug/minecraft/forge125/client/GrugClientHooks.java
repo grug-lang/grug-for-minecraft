@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.client;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
@@ -40,6 +41,16 @@ public class GrugClientHooks {
     private boolean titleLogged = false;
     private boolean worldRequested = false;
     private boolean ciTestsRan = false;
+
+    /**
+     * How long to wait for the client to receive the world before failing the run. A placement into
+     * a chunk that has not arrived is silently replaced later, so the wait is what keeps a setup
+     * from building into a placeholder chunk; the deadline is what keeps a world that never loads
+     * from hanging.
+     */
+    private static final long WORLD_READY_TIMEOUT_MILLIS = 60000;
+
+    private long ciWorldWaitStartMillis = 0;
 
     private GrugTestRunner testRunner = null;
     private boolean testRunnerFromCI = false;
@@ -90,9 +101,29 @@ public class GrugClientHooks {
         }
 
         if ("true".equals(System.getenv("GRUG_CI")) && !ciTestsRan && minecraft.thePlayer != null) {
-            System.out.println("[GRUG CI] CI mode active & player loaded. Firing tests!");
-            ciTestsRan = true;
-            startTestRunner(true);
+            // The runner starts as soon as the player exists, which can be before the client has
+            // received the chunks the tests build in. Wait for them; a world that never arrives
+            // fails the run instead of starting tests against placeholder chunks.
+            if (ciWorldWaitStartMillis == 0) {
+                ciWorldWaitStartMillis = System.currentTimeMillis();
+            }
+            boolean ready = GrugCore.getAdapter().isWorldReady(minecraft.thePlayer);
+            if (ready) {
+                System.out.println(
+                        "[GRUG CI] CI mode active & player loaded after "
+                                + (System.currentTimeMillis() - ciWorldWaitStartMillis)
+                                + " ms. Firing tests!");
+                ciTestsRan = true;
+                startTestRunner(true);
+            } else if (System.currentTimeMillis() - ciWorldWaitStartMillis
+                    >= WORLD_READY_TIMEOUT_MILLIS) {
+                System.out.println("[GRUG CI] FAIL world readiness");
+                System.out.println(
+                        "[GRUG CI] The client did not receive the world within "
+                                + (WORLD_READY_TIMEOUT_MILLIS / 1000)
+                                + " seconds, so the tests were not started.");
+                ciTestsRan = true;
+            }
         }
 
         // One Test.run() call per real tick, so real ticks separate a test's invocations.
