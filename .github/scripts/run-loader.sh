@@ -19,6 +19,14 @@ cd "$REPO_ROOT"
 # property has to reach the forked game JVM, so pass it to every JVM the launcher starts.
 export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Djava.util.Arrays.useLegacyMergeSort=true"
 
+# A Rust panic in grug-rs cannot unwind out of an extern "C" frame, so it aborts the JVM instead of
+# failing a test. Rust's default backtrace stops at the panic hook, which leaves the report as a
+# list of std frames with the grug entry point at the bottom and nothing in between, so the frame
+# that was running when it aborted is missing. "full" prints the whole stack instead, which is the
+# only thing that says which grug code path reached the abort. The environment variable has to
+# reach the forked game JVM, which is why it is exported rather than passed to Gradle.
+export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
+
 LOADER_DIR="loaders/${LOADER}"
 if [ ! -d "$LOADER_DIR" ]; then
   echo "No such loader directory: $LOADER_DIR" >&2
@@ -107,6 +115,10 @@ fi
 
 timeout_secs="${GRUG_CI_RUN_TIMEOUT:-120}"
 crash_re='Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to'
+# A Rust panic in grug-rs, which aborts the process rather than failing a test. Every Rust panic
+# location ends in .rs:<line>:<col>, so match that rather than the bare words. See
+# report-native-abort.sh for why that is worth its own status.
+ABORT_RE='panicked at .*\.rs:[0-9]+:[0-9]+'
 
 gradle_pid=""
 tail_pid=""
@@ -148,6 +160,10 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   if grep -q -F "$SUCCESS_MSG" "$LOG_FILE"; then status=success; break; fi
   if grep -q "FAIL " "$LOG_FILE"; then status=failed; break; fi
   if grep -q -E "$crash_re" "$LOG_FILE"; then status=crashed; break; fi
+  # Checked before the liveness test below, because a Rust panic is written to the log a moment
+  # before the process dies: on the poll that sees both, the liveness test would report a bare
+  # "exited" and the panic, which is the whole diagnosis, would go unread.
+  if grep -q -E "$ABORT_RE" "$LOG_FILE"; then status=aborted; break; fi
   if ! kill -0 "$gradle_pid" 2>/dev/null; then status=exited; break; fi
   sleep 1
 done
@@ -155,6 +171,29 @@ done
 # Kill tail manually so it doesn't leak into the next steps
 [ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
 tail_pid=""
+
+# Prints the grug VM abort report for the log, if it holds one, and puts the same text in the job
+# summary so the panic is readable from the checks list instead of only from the raw log.
+report_native_abort() {
+  local report
+  report=$("${REPO_ROOT}/.github/scripts/report-native-abort.sh" "$LOG_FILE" "$1" || true)
+  [ -n "$report" ] || return 0
+
+  printf '%s\n' "$report" >&2
+
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    {
+      echo "### $LOADER aborted inside the grug VM"
+      echo
+      echo 'A Rust panic in grug-rs cannot unwind out of an \`extern "C"\` frame, so it aborts the'
+      echo 'JVM rather than failing a test.'
+      echo
+      echo '```'
+      printf '%s\n' "$report"
+      echo '```'
+    } >>"$GITHUB_STEP_SUMMARY"
+  fi
+}
 
 case "$status" in
   success)
@@ -173,13 +212,27 @@ case "$status" in
     echo "==> First fatal error in $LOG_FILE:" >&2
     grep -n -m1 -B2 -A14 -E "$crash_re" "$LOG_FILE" >&2 || true
     ;;
+  aborted)
+    wait "$gradle_pid"
+    exit_code=$?
+    if [ "$reached_title" = true ]; then
+      echo "==> $LOADER's game process aborted inside the grug VM after reaching the title screen." >&2
+    else
+      echo "==> $LOADER's game process aborted inside the grug VM before reaching the title screen." >&2
+    fi
+    report_native_abort "$exit_code"
+    ;;
   exited)
     wait "$gradle_pid"
+    exit_code=$?
     if [ "$reached_title" = true ]; then
-      echo "==> $LOADER's build/game process exited (exit code $?) after reaching the title screen but before passing tests." >&2
+      echo "==> $LOADER's build/game process exited (exit code $exit_code) after reaching the title screen but before passing tests." >&2
     else
-      echo "==> $LOADER's build/game process exited (exit code $?) before reaching the title screen." >&2
+      echo "==> $LOADER's build/game process exited (exit code $exit_code) before reaching the title screen." >&2
     fi
+    # A panic written to the log after the loop's own check still lands here, so the report is
+    # attempted here too rather than only in the aborted branch above.
+    report_native_abort "$exit_code"
     echo "==> See $LOG_FILE" >&2
     ;;
   timeout)
