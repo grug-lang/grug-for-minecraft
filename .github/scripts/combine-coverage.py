@@ -72,8 +72,9 @@ EXCLUDED_CLASSES = {
     "InitListener",
     "ClientInitListener",
     "ClientModEvents",
-    # The client tick hook drives the run, the resolution swap and the cursor readout; the parts CI
-    # can reach pass through measured helpers, and the rest is dev-only window/cursor tooling.
+    # The client tick hook drives the run, the resolution swap and the cursor readout; the window
+    # and GL state machine behind those live in core's GrugRunWindow, which core's own tests
+    # measure, and what remains here is loader-specific glue over the game's window and GL APIs.
     "GrugClientHooks",
     # The loader's own block/entity and registration implementations only run through the game's
     # world and GUI APIs, which a headless CI cannot drive. The game-independent logic they use
