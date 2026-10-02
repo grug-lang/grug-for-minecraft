@@ -50,20 +50,22 @@ SILENT_ABORT_LOG = "[GRUG CI] Running 50 tests...\n"
 # The same abort with a backtrace, which is the shape run-loader.sh now produces by exporting
 # RUST_BACKTRACE. The frames are the ones grug-rs puts in a backtrace: the failing panic's stack
 # runs through call_on_function and run, and the abort that follows it stops at the C entry point.
-# The observed run had no grug frames at all, which is why the backtrace is exported now.
+# The observed run had no grug frames at all, which is why the backtrace is exported now. The CI
+# console prefixes every line with a timestamp, which Gradle's own log does not, so the frames are
+# timestamped here too: a frame that keeps its timestamp is a frame nobody reads.
 ABORTED_LOG_WITH_BACKTRACE = """\
-[GRUG CI] PASS coverage/code/chest_inventory-Test.grug
-thread '<unnamed>' (4275) panicked at gruggers/src/backend/bytecode.rs:1162:21:
-RefCell already borrowed
-stack backtrace:
-   18:     0x7fbe701eb5ed - core::panicking::panic_nounwind_fmt
-   19:     0x7fbe7020c62f - grug_call_export_fn
-                               at /home/runner/work/grug-rs/gruggers/src/capi.rs:177:1
-  120:     0x7fbe701eb000 - gruggers::backend::bytecode::BytecodeBackend::call_on_function
-                               at gruggers/src/backend/bytecode.rs:1116:26
-  124:     0x7fbe701eb100 - gruggers::backend::bytecode::BytecodeBackend::run
-                               at gruggers/src/backend/bytecode.rs:639:9
-thread caused non-unwinding panic. aborting.
+2026-10-02T11:01:34.2457598Z [GRUG CI] PASS coverage/code/chest_inventory-Test.grug
+2026-10-02T11:01:34.3402549Z thread '<unnamed>' (4275) panicked at gruggers/src/backend/bytecode.rs:1162:21:
+2026-10-02T11:01:34.3403223Z RefCell already borrowed
+2026-10-02T11:01:34.3405811Z stack backtrace:
+2026-10-02T11:01:34.3408231Z    18:     0x7fbe701eb5ed - core::panicking::panic_nounwind_fmt
+2026-10-02T11:01:34.3409311Z    19:     0x7fbe7020c62f - grug_call_export_fn
+2026-10-02T11:01:34.3409511Z                                at /home/runner/work/grug-rs/gruggers/src/capi.rs:177:1
+2026-10-02T11:01:34.3410231Z   120:     0x7fbe701eb000 - gruggers::backend::bytecode::BytecodeBackend::call_on_function
+2026-10-02T11:01:34.3410431Z                                at gruggers/src/backend/bytecode.rs:1116:26
+2026-10-02T11:01:34.3411131Z   124:     0x7fbe701eb100 - gruggers::backend::bytecode::BytecodeBackend::run
+2026-10-02T11:01:34.3411331Z                                at gruggers/src/backend/bytecode.rs:639:9
+2026-10-02T11:01:34.4449281Z thread caused non-unwinding panic. aborting.
 """
 
 
@@ -175,6 +177,10 @@ class ReportNativeAbortTest(unittest.TestCase):
         self.assertNotIn("0x7fbe701eb000", result.stdout)
         # The "at <file>:<line>" continuation lines repeat the path, so they are left out too.
         self.assertNotIn("capi.rs:177", result.stdout)
+        # A CI console line starts with a timestamp, which has to come off with the rest of the
+        # noise or the frame is unreadable.
+        self.assertNotIn("2026-10-02T11:01:34", result.stdout)
+        self.assertIn("==>   grug_call_export_fn", result.stdout)
 
     def test_too_many_arguments_is_a_usage_error(self):
         result = run_report("a", "b", "c")

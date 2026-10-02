@@ -74,6 +74,7 @@ fi
 # that follows unwinds nothing, so its backtrace is JNI frames all the way down).
 GRUG_FRAMES=$(grep -E "gruggers::|grug_call_export_fn" "$LOG_FILE" \
   | head -n 12 \
+  | strip_timestamp \
   | sed -E "s/^[[:space:]]*[0-9]+:[[:space:]]+0x[0-9a-f]+ - //" \
   | sed "s/^[[:space:]]*//")
 if [ -n "$GRUG_FRAMES" ]; then
