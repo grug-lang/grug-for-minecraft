@@ -314,8 +314,8 @@ public class GrugClientHooks implements ITickHandler {
      * Moves the pointer to a corner for the duration of a run, remembering where it was.
      *
      * <p>LWJGL's Mouse uses OpenGL window coordinates, so (0, 0) is a corner, outside the centered
-     * GUI. The game re-reads the position every poll, so this has to be reapplied on each tick
-     * rather than once, which is why it is called from the tick and not from {@code
+     * GUI. The game re-reads the position for every frame, so this has to be reapplied per frame
+     * rather than once, which is why it is called from {@code renderTick} and not from {@code
      * startTestRunner}.
      *
      * <p>The saved position is captured on the first call, so a re-entry (or an external warp, such

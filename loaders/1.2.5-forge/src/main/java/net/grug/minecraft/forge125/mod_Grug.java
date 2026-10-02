@@ -92,7 +92,9 @@ public class mod_Grug extends BaseMod {
         // One handler for both cadences: ModLoader's hooks can only subscribe to render ticks or to
         // game ticks, never both, and the test runner needs the game tick that the other four
         // loaders drive it from, while the title screen is a GUI with no world and so needs the
-        // render tick. See #135.
+        // render tick. Register it while the mods load: the first rendered frame is what moves
+        // registered handlers into the tick queue, so registering later would silently never tick.
+        // See #135.
         FMLCommonHandler.instance().registerTickHandler(new GrugClientHooks());
     }
 
