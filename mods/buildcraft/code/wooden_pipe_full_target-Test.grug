@@ -1,0 +1,122 @@
+# Covers the wooden pipe dropping its carried item when the target inventory has no room for it.
+# This is the other half of wooden_pipe_drop_damage-Test.grug: that test drops the item because
+# nothing at all is connected, this one drops it because something is connected but full. The two take
+# different routes through the pipe. An unconnected pipe fails both the inventory insert and the
+# pipe-to-pipe push, while a full target only fails the insert, so the pipe still has to decide to
+# give the item up rather than hold it forever.
+full_target_source: Option[BlockEntity] = Option.new()
+full_target_target: Option[BlockEntity] = Option.new()
+full_target_pipe: Option[BlockEntity] = Option.new()
+
+# ItemEntity exposes only damage(), not the item it holds, so the damage is what identifies the
+# dropped stack. wooden_pipe_drop_damage-Test.grug uses the same trick, and the filler being
+# undamaged means a merge into the target would also change its damage and be caught.
+sword_damage: number = 7
+
+export run() {
+    if Test.tick() == 0 {
+        _full_target_setup()
+        Test.not_done()
+    } else if Test.tick() < 25 {
+        Test.not_done()
+    } else {
+        _full_target_check()
+    }
+}
+
+local _full_target_setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # A clear band: the other pipe tests use +30, +40, +50 and +55. This also stays well clear of
+    # Alpha's 128-block world height, which a higher band would run into.
+    y: number = origin.y() + 45
+    z: number = origin.z()
+
+    # The source sits below the pipe and the engine beside it, so the pipe's six sides hold exactly
+    # two inventories: the sword below, and the full chest to the side.
+    level.place_block(x, y - 1, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    level.place_block(x + 1, y, z, "minecraft:chest")
+
+    # The engine is beside the pipe rather than below it, because below is the source. A torch powers
+    # the block above it, but not the block it is attached to, and a standing torch does not power the
+    # block above its own base, so this puts a torch under the engine with stone beneath that.
+    level.place_block(x - 1, y - 2, z, "minecraft:stone")
+    level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch")
+    level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch_lit")
+    level.place_block(x - 1, y, z, "grug:redstone_engine")
+
+    source_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
+    target_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(source_opt.has(), "The source chest should have a block entity.")
+    Test.assert(target_opt.has(), "The target chest should have a block entity.")
+    Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    Test.assert(level.has_neighbor_signal(x - 1, y, z), "The engine should be powered by the torch.")
+    Test.assert(level.has_neighbor_signal(x, y, z), "The pipe should be powered by the engine.")
+
+    full_target_source.set(source_opt.unwrap())
+    full_target_target.set(target_opt.unwrap())
+    full_target_pipe.set(pipe_opt.unwrap())
+
+    # Fill every slot the target actually has, rather than a fixed count: a chest is 36 slots on Alpha
+    # and 27 on every later version, so a hardcoded 27 would leave room on Alpha, the pipe would
+    # insert instead of dropping, and the test would mean different things on different loaders.
+    size: number = get_inventory_size(full_target_target.unwrap())
+    Test.assert(size > 0, "The target chest should have an inventory.")
+    # Diamonds are the filler rather than cobblestone for two reasons: a diamond sword does not stack
+    # with a diamond, so the pipe cannot merge into an existing stack; and on Alpha item() resolves a
+    # name with no matching Item field by falling through to the block of that name, so cobblestone
+    # comes back as a Block and cannot go in a slot at all.
+    filler: Item = item(resource_location("minecraft:diamond"))
+    slot: number = 0
+    while slot < size {
+        set_item_in_slot(full_target_target.unwrap(), slot, filler, 64)
+        slot = slot + 1
+    }
+
+    sword: Item = item(resource_location("minecraft:diamond_sword"))
+    set_item_in_slot(full_target_source.unwrap(), 0, sword, 1)
+    set_item_damage_in_slot(full_target_source.unwrap(), 0, sword_damage)
+    Test.assert(get_item_count_in_slot(full_target_source.unwrap(), 0) == 1, "The source chest should have been given the sword.")
+}
+
+local _full_target_check() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 45
+    z: number = origin.z()
+
+    source_count: number = get_item_count_in_slot(full_target_source.unwrap(), 0)
+    target_count: number = get_item_count_in_slot(full_target_target.unwrap(), 0)
+    pipe_count: number = get_item_count_in_slot(full_target_pipe.unwrap(), 0)
+
+    # The item is accounted for at every place it could be: taken from the source, not buffered in
+    # the pipe, not merged into the full target, and on the ground exactly once.
+    Test.assert(source_count == 0, "The source chest should be empty.")
+    Test.assert(pipe_count == 0, "The pipe should not still be holding the sword.")
+    Test.assert(target_count == 64, "The target chest slot 0 should still hold its 64 diamonds.")
+
+    # The filler is undamaged and the sword is not, so the item check catches a merge as well as an
+    # insert into some other slot. equals, not ==, because == compares grug entity IDs rather than
+    # the underlying game item.
+    target_item: Option[Item] = get_item_in_slot(full_target_target.unwrap(), 0)
+    Test.assert(target_item.has(), "The target chest slot 0 should still hold an item.")
+    if target_item.has() {
+        Test.assert(equals(target_item.unwrap(), item(resource_location("minecraft:diamond"))), "The target chest should still hold diamonds, not the sword.")
+    }
+
+    # Counting the item entities, not merely finding one, is what makes this an accounting test: a
+    # pipe that both inserted and dropped, or dropped twice, would still pass a find-one assertion.
+    dropped_count: number = level.count_item_entities(x, y, z, 10)
+    Test.assert(dropped_count == 1, "Exactly one item entity should have been dropped near the pipe.")
+
+    found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
+    Test.assert(found.has(), "The pipe should have dropped the sword.")
+    if found.has() {
+        dropped: ItemEntity = found.unwrap()
+        Test.assert(dropped.damage() == sword_damage, "The dropped sword should keep its damage.")
+    }
+}
