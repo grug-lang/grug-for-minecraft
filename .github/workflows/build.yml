@@ -54,6 +54,15 @@ jobs:
       - name: Test the grug adapter generator
         run: python3 core/test_generate.py
 
+      # A Rust panic in grug-rs aborts the JVM instead of failing a test, so run-loader.sh has to
+      # recognize that shape and explain it. Nothing else in CI can catch a regression there: the
+      # panic is intermittent, so the only check is the reporter against a log that holds one, and
+      # a faked run for the classification around it.
+      - name: Test the native-abort reporter and the run script
+        run: |
+          python3 .github/scripts/report_native_abort_test.py
+          python3 .github/scripts/run_loader_test.py
+
       # The coverage job downloads these to build the combined report the coverage gate checks.
       - name: Upload the coverage exec
         uses: actions/upload-artifact@v4
