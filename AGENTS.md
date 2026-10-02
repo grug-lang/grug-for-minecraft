@@ -147,3 +147,6 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   issues and pull requests.
 - When more than one path is plausible, save progress in a draft pull request whose description
   carries every measurement and the open question.
+- Run `pre-commit run --all-files` after staging a new file, or re-run it once the file is tracked:
+  it only sees files git already tracks, so an untracked file is skipped and the hook still reports
+  success, and CI then reformats it.
