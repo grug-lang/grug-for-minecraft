@@ -1,0 +1,9 @@
+# `inspired` only takes design cues, so it promises nothing about pixels and a tolerance stays
+# allowed. The invalid crop is what proves the tolerance of 1 was accepted before the comparison ran.
+export run() {
+    if Test.tick() == 0 {
+        Test.force_fidelity("inspired")
+        Test.expect_error("is -1, which is outside")
+        Test.screenshot().tolerance(1).equals(r"screenshots/dummy", -1, 0, 10, 10)
+    }
+}

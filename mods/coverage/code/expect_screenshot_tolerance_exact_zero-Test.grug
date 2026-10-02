@@ -1,0 +1,9 @@
+# A pixel-exact comparison is not a tolerance, so an exact recreation may still ask for one. The crop
+# itself errors, which is what proves the tolerance of 0 was accepted before the comparison ran.
+export run() {
+    if Test.tick() == 0 {
+        Test.force_fidelity("exact")
+        Test.expect_error("is -1, which is outside")
+        Test.screenshot().tolerance(0).equals(r"screenshots/dummy", -1, 0, 10, 10)
+    }
+}

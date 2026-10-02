@@ -1,0 +1,8 @@
+# Test.force_fidelity only accepts the values about.json accepts, so a typo cannot silently decide a
+# test is judged by a fidelity that does not exist.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("fidelity must be one of exact, behavioral, inspired")
+        Test.force_fidelity("pixel-perfect")
+    }
+}

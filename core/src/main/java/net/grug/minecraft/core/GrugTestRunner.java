@@ -1,6 +1,7 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 
 import java.util.ArrayList;
@@ -148,6 +149,7 @@ public class GrugTestRunner {
 
         Grug.currentTestTick = currentTick;
         Grug.testNotDone = false;
+        Grug.currentTestMod = owningMod(path);
 
         boolean completed;
         try {
@@ -242,6 +244,19 @@ public class GrugTestRunner {
         currentTick = 0;
     }
 
+    /**
+     * The mod directory holding {@code path}, which is the first segment of a test path like {@code
+     * buildcraft/code/x-Test.grug}.
+     *
+     * <p>It is the owning mod rather than whichever mod a screenshot renders, so a test in one mod
+     * that screenshots another's block is still judged by its own author's fidelity promise.
+     */
+    @GrugGenerated("malformed test path: the engine only reports <mod>/code/<file>-Test.grug")
+    private static String owningMod(String path) {
+        int slash = path.indexOf('/');
+        return slash < 0 ? path : path.substring(0, slash);
+    }
+
     /** Starts the next pending test, or returns false if there are none left. */
     private boolean startNextTest() {
         if (nextTestIndex >= tests.size()) {
@@ -271,6 +286,9 @@ public class GrugTestRunner {
 
         currentTick = 0;
         Grug.testExpectedError = null;
+        // Also cleared in destroyCurrentEntity. Doing both ends means a run that was restarted or
+        // aborted cannot inherit an override from a previous one.
+        Grug.testFidelityOverride = null;
         return true;
     }
 
@@ -291,6 +309,9 @@ public class GrugTestRunner {
     }
 
     private void destroyCurrentEntity() {
+        // Cleared here rather than when the next test starts, so a Test.force_fidelity override
+        // cannot outlive the test that asked for it even when that test failed partway through.
+        Grug.testFidelityOverride = null;
         if (currentEntityHandle != 0) {
             ops.destroyEntity(currentEntityHandle);
             currentEntityHandle = 0;
