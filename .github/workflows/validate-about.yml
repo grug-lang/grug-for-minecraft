@@ -8,6 +8,8 @@ on:
       - 'about_schema_test.py'
       - 'recreation.py'
       - 'recreation_test.py'
+      - 'dead_links.py'
+      - 'dead_links_test.py'
       - 'mods/**/about.json'
       - '.github/workflows/validate-about.yml'
       - '.github/workflows/regenerate-goldens.yml'
@@ -41,9 +43,24 @@ jobs:
         run: |
           python3 recreation_test.py
 
+      - name: Test the dead url check
+        run: |
+          python3 dead_links_test.py
+
       # Every artifact is a network fetch, so this is its own step rather than part of a test. Scope
       # it to every mod with a recreation block for now; at scale it should be scoped to the mods
       # the pull request changes.
       - name: Fetch and hash-verify recreation artifacts
         run: |
           python3 recreation.py verify-all mods
+
+      # Also a network fetch, and the other half of the same metadata: this checks the repository,
+      # license, and derived_from urls, which nothing else ever requests. The recreation artifact
+      # urls are skipped here because the step above already downloaded and hashed them.
+      #
+      # A dead url fails, because that is a metadata defect with a real fix. A 5xx or a 403 is
+      # reported without failing, so an outage on someone else's host cannot hold a change hostage.
+      # The check spaces requests per host; lower it only if a host starts rate limiting.
+      - name: Check the source urls still resolve
+        run: |
+          python3 dead_links.py mods
