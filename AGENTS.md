@@ -45,7 +45,7 @@ client while another Gradle build is launching a game.
 
 | path | what |
 | :--- | :--- |
-| `core/` | shared runtime: the grug language, host functions, the test runner, `GrugScreenshots` |
+| `core/` | shared runtime: the grug language, host functions, the test runner, its window state machine (`GrugRunWindow`), `GrugScreenshots` |
 | `mod_api.json` | the host API mods may call. Not frozen, but growth for its own sake is discouraged |
 | `mods/<mod>/code/*.grug` | the mod: `X-Block.grug`, `X_entity-BlockEntity.grug`, `X-Item.grug`, `X-Test.grug` |
 | `mods/<mod>/about.json` | metadata, including the `recreation` block: reference, artifacts, runtime, deviations |
