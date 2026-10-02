@@ -38,6 +38,10 @@ log.log
 __pycache__/
 *.pyc
 
+# Records of mod files a test left in a state, kept beside mods/ so an interrupted run can be
+# repaired. Present only while a run is in flight or one was killed partway through.
+.grug_test_backups/
+
 # Recreation artifacts downloaded by recreation.py
 reference-artifact
 reference-artifact.*

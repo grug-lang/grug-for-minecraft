@@ -2,8 +2,10 @@ package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugModFileStates;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 public class GrugCore {
@@ -15,6 +17,22 @@ public class GrugCore {
     public static void initialize(
             ModLoaderAdapter loaderAdapter, File modApiJson, File grugModsDir) {
         adapter = loaderAdapter;
+
+        // Ahead of everything that reads the mods tree, because a run that was killed partway
+        // through a hot-reload test left the file it was editing in a test state, and the
+        // compiler's complaint about that file names a stray character rather than the run that
+        // caused it. Putting the file back here means the next start compiles the real thing.
+        try {
+            // The log consumer is a lambda rather than a method reference so that it tolerates a
+            // null adapter, which is how a Java test drives the rest of this method.
+            GrugModFileStates.restoreInterruptedRuns(
+                    grugModsDir, message -> loaderAdapter.logInfo(message));
+        } catch (IOException e) {
+            // Stopping here rather than carrying on, because carrying on means compiling the
+            // disturbed file and reporting the compiler's complaint about it.
+            throw new IllegalStateException(
+                    "Could not restore the mod files an earlier run left in a test state.", e);
+        }
 
         // Every mod must ship its license text, and a missing one is a hard error rather than a
         // warning: grug persists and redistributes mods, so a mod without its license is not a
