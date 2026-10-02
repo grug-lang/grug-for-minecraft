@@ -17,6 +17,7 @@ client while another Gradle build is launching a game.
 - Work in your own git worktree, one per task, and run the session from there:
   `git worktree add ../grug-<task> -b <branch>`. A shared checkout means two agents see each
   other's edits, branches and test runs, and every confusing failure becomes unattributable.
+  Move the session into the worktree when the harness has a tool for that.
 - Each worktree gets its own `loaders/*/run/`, so game runs and screenshot artifacts do not
   collide through `run/saves`, `run/grug_mods` or the capture directory.
 - The two-client limit above is for the whole machine, not per agent. Check what is already
@@ -25,6 +26,16 @@ client while another Gradle build is launching a game.
   new worktree at an existing checkout with `-Pgrug.mcpSnapshot=<path>` instead of cloning again.
 - The Gradle daemon and the `~/.gradle` caches are shared. Two builds can run at once, but they
   can block on cache locks, so prefer to let another agent's build finish first.
+
+## Writing and explaining
+
+- Never use em-dashes in files, comments, commit messages or responses. Quoted source text that
+  already contains one is the only exception.
+- When explaining how code runs, walk through it in chronological order with numbered steps
+  starting at 1. Use many small code blocks, one per moment, and keep the annotation next to the
+  code it describes rather than describing a whole function up front. A step may hold more than
+  one block, and a short fragment can stay inline in a sentence.
+- Commit messages state what changed and why in full sentences; the reasoning goes in the body.
 
 ## Where things live
 
@@ -39,6 +50,10 @@ client while another Gradle build is launching a game.
 | `test-saves/<name>.zip` and `loaders/<loader>/test-save.txt` | the world a loader's tests start from |
 | `.github/scripts/run-loader.sh` | the only supported way to run a loader |
 | `recreation.py`, `about_schema.py`, `dead_links.py` | metadata validation, each with its own tests |
+
+The README calls `mod_api.json` frozen. That discourages API growth for its own sake, not real
+changes: removing or replacing entries, adding test-only helpers, and fixing tooling are all
+fine, so do not block those on the freeze.
 
 Any file named `*-Test.grug` under `mods/*/code/` joins every loader's suite. `mods/coverage/code/`
 is the reference for what the language and API accept; read it before inventing syntax.
@@ -126,8 +141,5 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   not squash.
 - Do not add repository documentation. This file is the exception, and findings still belong in
   issues and pull requests.
-- Never use em-dashes in files, comments, commit messages or responses. Quoted source text that
-  already contains one is the only exception.
 - When more than one path is plausible, save progress in a draft pull request whose description
   carries every measurement and the open question.
-- Commit messages state what changed and why in full sentences; the reasoning goes in the body.
