@@ -88,8 +88,11 @@ public class GrugClientHooks {
             minecraft.renderEngine.refreshTextures();
         }
 
-        // 1.2.5's client world can leave an invalidated tile entity in its render lists, so a
-        // block placed over a chest can still render that chest. Drop them before rendering.
+        // 1.2.5 renders RenderGlobal.tileEntities without checking isInvalid(), and only
+        // reconciles that list when a chunk's WorldRenderer rebuilds, so a chest replaced by
+        // another block can still be rendered until that rebuild. While the game is paused the
+        // loaded list has the same problem, because a paused world skips World.updateEntities but
+        // keeps rendering. Drop them before the frame renders. See #114.
         if (minecraft.theWorld != null) {
             dropInvalidTileEntities(minecraft.theWorld.loadedTileEntityList);
         }
@@ -196,9 +199,13 @@ public class GrugClientHooks {
     /**
      * Drops invalidated tile entities from a list.
      *
-     * <p>1.2.5's client world leaves an invalidated tile entity's render references in place often
-     * enough that a chest replaced by another block is still rendered, and {@code
-     * TileEntityChestRenderer} then casts that block to a chest and crashes.
+     * <p>1.2.5's {@code RenderGlobal.renderEntities} renders every entry of {@code
+     * RenderGlobal.tileEntities} without checking {@code isInvalid()}, and that list is only
+     * reconciled when a chunk's {@code WorldRenderer} rebuilds. A chest replaced by another block
+     * can therefore still be rendered until that rebuild, and {@code TileEntityChestRenderer} then
+     * casts the replacement block to a chest and crashes. A paused world has the same problem for
+     * {@code World.loadedTileEntityList}, because it skips {@code World.updateEntities} while still
+     * rendering. See #114.
      */
     private static void dropInvalidTileEntities(List list) {
         Iterator iterator = list.iterator();
