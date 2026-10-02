@@ -43,9 +43,14 @@ FAILED_LOG = """\
 > Task :loaders:1.20.6-forge:runClient FAILED
 """
 
-# An abort with nothing to read it from: the process died with 134 but its output never reached the
-# log (a kill, or a log that was never flushed). The exit code alone still identifies the shape.
-SILENT_ABORT_LOG = "[GRUG CI] Running 50 tests...\n"
+# An abort whose panic text never reached the log (a kill, or a log that was never flushed). Gradle
+# still prints the game's exit value, which is the only trace the shape leaves behind, so the
+# report has to read it from there: the caller's own exit status is Gradle's, which is 1 on a
+# failed build.
+SILENT_ABORT_LOG = """\
+[GRUG CI] Running 50 tests...
+> Process 'command '/usr/lib/jvm/temurin-21-jdk-amd64/bin/java'' finished with non-zero exit value 134
+"""
 
 # The same abort with a backtrace, which is the shape run-loader.sh now produces by exporting
 # RUST_BACKTRACE. The frames are the ones grug-rs puts in a backtrace: the failing panic's stack
@@ -86,7 +91,9 @@ class ReportNativeAbortTest(unittest.TestCase):
     def test_aborted_log_reports_the_panic(self):
         log = self.write_log("aborted.log", ABORTED_LOG)
 
-        result = run_report(str(log), "134")
+        # 1 is what Gradle exits with when the build fails; the game's own 134 is in the log, and
+        # that is the code the report has to show.
+        result = run_report(str(log), "1")
 
         self.assertEqual(result.returncode, 0, result.stderr)
         # The panic location and message are the whole diagnosis, so they are the assertions that
@@ -119,10 +126,11 @@ class ReportNativeAbortTest(unittest.TestCase):
     def test_exit_134_without_a_panic_is_still_an_abort(self):
         log = self.write_log("silent.log", SILENT_ABORT_LOG)
 
-        result = run_report(str(log), "134")
+        result = run_report(str(log), "1")
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("printed no Rust panic", result.stdout)
+        self.assertIn("exited with code 134", result.stdout)
         # It has to say this is not the grug panic, or the next occurrence gets filed under #123.
         self.assertIn("not the", result.stdout)
         self.assertNotIn("panic message:", result.stdout)
@@ -139,8 +147,21 @@ class ReportNativeAbortTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("boom", result.stdout)
         self.assertIn("predates the test run", result.stdout)
-        # No exit code was passed, so the report must not invent one.
+        # No exit code was passed and the log holds none, so the report must not invent one.
         self.assertNotIn("exited with code", result.stdout)
+
+    def test_a_caller_supplied_exit_code_is_used_when_the_log_has_none(self):
+        # A panic from a log that never carries Gradle's failure line still has the caller's code,
+        # which is the only one there is to print.
+        log = self.write_log(
+            "panic-no-code.log",
+            "thread '<unnamed>' panicked at gruggers/src/backend/bytecode.rs:9:1:\nboom\n",
+        )
+
+        result = run_report(str(log), "9")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("exited with code 9", result.stdout)
 
     def test_the_bare_words_without_a_rust_location_are_not_an_abort(self):
         # A mod (or a game crash report quoting one) can print the phrase without a Rust panic

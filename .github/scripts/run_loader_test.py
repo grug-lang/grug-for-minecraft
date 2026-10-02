@@ -47,11 +47,26 @@ FAILING_LOG = """\
 [GRUG CI] The origin should have been inside the world.
 """
 
-# The log is written first and the process lingers, because the run script polls once a second and
-# classifies on the first poll that matches. A fake that exited instantly could win that race and
-# report every case as a bare exit, which is the classification under test.
+# A normal test failure whose run then died inside the VM during shutdown. The loop sees the FAIL
+# line first, so the classification stays a test failure, but the panic still has to be surfaced.
+FAIL_THEN_PANIC_LOG = (
+    FAILING_LOG
+    + """\
+thread '<unnamed>' (4275) panicked at gruggers/src/backend/bytecode.rs:1162:21:
+RefCell already borrowed
+thread caused non-unwinding panic. aborting.
+"""
+)
+
+# The log is written after a short delay and the process lingers, because the run script polls once
+# a second and classifies on the first poll that matches. A write that landed between a poll's own
+# greps could show the panic to the abort check while the FAIL check still saw an empty log, which
+# is a race the classification must not depend on; the delay keeps every write between two polls.
+# The process lingers because a fake that exited instantly could win the poll race, which is the
+# classification under test.
 GRADLE = """\
 #!/usr/bin/env bash
+sleep "${FAKE_GRADLE_START_DELAY:-0.5}"
 cat "$FAKE_GRADLE_LOG"
 sleep "${FAKE_GRADLE_SLEEP:-2}"
 exit "${FAKE_GRADLE_EXIT:-0}"
@@ -126,14 +141,16 @@ class RunLoaderTest(unittest.TestCase):
         return result
 
     def test_abort_is_reported_as_a_grug_panic_not_a_plain_exit(self):
-        result = self.run_script(PANIC_LOG, 134)
+        # Gradle exits 1 when the game aborts, so 1 is what the script waits on. The game's own 134
+        # is in the log, and that is the code the report has to show.
+        result = self.run_script(PANIC_LOG, 1)
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("aborted inside the grug VM", result.stderr)
         self.assertIn("panicked at gruggers/src/backend/bytecode.rs:1162:21", result.stderr)
         self.assertIn("RefCell already borrowed", result.stderr)
-        # 134 is how both the game and Gradle report an abort, and the run has to pass it on: an
-        # abort report with no code in it reads like any other dead process.
+        # An abort report with no code in it reads like any other dead process, and one with
+        # Gradle's 1 would name the wrong process.
         self.assertIn("exited with code 134", result.stderr)
         # The exit-status line is what an unclassified abort degrades into, so its absence is the
         # point: the run must not be reported as a bare exit.
@@ -158,6 +175,18 @@ class RunLoaderTest(unittest.TestCase):
         self.assertIn("tests failed", result.stderr)
         self.assertIn("FAIL coverage/code/block_pos-Test.grug", result.stderr)
         self.assertNotIn("grug VM", result.stderr)
+
+    def test_a_panic_after_a_failed_test_is_still_reported(self):
+        result = self.run_script(FAIL_THEN_PANIC_LOG, 1)
+
+        self.assertNotEqual(result.returncode, 0)
+        # The classification stays a test failure, which is what the FAIL line deserves...
+        self.assertIn("tests failed", result.stderr)
+        self.assertIn("FAIL coverage/code/block_pos-Test.grug", result.stderr)
+        # ...but the panic must not go unread just because the FAIL line came first.
+        self.assertIn("panicked at gruggers/src/backend/bytecode.rs:1162:21", result.stderr)
+        self.assertIn("RefCell already borrowed", result.stderr)
+        self.assertIn("aborted inside the grug VM", result.summary)
 
     def test_a_passing_run_succeeds_and_writes_no_summary(self):
         result = self.run_script(PASSING_LOG, 0)

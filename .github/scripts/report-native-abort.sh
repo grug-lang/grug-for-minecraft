@@ -3,15 +3,18 @@
 #
 # Explains a game process that died inside the grug VM instead of failing a test. A Rust panic in
 # grug-rs has to unwind out of an extern "C" frame, which cannot unwind, so the panic handler
-# aborts the process (SIGABRT, exit 134). Nothing in Gradle's own output says so: the job fails
-# with "finished with non-zero exit value 134", there is no [GRUG CI] FAIL line, and the panic text
-# only appears among tens of thousands of lines of game log unless you search for it. That is a
-# different failure shape from every other test failure, and it is easy to mistake for an
-# infrastructure problem.
+# aborts the process (SIGABRT, exit 134). Gradle's output only says "finished with non-zero exit
+# value 134": there is no [GRUG CI] FAIL line, and the panic text only appears among tens of
+# thousands of lines of game log unless you search for it. That is a different failure shape from
+# every other test failure, and it is easy to mistake for an infrastructure problem.
 #
 # Prints the report on stdout and exits 0 when the log shows such an abort. Prints nothing and
 # exits 1 when it does not, so the caller can fall through to its own reporting. A missing log
 # file also exits 1, because "no log" is not an abort.
+#
+# The exit code argument is a fallback: the game process's own value is read from Gradle's
+# "finished with non-zero exit value N" line, because Gradle exits 1 on a failed build and its
+# status says nothing about the game.
 
 set -uo pipefail
 
@@ -21,11 +24,19 @@ if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
 fi
 
 LOG_FILE="$1"
-EXIT_CODE="${2:-}"
+PASSED_EXIT_CODE="${2:-}"
 
 if [ ! -f "$LOG_FILE" ]; then
   exit 1
 fi
+
+# Gradle exits 1 when a build fails, so the status run-loader.sh waited on says nothing about the
+# game. The game process's own value is in the "finished with non-zero exit value N" line, which
+# Gradle prints when the forked JVM dies; take that when the log has it and fall back to the
+# caller's argument otherwise.
+CHILD_EXIT_CODE=$(grep -oE 'finished with non-zero exit value [0-9]+' "$LOG_FILE" \
+  | tail -n1 | grep -oE '[0-9]+$')
+EXIT_CODE="${CHILD_EXIT_CODE:-$PASSED_EXIT_CODE}"
 
 # Gradle's own log has no timestamps, but the CI console log and any redirected copy of one does,
 # and a leading ISO timestamp on every quoted line buries the part a reader is looking for.
@@ -36,10 +47,12 @@ strip_timestamp() {
 # Rust prints the panic location, the source line and the colon on one line ("... panicked at
 # <file>:<line>:<col>:") and the panic message on the next, so take the marker line plus the
 # message after it. Every Rust panic location ends in .rs:<line>:<col>, and matching that rather
-# than the bare words keeps a mod that logs the phrase from being reported as an abort.
+# than the bare words keeps a mod that logs the phrase from being reported as an abort. The awk
+# pattern below has to stay the same shape as PANIC_RE, so a stray "panicked at" in the log cannot
+# pair its text with the real panic's location.
 PANIC_RE='panicked at .*\.rs:[0-9]+:[0-9]+'
 PANIC_LINE=$(grep -m1 -E "$PANIC_RE" "$LOG_FILE" | sed "s/^[[:space:]]*//" | strip_timestamp)
-PANIC_MESSAGE=$(awk '/panicked at /{ found = 1; next } found && NF { print; exit }' "$LOG_FILE" \
+PANIC_MESSAGE=$(awk '/panicked at .*\.rs:[0-9]+:[0-9]+/ { found = 1; next } found && NF { print; exit }' "$LOG_FILE" \
   | strip_timestamp)
 PANIC_LOCATION=$(printf "%s\n" "$PANIC_LINE" | sed -n "s/.*panicked at \(.*\):$/\1/p")
 
@@ -47,7 +60,8 @@ PANIC_LOCATION=$(printf "%s\n" "$PANIC_LINE" | sed -n "s/.*panicked at \(.*\):$/
 # abort, a JVM crash) is reported without one.
 ABORT_LINE=$(grep -m1 "non-unwinding panic" "$LOG_FILE" | sed "s/^[[:space:]]*//" | strip_timestamp)
 
-# 134 is 128 + SIGABRT, which is how both the game and Gradle report a native abort.
+# 134 is 128 + SIGABRT, so a game process that exited 134 without a panic in the log still points
+# at an abort of some kind. EXIT_CODE is the game's own value here, not Gradle's.
 if [ -z "$PANIC_LINE" ] && [ "${EXIT_CODE:-}" != "134" ]; then
   exit 1
 fi
@@ -61,7 +75,7 @@ if [ -n "$PANIC_LINE" ]; then
     echo "==> panic message: ${PANIC_MESSAGE}"
   fi
 else
-  echo "==> The game aborted with exit code 134 and printed no Rust panic, so this is not the"
+  echo "==> The game aborted with exit code ${EXIT_CODE} and printed no Rust panic, so this is not the"
   echo "==> grug VM panic: treat it as a native crash in the game, the JVM or the adapter."
 fi
 if [ -n "$ABORT_LINE" ]; then
