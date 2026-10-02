@@ -243,6 +243,9 @@
 						"name": "Vec3"
 					}
 				},
+				"force_gc": {
+					"description": "Test only: asks the JVM for a full garbage collection, so a test can make a collected host entity deterministic instead of waiting for GC timing to line up."
+				},
 				"is_reference": {
 					"description": "Whether the test harness is driving the reference mod rather than this port, so a recreation test can take the reference branch. Set by the GRUG_REFERENCE environment variable, so one test file runs against both.",
 					"return_type": {

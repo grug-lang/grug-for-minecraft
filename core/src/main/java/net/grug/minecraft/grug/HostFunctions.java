@@ -116,6 +116,16 @@ public class HostFunctions {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());
     }
 
+    /**
+     * Test only: asks the JVM for a full garbage collection.
+     *
+     * <p>Host entities are weakly held, so a test that proves an entity is still rooted has to make
+     * the collection deterministic instead of hoping GC timing lines up.
+     */
+    public static void Test_force_gc() {
+        System.gc();
+    }
+
     public static boolean Test_is_reference() {
         return GrugReference.isReferenceRun();
     }

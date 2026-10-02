@@ -75,6 +75,15 @@ public class GrugBlock extends BlockWithBlockEntity {
 
     @Override
     public void onRemoved(World world, int x, int y, int z) {
+        // Alpha has no BlockEntity removal callback, so free the grug entity here, before
+        // super.onRemoved removes the tile. Otherwise it outlives its tile and a later hot reload
+        // re-inits it against members Java has already collected. b1.7.3 also does this in
+        // markRemoved; the call is idempotent.
+        BlockEntity blockEntity = world.getBlockEntity(x, y, z);
+        if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+            grugBlockEntity.destroyGrugEntity();
+        }
+
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
             long worldId = Grug.addEntity(GrugEntityType.Level, world);

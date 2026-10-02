@@ -171,6 +171,21 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         }
     }
 
+    /**
+     * Destroys the grug entity and releases the host entities it rooted.
+     *
+     * <p>Alpha's BlockEntity has no removal callback, so {@code GrugBlock.onRemoved} calls this
+     * before the tile leaves the world. A removed tile whose native entity survives is re-inited by
+     * a later hot reload, and the script then reads members Java has already collected.
+     */
+    public void destroyGrugEntity() {
+        if (entityHandle != 0) {
+            Grug.destroyEntity(entityHandle);
+            entityHandle = 0;
+            childEntities.clear();
+        }
+    }
+
     // --- Inventory Implementation ---
 
     @Override
