@@ -13,6 +13,11 @@ on:
       - 'mods/**/about.json'
       - '.github/workflows/validate-about.yml'
       - '.github/workflows/regenerate-goldens.yml'
+  # Rot does not wait for a pull request. Without this, a url that dies is only noticed when somebody
+  # happens to edit metadata, which could be months. `paths` does not apply to a schedule, so this
+  # runs the whole workflow, which is what a periodic health check should do.
+  schedule:
+    - cron: '17 6 * * 1'
 
 jobs:
   validate-about:

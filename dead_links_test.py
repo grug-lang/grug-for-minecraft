@@ -8,7 +8,9 @@ of these tests touch the network: every check goes through an injected fetch.
 
 import json
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import dead_links
@@ -366,6 +368,77 @@ class ReportTest(unittest.TestCase):
             )
         ]
         self.assertIn("no response", "\n".join(dead_links.format_findings(findings)))
+
+
+class FetchStatusTest(unittest.TestCase):
+    """Exercises the real urllib path against a local server, so no external network is needed.
+
+    A 404 on HEAD is the case worth guarding: it is what fails the build, and some servers and CDNs
+    answer HEAD with 404 while serving GET fine.
+    """
+
+    def setUp(self):
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+        # A short poll interval so shutdown does not add half a second per test.
+        threading.Thread(
+            target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+        ).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+    def test_a_404_on_head_is_confirmed_with_get_before_being_called_dead(self):
+        status, detail = dead_links.fetch_status(f"{self.base}/head404", timeout=5)
+        self.assertEqual(status, 200)
+        self.assertIn("GET", detail)
+        self.assertEqual(dead_links.classify(status), "alive")
+
+    def test_a_page_that_is_really_gone_is_still_dead(self):
+        status, detail = dead_links.fetch_status(f"{self.base}/gone", timeout=5)
+        self.assertEqual(status, 404)
+        self.assertEqual(dead_links.classify(status), "dead")
+
+    def test_a_405_on_head_falls_back_to_get(self):
+        status, detail = dead_links.fetch_status(f"{self.base}/nohead", timeout=5)
+        self.assertEqual(status, 200)
+        self.assertIn("GET", detail)
+
+    def test_a_healthy_page_needs_only_one_request(self):
+        status, detail = dead_links.fetch_status(f"{self.base}/fine", timeout=5)
+        self.assertEqual(status, 200)
+        self.assertIn("HEAD", detail)
+
+
+class _Handler(BaseHTTPRequestHandler):
+    """Answers HEAD differently from GET, which is the whole point of the fallback."""
+
+    def do_HEAD(self):
+        self._respond(head=True)
+
+    def do_GET(self):
+        self._respond(head=False)
+
+    def _respond(self, head: bool) -> None:
+        # /gone is 404 either way. /head404 answers 404 to HEAD and 200 to GET, like some CDNs.
+        # /nohead refuses HEAD with 405. /fine is a normal page.
+        if self.path == "/gone":
+            code = 404
+        elif self.path == "/head404":
+            code = 404 if head else 200
+        elif self.path == "/nohead":
+            code = 405 if head else 200
+        else:
+            code = 200
+
+        body = b"ok" if code == 200 and not head else b""
+        self.send_response(code)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def log_message(self, *args) -> None:
+        pass
 
 
 class RepositoryUrlsTest(unittest.TestCase):
