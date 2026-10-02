@@ -3,6 +3,7 @@ package net.grug.minecraft.forge;
 import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
@@ -398,16 +399,84 @@ public class GrugModLoader {
         private static GrugTestRunner grug$testRunner = null;
         private static boolean grug$testRunnerFromCI = false;
 
-        private static boolean grug$resolutionForced = false;
-        private static boolean grug$resolutionForcedByTestRun = false;
-        private static int grug$savedWindowWidth;
-        private static int grug$savedWindowHeight;
         private static int grug$lastCursorX = Integer.MIN_VALUE;
         private static int grug$lastCursorY = Integer.MIN_VALUE;
-        private static double grug$savedCursorX;
-        private static double grug$savedCursorY;
-        private static boolean grug$cursorParked = false;
         private static volatile boolean grug$testRunFinished = false;
+
+        /**
+         * The 1.20.6 half of the shared run state machine: the GLFW side of resizing the window and
+         * moving the cursor. 1.20.6 never managed GL dithering, so that half is inert here and a
+         * run behaves exactly as it did before. The save/force/restore transitions themselves live
+         * in core's GrugRunWindow, which is where they are measured.
+         */
+        private static final GrugRunWindow.Display DISPLAY =
+                new GrugRunWindow.Display() {
+                    @Override
+                    public int width() {
+                        return Minecraft.getInstance().getWindow().getScreenWidth();
+                    }
+
+                    @Override
+                    public int height() {
+                        return Minecraft.getInstance().getWindow().getScreenHeight();
+                    }
+
+                    @Override
+                    public void setSize(int width, int height) {
+                        applyWindowSize(Minecraft.getInstance(), width, height);
+                    }
+
+                    @Override
+                    public boolean ditherOn() {
+                        return false;
+                    }
+
+                    @Override
+                    public void setDither(boolean on) {
+                        // This loader does not touch GL dithering.
+                    }
+
+                    @Override
+                    public int cursorX() {
+                        return (int) cursorPos()[0];
+                    }
+
+                    @Override
+                    public int cursorY() {
+                        return (int) cursorPos()[1];
+                    }
+
+                    @Override
+                    public void setCursor(int x, int y) {
+                        GLFW.glfwSetCursorPos(
+                                Minecraft.getInstance().getWindow().getWindow(), x, y);
+                    }
+                };
+
+        /** The R and M presses, consumed as the shared state machine polls them. */
+        private static final GrugRunWindow.Keys KEYS =
+                new GrugRunWindow.Keys() {
+                    @Override
+                    public boolean runPressed() {
+                        return RUN_TESTS_KEY.consumeClick();
+                    }
+
+                    @Override
+                    public boolean forceResolutionPressed() {
+                        return FORCE_RESOLUTION_KEY.consumeClick();
+                    }
+                };
+
+        /** The shared state machine for the run's window and cursor, driven by the glue above. */
+        private static final GrugRunWindow WINDOW = new GrugRunWindow(DISPLAY);
+
+        /** The cursor in window pixels, the way this loader always read it. */
+        private static double[] cursorPos() {
+            double[] x = new double[1];
+            double[] y = new double[1];
+            GLFW.glfwGetCursorPos(Minecraft.getInstance().getWindow().getWindow(), x, y);
+            return new double[] {Math.round(x[0]), Math.round(y[0])};
+        }
 
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -450,7 +519,11 @@ public class GrugModLoader {
                                         + (System.currentTimeMillis() - grug$worldWaitStartMillis)
                                         + " ms. Firing tests!");
                         grug$testsRan = true;
-                        startTestRunner(mc, true);
+                        if (WINDOW.beginRun()) {
+                            grug$testRunner = new GrugTestRunner();
+                            grug$testRunnerFromCI = true;
+                            advanceTestRunner(mc);
+                        }
                     } else if (System.currentTimeMillis() - grug$worldWaitStartMillis
                             >= WORLD_READY_TIMEOUT_MILLIS) {
                         System.out.println("[GRUG CI] FAIL world readiness");
@@ -470,7 +543,7 @@ public class GrugModLoader {
                 // the client thread.
                 if (grug$testRunFinished) {
                     grug$testRunFinished = false;
-                    finishTestRun(mc);
+                    WINDOW.endRun();
                 }
 
                 updateCursorReadout(mc);
@@ -480,7 +553,7 @@ public class GrugModLoader {
                 // cursor in a corner outside the centered GUI for the duration of a run. The cursor
                 // isn't drawn into the framebuffer, so this only removes that incidental state.
                 if (grug$testRunner != null && mc.screen != null) {
-                    parkCursor(mc);
+                    WINDOW.parkCursor();
                 }
 
                 // Intercept the flag from the server tick thread
@@ -512,38 +585,23 @@ public class GrugModLoader {
 
         @GrugGenerated("dev-only: R runs tests and M forces the test resolution")
         private static void handleDevHotkeys(Minecraft mc) {
-            while (RUN_TESTS_KEY.consumeClick()) {
-                startTestRunner(mc, false);
-            }
-            while (FORCE_RESOLUTION_KEY.consumeClick()) {
-                toggleResolution(mc);
+            // The polls consume the presses they report, so this has to run every tick a press is
+            // meant to count. The tick it reports a run press in is the one that starts the run.
+            if (WINDOW.tick(KEYS)) {
+                grug$testRunner = new GrugTestRunner();
+                grug$testRunnerFromCI = false;
+                advanceTestRunner(mc);
             }
         }
 
         @GrugGenerated("dev-only: cursor-coordinate readout while M holds the test resolution")
         private static void updateCursorReadout(Minecraft mc) {
-            if (grug$resolutionForced && grug$testRunner == null) {
+            if (WINDOW.resolutionForced() && grug$testRunner == null) {
                 updateCursorPositionReadout(mc);
             } else {
                 grug$lastCursorX = Integer.MIN_VALUE;
                 grug$lastCursorY = Integer.MIN_VALUE;
             }
-        }
-
-        private static void startTestRunner(Minecraft mc, boolean fromCI) {
-            // Pressing the hotkey again while a run is still going shouldn't restart it.
-            if (grug$testRunner != null) {
-                return;
-            }
-            // Screenshot tests only compare equal at 1280x720. If M already forced that size, leave
-            // its state alone: this run didn't set it up, so it must not undo it.
-            if (!grug$resolutionForced) {
-                saveAndForceResolution(mc);
-                grug$resolutionForcedByTestRun = true;
-            }
-            grug$testRunner = new GrugTestRunner();
-            grug$testRunnerFromCI = fromCI;
-            advanceTestRunner(mc);
         }
 
         private static void advanceTestRunner(Minecraft mc) {
@@ -584,60 +642,6 @@ public class GrugModLoader {
                                     }
                                 }
                             });
-        }
-
-        /** M: toggle the window between its current size and the test resolution. */
-        @GrugGenerated("dev-only: M forces the test resolution by hand")
-        private static void toggleResolution(Minecraft mc) {
-            if (!grug$resolutionForced) {
-                saveAndForceResolution(mc);
-                grug$resolutionForcedByTestRun = false;
-            } else {
-                grug$resolutionForced = false;
-                grug$resolutionForcedByTestRun = false;
-                applyWindowSize(mc, grug$savedWindowWidth, grug$savedWindowHeight);
-            }
-        }
-
-        private static void saveAndForceResolution(Minecraft mc) {
-            grug$savedWindowWidth = mc.getWindow().getScreenWidth();
-            grug$savedWindowHeight = mc.getWindow().getScreenHeight();
-            grug$resolutionForced = true;
-            applyWindowSize(mc, GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT);
-        }
-
-        private static void finishTestRun(Minecraft mc) {
-            if (grug$resolutionForcedByTestRun) {
-                grug$resolutionForced = false;
-                grug$resolutionForcedByTestRun = false;
-                applyWindowSize(mc, grug$savedWindowWidth, grug$savedWindowHeight);
-            }
-            if (grug$cursorParked) {
-                grug$cursorParked = false;
-                GLFW.glfwSetCursorPos(
-                        mc.getWindow().getWindow(), grug$savedCursorX, grug$savedCursorY);
-            }
-        }
-
-        /**
-         * Moves the cursor to the window's top-left corner while a screen is open, so a screenshot
-         * doesn't record the slot-hover highlight. GLFW cursor coordinates are window pixels with
-         * the origin at the top left, and the corner is outside every centered GUI panel.
-         */
-        @GrugGenerated("dev-only: cursor parking")
-        private static void parkCursor(Minecraft mc) {
-            long window = mc.getWindow().getWindow();
-            double[] x = new double[1];
-            double[] y = new double[1];
-            GLFW.glfwGetCursorPos(window, x, y);
-            if (!grug$cursorParked) {
-                grug$savedCursorX = x[0];
-                grug$savedCursorY = y[0];
-                grug$cursorParked = true;
-            }
-            if (x[0] != 0.0 || y[0] != 0.0) {
-                GLFW.glfwSetCursorPos(window, 0.0, 0.0);
-            }
         }
 
         private static void applyWindowSize(Minecraft mc, int width, int height) {

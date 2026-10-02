@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -32,6 +33,10 @@ import java.awt.Window;
  * mixin's methods into the target, so JaCoCo can neither instrument the mixin class nor attribute
  * its probes. Keeping the logic here makes it measurable. The mixin forwards to this class and
  * implements {@link GrugClientAccess} for the few members that are private or version-specific.
+ *
+ * <p>Only the StationAPI-specific glue is measured-out here: which LWJGL, AWT, GL and StationAPI
+ * calls do a resize or a chat line, and how a key poll reads. The save/force/restore transitions
+ * behind the R and M keys live in core's {@link GrugRunWindow}, which core's JUnit tests measure.
  */
 public class GrugClientHooks {
     private final Minecraft minecraft;
@@ -39,19 +44,6 @@ public class GrugClientHooks {
     private final String title;
 
     private boolean titleSet = false;
-    private boolean testsKeyPressed = false;
-    private boolean resolutionKeyPressed = false;
-
-    /** Last cursor position printed to chat, or Integer.MIN_VALUE when nothing has been printed. */
-    private int lastCursorX = Integer.MIN_VALUE;
-
-    private int lastCursorY = Integer.MIN_VALUE;
-
-    /** Cursor position before a run parked it in a corner, so it can be put back afterwards. */
-    private int savedCursorX = 0;
-
-    private int savedCursorY = 0;
-    private boolean cursorParked = false;
     private boolean ciTestsRan = false;
 
     /**
@@ -67,14 +59,111 @@ public class GrugClientHooks {
     private GrugTestRunner testRunner = null;
     private boolean testRunnerFromCI = false;
 
-    /** Non-null exactly while the window is forced to 1280x720, whoever forced it. */
-    private DisplayMode savedDisplayMode = null;
+    /**
+     * The StationAPI half of the shared run state machine: LWJGL's Display, the AWT canvas it is
+     * parented to, GL dither and the mouse. The save/force/restore transitions themselves live in
+     * {@link GrugRunWindow}, which is where they are measured.
+     */
+    private final GrugRunWindow.Display display =
+            new GrugRunWindow.Display() {
+                @Override
+                public int width() {
+                    return Display.getWidth();
+                }
 
-    /** True only while R (not M) is the reason the window is forced, so only R restores it. */
-    private boolean resolutionForcedByTestRun = false;
+                @Override
+                public int height() {
+                    return Display.getHeight();
+                }
 
-    /** Whether GL_DITHER was on before a test run turned it off, so it can be put back. */
-    private boolean ditherWasEnabled = false;
+                @Override
+                public void setSize(int width, int height) {
+                    applyDisplayMode(width, height);
+                }
+
+                @Override
+                public boolean ditherOn() {
+                    return GL11.glIsEnabled(GL11.GL_DITHER);
+                }
+
+                @Override
+                public void setDither(boolean on) {
+                    if (on) {
+                        GL11.glEnable(GL11.GL_DITHER);
+                    } else {
+                        GL11.glDisable(GL11.GL_DITHER);
+                    }
+                }
+
+                @Override
+                public int cursorX() {
+                    return Mouse.getX();
+                }
+
+                @Override
+                public int cursorY() {
+                    return Mouse.getY();
+                }
+
+                @Override
+                public void setCursor(int x, int y) {
+                    Mouse.setCursorPosition(x, y);
+                }
+            };
+
+    /**
+     * The R and M keys in the consumption contract the shared state machine polls: a press is
+     * reported once, on the first tick that sees the key down, and a poll consumes it.
+     */
+    private final GrugRunWindow.Keys keys =
+            new GrugRunWindow.Keys() {
+                private boolean runKeyDown = false;
+                private boolean forceKeyDown = false;
+                private boolean runQueued = false;
+                private boolean forceQueued = false;
+
+                @Override
+                public boolean runPressed() {
+                    boolean down =
+                            ClientInitListener.runTestsKey != null
+                                    && Keyboard.isKeyDown(ClientInitListener.runTestsKey.code);
+                    if (down) {
+                        if (!runKeyDown) {
+                            runQueued = true;
+                        }
+                        runKeyDown = true;
+                    } else {
+                        runKeyDown = false;
+                    }
+                    boolean queued = runQueued;
+                    runQueued = false;
+                    return queued;
+                }
+
+                @Override
+                public boolean forceResolutionPressed() {
+                    boolean down =
+                            ClientInitListener.forceResolutionKey != null
+                                    && Keyboard.isKeyDown(
+                                            ClientInitListener.forceResolutionKey.code);
+                    if (down) {
+                        if (!forceKeyDown) {
+                            forceQueued = true;
+                        }
+                        forceKeyDown = true;
+                    } else {
+                        forceKeyDown = false;
+                    }
+                    boolean queued = forceQueued;
+                    forceQueued = false;
+                    return queued;
+                }
+            };
+
+    /**
+     * The shared state machine for the run's window, dither and cursor, driven by the glue above.
+     */
+    private final GrugRunWindow window = new GrugRunWindow(display);
 
     public GrugClientHooks(Minecraft minecraft, GrugClientAccess access, String title) {
         this.minecraft = minecraft;
@@ -103,7 +192,10 @@ public class GrugClientHooks {
                                 + (System.currentTimeMillis() - ciWorldWaitStartMillis)
                                 + " ms. Firing tests!");
                 ciTestsRan = true;
-                startTestRunner(true);
+                if (window.beginRun()) {
+                    testRunner = new GrugTestRunner();
+                    testRunnerFromCI = true;
+                }
             } else if (System.currentTimeMillis() - ciWorldWaitStartMillis
                     >= WORLD_READY_TIMEOUT_MILLIS) {
                 System.out.println("[GRUG CI] FAIL world readiness");
@@ -123,7 +215,7 @@ public class GrugClientHooks {
                 boolean fromCI = testRunnerFromCI;
                 testRunner = null;
                 testRunnerFromCI = false;
-                finishTestRun();
+                window.endRun();
                 // The hotkey path leaves the game running so another R press can start a fresh run.
                 if (fromCI) {
                     access.grug$shutdown();
@@ -131,8 +223,13 @@ public class GrugClientHooks {
             }
         }
 
-        handleTestRunnerHotkey();
-        handleResolutionHotkey();
+        // The polls consume the presses they report, so this has to run every tick a press is meant
+        // to count. The tick it reports a run press in is the one that starts the run.
+        if (window.tick(keys)) {
+            testRunner = new GrugTestRunner();
+            testRunnerFromCI = false;
+        }
+
         updateCursorReadout();
 
         // A captured frame must not depend on where the invisible cursor happens to be: the game
@@ -140,7 +237,7 @@ public class GrugClientHooks {
         // corner outside the centered GUI for the duration of a run. The cursor isn't drawn into
         // the framebuffer, so this only removes that incidental state.
         if (testRunner != null && !Mouse.isGrabbed()) {
-            parkCursor();
+            window.parkCursor();
         }
 
         // Trigger resource reloading for ANY non-grug file change in the mods directory
@@ -180,169 +277,42 @@ public class GrugClientHooks {
         }
     }
 
-    @GrugGenerated("dev-only: pressing R starts a test run by hand")
-    private void handleTestRunnerHotkey() {
-        if (ClientInitListener.runTestsKey == null) return;
-        boolean isKeyDown = Keyboard.isKeyDown(ClientInitListener.runTestsKey.code);
-        if (isKeyDown && !testsKeyPressed) {
-            testsKeyPressed = true;
-            startTestRunner(false);
-        } else if (!isKeyDown) {
-            testsKeyPressed = false;
-        }
-    }
-
-    @GrugGenerated("dev-only: pressing M forces the test resolution by hand")
-    private void handleResolutionHotkey() {
-        if (ClientInitListener.forceResolutionKey == null) return;
-        boolean isKeyDown = Keyboard.isKeyDown(ClientInitListener.forceResolutionKey.code);
-        if (isKeyDown && !resolutionKeyPressed) {
-            resolutionKeyPressed = true;
-            if (savedDisplayMode == null) {
-                savedDisplayMode = currentWindowDisplayMode();
-                applyTestDisplayMode();
-            } else {
-                DisplayMode previous = savedDisplayMode;
-                savedDisplayMode = null;
-                resolutionForcedByTestRun = false;
-                applyDisplayMode(previous);
-            }
-        } else if (!isKeyDown) {
-            resolutionKeyPressed = false;
-        }
-    }
-
-    private void startTestRunner(boolean fromCI) {
-        // Pressing the hotkey again while a run is still going shouldn't restart it.
-        if (testRunner != null) {
-            return;
-        }
-
-        // Screenshot tests only compare equal at the resolution their reference was captured at,
-        // so a run always happens at 1280x720 and the previous resolution comes back afterwards.
-        // If M already forced that size, leave its state alone: this run didn't set it up, so it
-        // shouldn't undo it, and a second M press remains the way back.
-        if (savedDisplayMode == null) {
-            savedDisplayMode = currentWindowDisplayMode();
-            applyTestDisplayMode();
-            resolutionForcedByTestRun = true;
-        }
-
-        // OpenGL dithers by default, which puts +/-1 noise on a GUI-sized crop and moves it around
-        // between runs. That's the difference between a pixel-exact comparison and one that can
-        // never pass, so turn it off for the duration of the run.
-        ditherWasEnabled = GL11.glIsEnabled(GL11.GL_DITHER);
-        GL11.glDisable(GL11.GL_DITHER);
-
-        testRunner = new GrugTestRunner();
-        testRunnerFromCI = fromCI;
-    }
-
     /**
-     * Puts the window and the GL state back the way this run found them, if this run changed them.
-     */
-    @GrugGenerated("test-run window and dither tooling")
-    private void finishTestRun() {
-        if (resolutionForcedByTestRun) {
-            DisplayMode previous = savedDisplayMode;
-            savedDisplayMode = null;
-            resolutionForcedByTestRun = false;
-            applyDisplayMode(previous);
-        }
-        if (ditherWasEnabled) {
-            GL11.glEnable(GL11.GL_DITHER);
-        }
-        ditherWasEnabled = false;
-
-        if (cursorParked) {
-            cursorParked = false;
-            Mouse.setCursorPosition(savedCursorX, savedCursorY);
-        }
-    }
-
-    /**
-     * Moves the cursor to the window's corner while a screen is open, so a screenshot doesn't
-     * record the slot-hover highlight. The window-corner position is outside every centered GUI
-     * panel, and the cursor itself is never drawn into the framebuffer.
-     */
-    @GrugGenerated("dev-only: cursor parking")
-    private void parkCursor() {
-        if (!cursorParked) {
-            savedCursorX = Mouse.getX();
-            savedCursorY = Mouse.getY();
-            cursorParked = true;
-        }
-        if (Mouse.getX() != 0 || Mouse.getY() != 0) {
-            // LWJGL's Mouse uses OpenGL window coordinates (origin bottom-left), so (0,0) is a
-            // corner. The game re-reads it every poll, so this has to be reapplied each tick.
-            Mouse.setCursorPosition(0, 0);
-        }
-    }
-
-    /** Switches the window to the resolution screenshot tests are captured at. */
-    @GrugGenerated("test-run window and dither tooling")
-    private void applyTestDisplayMode() {
-        applyDisplayMode(new DisplayMode(GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
-    }
-
-    /**
-     * The size the game window is actually at.
-     *
-     * <p>Deliberately not {@code Display.getDisplayMode()}. This generation of the game parents the
-     * LWJGL Display to an AWT Canvas, and in that mode the Display inherits the size of the parent
-     * and {@code getDisplayMode()} keeps reporting the mode it was created with (the desktop
-     * resolution). {@code Display.getWidth()/getHeight()} report the canvas size here.
-     */
-    @GrugGenerated("test-run window and dither tooling")
-    private static DisplayMode currentWindowDisplayMode() {
-        return new DisplayMode(Display.getWidth(), Display.getHeight());
-    }
-
-    /**
-     * Resizes the game window to the given mode.
+     * Resizes the game window to the given size.
      *
      * <p>{@code Display.setDisplayMode()} alone isn't enough: it's a no-op while the Display is
      * parented to the Canvas, and the Canvas's size is owned by the layout of whatever contains it.
      * The top-level Window has to be resized, and the layout then sizes everything below it. The
      * Canvas is deliberately not assumed to be a direct child of a Frame; the launcher may wrap it.
      */
-    @GrugGenerated("test-run window and dither tooling")
-    private void applyDisplayMode(DisplayMode mode) {
+    private void applyDisplayMode(int width, int height) {
         try {
-            Display.setDisplayMode(mode);
+            Display.setDisplayMode(new DisplayMode(width, height));
 
             if (minecraft.canvas != null) {
-                minecraft.canvas.setPreferredSize(new Dimension(mode.getWidth(), mode.getHeight()));
-                minecraft.canvas.setSize(mode.getWidth(), mode.getHeight());
+                minecraft.canvas.setPreferredSize(new Dimension(width, height));
+                minecraft.canvas.setSize(width, height);
 
                 Window window = enclosingWindow(minecraft.canvas);
                 if (window != null) {
                     Insets insets = window.getInsets();
                     window.setSize(
-                            mode.getWidth() + insets.left + insets.right,
-                            mode.getHeight() + insets.top + insets.bottom);
+                            width + insets.left + insets.right,
+                            height + insets.top + insets.bottom);
                     window.validate();
                 }
             }
 
-            access.grug$resize(mode.getWidth(), mode.getHeight());
+            access.grug$resize(width, height);
         } catch (Exception e) {
             // Resolution changes are finicky across platforms, so report rather than crash the
             // client.
-            InitListener.LOGGER.error(
-                    "Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight(),
-                    e);
-            sendRedMessage(
-                    "Failed to switch the window to "
-                            + mode.getWidth()
-                            + "x"
-                            + mode.getHeight()
-                            + ".");
+            InitListener.LOGGER.error("Failed to switch the window to " + width + "x" + height, e);
+            sendRedMessage("Failed to switch the window to " + width + "x" + height + ".");
         }
     }
 
     /** The Window a component lives in, however many containers deep it is. */
-    @GrugGenerated("test-run window and dither tooling")
     private static Window enclosingWindow(Component component) {
         for (Container ancestor = component.getParent();
                 ancestor != null;
@@ -353,6 +323,11 @@ public class GrugClientHooks {
         }
         return null;
     }
+
+    /** Last cursor position printed to chat, or Integer.MIN_VALUE when nothing has been printed. */
+    private int lastCursorX = Integer.MIN_VALUE;
+
+    private int lastCursorY = Integer.MIN_VALUE;
 
     /**
      * Reads the mouse position in the same top-left-origin convention Screenshot.equals() takes, so
@@ -365,7 +340,7 @@ public class GrugClientHooks {
      */
     @GrugGenerated("dev-only: cursor-coordinate readout")
     private void updateCursorReadout() {
-        if (savedDisplayMode == null || testRunner != null) {
+        if (!window.resolutionForced() || testRunner != null) {
             // Forget the last position while inactive, so the readout reappears the moment M is
             // switched back on even if the cursor hasn't moved since it was last on.
             lastCursorX = Integer.MIN_VALUE;
