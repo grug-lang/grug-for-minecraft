@@ -4,11 +4,10 @@ import cpw.mods.fml.common.ITickHandler;
 import cpw.mods.fml.common.TickType;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
-import net.grug.minecraft.grug.GrugGenerated;
-import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
@@ -44,7 +43,9 @@ import java.util.List;
  * the runner on a game tick here too; see #135.
  *
  * <p>It exists as its own class so the runner logic stays out of the entry point, matching how the
- * other loaders keep their tick logic in {@code net.grug.*}.
+ * other loaders keep their tick logic in {@code net.grug.*}. Only the 1.2.5-specific glue is
+ * measured-out here: the window, GL and cursor bookkeeping a run takes over now drives {@link
+ * GrugRunWindow} in core, which core's tests measure directly.
  */
 public class GrugClientHooks implements ITickHandler {
 
@@ -73,9 +74,9 @@ public class GrugClientHooks implements ITickHandler {
 
     /**
      * R starts a test run and M forces the screenshot resolution by hand, matching the other four
-     * loaders. 1.2.5 registers these by constructing KeyBindings, which adds them to the static
-     * keybindArray and hash the game itself polls from Minecraft.runTick, so {@code isPressed()}
-     * reflects a real keypress rather than a poll.
+     * loaders. 1.2.5 registers these by constructing KeyBindings, which the game's own input loop
+     * feeds: a key press sits in the binding until {@code isPressed()} reads it, so a press is not
+     * lost across a tick that is skipped, and the tick that does read it is the one that acts.
      */
     private static final KeyBinding RUN_TESTS_KEY =
             new KeyBinding("key.grug.run_tests", Keyboard.KEY_R);
@@ -83,22 +84,77 @@ public class GrugClientHooks implements ITickHandler {
     private static final KeyBinding FORCE_RESOLUTION_KEY =
             new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);
 
-    /** Non-null exactly while the window is forced to the screenshot resolution. */
-    private DisplayMode savedDisplayMode = null;
+    /**
+     * The 1.2.5 half of the shared run state machine: LWJGL's Display, the AWT canvas it is
+     * parented to, GL dither and the mouse. The save/force/restore transitions themselves live in
+     * {@link GrugRunWindow}, which is where they are measured.
+     */
+    private static final GrugRunWindow.Display DISPLAY =
+            new GrugRunWindow.Display() {
+                @Override
+                public int width() {
+                    return Display.getWidth();
+                }
 
-    /** True only while R (not M) is the reason the window is forced, so only R restores it. */
-    private boolean resolutionForcedByTestRun = false;
+                @Override
+                public int height() {
+                    return Display.getHeight();
+                }
 
-    /** Whether GL_DITHER was on before a run turned it off, so it can be put back. */
-    private boolean ditherWasEnabled = false;
+                @Override
+                public void setSize(int width, int height) {
+                    applyDisplayMode(new DisplayMode(width, height));
+                }
 
-    /** Where the pointer was before a run parked it, so it can be put back afterwards. */
-    private int savedCursorX = 0;
+                @Override
+                public boolean ditherOn() {
+                    return GL11.glIsEnabled(GL11.GL_DITHER);
+                }
 
-    private int savedCursorY = 0;
+                @Override
+                public void setDither(boolean on) {
+                    if (on) {
+                        GL11.glEnable(GL11.GL_DITHER);
+                    } else {
+                        GL11.glDisable(GL11.GL_DITHER);
+                    }
+                }
 
-    /** True only while a run has the pointer parked, so only that run restores it. */
-    private boolean cursorParked = false;
+                @Override
+                public int cursorX() {
+                    return Mouse.getX();
+                }
+
+                @Override
+                public int cursorY() {
+                    return Mouse.getY();
+                }
+
+                @Override
+                public void setCursor(int x, int y) {
+                    Mouse.setCursorPosition(x, y);
+                }
+            };
+
+    /** The two keybindings, consumed as the shared state machine polls them. */
+    private static final GrugRunWindow.Keys KEYS =
+            new GrugRunWindow.Keys() {
+                @Override
+                public boolean runPressed() {
+                    return RUN_TESTS_KEY.isPressed();
+                }
+
+                @Override
+                public boolean forceResolutionPressed() {
+                    return FORCE_RESOLUTION_KEY.isPressed();
+                }
+            };
+
+    /**
+     * The shared state machine for the run's window, dither and cursor, driven by the glue above.
+     * An instance (not a static) so a test or a second handler could ever hold its own copy.
+     */
+    private final GrugRunWindow window = new GrugRunWindow(DISPLAY);
 
     @Override
     public void tickStart(EnumSet<TickType> types, Object... data) {
@@ -145,7 +201,10 @@ public class GrugClientHooks implements ITickHandler {
                                 + (System.currentTimeMillis() - ciWorldWaitStartMillis)
                                 + " ms. Firing tests!");
                 ciTestsRan = true;
-                startTestRunner(true);
+                if (window.beginRun()) {
+                    testRunner = new GrugTestRunner();
+                    testRunnerFromCI = true;
+                }
             } else if (System.currentTimeMillis() - ciWorldWaitStartMillis
                     >= WORLD_READY_TIMEOUT_MILLIS) {
                 System.out.println("[GRUG CI] FAIL world readiness");
@@ -164,7 +223,7 @@ public class GrugClientHooks implements ITickHandler {
                 boolean fromCI = testRunnerFromCI;
                 testRunner = null;
                 testRunnerFromCI = false;
-                finishTestRun();
+                window.endRun();
                 if (fromCI) {
                     minecraft.shutdownMinecraftApplet();
                 }
@@ -172,13 +231,16 @@ public class GrugClientHooks implements ITickHandler {
         }
 
         // Only once a world is loaded: the runner needs a player to tick, and the resolution toggle
-        // resizes a window that has nothing to screenshot yet.
+        // resizes a window that has nothing to screenshot yet. The polls consume the presses they
+        // report, so this has to run every tick a press is meant to count.
         if (minecraft.thePlayer != null) {
-            handleTestRunnerHotkey();
-            handleResolutionHotkey();
+            if (window.tick(KEYS)) {
+                testRunner = new GrugTestRunner();
+                testRunnerFromCI = false;
+            }
         }
 
-        String[] updatedResources = Grug.update(this::logError);
+        String[] updatedResources = Grug.update(GrugClientHooks::logError);
         if (updatedResources.length > 0 && minecraft.renderEngine != null) {
             minecraft.renderEngine.refreshTextures();
         }
@@ -218,11 +280,13 @@ public class GrugClientHooks implements ITickHandler {
 
         // A captured frame must not depend on where the invisible pointer happens to be: 1.2.5's
         // GuiContainer paints a 50% white highlight over the slot under the mouse, and a tooltip
-        // follows it, so a screenshot would record whichever slot the user last hovered. Park the
-        // pointer in a corner outside the centered GUI for the duration of a run. The pointer is
-        // not drawn into the framebuffer, so this only removes that incidental state. See #124.
+        // follows it, so a screenshot would record whichever slot the user last hovered. The
+        // pointer
+        // is not drawn into the framebuffer, so parking it in a corner only removes that incidental
+        // state. See #124. The game re-reads the pointer every frame, so the shared class has to be
+        // called every frame, not once when the run starts.
         if (testRunner != null && !Mouse.isGrabbed()) {
-            parkCursor();
+            window.parkCursor();
         }
 
         // 1.2.5 renders RenderGlobal.tileEntities without checking isInvalid(), and only
@@ -239,100 +303,6 @@ public class GrugClientHooks implements ITickHandler {
         }
     }
 
-    @GrugGenerated("dev-only: pressing R starts a test run by hand")
-    private void handleTestRunnerHotkey() {
-        // isPressed() consumes the queued press, so this must be reached on every tick: skipping a
-        // tick while a key is held does not re-arm it.
-        if (RUN_TESTS_KEY.isPressed()) {
-            startTestRunner(false);
-        }
-    }
-
-    @GrugGenerated("dev-only: pressing M forces the test resolution by hand")
-    private void handleResolutionHotkey() {
-        if (!FORCE_RESOLUTION_KEY.isPressed()) {
-            return;
-        }
-
-        if (savedDisplayMode == null) {
-            savedDisplayMode = new DisplayMode(Display.getWidth(), Display.getHeight());
-            applyDisplayMode(new DisplayMode(GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
-            resolutionForcedByTestRun = false;
-        } else {
-            DisplayMode previous = savedDisplayMode;
-            savedDisplayMode = null;
-            resolutionForcedByTestRun = false;
-            applyDisplayMode(previous);
-        }
-    }
-
-    @GrugGenerated("test-run window and dither tooling")
-    private void startTestRunner(boolean fromCI) {
-        if (testRunner != null) {
-            return;
-        }
-
-        // Screenshot tests only compare equal at the resolution their reference was captured at, so
-        // a run always happens at 1280x720. If M already forced that size, leave its state alone:
-        // this run didn't set it up, so it shouldn't undo it, and a second M press is the way back.
-        if (savedDisplayMode == null) {
-            savedDisplayMode = new DisplayMode(Display.getWidth(), Display.getHeight());
-            applyDisplayMode(new DisplayMode(GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
-            resolutionForcedByTestRun = true;
-        }
-
-        // OpenGL dithers by default, which puts +/-1 noise on a GUI-sized crop and moves it around
-        // between runs, which is the difference between a pixel-exact comparison and one that can
-        // never pass.
-        ditherWasEnabled = GL11.glIsEnabled(GL11.GL_DITHER);
-        GL11.glDisable(GL11.GL_DITHER);
-
-        testRunner = new GrugTestRunner();
-        testRunnerFromCI = fromCI;
-    }
-
-    @GrugGenerated("test-run window and dither tooling")
-    private void finishTestRun() {
-        if (resolutionForcedByTestRun) {
-            DisplayMode previous = savedDisplayMode;
-            savedDisplayMode = null;
-            resolutionForcedByTestRun = false;
-            applyDisplayMode(previous);
-        }
-        if (ditherWasEnabled) {
-            GL11.glEnable(GL11.GL_DITHER);
-        }
-        ditherWasEnabled = false;
-
-        if (cursorParked) {
-            cursorParked = false;
-            Mouse.setCursorPosition(savedCursorX, savedCursorY);
-        }
-    }
-
-    /**
-     * Moves the pointer to a corner for the duration of a run, remembering where it was.
-     *
-     * <p>LWJGL's Mouse uses OpenGL window coordinates, so (0, 0) is a corner, outside the centered
-     * GUI. The game re-reads the position for every frame, so this has to be reapplied per frame
-     * rather than once, which is why it is called from {@code renderTick} and not from {@code
-     * startTestRunner}.
-     *
-     * <p>The saved position is captured on the first call, so a re-entry (or an external warp, such
-     * as a window manager moving the pointer back) does not overwrite the position to restore.
-     */
-    @GrugGenerated("dev-only: cursor parking")
-    private void parkCursor() {
-        if (!cursorParked) {
-            savedCursorX = Mouse.getX();
-            savedCursorY = Mouse.getY();
-            cursorParked = true;
-        }
-        if (Mouse.getX() != 0 || Mouse.getY() != 0) {
-            Mouse.setCursorPosition(0, 0);
-        }
-    }
-
     /**
      * Resizes the game window.
      *
@@ -340,8 +310,7 @@ public class GrugClientHooks implements ITickHandler {
      * is not enough; the top-level Window has to be resized and the layout then sizes the canvas.
      * The game re-reads the canvas size each frame, so displayWidth/Height follow.
      */
-    @GrugGenerated("test-run window and dither tooling")
-    private void applyDisplayMode(DisplayMode mode) {
+    private static void applyDisplayMode(DisplayMode mode) {
         try {
             Display.setDisplayMode(mode);
 
@@ -365,7 +334,6 @@ public class GrugClientHooks implements ITickHandler {
         }
     }
 
-    @GrugGenerated("test-run window and dither tooling")
     private static Window enclosingWindow(Component component) {
         for (Container ancestor = component.getParent();
                 ancestor != null;
@@ -377,7 +345,7 @@ public class GrugClientHooks implements ITickHandler {
         return null;
     }
 
-    private void logError(String text) {
+    private static void logError(String text) {
         mod_Grug.LOGGER.severe(text);
     }
 
