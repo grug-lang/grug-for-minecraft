@@ -206,7 +206,7 @@
 					]
 				},
 				"set_mod_file_state": {
-					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it.",
+					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it. The record of the original contents outlives the run, so a run that ends abruptly while a file is disturbed cannot leave that file unreadable for the next one.",
 					"parameters": [
 						{
 							"name": "relative_path",
