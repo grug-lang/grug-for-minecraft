@@ -293,24 +293,13 @@ tasks.register('extractNatives') {
 }
 
 tasks.register('prepareRunDir') {
-    description = 'Stages a pristine test save and the freshly built loader jar into run/.'
+    description = 'Stages the freshly built loader jar into run/.'
     dependsOn 'reobfJar'
     outputs.upToDateWhen { false }
     doLast {
-        def savesDir = new File(runDir, 'saves')
-        delete savesDir
-        savesDir.mkdirs()
-        def saveName = new File(projectDirFile, 'test-save.txt').text.trim()
-        def saveZip = new File(repoRoot, "test-saves/${saveName}")
-        if (!saveZip.isFile()) {
-            throw new GradleException("Missing test save: ${saveZip}")
-        }
-        copy {
-            from zipTree(saveZip)
-            into savesDir
-            duplicatesStrategy = DuplicatesStrategy.INCLUDE
-        }
-
+        // Deliberately leaves run/saves alone. run-loader.sh replaces it with a fresh copy of the
+        // test save before a CI launch, which is where that reset has to happen; a manual
+        // runClient keeps whatever the player built, the same as every other loader.
         def runModsDir = new File(runDir, 'mods')
         delete runModsDir
         runModsDir.mkdirs()
