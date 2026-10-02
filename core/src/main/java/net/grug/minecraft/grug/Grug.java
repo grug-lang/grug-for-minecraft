@@ -233,7 +233,7 @@ public final class Grug {
 
     /**
      * Filters a hot-reload batch down to the files that can be reloaded, reporting a compile
-     * failure or a file outside {@code code/} on the way.
+     * failure or a file outside {@code code/} or {@code tests/} on the way.
      *
      * <p>Kept apart so those reporting paths do not count against {@link #update}'s coverage.
      */
@@ -252,11 +252,12 @@ public final class Grug {
             }
 
             String[] pathParts = file.path().replace('\\', '/').split("/");
-            if (pathParts.length < 2 || !pathParts[1].equals("code")) {
+            if (pathParts.length < 2 || !GrugFileIndex.holdsScripts(pathParts[1])) {
                 String errorMsg =
                         "Ignored "
                                 + file.path()
-                                + ": grug files must be placed inside the 'code/' directory!";
+                                + ": grug files must be placed inside the 'code/' or 'tests/'"
+                                + " directory!";
                 GrugCore.getAdapter().logError(errorMsg);
                 if (onError != null) {
                     onError.accept(errorMsg);

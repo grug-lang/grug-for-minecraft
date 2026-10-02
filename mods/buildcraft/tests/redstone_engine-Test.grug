@@ -1,6 +1,6 @@
 # Covers the redstone engine block and its block entity.
 # The engine derives its active flag from the redstone signal at its position, and the redstone query
-# itself is covered by coverage/code/redstone_signal-Test.grug. grug block entities do not expose
+# itself is covered by coverage/tests/redstone_signal-Test.grug. grug block entities do not expose
 # member state to tests yet, so the flag's observable effects (its rendering, and powering a wooden
 # pipe) are covered by the rendering work and the wooden pipe tests.
 export run() {

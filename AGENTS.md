@@ -47,7 +47,10 @@ client while another Gradle build is launching a game.
 | :--- | :--- |
 | `core/` | shared runtime: the grug language, host functions, the test runner, its window state machine (`GrugRunWindow`), `GrugScreenshots` |
 | `mod_api.json` | the host API mods may call. Not frozen, but growth for its own sake is discouraged |
-| `mods/<mod>/code/*.grug` | the mod: `X-Block.grug`, `X_entity-BlockEntity.grug`, `X-Item.grug`, `X-Test.grug` |
+| `mods/<mod>/code/*.grug` | the mod: `X-Block.grug`, `X_entity-BlockEntity.grug`, `X-Item.grug` |
+| `mods/<mod>/tests/*.grug` | tests: `X-Test.grug`, which is a `Test` entity like any other grug file |
+| `mods/<mod>/assets/` | assets shipped with the mod |
+| `mods/<mod>/data/` | data shipped with the mod |
 | `mods/<mod>/about.json` | metadata, including the `recreation` block: reference, artifacts, runtime, deviations |
 | `mods/<mod>/screenshots/<name>/N.png` | golden references, one per distinct rendering |
 | `loaders/<loader>/` | one per Minecraft version and mod loader; `src/main/java` holds its adapter |
@@ -59,8 +62,12 @@ The README calls `mod_api.json` frozen. That discourages API growth for its own 
 changes: removing or replacing entries, adding test-only helpers, and fixing tooling are all
 fine, so do not block those on the freeze.
 
-Any file named `*-Test.grug` under `mods/*/code/` joins every loader's suite. `mods/coverage/code/`
-is the reference for what the language and API accept; read it before inventing syntax.
+Any file named `*-Test.grug` under `mods/` joins every loader's suite, so tests live in
+`mods/<mod>/tests/`. One that does not is an err, not a warning: `GrugFileIndex` reports it to the
+player in chat and as a `[GRUG CI] FAIL` line, which fails the run. It matters because
+`GrugTestRunner` sorts tests by path, so a test in `code/` runs out of name order, and the tests
+share one world. `mods/coverage/` is the reference for what the language and API accept; read its
+`code/` and `tests/` before inventing syntax.
 
 ## Running a loader
 

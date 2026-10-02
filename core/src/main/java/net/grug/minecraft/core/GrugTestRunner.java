@@ -1,6 +1,7 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 
@@ -108,8 +109,14 @@ public class GrugTestRunner {
         }
 
         this.tests = new ArrayList<>();
+        // Anything already queued was reported during startup, before any test ran, and a run owns
+        // the queue from here. Leaving it would let a test that expects an error match a startup
+        // message that happened to be waiting, since the expect_error path drains the same queue.
+        synchronized (Grug.runtimeErrorQueue) {
+            Grug.runtimeErrorQueue.clear();
+        }
         for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
-            if (entry.getKey().endsWith("-Test.grug")) {
+            if (entry.getKey().endsWith(GrugFileIndex.TEST_SUFFIX)) {
                 tests.add(entry);
             }
         }
