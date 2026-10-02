@@ -93,23 +93,33 @@ local _test_graphics_setup() {
     y: number = origin.y()
     z: number = origin.z()
 
-    # place_block quietly does nothing for a block it can't resolve, and get_block_entity finds
-    # nothing when the chunk isn't loaded, which is easy to hit right after a teleport. Checking
-    # each one turns either mistake into a readable failure rather than a screenshot of nothing.
+    # The table is placed again, unconditionally: re-placing it is a no-op while it is there
+    # (same id and metadata), and it repairs the case where nothing is left at this origin, which
+    # Alpha hits. A chest is not idempotent, though: the first placement orients it, so re-placing
+    # one replaces the block, and replacing a chest drops its contents (BlockChest.onBlockRemoval)
+    # next to the player, who picks them up into the screenshot. So the chests are only placed
+    # when they are missing. get_block_entity finding nothing turns a missing chunk or block into a
+    # readable failure rather than a screenshot of nothing.
 
     level.place_block(x, y, z, _autocrafting_table())
     table_be: Option[BlockEntity] = level.get_block_entity(x, y, z)
     Test.assert(table_be.has(), "The autocrafting table has no block entity after being placed.")
     graphics_table.set(table_be.unwrap())
 
-    level.place_block(x + 1, y, z, "minecraft:chest")
     chest1_be: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
-    Test.assert(chest1_be.has(), "Chest 1 has no block entity after being placed.")
+    if not chest1_be.has() {
+        level.place_block(x + 1, y, z, "minecraft:chest")
+        chest1_be = level.get_block_entity(x + 1, y, z)
+    }
+    Test.assert(chest1_be.has(), "Chest 1 has no block entity.")
     graphics_chest1.set(chest1_be.unwrap())
 
-    level.place_block(x - 1, y, z, "minecraft:chest")
     chest2_be: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
-    Test.assert(chest2_be.has(), "Chest 2 has no block entity after being placed.")
+    if not chest2_be.has() {
+        level.place_block(x - 1, y, z, "minecraft:chest")
+        chest2_be = level.get_block_entity(x - 1, y, z)
+    }
+    Test.assert(chest2_be.has(), "Chest 2 has no block entity.")
     graphics_chest2.set(chest2_be.unwrap())
 
     set_item_in_slot(graphics_chest1.unwrap(), 0, diamond_item, 5)
