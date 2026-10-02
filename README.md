@@ -31,6 +31,20 @@ An in-game mod portal will let players browse, install, and update mods without 
 
 In the future, `grug-for-minecraft` will ship ready-to-use releases that work out-of-the-box on Windows, macOS, and Linux.
 
+### Test Keys
+
+grug's test suite runs from inside the game, in a normal build, with no environment variable to set.
+Press **R** in any world to run every test. It works the same whether you built grug from source or
+installed a release, and the game stays open afterwards so you can press R again.
+
+| Key | What it does |
+| :--- | :--- |
+| **M** | Toggles the window between its current size and a forced 1280x720. While it's on, the cursor's pixel position is kept in chat, in the same top-left-origin convention `Test.screenshot().equals` takes: open the screen you're writing a test against, hover the pixel you want, and read the coordinate off the latest `Cursor:` line. Press M first, or the coordinates you read won't be the ones CI sees. |
+| **R** | Runs every test. It forces 1280x720 for the duration of the run and restores the previous resolution afterwards, so tests always run at the resolution their references were captured at. |
+
+A failing test stops the run there and reports why in your chat. If M had already forced the
+resolution, a run leaves it alone, so a second press of M is still the way back.
+
 ## For Developers
 
 ### Requirements
@@ -54,13 +68,6 @@ Use the following Gradle commands to build and run the specific mod loader envir
 | **Beta 1.7.3** | Ornithe | `./gradlew :loaders:b1.7.3-ornithe:runClient` |
 | **Beta 1.7.3** | StationAPI | `./gradlew :loaders:b1.7.3-stationapi:runClient` |
 | **Alpha 1.1.2_01** | Ornithe | `./gradlew :loaders:a1.1.2_01-ornithe:runClient` |
-
-### Test Keys
-
-| Key | What it does |
-| :--- | :--- |
-| **M** | Toggles the window between its current size and a forced 1280x720. While it's on, the cursor's pixel position is kept in chat, in the same top-left-origin convention `Test.screenshot().equals` takes: open the screen you're writing a test against, hover the pixel you want, and read the coordinate off the latest `Cursor:` line. Press M first, or the coordinates you read won't be the ones CI sees. |
-| **R** | Runs every test. It forces 1280x720 for the duration of the run and restores the previous resolution afterwards, so tests always run at the resolution their references were captured at. |
 
 ### Accepting Screenshot References
 
