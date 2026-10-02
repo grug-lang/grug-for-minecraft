@@ -8,11 +8,13 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
+import net.minecraft.src.KeyBinding;
 import net.minecraft.src.PlayerControllerSP;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.WorldSettings;
 import net.minecraft.src.WorldType;
 
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.DisplayMode;
 import org.lwjgl.opengl.GL11;
@@ -41,8 +43,23 @@ public class GrugClientHooks {
     private GrugTestRunner testRunner = null;
     private boolean testRunnerFromCI = false;
 
+    /**
+     * R starts a test run and M forces the screenshot resolution by hand, matching the other four
+     * loaders. 1.2.5 registers these by constructing KeyBindings, which adds them to the static
+     * keybindArray and hash the game itself polls from Minecraft.runTick, so {@code isPressed()}
+     * reflects a real keypress rather than a poll.
+     */
+    private static final KeyBinding RUN_TESTS_KEY =
+            new KeyBinding("key.grug.run_tests", Keyboard.KEY_R);
+
+    private static final KeyBinding FORCE_RESOLUTION_KEY =
+            new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);
+
     /** Non-null exactly while the window is forced to the screenshot resolution. */
     private DisplayMode savedDisplayMode = null;
+
+    /** True only while R (not M) is the reason the window is forced, so only R restores it. */
+    private boolean resolutionForcedByTestRun = false;
 
     /** Whether GL_DITHER was on before a run turned it off, so it can be put back. */
     private boolean ditherWasEnabled = false;
@@ -83,6 +100,13 @@ public class GrugClientHooks {
             }
         }
 
+        // Only once a world is loaded: the runner needs a player to tick, and the resolution toggle
+        // resizes a window that has nothing to screenshot yet.
+        if (minecraft.thePlayer != null) {
+            handleTestRunnerHotkey();
+            handleResolutionHotkey();
+        }
+
         String[] updatedResources = Grug.update(this::logError);
         if (updatedResources.length > 0 && minecraft.renderEngine != null) {
             minecraft.renderEngine.refreshTextures();
@@ -114,15 +138,46 @@ public class GrugClientHooks {
         }
     }
 
-    @GrugGenerated("test-run window and dither tooling")
-    private void startTestRunner(boolean fromCI) {
-        if (testRunner != null) {
+    @GrugGenerated("dev-only: pressing R starts a test run by hand")
+    private void handleTestRunnerHotkey() {
+        // isPressed() consumes the queued press, so this must be reached on every tick: skipping a
+        // tick while a key is held does not re-arm it.
+        if (RUN_TESTS_KEY.isPressed()) {
+            startTestRunner(false);
+        }
+    }
+
+    @GrugGenerated("dev-only: pressing M forces the test resolution by hand")
+    private void handleResolutionHotkey() {
+        if (!FORCE_RESOLUTION_KEY.isPressed()) {
             return;
         }
 
         if (savedDisplayMode == null) {
             savedDisplayMode = new DisplayMode(Display.getWidth(), Display.getHeight());
             applyDisplayMode(new DisplayMode(GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
+            resolutionForcedByTestRun = false;
+        } else {
+            DisplayMode previous = savedDisplayMode;
+            savedDisplayMode = null;
+            resolutionForcedByTestRun = false;
+            applyDisplayMode(previous);
+        }
+    }
+
+    @GrugGenerated("test-run window and dither tooling")
+    private void startTestRunner(boolean fromCI) {
+        if (testRunner != null) {
+            return;
+        }
+
+        // Screenshot tests only compare equal at the resolution their reference was captured at, so
+        // a run always happens at 1280x720. If M already forced that size, leave its state alone:
+        // this run didn't set it up, so it shouldn't undo it, and a second M press is the way back.
+        if (savedDisplayMode == null) {
+            savedDisplayMode = new DisplayMode(Display.getWidth(), Display.getHeight());
+            applyDisplayMode(new DisplayMode(GrugScreenshots.WIDTH, GrugScreenshots.HEIGHT));
+            resolutionForcedByTestRun = true;
         }
 
         // OpenGL dithers by default, which puts +/-1 noise on a GUI-sized crop and moves it around
@@ -137,9 +192,10 @@ public class GrugClientHooks {
 
     @GrugGenerated("test-run window and dither tooling")
     private void finishTestRun() {
-        if (savedDisplayMode != null) {
+        if (resolutionForcedByTestRun) {
             DisplayMode previous = savedDisplayMode;
             savedDisplayMode = null;
+            resolutionForcedByTestRun = false;
             applyDisplayMode(previous);
         }
         if (ditherWasEnabled) {
