@@ -57,6 +57,10 @@ USER_AGENT = "grug-for-minecraft dead link check"
 # Only these mean the page is gone. Anything else non-2xx is the host's problem, not the url's.
 DEAD_STATUSES = frozenset({404, 410})
 
+# A HEAD answer in this set is retried with GET. Either the server does not do HEAD, or the answer
+# would be reported as dead and so is worth confirming.
+RETRY_WITH_GET = frozenset({403, 404, 405, 410, 501})
+
 URL_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
 
 # A json path this module deliberately does not check, because recreation.py already does.
@@ -98,10 +102,6 @@ class HostThrottle:
             if remaining > 0:
                 self._sleep(remaining)
         self._last[host] = self._monotonic()
-
-    @property
-    def hosts_seen(self) -> int:
-        return len(self._last)
 
 
 def collect_urls(node, path: str = "") -> list:
@@ -172,8 +172,14 @@ def classify(status: int | None) -> str:
 def fetch_status(url: str, timeout: float) -> tuple:
     """The final status for url as (status or None, detail).
 
-    Tries HEAD first and falls back to GET for the statuses that mean "this server does not do
-    HEAD", which is cheaper than always downloading a jar just to learn the file is gone.
+    Tries HEAD first and falls back to GET, which is cheaper than always downloading a page just to
+    learn it is gone. The fallback covers two cases:
+
+    - The server does not do HEAD at all (403, 405, 501).
+    - The answer would be reported as dead (404, 410). A 404 on HEAD is not proof the page is gone:
+      some servers and CDNs answer HEAD with 404 and GET with 200. A dead verdict is what fails the
+      build, so it is worth the second request to confirm, and this costs nothing for a url that is
+      genuinely alive.
     """
     for method in ("HEAD", "GET"):
         request = urllib.request.Request(url, method=method, headers={"User-Agent": USER_AGENT})
@@ -181,7 +187,7 @@ def fetch_status(url: str, timeout: float) -> tuple:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 return response.status, f"HTTP {response.status} via {method}"
         except urllib.error.HTTPError as error:
-            if method == "HEAD" and error.code in (403, 405, 501):
+            if method == "HEAD" and error.code in RETRY_WITH_GET:
                 continue
             return error.code, f"HTTP {error.code} via {method}"
         except urllib.error.URLError as error:
