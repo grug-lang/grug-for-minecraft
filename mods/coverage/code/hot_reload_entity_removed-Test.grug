@@ -1,0 +1,31 @@
+# Removes a foo_block's block entity, forces the host entities it rooted to be collected, then
+# hot-reloads the block entity script. Without a removal hook the engine still tracks the removed
+# entity and re-inits it on the reload, which reads members Java has already collected and crashes.
+change_baseline: number = -1
+path: string = "examplemod/code/foo_block_entity-BlockEntity.grug"
+
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+
+        # A block whose script roots host entities in its members.
+        level.place_block(origin.x() + 9, origin.y(), origin.z(), "grug:foo_block")
+        Test.not_done()
+    } else if Test.tick() == 1 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+
+        # Replacing it removes the block entity, which has to destroy the grug entity it owns.
+        level.place_block(origin.x() + 9, origin.y(), origin.z(), "grug:coverage_block")
+        Test.force_gc()
+
+        change_baseline = Test.hot_reload_count(path)
+        Test.set_mod_file_state(path, "invalid")
+        Test.not_done()
+    } else if Test.hot_reload_count(path) <= change_baseline {
+        Test.not_done()
+    } else {
+        Test.set_mod_file_state(path, "normal")
+    }
+}

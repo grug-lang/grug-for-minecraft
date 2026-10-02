@@ -123,7 +123,16 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     @Override
     public void markRemoved() {
         super.markRemoved();
+        destroyGrugEntity();
+    }
 
+    /**
+     * Destroys the grug entity and releases the host entities it rooted.
+     *
+     * <p>Called from {@code markRemoved}, and from {@code GrugBlock.onRemoved} so the shared block
+     * code frees the entity on both loaders. Idempotent, so the second call is a no-op.
+     */
+    public void destroyGrugEntity() {
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;

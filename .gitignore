@@ -43,4 +43,4 @@ reference-artifact
 reference-artifact.*
 
 # Coverage artifacts written by combine-coverage.py, locally and in the coverage CI job
-coverage/
+/coverage/
