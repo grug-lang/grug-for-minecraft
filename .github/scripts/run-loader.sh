@@ -202,6 +202,9 @@ case "$status" in
   failed)
     echo "==> $LOADER tests failed." >&2
     grep -n -B2 -A10 "FAIL " "$LOG_FILE" >&2 || true
+    # The loop classifies on the first FAIL line, so a panic that lands after it, during shutdown
+    # for example, would otherwise be reported as a plain test failure and never surfaced.
+    report_native_abort ""
     ;;
   crashed)
     if [ "$reached_title" = true ]; then
@@ -213,8 +216,17 @@ case "$status" in
     grep -n -m1 -B2 -A14 -E "$crash_re" "$LOG_FILE" >&2 || true
     ;;
   aborted)
-    wait "$gradle_pid"
-    exit_code=$?
+    # The poll loop matched a panic that aborts the process, so this normally returns at once. Stop
+    # at the loop's deadline anyway: a log string that only looks like a panic must not make the
+    # script wait past the timeout it promises.
+    while kill -0 "$gradle_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 1
+    done
+    exit_code=""
+    if ! kill -0 "$gradle_pid" 2>/dev/null; then
+      wait "$gradle_pid"
+      exit_code=$?
+    fi
     if [ "$reached_title" = true ]; then
       echo "==> $LOADER's game process aborted inside the grug VM after reaching the title screen." >&2
     else
