@@ -15,9 +15,13 @@ client while another Gradle build is launching a game.
 ## Working alongside other agents
 
 - Work in your own git worktree, one per task, and run the session from there:
-  `git worktree add ../grug-<task> -b <branch>`. A shared checkout means two agents see each
-  other's edits, branches and test runs, and every confusing failure becomes unattributable.
-  Move the session into the worktree when the harness has a tool for that.
+  `git worktree add ~/agent-workspaces/grug-for-minecraft-<task> -b <branch>`. A shared checkout
+  means two agents see each other's edits, branches and test runs, and every confusing failure
+  becomes unattributable. Move the session into the worktree when the harness has a tool for that.
+- When a task lands, remove its worktree and branch from the main checkout:
+  `git worktree remove --force <path>`, then `git cherry origin/main <branch>` (every line starts
+  with `-` once a rebase merge carries the commits; `git branch --merged` reports the opposite),
+  then `git branch -D <branch>` and `git worktree prune`.
 - Each worktree gets its own `loaders/*/run/`, so game runs and screenshot artifacts do not
   collide through `run/saves`, `run/grug_mods` or the capture directory.
 - The two-client limit above is for the whole machine, not per agent. Check what is already
