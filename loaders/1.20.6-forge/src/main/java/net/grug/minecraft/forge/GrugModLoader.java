@@ -384,6 +384,17 @@ public class GrugModLoader {
 
         private static boolean grug$titleSet = false;
         private static boolean grug$testsRan = false;
+
+        /**
+         * How long to wait for the client to receive the world before failing the run. A placement
+         * into a chunk that has not arrived is silently replaced later, so the wait is what keeps a
+         * setup from building into a placeholder chunk; the deadline is what keeps a world that
+         * never loads from hanging.
+         */
+        private static final long WORLD_READY_TIMEOUT_MILLIS = 60000;
+
+        private static long grug$worldWaitStartMillis = 0;
+
         private static GrugTestRunner grug$testRunner = null;
         private static boolean grug$testRunnerFromCI = false;
 
@@ -425,8 +436,30 @@ public class GrugModLoader {
                         && !grug$testsRan
                         && mc.player != null
                         && mc.getSingleplayerServer() != null) {
-                    grug$testsRan = true;
-                    startTestRunner(mc, true);
+                    // The runner starts as soon as the player exists, which can be before the
+                    // client
+                    // has received the chunks the tests build in. Wait for them; a world that never
+                    // arrives fails the run instead of starting tests against placeholder chunks.
+                    if (grug$worldWaitStartMillis == 0) {
+                        grug$worldWaitStartMillis = System.currentTimeMillis();
+                    }
+                    boolean ready = GrugCore.getAdapter().isWorldReady(mc.player);
+                    if (ready) {
+                        System.out.println(
+                                "[GRUG CI] CI mode active & player loaded after "
+                                        + (System.currentTimeMillis() - grug$worldWaitStartMillis)
+                                        + " ms. Firing tests!");
+                        grug$testsRan = true;
+                        startTestRunner(mc, true);
+                    } else if (System.currentTimeMillis() - grug$worldWaitStartMillis
+                            >= WORLD_READY_TIMEOUT_MILLIS) {
+                        System.out.println("[GRUG CI] FAIL world readiness");
+                        System.out.println(
+                                "[GRUG CI] The client did not receive the world within "
+                                        + (WORLD_READY_TIMEOUT_MILLIS / 1000)
+                                        + " seconds, so the tests were not started.");
+                        grug$testsRan = true;
+                    }
                 }
 
                 // The runner does one Test.run() call per real tick, so that real ticks (and real

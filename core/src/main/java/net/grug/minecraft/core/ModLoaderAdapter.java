@@ -103,6 +103,14 @@ public interface ModLoaderAdapter {
     Object getPlayer();
 
     /**
+     * Whether the client has received the chunks a test setup builds in: the neighbourhood around
+     * the player has terrain below the player's feet. A write into a chunk the client has not
+     * received lands in a placeholder chunk that the arriving real chunk then replaces, losing the
+     * block and its block entity.
+     */
+    boolean isWorldReady(Object playerObj);
+
+    /**
      * Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load
      * paths without the game actually saving and reloading a world.
      */

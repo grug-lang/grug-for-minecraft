@@ -423,6 +423,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
             net.minecraft.core.BlockPos pos =
                     new net.minecraft.core.BlockPos(
                             (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+
             world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
         } else {
             GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
@@ -478,6 +479,35 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private Block resolveBlock(ResourceLocation id) {
         Block targetBlock = ForgeRegistries.BLOCKS.getValue(id);
         return (targetBlock != null && targetBlock != Blocks.AIR) ? targetBlock : null;
+    }
+
+    @Override
+    public boolean isWorldReady(Object playerObj) {
+        Player player = (Player) playerObj;
+        Object level = getClientLevel();
+        int x = (int) Math.floor(player.getX());
+        int y = (int) Math.floor(player.getY());
+        int z = (int) Math.floor(player.getZ());
+        int chunkX = x >> 4;
+        int chunkZ = z >> 4;
+
+        // A chunk the client has not received reads as air all the way down, so any terrain at or
+        // below the feet proves the chunk data arrived. The four side neighbours are probed because
+        // the coverage tests build up to 9 blocks away, far enough to cross a chunk border.
+        return columnHasTerrain(level, x, z, y)
+                && columnHasTerrain(level, (chunkX + 1) << 4, z, y)
+                && columnHasTerrain(level, ((chunkX - 1) << 4) + 15, z, y)
+                && columnHasTerrain(level, x, (chunkZ + 1) << 4, y)
+                && columnHasTerrain(level, x, ((chunkZ - 1) << 4) + 15, y);
+    }
+
+    private boolean columnHasTerrain(Object level, int x, int z, int fromY) {
+        for (int y = fromY; y >= 0; y--) {
+            if (!isAir(level, x, y, z)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @GrugGenerated("test origin: server-vs-client player choice is loader plumbing")
