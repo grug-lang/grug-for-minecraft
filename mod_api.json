@@ -338,6 +338,17 @@
 							}
 						}
 					]
+				},
+				"force_fidelity": {
+					"description": "Test only: judges the rest of this test as though the mod owning it declared this recreation fidelity, so a mod that is not itself an exact recreation can still cover the exact-fidelity rules. One of \"exact\", \"behavioral\" or \"inspired\", matching about.json. Reset before every test, so it never reaches a test that did not ask for it, and it only ever applies to the mod owning the test.",
+					"parameters": [
+						{
+							"name": "fidelity",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
 				}
 			}
 		}
@@ -862,7 +873,7 @@
 					]
 				},
 				"tolerance": {
-					"description": "Sets the most any single pixel may differ before the comparison fails, as an integer percentage of the full 0 to 255 channel range, and returns this same builder so calls can be chained. A pixel's difference is the largest absolute change in any of its red, green or blue channels, and the comparison fails if any pixel changed by more than 255 * percent / 100. The default is 0, a pixel-exact comparison. The value must be the smallest integer that passes: a value higher than necessary fails with a message naming the smallest one, because a high tolerance makes the assertion always pass, at which point it stops being a test and hides real regressions instead of catching them. Tolerance is a last resort, so prefer the lowest percentage that works; a capture that is not reproducible from run to run is its own bug to fix (the crop, the camera, or the tick timing) rather than a reason to widen the tolerance.",
+					"description": "Sets the most any single pixel may differ before the comparison fails, as an integer percentage of the full 0 to 255 channel range, and returns this same builder so calls can be chained. A pixel's difference is the largest absolute change in any of its red, green or blue channels, and the comparison fails if any pixel changed by more than 255 * percent / 100. The default is 0, a pixel-exact comparison. The value must be the smallest integer that passes: a value higher than necessary fails with a message naming the smallest one, because a high tolerance makes the assertion always pass, at which point it stops being a test and hides real regressions instead of catching them. Tolerance is a last resort, so prefer the lowest percentage that works; a capture that is not reproducible from run to run is its own bug to fix (the crop, the camera, or the tick timing) rather than a reason to widen the tolerance. A percentage above 0 is refused outright when the mod owning the running test declares `recreation.fidelity` of `exact`, since that mod promises to reproduce its reference pixel for pixel; 0 stays allowed, as does any percentage for a mod declaring `behavioral` or `inspired`.",
 					"return_type": {
 						"name": "Screenshot"
 					},

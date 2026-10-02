@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugModFidelity;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,6 +39,28 @@ public final class Grug {
     // Test.run() call. While non-null, an export function that aborts on a host error whose message
     // contains this text counts as a pass, which is how the error branches get exercised.
     public static String testExpectedError = null;
+
+    // Set by GrugTestRunner to the mod directory holding the running *-Test.grug, so the running
+    // test's own about.json decides what it is allowed to assert. The owning mod, rather than
+    // whichever mod a screenshot happens to render, is who answers for the promise.
+    public static String currentTestMod = null;
+
+    // Set by Test.force_fidelity(); reset to null by GrugTestRunner immediately before each
+    // Test.run() call, so one test's override cannot go on deciding the next one's assertions.
+    public static String testFidelityOverride = null;
+
+    /**
+     * Whether the mod owning the running test promises an exact recreation, honouring a test-only
+     * override. A test can only override the fidelity for its own mod, which is why the override
+     * replaces the declared value rather than being consulted for another mod.
+     */
+    public static boolean currentTestIsExact() {
+        String fidelity = testFidelityOverride;
+        if (fidelity == null && currentTestMod != null) {
+            fidelity = GrugModFidelity.of(currentTestMod);
+        }
+        return GrugModFidelity.EXACT.equals(fidelity);
+    }
 
     public static final Map<String, GrugBlockData> declaredBlocks = new HashMap<>();
     public static final Map<Long, GrugBlockData> blockDataByFileId = new HashMap<>();

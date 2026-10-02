@@ -1,6 +1,8 @@
 package net.grug.minecraft.core;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.Grug;
@@ -8,6 +10,8 @@ import net.grug.minecraft.grug.Grug;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -54,6 +58,8 @@ class GrugTestRunnerTest {
         Grug.testNotDone = false;
         Grug.testExpectedError = null;
         Grug.currentTestTick = 0;
+        Grug.currentTestMod = null;
+        Grug.testFidelityOverride = null;
         Grug.printQueue.clear();
         Grug.runtimeErrorQueue.clear();
     }
@@ -289,5 +295,36 @@ class GrugTestRunnerTest {
         assertTrue(runner.isFinished());
         assertTrue(
                 Grug.runtimeErrorQueue.stream().anyMatch(m -> m.contains("IllegalStateException")));
+    }
+
+    @Test
+    void tellsTheRuntimeWhichModOwnsTheRunningTest() {
+        // The owning mod decides what its tests may assert, so it has to be the mod holding the
+        // running test rather than whichever mod a screenshot happens to render.
+        FakeOps ops = new FakeOps();
+        final List<String> owningMods = new ArrayList<>();
+        ops.onCall = () -> owningMods.add(Grug.currentTestMod);
+
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("secondmod/code/b-Test.grug", 2L);
+        files.put("firstmod/code/a-Test.grug", 1L);
+        runToEnd(runner(ops, files));
+
+        assertEquals(List.of("firstmod", "secondmod"), owningMods);
+    }
+
+    @Test
+    void clearsAFidelityOverrideBetweenTests() {
+        // An override only ever judges the test that asked for it, so it must not survive into the
+        // next one even when that test failed partway through.
+        FakeOps ops = new FakeOps();
+        ops.onCall =
+                () -> {
+                    Grug.testFidelityOverride = "exact";
+                    ops.completed = false;
+                };
+        runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
+
+        assertNull(Grug.testFidelityOverride);
     }
 }

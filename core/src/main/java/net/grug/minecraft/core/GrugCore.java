@@ -27,6 +27,11 @@ public class GrugCore {
                             + String.join("\n  ", licenseErrors));
         }
 
+        // Read alongside the licenses because it is the same kind of promise about a mod: an exact
+        // recreation is only meaningful if a test has to honour it, so the fidelity each mod claims
+        // has to be known before any test runs.
+        GrugModFidelity.load(grugModsDir);
+
         Grug.init(modApiJson, grugModsDir);
     }
 

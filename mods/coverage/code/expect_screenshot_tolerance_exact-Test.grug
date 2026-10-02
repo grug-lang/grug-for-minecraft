@@ -1,0 +1,10 @@
+# An exact recreation promises to reproduce its reference pixel for pixel, so its tests must not
+# allow a tolerance. The owning mod is the one holding the test, so forcing the fidelity is what puts
+# the coverage mod under the rule it does not declare for itself.
+export run() {
+    if Test.tick() == 0 {
+        Test.force_fidelity("exact")
+        Test.expect_error("declares an exact recreation")
+        Test.screenshot().tolerance(1).equals(r"screenshots/dummy", 590, 310, 690, 410)
+    }
+}
