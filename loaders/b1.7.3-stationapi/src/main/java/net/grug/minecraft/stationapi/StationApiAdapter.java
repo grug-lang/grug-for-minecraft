@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
@@ -472,30 +473,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
     public boolean isWorldReady(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
         Object level = getClientLevel();
-        int x = (int) Math.floor(player.x);
-        int y = (int) Math.floor(player.boundingBox.minY);
-        int z = (int) Math.floor(player.z);
-        int chunkX = x >> 4;
-        int chunkZ = z >> 4;
 
-        // y is the eye reference in this version, so the feet come from the collision box. A chunk
-        // the client has not received reads as air all the way down, so any terrain at or below the
-        // feet proves the chunk data arrived. The four side neighbours are probed because the
-        // coverage tests build up to 9 blocks away, far enough to cross a chunk border.
-        return columnHasTerrain(level, x, z, y)
-                && columnHasTerrain(level, (chunkX + 1) << 4, z, y)
-                && columnHasTerrain(level, ((chunkX - 1) << 4) + 15, z, y)
-                && columnHasTerrain(level, x, (chunkZ + 1) << 4, y)
-                && columnHasTerrain(level, x, ((chunkZ - 1) << 4) + 15, y);
-    }
-
-    private boolean columnHasTerrain(Object level, int x, int z, int fromY) {
-        for (int y = fromY; y >= 0; y--) {
-            if (!isAir(level, x, y, z)) {
-                return true;
-            }
-        }
-        return false;
+        // y is the eye reference in this version, so the feet come from the collision box.
+        return GrugWorldReady.isReady(
+                (x, y, z) -> isAir(level, x, y, z), player.x, player.boundingBox.minY, player.z);
     }
 
     @Override
