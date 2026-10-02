@@ -107,4 +107,20 @@ class GrugFidelityTest {
         assertFalse(Grug.currentTestIsExact());
         assertTrue(GrugModFidelity.allowsTolerance(1));
     }
+
+    @Test
+    void anOverrideCannotLoosenADeclaredExact() throws IOException {
+        // The label is a promise about the mod, so a test-only override can tighten the rule but
+        // never relax it: an exact mod stays exact whatever its tests ask to be judged as.
+        declare("exactmod", "exact");
+        GrugModFidelity.load(mods.toFile());
+        Grug.currentTestMod = "exactmod";
+
+        Grug.testFidelityOverride = "inspired";
+        assertTrue(Grug.currentTestIsExact());
+        assertFalse(GrugModFidelity.allowsTolerance(1));
+
+        Grug.testFidelityOverride = "behavioral";
+        assertTrue(Grug.currentTestIsExact());
+    }
 }

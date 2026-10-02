@@ -340,7 +340,7 @@
 					]
 				},
 				"force_fidelity": {
-					"description": "Test only: judges the rest of this test as though the mod owning it declared this recreation fidelity, so a mod that is not itself an exact recreation can still cover the exact-fidelity rules. One of \"exact\", \"behavioral\" or \"inspired\", matching about.json. Reset before every test, so it never reaches a test that did not ask for it, and it only ever applies to the mod owning the test.",
+					"description": "Test only: judges the rest of this test as though the mod owning it declared this recreation fidelity, so a mod that is not itself an exact recreation can still cover the exact-fidelity rules. One of \"exact\", \"behavioral\" or \"inspired\", matching about.json. Reset before every test, so it never reaches a test that did not ask for it, and it only ever applies to the mod owning the test. It can only tighten the rule: a mod that declares exact is judged exact whatever a test sets it to.",
 					"parameters": [
 						{
 							"name": "fidelity",

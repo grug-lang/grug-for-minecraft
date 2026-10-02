@@ -46,20 +46,21 @@ public final class Grug {
     public static String currentTestMod = null;
 
     // Set by Test.force_fidelity(); reset to null by GrugTestRunner immediately before each
-    // Test.run() call, so one test's override cannot go on deciding the next one's assertions.
+    // Test.run() call, so one test's override cannot go on deciding the next one's assertions. It
+    // can only tighten a test's rule: a mod that declares exact stays exact whatever it is set to.
     public static String testFidelityOverride = null;
 
     /**
      * Whether the mod owning the running test promises an exact recreation, honouring a test-only
-     * override. A test can only override the fidelity for its own mod, which is why the override
-     * replaces the declared value rather than being consulted for another mod.
+     * override. A declared exact is final: an override can tighten the rule to exact, which is how
+     * a mod that is not itself exact covers the exact-fidelity rules, but it cannot loosen a mod
+     * that declares exact.
      */
     public static boolean currentTestIsExact() {
-        String fidelity = testFidelityOverride;
-        if (fidelity == null && currentTestMod != null) {
-            fidelity = GrugModFidelity.of(currentTestMod);
+        if (currentTestMod != null && GrugModFidelity.isExact(currentTestMod)) {
+            return true;
         }
-        return GrugModFidelity.EXACT.equals(fidelity);
+        return GrugModFidelity.EXACT.equals(testFidelityOverride);
     }
 
     public static final Map<String, GrugBlockData> declaredBlocks = new HashMap<>();

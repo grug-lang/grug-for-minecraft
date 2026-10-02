@@ -4,7 +4,7 @@
 export run() {
     if Test.tick() == 0 {
         Test.force_fidelity("exact")
-        Test.expect_error("declares an exact recreation")
+        Test.expect_error("is being judged as an exact recreation")
         Test.screenshot().tolerance(1).equals(r"screenshots/dummy", 590, 310, 690, 410)
     }
 }
