@@ -15,6 +15,7 @@ import net.minecraft.src.WorldSettings;
 import net.minecraft.src.WorldType;
 
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.DisplayMode;
 import org.lwjgl.opengl.GL11;
@@ -64,6 +65,14 @@ public class GrugClientHooks {
     /** Whether GL_DITHER was on before a run turned it off, so it can be put back. */
     private boolean ditherWasEnabled = false;
 
+    /** Where the pointer was before a run parked it, so it can be put back afterwards. */
+    private int savedCursorX = 0;
+
+    private int savedCursorY = 0;
+
+    /** True only while a run has the pointer parked, so only that run restores it. */
+    private boolean cursorParked = false;
+
     public void tick(Minecraft minecraft) {
         if ("true".equals(System.getenv("GRUG_CI"))
                 && !worldRequested
@@ -105,6 +114,15 @@ public class GrugClientHooks {
         if (minecraft.thePlayer != null) {
             handleTestRunnerHotkey();
             handleResolutionHotkey();
+        }
+
+        // A captured frame must not depend on where the invisible pointer happens to be: 1.2.5's
+        // GuiContainer paints a 50% white highlight over the slot under the mouse, and a tooltip
+        // follows it, so a screenshot would record whichever slot the user last hovered. Park the
+        // pointer in a corner outside the centered GUI for the duration of a run. The pointer is
+        // not drawn into the framebuffer, so this only removes that incidental state. See #124.
+        if (testRunner != null && !Mouse.isGrabbed()) {
+            parkCursor();
         }
 
         String[] updatedResources = Grug.update(this::logError);
@@ -202,6 +220,34 @@ public class GrugClientHooks {
             GL11.glEnable(GL11.GL_DITHER);
         }
         ditherWasEnabled = false;
+
+        if (cursorParked) {
+            cursorParked = false;
+            Mouse.setCursorPosition(savedCursorX, savedCursorY);
+        }
+    }
+
+    /**
+     * Moves the pointer to a corner for the duration of a run, remembering where it was.
+     *
+     * <p>LWJGL's Mouse uses OpenGL window coordinates, so (0, 0) is a corner, outside the centered
+     * GUI. The game re-reads the position every poll, so this has to be reapplied on each tick
+     * rather than once, which is why it is called from the tick and not from {@code
+     * startTestRunner}.
+     *
+     * <p>The saved position is captured on the first call, so a re-entry (or an external warp, such
+     * as a window manager moving the pointer back) does not overwrite the position to restore.
+     */
+    @GrugGenerated("dev-only: cursor parking")
+    private void parkCursor() {
+        if (!cursorParked) {
+            savedCursorX = Mouse.getX();
+            savedCursorY = Mouse.getY();
+            cursorParked = true;
+        }
+        if (Mouse.getX() != 0 || Mouse.getY() != 0) {
+            Mouse.setCursorPosition(0, 0);
+        }
     }
 
     /**
