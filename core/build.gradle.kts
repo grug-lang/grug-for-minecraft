@@ -103,35 +103,24 @@ fun runCommand(command: List<String>, workingDir: File? = null) {
 }
 
 val grugRsDir = layout.buildDirectory.dir("grug-rs").get().asFile
-val grugRsBranch = "optional-resource"
+val grugRsUrl = "https://github.com/grug-lang/grug-rs.git"
+
+// Pinned for stability. Bump this every so often.
+val grugRsRevision = "92cce90489b9104b51786c01616c7817bd291bf7"
 
 val cloneGrugRs = tasks.register("cloneGrugRs") {
     doLast {
         if (!grugRsDir.resolve(".git").exists()) {
-            runCommand(
-                listOf(
-                    "git",
-                    "clone",
-                    "--branch",
-                    grugRsBranch,
-                    "https://github.com/grug-lang/grug-rs.git",
-                    grugRsDir.absolutePath
-                )
-            )
-        } else {
-            runCommand(
-                listOf("git", "fetch", "origin", grugRsBranch),
-                grugRsDir
-            )
-            runCommand(
-                listOf("git", "checkout", grugRsBranch),
-                grugRsDir
-            )
-            runCommand(
-                listOf("git", "reset", "--hard", "origin/$grugRsBranch"),
-                grugRsDir
-            )
+            // init and fetch by name rather than clone --branch: a clone fetches the default branch,
+            // and the pinned commit is not reachable from it.
+            grugRsDir.mkdirs()
+            runCommand(listOf("git", "init", grugRsDir.absolutePath), grugRsDir)
+            runCommand(listOf("git", "remote", "add", "origin", grugRsUrl), grugRsDir)
         }
+
+        runCommand(listOf("git", "fetch", "--depth", "1", "origin", grugRsRevision), grugRsDir)
+        runCommand(listOf("git", "checkout", "--force", grugRsRevision), grugRsDir)
+        runCommand(listOf("git", "reset", "--hard", grugRsRevision), grugRsDir)
     }
 }
 
