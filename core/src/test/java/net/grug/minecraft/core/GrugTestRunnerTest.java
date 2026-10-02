@@ -87,6 +87,17 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void dropsStartupErrorsSoAnExpectingTestCannotMatchOne() {
+        synchronized (Grug.runtimeErrorQueue) {
+            Grug.runtimeErrorQueue.add("Test file misplaced: 'mymod/code/a-Test.grug' ...");
+        }
+        runner(new FakeOps(), Map.of("mymod/tests/a-Test.grug", 1L));
+        synchronized (Grug.runtimeErrorQueue) {
+            assertEquals(0, Grug.runtimeErrorQueue.size());
+        }
+    }
+
+    @Test
     void finishesWhenThereAreNoTests() {
         GrugTestRunner runner = runner(new FakeOps(), Map.of());
         runToEnd(runner);
