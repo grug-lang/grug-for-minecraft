@@ -1,4 +1,4 @@
-# Covers the wooden pipe turning a corner: source chest to the west, target chest to the north.
+# Covers the wooden pipe turning a corner: source chest below, target chest to the north.
 pipe_turn_source: Option[BlockEntity] = Option.new()
 pipe_turn_target: Option[BlockEntity] = Option.new()
 pipe_turn_self: Option[BlockEntity] = Option.new()
@@ -23,16 +23,18 @@ local _turn_setup() {
     y: number = origin.y() + 40
     z: number = origin.z()
 
-    level.place_block(x - 1, y, z, "minecraft:chest")
+    # The source is below the pipe and the engine beside it, so the pipe's first adjacent inventory
+    # (searched in side order) is the source rather than the target it pushes to.
+    level.place_block(x, y - 1, z, "minecraft:chest")
     level.place_block(x, y, z, "grug:wooden_pipe")
     level.place_block(x, y, z - 1, "minecraft:chest")
 
-    level.place_block(x, y - 3, z, "minecraft:stone")
-    level.place_block(x, y - 2, z, "minecraft:redstone_torch")
-    level.place_block(x, y - 2, z, "minecraft:redstone_torch_lit")
-    level.place_block(x, y - 1, z, "grug:redstone_engine")
+    level.place_block(x - 1, y - 2, z, "minecraft:stone")
+    level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch")
+    level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch_lit")
+    level.place_block(x - 1, y, z, "grug:redstone_engine")
 
-    source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    source_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
     target_opt: Option[BlockEntity] = level.get_block_entity(x, y, z - 1)
     self_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     Test.assert(source_opt.has(), "The source chest should have a block entity.")

@@ -1,10 +1,10 @@
-# The wooden pipe in outline: when an adjacent redstone engine powers it, it pulls one item from an
-# adjacent non-pipe inventory into its own one-slot inventory, then pushes that item on to the next
+# The wooden pipe in outline: when an adjacent redstone engine powers it, it pulls one item from the
+# inventory it extracts from into its own one-slot inventory, then pushes that item on to the next
 # inventory or pipe, or drops it when nothing accepts it.
 # This is not the full old BuildCraft pipe: it has no travelling item entity and no connection
 # matrix. Instead it is one-slot buffered, it prefers a real inventory over another pipe so a chain
-# of pipes feeds forward, and it remembers the side it pushed out of so that it does not immediately
-# pump the same item back where it came from.
+# of pipes feeds forward, and it only ever extracts from one side, so it cannot pump the same item
+# back and forth between two inventories.
 level: Level = get_block_entity_level(me)
 pos: BlockPos = get_block_pos_of_block_entity(me)
 center: Vec3 = pos.center()
@@ -12,11 +12,11 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
-# The side the buffered item came in from, so it is not pushed straight back.
-source_side: number = -1
-
-# The side the last item was pushed out of, so the pipe does not pull it straight back in.
-output_side: number = -1
+# The side the pipe extracts from, chosen as the first adjacent inventory and kept until that
+# inventory is gone. The reference stores the side in the pipe's metadata and cycles it with a
+# wrench; the port has neither, so the choice is automatic (see the deviation in about.json). -1
+# means no inventory has been chosen yet.
+input_side: number = -1
 
 export tick() {
     if get_item_count_in_slot(me, 0) == 0 {
@@ -33,23 +33,54 @@ local _try_pull() {
         return
     }
 
+    if not _input_is_valid() {
+        _pick_input()
+    }
+    if input_side < 0 {
+        return
+    }
+
+    nx: number = _neighbor_x(input_side)
+    ny: number = _neighbor_y(input_side)
+    nz: number = _neighbor_z(input_side)
+    if _pull_one_from(nx, ny, nz) {
+        return
+    }
+}
+
+# True while the chosen side still holds a non-pipe inventory. Re-checked on every pull, so a broken
+# or replaced chest makes the pipe choose again.
+local _input_is_valid() bool {
+    if input_side < 0 {
+        return false
+    }
+    return _is_inventory(_neighbor_x(input_side), _neighbor_y(input_side), _neighbor_z(input_side))
+}
+
+# The first adjacent inventory, searched in side order. The reference starts from the side the pipe
+# was placed facing and moves on to the next one; the port has no facing, so the order is fixed.
+local _pick_input() {
     side: number = 0
     while side < 6 {
-        if side != output_side {
-            nx: number = _neighbor_x(side)
-            ny: number = _neighbor_y(side)
-            nz: number = _neighbor_z(side)
-
-            if not _is_pipe(nx, ny, nz) {
-                if _pull_one_from(nx, ny, nz) {
-                    source_side = side
-                    return
-                }
-            }
+        if _is_inventory(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) {
+            input_side = side
+            return
         }
-
         side = side + 1
     }
+    input_side = -1
+}
+
+local _is_inventory(nx: number, ny: number, nz: number) bool {
+    if _is_pipe(nx, ny, nz) {
+        return false
+    }
+
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+    return get_inventory_size(neighbor_opt.unwrap()) > 0
 }
 
 local _try_push() {
@@ -123,13 +154,13 @@ local _pull_one_from(nx: number, ny: number, nz: number) bool {
 local _push_to_inventory(item: Item) bool {
     side: number = 0
     while side < 6 {
-        if side != source_side {
+        if side != input_side {
             nx: number = _neighbor_x(side)
             ny: number = _neighbor_y(side)
             nz: number = _neighbor_z(side)
             if not _is_pipe(nx, ny, nz) {
                 if _try_insert(nx, ny, nz, item) {
-                    _finish_push(side)
+                    _finish_push()
                     return true
                 }
             }
@@ -142,13 +173,13 @@ local _push_to_inventory(item: Item) bool {
 local _push_to_pipe(item: Item) bool {
     side: number = 0
     while side < 6 {
-        if side != source_side {
+        if side != input_side {
             nx: number = _neighbor_x(side)
             ny: number = _neighbor_y(side)
             nz: number = _neighbor_z(side)
             if _is_pipe(nx, ny, nz) {
                 if _try_insert(nx, ny, nz, item) {
-                    _finish_push(side)
+                    _finish_push()
                     return true
                 }
             }
@@ -169,10 +200,8 @@ local _try_insert(nx: number, ny: number, nz: number, item: Item) bool {
     return inserted > 0
 }
 
-local _finish_push(side: number) {
+local _finish_push() {
     set_item_count_in_slot(me, 0, 0)
-    output_side = side
-    source_side = -1
 }
 
 local _drop() {
@@ -186,8 +215,6 @@ local _drop() {
     dropped.entity().set_delta_movement(vec3_zero())
     dropped.entity().spawn(level)
     set_item_count_in_slot(me, 0, 0)
-    output_side = -1
-    source_side = -1
 }
 
 local _is_pipe(nx: number, ny: number, nz: number) bool {

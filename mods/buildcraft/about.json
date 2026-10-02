@@ -104,6 +104,11 @@
 				"what": "The wooden pipe moves items one slot at a time instead of via travelling item entities.",
 				"why": "The port starts with the observable chest-to-chest behaviour; the reference routes through a connection matrix.",
 				"status": "open"
+			},
+			{
+				"what": "The wooden pipe chooses its extraction side automatically instead of storing it in the block's metadata.",
+				"why": "The port has no block metadata access or wrench yet; the reference stores the side in the pipe's metadata and cycles it with a wrench (PipeLogicWood.switchSource).",
+				"status": "open"
 			}
 		]
 	},
