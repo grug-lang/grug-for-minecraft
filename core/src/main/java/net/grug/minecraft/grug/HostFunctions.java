@@ -129,8 +129,9 @@ public class HostFunctions {
     /**
      * Test only: judges the rest of this test as though the mod owning it declared {@code
      * fidelity}, which is how a mod that is not itself an exact recreation covers the
-     * exact-fidelity rules. Reset before every test, so it never reaches a test that did not ask
-     * for it.
+     * exact-fidelity rules. It can only tighten the rule: a mod that declares exact is judged exact
+     * whatever this sets. Reset before every test, so it never reaches a test that did not ask for
+     * it.
      */
     public static void Test_force_fidelity(String fidelity) {
         if (!GrugModFidelity.FIDELITIES.contains(fidelity)) {
@@ -356,9 +357,9 @@ public class HostFunctions {
                     Grug.statePtr,
                     "Screenshot.tolerance: "
                             + Grug.currentTestMod
-                            + " declares an exact recreation, so its tests have to compare pixel"
-                            + " for pixel and cannot allow a tolerance. Compare without a"
-                            + " tolerance, or lower the fidelity in its about.json.");
+                            + " is being judged as an exact recreation, so its tests have to"
+                            + " compare pixel for pixel and cannot allow a tolerance. Compare"
+                            + " without a tolerance, or lower the fidelity in its about.json.");
             return 0;
         }
         // GrugScreenshot is immutable, so setting a tolerance replaces the object stored under the
