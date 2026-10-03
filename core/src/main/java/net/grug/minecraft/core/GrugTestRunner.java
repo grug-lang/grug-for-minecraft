@@ -109,9 +109,9 @@ public class GrugTestRunner {
         }
 
         this.tests = new ArrayList<>();
-        // Anything already queued was reported during startup, before any test ran, and a run owns
-        // the queue from here. Leaving it would let a test that expects an error match a startup
-        // message that happened to be waiting, since the expect_error path drains the same queue.
+        // Anything already queued was reported during startup, before any test ran, so clearing it
+        // here keeps the chat from showing the same message a second time. An expect_error test
+        // matches testRuntimeErrors, which a startup message was never written to.
         synchronized (Grug.runtimeErrorQueue) {
             Grug.runtimeErrorQueue.clear();
         }
@@ -164,6 +164,13 @@ public class GrugTestRunner {
         Grug.currentTestTick = currentTick;
         Grug.testNotDone = false;
         Grug.currentTestMod = owningMod(path);
+        // The engine clears its error flag at the start of every export function call and stops the
+        // script at the first error, so the errors this call raises are the only ones that can
+        // answer this call's expect_error. Anything an earlier tick left behind goes here rather
+        // than standing in for an error this test never produced.
+        synchronized (Grug.testRuntimeErrors) {
+            Grug.testRuntimeErrors.clear();
+        }
 
         boolean completed;
         try {
@@ -183,10 +190,18 @@ public class GrugTestRunner {
         if (!completed) {
             if (Grug.testExpectedError != null) {
                 // The script aborted because a host function errored. Accept it only if the message
-                // matches what the test asked to see, so a test cannot pass on the wrong error.
+                // matches what the test asked to see, so a test cannot pass on the wrong error. The
+                // message comes from the record the error was written to on this thread, not from
+                // the chat queue, so nothing that runs on another thread can take it first.
                 String actual;
+                synchronized (Grug.testRuntimeErrors) {
+                    actual = String.join("\n", Grug.testRuntimeErrors);
+                    Grug.testRuntimeErrors.clear();
+                }
+                // The same message is also waiting for the chat, and a red message about an error
+                // this test asked for is noise, so it is not shown. That is all this drain is for,
+                // and clearing the chat queue cannot affect the match above.
                 synchronized (Grug.runtimeErrorQueue) {
-                    actual = String.join("\n", Grug.runtimeErrorQueue);
                     Grug.runtimeErrorQueue.clear();
                 }
                 Grug.printQueue.clear();

@@ -40,6 +40,18 @@ public final class Grug {
     // contains this text counts as a pass, which is how the error branches get exercised.
     public static String testExpectedError = null;
 
+    // The runtime errors the running test produced, which is what testExpectedError is matched
+    // against. Filled by onRuntimeError, which the engine calls from inside the host function that
+    // failed, so the write happens on the thread running the test and is in place by the time
+    // Test.run() returns. GrugTestRunner clears it immediately before each Test.run() call, so it
+    // only ever holds what the running test itself raised.
+    //
+    // It is a separate queue from runtimeErrorQueue because that one is the chat channel, and a
+    // loader drains it from the client thread while 1.20.6 runs the test runner on the server
+    // thread. Sharing the queue let that drain take the message between the write and the read and
+    // leave an expect_error test comparing against an empty string.
+    public static final Queue<String> testRuntimeErrors = new ArrayDeque<>();
+
     // Set by GrugTestRunner to the mod directory holding the running *-Test.grug, so the running
     // test's own about.json decides what it is allowed to assert. The owning mod, rather than
     // whichever mod a screenshot happens to render, is who answers for the promise.
@@ -274,6 +286,11 @@ public final class Grug {
         GrugCore.getAdapter().logError(reason);
         synchronized (runtimeErrorQueue) {
             runtimeErrorQueue.add(reason);
+        }
+        // The engine calls this from inside the host function that failed, so a test's own
+        // Test.run() call has the record in place by the time it returns to the runner.
+        synchronized (testRuntimeErrors) {
+            testRuntimeErrors.add(reason);
         }
     }
 

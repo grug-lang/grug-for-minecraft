@@ -62,6 +62,7 @@ class GrugTestRunnerTest {
         Grug.testFidelityOverride = null;
         Grug.printQueue.clear();
         Grug.runtimeErrorQueue.clear();
+        Grug.testRuntimeErrors.clear();
     }
 
     private GrugTestRunner runner(GrugTestRunner.TestEntityOps ops, Map<String, Long> files) {
@@ -123,17 +124,30 @@ class GrugTestRunnerTest {
         assertTrue(ops.created == 0);
     }
 
+    /**
+     * What one call of a script that asked for an error looks like: the script set the expectation,
+     * the host function failed, and the engine handed the message to both the chat and the runner's
+     * own record through {@code Grug.onRuntimeError} before it stopped the script, so the export
+     * call returns without finishing.
+     */
+    private static void abortWithHostFunctionError(FakeOps ops, String expected, String message) {
+        Grug.testExpectedError = expected;
+        reportRuntimeError(message);
+        ops.completed = false;
+    }
+
+    /** What {@code Grug.onRuntimeError} does with a message the engine reports. */
+    private static void reportRuntimeError(String message) {
+        Grug.testRuntimeErrors.add("Host function error: " + message);
+        synchronized (Grug.runtimeErrorQueue) {
+            Grug.runtimeErrorQueue.add("Host function error: " + message);
+        }
+    }
+
     @Test
     void acceptsAMatchingExpectedError() {
         FakeOps ops = new FakeOps();
-        ops.onCall =
-                () -> {
-                    Grug.testExpectedError = "boom";
-                    synchronized (Grug.runtimeErrorQueue) {
-                        Grug.runtimeErrorQueue.add("boom happened");
-                    }
-                    ops.completed = false;
-                };
+        ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
         runToEnd(runner);
         assertTrue(runner.isFinished());
@@ -141,16 +155,50 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void rejectsAnExpectedErrorThatDoesNotMatch() {
+    void passesAnExpectedErrorTheChatQueueNoLongerHolds() {
+        // The runner runs on the server thread while the loaders drain the chat queue on the client
+        // one, so a client tick landing between the abort and the runner's read took the message
+        // with it and the test failed against an empty string. Here the chat queue is already empty
+        // by the time the runner looks, which is what that drain leaves behind.
+        FakeOps ops = new FakeOps();
+        ops.onCall =
+                () -> {
+                    abortWithHostFunctionError(ops, "boom", "boom happened");
+                    Grug.runtimeErrorQueue.clear();
+                };
+        runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
+
+        assertTrue(Grug.runtimeErrorQueue.stream().noneMatch(m -> m.contains("Expected an error")));
+    }
+
+    @Test
+    void rejectsAnExpectedErrorFromAnEarlierTick() {
+        // A test can ask for an error on one tick and abort on the next, which is what a record
+        // left over from the tick before would answer for it. An unrelated error is raised on the
+        // tick the test is still setting up, and the tick after it aborts having raised nothing, so
+        // matching that stale message would pass a test on an error it never provoked.
         FakeOps ops = new FakeOps();
         ops.onCall =
                 () -> {
                     Grug.testExpectedError = "boom";
-                    synchronized (Grug.runtimeErrorQueue) {
-                        Grug.runtimeErrorQueue.add("a different problem");
+                    if (Grug.currentTestTick == 0) {
+                        reportRuntimeError("boom happened");
+                        Grug.testNotDone = true;
+                    } else {
+                        ops.completed = false;
                     }
-                    ops.completed = false;
                 };
+        runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
+
+        assertTrue(
+                Grug.runtimeErrorQueue.stream()
+                        .anyMatch(m -> m.contains("Expected an error containing 'boom'")));
+    }
+
+    @Test
+    void rejectsAnExpectedErrorThatDoesNotMatch() {
+        FakeOps ops = new FakeOps();
+        ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "a different problem");
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
         runToEnd(runner);
         assertTrue(runner.isFinished());

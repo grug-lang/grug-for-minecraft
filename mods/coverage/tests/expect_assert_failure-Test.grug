@@ -1,5 +1,5 @@
-# Test.assert(false, ...) throws a Java exception rather than calling hostFunctionErrorHappened,
-# which is the other kind of abort the runner has to accept for an expected error.
+# Test.assert(false, ...) reports through hostFunctionErrorHappened, which stops the script right
+# there, so run() returns without finishing. That is the abort an expected error accepts.
 export run() {
     Test.expect_error("Assertion failed")
     Test.assert(false, "This assertion is expected to fail.")
