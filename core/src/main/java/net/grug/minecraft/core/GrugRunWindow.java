@@ -45,25 +45,24 @@ public final class GrugRunWindow {
         /** Switches GL dithering on or off. */
         void setDither(boolean on);
 
-        /** The cursor's x position, in window pixels. */
-        int cursorX();
-
-        /** The cursor's y position, in window pixels. */
-        int cursorY();
+        /** The cursor's x and y position, in window pixels. */
+        double[] cursorPos();
 
         /** Moves the cursor to the given window-pixel position. */
-        void setCursor(int x, int y);
+        void setCursor(double x, double y);
     }
 
     /**
      * One poll of the hotkeys.
      *
-     * <p>A call reports what is pressed and consumes that report. A press that a skipped tick never
-     * observed stays pending in the key port, so the first tick that observes it is the one that
-     * acts on it, and a press never fires twice. The loaders' polls already work this way (1.2.5
-     * keeps the press pending until {@code isPressed()} consumes it, and 1.20.6's {@code
-     * KeyMapping.consumeClick} is sticky by design), and this machine's only requirement is that
-     * the poll it observes in a tick is the poll it acts on, in that same tick.
+     * <p>A call reports a press at most once and consumes what it reports, and the machine's only
+     * requirement is that the poll it observes in a tick is the poll it acts on, in that same tick.
+     * How a port makes that true is loader-specific, and each one keeps the behaviour its loader
+     * always had: 1.2.5 keeps the press in the {@code KeyBinding} until {@code isPressed()}
+     * consumes it, and 1.20.6's {@code KeyMapping.consumeClick()} is sticky by design, so on both a
+     * press survives a tick the hook skipped. The Ornithe and stationapi ports poll {@code
+     * Keyboard.isKeyDown} for an edge, so a tap between two polls is lost there, exactly as it was
+     * before this class existed.
      */
     public interface Keys {
         /** Whether the run-tests key is pressed. Consumes the press it reports. */
@@ -95,9 +94,9 @@ public final class GrugRunWindow {
     /** True only while a run has the cursor parked, so only that run restores it. */
     private boolean cursorParked = false;
 
-    private int savedCursorX = 0;
+    private double savedCursorX = 0;
 
-    private int savedCursorY = 0;
+    private double savedCursorY = 0;
 
     public GrugRunWindow(Display display) {
         this.display = display;
@@ -217,12 +216,13 @@ public final class GrugRunWindow {
      * while the cursor has left the corner, because the game re-reads the position for every frame.
      */
     public void parkCursor() {
+        double[] cursor = display.cursorPos();
         if (!cursorParked) {
-            savedCursorX = display.cursorX();
-            savedCursorY = display.cursorY();
+            savedCursorX = cursor[0];
+            savedCursorY = cursor[1];
             cursorParked = true;
         }
-        if (display.cursorX() != 0 || display.cursorY() != 0) {
+        if (cursor[0] != 0 || cursor[1] != 0) {
             display.setCursor(0, 0);
         }
     }

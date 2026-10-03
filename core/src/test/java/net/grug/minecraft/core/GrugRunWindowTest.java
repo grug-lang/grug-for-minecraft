@@ -24,6 +24,11 @@ class GrugRunWindowTest {
         return new ArrayList<>(Arrays.asList(names));
     }
 
+    /** Formats a coordinate the way a call string reads, without a trailing ".0". */
+    private static String number(double value) {
+        return value == Math.rint(value) ? Long.toString((long) value) : Double.toString(value);
+    }
+
     /**
      * A recording window. Reads come from its current state, and every action the state machine
      * takes lands in {@code calls}, in order, so a test asserts exactly what happened to the
@@ -33,8 +38,8 @@ class GrugRunWindowTest {
         int width = 800;
         int height = 600;
         boolean ditherOn = true;
-        int cursorX = 300;
-        int cursorY = 200;
+        double cursorX = 300;
+        double cursorY = 200;
         final List<String> calls = new ArrayList<>();
 
         @Override
@@ -66,18 +71,13 @@ class GrugRunWindowTest {
         }
 
         @Override
-        public int cursorX() {
-            return cursorX;
+        public double[] cursorPos() {
+            return new double[] {cursorX, cursorY};
         }
 
         @Override
-        public int cursorY() {
-            return cursorY;
-        }
-
-        @Override
-        public void setCursor(int x, int y) {
-            calls.add("setCursor(" + x + "," + y + ")");
+        public void setCursor(double x, double y) {
+            calls.add("setCursor(" + number(x) + "," + number(y) + ")");
             cursorX = x;
             cursorY = y;
         }
@@ -121,8 +121,8 @@ class GrugRunWindowTest {
         GrugRunWindow window = new GrugRunWindow(display);
 
         assertTrue(window.beginRun());
-        assertEquals(1280, display.width);
-        assertEquals(720, display.height);
+        assertEquals(GrugScreenshots.WIDTH, display.width);
+        assertEquals(GrugScreenshots.HEIGHT, display.height);
         assertFalse(display.ditherOn);
         assertEquals(calls(FORCE_SIZE, "setDither(false)"), display.calls);
 
@@ -152,8 +152,8 @@ class GrugRunWindowTest {
         window.endRun();
         assertEquals(calls(FORCE_SIZE, "setDither(false)", "setDither(true)"), display.calls);
         assertTrue(window.resolutionForced());
-        assertEquals(1280, display.width);
-        assertEquals(720, display.height);
+        assertEquals(GrugScreenshots.WIDTH, display.width);
+        assertEquals(GrugScreenshots.HEIGHT, display.height);
     }
 
     @Test
@@ -344,5 +344,23 @@ class GrugRunWindowTest {
         // the corner that is a no-op move, but the call still lands.
         window.endRun();
         assertEquals(calls("setCursor(0,0)"), display.calls);
+    }
+
+    @Test
+    void aFractionalCursorRestoresExactly() {
+        FakeDisplay display = new FakeDisplay();
+        display.cursorX = 300.5;
+        display.cursorY = 200.25;
+        GrugRunWindow window = new GrugRunWindow(display);
+
+        window.parkCursor();
+        assertEquals(calls("setCursor(0,0)"), display.calls);
+
+        // GLFW reports fractional positions, and the position saved before the park comes back
+        // exactly, not rounded to whole pixels.
+        window.endRun();
+        assertEquals("setCursor(300.5,200.25)", display.calls.get(1));
+        assertEquals(300.5, display.cursorX);
+        assertEquals(200.25, display.cursorY);
     }
 }
