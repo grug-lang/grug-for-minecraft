@@ -32,7 +32,6 @@ local _setup() {
     # does not power the block above its own base, so this puts the torch under the engine.
     level.place_block(x, y - 3, z, "minecraft:stone")
     level.place_block(x, y - 2, z, "minecraft:redstone_torch")
-    level.place_block(x, y - 2, z, "minecraft:redstone_torch_lit")
     level.place_block(x, y - 1, z, "grug:redstone_engine")
 
     source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)

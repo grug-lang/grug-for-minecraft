@@ -426,39 +426,42 @@ public class ForgeAdapter implements ModLoaderAdapter {
         Block targetBlock =
                 GrugBlockNames.resolve(id.getPath(), path -> resolveBlock(id.withPath(path)));
 
-        if (targetBlock != null) {
-            net.minecraft.core.BlockPos pos =
-                    new net.minecraft.core.BlockPos(
-                            (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
-
-            world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
-
-            // A placement that reports false because the block was already there is not a failure,
-            // so the block's presence is the check rather than the return value. A y outside the
-            // build height is refused, and a position in a chunk the client has not received
-            // swallows the write too. A write the game accepts and does not leave in place is
-            // reported the same way: the caller asked for a block that is not there afterwards. See
-            // #151.
-            if (world.getBlockState(pos).getBlock() != targetBlock) {
-                Grug.hostFunctionErrorHappened(
-                        Grug.statePtr,
-                        "place_block: the game did not put "
-                                + blockName
-                                + " at "
-                                + pos.getX()
-                                + ", "
-                                + pos.getY()
-                                + ", "
-                                + pos.getZ()
-                                + ". A y outside this version's world height is refused, and a"
-                                + " position in a chunk the client has not received is discarded.");
-            }
-        } else {
-            // The script named a block this loader does not have, which is the script's err and
-            // stays inside the sandbox: the call fails, the mod carries on, and the run sees it
-            // wherever it sees host errors.
+        if (targetBlock == null) {
+            // A name that resolves nowhere is a defect in the mod, not something to log and skip:
+            // it
+            // would leave the mod building against a block it never got, which is exactly the cross
+            // loader mismatch the canonical name table exists to remove.
+            GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "place_block: Could not resolve block " + blockName);
+            return;
+        }
+
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+
+        world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
+
+        // A placement that reports false because the block was already there is not a failure,
+        // so the block's presence is the check rather than the return value. A y outside the
+        // build height is refused, and a position in a chunk the client has not received
+        // swallows the write too. A write the game accepts and does not leave in place is
+        // reported the same way: the caller asked for a block that is not there afterwards. See
+        // #151.
+        if (world.getBlockState(pos).getBlock() != targetBlock) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "place_block: the game did not put "
+                            + blockName
+                            + " at "
+                            + pos.getX()
+                            + ", "
+                            + pos.getY()
+                            + ", "
+                            + pos.getZ()
+                            + ". A y outside this version's world height is refused, and a"
+                            + " position in a chunk the client has not received is discarded.");
         }
     }
 

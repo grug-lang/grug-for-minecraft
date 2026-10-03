@@ -18,12 +18,9 @@ export run() {
     Test.round_trip_nbt(engine_opt.unwrap())
 
     # A redstone torch powers the block above it but not the block it is attached to, so the torch
-    # goes below the engine, standing on a stone block. The lit torch is named differently on
-    # StationAPI, so both names are placed and the lit one wins. See the cross-loader block naming
-    # issue.
+    # goes below the engine, standing on a stone block.
     level.place_block(x, y - 2, z, "minecraft:stone")
     level.place_block(x, y - 1, z, "minecraft:redstone_torch")
-    level.place_block(x, y - 1, z, "minecraft:redstone_torch_lit")
 
     Test.assert(level.has_neighbor_signal(x, y, z), "The engine should be powered by an adjacent torch.")
 

@@ -54,6 +54,14 @@ jobs:
       - name: Test the grug adapter generator
         run: python3 core/test_generate.py
 
+      # The canonical vanilla block name table is what makes a block name mean one block on all five
+      # loaders. Checked on its own because a bad row would otherwise only show up as a wrong block
+      # in a game run.
+      - name: Check the vanilla block name table
+        run: |
+          python3 vanilla_blocks.py
+          python3 vanilla_blocks_test.py
+
       # A Rust panic in grug-rs aborts the JVM instead of failing a test, so run-loader.sh has to
       # recognize that shape and explain it. Nothing else in CI can catch a regression there: the
       # panic is intermittent, so the only check is the reporter against a log that holds one, and

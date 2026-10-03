@@ -1,5 +1,5 @@
-# Exercises place_block's vanilla-reflection, grug-block and unresolved paths, plus custom and
-# vanilla item lookups.
+# Exercises place_block's vanilla-reflection and grug-block paths, plus custom and vanilla item
+# lookups. The unresolved path is expect_place_block_unknown-Test.grug, which aborts on the error.
 export run() {
     if Test.tick() == 0 {
         level: Level = Test.get_client_level()

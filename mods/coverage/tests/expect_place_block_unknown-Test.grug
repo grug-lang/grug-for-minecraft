@@ -1,0 +1,10 @@
+# A name that resolves to no block has to report an error rather than place nothing: a mod that
+# names a block this Minecraft version does not have would otherwise carry on without it, which is
+# the silent cross-loader mismatch the canonical name table exists to remove.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+
+    Test.expect_error("Could not resolve block")
+    level.place_block(origin.x(), origin.y(), origin.z(), "grug:does_not_exist")
+}

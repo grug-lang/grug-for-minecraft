@@ -31,7 +31,6 @@ local _turn_setup() {
 
     level.place_block(x - 1, y - 2, z, "minecraft:stone")
     level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch")
-    level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch_lit")
     level.place_block(x - 1, y, z, "grug:redstone_engine")
 
     source_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)

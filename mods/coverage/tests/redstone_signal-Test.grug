@@ -10,14 +10,7 @@ export run() {
     z: number = origin.z()
 
     level.place_block(x, y, z, "minecraft:stone")
-
-    # The lit redstone torch is named differently across loaders: StationAPI calls the lit one
-    # "redstone_torch_lit" and the unlit one "redstone_torch", while the Ornithe and Forge loaders
-    # call the lit one "redstone_torch". A loader that does not have a name asks for the other
-    # spelling before failing the call, so placing both leaves the lit torch in place everywhere.
-    # See the cross-loader block naming issue.
     level.place_block(x, y + 1, z, "minecraft:redstone_torch")
-    level.place_block(x, y + 1, z, "minecraft:redstone_torch_lit")
 
     Test.assert(level.has_neighbor_signal(x, y + 2, z), "The block above a redstone torch should be powered.")
 
