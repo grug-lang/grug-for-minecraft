@@ -54,6 +54,10 @@ carries on, are that third severity: do not use them. If you are designing a war
 notice, a soft failure, or a "just log it" path, stop. Decide which of the two it is, and make the
 code report it as that.
 
+`LOGGER.info` and `LOGGER.debug` are not a severity: they are the diagnostics an agent adds while
+writing a PR, permanently or temporarily, so use them where they help, such as a line when the
+player joins a world. They cannot report a defect; a defect is still a fatal or an err.
+
 How bad the defect looks does not decide this. What decides it is whether the violation leaves
 behaviour undefined, and which side of the sandbox the code is on.
 
@@ -70,8 +74,8 @@ behaviour undefined, and which side of the sandbox the code is on.
 - **A grug mod err is always contained.** The JNI layer prints and clears anything thrown inside a
   game function so the script carries on, which is the sandbox and is the product. Never design a
   mod-side err to stop the game, and never read "the script kept going" as the bug.
-- Ok is silent. A file in the right shape produces no output at all, so do not add chatter to say
-  that something is fine.
+- Ok is silent. A file in the right shape produces no output at all, so a validator does not add
+  chatter to say that it is fine.
 - "It still works, but the author should know" is not an option. Either the behaviour is right, or
   it is an err that fails.
 
