@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockNames;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.GrugBlock;
@@ -40,6 +41,13 @@ import java.io.File;
 import java.nio.ByteBuffer;
 
 public class StationApiAdapter implements ModLoaderAdapter {
+
+    /**
+     * This loader's column of the canonical vanilla block name table, so a mod naming a block gets
+     * the same block here as it would on every other loader.
+     */
+    private static final GrugVanillaBlocks.Loader CANONICAL_BLOCKS =
+            GrugVanillaBlocks.forLoader("b1.7.3-stationapi");
 
     @Override
     public File getGameDirectory() {
@@ -414,42 +422,84 @@ public class StationApiAdapter implements ModLoaderAdapter {
     private void placeBlockIn(World world, double x, double y, double z, String blockName) {
         Identifier id =
                 Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
-        // The loaders do not all spell every vanilla block the same way, so a name this one does
-        // not have gets one more try under the spelling the others use. See #58.
+        // StationAPI registers a name for some vanilla blocks that means a different block than it
+        // does elsewhere (its redstone_torch is the unlit torch, while the other four loaders call
+        // the lit one that), so the table is consulted before the registry rather than after it:
+        // the name a script wrote often does resolve here, just to the wrong block. A grug block
+        // keeps its own namespace, so it never goes through the table.
         Block targetBlock =
-                GrugBlockNames.resolve(
-                        id.getPath(), path -> BlockRegistry.INSTANCE.get(id.withPath(path)));
+                isVanilla(blockName)
+                        ? BlockRegistry.INSTANCE.get(
+                                Identifier.of("minecraft:" + localName(id.getPath())))
+                        : null;
+        if (targetBlock == null) {
+            targetBlock = BlockRegistry.INSTANCE.get(id);
+        }
 
-        if (targetBlock != null) {
-            int posX = (int) Math.floor(x);
-            int posY = (int) Math.floor(y);
-            int posZ = (int) Math.floor(z);
-
-            world.setBlock(posX, posY, posZ, targetBlock.id);
-
-            // A placement that reports false because the block was already there is not a failure,
-            // so the block's presence is the check rather than the return value.
-            if (world.getBlockId(posX, posY, posZ) != targetBlock.id) {
-                Grug.hostFunctionErrorHappened(
-                        Grug.statePtr,
-                        "place_block: the game did not put "
-                                + blockName
-                                + " at "
-                                + posX
-                                + ", "
-                                + posY
-                                + ", "
-                                + posZ
-                                + ". A y outside this version's world height is refused, and a"
-                                + " position in a chunk the client has not received is discarded.");
-            }
-        } else {
-            // The script named a block this loader does not have, which is the script's err and
-            // stays inside the sandbox: the call fails, the mod carries on, and the run sees it
-            // wherever it sees host errors.
+        if (targetBlock == null) {
+            // A name that resolves nowhere is a defect in the mod, not something to log and skip:
+            // it
+            // would leave the mod building against a block it never got, which is exactly the cross
+            // loader mismatch the canonical name table exists to remove.
+            InitListener.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "place_block: Could not resolve block " + blockName);
+            return;
         }
+
+        int posX = (int) Math.floor(x);
+        int posY = (int) Math.floor(y);
+        int posZ = (int) Math.floor(z);
+
+        world.setBlock(posX, posY, posZ, targetBlock.id);
+
+        // A placement that reports false because the block was already there is not a failure,
+        // so the block's presence is the check rather than the return value.
+        if (world.getBlockId(posX, posY, posZ) != targetBlock.id) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "place_block: the game did not put "
+                            + blockName
+                            + " at "
+                            + posX
+                            + ", "
+                            + posY
+                            + ", "
+                            + posZ
+                            + ". A y outside this version's world height is refused, and a"
+                            + " position in a chunk the client has not received is discarded.");
+        }
+    }
+
+    /**
+     * Whether a name a script wrote is a vanilla one, and so the block it names is one the
+     * canonical table has an opinion about. A name with no namespace means {@code minecraft}, which
+     * is what every loader's resolver assumes.
+     */
+    private static boolean isVanilla(String blockName) {
+        return !blockName.contains(":") || blockName.startsWith("minecraft:");
+    }
+
+    /**
+     * The name this loader spells a canonical block name with, which is what the block registry has
+     * to be asked for.
+     *
+     * <p>StationAPI names Beta's blocks with modern names already, so the table usually answers
+     * nothing. The blocks it does answer for are the ones it disagrees with the other loaders on,
+     * the lit redstone torch being the one a mod is most likely to name.
+     */
+    private static String localName(String canonicalName) {
+        return CANONICAL_BLOCKS.localName(canonicalName);
+    }
+
+    /**
+     * The canonical name for a name this loader's own naming produced, so a mod comparing a {@code
+     * get_block} answer to a literal gets the same string on every loader. A block the table does
+     * not cover keeps this loader's own spelling, which is right for a mod block or a vanilla block
+     * newer than the audit.
+     */
+    private static String canonicalName(String localName) {
+        return CANONICAL_BLOCKS.canonicalName(localName);
     }
 
     @Override
@@ -477,7 +527,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
         }
 
         Identifier key = BlockRegistry.INSTANCE.getId(block);
-        return key == null ? "minecraft:unknown" : key.toString();
+        if (key == null) {
+            return "minecraft:unknown";
+        }
+
+        // Mapped through the canonical table so a mod sees the same name it would on any other
+        // loader, rather than the name StationAPI registered the block under. A grug block keeps
+        // its
+        // own namespace, which the table knows nothing about.
+        return isVanilla(key.toString()) ? canonicalName(key.getPath()) : key.toString();
     }
 
     @Override

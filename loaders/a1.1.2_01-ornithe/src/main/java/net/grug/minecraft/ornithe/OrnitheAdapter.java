@@ -9,6 +9,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockNames;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.GrugBlock;
@@ -43,6 +44,13 @@ import java.util.Locale;
 import java.util.Map;
 
 public class OrnitheAdapter implements ModLoaderAdapter {
+
+    /**
+     * This loader's column of the canonical vanilla block name table, so a mod naming a block gets
+     * the same block here as it would on every other loader.
+     */
+    private static final GrugVanillaBlocks.Loader CANONICAL_BLOCKS =
+            GrugVanillaBlocks.forLoader("a1.1.2_01-ornithe");
 
     /** Block id to name, populated lazily: a reverse lookup scans every block field. */
     private final Map<Integer, String> blockNamesById = new HashMap<>();
@@ -302,44 +310,69 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // not have gets one more try under the spelling the others use. See #58.
         Block targetBlock = GrugBlockNames.resolve(path, this::resolveBlock);
 
-        if (targetBlock != null) {
-            int posX = (int) Math.floor(x);
-            int posY = (int) Math.floor(y);
-            int posZ = (int) Math.floor(z);
-
-            world.setBlockQuietly(posX, posY, posZ, targetBlock.id);
-
-            if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
-                targetBlock.onAdded(world, posX, posY, posZ);
-            }
-
-            // A placement that reports false because the block was already there is not a failure,
-            // so the block's presence is the check rather than the return value. Alpha's world is
-            // 128 blocks tall and setBlockQuietly returns false without writing at or above it, and
-            // a chunk the client has not received swallows the write too. A write the game accepts
-            // and does not leave in place is reported the same way: the caller asked for a block
-            // that is not there afterwards. See #151.
-            if (world.getBlock(posX, posY, posZ) != targetBlock.id) {
-                Grug.hostFunctionErrorHappened(
-                        Grug.statePtr,
-                        "place_block: the game did not put "
-                                + blockName
-                                + " at "
-                                + posX
-                                + ", "
-                                + posY
-                                + ", "
-                                + posZ
-                                + ". A y outside this version's world height is refused, and a"
-                                + " position in a chunk the client has not received is discarded.");
-            }
-        } else {
-            // The script named a block this loader does not have, which is the script's err and
-            // stays inside the sandbox: the call fails, the mod carries on, and the run sees it
-            // wherever it sees host errors.
+        if (targetBlock == null) {
+            // A name that resolves nowhere is a defect in the mod, not something to log and skip:
+            // it
+            // would leave the mod building against a block it never got, which is exactly the cross
+            // loader mismatch the canonical name table exists to remove.
+            GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "place_block: Could not resolve block " + blockName);
+            return;
         }
+
+        int posX = (int) Math.floor(x);
+        int posY = (int) Math.floor(y);
+        int posZ = (int) Math.floor(z);
+
+        world.setBlockQuietly(posX, posY, posZ, targetBlock.id);
+
+        if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
+            targetBlock.onAdded(world, posX, posY, posZ);
+        }
+
+        // A placement that reports false because the block was already there is not a failure,
+        // so the block's presence is the check rather than the return value. Alpha's world is
+        // 128 blocks tall and setBlockQuietly returns false without writing at or above it, and
+        // a chunk the client has not received swallows the write too. A write the game accepts
+        // and does not leave in place is reported the same way: the caller asked for a block
+        // that is not there afterwards. See #151.
+        if (world.getBlock(posX, posY, posZ) != targetBlock.id) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "place_block: the game did not put "
+                            + blockName
+                            + " at "
+                            + posX
+                            + ", "
+                            + posY
+                            + ", "
+                            + posZ
+                            + ". A y outside this version's world height is refused, and a"
+                            + " position in a chunk the client has not received is discarded.");
+        }
+    }
+
+    /**
+     * The name this loader spells a canonical block name with, which is what {@link #resolveBlock}
+     * has to be given.
+     *
+     * <p>Most blocks are spelled the same on every loader, so the table usually answers nothing and
+     * the name a mod wrote is what this loader wants. Where Minecraft renamed the block, the table
+     * says what this loader calls it now.
+     */
+    private static String localName(String canonicalName) {
+        return CANONICAL_BLOCKS.localName(canonicalName);
+    }
+
+    /**
+     * The canonical name for a name this loader's own naming produced, so a mod comparing a {@code
+     * get_block} answer to a literal gets the same string on every loader. A block the table does
+     * not cover keeps this loader's own spelling, which is right for a mod block or a vanilla block
+     * newer than the audit.
+     */
+    private static String canonicalName(String localName) {
+        return CANONICAL_BLOCKS.canonicalName(localName);
     }
 
     @Override
@@ -409,13 +442,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         } else if (block != null) {
             // Vanilla blocks have no registry on this version, so the name has to come back out of
-            // the static fields that resolveBlock searches going the other way.
+            // the static fields that resolveBlock searches going the other way. The field name is
+            // then mapped through the canonical table so a mod sees the same name it would on any
+            // other loader, rather than this loader's own spelling of the block.
             for (Field field : Block.class.getFields()) {
                 if (Modifier.isStatic(field.getModifiers())
                         && Block.class.isAssignableFrom(field.getType())) {
                     try {
                         if (field.get(null) == block) {
-                            name = "minecraft:" + field.getName().toLowerCase(Locale.ROOT);
+                            name = canonicalName(field.getName().toLowerCase(Locale.ROOT));
                             break;
                         }
                     } catch (Exception ignored) {
@@ -455,15 +490,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         }
 
-        // 2. Try resolving Vanilla blocks via reflection
+        // 2. Try resolving Vanilla blocks via reflection, under the name this loader spells the
+        // canonical name with. A grug block keeps its own name, so the table only ever sees a
+        // vanilla one: step 1 has already looked for it under the name the script wrote.
         if (targetBlock == null) {
+            String vanillaPath = localName(path);
             for (Field field : Block.class.getFields()) {
                 if (Modifier.isStatic(field.getModifiers())
                         && Block.class.isAssignableFrom(field.getType())) {
-                    if (field.getName().equalsIgnoreCase(path)
+                    if (field.getName().equalsIgnoreCase(vanillaPath)
                             || field.getName()
                                     .replace("_", "")
-                                    .equalsIgnoreCase(path.replace("_", ""))) {
+                                    .equalsIgnoreCase(vanillaPath.replace("_", ""))) {
                         try {
                             targetBlock = (Block) field.get(null);
                             break;
@@ -587,14 +625,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @GrugGenerated("vanilla block reflection: the reflection failure is unreachable")
     private Object matchVanillaBlock(String path) {
-        // Match Vanilla Blocks via reflection
+        // Match Vanilla Blocks via reflection, under the name this loader spells the canonical name
+        // with, so a mod looking up a block's item gets the block it would place.
+        String vanillaPath = localName(path);
         for (Field field : Block.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers())
                     && Block.class.isAssignableFrom(field.getType())) {
-                if (field.getName().equalsIgnoreCase(path)
+                if (field.getName().equalsIgnoreCase(vanillaPath)
                         || field.getName()
                                 .replace("_", "")
-                                .equalsIgnoreCase(path.replace("_", ""))) {
+                                .equalsIgnoreCase(vanillaPath.replace("_", ""))) {
                     try {
                         return field.get(null);
                     } catch (Exception ignored) {

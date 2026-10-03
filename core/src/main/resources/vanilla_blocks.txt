@@ -1,0 +1,119 @@
+# The canonical vanilla block names, and each loader's own spelling for the same block.
+#
+# Mods name vanilla blocks with the canonical name and read them back with get_block, so a name has
+# to mean one block on all five loaders. This file says what each loader calls the block a canonical
+# name refers to. See #58.
+#
+# A canonical name is the one modern Minecraft uses, which is the 1.20.6-forge column. Every loader's
+# spelling is listed, including the ones that already agree, so this is the whole audit rather than a
+# list of patches.
+#
+# A `-` means the loader has no such block, so a mod naming it gets a host function error there rather
+# than a different block. Some blocks have no canonical name and so no row: the flowing liquids, and
+# the ones Minecraft dropped or folded into a blockstate (the burning furnace, the powered repeater,
+# 1.2.5's locked chest and Beta's April Fools chest). The carved pumpkin is here as jack_o_lantern,
+# which is what 1.20.6 calls it.
+#
+# The two unlit_redstone rows are the one case where the canonical name is not a 1.20.6 name. 1.20.6
+# merged the lit and unlit redstone ore and torch into one block with a lit state, so it has no unlit
+# name, while the four older loaders still have two blocks each. unlit_redstone_ore and
+# unlit_redstone_torch were real registry entries until 1.13, so they are what an old mod wrote.
+#
+# The 1.2.5-forge column is lower cased and word ordered, unlike the others. That game is obfuscated
+# at run time, so the loader has no named fields to reflect over and looks its blocks up in a table
+# the build dumps from the decompiled dev classes, keyed by a name's words sorted and rejoined (see
+# VanillaNames). This column holds those keys, so oreRedstone and redstone_ore are both oreredstone
+# here.
+#
+# Columns, in order: the canonical name, then one per loader under loaders/ in sorted order.
+#
+# Checked by vanilla_blocks.py, whose --verify-blocks re-checks a column against that loader's own
+# block names when given a dump of them, and by vanilla_blocks_test.py and GrugVanillaBlocksTest.
+minecraft:bedrock bedrock bedrock bedrock bedrock bedrock
+minecraft:bookshelf bookshelf bookshelf bookshelf bookshelf bookshelf
+minecraft:bricks brick bricks bricks bricks bricks
+minecraft:brown_mushroom - brown_mushroom brown_mushroom brown_mushroom -
+minecraft:cactus cactus cactus cactus cactus cactus
+minecraft:cake cake cake - cake cake
+minecraft:chest chest chest chest chest chest
+minecraft:clay blockclay clay clay clay clay
+minecraft:coal_ore coalore coal_ore coal_ore coal_ore coal_ore
+minecraft:cobblestone cobblestone cobblestone cobblestone cobblestone cobblestone
+minecraft:cobweb web cobweb - web cobweb
+minecraft:crafting_table workbench crafting_table crafting_table crafting_table crafting_table
+minecraft:dandelion - dandelion yellow_flower yellow_flower -
+minecraft:dead_bush - dead_bush - deadbush -
+minecraft:detector_rail detectorrail detector_rail - detector_rail detector_rail
+minecraft:diamond_block blockdiamond diamond_block diamond_block diamond_block diamond_block
+minecraft:diamond_ore diamondore diamond_ore diamond_ore diamond_ore diamond_ore
+minecraft:dirt dirt dirt dirt dirt dirt
+minecraft:dispenser dispenser dispenser - dispenser dispenser
+minecraft:farmland fieldtilled farmland farmland farmland farmland
+minecraft:fire - fire fire fire -
+minecraft:furnace idleovenstone furnace furnace furnace furnace
+minecraft:glass glass glass glass glass glass
+minecraft:glowstone glowstone glowstone - glowstone glowstone
+minecraft:gold_block blockgold gold_block gold_block gold_block gold_block
+minecraft:gold_ore goldore gold_ore gold_ore gold_ore gold_ore
+minecraft:grass_block - grass_block grass grass -
+minecraft:gravel gravel gravel gravel gravel gravel
+minecraft:ice ice ice ice ice ice
+minecraft:iron_block blocksteel iron_block iron_block iron_block iron_block
+minecraft:iron_door doorsteel iron_door iron_door iron_door iron_door
+minecraft:iron_ore ironore iron_ore iron_ore iron_ore iron_ore
+minecraft:jack_o_lantern lanternpumpkin jack_o_lantern - lit_pumpkin jack_o_lantern
+minecraft:jukebox jukebox jukebox jukebox jukebox jukebox
+minecraft:ladder ladder ladder ladder ladder ladder
+minecraft:lapis_block blocklapis lapis_block - lapis_block lapis_block
+minecraft:lapis_ore lapisore lapis_ore - lapis_ore lapis_ore
+minecraft:lava lavastill lava lava lava lava
+minecraft:lever lever lever lever lever lever
+minecraft:mossy_cobblestone cobblestonemossy mossy_cobblestone mossy_cobblestone mossy_cobblestone mossy_cobblestone
+minecraft:moving_piston - moving_piston - moving_block -
+minecraft:nether_portal - nether_portal - nether_portal -
+minecraft:netherrack netherrack netherrack - netherrack netherrack
+minecraft:note_block music note_block - noteblock note_block
+minecraft:oak_door doorwood oak_door wooden_door wooden_door oak_door
+minecraft:oak_fence fence oak_fence fence fence oak_fence
+minecraft:oak_leaves - oak_leaves leaves leaves -
+minecraft:oak_log wood oak_log log log log
+minecraft:oak_planks planks oak_planks planks planks oak_planks
+minecraft:oak_sapling sapling oak_sapling sapling sapling sapling
+minecraft:oak_sign postsign oak_sign standing_sign standing_sign oak_sign
+minecraft:oak_stairs compactplanksstair oak_stairs oak_stairs oak_stairs oak_stairs
+minecraft:oak_trapdoor trapdoor oak_trapdoor - trapdoor oak_trapdoor
+minecraft:oak_wall_sign signwall oak_wall_sign wall_sign wall_sign oak_wall_sign
+minecraft:obsidian obsidian obsidian obsidian obsidian obsidian
+minecraft:piston basepiston piston - piston piston
+minecraft:piston_head - piston_head - piston_head -
+minecraft:poppy - poppy red_flower red_flower -
+minecraft:powered_rail poweredrail powered_rail - powered_rail powered_rail
+minecraft:pumpkin pumpkin - - pumpkin carved_pumpkin
+minecraft:rail rail rail rail rail rail
+minecraft:red_mushroom - red_mushroom red_mushroom red_mushroom -
+minecraft:redstone_ore glowingoreredstone redstone_ore lit_redstone_ore lit_redstone_ore redstone_ore_lit
+minecraft:redstone_torch activeredstonetorch redstone_torch redstone_torch redstone_torch redstone_torch_lit
+minecraft:redstone_wire redstonewire redstone_wire redstone_wire redstone_wire redstone_wire
+minecraft:repeater idleredstonerepeater repeater - repeater repeater
+minecraft:sand sand sand sand sand sand
+minecraft:sandstone sandstone sandstone - sandstone sandstone
+minecraft:short_grass - short_grass - tallgrass -
+minecraft:smooth_stone doublestair smooth_stone double_stone_slab double_stone_slab double_slab
+minecraft:snow snow snow snow_layer snow_layer snow
+minecraft:snow_block blocksnow snow_block snow snow snow_block
+minecraft:soul_sand sandslow soul_sand - soul_sand soul_sand
+minecraft:spawner mobspawner spawner mob_spawner mob_spawner spawner
+minecraft:sponge sponge sponge sponge sponge sponge
+minecraft:sticky_piston basepistonsticky sticky_piston - sticky_piston sticky_piston
+minecraft:stone stone stone stone stone stone
+minecraft:stone_slab singlestair stone_slab stone_slab stone_slab slab
+minecraft:stone_stairs cobblestonecompactstair stone_stairs stone_stairs stone_stairs cobblestone_stairs
+minecraft:sugar_cane reed sugar_cane reeds reeds sugar_cane
+minecraft:tnt tnt tnt tnt tnt tnt
+minecraft:torch torchwood torch torch torch torch
+minecraft:unlit_redstone_ore oreredstone - redstone_ore redstone_ore redstone_ore
+minecraft:unlit_redstone_torch idleredstonetorch - unlit_redstone_torch unlit_redstone_torch redstone_torch
+minecraft:water stillwater water water water water
+minecraft:wheat crops wheat wheat wheat wheat
+minecraft:white_bed bed white_bed - bed red_bed
+minecraft:white_wool - white_wool wool - -

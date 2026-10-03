@@ -16,6 +16,7 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
@@ -45,6 +46,14 @@ import java.util.Map;
  * annotations call out the parts an ordinary test cannot reach.
  */
 public class Grug125Adapter implements ModLoaderAdapter {
+
+    /**
+     * This loader's column of the canonical vanilla block name table, so a mod naming a block gets
+     * the same block here as it would on every other loader. It matters more here than elsewhere:
+     * 1.2.5 spells most blocks with MCP field names that resolve nowhere else.
+     */
+    private static final GrugVanillaBlocks.Loader CANONICAL_BLOCKS =
+            GrugVanillaBlocks.forLoader("1.2.5-forge");
 
     private static File gameDir() {
         return ModLoader.getMinecraftInstance().mcDataDir;
@@ -388,7 +397,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @GrugGenerated("vanilla block lookup: resolved from the build-time name table")
     private Object matchVanillaBlock(String path) {
-        int id = VanillaNames.blockId(path);
+        // The same name place_block resolves, through the same table, so that a mod looking up a
+        // block's item gets the same block it would place.
+        int id = VanillaNames.blockId(localName(path));
         if (id < 0 || id >= Block.blocksList.length || Block.blocksList[id] == null) {
             return null;
         }
@@ -472,40 +483,64 @@ public class Grug125Adapter implements ModLoaderAdapter {
         String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
         Block targetBlock = resolveBlock(path);
 
-        if (targetBlock != null) {
-            int posX = (int) Math.floor(x);
-            int posY = (int) Math.floor(y);
-            int posZ = (int) Math.floor(z);
-
-            world.setBlockWithNotify(posX, posY, posZ, targetBlock.blockID);
-
-            // A placement that reports false because the block was already there is not a failure,
-            // so the block's presence is the check rather than the return value. A y outside the
-            // 256-block world height is refused, and a position in a chunk the client has not
-            // received swallows the write too. A write the game accepts and does not leave in place
-            // is reported the same way: the caller asked for a block that is not there afterwards.
-            // See #151.
-            if (world.getBlockId(posX, posY, posZ) != targetBlock.blockID) {
-                Grug.hostFunctionErrorHappened(
-                        Grug.statePtr,
-                        "place_block: the game did not put "
-                                + blockName
-                                + " at "
-                                + posX
-                                + ", "
-                                + posY
-                                + ", "
-                                + posZ
-                                + ". A y outside this version's world height is refused, and a"
-                                + " position in a chunk the client has not received is discarded.");
-            }
-        } else {
-            // The script named a block this loader does not have, which is the script's err and
-            // stays inside the sandbox: the call fails, the mod carries on, and the run sees it
-            // wherever it sees host errors.
+        if (targetBlock == null) {
+            // A name that resolves nowhere is a defect in the mod, not something to log and skip:
+            // it
+            // would leave the mod building against a block it never got, which is exactly the cross
+            // loader mismatch the canonical name table exists to remove.
+            mod_Grug.LOGGER.severe("placeBlock failed: Could not resolve block " + blockName);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "place_block: Could not resolve block " + blockName);
+            return;
         }
+
+        int posX = (int) Math.floor(x);
+        int posY = (int) Math.floor(y);
+        int posZ = (int) Math.floor(z);
+
+        world.setBlockWithNotify(posX, posY, posZ, targetBlock.blockID);
+
+        // A placement that reports false because the block was already there is not a failure,
+        // so the block's presence is the check rather than the return value. A y outside the
+        // 256-block world height is refused, and a position in a chunk the client has not
+        // received swallows the write too. A write the game accepts and does not leave in place
+        // is reported the same way: the caller asked for a block that is not there afterwards.
+        // See #151.
+        if (world.getBlockId(posX, posY, posZ) != targetBlock.blockID) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "place_block: the game did not put "
+                            + blockName
+                            + " at "
+                            + posX
+                            + ", "
+                            + posY
+                            + ", "
+                            + posZ
+                            + ". A y outside this version's world height is refused, and a"
+                            + " position in a chunk the client has not received is discarded.");
+        }
+    }
+
+    /**
+     * The name this loader spells a canonical block name with.
+     *
+     * <p>Most blocks are spelled the same on every loader, so the table usually answers nothing and
+     * the name a mod wrote is what this loader wants. Where Minecraft renamed the block, the table
+     * says what 1.2.5 called it, as the word-ordered key {@link VanillaNames} resolves by.
+     */
+    private static String localName(String canonicalName) {
+        return CANONICAL_BLOCKS.localName(canonicalName);
+    }
+
+    /**
+     * The canonical name for a name this loader's own naming produced, so a mod comparing a {@code
+     * get_block} answer to a literal gets the same string on every loader. A block the table does
+     * not cover keeps this loader's own spelling, which is right for a mod block or a vanilla block
+     * newer than the audit.
+     */
+    private static String canonicalName(String localName) {
+        return CANONICAL_BLOCKS.canonicalName(localName);
     }
 
     @GrugGenerated("block resolution: a no-match fallback cannot be forced")
@@ -534,9 +569,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
             }
         }
 
-        // 2. Try resolving vanilla blocks from the generated name table
+        // 2. Try resolving vanilla blocks from the generated name table, under the name this loader
+        // spells the canonical name with. A grug block keeps its own name, so the table only ever
+        // sees a vanilla one: step 1 has already looked for it under the name the script wrote.
         if (targetBlock == null) {
-            int id = VanillaNames.blockId(path);
+            int id = VanillaNames.blockId(localName(path));
             if (id >= 0 && id < Block.blocksList.length) {
                 targetBlock = Block.blocksList[id];
             }
@@ -584,8 +621,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
             }
         }
 
+        // Mapped through the canonical table so a mod sees the same name it would on any other
+        // loader, rather than 1.2.5's MCP field name, which resolves nowhere else.
         String name = VanillaNames.blockName(id);
-        return name == null ? "minecraft:unknown" : "minecraft:" + name;
+        return name == null ? "minecraft:unknown" : canonicalName(name);
     }
 
     @Override

@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Resolves a {@code minecraft:...} resource name to a 1.2.5 block or item id.
+ * Resolves a name to a 1.2.5 block or item id.
  *
  * <p>The runtime is obfuscated, so the other loaders' trick of reflecting over named fields does
  * not work here: {@code Block.chest} is a one-letter field at run time. Instead the build dumps the
@@ -20,27 +20,17 @@ import java.util.Map;
  * keyed by {@link #key(String)}, which ignores word order so {@code iron_ingot} matches {@code
  * ingotIron}.
  *
- * <p>A few names genuinely changed between 1.2.5 and the names grug writes, so {@link #ALIASES}
- * carries those. This is a stopgap; a resource name that is not an alias or the same words in a
- * different order will not resolve.
+ * <p>This is 1.2.5's own naming and nothing more. Turning a canonical name a mod wrote into the
+ * name this game knows a block by, and this game's name back into the canonical one, is {@code
+ * GrugVanillaBlocks}' job, so that the same table covers all five loaders. See #58.
  */
 public final class VanillaNames {
 
     private static final Map<String, Integer> BLOCKS = new HashMap<>();
     private static final Map<Integer, String> BLOCK_NAMES = new HashMap<>();
     private static final Map<String, Integer> ITEMS = new HashMap<>();
-    private static final Map<String, String> ALIASES = new HashMap<>();
 
     static {
-        ALIASES.put(key("crafting_table"), key("workbench"));
-        ALIASES.put(key("enchanting_table"), key("enchantmenttable"));
-
-        // The other loaders call the lit torch "redstone_torch" and StationAPI calls it
-        // "redstone_torch_lit"; 1.2.5's MCP field is torchRedstoneActive. Map both grug names onto
-        // the lit torch so the cross-loader test places the same block everywhere. See #58.
-        ALIASES.put(key("redstone_torch"), key("torchRedstoneActive"));
-        ALIASES.put(key("redstone_torch_lit"), key("torchRedstoneActive"));
-
         try (InputStream in = VanillaNames.class.getResourceAsStream("/vanilla_names.txt")) {
             if (in == null) {
                 throw new IOException("/vanilla_names.txt is missing from the loader jar");
@@ -66,15 +56,14 @@ public final class VanillaNames {
 
     /** The block id for the name, or -1. */
     public static int blockId(String path) {
-        Integer id = BLOCKS.get(resolve(path));
+        Integer id = BLOCKS.get(key(path));
         return id == null ? -1 : id;
     }
 
     /**
-     * The normalised name for a vanilla block id, or null. This is the reverse of {@link #key}, not
-     * the block's MCP field name, so multi-word blocks come back run together (for example {@code
-     * oreIron} becomes {@code ironore}). It is enough to name the single-word blocks the
-     * block-query test checks; canonical names across loaders are tracked separately.
+     * This game's name for a vanilla block id, or null. It is the {@link #key} of the block's MCP
+     * field name, which is what {@link #blockId} is asked with, so the two directions match.
+     * Mapping it to a canonical name a mod can compare against is {@code GrugVanillaBlocks}' job.
      */
     public static String blockName(int id) {
         return BLOCK_NAMES.get(id);
@@ -82,14 +71,8 @@ public final class VanillaNames {
 
     /** The item id (its shiftedIndex) for the name, or -1. */
     public static int itemId(String path) {
-        Integer id = ITEMS.get(resolve(path));
+        Integer id = ITEMS.get(key(path));
         return id == null ? -1 : id;
-    }
-
-    private static String resolve(String path) {
-        String k = key(path);
-        String alias = ALIASES.get(k);
-        return alias != null ? alias : k;
     }
 
     /**
