@@ -7,6 +7,7 @@ import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.grug.minecraft.ornithe.client.GrugStaticTexture;
 import net.grug.minecraft.ornithe.resource.GrugResourcePackProvider;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.render.texture.TextureManager;
 import net.minecraft.crafting.GrugRecipeHelper;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftClientEvents;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
@@ -14,9 +15,30 @@ import net.ornithemc.osl.resource.loader.api.client.ClientResourceLoaderEvents;
 import net.ornithemc.osl.resource.loader.api.resource.manager.ResourceManager;
 
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.Map;
 
 public class ClientGrugModLoader implements ClientModInitializer {
+
+    /** The atlas a sprite belongs to: 0 is terrain.png and 1 is gui/items.png. */
+    private static final int TERRAIN = 0;
+
+    private static final int ITEMS = 1;
+
+    /**
+     * The grug sprite already living in each slot of each atlas, so a reload refreshes the pixels of
+     * the sprite it already has rather than adding another one.
+     *
+     * <p>Keyed by sprite index rather than by the file the texture came from, because that index is
+     * the block's identity: two blocks can name the same texture and each gets its own index, so a
+     * reload that looked its slot up by path would refresh one of them and leave the other stale.
+     * The two atlases are separate maps because their indices come from separate counters that both
+     * start at the same number.
+     */
+    private static final Map<Integer, GrugStaticTexture> TERRAIN_SPRITES = new HashMap<>();
+
+    private static final Map<Integer, GrugStaticTexture> ITEM_SPRITES = new HashMap<>();
+
     @Override
     public void onInitializeClient() {
         ClientResourceLoaderEvents.INIT_RESOURCE_PACK_REPOSITORY.register(
@@ -35,8 +57,7 @@ public class ClientGrugModLoader implements ClientModInitializer {
                             int spriteId = entry.getValue();
                             InputStream is = findTexture(manager, "block", name);
                             if (is != null) {
-                                mc.textureManager.addDynamicTexture(
-                                        new GrugStaticTexture(spriteId, 0, is));
+                                upload(mc.textureManager, TERRAIN, spriteId, is);
                             }
                         }
 
@@ -46,8 +67,7 @@ public class ClientGrugModLoader implements ClientModInitializer {
                             int spriteId = entry.getKey();
                             String path = entry.getValue();
                             try (InputStream is = manager.getResource(path)) {
-                                mc.textureManager.addDynamicTexture(
-                                        new GrugStaticTexture(spriteId, 0, is));
+                                upload(mc.textureManager, TERRAIN, spriteId, is);
                             } catch (java.io.FileNotFoundException missing) {
                                 // The model named this texture, so a mod shipped the reference and
                                 // not the file. Leaving the slot as the atlas had it would render
@@ -70,8 +90,7 @@ public class ClientGrugModLoader implements ClientModInitializer {
                             int spriteId = entry.getValue();
                             InputStream is = findTexture(manager, "item", name);
                             if (is != null) {
-                                mc.textureManager.addDynamicTexture(
-                                        new GrugStaticTexture(spriteId, 1, is));
+                                upload(mc.textureManager, ITEMS, spriteId, is);
                             }
                         }
                     }
@@ -83,6 +102,26 @@ public class ClientGrugModLoader implements ClientModInitializer {
                     GrugRecipeHelper.registerAutoDiscoveredRecipes(
                             GrugModLoader.getActiveGrugModsDir());
                 });
+    }
+
+    /**
+     * Puts {@code is}'s pixels into {@code spriteId}'s slot of {@code atlas}, registering the sprite
+     * with the texture manager the first time it is seen.
+     *
+     * <p>No OpenGL happens here. The texture manager re-uploads every dynamic texture it holds on
+     * every tick, so the pixels land in the atlas on the next tick, which also means a slot that
+     * fails to read keeps rendering the texture that was in it rather than going blank.
+     */
+    private static void upload(
+            TextureManager textures, int atlas, int spriteId, InputStream is) {
+        Map<Integer, GrugStaticTexture> sprites = atlas == TERRAIN ? TERRAIN_SPRITES : ITEM_SPRITES;
+        GrugStaticTexture sprite = sprites.get(spriteId);
+        if (sprite == null) {
+            sprite = new GrugStaticTexture(spriteId, atlas);
+            sprites.put(spriteId, sprite);
+            textures.addDynamicTexture(sprite);
+        }
+        sprite.read(is);
     }
 
     /**
