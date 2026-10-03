@@ -401,13 +401,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
     private void placeBlockIn(World world, double x, double y, double z, String blockName) {
         Identifier id =
                 Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
-        Block targetBlock = BlockRegistry.INSTANCE.get(id);
-        if (targetBlock == null) {
-            // The loaders do not all spell every vanilla block the same way, so a name one of them
-            // has gets one more try under the spelling the others use. See #58.
-            String other = GrugBlockNames.otherSpelling(id.getPath());
-            if (other != null) targetBlock = BlockRegistry.INSTANCE.get(id.withPath(other));
-        }
+        // The loaders do not all spell every vanilla block the same way, so a name this one does
+        // not have gets one more try under the spelling the others use. See #58.
+        Block targetBlock =
+                GrugBlockNames.resolve(
+                        id.getPath(), path -> BlockRegistry.INSTANCE.get(id.withPath(path)));
 
         if (targetBlock != null) {
             int posX = (int) Math.floor(x);

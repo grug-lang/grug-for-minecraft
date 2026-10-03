@@ -421,13 +421,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
         ResourceLocation id =
                 new ResourceLocation(
                         blockName.contains(":") ? blockName : "minecraft:" + blockName);
-        Block targetBlock = resolveBlock(id);
-        if (targetBlock == null) {
-            // The loaders do not all spell every vanilla block the same way, so a name one of them
-            // has gets one more try under the spelling the others use. See #58.
-            String other = GrugBlockNames.otherSpelling(id.getPath());
-            if (other != null) targetBlock = resolveBlock(id.withPath(other));
-        }
+        // The loaders do not all spell every vanilla block the same way, so a name this one does
+        // not have gets one more try under the spelling the others use. See #58.
+        Block targetBlock =
+                GrugBlockNames.resolve(id.getPath(), path -> resolveBlock(id.withPath(path)));
 
         if (targetBlock != null) {
             net.minecraft.core.BlockPos pos =

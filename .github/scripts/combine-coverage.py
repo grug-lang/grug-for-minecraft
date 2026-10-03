@@ -41,20 +41,24 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 #   defining the mixin class, so JaCoCo never instruments them. The logic they used to hold lives in
 #   measured net.grug.* helpers instead.
 # - ServerGrugModLoader only runs on a dedicated server, which CI does not launch.
-# - GrugRecipeHelper is a shim around the package-private CraftingManager.registerShaped; the
-#   parsing it delegates to (GrugRecipeParser) is measured.
+# - GrugRecipeHelper is a shim around the package-private CraftingManager.registerShaped, and
+#   GrugRecipeParser is the part of it that needs a running game's registries to answer: whether an id
+#   names an item or a tag is that answer. Both are per-loader, and the rules they apply are measured
+#   where they can be, in GrugRecipeTree and GrugTags.
 # - Render/resource glue only runs through the loader's own resource and GUI APIs, which a headless
 #   CI cannot drive without a per-loader test harness. The testable logic behind them lives in
-#   net.grug.* helpers (GrugResourceIndex, GrugGuiBuilder) which stay measured.
+#   net.grug.* helpers (GrugResourceIndex, GrugGuiBuilder, GrugFaceTextures) which stay measured.
 EXCLUDED_CLASSES = {
     "GenericHostFunctions",
     "MinecraftMixin",
     "TitleScreenMixin",
     "ResourcePackManagerMixin",
+    "CraftingManagerMixin",
     "GrugMixin",
     "LiquidBlockRendererMixin",
     "ServerGrugModLoader",
     "GrugRecipeHelper",
+    "GrugRecipeParser",
     "GrugResourcePack",
     "GrugPackResources",
     "GrugScreen",
