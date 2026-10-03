@@ -187,6 +187,16 @@ class GrugRecipeTreeTest {
     }
 
     @Test
+    void reportsATypeThatIsNotAString() throws IOException {
+        recipe(
+                "mymod/data/grug/recipes/a.json",
+                "{\"type\": 5, \"result\": {\"id\": \"minecraft:dirt\"}}");
+
+        assertTrue(recipes().isEmpty());
+        assertReported("names no recipe 'type'");
+    }
+
+    @Test
     void reportsAResultThatIsNotThere() throws IOException {
         recipe("mymod/data/grug/recipes/a.json", "{\"type\": \"minecraft:crafting_shapeless\"}");
 

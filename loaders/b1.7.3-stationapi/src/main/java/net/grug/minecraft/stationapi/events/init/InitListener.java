@@ -446,7 +446,6 @@ public class InitListener {
      * <p>Kept apart so the update path reports a failure as the one thing it is, rather than as
      * whatever the caller happens to be doing.
      */
-    @GrugGenerated("recipe type read: a file that cannot be read is not forceable")
     private static String readRecipeType(File file) throws IOException {
         try (InputStreamReader reader =
                 new InputStreamReader(
