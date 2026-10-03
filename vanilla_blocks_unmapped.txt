@@ -1,0 +1,29 @@
+# The names each loader has that deliberately have no canonical row in
+# core/src/main/resources/vanilla_blocks.txt: the flowing liquids, and the blocks Minecraft dropped
+# or folded into a blockstate. vanilla_blocks.py --verify-blocks LOADER=DUMP fails on any other name
+# a dump has that the table does not mention, so this file turns the unmentioned report into a
+# checked decision.
+#
+# A dump is one `<block id> <name>` line per block, which is the id-keyed shape the audit was
+# produced from. Pairing an id to a canonical name is the curated part of the table, so the check
+# cannot derive it from the dump alone; this file is where that decision is recorded.
+#
+# Format: loader id, then the loader's own name.
+1.2.5-forge movingwater
+1.2.5-forge lavamoving
+1.2.5-forge activeovenstone
+1.2.5-forge activeredstonerepeater
+1.2.5-forge chestlocked
+a1.1.2_01-ornithe flowing_water
+a1.1.2_01-ornithe flowing_lava
+a1.1.2_01-ornithe lit_furnace
+b1.7.3-ornithe flowing_water
+b1.7.3-ornithe flowing_lava
+b1.7.3-ornithe lit_furnace
+b1.7.3-ornithe powered_repeater
+b1.7.3-ornithe chest_locked_april_fools
+b1.7.3-stationapi flowing_water
+b1.7.3-stationapi flowing_lava
+b1.7.3-stationapi furnace_lit
+b1.7.3-stationapi repeater_lit
+b1.7.3-stationapi locked_chest
