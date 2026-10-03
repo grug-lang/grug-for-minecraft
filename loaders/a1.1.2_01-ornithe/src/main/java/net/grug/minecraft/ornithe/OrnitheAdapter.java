@@ -298,13 +298,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         World world = (World) levelObj;
         String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
-        Block targetBlock = resolveBlock(path);
-        if (targetBlock == null) {
-            // The loaders do not all spell every vanilla block the same way, so a name one of them
-            // has gets one more try under the spelling the others use. See #58.
-            String other = GrugBlockNames.otherSpelling(path);
-            if (other != null) targetBlock = resolveBlock(other);
-        }
+        // The loaders do not all spell every vanilla block the same way, so a name this one does
+        // not have gets one more try under the spelling the others use. See #58.
+        Block targetBlock = GrugBlockNames.resolve(path, this::resolveBlock);
 
         if (targetBlock != null) {
             int posX = (int) Math.floor(x);

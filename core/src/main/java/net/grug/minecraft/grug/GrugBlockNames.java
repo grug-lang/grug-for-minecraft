@@ -3,6 +3,7 @@ package net.grug.minecraft.grug;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * The other name grug uses for a vanilla block, for the loaders whose own lookup does not have it.
@@ -32,13 +33,21 @@ public final class GrugBlockNames {
     private GrugBlockNames() {}
 
     /**
-     * The name this loader may spell the block as, or null when the loaders agree on this one.
+     * The block {@code path} names on this loader, or null when it names none.
+     *
+     * <p>The loader's own lookup is a function rather than a name because every loader answers this
+     * differently: some read a registry, some reflect over named fields, and 1.2.5 reads a table
+     * dumped at build time. Only the fallback is shared.
      *
      * <p>The path alone, so the namespace has already been settled by the caller: these are vanilla
      * names, and a mod's own block is resolved before any of this.
      */
-    public static String otherSpelling(String path) {
-        return OTHER_SPELLINGS.get(path);
+    public static <T> T resolve(String path, Function<String, T> loaderLookup) {
+        T block = loaderLookup.apply(path);
+        if (block != null) return block;
+
+        String other = OTHER_SPELLINGS.get(path);
+        return other == null ? null : loaderLookup.apply(other);
     }
 
     /** Every name with another spelling, which is what a test can assert on. */
