@@ -1,53 +1,57 @@
-# A vanilla block name has to mean the same block on every loader, and get_block has to answer
-# with the name a mod wrote rather than with the loader's own spelling of it.
-# This places every block whose name changed between Minecraft versions and reads each one back,
-# so it runs the same on all five loaders: a name that resolved to a different block, or came
-# back under another name, fails here. Those are the blocks two or more loaders spell differently
-# from the canonical name, which is the whole of what the table in core pins down. Each one is
-# read back in the tick it was placed, so a block the game would remove again on its own (a flower
-# on the wrong substrate, a leaf that decays) cannot make the assertion flaky.
-# The blocks left out are two-block blocks (minecraft:oak_door, minecraft:iron_door and
-# minecraft:white_bed), which a half-placed one is not the block the mod asked for, and the
-# flowing liquids (minecraft:water and minecraft:lava), and minecraft:redstone_wire, which pops
-# off in the tick it is placed unless it has a solid block to stand on.
-# Band 35 is free: the coverage tests use 20 and the pipe tests 30, 40, 45, 50 and 55, and a
-# block placed far above the player is dropped rather than placed on Beta. The two torches stand on a
-# stone because a torch the game removes again is not what this test is about. The grid is three
-# apart so no two fixture blocks are neighbours.
+# A vanilla block name has to mean the same block on every loader, and get_block has to answer with
+# the name a mod wrote rather than with the loader's own spelling of it.
+# This places a block for every table row that is a single block and resolves on all five loaders,
+# and reads each one back in the tick it was placed, so a name that resolved to a different block,
+# or came back under another name, fails here. Reading in the same tick keeps a block the game would
+# remove again on its own (a flower on the wrong substrate, a leaf that decays) from making the
+# assertion flaky.
+# A row that cannot be placed on all five is not here, because one shared test cannot cover it: a
+# block a loader does not have (Alpha predates the lapis, the pistons, the note block and more), the
+# two-block doors and bed, the flowing liquids, the redstone wire that pops off without a solid
+# block, and the names 1.20.6 folds into a blockstate (the unlit redstone torch and the lit ore and
+# lamp). The rows only 1.2.5 and 1.20.6 share (brewing stand, enchanting table, end stone and the
+# rest) are pinned in vanilla_blocks_test.py, which needs no game.
+# Band 30 is free: the coverage tests use 20 and the pipe tests 25, 35, 40, 45 and 50, and a block
+# placed far above the player is dropped rather than placed on Beta. The two torches stand on stone
+# because a torch the game removes again is not what this test is about. The grid is three apart so
+# no two fixture blocks are neighbours.
 
 export run() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    y: number = origin.y() + 35
+    y: number = origin.y() + 30
     z: number = origin.z()
 
     # Terrain can reach this high (a hill on the seed, or a block an earlier test left at this
     # offset), so climb until the spot is air instead of trusting the offset. The climb is capped
-    # low because a block placed far above the player is dropped rather than placed on Beta, and the
-    # bands above this one are taken by the pipe tests.
+    # below the pipe band above this one because a block placed far above the player is dropped
+    # rather than placed on Beta.
     steps: number = 0
-    while not level.is_air(x, y, z) and steps < 8 {
+    while not level.is_air(x, y, z) and steps < 4 {
         y = y + 1
         steps = steps + 1
     }
 
-    level.place_block(x + 0, y, z, "minecraft:bricks")
-    Test.assert(level.get_block(x + 0, y, z) == "minecraft:bricks", "minecraft:bricks is one block everywhere.")
-    level.place_block(x + 3, y, z, "minecraft:clay")
-    Test.assert(level.get_block(x + 3, y, z) == "minecraft:clay", "minecraft:clay is one block everywhere.")
-    level.place_block(x + 6, y, z, "minecraft:coal_ore")
-    Test.assert(level.get_block(x + 6, y, z) == "minecraft:coal_ore", "minecraft:coal_ore is one block everywhere.")
-    level.place_block(x + 9, y, z, "minecraft:crafting_table")
-    Test.assert(level.get_block(x + 9, y, z) == "minecraft:crafting_table", "minecraft:crafting_table is one block everywhere.")
-    level.place_block(x + 12, y, z, "minecraft:diamond_block")
-    Test.assert(level.get_block(x + 12, y, z) == "minecraft:diamond_block", "minecraft:diamond_block is one block everywhere.")
-    level.place_block(x + 15, y, z, "minecraft:diamond_ore")
-    Test.assert(level.get_block(x + 15, y, z) == "minecraft:diamond_ore", "minecraft:diamond_ore is one block everywhere.")
-    level.place_block(x + 18, y, z, "minecraft:farmland")
-    Test.assert(level.get_block(x + 18, y, z) == "minecraft:farmland", "minecraft:farmland is one block everywhere.")
-    level.place_block(x + 21, y, z, "minecraft:furnace")
-    Test.assert(level.get_block(x + 21, y, z) == "minecraft:furnace", "minecraft:furnace is one block everywhere.")
+    level.place_block(x + 0, y, z + 0, "minecraft:bricks")
+    Test.assert(level.get_block(x + 0, y, z + 0) == "minecraft:bricks", "minecraft:bricks is one block everywhere.")
+    level.place_block(x + 3, y, z + 0, "minecraft:clay")
+    Test.assert(level.get_block(x + 3, y, z + 0) == "minecraft:clay", "minecraft:clay is one block everywhere.")
+    level.place_block(x + 6, y, z + 0, "minecraft:coal_ore")
+    Test.assert(level.get_block(x + 6, y, z + 0) == "minecraft:coal_ore", "minecraft:coal_ore is one block everywhere.")
+    level.place_block(x + 9, y, z + 0, "minecraft:crafting_table")
+    Test.assert(level.get_block(x + 9, y, z + 0) == "minecraft:crafting_table", "minecraft:crafting_table is one block everywhere.")
+    level.place_block(x + 12, y, z + 0, "minecraft:diamond_block")
+    Test.assert(level.get_block(x + 12, y, z + 0) == "minecraft:diamond_block", "minecraft:diamond_block is one block everywhere.")
+    level.place_block(x + 15, y, z + 0, "minecraft:diamond_ore")
+    Test.assert(level.get_block(x + 15, y, z + 0) == "minecraft:diamond_ore", "minecraft:diamond_ore is one block everywhere.")
+    level.place_block(x + 18, y, z + 0, "minecraft:farmland")
+    Test.assert(level.get_block(x + 18, y, z + 0) == "minecraft:farmland", "minecraft:farmland is one block everywhere.")
+    level.place_block(x + 21, y, z + 0, "minecraft:furnace")
+    Test.assert(level.get_block(x + 21, y, z + 0) == "minecraft:furnace", "minecraft:furnace is one block everywhere.")
+    level.place_block(x + 24, y, z + 0, "minecraft:grass_block")
+    Test.assert(level.get_block(x + 24, y, z + 0) == "minecraft:grass_block", "minecraft:grass_block is one block everywhere.")
+
     level.place_block(x + 0, y, z + 3, "minecraft:gold_block")
     Test.assert(level.get_block(x + 0, y, z + 3) == "minecraft:gold_block", "minecraft:gold_block is one block everywhere.")
     level.place_block(x + 3, y, z + 3, "minecraft:gold_ore")
@@ -64,6 +68,9 @@ export run() {
     Test.assert(level.get_block(x + 18, y, z + 3) == "minecraft:oak_log", "minecraft:oak_log is one block everywhere.")
     level.place_block(x + 21, y, z + 3, "minecraft:oak_planks")
     Test.assert(level.get_block(x + 21, y, z + 3) == "minecraft:oak_planks", "minecraft:oak_planks is one block everywhere.")
+    level.place_block(x + 24, y, z + 3, "minecraft:oak_leaves")
+    Test.assert(level.get_block(x + 24, y, z + 3) == "minecraft:oak_leaves", "minecraft:oak_leaves is one block everywhere.")
+
     level.place_block(x + 0, y, z + 6, "minecraft:oak_sapling")
     Test.assert(level.get_block(x + 0, y, z + 6) == "minecraft:oak_sapling", "minecraft:oak_sapling is one block everywhere.")
     level.place_block(x + 3, y, z + 6, "minecraft:oak_sign")
@@ -81,19 +88,46 @@ export run() {
     Test.assert(level.get_block(x + 18, y, z + 6) == "minecraft:smooth_stone", "minecraft:smooth_stone is one block everywhere.")
     level.place_block(x + 21, y, z + 6, "minecraft:snow")
     Test.assert(level.get_block(x + 21, y, z + 6) == "minecraft:snow", "minecraft:snow is one block everywhere.")
-    level.place_block(x + 0, y, z + 9, "minecraft:snow_block")
-    Test.assert(level.get_block(x + 0, y, z + 9) == "minecraft:snow_block", "minecraft:snow_block is one block everywhere.")
-    level.place_block(x + 3, y, z + 9, "minecraft:spawner")
-    Test.assert(level.get_block(x + 3, y, z + 9) == "minecraft:spawner", "minecraft:spawner is one block everywhere.")
-    level.place_block(x + 6, y, z + 9, "minecraft:stone_slab")
-    Test.assert(level.get_block(x + 6, y, z + 9) == "minecraft:stone_slab", "minecraft:stone_slab is one block everywhere.")
-    level.place_block(x + 9, y, z + 9, "minecraft:stone_stairs")
-    Test.assert(level.get_block(x + 9, y, z + 9) == "minecraft:stone_stairs", "minecraft:stone_stairs is one block everywhere.")
-    level.place_block(x + 12, y, z + 9, "minecraft:sugar_cane")
-    Test.assert(level.get_block(x + 12, y, z + 9) == "minecraft:sugar_cane", "minecraft:sugar_cane is one block everywhere.")
-    level.place_block(x + 15, y - 1, z + 9, "minecraft:stone")
-    level.place_block(x + 15, y, z + 9, "minecraft:torch")
-    Test.assert(level.get_block(x + 15, y, z + 9) == "minecraft:torch", "minecraft:torch is one block everywhere.")
-    level.place_block(x + 18, y, z + 9, "minecraft:wheat")
-    Test.assert(level.get_block(x + 18, y, z + 9) == "minecraft:wheat", "minecraft:wheat is one block everywhere.")
+    level.place_block(x + 24, y, z + 6, "minecraft:snow_block")
+    Test.assert(level.get_block(x + 24, y, z + 6) == "minecraft:snow_block", "minecraft:snow_block is one block everywhere.")
+
+    level.place_block(x + 0, y, z + 9, "minecraft:spawner")
+    Test.assert(level.get_block(x + 0, y, z + 9) == "minecraft:spawner", "minecraft:spawner is one block everywhere.")
+    level.place_block(x + 3, y, z + 9, "minecraft:stone_slab")
+    Test.assert(level.get_block(x + 3, y, z + 9) == "minecraft:stone_slab", "minecraft:stone_slab is one block everywhere.")
+    level.place_block(x + 6, y, z + 9, "minecraft:stone_stairs")
+    Test.assert(level.get_block(x + 6, y, z + 9) == "minecraft:stone_stairs", "minecraft:stone_stairs is one block everywhere.")
+    level.place_block(x + 9, y, z + 9, "minecraft:sugar_cane")
+    Test.assert(level.get_block(x + 9, y, z + 9) == "minecraft:sugar_cane", "minecraft:sugar_cane is one block everywhere.")
+    level.place_block(x + 12, y - 1, z + 9, "minecraft:stone")
+    level.place_block(x + 12, y, z + 9, "minecraft:torch")
+    Test.assert(level.get_block(x + 12, y, z + 9) == "minecraft:torch", "minecraft:torch is one block everywhere.")
+    level.place_block(x + 15, y, z + 9, "minecraft:wheat")
+    Test.assert(level.get_block(x + 15, y, z + 9) == "minecraft:wheat", "minecraft:wheat is one block everywhere.")
+    level.place_block(x + 18, y, z + 9, "minecraft:white_wool")
+    Test.assert(level.get_block(x + 18, y, z + 9) == "minecraft:white_wool", "minecraft:white_wool is one block everywhere.")
+    level.place_block(x + 21, y, z + 9, "minecraft:dandelion")
+    Test.assert(level.get_block(x + 21, y, z + 9) == "minecraft:dandelion", "minecraft:dandelion is one block everywhere.")
+    level.place_block(x + 24, y, z + 9, "minecraft:poppy")
+    Test.assert(level.get_block(x + 24, y, z + 9) == "minecraft:poppy", "minecraft:poppy is one block everywhere.")
+
+    level.place_block(x + 0, y, z + 12, "minecraft:brown_mushroom")
+    Test.assert(level.get_block(x + 0, y, z + 12) == "minecraft:brown_mushroom", "minecraft:brown_mushroom is one block everywhere.")
+    level.place_block(x + 3, y, z + 12, "minecraft:red_mushroom")
+    Test.assert(level.get_block(x + 3, y, z + 12) == "minecraft:red_mushroom", "minecraft:red_mushroom is one block everywhere.")
+    level.place_block(x + 6, y - 1, z + 12, "minecraft:stone")
+    level.place_block(x + 6, y, z + 12, "minecraft:stone_pressure_plate")
+    Test.assert(level.get_block(x + 6, y, z + 12) == "minecraft:stone_pressure_plate", "minecraft:stone_pressure_plate is one block everywhere.")
+    level.place_block(x + 9, y - 1, z + 12, "minecraft:stone")
+    level.place_block(x + 9, y, z + 12, "minecraft:oak_pressure_plate")
+    Test.assert(level.get_block(x + 9, y, z + 12) == "minecraft:oak_pressure_plate", "minecraft:oak_pressure_plate is one block everywhere.")
+    # A button needs a solid block to attach to, or Alpha removes it in onAdded. A wall on every side
+    # covers whichever side its default metadata picks.
+    level.place_block(x + 11, y, z + 12, "minecraft:stone")
+    level.place_block(x + 13, y, z + 12, "minecraft:stone")
+    level.place_block(x + 12, y, z + 11, "minecraft:stone")
+    level.place_block(x + 12, y, z + 13, "minecraft:stone")
+    level.place_block(x + 12, y - 1, z + 12, "minecraft:stone")
+    level.place_block(x + 12, y, z + 12, "minecraft:stone_button")
+    Test.assert(level.get_block(x + 12, y, z + 12) == "minecraft:stone_button", "minecraft:stone_button is one block everywhere.")
 }

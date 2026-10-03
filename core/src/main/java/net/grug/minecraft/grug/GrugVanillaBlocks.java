@@ -26,10 +26,10 @@ import java.util.Map;
  * loader, so the usual answer is that the name a mod wrote is the name the loader wants. The table
  * exists for the blocks where that is not true.
  *
- * <p>A null from {@link Loader#localName} means either that this loader does not have the block, or
- * that the name is not one the audit covers. A loader falls back to its own resolution for both,
- * and then reports a name that still does not resolve, rather than placing a different block. That
- * is what keeps one name meaning one block everywhere.
+ * <p>A canonical name the audit does not cover, or one this loader does not have, comes back from
+ * {@link Loader#localName} unchanged, and the loader falls back to its own resolution for it. A
+ * name that still does not resolve is reported rather than placed as a different block, which is
+ * what keeps one name meaning one block everywhere.
  */
 public final class GrugVanillaBlocks {
 

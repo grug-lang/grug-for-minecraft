@@ -10,7 +10,6 @@ import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
-import net.grug.minecraft.grug.GrugBlockNames;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -421,17 +420,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
         ResourceLocation id =
                 new ResourceLocation(
                         blockName.contains(":") ? blockName : "minecraft:" + blockName);
-        // The loaders do not all spell every vanilla block the same way, so a name this one does
-        // not have gets one more try under the spelling the others use. See #58.
-        Block targetBlock =
-                GrugBlockNames.resolve(id.getPath(), path -> resolveBlock(id.withPath(path)));
+        // The canonical name table already answers under the name this loader spells a block with,
+        // so resolveBlock is the whole lookup. See #58.
+        Block targetBlock = resolveBlock(id);
 
         if (targetBlock == null) {
-            // A name that resolves nowhere is a defect in the mod, not something to log and skip:
-            // it
-            // would leave the mod building against a block it never got, which is exactly the cross
-            // loader mismatch the canonical name table exists to remove.
-            GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+            // A name that resolves nowhere is a defect in the mod, not a block to skip: it would
+            // leave the mod building against a block it never got, which is the cross loader
+            // mismatch the canonical name table exists to remove. The host function error is the
+            // report, so there is no second log line.
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "place_block: Could not resolve block " + blockName);
             return;

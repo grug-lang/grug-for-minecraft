@@ -20,10 +20,15 @@ names. That needs the game jars, so CI cannot do it, and it is how the table was
 Minecraft version bump gets re-audited. The dump it reads is one ``<block id> <name>`` line per
 block, which is what each loader's own registry gives up: 1.2.5 and the Ornithe loaders name their
 blocks by static field, and StationAPI names them in the byte code of its vanilla block
-registration. Only one direction can be checked this way, since pairing a dump entry to a table row
-needs the canonical name, which is the curated part of the table. So every spelling a loader's
-column uses has to be a name that loader actually has, and the blocks a column does not mention are
-counted and printed, for whoever is doing the re-audit to look at.
+registration.
+
+The check runs in both directions, because either direction hid a real defect. Every spelling a
+loader's column uses has to be a name that loader has. And every name a loader has has to be either
+in its column or in ``vanilla_blocks_unmapped.txt``: a block no row mentions is a decision that it
+has no canonical name, and an unrecorded one is exactly the missing row that let a loader have a
+block the table believed it did not. The 1.20.6 column is the registry itself, so every block in its
+dump is a canonical name and most of them have no row; only the column-to-dump direction is checked
+for it.
 """
 
 import argparse
@@ -32,6 +37,14 @@ import sys
 from pathlib import Path
 
 TABLE = Path("core/src/main/resources/vanilla_blocks.txt")
+
+# The names each loader has that deliberately have no canonical row, checked with --verify-blocks.
+UNMAPPED = Path("vanilla_blocks_unmapped.txt")
+
+# The column that holds canonical names, so it is the registry rather than a loader's own spelling.
+# The completeness direction does not apply to it: every 1.20.6 block is a canonical name, and only
+# the ones an older loader shares get a row.
+CANONICAL_LOADER = "1.20.6-forge"
 
 # A canonical name is the one modern Minecraft uses, so it is lower case snake case under the
 # minecraft namespace. A loader's own column is not held to that: 1.2.5 spells its blocks as MCP
@@ -157,12 +170,56 @@ def read_blocks(path: Path) -> dict:
     return names
 
 
-def verify_blocks_errors(table: Table, dumps: dict) -> list:
+def read_unmapped(path: Path) -> dict:
+    """The names each loader has that deliberately have no canonical row.
+
+    One ``<loader id> <name>`` line per block. This is the decision the dump check cannot derive:
+    pairing a dump entry to a canonical name is the curated part of the table, so a block whose
+    canonical name modern Minecraft dropped or folded into a blockstate has to be recorded here.
+    """
+    unmapped = {}
+    for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        columns = line.split()
+        if len(columns) != 2:
+            raise ValueError(
+                f"{path}:{number}: expected a loader id and a name, got {len(columns)} columns:"
+                f" {line!r}"
+            )
+        unmapped.setdefault(columns[0], set()).add(columns[1])
+    return unmapped
+
+
+def unmapped_errors(table: Table, unmapped: dict) -> list:
+    """What is wrong with the unmapped list: an unknown loader, or a name the table maps.
+
+    A name the table maps is not unmapped, so leaving it in the list would hide the next block that
+    really is.
+    """
+    errors = []
+    for loader_id, names in sorted(unmapped.items()):
+        if loader_id not in table.loaders:
+            errors.append((loader_id, "it is not a loader under loaders/, so it has no column"))
+            continue
+        mapped = set(table.spellings(loader_id).values())
+        for name in sorted(names & mapped):
+            errors.append((name, f"{loader_id} maps it, so it is not unmapped"))
+    return errors
+
+
+def verify_blocks_errors(table: Table, dumps: dict, unmapped: dict = None) -> list:
     """Where a loader's column disagrees with the blocks that loader actually has.
 
     Every spelling a loader's column uses has to be a name that loader has, because a spelling it
     does not have is a name ``place_block`` cannot resolve and ``get_block`` can never return.
+
+    Every name the dump has has to be in the column too, unless the unmapped list records that it
+    deliberately has no canonical row. A name that is in neither is a block the audit missed, which
+    is what let a loader have a block the table believed it did not.
     """
+    allowed = unmapped or {}
     errors = []
     for loader_id, names in sorted(dumps.items()):
         if loader_id not in table.loaders:
@@ -185,6 +242,13 @@ def verify_blocks_errors(table: Table, dumps: dict) -> list:
         for canonical, spelling in sorted(table.spellings(loader_id).items()):
             if spelling not in names.values():
                 errors.append((canonical, f"{loader_id} has no block called {spelling!r}"))
+
+        if loader_id == CANONICAL_LOADER:
+            continue
+        for name in sorted(set(names.values()) - spellings - allowed.get(loader_id, set())):
+            errors.append(
+                (name, f"{loader_id} has it, no row mentions it, and it is not in {UNMAPPED}")
+            )
     return errors
 
 
@@ -217,6 +281,15 @@ def main() -> int:
         help=(
             "cross-check a loader's column against a dump of its real block names"
             " (<block id> <name> per line); repeatable"
+        ),
+    )
+    parser.add_argument(
+        "--unmapped",
+        type=Path,
+        default=UNMAPPED,
+        help=(
+            "the names each loader has that deliberately have no canonical row, for --verify-blocks"
+            " (one <loader id> <name> line per block)"
         ),
     )
     args = parser.parse_args()
@@ -252,8 +325,24 @@ def main() -> int:
             return 1
         dumps[loader_id] = read_blocks(dump_path)
 
+    unmapped = {}
     if dumps:
-        errors += verify_blocks_errors(table, dumps)
+        if not args.unmapped.is_file():
+            print(
+                f"FAILED: {args.unmapped} does not exist; it is what records the names a loader"
+                " has that deliberately have no row.",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            unmapped = read_unmapped(args.unmapped)
+        except ValueError as e:
+            print(f"FAILED: {e}", file=sys.stderr)
+            return 1
+        errors += unmapped_errors(table, unmapped)
+
+    if dumps:
+        errors += verify_blocks_errors(table, dumps, unmapped)
 
     if errors:
         for canonical, message in errors:
@@ -266,9 +355,12 @@ def main() -> int:
         f" ({', '.join(table.loaders)})"
     )
     for loader_id, total, missing in unmentioned_blocks(table, dumps):
+        if not missing:
+            print(f"{loader_id}: {total} blocks, all in its column")
+            continue
         print(
-            f"{loader_id}: {total} blocks, {len(missing)} of them not in its column"
-            + (f": {', '.join(missing)}" if missing else "")
+            f"{loader_id}: {total} blocks, {len(missing)} with no canonical row"
+            f" ({', '.join(missing)})"
         )
     return 0
 

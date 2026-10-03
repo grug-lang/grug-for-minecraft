@@ -76,7 +76,65 @@ class GrugVanillaBlocksTest {
                 GrugVanillaBlocks.forLoader("1.2.5-forge").canonicalName("ironore"));
         assertEquals(
                 "minecraft:redstone_ore",
+                GrugVanillaBlocks.forLoader("b1.7.3-ornithe").canonicalName("redstone_ore"));
+        assertEquals(
+                "minecraft:lit_redstone_ore",
                 GrugVanillaBlocks.forLoader("b1.7.3-ornithe").canonicalName("lit_redstone_ore"));
+    }
+
+    @Test
+    void aBlockTheFirstAuditMissedStillResolves() {
+        // These were dashes because the table was built from a regex over each loader's source that
+        // missed subclass-typed fields and constructors without an id. Each name is the block the
+        // loader really has, so place_block has to resolve it rather than report it.
+        assertEquals(
+                "grass",
+                GrugVanillaBlocks.forLoader("1.2.5-forge").localName("minecraft:grass_block"));
+        assertEquals(
+                "leaves",
+                GrugVanillaBlocks.forLoader("1.2.5-forge").localName("minecraft:oak_leaves"));
+        assertEquals(
+                "cloth",
+                GrugVanillaBlocks.forLoader("1.2.5-forge").localName("minecraft:white_wool"));
+        assertEquals(
+                "enchantmenttable",
+                GrugVanillaBlocks.forLoader("1.2.5-forge").localName("minecraft:enchanting_table"));
+        assertEquals(
+                "wool",
+                GrugVanillaBlocks.forLoader("b1.7.3-ornithe").localName("minecraft:white_wool"));
+        assertEquals(
+                "leaves",
+                GrugVanillaBlocks.forLoader("b1.7.3-stationapi").localName("minecraft:oak_leaves"));
+        assertEquals(
+                "wool",
+                GrugVanillaBlocks.forLoader("b1.7.3-stationapi").localName("minecraft:white_wool"));
+        assertEquals(
+                "rose",
+                GrugVanillaBlocks.forLoader("b1.7.3-stationapi").localName("minecraft:poppy"));
+        assertEquals(
+                "grass",
+                GrugVanillaBlocks.forLoader("b1.7.3-stationapi")
+                        .localName("minecraft:short_grass"));
+    }
+
+    @Test
+    void theOreFollowsTheModernDefaultState() {
+        // 1.20.6 registers a redstone ore with lit=false and a redstone torch with lit=true, so the
+        // canonical name is the default state and the pre-1.13 second name is the other one.
+        assertEquals(
+                "oreredstone",
+                GrugVanillaBlocks.forLoader("1.2.5-forge").localName("minecraft:redstone_ore"));
+        assertEquals(
+                "glowingoreredstone",
+                GrugVanillaBlocks.forLoader("1.2.5-forge").localName("minecraft:lit_redstone_ore"));
+        assertEquals(
+                "redstone_ore",
+                GrugVanillaBlocks.forLoader("b1.7.3-stationapi")
+                        .localName("minecraft:redstone_ore"));
+        assertEquals(
+                "redstone_ore_lit",
+                GrugVanillaBlocks.forLoader("b1.7.3-stationapi")
+                        .localName("minecraft:lit_redstone_ore"));
     }
 
     @Test

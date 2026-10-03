@@ -5,7 +5,6 @@ import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
-import net.grug.minecraft.grug.GrugBlockNames;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
@@ -437,11 +436,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
         }
 
         if (targetBlock == null) {
-            // A name that resolves nowhere is a defect in the mod, not something to log and skip:
-            // it
-            // would leave the mod building against a block it never got, which is exactly the cross
-            // loader mismatch the canonical name table exists to remove.
-            InitListener.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+            // A name that resolves nowhere is a defect in the mod, not a block to skip: it would
+            // leave the mod building against a block it never got, which is the cross loader
+            // mismatch the canonical name table exists to remove. The host function error is the
+            // report, so there is no second log line.
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "place_block: Could not resolve block " + blockName);
             return;
