@@ -36,6 +36,11 @@ client while another Gradle build is launching a game.
   new worktree at an existing checkout with `-Pgrug.mcpSnapshot=<path>` instead of cloning again.
 - The Gradle daemon and the `~/.gradle` caches are shared. Two builds can run at once, but they
   can block on cache locks, so prefer to let another agent's build finish first.
+- `~/.m2` is shared as well, and the four standalone loaders consume `net.grug:grug-core` from it.
+  A publish from another worktree can overwrite the artifact under this branch's feet, which shows
+  up as `Failed to load class file for '...'` from a class this branch added. Delete
+  `~/.m2/repository/net/grug/grug-core/<version>` and republish
+  (`./gradlew :core:publishMavenJavaPublicationToMavenLocal`) before suspecting the branch.
 
 ## Writing and explaining
 
