@@ -63,8 +63,9 @@ behaviour undefined, and which side of the sandbox the code is on.
   carry on. If you catch something and carry on past an invariant, the catch is the bug.
 - **A bounded defect is reported, and still fails.** `Test.assert` uses
   `Grug.hostFunctionErrorHappened`, not `fatal`, because "a failed assertion should fail just the
-  test, not take the whole game down"; a mod-tree defect such as a test file outside `tests/` is
-  reported the same way. The scope fails either way, only the game keeps running.
+  test, not take the whole game down". A mod-tree defect such as a test file outside `tests/` is the
+  same severity: reported, and it fails the run. The scope fails either way, only the game keeps
+  running.
 - **A grug mod err is always contained.** The JNI layer prints and clears anything thrown inside a
   game function so the script carries on, which is the sandbox and is the product. Never design a
   mod-side err to stop the game, and never read "the script kept going" as the bug.
@@ -131,10 +132,10 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 
 - The [grug README](https://raw.githubusercontent.com/grug-lang/grug/refs/heads/main/README.md) is
   authoritative on what the language is and is not. Its advanced example shows virtually every
-  feature grug has, so a feature missing from that example does not exist, and its Links section
-  points at the other implementations and at `grug-tests`, which holds the grammar and the
-  `mod_api.json` schema. Fetch the raw URL rather than a github.com one: it is the same text
-  without the HTML around it.
+  feature grug has, so a feature missing from that example does not exist. Its Links section names
+  the other implementations and `grug-tests`, the official suite, and its How? section links
+  `grug-tests`' grammar and the `mod_api.json` schema. Fetch the raw URL rather than a github.com
+  one: it is the same text without the HTML around it.
 - A call's arguments must stay on one line.
 - No chained calls: `x.unwrap().damage()` is rejected. Bind `x.unwrap()` to a local first.
 - Variables are declared at member scope. Helpers are `local` functions and must be defined
