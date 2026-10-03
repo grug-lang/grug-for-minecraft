@@ -714,7 +714,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
         }
     }
 
-    /** Runs a task on the client (render) thread, blocking until it has finished. */
+    /**
+     * Runs a task on the client (render) thread, blocking until it has finished.
+     *
+     * <p>The waiting thread is inside a grug call, and the task can enter the state itself (a block
+     * use, a runtime error report), so the wait releases the state lock: the blocked thread is not
+     * running grug code, and the task is then the one active entry.
+     */
     @GrugGenerated("client-thread marshalling: the same-thread path cannot occur in a CI run")
     private static void onClientThread(Runnable task) {
         Minecraft mc = Minecraft.getInstance();
@@ -731,6 +737,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         latch.countDown();
                     }
                 });
+        Grug.runWithStateLockReleased(() -> awaitLatch(latch));
+    }
+
+    /**
+     * Awaits the released client-thread task. The interrupt path only runs when the game shuts down
+     * mid-wait, which a CI run does not do.
+     */
+    @GrugGenerated("client-thread marshalling: an interrupted wait cannot occur in a CI run")
+    private static void awaitLatch(CountDownLatch latch) {
         try {
             latch.await();
         } catch (InterruptedException e) {
