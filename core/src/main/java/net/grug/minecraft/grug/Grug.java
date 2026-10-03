@@ -35,16 +35,18 @@ public final class Grug {
     // call.
     public static boolean testNotDone = false;
 
-    // Set by Test.expect_error(); reset to null by GrugTestRunner immediately before each
-    // Test.run() call. While non-null, an export function that aborts on a host error whose message
-    // contains this text counts as a pass, which is how the error branches get exercised.
+    // Set by Test.expect_error(); cleared by GrugTestRunner when a test starts and when it ends, so
+    // it cannot outlive the test that asked for it. While non-null, an export function that aborts
+    // on a host error whose message contains this text counts as a pass, which is how the error
+    // branches get exercised. It also gates whether onRuntimeError records into testRuntimeErrors,
+    // since only a test that expects an error can match a record.
     public static String testExpectedError = null;
 
     // The runtime errors the running test produced, which is what testExpectedError is matched
-    // against. Filled by onRuntimeError, which the engine calls from inside the host function that
-    // failed, so the write happens on the thread running the test and is in place by the time
-    // Test.run() returns. GrugTestRunner clears it immediately before each Test.run() call, so it
-    // only ever holds what the running test itself raised.
+    // against. Filled by recordTestRuntimeError, which the engine reaches from inside the host
+    // function that failed, so the write happens on the thread running the test and is in place by
+    // the time Test.run() returns. GrugTestRunner clears it immediately before each Test.run()
+    // call, so it only ever holds what the running test itself raised.
     //
     // It is a separate queue from runtimeErrorQueue because that one is the chat channel, and a
     // loader drains it from the client thread while 1.20.6 runs the test runner on the server
@@ -287,8 +289,22 @@ public final class Grug {
         synchronized (runtimeErrorQueue) {
             runtimeErrorQueue.add(reason);
         }
-        // The engine calls this from inside the host function that failed, so a test's own
-        // Test.run() call has the record in place by the time it returns to the runner.
+        recordTestRuntimeError(reason);
+    }
+
+    /**
+     * Records a runtime error for the expecting test, which is who matches it. Only the runner
+     * reads {@link #testRuntimeErrors} and only while {@link #testExpectedError} is set, so an
+     * error raised with no test waiting for one is dropped rather than kept for the rest of the
+     * session. The engine calls this from inside the host function that failed, so a test's own
+     * Test.run() call has the record in place by the time it returns to the runner.
+     *
+     * <p>Visible for tests: they drive the record without the adapter onRuntimeError logs to.
+     */
+    public static void recordTestRuntimeError(String reason) {
+        if (testExpectedError == null) {
+            return;
+        }
         synchronized (testRuntimeErrors) {
             testRuntimeErrors.add(reason);
         }

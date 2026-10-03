@@ -138,7 +138,7 @@ class GrugTestRunnerTest {
 
     /** What {@code Grug.onRuntimeError} does with a message the engine reports. */
     private static void reportRuntimeError(String message) {
-        Grug.testRuntimeErrors.add("Host function error: " + message);
+        Grug.recordTestRuntimeError("Host function error: " + message);
         synchronized (Grug.runtimeErrorQueue) {
             Grug.runtimeErrorQueue.add("Host function error: " + message);
         }
@@ -168,7 +168,33 @@ class GrugTestRunnerTest {
                 };
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
-        assertTrue(Grug.runtimeErrorQueue.stream().noneMatch(m -> m.contains("Expected an error")));
+        // Assert a pass rather than the absence of one particular failure, so a different failure
+        // of the same test cannot leave the case green.
+        assertTrue(Grug.runtimeErrorQueue.stream().noneMatch(m -> m.contains("FAIL")));
+    }
+
+    @Test
+    void recordsARuntimeErrorOnlyWhileATestExpectsOne() {
+        // Nothing reads the record outside the expect_error path, so an error with no expectation
+        // set would be retained for the rest of the session without ever being matched.
+        Grug.recordTestRuntimeError("no test is expecting an error");
+        assertTrue(Grug.testRuntimeErrors.isEmpty());
+
+        Grug.testExpectedError = "boom";
+        Grug.recordTestRuntimeError("boom happened");
+        assertEquals(1, Grug.testRuntimeErrors.size());
+        assertEquals("boom happened", Grug.testRuntimeErrors.peek());
+    }
+
+    @Test
+    void clearsAnExpectationWhenTheTestThatAskedForItEnds() {
+        // A lingering expectation would keep Grug.onRuntimeError recording errors for a test that
+        // is no longer running.
+        FakeOps ops = new FakeOps();
+        ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
+        runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
+
+        assertNull(Grug.testExpectedError);
     }
 
     @Test

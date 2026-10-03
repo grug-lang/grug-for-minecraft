@@ -111,7 +111,9 @@ public class GrugTestRunner {
         this.tests = new ArrayList<>();
         // Anything already queued was reported during startup, before any test ran, so clearing it
         // here keeps the chat from showing the same message a second time. An expect_error test
-        // matches testRuntimeErrors, which a startup message was never written to.
+        // matches testRuntimeErrors instead, which only a test that set an expectation can write
+        // to and which the runner clears before each Test.run() call, so a startup message cannot
+        // answer a test.
         synchronized (Grug.runtimeErrorQueue) {
             Grug.runtimeErrorQueue.clear();
         }
@@ -314,9 +316,9 @@ public class GrugTestRunner {
         }
 
         currentTick = 0;
-        Grug.testExpectedError = null;
         // Also cleared in destroyCurrentEntity. Doing both ends means a run that was restarted or
-        // aborted cannot inherit an override from a previous one.
+        // aborted cannot inherit an expectation or an override from a previous one.
+        Grug.testExpectedError = null;
         Grug.testFidelityOverride = null;
         return true;
     }
@@ -338,9 +340,12 @@ public class GrugTestRunner {
     }
 
     private void destroyCurrentEntity() {
-        // Cleared here rather than when the next test starts, so a Test.force_fidelity override
-        // cannot outlive the test that asked for it even when that test failed partway through.
+        // Cleared here rather than when the next test starts, so neither a Test.force_fidelity
+        // override nor a Test.expect_error expectation can outlive the test that asked for it even
+        // when that test failed partway through. A leftover expectation would keep
+        // Grug.onRuntimeError recording errors for a test that is no longer running.
         Grug.testFidelityOverride = null;
+        Grug.testExpectedError = null;
         if (currentEntityHandle != 0) {
             ops.destroyEntity(currentEntityHandle);
             currentEntityHandle = 0;
