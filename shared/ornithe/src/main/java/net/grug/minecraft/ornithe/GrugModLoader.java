@@ -131,9 +131,10 @@ public class GrugModLoader implements ModInitializer {
         if (defaultModsPath.isEmpty()) return;
 
         // A file that cannot be copied aborts the extraction rather than being collected: the
-        // marker
-        // is written once the walk finishes, so carrying on would leave a mods directory that is
-        // missing files while claiming to be complete, and no later run would look for them again.
+        // marker is written once the walk finishes, so carrying on would leave a mods directory
+        // that
+        // is missing files while claiming to be complete, and no later run would look for them
+        // again.
         try {
             GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile);
         } catch (IOException e) {
