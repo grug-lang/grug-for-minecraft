@@ -16,6 +16,13 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.function.Consumer;
 
+/**
+ * The Java bridge to one native grug state.
+ *
+ * <p>grug's state is not thread safe by design, so every entry takes {@link GrugStateLock}. A call
+ * that blocks on another thread which enters the state releases the lock while it waits; see {@link
+ * #runWithStateLockReleased(Runnable)}.
+ */
 public final class Grug {
     private static boolean loaded = false;
     public static long statePtr = 0;
@@ -144,20 +151,40 @@ public final class Grug {
     }
 
     public static void init(File modApiJson, File modsDir) {
-        if (statePtr != 0) return;
+        GrugStateLock.lock();
+        try {
+            if (statePtr != 0) return;
 
-        load();
-        statePtr = nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
+            load();
+            statePtr = nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
+        } finally {
+            GrugStateLock.unlock();
+        }
     }
 
     public static FileInfo[] compileAllFiles() {
         if (statePtr == 0) throw new IllegalStateException("grug_state is not initialized");
-        return nativeCompileAllFiles(statePtr);
+        GrugStateLock.lock();
+        try {
+            return nativeCompileAllFiles(statePtr);
+        } finally {
+            GrugStateLock.unlock();
+        }
     }
 
     public static String[] update(Consumer<String> onError) {
         if (statePtr == 0) return new String[0];
 
+        GrugStateLock.lock();
+        try {
+            return updateLocked(onError);
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /** The body of {@link #update}, which runs while this thread holds the state lock. */
+    private static String[] updateLocked(Consumer<String> onError) {
         FileInfo[] updatedFiles = nativeUpdate(statePtr);
         List<String> reloadTriggers = new ArrayList<>();
 
@@ -328,15 +355,31 @@ public final class Grug {
     }
 
     public static long createEntity(long fileId) {
-        return nativeCreateEntity(statePtr, fileId);
+        GrugStateLock.lock();
+        try {
+            return nativeCreateEntity(statePtr, fileId);
+        } finally {
+            GrugStateLock.unlock();
+        }
     }
 
     public static long getExportFnId(String entityType, String fnName) {
-        return nativeGetExportFnId(statePtr, entityType, fnName);
+        GrugStateLock.lock();
+        try {
+            return nativeGetExportFnId(statePtr, entityType, fnName);
+        } finally {
+            GrugStateLock.unlock();
+        }
     }
 
     public static boolean callExportFn(long entityHandle, long exportFnId) {
-        boolean result = nativeCallExportFn(statePtr, entityHandle, exportFnId);
+        boolean result;
+        GrugStateLock.lock();
+        try {
+            result = nativeCallExportFn(statePtr, entityHandle, exportFnId);
+        } finally {
+            GrugStateLock.unlock();
+        }
         throwPendingFatal();
         return result;
     }
@@ -373,7 +416,22 @@ public final class Grug {
     }
 
     public static void destroyEntity(long entityHandle) {
-        nativeDestroyEntity(statePtr, entityHandle);
+        GrugStateLock.lock();
+        try {
+            nativeDestroyEntity(statePtr, entityHandle);
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
+     * Runs a wait that blocks this thread on another thread's work with the state lock released,
+     * then restores the lock. The blocked thread is not running grug code, so the other thread may
+     * be the one active entry, which is how the client-thread marshalling in the loaders stays
+     * within grug's one-active-thread contract.
+     */
+    public static void runWithStateLockReleased(Runnable blockingWait) {
+        GrugStateLock.runReleased(blockingWait);
     }
 
     private static native void initGrugAdapter();
@@ -395,5 +453,14 @@ public final class Grug {
 
     private static native String[] nativeGetUpdatedResources(long statePtr);
 
-    public static native void hostFunctionErrorHappened(long statePtr, String message);
+    public static void hostFunctionErrorHappened(long statePtr, String message) {
+        GrugStateLock.lock();
+        try {
+            nativeHostFunctionErrorHappened(statePtr, message);
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    private static native void nativeHostFunctionErrorHappened(long statePtr, String message);
 }

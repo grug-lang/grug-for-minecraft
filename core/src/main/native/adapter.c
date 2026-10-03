@@ -297,7 +297,7 @@ Java_net_grug_minecraft_grug_Grug_nativeGetUpdatedResources(JNIEnv *env, jclass 
 extern void grug_set_runtime_error(void* state, const char* message);
 
 JNIEXPORT void JNICALL
-Java_net_grug_minecraft_grug_Grug_hostFunctionErrorHappened(JNIEnv *env, jclass clazz, jlong statePtr, jstring message) {
+Java_net_grug_minecraft_grug_Grug_nativeHostFunctionErrorHappened(JNIEnv *env, jclass clazz, jlong statePtr, jstring message) {
     const char *c_message = (*env)->GetStringUTFChars(env, message, NULL);
     
     grug_set_runtime_error((void*)(intptr_t)statePtr, c_message);
