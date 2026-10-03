@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.grug.Grug;
+
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,6 +41,20 @@ import javax.tools.ToolProvider;
 class GrugCoverageTest {
 
     @TempDir Path tmp;
+
+    /**
+     * Drains the fatal a test provoked. {@code Grug.fatal} remembers the first error per thread and
+     * rethrows it at the next native call boundary, so leaving one set would fail the next test on
+     * this JVM that drives an export function, for a reason unrelated to that test.
+     */
+    @AfterEach
+    void drainPendingFatal() {
+        try {
+            Grug.throwPendingFatal();
+        } catch (IllegalStateException expected) {
+            // The fatal the test provoked, cleared so it cannot outlive the test.
+        }
+    }
 
     /** The real {@code RT}: it holds the agent and hands it out. */
     private static final String RT_SOURCE =
