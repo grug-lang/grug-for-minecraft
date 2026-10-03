@@ -162,9 +162,10 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   they are left behind for later tests, so pick a free band. The pipe tests use +25, +35, +40,
   +45 and +50.
 - The bands are measured from the player, so their absolute height depends on where the player
-  spawns, and Alpha's world is only 128 blocks tall. `test-saves/b1.7.3.zip` puts the player on a
-  column whose surface is y=70, so the top band lands at y=124 there. A new band goes below +50, not
-  above it, or the highest one runs off the top of the world and `place_block` refuses the write.
+  spawns, and both Alpha and Beta 1.7.3 cap the world at 128 blocks. `test-saves/b1.7.3.zip` puts
+  the player on a column whose surface is y=70, so the top band lands at y=124 there. A new band
+  goes below +50, not above it, or the highest one runs off the top of the world and `place_block`
+  reports it.
 - A loader has to name the level its test save contains. `startGame` creates the level when the name
   does not resolve, so the wrong name is not a no-op: it generates a fresh world with a random
   spawn, which is how the b1.7.3 runs got a different player height every time.
