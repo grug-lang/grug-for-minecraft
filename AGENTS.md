@@ -49,9 +49,10 @@ client while another Gradle build is launching a game.
 
 ## Errors are the only severity
 
-grug has two outcomes, ok and err, and no third. If you are designing a warning, a deprecation
-notice, a soft failure, or a "just log it" path, stop: that is a severity this project does not
-have. Decide which of the two it is, and make the code report it as that.
+grug has two outcomes, ok and err, and no third. `LOGGER.warn`, and a `LOGGER.error` that logs and
+carries on, are that third severity: do not use them. If you are designing a warning, a deprecation
+notice, a soft failure, or a "just log it" path, stop. Decide which of the two it is, and make the
+code report it as that.
 
 How bad the defect looks does not decide this. What decides it is whether the violation leaves
 behaviour undefined, and which side of the sandbox the code is on.
