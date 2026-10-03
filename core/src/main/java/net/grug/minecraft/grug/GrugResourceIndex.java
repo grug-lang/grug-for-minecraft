@@ -118,11 +118,14 @@ public final class GrugResourceIndex {
      * Merges every mod's {@code <langName>.json} (or the lowercased variant) into one legacy {@code
      * .lang} byte stream, rewriting modern {@code block.}/{@code item.} keys. Returns null when no
      * mod ships the language.
+     *
+     * <p>A language file that cannot be read is a mod-tree defect rather than a file to skip: the
+     * merge is the only place a translation reaches the game, so dropping one silently renames
+     * whatever it named.
      */
     public static byte[] mergeLang(File modsDir, String langName) {
-        String jsonFileName = langName.toLowerCase() + ".json";
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        boolean foundAny = false;
+        JsonObject json = new JsonObject();
+        List<String> languages = new ArrayList<>();
 
         File[] modDirs = modsDir.listFiles(File::isDirectory);
         if (modDirs == null) return null;
@@ -133,36 +136,51 @@ public final class GrugResourceIndex {
             if (nsDirs == null) continue;
 
             for (File nsDir : nsDirs) {
-                File jsonFile = new File(nsDir, "lang/" + jsonFileName);
+                File jsonFile = new File(nsDir, "lang/" + langName.toLowerCase() + ".json");
                 if (!jsonFile.exists()) {
                     jsonFile = new File(nsDir, "lang/" + langName + ".json");
                 }
                 if (!jsonFile.exists()) continue;
 
-                foundAny = true;
-                try (Reader reader =
-                        new InputStreamReader(
-                                new FileInputStream(jsonFile), StandardCharsets.UTF_8)) {
-                    JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
-                    for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
-                        String key = entry.getKey();
-                        String value = entry.getValue().getAsString();
-
-                        if (key.startsWith("block.")) {
-                            key = "tile." + key.substring(6);
-                            if (!key.endsWith(".name")) key += ".name";
-                        } else if (key.startsWith("item.")) {
-                            if (!key.endsWith(".name")) key += ".name";
-                        }
-
-                        out.write((key + "=" + value + "\n").getBytes(StandardCharsets.UTF_8));
-                    }
-                } catch (Exception e) {
-                    // A malformed language file is skipped rather than failing the whole merge.
-                }
+                languages.add(jsonFile.getPath());
+                mergeLangFile(jsonFile, json);
             }
         }
 
-        return foundAny ? out.toByteArray() : null;
+        if (languages.isEmpty()) return null;
+
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue().getAsString();
+
+            if (key.startsWith("block.")) {
+                key = "tile." + key.substring(6);
+                if (!key.endsWith(".name")) key += ".name";
+            } else if (key.startsWith("item.")) {
+                if (!key.endsWith(".name")) key += ".name";
+            }
+
+            out.append(key).append("=").append(value).append("\n");
+        }
+        return out.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Reads one language file into {@code merged}.
+     *
+     * <p>Kept apart so the merge above reads as the loop it is, and so the failure path has one
+     * message of its own to assert on.
+     */
+    private static void mergeLangFile(File jsonFile, JsonObject merged) {
+        try (Reader reader =
+                new InputStreamReader(new FileInputStream(jsonFile), StandardCharsets.UTF_8)) {
+            JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
+            for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+                merged.add(entry.getKey(), entry.getValue());
+            }
+        } catch (Exception e) {
+            throw Grug.fatal("Failed to read the language file " + jsonFile, e);
+        }
     }
 }
