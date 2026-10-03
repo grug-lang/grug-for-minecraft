@@ -8,12 +8,32 @@ import java.io.InputStream;
 
 import javax.imageio.ImageIO;
 
+/**
+ * A grug texture sitting in one 16x16 slot of one of the game's own stitched atlases.
+ *
+ * <p>Alpha and Beta have no way to add a texture to an atlas after it has been stitched, so the
+ * texture manager is handed one of these per sprite instead. It is a dynamic texture whose pixels
+ * never change, and the manager re-uploads those pixels into the slot on every tick, which is what
+ * lets {@link #read} refresh a slot without touching OpenGL at all.
+ */
 public class GrugStaticTexture extends DynamicTexture {
-    public GrugStaticTexture(int sprite, int atlas, InputStream is) {
+    public GrugStaticTexture(int sprite, int atlas) {
         super(sprite);
         this.atlas = atlas; // 0 for terrain.png, 1 for gui/items.png
         this.pixels = new byte[1024];
+    }
 
+    /**
+     * Replaces this sprite's pixels with the 16x16 chunk at the top left of the image in {@code is}.
+     *
+     * <p>Callable more than once on purpose. This is how a hot reload of a texture reaches the
+     * atlas: the loader has already allocated the sprite slots, so a changed texture is a change to
+     * the pixels of an existing sprite rather than a new texture. The texture manager keeps every
+     * dynamic texture it has been given and re-uploads each of them every tick, so a reload that
+     * registered a second sprite instead would leave the first one in that list, still pushing its
+     * now-stale pixels into the same slot once per tick and once more for every reload before it.
+     */
+    public void read(InputStream is) {
         try {
             BufferedImage image = ImageIO.read(is);
             if (image == null) {
