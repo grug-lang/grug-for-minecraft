@@ -273,18 +273,17 @@ public final class GrugRecipeTree {
      * <p>Kept apart so {@link #recipes} reads as the loop it is, and so each rule's message can be
      * asserted on its own.
      */
-    @GrugGenerated("recipe parsing: one file per call, and a Java test drives each rule")
     private static Recipe read(File modsDir, File file, String path) {
-        JsonObject json;
+        JsonElement parsed;
         try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
-            JsonElement parsed = JsonParser.parseReader(reader);
-            if (!parsed.isJsonObject()) {
-                return defect(path, "is not a JSON object");
-            }
-            json = parsed.getAsJsonObject();
+            parsed = JsonParser.parseReader(reader);
         } catch (Exception e) {
             return defect(path, "is not readable JSON: " + e.getMessage());
         }
+        if (!parsed.isJsonObject()) {
+            return defect(path, "is not a JSON object");
+        }
+        JsonObject json = parsed.getAsJsonObject();
 
         if (!json.has("type") || !isText(json.get("type"))) {
             return defect(path, "names no recipe 'type'");
