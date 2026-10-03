@@ -295,7 +295,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * that, and a chunk the client has not received swallows the write too. Both used to surface
      * much later as a fixture that had no block entity, which names the symptom rather than the
      * cause. Reading the block back is what turns the silent drop into an err naming the position
-     * that was refused. See #151.
+     * that was refused.
+     *
+     * <p>A write the game accepts and does not leave in place is reported the same way: the caller
+     * asked for a block that is not there afterwards. See #151.
      */
     @Override
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {

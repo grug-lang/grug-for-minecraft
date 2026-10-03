@@ -311,7 +311,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             // A placement that reports false because the block was already there is not a failure,
             // so the block's presence is the check rather than the return value. Alpha's world is
             // 128 blocks tall and setBlockQuietly returns false without writing at or above it, and
-            // a chunk the client has not received swallows the write too. See #151.
+            // a chunk the client has not received swallows the write too. A write the game accepts
+            // and does not leave in place is reported the same way: the caller asked for a block
+            // that is not there afterwards. See #151.
             if (world.getBlock(posX, posY, posZ) != targetBlock.id) {
                 Grug.hostFunctionErrorHappened(
                         Grug.statePtr,
