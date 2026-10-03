@@ -163,9 +163,9 @@ public final class Grug {
     }
 
     public static FileInfo[] compileAllFiles() {
-        if (statePtr == 0) throw new IllegalStateException("grug_state is not initialized");
         GrugStateLock.lock();
         try {
+            if (statePtr == 0) throw new IllegalStateException("grug_state is not initialized");
             return nativeCompileAllFiles(statePtr);
         } finally {
             GrugStateLock.unlock();
@@ -173,10 +173,9 @@ public final class Grug {
     }
 
     public static String[] update(Consumer<String> onError) {
-        if (statePtr == 0) return new String[0];
-
         GrugStateLock.lock();
         try {
+            if (statePtr == 0) return new String[0];
             return updateLocked(onError);
         } finally {
             GrugStateLock.unlock();
@@ -429,6 +428,10 @@ public final class Grug {
      * then restores the lock. The blocked thread is not running grug code, so the other thread may
      * be the one active entry, which is how the client-thread marshalling in the loaders stays
      * within grug's one-active-thread contract.
+     *
+     * <p>The released task may run export functions, but it must not compile or update files. The
+     * suspended call still holds the backend's file table borrow, so a nested compile would panic
+     * against it instead of waiting for the outer call to return.
      */
     public static void runWithStateLockReleased(Runnable blockingWait) {
         GrugStateLock.runReleased(blockingWait);

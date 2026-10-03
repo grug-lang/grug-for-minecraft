@@ -65,28 +65,33 @@ class GrugStateLockTest {
     @Test
     void runReleasedLetsAnotherThreadEnterAndRestoresTheHold() throws Exception {
         GrugStateLock.lock();
-        AtomicBoolean otherEntered = new AtomicBoolean();
+        CountDownLatch otherAcquired = new CountDownLatch(1);
         Thread other =
                 new Thread(
                         () -> {
                             GrugStateLock.lock();
                             try {
-                                otherEntered.set(true);
+                                otherAcquired.countDown();
                             } finally {
                                 GrugStateLock.unlock();
                             }
                         });
         try {
+            // The acquisition is awaited inside the release, so the wait cannot end and reacquire
+            // the lock before the other thread has had its turn. Joining the thread instead would
+            // time out into a failure that blamed the release for a thread that was merely slow to
+            // start.
             GrugStateLock.runReleased(
                     () -> {
                         other.start();
                         try {
-                            other.join(2000);
+                            assertTrue(
+                                    otherAcquired.await(2, TimeUnit.SECONDS),
+                                    "the waiting thread could not enter the state");
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                         }
                     });
-            assertTrue(otherEntered.get(), "the waiting thread could not enter the state");
             assertTrue(
                     GrugStateLock.isHeldByCurrentThread(),
                     "the hold released for the wait was not restored");
