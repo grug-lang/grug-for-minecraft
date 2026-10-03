@@ -476,6 +476,25 @@ public class Grug125Adapter implements ModLoaderAdapter {
             int posZ = (int) Math.floor(z);
 
             world.setBlockWithNotify(posX, posY, posZ, targetBlock.blockID);
+
+            // A placement that reports false because the block was already there is not a failure,
+            // so the block's presence is the check rather than the return value. A y outside the
+            // 256-block world height is refused, and a position in a chunk the client has not
+            // received swallows the write too. See #151.
+            if (world.getBlockId(posX, posY, posZ) != targetBlock.blockID) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "place_block: the game did not put "
+                                + blockName
+                                + " at "
+                                + posX
+                                + ", "
+                                + posY
+                                + ", "
+                                + posZ
+                                + ". A y outside this version's world height is refused, and a"
+                                + " position in a chunk the client has not received is discarded.");
+            }
         } else {
             mod_Grug.LOGGER.severe("placeBlock failed: Could not resolve block " + blockName);
         }

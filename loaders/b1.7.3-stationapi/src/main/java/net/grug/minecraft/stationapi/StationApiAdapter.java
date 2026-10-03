@@ -398,7 +398,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     /**
      * Places a block and reports it when the game did not put it there.
      *
-     * <p>The write can fail without anything going wrong visibly: this version's world is 128
+     * <p>The write can fail without anything going wrong visibly. This version's world is 128
      * blocks tall and {@code World.setBlock} returns false without writing for y at or above that,
      * and a chunk the client has not received swallows the write too. Both used to surface much
      * later as a fixture that had no block entity, which names the symptom rather than the cause.
@@ -430,9 +430,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
                                 + posY
                                 + ", "
                                 + posZ
-                                + ". This version's world is 128 blocks tall, so a y at or above"
-                                + " 128 is refused, and a position in a chunk the client has not"
-                                + " received is discarded.");
+                                + ". A y outside this version's world height is refused, and a"
+                                + " position in a chunk the client has not received is discarded.");
             }
         } else {
             InitListener.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);

@@ -1,0 +1,13 @@
+# place_block must report a position the game refused, rather than leaving the fixture silently
+# missing. y=400 is above every loader's world height, so the game refuses the write on all five and
+# the read-back finds air where the block was asked for. The refusal used to be invisible and
+# surfaced much later as a setup whose chest had no block entity. See #151.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+
+        Test.expect_error("place_block: the game did not put")
+        level.place_block(origin.x(), 400, origin.z(), "minecraft:stone")
+    }
+}

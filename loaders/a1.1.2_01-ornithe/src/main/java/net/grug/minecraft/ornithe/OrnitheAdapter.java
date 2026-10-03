@@ -307,6 +307,25 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
                 targetBlock.onAdded(world, posX, posY, posZ);
             }
+
+            // A placement that reports false because the block was already there is not a failure,
+            // so the block's presence is the check rather than the return value. Alpha's world is
+            // 128 blocks tall and setBlockQuietly returns false without writing at or above it, and
+            // a chunk the client has not received swallows the write too. See #151.
+            if (world.getBlock(posX, posY, posZ) != targetBlock.id) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "place_block: the game did not put "
+                                + blockName
+                                + " at "
+                                + posX
+                                + ", "
+                                + posY
+                                + ", "
+                                + posZ
+                                + ". A y outside this version's world height is refused, and a"
+                                + " position in a chunk the client has not received is discarded.");
+            }
         } else {
             GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
         }
