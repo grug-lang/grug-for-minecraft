@@ -437,17 +437,12 @@ public class GrugModLoader {
                     }
 
                     @Override
-                    public int cursorX() {
-                        return (int) cursorPos()[0];
+                    public double[] cursorPos() {
+                        return readCursorPos();
                     }
 
                     @Override
-                    public int cursorY() {
-                        return (int) cursorPos()[1];
-                    }
-
-                    @Override
-                    public void setCursor(int x, int y) {
+                    public void setCursor(double x, double y) {
                         GLFW.glfwSetCursorPos(
                                 Minecraft.getInstance().getWindow().getWindow(), x, y);
                     }
@@ -471,11 +466,11 @@ public class GrugModLoader {
         private static final GrugRunWindow WINDOW = new GrugRunWindow(DISPLAY);
 
         /** The cursor in window pixels, the way this loader always read it. */
-        private static double[] cursorPos() {
+        private static double[] readCursorPos() {
             double[] x = new double[1];
             double[] y = new double[1];
             GLFW.glfwGetCursorPos(Minecraft.getInstance().getWindow().getWindow(), x, y);
-            return new double[] {Math.round(x[0]), Math.round(y[0])};
+            return new double[] {x[0], y[0]};
         }
 
         @SubscribeEvent

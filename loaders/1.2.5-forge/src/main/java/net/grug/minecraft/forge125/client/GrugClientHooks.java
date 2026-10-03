@@ -121,18 +121,13 @@ public class GrugClientHooks implements ITickHandler {
                 }
 
                 @Override
-                public int cursorX() {
-                    return Mouse.getX();
+                public double[] cursorPos() {
+                    return new double[] {Mouse.getX(), Mouse.getY()};
                 }
 
                 @Override
-                public int cursorY() {
-                    return Mouse.getY();
-                }
-
-                @Override
-                public void setCursor(int x, int y) {
-                    Mouse.setCursorPosition(x, y);
+                public void setCursor(double x, double y) {
+                    Mouse.setCursorPosition((int) x, (int) y);
                 }
             };
 
