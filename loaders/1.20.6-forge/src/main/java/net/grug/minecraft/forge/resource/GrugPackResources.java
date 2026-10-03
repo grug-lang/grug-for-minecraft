@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import net.grug.minecraft.forge.GrugModLoader;
+import net.grug.minecraft.grug.Grug;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.PackLocationInfo;
@@ -77,7 +78,10 @@ public class GrugPackResources implements PackResources {
                         merged.add(entry.getKey(), entry.getValue());
                     }
                 } catch (Exception e) {
-                    GrugModLoader.LOGGER.error("Failed to parse language file: " + file, e);
+                    // The language a mod ships is the only source of every name and tooltip it has,
+                    // so a file that cannot be read leaves the run reporting a language nobody
+                    // chose.
+                    throw Grug.fatal("Failed to read the language file " + file, e);
                 }
             }
         }
@@ -148,7 +152,11 @@ public class GrugPackResources implements PackResources {
                                             }
                                         }
                                     });
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    // Carrying on would hand the game a list of resources that is missing a
+                    // directory nobody managed to read, which it cannot tell from one that is not
+                    // there.
+                    throw Grug.fatal("Failed to walk the resource directory " + targetDir, e);
                 }
             }
         }

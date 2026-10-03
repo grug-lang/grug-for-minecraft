@@ -118,7 +118,7 @@ class GrugResourceIndexTest {
     void findResourcesSkipsAPathThatIsAFile() throws IOException {
         write("mymod/assets/grug/models", "not a directory");
         assertTrue(
-                GrugResourceIndex.findResources(mods.toFile(), "assets", "grug", "models", null)
+                GrugResourceIndex.findResources(mods.toFile(), "assets", "grug", "models")
                         .isEmpty());
     }
 
@@ -127,24 +127,16 @@ class GrugResourceIndexTest {
         write("aamod/assets/grug/models/a.json", "{}");
         write("zzmod/assets/grug/models/b.json", "{}");
         List<String> found =
-                GrugResourceIndex.findResources(mods.toFile(), "assets", "grug", "models", null);
+                GrugResourceIndex.findResources(mods.toFile(), "assets", "grug", "models");
         assertTrue(found.contains("models/a.json"), found.toString());
         assertTrue(found.contains("models/b.json"), found.toString());
-    }
-
-    @Test
-    void findResourcesReportsNoFailuresForAGoodWalk() throws IOException {
-        write("mymod/assets/grug/models/a.json", "{}");
-        List<String> failures = new java.util.ArrayList<>();
-        GrugResourceIndex.findResources(mods.toFile(), "assets", "grug", "models", failures);
-        assertTrue(failures.isEmpty(), failures.toString());
     }
 
     @Test
     void findResourcesReturnsEmptyForANonDirectory() {
         assertTrue(
                 GrugResourceIndex.findResources(
-                                new File(mods.toFile(), "missing"), "assets", "grug", "x", null)
+                                new File(mods.toFile(), "missing"), "assets", "grug", "x")
                         .isEmpty());
     }
 
@@ -167,8 +159,7 @@ class GrugResourceIndexTest {
         write("mymod/assets/grug/models/block/foo.json", "{}");
         write("mymod/assets/grug/models/block/sub/bar.json", "{}");
         List<String> found =
-                GrugResourceIndex.findResources(
-                        mods.toFile(), "assets", "grug", "models/block", null);
+                GrugResourceIndex.findResources(mods.toFile(), "assets", "grug", "models/block");
         assertTrue(found.contains("models/block/foo.json"), found.toString());
         assertTrue(found.contains("models/block/sub/bar.json"), found.toString());
     }
@@ -176,8 +167,7 @@ class GrugResourceIndexTest {
     @Test
     void findResourcesReturnsEmptyWhenMissing() {
         assertTrue(
-                GrugResourceIndex.findResources(mods.toFile(), "assets", "grug", "nope", null)
-                        .isEmpty());
+                GrugResourceIndex.findResources(mods.toFile(), "assets", "grug", "nope").isEmpty());
     }
 
     @Test
@@ -220,7 +210,8 @@ class GrugResourceIndexTest {
                         IllegalStateException.class,
                         () -> GrugResourceIndex.mergeLang(mods.toFile(), "en_us"));
         assertTrue(
-                fatal.getMessage().contains("Failed to read the language file"), fatal.getMessage());
+                fatal.getMessage().contains("Failed to read the language file"),
+                fatal.getMessage());
     }
 
     @Test

@@ -61,15 +61,11 @@ class GrugTagsTest {
 
     @Test
     void readsAPathWithNoNamespaceAsMinecraft() throws IOException {
-        tag("mymod/data/minecraft/tags/items/planks.json", "{\"values\": [\"minecraft:oak_planks\"]}");
+        tag(
+                "mymod/data/minecraft/tags/items/planks.json",
+                "{\"values\": [\"minecraft:oak_planks\"]}");
 
         assertEquals("minecraft:oak_planks", firstItem("planks").itemId());
-    }
-
-    @Test
-    void describesWhatItResolved() {
-        assertEquals("item minecraft:oak_planks", Resolution.of("minecraft:oak_planks").toString());
-        assertEquals("no reason", Resolution.problem("no reason").toString());
     }
 
     @Test
@@ -78,6 +74,54 @@ class GrugTagsTest {
         tag("mymod/data/grug/tags/items/wooden.json", "{\"values\": [\"grug:wooden_gear\"]}");
 
         assertEquals("grug:wooden_gear", firstItem("grug:gears").itemId());
+    }
+
+    @Test
+    void followsTheOptionalTagFormToo() throws IOException {
+        tag(
+                "mymod/data/grug/tags/items/gears.json",
+                "{\"values\": [{\"id\": \"#grug:wooden\", \"required\": false}]}");
+        tag("mymod/data/grug/tags/items/wooden.json", "{\"values\": [\"grug:wooden_gear\"]}");
+
+        assertEquals("grug:wooden_gear", firstItem("grug:gears").itemId());
+    }
+
+    @Test
+    void readsAnObjectValueThatSaysNothingAboutBeingRequired() throws IOException {
+        tag(
+                "mymod/data/grug/tags/items/planks.json",
+                "{\"values\": [{\"id\": \"minecraft:oak_planks\"}]}");
+
+        assertEquals("minecraft:oak_planks", firstItem("grug:planks").itemId());
+    }
+
+    @Test
+    void treatsAnObjectValueSayingRequiredAsRequired() throws IOException {
+        tag(
+                "mymod/data/grug/tags/items/gears.json",
+                "{\"values\": [{\"id\": \"#grug:missing\", \"required\": true}]}");
+
+        assertProblem("grug:gears", "no mod ships a tag file for 'grug:missing'");
+    }
+
+    @Test
+    void skipsAnOptionalValueNoModShips() throws IOException {
+        tag(
+                "mymod/data/grug/tags/items/gears.json",
+                "{\"values\": [{\"id\": \"#grug:stone\", \"required\": false},"
+                        + " {\"id\": \"#grug:wooden\", \"required\": false}]}");
+        tag("mymod/data/grug/tags/items/wooden.json", "{\"values\": [\"grug:wooden_gear\"]}");
+
+        assertEquals("grug:wooden_gear", firstItem("grug:gears").itemId());
+    }
+
+    @Test
+    void reportsATagWhoseOnlyValuesAreOptionalTagsNoModShips() throws IOException {
+        tag(
+                "mymod/data/grug/tags/items/gears.json",
+                "{\"values\": [{\"id\": \"#grug:stone\", \"required\": false}]}");
+
+        assertProblem("grug:gears", "every value of the tag 'grug:gears' is an optional tag");
     }
 
     @Test
@@ -97,7 +141,7 @@ class GrugTagsTest {
     void reportsATagWithNoValues() throws IOException {
         tag("mymod/data/grug/tags/items/empty.json", "{\"values\": []}");
 
-        assertProblem("grug:empty", "the tag 'grug:empty' names no items");
+        assertProblem("grug:empty", "names no items");
     }
 
     @Test
@@ -118,7 +162,7 @@ class GrugTagsTest {
     void reportsATagFileThatIsNotAJsonObject() throws IOException {
         tag("mymod/data/grug/tags/items/list.json", "[]");
 
-        assertProblem("grug:list", "the tag file for 'grug:list' is not a JSON object");
+        assertProblem("grug:list", "is not a JSON object");
     }
 
     @Test
@@ -138,12 +182,10 @@ class GrugTagsTest {
     }
 
     @Test
-    void reportsATagThatNamesNothingItCanRead() throws IOException {
+    void reportsATagValueThatIsNeitherAnItemNorATag() throws IOException {
         tag("mymod/data/grug/tags/items/odd.json", "{\"values\": [7]}");
 
-        assertProblem(
-                "grug:odd",
-                "the first value of the tag 'grug:odd' is neither an item nor a tag");
+        assertProblem("grug:odd", "a value of the tag 'grug:odd' is neither an item nor a tag");
     }
 
     @Test
@@ -151,15 +193,14 @@ class GrugTagsTest {
         tag("mymod/data/grug/tags/items/required.json", "{\"values\": [{\"required\": true}]}");
 
         assertProblem(
-                "grug:required",
-                "the first value of the tag 'grug:required' is neither an item nor a tag");
+                "grug:required", "a value of the tag 'grug:required' is neither an item nor a tag");
     }
 
     @Test
     void reportsATagThatNamesAnEmptyId() throws IOException {
         tag("mymod/data/grug/tags/items/blank.json", "{\"values\": [\"\"]}");
 
-        assertProblem("grug:blank", "the tag 'grug:blank' names an empty item id");
+        assertProblem("grug:blank", "names an empty item id");
     }
 
     @Test
@@ -180,8 +221,14 @@ class GrugTagsTest {
     }
 
     @Test
+    void describesWhatItResolved() {
+        assertEquals("item minecraft:oak_planks", Resolution.of("minecraft:oak_planks").toString());
+        assertEquals("no reason", Resolution.problem("no reason").toString());
+    }
+
+    @Test
     void resolvesNothingForATreeThatIsNotThere() {
         assertFalse(firstItem("grug:planks").resolved());
-        assertTrue(GrugTags.firstItem(mods.toFile(), "grug:planks").problem().contains("no mod ships"));
+        assertTrue(firstItem("grug:planks").problem().contains("no mod ships"));
     }
 }

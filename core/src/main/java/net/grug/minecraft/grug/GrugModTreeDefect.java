@@ -10,8 +10,9 @@ import net.grug.minecraft.core.ModLoaderAdapter;
  * <p>A mod-tree defect is one grug can describe exactly, which is what separates it from an
  * invariant: the file is named, the rule it broke is named, and the game keeps running because
  * nothing undefined is left behind. That is the same treatment {@link GrugFileIndex} gives a test
- * file outside its mod's {@code tests/}, and the same one a failed assertion gets. Anything the code
- * cannot describe is not this: it is an invariant, and it goes through {@link Grug#fatal} instead.
+ * file outside its mod's {@code tests/}, and the same one a failed assertion gets. Anything the
+ * code cannot describe is not this: it is an invariant, and it goes through {@link Grug#fatal}
+ * instead.
  *
  * <p>The {@code [GRUG CI] FAIL} line is what {@code run-loader.sh} fails the run on, and the queue
  * entry is what every loader drains into chat as a red message.

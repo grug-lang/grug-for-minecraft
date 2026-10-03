@@ -1,214 +1,166 @@
 package net.grug.minecraft.ornithe;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
-import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugModTreeDefect;
+import net.grug.minecraft.grug.GrugRecipeTree;
+import net.grug.minecraft.grug.GrugTags;
+import net.grug.minecraft.grug.GrugTags.Resolution;
 import net.minecraft.item.ItemStack;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 /**
- * Parses the shaped recipes that mods' {@code data/<namespace>/recipes} trees declare.
+ * Turns the recipes mods' {@code data/<namespace>/recipes} trees declare into the ingredients
+ * {@code CraftingManager} registers.
  *
  * <p>The parsing lives in {@code net.grug.*} rather than alongside {@code CraftingManager} because
  * Loom remaps mod classes that sit in Minecraft's namespace, which changes their runtime bytecode
  * and leaves JaCoCo unable to match them against the compiled class. Only the package-private
  * {@code CraftingManager.registerShaped} call needs to stay in the Minecraft namespace, in the thin
  * {@link net.minecraft.crafting.GrugRecipeHelper} shim.
+ *
+ * <p>Finding the recipes and deciding which of them are in the right shape is {@link
+ * GrugRecipeTree}'s job, and resolving a tag to the item that fills it is {@link GrugTags}'s. What
+ * is left here is the part only a running game can answer: whether an id names something in its
+ * registries, and what to hand {@code CraftingManager} once it does.
  */
 public final class GrugRecipeParser {
     private GrugRecipeParser() {}
 
-    /** A parsed recipe ready to hand to {@code CraftingManager.registerShaped}. */
-    public record ParsedRecipe(ItemStack output, Object[] inputs) {}
+    /**
+     * A parsed recipe ready to hand to {@code CraftingManager.registerShaped} or its shapeless
+     * twin.
+     */
+    public record ParsedRecipe(ItemStack output, Object[] inputs, GrugRecipeTree.Kind kind) {}
 
+    /**
+     * Parses every recipe in the mods tree that this loader can register.
+     *
+     * <p>A recipe grug cannot register is reported and left out rather than logged and skipped, so
+     * the run fails on a mod that ships a recipe its players cannot craft, and the rest of the tree
+     * still loads.
+     */
     public static List<ParsedRecipe> parseAll(File grugModsDir) {
         List<ParsedRecipe> recipes = new ArrayList<>();
         OrnitheAdapter adapter = new OrnitheAdapter();
 
-        for (File recipeFile : recipeFiles(grugModsDir)) {
-            try {
-                ParsedRecipe recipe = parseRecipe(recipeFile, adapter, grugModsDir);
-                if (recipe != null) recipes.add(recipe);
-            } catch (Exception e) {
-                GrugModLoader.LOGGER.error("Failed to register recipe: " + recipeFile, e);
+        for (GrugRecipeTree.Recipe recipe : GrugRecipeTree.recipes(grugModsDir)) {
+            if (recipe.kind() == GrugRecipeTree.Kind.OTHER) {
+                GrugModTreeDefect.report(
+                        "Recipe '"
+                                + recipe.path()
+                                + "' is a '"
+                                + recipe.type()
+                                + "' recipe, which grug does not know how to register.");
+                continue;
+            }
+            ParsedRecipe parsed = parse(recipe, adapter, grugModsDir);
+            if (parsed != null) {
+                recipes.add(parsed);
             }
         }
 
         return recipes;
     }
 
+    /** Builds one recipe's output and ingredients, or reports and returns null. */
+    private static ParsedRecipe parse(
+            GrugRecipeTree.Recipe recipe, OrnitheAdapter adapter, File grugModsDir) {
+        Object[] inputs = inputs(recipe, adapter, grugModsDir);
+        if (inputs == null) return null;
+
+        ItemStack result =
+                buildResult(adapter, recipe.resultId(), recipe.resultCount(), recipe.path());
+        if (result == null) return null;
+
+        return new ParsedRecipe(result, inputs, recipe.kind());
+    }
+
     /**
-     * Finds every recipe JSON under the mods directory.
-     *
-     * <p>Kept apart so the directory-structure and IO failures do not count against {@link
-     * #parseAll} coverage.
+     * The arguments {@code CraftingManager} takes: the pattern rows and a symbol per key for a
+     * shaped recipe, or one object per ingredient for a shapeless one.
      */
-    @GrugGenerated(
-            "recipe discovery: directory structure and IO failures are reported, not measured")
-    private static List<File> recipeFiles(File grugModsDir) {
-        List<File> files = new ArrayList<>();
-
-        File[] modDirs = grugModsDir.listFiles(File::isDirectory);
-        if (modDirs == null) return files;
-
-        for (File modDir : modDirs) {
-            File dataDir = new File(modDir, "data");
-            if (!dataDir.exists() || !dataDir.isDirectory()) continue;
-
-            File[] namespaceDirs = dataDir.listFiles(File::isDirectory);
-            if (namespaceDirs == null) continue;
-
-            for (File nsDir : namespaceDirs) {
-                File recipesDir = new File(nsDir, "recipes");
-                if (!recipesDir.exists() || !recipesDir.isDirectory()) continue;
-
-                try (Stream<Path> stream = Files.walk(recipesDir.toPath())) {
-                    stream.filter(Files::isRegularFile)
-                            .filter(p -> p.toString().endsWith(".json"))
-                            .forEach(p -> files.add(p.toFile()));
-                } catch (Exception e) {
-                    GrugModLoader.LOGGER.error(
-                            "Failed to walk recipes directory: " + recipesDir, e);
-                }
-            }
-        }
-
-        return files;
-    }
-
-    @GrugGenerated("recipe read failure")
-    private static JsonObject readJson(File recipeFile) throws java.io.IOException {
-        try (InputStreamReader reader =
-                new InputStreamReader(new FileInputStream(recipeFile), StandardCharsets.UTF_8)) {
-            return JsonParser.parseReader(reader).getAsJsonObject();
-        }
-    }
-
-    private static ParsedRecipe parseRecipe(
-            File recipeFile, OrnitheAdapter adapter, File grugModsDir) throws Exception {
-        JsonObject json = readJson(recipeFile);
-
-        String type = json.get("type").getAsString();
-
-        // TODO: Support or warn on shapeless recipes with MC Alpha 1.1.2_01
-        // https://github.com/grug-lang/grug-for-minecraft/issues/11
-        if (!"minecraft:crafting_shaped".equals(type)) {
-            GrugModLoader.LOGGER.warn(
-                    "Skipping unsupported recipe type (only shaped is supported): "
-                            + type
-                            + " in "
-                            + recipeFile);
-            return null;
-        }
-
-        JsonObject resultObj = json.getAsJsonObject("result");
-        String resultId =
-                resultObj.has("id")
-                        ? resultObj.get("id").getAsString()
-                        : resultObj.get("item").getAsString();
-        int count = resultObj.has("count") ? resultObj.get("count").getAsInt() : 1;
-
-        ItemStack resultStack = buildResult(adapter, resultId, count, recipeFile);
-
-        JsonArray pattern = json.getAsJsonArray("pattern");
-        JsonObject keyObj = json.getAsJsonObject("key");
-
+    private static Object[] inputs(
+            GrugRecipeTree.Recipe recipe, OrnitheAdapter adapter, File grugModsDir) {
         List<Object> inputs = new ArrayList<>();
-        for (JsonElement row : pattern) {
-            inputs.add(row.getAsString());
+        if (recipe.kind() == GrugRecipeTree.Kind.SHAPED) {
+            inputs.addAll(recipe.pattern());
         }
 
-        for (Map.Entry<String, JsonElement> entry : keyObj.entrySet()) {
-            inputs.add(entry.getKey().charAt(0));
-            Object item =
-                    resolveIngredient(entry.getValue().getAsJsonObject(), adapter, grugModsDir);
-            if (item == null) {
-                GrugModLoader.LOGGER.warn("Unknown ingredient in recipe: " + recipeFile);
-                return null;
+        for (int i = 0; i < recipe.ingredients().size(); i++) {
+            GrugRecipeTree.Ingredient ingredient = recipe.ingredients().get(i);
+            Object item = resolveIngredient(ingredient, adapter, grugModsDir, recipe.path());
+            if (item == null) return null;
+
+            if (recipe.kind() == GrugRecipeTree.Kind.SHAPED) {
+                inputs.add(recipe.symbols().get(i));
             }
             inputs.add(item);
         }
 
-        GrugModLoader.LOGGER.info("Registered shaped recipe for " + resultId);
-        return new ParsedRecipe(resultStack, inputs.toArray());
+        return inputs.toArray();
     }
 
-    /** A mods directory's subdirectories, or an empty array when it cannot be listed. */
-    @GrugGenerated("defensive: a directory that cannot be listed")
-    private static File[] listEntries(File directory) {
-        File[] entries = directory.listFiles(File::isDirectory);
-        return entries == null ? new File[0] : entries;
+    /**
+     * The game object an ingredient names, or null once the reason has been reported.
+     *
+     * <p>An ingredient a tag names resolves to the one item that fills it, which is what a crafting
+     * registration can hold: grug takes a single object per slot rather than a set to match
+     * against.
+     */
+    private static Object resolveIngredient(
+            GrugRecipeTree.Ingredient ingredient,
+            OrnitheAdapter adapter,
+            File grugModsDir,
+            String recipePath) {
+        String itemId;
+        if ("tag".equals(ingredient.kind())) {
+            Resolution resolution = GrugTags.firstItem(grugModsDir, ingredient.id());
+            if (!resolution.resolved()) {
+                GrugModTreeDefect.report(
+                        "Recipe '"
+                                + recipePath
+                                + "' needs the tag '"
+                                + ingredient.id()
+                                + "', and "
+                                + resolution.problem()
+                                + ".");
+                return null;
+            }
+            itemId = resolution.itemId();
+        } else {
+            itemId = ingredient.id();
+        }
+
+        Object item = adapter.getItemFromRegistry(adapter.createResourceLocation(itemId));
+        if (item == null) {
+            GrugModTreeDefect.report(
+                    "Recipe '"
+                            + recipePath
+                            + "' needs the item '"
+                            + itemId
+                            + "', which this loader does not know.");
+        }
+        return item;
     }
 
-    @GrugGenerated("unknown result: an unresolvable result cannot be shipped as a fixture")
+    /** The recipe's output stack, or null once a result nothing resolves to has been reported. */
     private static ItemStack buildResult(
-            OrnitheAdapter adapter, String resultId, int count, File recipeFile) {
+            OrnitheAdapter adapter, String resultId, int count, String recipePath) {
         Object resultItem = adapter.getItemFromRegistry(adapter.createResourceLocation(resultId));
         if (resultItem == null) {
-            throw new IllegalStateException(
-                    "Unknown result item: " + resultId + " in " + recipeFile);
+            GrugModTreeDefect.report(
+                    "Recipe '"
+                            + recipePath
+                            + "' gives '"
+                            + resultId
+                            + "', which this loader does not know.");
+            return null;
         }
 
         ItemStack resultStack = (ItemStack) adapter.createItemStack(resultItem, 0);
         resultStack.size = count;
         return resultStack;
-    }
-
-    private static Object resolveIngredient(
-            JsonObject obj, OrnitheAdapter adapter, File grugModsDir) throws Exception {
-        return resolveIngredientValue(obj, adapter, grugModsDir);
-    }
-
-    @GrugGenerated("ingredient resolution: the no-item/no-tag fallback cannot be a fixture")
-    private static Object resolveIngredientValue(
-            JsonObject obj, OrnitheAdapter adapter, File grugModsDir) throws Exception {
-        if (obj.has("item")) {
-            return adapter.getItemFromRegistry(
-                    adapter.createResourceLocation(obj.get("item").getAsString()));
-        } else if (obj.has("tag")) {
-            String tag = obj.get("tag").getAsString();
-            String[] parts = tag.split(":");
-            String ns = parts.length > 1 ? parts[0] : "minecraft";
-            String path = parts.length > 1 ? parts[1] : parts[0];
-
-            {
-                for (File modDir : listEntries(grugModsDir)) {
-                    File tagFile = new File(modDir, "data/" + ns + "/tags/items/" + path + ".json");
-                    if (tagFile.exists()) {
-                        try (InputStreamReader reader =
-                                new InputStreamReader(
-                                        new FileInputStream(tagFile), StandardCharsets.UTF_8)) {
-                            JsonObject tagJson = JsonParser.parseReader(reader).getAsJsonObject();
-                            JsonArray values = tagJson.getAsJsonArray("values");
-                            if (values.size() > 0) {
-                                JsonElement firstVal = values.get(0);
-                                String itemId =
-                                        firstVal.isJsonObject()
-                                                ? firstVal.getAsJsonObject().get("id").getAsString()
-                                                : firstVal.getAsString();
-                                if (!itemId.startsWith("#")) {
-                                    return adapter.getItemFromRegistry(
-                                            adapter.createResourceLocation(itemId));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return null;
     }
 }

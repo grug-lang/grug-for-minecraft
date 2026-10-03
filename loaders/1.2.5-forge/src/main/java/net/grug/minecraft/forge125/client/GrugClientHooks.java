@@ -8,6 +8,7 @@ import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
@@ -325,7 +326,16 @@ public class GrugClientHooks implements ITickHandler {
                 }
             }
         } catch (Exception e) {
-            logError("Failed to switch the window to " + mode.getWidth() + "x" + mode.getHeight());
+            // Bounded: the window is the size it was, the run carries on, and the failure is
+            // reported the way any other bounded defect is, which fails the run rather than leaving
+            // a screenshot taken at some other resolution than the tests asked for.
+            GrugModTreeDefect.report(
+                    "Failed to switch the window to "
+                            + mode.getWidth()
+                            + "x"
+                            + mode.getHeight()
+                            + ": "
+                            + e);
         }
     }
 
@@ -341,6 +351,9 @@ public class GrugClientHooks implements ITickHandler {
     }
 
     private static void logError(String text) {
+        // A contained mod err from a runtime error handler, and the sandbox's own report of it: the
+        // JNI layer clears whatever a script threw and the script carries on, so this is where a
+        // failed script call surfaces.
         mod_Grug.LOGGER.severe(text);
     }
 

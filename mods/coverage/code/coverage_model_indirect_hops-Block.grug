@@ -1,0 +1,5 @@
+# Fixture block for coverage. Exercises a stringToMaterial case, and a model whose texture key
+# points at another key, which then points at a tag, so the two-hop indirection is walked.
+export init() {
+    set_material("sponge")
+}

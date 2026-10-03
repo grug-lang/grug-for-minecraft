@@ -3,6 +3,6 @@
   "textures": {
     "all": "#a",
     "a": "#b",
-    "b": "#c"
+    "b": "grug:block/coverage_block"
   }
 }

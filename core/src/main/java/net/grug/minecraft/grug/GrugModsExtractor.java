@@ -22,8 +22,8 @@ public final class GrugModsExtractor {
      *
      * <p>A file that cannot be copied aborts the extraction rather than being collected and left
      * behind. The marker is written once the walk finishes, so carrying on would leave a mods
-     * directory that is missing files while claiming to be complete, and no later run would look for
-     * them again.
+     * directory that is missing files while claiming to be complete, and no later run would look
+     * for them again.
      */
     public static void extract(Path source, Path target, Path marker) throws IOException {
         if (Files.exists(marker)) return;
@@ -47,7 +47,8 @@ public final class GrugModsExtractor {
                         }
                     });
         } catch (UncopyableFile e) {
-            throw new IOException("Failed to extract default grug mod file: " + e.source, e.getCause());
+            throw new IOException(
+                    "Failed to extract default grug mod file: " + e.source, e.getCause());
         }
 
         Files.write(

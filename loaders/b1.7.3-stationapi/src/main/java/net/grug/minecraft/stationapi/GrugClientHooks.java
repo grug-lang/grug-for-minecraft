@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.stationapi.events.init.ClientInitListener;
 import net.grug.minecraft.stationapi.events.init.InitListener;
@@ -300,10 +301,11 @@ public class GrugClientHooks {
 
             access.grug$resize(width, height);
         } catch (Exception e) {
-            // Resolution changes are finicky across platforms, so report rather than crash the
-            // client.
-            InitListener.LOGGER.error("Failed to switch the window to " + width + "x" + height, e);
-            sendRedMessage("Failed to switch the window to " + width + "x" + height + ".");
+            // Bounded: the window is the size it was, the run carries on, and the failure is
+            // reported the way any other bounded defect is, which fails the run rather than leaving
+            // a screenshot taken at some other resolution than the tests asked for.
+            GrugModTreeDefect.report(
+                    "Failed to switch the window to " + width + "x" + height + ": " + e);
         }
     }
 

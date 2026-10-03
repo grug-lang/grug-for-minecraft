@@ -22,9 +22,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -59,7 +57,7 @@ public class GrugModLoader implements ModInitializer {
                                 + activeGrugDir.getCanonicalPath());
             }
         } catch (IOException e) {
-            LOGGER.error("Failed to resolve canonical path", e);
+            throw Grug.fatal("Failed to resolve canonical path", e);
         }
 
         try (InputStream in = GrugModLoader.class.getResourceAsStream("/mod_api.json")) {
@@ -76,7 +74,7 @@ public class GrugModLoader implements ModInitializer {
                 extractDefaultGrugMods(runGrugDir.toPath());
             }
         } catch (IOException e) {
-            LOGGER.error("Failed to extract default grug mods", e);
+            throw Grug.fatal("Failed to extract default grug mods", e);
         }
 
         GrugCore.initialize(new OrnitheAdapter(), modApiJson, activeGrugDir);
@@ -132,14 +130,14 @@ public class GrugModLoader implements ModInitializer {
         Optional<Path> defaultModsPath = modContainer.get().findPath("mods");
         if (defaultModsPath.isEmpty()) return;
 
-        List<String> errors = new ArrayList<>();
+        // A file that cannot be copied aborts the extraction rather than being collected: the
+        // marker
+        // is written once the walk finishes, so carrying on would leave a mods directory that is
+        // missing files while claiming to be complete, and no later run would look for them again.
         try {
-            GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile, errors);
+            GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile);
         } catch (IOException e) {
-            LOGGER.error("Failed to walk mods directory", e);
-        }
-        for (String error : errors) {
-            LOGGER.error(error);
+            throw Grug.fatal("Failed to extract the default grug mods", e);
         }
     }
 }

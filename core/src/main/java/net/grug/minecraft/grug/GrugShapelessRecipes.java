@@ -9,9 +9,9 @@ import java.util.List;
  *
  * <p>Beta 1.7.3 and every later version register a shapeless recipe with the game. Alpha 1.1.2_01
  * has only the shaped registration, so a mod that ships a shapeless recipe gets nothing there.
- * Rather than let the recipe go missing, the Alpha loader mixes into {@code CraftingManager} and asks
- * this class first, which is the same thing the game does for its own recipes: a recipe matches when
- * the grid holds its ingredients and nothing else, whatever order they are in.
+ * Rather than let the recipe go missing, the Alpha loader mixes into {@code CraftingManager} and
+ * asks this class first, which is the same thing the game does for its own recipes: a recipe
+ * matches when the grid holds its ingredients and nothing else, whatever order they are in.
  *
  * <p>The comparison is on item ids, because that is all a legacy crafting grid carries: the id an
  * empty slot holds, and the id of the item in each filled one. Stack sizes and metadata are the
@@ -46,8 +46,8 @@ public final class GrugShapelessRecipes {
      * The output of the first recipe {@code gridIds} matches, or null when none does.
      *
      * <p>The output is the recipe's own object rather than a copy, because copying it is the game's
-     * job: {@code CraftingManager} hands its caller a fresh stack from {@code construct}, so the mixin
-     * that asks here copies before returning.
+     * job: {@code CraftingManager} hands its caller a fresh stack from {@code construct}, so the
+     * mixin that asks here copies before returning.
      */
     public static Object match(int[] gridIds) {
         int[] grid = filled(gridIds);
@@ -59,7 +59,9 @@ public final class GrugShapelessRecipes {
         return null;
     }
 
-    /** The grid's item ids with the empty slots dropped, which is what a shapeless recipe compares. */
+    /**
+     * The grid's item ids with the empty slots dropped, which is what a shapeless recipe compares.
+     */
     private static int[] filled(int[] gridIds) {
         int count = 0;
         for (int id : gridIds) {

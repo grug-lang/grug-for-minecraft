@@ -80,6 +80,7 @@ class GrugRecipeTreeTest {
         assertEquals(1, found.size());
         Recipe thing = found.get(0);
         assertEquals(Kind.SHAPED, thing.kind());
+        assertEquals("minecraft:crafting_shaped", thing.type());
         assertEquals("mymod/data/grug/recipes/crafting/thing.json", thing.path());
         assertEquals(List.of(" s ", "s s"), thing.pattern());
         assertEquals(List.of('s', 'g'), thing.symbols());
@@ -91,8 +92,7 @@ class GrugRecipeTreeTest {
         assertEquals("grug:thing", thing.resultId());
         assertEquals(3, thing.resultCount());
         assertEquals(
-                mods.resolve("mymod/data/grug/recipes/crafting/thing.json").toFile(),
-                thing.file());
+                mods.resolve("mymod/data/grug/recipes/crafting/thing.json").toFile(), thing.file());
         assertTrue(reported().isEmpty(), reported().toString());
     }
 
@@ -132,18 +132,19 @@ class GrugRecipeTreeTest {
 
         assertEquals(1, found.size());
         assertEquals(Kind.OTHER, found.get(0).kind());
+        assertEquals("other:whatever", found.get(0).type());
         assertTrue(reported().isEmpty(), reported().toString());
     }
 
     @Test
     void findsRecipesInEveryModAndNamespace() throws IOException {
         recipe("aamod/data/one/recipes/a.json", "{\"type\": \"x:y\", \"result\": {\"id\": \"a\"}}");
-        recipe("zzmod/data/two/recipes/deep/b.json", "{\"type\": \"x:y\", \"result\": {\"id\": \"b\"}}");
+        recipe(
+                "zzmod/data/two/recipes/deep/b.json",
+                "{\"type\": \"x:y\", \"result\": {\"id\": \"b\"}}");
 
         assertEquals(
-                List.of(
-                        "aamod/data/one/recipes/a.json",
-                        "zzmod/data/two/recipes/deep/b.json"),
+                List.of("aamod/data/one/recipes/a.json", "zzmod/data/two/recipes/deep/b.json"),
                 paths(GrugRecipeTree.files(mods.toFile()), mods.toFile()));
     }
 
@@ -359,8 +360,7 @@ class GrugRecipeTreeTest {
                         + " \"ingredients\": [{\"item\": 5, \"tag\": \"grug:planks\"}],"
                         + " \"result\": {\"id\": \"minecraft:dirt\"}}");
 
-        assertEquals(
-                List.of(new Ingredient("tag", "grug:planks")), recipes().get(0).ingredients());
+        assertEquals(List.of(new Ingredient("tag", "grug:planks")), recipes().get(0).ingredients());
     }
 
     @Test
@@ -509,7 +509,8 @@ class GrugRecipeTreeTest {
 
     @Test
     void keepsAKeyThePatternNeverUses() throws IOException {
-        // A key entry the pattern never reaches is harmless: the game matches on the pattern, so the
+        // A key entry the pattern never reaches is harmless: the game matches on the pattern, so
+        // the
         // entry simply sits there. Reporting it would fail a run over nothing.
         recipe(
                 "mymod/data/grug/recipes/a.json",
@@ -573,6 +574,7 @@ class GrugRecipeTreeTest {
         assertTrue(recipes().isEmpty());
         assertReported("is shapeless but names no 'ingredients' array");
     }
+
     @Test
     void reportsAnIngredientThatIsNull() throws IOException {
         recipe(
@@ -646,6 +648,22 @@ class GrugRecipeTreeTest {
         assertEquals(
                 "/other/place/a.json",
                 GrugRecipeTree.relativePath(mods.toFile(), new File("/other/place/a.json")));
+    }
+
+    @Test
+    void judgesARecipeTypeByItsShape() {
+        assertEquals(true, GrugRecipeTree.isWellFormedType("minecraft:crafting_shaped"));
+        assertEquals(true, GrugRecipeTree.isWellFormedType("some_mod:blocks/thing.press"));
+        assertEquals(true, GrugRecipeTree.isWellFormedType("minecraft:a_b-c.d/e"));
+
+        assertEquals(false, GrugRecipeTree.isWellFormedType(null));
+        assertEquals(false, GrugRecipeTree.isWellFormedType("crafting_shaped"), "no namespace");
+        assertEquals(false, GrugRecipeTree.isWellFormedType("minecraft:"), "no path");
+        assertEquals(false, GrugRecipeTree.isWellFormedType(":crafting"), "no namespace name");
+        assertEquals(false, GrugRecipeTree.isWellFormedType("Mine:crafting"), "upper case");
+        assertEquals(
+                false, GrugRecipeTree.isWellFormedType("minecraft:Crafting"), "upper case path");
+        assertEquals(false, GrugRecipeTree.isWellFormedType(""), "empty");
     }
 
     private static List<String> paths(List<File> files, File modsDir) {

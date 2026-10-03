@@ -96,6 +96,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public void logError(String message) {
+        // A contained mod err, and the sandbox's own report of it: the JNI layer clears whatever a
+        // script threw and the script carries on, so this is where a failed script call surfaces.
         InitListener.LOGGER.error(message);
     }
 
@@ -407,7 +409,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
             world.setBlock(posX, posY, posZ, targetBlock.id);
         } else {
-            InitListener.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
+            // The script named a block this loader does not have, which is the script's err and
+            // stays inside the sandbox: the call fails, the mod carries on, and the run sees it
+            // wherever it sees host errors.
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "place_block: Could not resolve block " + blockName);
         }
     }
 

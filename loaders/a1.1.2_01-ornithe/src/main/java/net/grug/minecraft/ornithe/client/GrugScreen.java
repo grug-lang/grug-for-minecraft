@@ -2,7 +2,6 @@ package net.grug.minecraft.ornithe.client;
 
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.gui.GrugGuiBuilder;
-import net.grug.minecraft.ornithe.GrugModLoader;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
 import net.minecraft.client.entity.mob.player.LocalClientPlayerEntity;
@@ -121,21 +120,29 @@ public class GrugScreen extends InventoryMenuScreen {
     /**
      * Alpha has no texture pack layer, so TextureManager.load(String) cannot see the mod directory.
      * Read the image through OSL's resource manager instead.
+     *
+     * <p>The path comes from the script's own {@code gui(...)} call, so a texture it cannot find is
+     * the script's err rather than the host's: {@code GUI.open} reports it and the screen opens
+     * without a background instead of the mod being broken by a path it never named.
      */
     private int loadTexture() {
         try (InputStream is = ResourceManager.client().getResource(texturePath)) {
             if (is == null) {
-                GrugModLoader.LOGGER.error("GUI texture not found: {}", texturePath);
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr, "GUI.open: The texture " + texturePath + " does not exist.");
                 return -1;
             }
             BufferedImage image = ImageIO.read(is);
             if (image == null) {
-                GrugModLoader.LOGGER.error("GUI texture is not a readable image: {}", texturePath);
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "GUI.open: The texture " + texturePath + " is not an image.");
                 return -1;
             }
             return minecraft.textureManager.load(image);
-        } catch (Exception e) {
-            GrugModLoader.LOGGER.error("Failed to load GUI texture " + texturePath, e);
+        } catch (java.io.IOException e) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "GUI.open: Failed to read the texture " + texturePath + ".");
             return -1;
         }
     }
