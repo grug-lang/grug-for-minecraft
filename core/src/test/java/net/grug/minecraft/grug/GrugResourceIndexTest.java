@@ -1,10 +1,11 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -20,6 +21,20 @@ import java.util.Set;
 class GrugResourceIndexTest {
 
     @TempDir Path mods;
+
+    /**
+     * Drains the fatal a malformed language file provokes. {@code Grug.fatal} remembers the first
+     * error per thread and rethrows it at the next native call boundary, so leaving one set would
+     * fail the next test on this JVM that drives an export function, for an unrelated reason.
+     */
+    @AfterEach
+    void drainPendingFatal() {
+        try {
+            Grug.throwPendingFatal();
+        } catch (IllegalStateException expected) {
+            // The fatal the test provoked, cleared so it cannot outlive it.
+        }
+    }
 
     private void write(String relativePath, String content) throws IOException {
         Path path = mods.resolve(relativePath);
@@ -196,11 +211,16 @@ class GrugResourceIndexTest {
     }
 
     @Test
-    void mergeLangSkipsAMalformedFile() throws IOException {
+    void mergeLangFailsOnAMalformedFile() throws IOException {
+        // Dropping the file would rename whatever it named, with nothing to say so.
         write("mymod/assets/grug/lang/en_us.json", "{ not json");
-        byte[] merged = GrugResourceIndex.mergeLang(mods.toFile(), "en_us");
-        assertFalse(merged == null);
-        assertEquals("", new String(merged, StandardCharsets.UTF_8));
+
+        IllegalStateException fatal =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> GrugResourceIndex.mergeLang(mods.toFile(), "en_us"));
+        assertTrue(
+                fatal.getMessage().contains("Failed to read the language file"), fatal.getMessage());
     }
 
     @Test
@@ -221,10 +241,12 @@ class GrugResourceIndexTest {
     }
 
     @Test
-    void mergeLangSkipsAFileThatIsNotJson() throws IOException {
+    void mergeLangFailsOnAFileThatIsNotJson() throws IOException {
         write("mymod/assets/grug/lang/en_us.json", "not an object");
-        byte[] merged = GrugResourceIndex.mergeLang(mods.toFile(), "en_us");
-        assertEquals("", new String(merged, StandardCharsets.UTF_8));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> GrugResourceIndex.mergeLang(mods.toFile(), "en_us"));
     }
 
     @Test

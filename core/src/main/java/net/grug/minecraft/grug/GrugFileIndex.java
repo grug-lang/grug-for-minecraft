@@ -1,7 +1,5 @@
 package net.grug.minecraft.grug;
 
-import net.grug.minecraft.core.GrugCore;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -106,29 +104,17 @@ public final class GrugFileIndex {
 
     /**
      * Reports each misplaced test the way grug reports any other mod-tree err: to the player in
-     * chat through {@link Grug#runtimeErrorQueue}, which every loader drains as a red message, and
-     * to the run as a {@code [GRUG CI] FAIL} line, which is what {@code run-loader.sh} fails on.
-     * The game keeps running, because a misplaced test is a layout err and not a broken mod.
-     *
-     * <p>Carries {@link GrugGenerated} because reaching it needs a loader adapter, and the adapter
-     * cannot be installed without {@code Grug.init} reaching for the native library. The null check
-     * is the same accommodation {@code GrugCore.initialize} makes for its log consumer.
+     * chat as a red message, and to the run as a {@code [GRUG CI] FAIL} line, which is what {@code
+     * run-loader.sh} fails on. The game keeps running, because a misplaced test is a layout err and
+     * not a broken mod.
      */
-    @GrugGenerated("misplaced test reporting: needs a loader adapter a Java test cannot install")
     private static void reportMisplacedTests(List<String> misplaced) {
         for (String path : misplaced) {
-            String message =
+            GrugModTreeDefect.report(
                     "Test file misplaced: '"
                             + path
                             + "' must be placed inside its mod's 'tests/' directory, or the suite"
-                            + " runs out of order.";
-            if (GrugCore.getAdapter() != null) {
-                GrugCore.getAdapter().logError(message);
-            }
-            synchronized (Grug.runtimeErrorQueue) {
-                Grug.runtimeErrorQueue.add(message);
-            }
-            System.out.println("[GRUG CI] FAIL " + message);
+                            + " runs out of order.");
         }
     }
 }
