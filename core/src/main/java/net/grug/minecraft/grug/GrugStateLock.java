@@ -36,6 +36,10 @@ final class GrugStateLock {
      * Runs {@code blockingWait} with this thread's hold on the state lock released, then restores
      * the hold. A wait on a thread that holds no lock is unaffected, so callers do not have to know
      * whether they are inside a grug call.
+     *
+     * <p>The released task may run export functions only. Compiling or updating files would reach
+     * the backend's file table borrow, which the suspended call still holds, so it would panic
+     * rather than wait. See {@link Grug#runWithStateLockReleased(Runnable)}.
      */
     static void runReleased(Runnable blockingWait) {
         int holds = isHeldByCurrentThread() ? holdCount() : 0;
