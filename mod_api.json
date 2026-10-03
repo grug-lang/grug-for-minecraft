@@ -238,7 +238,7 @@
 					}
 				},
 				"get_origin": {
-					"description": "Gets the origin coordinates for running isolated tests.",
+					"description": "Gets the origin coordinates for running isolated tests. The first call in a test captures the player's position plus 3 and every later call in the same test returns that same position, so a fixture and its check cannot disagree while the player settles.",
 					"return_type": {
 						"name": "Vec3"
 					}

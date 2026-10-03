@@ -74,7 +74,9 @@ public class HostFunctions {
 
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
-        return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().getTestOrigin());
+        return Grug.addEntity(
+                GrugEntityType.Vec3,
+                Grug.captureTestOrigin(() -> GrugCore.getAdapter().getTestOrigin()));
     }
 
     /**

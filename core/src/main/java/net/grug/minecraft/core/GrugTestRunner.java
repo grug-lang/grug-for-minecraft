@@ -317,9 +317,11 @@ public class GrugTestRunner {
 
         currentTick = 0;
         // Also cleared in destroyCurrentEntity. Doing both ends means a run that was restarted or
-        // aborted cannot inherit an expectation or an override from a previous one.
+        // aborted cannot inherit an expectation, an override or a captured origin from a previous
+        // one.
         Grug.testExpectedError = null;
         Grug.testFidelityOverride = null;
+        Grug.testOrigin = null;
         return true;
     }
 
@@ -343,9 +345,11 @@ public class GrugTestRunner {
         // Cleared here rather than when the next test starts, so neither a Test.force_fidelity
         // override nor a Test.expect_error expectation can outlive the test that asked for it even
         // when that test failed partway through. A leftover expectation would keep
-        // Grug.onRuntimeError recording errors for a test that is no longer running.
+        // Grug.onRuntimeError recording errors for a test that is no longer running. The captured
+        // origin is cleared for the same reason: the next test has to capture its own.
         Grug.testFidelityOverride = null;
         Grug.testExpectedError = null;
+        Grug.testOrigin = null;
         if (currentEntityHandle != 0) {
             ops.destroyEntity(currentEntityHandle);
             currentEntityHandle = 0;
