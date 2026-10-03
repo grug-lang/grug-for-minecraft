@@ -19,7 +19,7 @@ import java.util.stream.Stream;
 /**
  * Puts a mod file into a named test state, and puts it back again.
  *
- * <p>{@link #set} records a file's pristine text before it disturbs it, so that the {@code
+ * <p>{@link #set} records a file's pristine bytes before it disturbs it, so that the {@code
  * "normal"} state restores it exactly. The record is a file beside the mods directory, not only a
  * value in memory, because a run can die between those two calls: a crash, a CI timeout, or any
  * failure that stops the test runner. Memory does not survive that, and a grug file left holding
@@ -34,6 +34,11 @@ import java.util.stream.Stream;
  * reports every change in it, so a record written inside it would arrive as a changed resource and
  * reload the client's assets in the middle of a test. Inside it would also mean an extra directory
  * under the mods directory, which {@code GrugModLicenses} rejects for having no LICENSE.
+ *
+ * <p>Bytes rather than text, because a state can disturb an asset. A mod's {@code assets/} tree
+ * holds PNGs, and a record that round-tripped them through a charset would store replacement
+ * characters for every byte that is not valid in that charset, so the {@code "normal"} state would
+ * put back a file that no longer decodes as the image it was.
  */
 public final class GrugModFileStates {
 
@@ -41,14 +46,21 @@ public final class GrugModFileStates {
     private static final String INVALID = "invalid";
     private static final String NO_TRAILING_NEWLINE = "no_trailing_newline";
     private static final String DELETED = "deleted";
+    private static final String SWAPPED = "swapped";
 
     /** What the {@code "invalid"} state puts at the top of a file, which the compiler rejects. */
-    private static final String INVALID_MARKER = "!\n";
+    private static final byte[] INVALID_MARKER = "!\n".getBytes(StandardCharsets.UTF_8);
+
+    /** The byte {@link #NO_TRAILING_NEWLINE} takes off the end of a file. */
+    private static final byte NEWLINE = (byte) '\n';
+
+    /** Inserted into a file's name to find the file the {@code "swapped"} state copies in. */
+    private static final String SWAP_INFIX = ".swap";
 
     /** The directory the records live in, beside the mods directory. */
     private static final String BACKUP_DIRECTORY = ".grug_test_backups";
 
-    /** Suffix of a record of a mod file's pristine text. */
+    /** Suffix of a record of a mod file's pristine bytes. */
     private static final String BACKUP_SUFFIX = ".grugbak";
 
     /** Suffix of a record that is still being written, and so is not a record yet. */
@@ -58,7 +70,7 @@ public final class GrugModFileStates {
     private GrugModFileStates() {}
 
     /**
-     * Puts a mod file into a named state, recording its pristine text the first time so that the
+     * Puts a mod file into a named state, recording its pristine bytes the first time so that the
      * {@code "normal"} state restores it exactly.
      *
      * <p>Idempotent on purpose: a hot-reload test sets a state, waits for {@code
@@ -72,21 +84,19 @@ public final class GrugModFileStates {
         if (NORMAL.equals(state)) {
             // No record means nothing ever disturbed the file, here or in an earlier run.
             if (!Files.isRegularFile(backup)) return;
-            // Write the text back before dropping the record. A run killed in between leaves the
-            // record behind, and the next startup would restore the very same text over the file.
+            // Write the bytes back before dropping the record. A run killed in between leaves the
+            // record behind, and the next startup would restore the very same bytes over the file.
             Files.write(path, Files.readAllBytes(backup));
             discardRecord(modsDir, backup);
             return;
         }
 
-        if (!INVALID.equals(state)
-                && !NO_TRAILING_NEWLINE.equals(state)
-                && !DELETED.equals(state)) {
+if (!isDisturbance(state)) {
             throw new IllegalArgumentException(
                     "Unknown mod file state '"
                             + state
-                            + "'. Expected \"normal\", \"invalid\", \"no_trailing_newline\" or"
-                            + " \"deleted\".");
+                            + "'. Expected \"normal\", \"invalid\", \"no_trailing_newline\","
+                            + " \"deleted\" or \"swapped\".");
         }
 
         if (DELETED.equals(state)) {
@@ -94,21 +104,29 @@ public final class GrugModFileStates {
             // written while the file is still there. A second delete keeps the first record, for
             // the same reason setting the same state twice does.
             if (Files.isRegularFile(path) && !Files.isRegularFile(backup)) {
-                writeBackup(backup, read(path));
+                writeBackup(backup, Files.readAllBytes(path));
             }
             Files.deleteIfExists(path);
             return;
         }
 
-        String contents = read(path);
-        // Only record while the file is still pristine. Recording the text of a file that is
+        byte[] contents = Files.readAllBytes(path);
+        // Only record while the file is still pristine. Recording the bytes of a file that is
         // already disturbed is what made a killed run permanent: the next run's "normal" then put
         // the marker straight back, and every run after that did the same.
         if (!Files.isRegularFile(backup)) {
             writeBackup(backup, contents);
         }
 
-        Files.write(path, disturbed(contents, state).getBytes(StandardCharsets.UTF_8));
+        Files.write(path, disturbed(path, contents, state));
+    }
+
+    /** Whether {@code state} disturbs a file, as opposed to the {@code "normal"} that undoes it. */
+    private static boolean isDisturbance(String state) {
+        return INVALID.equals(state)
+                || NO_TRAILING_NEWLINE.equals(state)
+                || DELETED.equals(state)
+                || SWAPPED.equals(state);
     }
 
     /**
@@ -140,10 +158,10 @@ public final class GrugModFileStates {
     }
 
     /** Records {@code contents}, so that it survives even a run that never comes back. */
-    private static void writeBackup(Path backup, String contents) throws IOException {
+    private static void writeBackup(Path backup, byte[] contents) throws IOException {
         Files.createDirectories(backup.getParent());
         Path pending = backup.resolveSibling(backup.getFileName() + PENDING_SUFFIX);
-        Files.write(pending, contents.getBytes(StandardCharsets.UTF_8));
+        Files.write(pending, contents);
 
         // The rename is what makes the record safe to trust. Written in place, a run killed partway
         // through would leave a record holding a prefix of the file, and restoring that prefix is
@@ -177,7 +195,7 @@ public final class GrugModFileStates {
         }
     }
 
-    /** Writes the recorded text back over {@code path}, and reports whether it wrote anything. */
+    /** Writes the recorded bytes back over {@code path}, and reports whether it wrote anything. */
     private static boolean putBack(Path path, Path backup) throws IOException {
         byte[] pristine = Files.readAllBytes(backup);
         if (Files.isRegularFile(path) && Arrays.equals(pristine, Files.readAllBytes(path))) {
@@ -268,20 +286,51 @@ public final class GrugModFileStates {
         return modsDir.toPath().resolve(relativePath).normalize();
     }
 
-    private static String read(Path path) throws IOException {
-        return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
-    }
-
-    /** The text that puts {@code contents} into {@code state}, which is not {@code "normal"}. */
-    private static String disturbed(String contents, String state) {
+    /**
+     * The bytes that put {@code path} into {@code state}, which is not {@code "normal"}.
+     *
+     * @throws IOException when {@link #SWAPPED} asks for a file that is not there, since a swap with
+     *     nothing to swap in would otherwise be a state that disturbs nothing and so never reports a
+     *     change to wait for.
+     */
+    private static byte[] disturbed(Path path, byte[] contents, String state) throws IOException {
         if (INVALID.equals(state)) {
-            return INVALID_MARKER + contents;
+            byte[] marked = new byte[INVALID_MARKER.length + contents.length];
+            System.arraycopy(INVALID_MARKER, 0, marked, 0, INVALID_MARKER.length);
+            System.arraycopy(contents, 0, marked, INVALID_MARKER.length, contents.length);
+            return marked;
+        }
+        if (SWAPPED.equals(state)) {
+            return Files.readAllBytes(swapSibling(path));
         }
         // NO_TRAILING_NEWLINE. A file that has no trailing newline to begin with is already in
         // this state, so there is nothing to change.
-        if (contents.endsWith("\n")) {
-            return contents.substring(0, contents.length() - 1);
+        if (contents.length > 0 && contents[contents.length - 1] == NEWLINE) {
+            return Arrays.copyOf(contents, contents.length - 1);
         }
         return contents;
+    }
+
+    /**
+     * The file whose bytes the {@code "swapped"} state copies over {@code path}: its name with
+     * {@code .swap} inserted before the extension, so {@code stone.png} is swapped by {@code
+     * stone.swap.png} and a name with no extension at all by {@code LICENSE.swap}.
+     *
+     * <p>A name the state is derived from rather than passed in, so a test that swaps one file
+     * cannot name a different one: {@code Test.set_mod_file_state} is a test-only host function and
+     * the whole reason it can write into the mods tree is that a test needs to disturb a file the
+     * game reloads from. Handing it a second path would let it overwrite anything on disk instead
+     * of only swapping a file for the sibling that already sits beside it.
+     */
+    private static Path swapSibling(Path path) {
+        String name = path.getFileName().toString();
+        // A leading dot is a hidden file's, not an extension's, so ".gitignore" becomes
+        // ".gitignore.swap" rather than ".swapgitignore".
+        int dot = name.lastIndexOf('.');
+        String swapped =
+                dot <= 0
+                        ? name + SWAP_INFIX
+                        : name.substring(0, dot) + SWAP_INFIX + name.substring(dot);
+        return path.resolveSibling(swapped);
     }
 }
