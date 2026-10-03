@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * The Java bridge to one native grug state.
@@ -70,6 +71,23 @@ public final class Grug {
     // Test.run() call, so one test's override cannot go on deciding the next one's assertions. It
     // can only tighten a test's rule: a mod that declares exact stays exact whatever it is set to.
     public static String testFidelityOverride = null;
+
+    // The origin Test.get_origin() captured first for the running test, so every later call in the
+    // same test returns the same position while the player settles. GrugTestRunner clears it when a
+    // test starts and when it ends, which is what keeps a setup and its check on one row. See #158.
+    public static Vec3 testOrigin = null;
+
+    /**
+     * Returns the origin captured for the running test, asking {@code capture} only on the first
+     * call. A later call reuses the captured value, so a test that builds a fixture from the origin
+     * and checks it from the origin cannot disagree with itself while the player moves.
+     */
+    public static Vec3 captureTestOrigin(Supplier<Vec3> capture) {
+        if (testOrigin == null) {
+            testOrigin = capture.get();
+        }
+        return testOrigin;
+    }
 
     /**
      * Whether the mod owning the running test promises an exact recreation, honouring a test-only

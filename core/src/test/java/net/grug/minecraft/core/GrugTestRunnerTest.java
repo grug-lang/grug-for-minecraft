@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.Vec3;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,7 @@ class GrugTestRunnerTest {
         Grug.currentTestTick = 0;
         Grug.currentTestMod = null;
         Grug.testFidelityOverride = null;
+        Grug.testOrigin = null;
         Grug.printQueue.clear();
         Grug.runtimeErrorQueue.clear();
         Grug.testRuntimeErrors.clear();
@@ -411,5 +413,21 @@ class GrugTestRunnerTest {
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
         assertNull(Grug.testFidelityOverride);
+    }
+
+    @Test
+    void clearsACapturedOriginBetweenTests() {
+        // The origin is captured per test, so the next test has to start from the player's current
+        // position rather than inherit the one the previous test first asked for.
+        Grug.testOrigin = new Vec3(1.0, 2.0, 3.0);
+        FakeOps ops = new FakeOps();
+        ops.onCall =
+                () -> {
+                    assertNull(Grug.testOrigin);
+                    Grug.testOrigin = new Vec3(4.0, 5.0, 6.0);
+                };
+        runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
+
+        assertNull(Grug.testOrigin);
     }
 }
