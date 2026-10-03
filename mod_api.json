@@ -216,7 +216,7 @@
 						},
 						{
 							"name": "state",
-							"description": "One of \"normal\", \"invalid\" (fails to compile) or \"no_trailing_newline\" (still valid JSON).",
+							"description": "One of \"normal\", \"invalid\" (fails to compile), \"no_trailing_newline\" (still valid JSON), or \"swapped\" (the bytes of the sibling file whose name carries \".swap\" before the extension, which is how a binary asset such as a texture can be replaced with different content).",
 							"type": {
 								"name": "string"
 							}
