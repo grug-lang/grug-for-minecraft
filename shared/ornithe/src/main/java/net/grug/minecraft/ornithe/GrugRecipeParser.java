@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe;
 
+import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugRecipeTree;
 import net.grug.minecraft.grug.GrugTags;
@@ -47,12 +48,7 @@ public final class GrugRecipeParser {
 
         for (GrugRecipeTree.Recipe recipe : GrugRecipeTree.recipes(grugModsDir)) {
             if (recipe.kind() == GrugRecipeTree.Kind.OTHER) {
-                GrugModTreeDefect.report(
-                        "Recipe '"
-                                + recipe.path()
-                                + "' is a '"
-                                + recipe.type()
-                                + "' recipe, which grug does not know how to register.");
+                reportUnregisterable(recipe);
                 continue;
             }
             ParsedRecipe parsed = parse(recipe, adapter, grugModsDir);
@@ -62,6 +58,33 @@ public final class GrugRecipeParser {
         }
 
         return recipes;
+    }
+
+    /**
+     * Reports a recipe grug cannot register, unless its type belongs to a mod that is not loaded.
+     *
+     * <p>A mod may ship recipes for a mod it does not require, and the game ignores those when the
+     * type's mod is absent, so that is not a defect. A type that names no resource id names nothing
+     * at all, and a type whose mod is loaded but that grug still does not register leaves a recipe
+     * its players cannot craft, so both of those are.
+     */
+    private static void reportUnregisterable(GrugRecipeTree.Recipe recipe) {
+        String type = recipe.type();
+        if (!GrugRecipeTree.isWellFormedType(type)) {
+            GrugModTreeDefect.report(
+                    "Recipe '" + recipe.path() + "' has the malformed type '" + type + "'.");
+            return;
+        }
+        String namespace = type.substring(0, type.indexOf(':'));
+        if (!"minecraft".equals(namespace) && !FabricLoader.getInstance().isModLoaded(namespace)) {
+            return;
+        }
+        GrugModTreeDefect.report(
+                "Recipe '"
+                        + recipe.path()
+                        + "' is a '"
+                        + type
+                        + "' recipe, which grug does not know how to register.");
     }
 
     /** Builds one recipe's output and ingredients, or reports and returns null. */

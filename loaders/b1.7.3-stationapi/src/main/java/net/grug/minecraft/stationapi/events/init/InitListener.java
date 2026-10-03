@@ -1,6 +1,5 @@
 package net.grug.minecraft.stationapi.events.init;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -50,6 +49,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -365,7 +365,14 @@ public class InitListener {
     }
 
     public static void handlePossibleRecipeUpdate(String updatedResourcePath) {
-        if (!updatedResourcePath.endsWith(".json")) return;
+        if (!updatedResourcePath.endsWith(".json")) {
+            // A deleted file reaches this path as its parent directory on the polling watchers,
+            // which only see the directory's mtime change, and as the file itself on the
+            // event-based ones. Checking the registrations under whatever was reported covers
+            // both without having to know which watcher is in play.
+            unregisterDeletedRecipes(normalized(updatedResourcePath));
+            return;
+        }
 
         String[] pathParts = updatedResourcePath.replace('\\', '/').split("/");
 
@@ -385,10 +392,16 @@ public class InitListener {
         }
 
         try {
-            Identifier recipeId = recipeType(readRecipeType(file), normalized(updatedResourcePath));
+            String path = normalized(updatedResourcePath);
+            // The hot-reload path judges the one changed file the same way the startup walk does,
+            // and reports a file that is no longer a recipe rather than crashing on it.
+            String rawType = GrugRecipeTree.readType(file, path);
+            if (rawType == null) return;
+
+            Identifier recipeId = recipeType(rawType, path);
             if (recipeId == null) return;
 
-            RegisteredRecipe previous = registeredRecipes.get(normalized(updatedResourcePath));
+            RegisteredRecipe previous = registeredRecipes.get(path);
             if (previous != null && !previous.type.equals(recipeId)) {
                 removeRecipe(previous);
             }
@@ -398,8 +411,7 @@ public class InitListener {
                 Registry.register(JsonRecipesRegistry.INSTANCE, recipeId, new HashSet<>());
             }
             Objects.requireNonNull(JsonRecipesRegistry.INSTANCE.get(recipeId)).add(url);
-            registeredRecipes.put(
-                    normalized(updatedResourcePath), new RegisteredRecipe(recipeId, url));
+            registeredRecipes.put(path, new RegisteredRecipe(recipeId, url));
 
             LOGGER.info(
                     "Re-registering recipes of type {} due to change in {}",
@@ -421,6 +433,22 @@ public class InitListener {
         StationAPI.EVENT_BUS.post(RecipeRegisterEvent.builder().recipeId(removed.type).build());
     }
 
+    /**
+     * Drops every registered recipe under {@code updatedPath} whose file is no longer there.
+     *
+     * <p>The reported path may be a directory, so only the registrations under it are candidates,
+     * and one that still has its file is left alone: a directory's mtime also changes when a file
+     * is added, which is not a removal.
+     */
+    private static void unregisterDeletedRecipes(String updatedPath) {
+        String prefix = updatedPath + "/";
+        for (String path : new ArrayList<>(registeredRecipes.keySet())) {
+            if (!path.startsWith(prefix)) continue;
+            if (new File(getActiveGrugModsDir(), path).exists()) continue;
+            unregisterRecipe(path);
+        }
+    }
+
     private static void removeRecipe(RegisteredRecipe recipe) {
         Set<URL> recipes = JsonRecipesRegistry.INSTANCE.get(recipe.type);
         if (recipes != null) {
@@ -431,27 +459,6 @@ public class InitListener {
     /** The recipe's own path in the mods tree, which is how a recipe is keyed and reported. */
     private static String normalized(String path) {
         return path.replace('\\', '/');
-    }
-
-    // Minimal stand-in for stationapi's internal JsonRecipeType, since that
-    // class isn't guaranteed accessible outside its package. Only needs to
-    // match the "type" field Gson reads from each recipe JSON.
-    private static class RecipeTypeHolder {
-        String type;
-    }
-
-    /**
-     * The recipe's own type, read straight off the file.
-     *
-     * <p>Kept apart so the update path reports a failure as the one thing it is, rather than as
-     * whatever the caller happens to be doing.
-     */
-    private static String readRecipeType(File file) throws IOException {
-        try (InputStreamReader reader =
-                new InputStreamReader(
-                        new FileInputStream(file), java.nio.charset.StandardCharsets.UTF_8)) {
-            return new Gson().fromJson(reader, RecipeTypeHolder.class).type;
-        }
     }
 
     @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
@@ -465,11 +472,10 @@ public class InitListener {
         Optional<Path> defaultModsPath = modContainer.get().findPath("mods");
         if (defaultModsPath.isEmpty()) return;
 
-        // A file that cannot be copied aborts the extraction rather than being collected: the
-        // marker is written once the walk finishes, so carrying on would leave a mods directory
-        // that
-        // is missing files while claiming to be complete, and no later run would look for them
-        // again.
+        // A file that cannot be copied aborts the extraction rather than being collected. The
+        // marker is written only once the walk finishes, so carrying on would leave a mods
+        // directory that is missing files while claiming to be complete, and no later run would
+        // look for them again.
         try {
             GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile);
         } catch (IOException e) {

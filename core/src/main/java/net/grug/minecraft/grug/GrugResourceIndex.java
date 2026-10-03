@@ -117,9 +117,10 @@ public final class GrugResourceIndex {
      * .lang} byte stream, rewriting modern {@code block.}/{@code item.} keys. Returns null when no
      * mod ships the language.
      *
-     * <p>A language file that cannot be read is a mod-tree defect rather than a file to skip: the
-     * merge is the only place a translation reaches the game, so dropping one silently renames
-     * whatever it named.
+     * <p>A language file that cannot be read aborts rather than being skipped: the merge is the
+     * only place a translation reaches the game, so dropping the file silently renames whatever it
+     * named. A file that parses but gives a key a value that is not a string reports that one key
+     * and merges the rest, because the offending key is the only thing the output loses.
      */
     public static byte[] mergeLang(File modsDir, String langName) {
         JsonObject json = new JsonObject();
@@ -175,6 +176,18 @@ public final class GrugResourceIndex {
                 new InputStreamReader(new FileInputStream(jsonFile), StandardCharsets.UTF_8)) {
             JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
             for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+                // The merge writes every value as text, so a value that is not a primitive has no
+                // line to become. Report that one key and leave it out rather than renaming the
+                // whole file's contents or crashing on a JSON shape the format does not use.
+                if (!entry.getValue().isJsonPrimitive()) {
+                    GrugModTreeDefect.report(
+                            "Language file '"
+                                    + jsonFile
+                                    + "' gives '"
+                                    + entry.getKey()
+                                    + "' a value that is not a string.");
+                    continue;
+                }
                 merged.add(entry.getKey(), entry.getValue());
             }
         } catch (Exception e) {

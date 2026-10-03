@@ -1,11 +1,13 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -23,12 +25,17 @@ class GrugResourceIndexTest {
     @TempDir Path mods;
 
     /**
-     * Drains the fatal a malformed language file provokes. {@code Grug.fatal} remembers the first
-     * error per thread and rethrows it at the next native call boundary, so leaving one set would
-     * fail the next test on this JVM that drives an export function, for an unrelated reason.
+     * Drains the fatal a malformed language file provokes, and the defects a language value
+     * provokes. {@code Grug.fatal} remembers the first error per thread and rethrows it at the next
+     * native call boundary, so leaving one set would fail the next test on this JVM that drives an
+     * export function, for an unrelated reason.
      */
+    @BeforeEach
     @AfterEach
     void drainPendingFatal() {
+        synchronized (Grug.runtimeErrorQueue) {
+            Grug.runtimeErrorQueue.clear();
+        }
         try {
             Grug.throwPendingFatal();
         } catch (IllegalStateException expected) {
@@ -212,6 +219,27 @@ class GrugResourceIndexTest {
         assertTrue(
                 fatal.getMessage().contains("Failed to read the language file"),
                 fatal.getMessage());
+    }
+
+    @Test
+    void mergeLangReportsAValueThatIsNotAStringAndKeepsTheRest() throws IOException {
+        write(
+                "mymod/assets/grug/lang/en_us.json",
+                "{\"block.grug.foo\": \"Foo\", \"block.grug.bad\": {\"text\": \"Bad\"}}");
+
+        String merged =
+                new String(
+                        GrugResourceIndex.mergeLang(mods.toFile(), "en_us"),
+                        StandardCharsets.UTF_8);
+
+        assertTrue(merged.contains("tile.grug.foo.name=Foo"), merged);
+        assertFalse(merged.contains("bad"), merged);
+        synchronized (Grug.runtimeErrorQueue) {
+            assertEquals(1, Grug.runtimeErrorQueue.size(), Grug.runtimeErrorQueue.toString());
+            assertTrue(
+                    Grug.runtimeErrorQueue.peek().contains("block.grug.bad"),
+                    Grug.runtimeErrorQueue.peek());
+        }
     }
 
     @Test

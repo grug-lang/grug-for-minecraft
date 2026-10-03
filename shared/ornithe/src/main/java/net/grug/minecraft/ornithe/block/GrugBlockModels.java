@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugFaceTextures;
+import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.ornithe.GrugModLoader;
 
 import java.io.File;
@@ -47,14 +48,20 @@ public final class GrugBlockModels {
             // Children are visited first, so putIfAbsent lets them override parents
             JsonElement texturesElement = model.get("textures");
             if (texturesElement != null && texturesElement.isJsonObject()) {
-                for (Map.Entry<String, JsonElement> entry :
-                        texturesElement.getAsJsonObject().entrySet()) {
-                    textures.putIfAbsent(entry.getKey(), entry.getValue().getAsString());
+                if (!GrugFaceTextures.mergeTextures(
+                        blockName, texturesElement.getAsJsonObject(), textures)) {
+                    return null;
                 }
             }
 
             JsonElement parentElement = model.get("parent");
             if (parentElement == null) {
+                return null;
+            }
+            if (!parentElement.isJsonPrimitive()
+                    || !parentElement.getAsJsonPrimitive().isString()) {
+                GrugModTreeDefect.report(
+                        "Block '" + blockName + "' names a model 'parent' that is not a string.");
                 return null;
             }
             String parent = parentElement.getAsString();

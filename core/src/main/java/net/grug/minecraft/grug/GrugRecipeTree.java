@@ -268,27 +268,29 @@ public final class GrugRecipeTree {
     }
 
     /**
+     * The {@code type} one recipe file declares, reporting the file when it is not a recipe and
+     * returning null for it.
+     *
+     * <p>The hot-reload path has one changed file rather than the whole tree, so it judges that
+     * file the same way {@link #recipes} would before handing it to the game again.
+     */
+    public static String readType(File file, String path) {
+        JsonObject json = parse(file, path);
+        return json == null ? null : typeOf(json, path);
+    }
+
+    /**
      * Parses one recipe file, reporting whatever rule it breaks and returning null for it.
      *
      * <p>Kept apart so {@link #recipes} reads as the loop it is, and so each rule's message can be
      * asserted on its own.
      */
     private static Recipe read(File modsDir, File file, String path) {
-        JsonElement parsed;
-        try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
-            parsed = JsonParser.parseReader(reader);
-        } catch (Exception e) {
-            return defect(path, "is not readable JSON: " + e.getMessage());
-        }
-        if (!parsed.isJsonObject()) {
-            return defect(path, "is not a JSON object");
-        }
-        JsonObject json = parsed.getAsJsonObject();
+        JsonObject json = parse(file, path);
+        if (json == null) return null;
 
-        if (!json.has("type") || !isText(json.get("type"))) {
-            return defect(path, "names no recipe 'type'");
-        }
-        String type = json.get("type").getAsString();
+        String type = typeOf(json, path);
+        if (type == null) return null;
 
         String resultId = resultId(json, path);
         if (resultId == null) return null;
@@ -311,6 +313,31 @@ public final class GrugRecipeTree {
                 Collections.emptyList(),
                 resultId,
                 resultCount);
+    }
+
+    /** Parses a recipe file into its JSON object, reporting a file that is not one. */
+    private static JsonObject parse(File file, String path) {
+        JsonElement parsed;
+        try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+            parsed = JsonParser.parseReader(reader);
+        } catch (Exception e) {
+            report(path, "is not readable JSON: " + e.getMessage());
+            return null;
+        }
+        if (!parsed.isJsonObject()) {
+            report(path, "is not a JSON object");
+            return null;
+        }
+        return parsed.getAsJsonObject();
+    }
+
+    /** The recipe's declared type, reporting a file that names none and returning null for it. */
+    private static String typeOf(JsonObject json, String path) {
+        if (!json.has("type") || !isText(json.get("type"))) {
+            report(path, "names no recipe 'type'");
+            return null;
+        }
+        return json.get("type").getAsString();
     }
 
     private static Recipe shaped(

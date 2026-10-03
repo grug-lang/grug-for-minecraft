@@ -40,6 +40,7 @@ public final class GrugModFileStates {
     private static final String NORMAL = "normal";
     private static final String INVALID = "invalid";
     private static final String NO_TRAILING_NEWLINE = "no_trailing_newline";
+    private static final String DELETED = "deleted";
 
     /** What the {@code "invalid"} state puts at the top of a file, which the compiler rejects. */
     private static final String INVALID_MARKER = "!\n";
@@ -78,12 +79,25 @@ public final class GrugModFileStates {
             return;
         }
 
-        if (!INVALID.equals(state) && !NO_TRAILING_NEWLINE.equals(state)) {
+        if (!INVALID.equals(state)
+                && !NO_TRAILING_NEWLINE.equals(state)
+                && !DELETED.equals(state)) {
             throw new IllegalArgumentException(
                     "Unknown mod file state '"
                             + state
-                            + "'. Expected \"normal\", \"invalid\" or"
-                            + " \"no_trailing_newline\".");
+                            + "'. Expected \"normal\", \"invalid\", \"no_trailing_newline\" or"
+                            + " \"deleted\".");
+        }
+
+        if (DELETED.equals(state)) {
+            // The record is what lets "normal" and the next startup put the file back, so it is
+            // written while the file is still there. A second delete keeps the first record, for
+            // the same reason setting the same state twice does.
+            if (Files.isRegularFile(path) && !Files.isRegularFile(backup)) {
+                writeBackup(backup, read(path));
+            }
+            Files.deleteIfExists(path);
+            return;
         }
 
         String contents = read(path);

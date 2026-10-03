@@ -12,7 +12,10 @@ import java.util.function.Function;
  * loaders make. It only holds while the loaders agree on what blocks are called, and they do not
  * always: the lit redstone torch is {@code minecraft:redstone_torch} on four of the five and {@code
  * minecraft:redstone_torch_lit} on StationAPI. A loader that cannot resolve a name asks here for
- * the other spelling before giving up, so a mod naming either one gets the same torch everywhere.
+ * the other spelling before giving up, so a name this loader spells differently still finds its
+ * block. A loader that does have the name answers on its own, so the fallback cannot change what an
+ * already-resolvable name means; a canonical answer for every name is what {@code #58} still asks
+ * for.
  *
  * <p>This is the fallback half of the naming work {@code #58} tracks, not the whole of it: the
  * table holds only the names an audit has found to differ, and a full canonical table, with {@code
@@ -24,8 +27,7 @@ public final class GrugBlockNames {
 
     static {
         // The lit torch. Four loaders call it redstone_torch; StationAPI calls it
-        // redstone_torch_lit,
-        // and 1.2.5 maps both onto its own lit torch. See #58.
+        // redstone_torch_lit, and 1.2.5 maps both onto its own lit torch. See #58.
         OTHER_SPELLINGS.put("redstone_torch_lit", "redstone_torch");
     }
 
