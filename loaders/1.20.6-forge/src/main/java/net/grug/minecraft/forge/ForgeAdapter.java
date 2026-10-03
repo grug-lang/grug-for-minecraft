@@ -426,6 +426,25 @@ public class ForgeAdapter implements ModLoaderAdapter {
                             (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
 
             world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
+
+            // A placement that reports false because the block was already there is not a failure,
+            // so the block's presence is the check rather than the return value. A y outside the
+            // build height is refused, and a position in a chunk the client has not received
+            // swallows the write too. See #151.
+            if (world.getBlockState(pos).getBlock() != targetBlock) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "place_block: the game did not put "
+                                + blockName
+                                + " at "
+                                + pos.getX()
+                                + ", "
+                                + pos.getY()
+                                + ", "
+                                + pos.getZ()
+                                + ". A y outside this version's world height is refused, and a"
+                                + " position in a chunk the client has not received is discarded.");
+            }
         } else {
             GrugModLoader.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
         }
