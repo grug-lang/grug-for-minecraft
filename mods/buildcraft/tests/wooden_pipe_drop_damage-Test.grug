@@ -16,8 +16,9 @@ local _drop_setup() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    # The other pipe tests use bands at +30, +40 and +50, so this one works in a clear band.
-    y: number = origin.y() + 55
+    # The other pipe tests use bands at +25, +35 and +45, so this one works in a clear band. +50 is the
+    # top of the ladder and has to stay inside Alpha's 128-block world height, so nothing goes above it.
+    y: number = origin.y() + 50
     z: number = origin.z()
 
     level.place_block(x - 1, y, z, "minecraft:chest")
@@ -43,7 +44,7 @@ local _drop_check() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    y: number = origin.y() + 55
+    y: number = origin.y() + 50
     z: number = origin.z()
 
     source_count: number = get_item_count_in_slot(pipe_drop_source.unwrap(), 0)

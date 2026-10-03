@@ -18,8 +18,8 @@ local _damage_setup() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    # The straight and corner pipe tests use bands at +30 and +40, so this one works in a clear band.
-    y: number = origin.y() + 50
+    # The straight and corner pipe tests use bands at +25 and +35, so this one works in a clear band.
+    y: number = origin.y() + 45
     z: number = origin.z()
 
     level.place_block(x - 1, y, z, "minecraft:chest")
