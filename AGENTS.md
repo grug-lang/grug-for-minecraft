@@ -18,6 +18,12 @@ client while another Gradle build is launching a game.
   `git worktree add ~/agent-workspaces/grug-for-minecraft-<task> -b <branch>`. A shared checkout
   means two agents see each other's edits, branches and test runs, and every confusing failure
   becomes unattributable. Move the session into the worktree when the harness has a tool for that.
+- Push that branch and open its pull request in the same sitting, a draft if the work is not
+  finished: `git push -u origin <branch>`, then `gh pr create --draft`. Nothing verifies a branch
+  that has no pull request, because the workflows trigger on `pull_request` and there is no `push:`
+  trigger to fall back on. Keeping the pull request also outlives the branch: `refs/pull/<n>/head`
+  still resolves after the branch is deleted, so without one the branch is the only ref and the
+  cleanup below takes the commits with it.
 - When a task lands, remove its worktree and branch from the main checkout:
   `git worktree remove --force <path>`, then `git cherry origin/main <branch>` (every line starts
   with `-` once a rebase merge carries the commits; `git branch --merged` reports the opposite),
@@ -40,6 +46,32 @@ client while another Gradle build is launching a game.
   code it describes rather than describing a whole function up front. A step may hold more than
   one block, and a short fragment can stay inline in a sentence.
 - Commit messages state what changed and why in full sentences; the reasoning goes in the body.
+
+## Errors are the only severity
+
+grug has two outcomes, ok and err, and no third. If you are designing a warning, a deprecation
+notice, a soft failure, or a "just log it" path, stop: that is a severity this project does not
+have. Decide which of the two it is, and make the code report it as that.
+
+How bad the defect looks does not decide this. What decides it is whether the violation leaves
+behaviour undefined, and which side of the sandbox the code is on.
+
+- **An invariant throws.** Something whose violation leaves behaviour undefined goes through
+  `throw Grug.fatal(...)`, which crashes the game on purpose even when a script called in, because
+  one crash is better than a thousand players silently depending on a broken invariant. `fatal`
+  exists precisely because the JNI layer would otherwise swallow the exception and let the script
+  carry on. If you catch something and carry on past an invariant, the catch is the bug.
+- **A bounded defect is reported, and still fails.** `Test.assert` uses
+  `Grug.hostFunctionErrorHappened`, not `fatal`, because "a failed assertion should fail just the
+  test, not take the whole game down"; a mod-tree defect such as a test file outside `tests/` is
+  reported the same way. The scope fails either way, only the game keeps running.
+- **A grug mod err is always contained.** The JNI layer prints and clears anything thrown inside a
+  game function so the script carries on, which is the sandbox and is the product. Never design a
+  mod-side err to stop the game, and never read "the script kept going" as the bug.
+- Ok is silent. A file in the right shape produces no output at all, so do not add chatter to say
+  that something is fine.
+- "It still works, but the author should know" is not an option. Either the behaviour is right, or
+  it is an err that fails.
 
 ## Where things live
 
@@ -97,6 +129,12 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 
 ## grug language rules that cost runs
 
+- The [grug README](https://raw.githubusercontent.com/grug-lang/grug/refs/heads/main/README.md) is
+  authoritative on what the language is and is not. Its advanced example shows virtually every
+  feature grug has, so a feature missing from that example does not exist, and its Links section
+  points at the other implementations and at `grug-tests`, which holds the grammar and the
+  `mod_api.json` schema. Fetch the raw URL rather than a github.com one: it is the same text
+  without the HTML around it.
 - A call's arguments must stay on one line.
 - No chained calls: `x.unwrap().damage()` is rejected. Bind `x.unwrap()` to a local first.
 - Variables are declared at member scope. Helpers are `local` functions and must be defined
@@ -154,6 +192,23 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   issues and pull requests.
 - When more than one path is plausible, save progress in a draft pull request whose description
   carries every measurement and the open question.
+- Wait with a tool that watches, not with a hardcoded sleep. `sleep 30` and then look guesses how
+  long something takes, so it either burns a turn or reports a stale result. Let the tool block:
+  `gh run watch <id> --repo grug-lang/grug-for-minecraft --exit-status --interval 20` exits
+  non-zero when the run fails, and `gh pr view <n> --json state,mergeable,mergeStateStatus` settles
+  whether a merge is possible. Keep `sleep` for waiting on this machine, where nothing is polling,
+  such as a game starting.
+- `gh pr checks <n> --watch --fail-fast` looks like the same tool and is not, in two ways this
+  session paid for. It exits non-zero on a perfectly healthy run, because a pull request reports no
+  checks at all for the few seconds after a push and it treats that as an error instead of waiting.
+  And it watches the pull request, so a force-push leaves it reading the superseded run's result. Get
+  the run id from `gh api repos/grug-lang/grug-for-minecraft/actions/runs?branch=<branch>` and watch
+  that.
+- Check whether a push actually triggered CI before believing it did. A branch that does not merge
+  has no merge ref, so a `pull_request` workflow has nothing to check out and reports no run at all,
+  which reads like a delivery failure but is a conflict. `gh pr view <n> --json mergeable` says
+  which it is; `mergeable: CONFLICTING` means rebase, and `UNKNOWN` means GitHub is still
+  computing, so wait rather than concluding anything.
 - Run `pre-commit run --all-files` after staging a new file, or re-run it once the file is tracked:
   it only sees files git already tracks, so an untracked file is skipped and the hook still reports
   success, and CI then reformats it.
