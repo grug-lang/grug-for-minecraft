@@ -13,7 +13,9 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsExtractor;
+import net.grug.minecraft.grug.GrugRecipeTree;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.stationapi.StationApiAdapter;
 import net.grug.minecraft.stationapi.block.GrugBlock;
@@ -33,7 +35,6 @@ import net.modificationstation.stationapi.api.registry.JsonRecipesRegistry;
 import net.modificationstation.stationapi.api.registry.Registry;
 import net.modificationstation.stationapi.api.util.Identifier;
 import net.modificationstation.stationapi.api.util.Namespace;
-import net.modificationstation.stationapi.api.util.exception.MissingModException;
 
 import org.apache.logging.log4j.Logger;
 
@@ -49,14 +50,12 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.Set;
 
 public class InitListener {
     static {
@@ -246,41 +245,82 @@ public class InitListener {
         event.register("grug:generic_block_entity", GrugBlockEntity.class);
     }
 
+    /**
+     * Registers every recipe in the mods tree with the game's own recipe registry.
+     *
+     * <p>The game parses the files itself, so grug only has to decide which type each one belongs
+     * to and hand it over. Finding the files and judging their shape is {@link GrugRecipeTree}'s,
+     * which reports anything it can describe.
+     */
     private static void registerAutoDiscoveredRecipes(File grugModsDir) {
-        File[] modDirs = grugModsDir.listFiles(File::isDirectory);
-        if (modDirs == null) return;
-
-        for (File modDir : modDirs) {
-            File dataDir = new File(modDir, "data");
-            if (!dataDir.exists() || !dataDir.isDirectory()) continue;
-
-            File[] namespaceDirs = dataDir.listFiles(File::isDirectory);
-            if (namespaceDirs == null) continue;
-
-            for (File nsDir : namespaceDirs) {
-                File recipesDir = new File(nsDir, "recipes");
-                if (!recipesDir.exists() || !recipesDir.isDirectory()) continue;
-
-                try (Stream<Path> stream = Files.walk(recipesDir.toPath())) {
-                    stream.filter(Files::isRegularFile)
-                            .filter(p -> p.toString().endsWith(".json"))
-                            .forEach(
-                                    p -> {
-                                        try {
-                                            registerJsonRecipe(createLegacyRecipeUrl(p));
-                                        } catch (Exception e) {
-                                            LOGGER.error("Failed to register recipe: " + p, e);
-                                        }
-                                    });
-                } catch (IOException e) {
-                    LOGGER.error("Failed to walk recipes directory: " + recipesDir, e);
-                }
-            }
+        for (GrugRecipeTree.Recipe recipe : GrugRecipeTree.recipes(grugModsDir)) {
+            registerJsonRecipe(recipe);
         }
     }
 
-    private static URL createLegacyRecipeUrl(Path p) throws MalformedURLException {
-        // We intercept the file stream to rewrite modern {"id": "..."} to legacy
+    /**
+     * What a grug recipe file registered, kept so that deleting it can undo the registration.
+     *
+     * <p>The {@link URL} instance matters as much as the path: the registry holds a set of them,
+     * and a set can only remove an object it already holds.
+     */
+    private static final class RegisteredRecipe {
+        private final Identifier type;
+        private final URL url;
+
+        RegisteredRecipe(Identifier type, URL url) {
+            this.type = type;
+            this.url = url;
+        }
+    }
+
+    private static final Map<String, RegisteredRecipe> registeredRecipes = new HashMap<>();
+
+    private static void registerJsonRecipe(GrugRecipeTree.Recipe recipe) {
+        Identifier recipeId = recipeType(recipe.type(), recipe.path());
+        if (recipeId == null) return;
+
+        try {
+            URL url = createLegacyRecipeUrl(recipe.file().toPath());
+            if (!JsonRecipesRegistry.INSTANCE.containsId(recipeId)) {
+                Registry.register(JsonRecipesRegistry.INSTANCE, recipeId, new HashSet<>());
+            }
+            Objects.requireNonNull(JsonRecipesRegistry.INSTANCE.get(recipeId)).add(url);
+            registeredRecipes.put(recipe.path(), new RegisteredRecipe(recipeId, url));
+        } catch (MalformedURLException e) {
+            // A URL this loader builds from a path it has just read cannot be unformable, so the
+            // recipe would sit in the registry as something the game can never open.
+            throw Grug.fatal("Failed to register the recipe " + recipe.path(), e);
+        }
+    }
+
+    /**
+     * The registry id for a recipe type, or null when the game has no use for the recipe.
+     *
+     * <p>A type this loader has no recipe type for is not a defect: a mod may ship recipes of a mod
+     * it does not require, and the game ignores those exactly as it would ignore one this loader
+     * failed to register. A type that is not a resource id names nothing at all, so no recipe
+     * behind it can ever be crafted, which is a mod-tree defect and fails the run.
+     */
+    private static Identifier recipeType(String rawId, String recipePath) {
+        if (!GrugRecipeTree.isWellFormedType(rawId)) {
+            GrugModTreeDefect.report(
+                    "Recipe '" + recipePath + "' has the malformed type '" + rawId + "'.");
+            return null;
+        }
+        if (!isNamespaceLoaded(rawId.substring(0, rawId.indexOf(':')))) {
+            return null;
+        }
+        return Identifier.of(rawId);
+    }
+
+    private static boolean isNamespaceLoaded(String namespace) {
+        return "minecraft".equals(namespace) || FabricLoader.getInstance().isModLoaded(namespace);
+    }
+
+    private static URL createLegacyRecipeUrl(Path p)
+            throws MalformedURLException { // We intercept the file stream to rewrite modern {"id":
+        // "..."} to legacy
         // {"item": "..."}
         return new URL(
                 "grugrecipe",
@@ -321,25 +361,6 @@ public class InitListener {
                 });
     }
 
-    private static void registerJsonRecipe(URL recipe) throws IOException {
-        String rawId;
-        try (InputStreamReader reader = new InputStreamReader(recipe.openStream())) {
-            rawId = new Gson().fromJson(reader, RecipeTypeHolder.class).type;
-        }
-
-        Identifier recipeId;
-        try {
-            recipeId = Identifier.of(rawId);
-        } catch (MissingModException e) {
-            LOGGER.warn("Found an unknown recipe type " + rawId + ". Ignoring.");
-            return;
-        }
-
-        if (!JsonRecipesRegistry.INSTANCE.containsId(recipeId))
-            Registry.register(JsonRecipesRegistry.INSTANCE, recipeId, new HashSet<>());
-        Objects.requireNonNull(JsonRecipesRegistry.INSTANCE.get(recipeId)).add(recipe);
-    }
-
     public static void handlePossibleRecipeUpdate(String updatedResourcePath) {
         if (!updatedResourcePath.endsWith(".json")) return;
 
@@ -354,23 +375,28 @@ public class InitListener {
 
         File file = new File(getActiveGrugModsDir(), updatedResourcePath);
         if (!file.exists()) {
-            LOGGER.warn("Updated recipe not found on disk: " + file.getAbsolutePath());
+            // The file is gone, so the recipe it registered is gone with it. Leaving the URL in the
+            // registry would keep the deleted recipe in the game until the next restart.
+            unregisterRecipe(normalized(updatedResourcePath));
             return;
         }
 
         try {
-            String rawId;
-            try (InputStreamReader reader = new InputStreamReader(new FileInputStream(file))) {
-                rawId = new Gson().fromJson(reader, RecipeTypeHolder.class).type;
+            Identifier recipeId = recipeType(readRecipeType(file), normalized(updatedResourcePath));
+            if (recipeId == null) return;
+
+            RegisteredRecipe previous = registeredRecipes.get(normalized(updatedResourcePath));
+            if (previous != null && !previous.type.equals(recipeId)) {
+                removeRecipe(previous);
             }
 
-            Identifier recipeId;
-            try {
-                recipeId = Identifier.of(rawId);
-            } catch (MissingModException e) {
-                LOGGER.warn("Found an unknown recipe type " + rawId + ". Ignoring.");
-                return;
+            URL url = createLegacyRecipeUrl(file.toPath());
+            if (!JsonRecipesRegistry.INSTANCE.containsId(recipeId)) {
+                Registry.register(JsonRecipesRegistry.INSTANCE, recipeId, new HashSet<>());
             }
+            Objects.requireNonNull(JsonRecipesRegistry.INSTANCE.get(recipeId)).add(url);
+            registeredRecipes.put(
+                    normalized(updatedResourcePath), new RegisteredRecipe(recipeId, url));
 
             LOGGER.info(
                     "Re-registering recipes of type {} due to change in {}",
@@ -378,8 +404,30 @@ public class InitListener {
                     updatedResourcePath);
             StationAPI.EVENT_BUS.post(RecipeRegisterEvent.builder().recipeId(recipeId).build());
         } catch (Exception e) {
-            LOGGER.error("Failed to hot-reload recipe: " + file, e);
+            throw Grug.fatal("Failed to hot-reload the recipe " + file, e);
         }
+    }
+
+    /** Drops a recipe the run deleted from disk, and asks the game to read what is left. */
+    private static void unregisterRecipe(String path) {
+        RegisteredRecipe removed = registeredRecipes.remove(path);
+        if (removed == null) return;
+
+        removeRecipe(removed);
+        LOGGER.info("Removed the deleted recipe {} of type {}", path, removed.type);
+        StationAPI.EVENT_BUS.post(RecipeRegisterEvent.builder().recipeId(removed.type).build());
+    }
+
+    private static void removeRecipe(RegisteredRecipe recipe) {
+        Set<URL> recipes = JsonRecipesRegistry.INSTANCE.get(recipe.type);
+        if (recipes != null) {
+            recipes.remove(recipe.url);
+        }
+    }
+
+    /** The recipe's own path in the mods tree, which is how a recipe is keyed and reported. */
+    private static String normalized(String path) {
+        return path.replace('\\', '/');
     }
 
     // Minimal stand-in for stationapi's internal JsonRecipeType, since that
@@ -387,6 +435,21 @@ public class InitListener {
     // match the "type" field Gson reads from each recipe JSON.
     private static class RecipeTypeHolder {
         String type;
+    }
+
+    /**
+     * The recipe's own type, read straight off the file.
+     *
+     * <p>Kept apart so the update path reports a failure as the one thing it is, rather than as
+     * whatever the caller happens to be doing.
+     */
+    @GrugGenerated("recipe type read: a file that cannot be read is not forceable")
+    private static String readRecipeType(File file) throws IOException {
+        try (InputStreamReader reader =
+                new InputStreamReader(
+                        new FileInputStream(file), java.nio.charset.StandardCharsets.UTF_8)) {
+            return new Gson().fromJson(reader, RecipeTypeHolder.class).type;
+        }
     }
 
     @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
@@ -400,14 +463,14 @@ public class InitListener {
         Optional<Path> defaultModsPath = modContainer.get().findPath("mods");
         if (defaultModsPath.isEmpty()) return;
 
-        List<String> errors = new ArrayList<>();
+        // A file that cannot be copied aborts the extraction rather than being collected: the
+        // marker
+        // is written once the walk finishes, so carrying on would leave a mods directory that is
+        // missing files while claiming to be complete, and no later run would look for them again.
         try {
-            GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile, errors);
+            GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile);
         } catch (IOException e) {
-            LOGGER.error("Failed to walk mods directory", e);
-        }
-        for (String error : errors) {
-            LOGGER.error(error);
+            throw Grug.fatal("Failed to extract the default grug mods", e);
         }
     }
 }

@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -22,8 +23,8 @@ import java.util.stream.Stream;
  *
  * <p>The validation lives here, in {@code net.grug.*} and away from any game class, so Java tests
  * can drive it against a scratch directory and so every loader judges a recipe the same way. A
- * recipe that breaks a rule is a mod-tree defect: it is reported through {@link
- * GrugModTreeDefect}, which fails the run and leaves the game playing.
+ * recipe that breaks a rule is a mod-tree defect: it is reported through {@link GrugModTreeDefect},
+ * which fails the run and leaves the game playing.
  *
  * <p>What grug cannot judge is left to the caller. Which types a game version can craft is one, so
  * a {@link Kind#OTHER} recipe is handed back rather than reported: the Ornithe loaders register the
@@ -42,6 +43,22 @@ public final class GrugRecipeTree {
 
     public static final String SHAPED = "minecraft:crafting_shaped";
     public static final String SHAPELESS = "minecraft:crafting_shapeless";
+
+    /** A resource id, which is the shape a recipe type has to have to name anything at all. */
+    private static final Pattern RESOURCE_ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
+
+    /**
+     * Whether a recipe's type is a resource id.
+     *
+     * <p>This is the most a loader can say about a type it does not know. A type that is not an id
+     * names nothing, so no recipe behind it can ever be crafted, which is a mod-tree defect the
+     * loader reports. A type that is an id whose namespace belongs to a mod that is not loaded
+     * names a recipe type nobody registered, and that is not a defect at all: a mod may ship
+     * recipes for a mod it does not require.
+     */
+    public static boolean isWellFormedType(String type) {
+        return type != null && RESOURCE_ID.matcher(type).matches();
+    }
 
     /** A crafting grid is at most 3 by 3. */
     private static final int MAX_GRID = 3;
@@ -94,6 +111,7 @@ public final class GrugRecipeTree {
     public static final class Recipe {
         private final File file;
         private final String path;
+        private final String type;
         private final Kind kind;
         private final List<String> pattern;
         private final List<Ingredient> ingredients;
@@ -104,6 +122,7 @@ public final class GrugRecipeTree {
         private Recipe(
                 File file,
                 String path,
+                String type,
                 Kind kind,
                 List<String> pattern,
                 List<Ingredient> ingredients,
@@ -112,6 +131,7 @@ public final class GrugRecipeTree {
                 int resultCount) {
             this.file = file;
             this.path = path;
+            this.type = type;
             this.kind = kind;
             this.pattern = pattern;
             this.ingredients = ingredients;
@@ -129,6 +149,13 @@ public final class GrugRecipeTree {
             return path;
         }
 
+        /**
+         * The recipe's own {@code type}, which is what a defect names when it cannot be crafted.
+         */
+        public String type() {
+            return type;
+        }
+
         public Kind kind() {
             return kind;
         }
@@ -143,7 +170,10 @@ public final class GrugRecipeTree {
             return ingredients;
         }
 
-        /** The key symbol each entry of {@link #ingredients()} came from, so shaped recipes can pair them up. */
+        /**
+         * The key symbol each entry of {@link #ingredients()} came from, so shaped recipes can pair
+         * them up.
+         */
         public List<Character> symbols() {
             return symbols;
         }
@@ -157,7 +187,9 @@ public final class GrugRecipeTree {
         }
     }
 
-    /** Every recipe JSON under the mods directory, ordered so a defect reads the same way each run. */
+    /**
+     * Every recipe JSON under the mods directory, ordered so a defect reads the same way each run.
+     */
     public static List<File> files(File modsDir) {
         List<File> found = new ArrayList<>();
         collectRecipes(modsDir, found);
@@ -189,13 +221,14 @@ public final class GrugRecipeTree {
     public static String relativePath(File modsDir, File file) {
         String base = modsDir.getAbsolutePath();
         String absolute = file.getAbsolutePath();
-        String path = absolute.startsWith(base + File.separator) ? absolute.substring(base.length() + 1) : absolute;
+        String path =
+                absolute.startsWith(base + File.separator)
+                        ? absolute.substring(base.length() + 1)
+                        : absolute;
         return path.replace('\\', '/');
     }
 
-    /**
-     * Finds every recipe JSON under one mods tree.
-     */
+    /** Finds every recipe JSON under one mods tree. */
     private static void collectRecipes(File grugModsDir, List<File> found) {
         File[] modDirs = grugModsDir.listFiles(File::isDirectory);
         if (modDirs == null) return;
@@ -208,12 +241,13 @@ public final class GrugRecipeTree {
     /**
      * Collects the recipe files under one mods {@code data} directory.
      *
-     * <p>Kept apart so the walk's own failure is excluded from {@link #files}' coverage: a directory
-     * that cannot be read is not something a test can arrange, and the alternative, carrying on, is
-     * the answer this change exists to remove.
+     * <p>Kept apart so the walk's own failure is excluded from {@link #files}' coverage: a
+     * directory that cannot be read is not something a test can arrange, and the alternative,
+     * carrying on, is the answer this change exists to remove.
      */
     @GrugGenerated("recipe discovery: a directory that cannot be walked is not forceable")
-    private static void walkRecipeNamespace(File dataDir, List<File> found) {        File[] namespaceDirs = dataDir.listFiles(File::isDirectory);
+    private static void walkRecipeNamespace(File dataDir, List<File> found) {
+        File[] namespaceDirs = dataDir.listFiles(File::isDirectory);
         if (namespaceDirs == null) return;
 
         for (File nsDir : namespaceDirs) {
@@ -239,8 +273,7 @@ public final class GrugRecipeTree {
     @GrugGenerated("recipe parsing: one file per call, and a Java test drives each rule")
     private static Recipe read(File modsDir, File file, String path) {
         JsonObject json;
-        try (Reader reader =
-                Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+        try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
             JsonElement parsed = JsonParser.parseReader(reader);
             if (!parsed.isJsonObject()) {
                 return defect(path, "is not a JSON object");
@@ -261,17 +294,30 @@ public final class GrugRecipeTree {
         if (resultCount < 0) return null;
 
         if (SHAPED.equals(type)) {
-            return shaped(file, json, path, resultId, resultCount);
+            return shaped(file, json, path, type, resultId, resultCount);
         }
         if (SHAPELESS.equals(type)) {
-            return shapeless(file, json, path, resultId, resultCount);
+            return shapeless(file, json, path, type, resultId, resultCount);
         }
         return new Recipe(
-                file, path, Kind.OTHER, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), resultId, resultCount);
+                file,
+                path,
+                type,
+                Kind.OTHER,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                resultId,
+                resultCount);
     }
 
     private static Recipe shaped(
-            File file, JsonObject json, String path, String resultId, int resultCount) {
+            File file,
+            JsonObject json,
+            String path,
+            String type,
+            String resultId,
+            int resultCount) {
         JsonElement keyElement = json.get("key");
         if (keyElement == null || !keyElement.isJsonObject()) {
             return defect(path, "is shaped but names no 'key' object");
@@ -303,11 +349,24 @@ public final class GrugRecipeTree {
         }
 
         return new Recipe(
-                file, path, Kind.SHAPED, pattern, ingredients, symbols, resultId, resultCount);
+                file,
+                path,
+                type,
+                Kind.SHAPED,
+                pattern,
+                ingredients,
+                symbols,
+                resultId,
+                resultCount);
     }
 
     private static Recipe shapeless(
-            File file, JsonObject json, String path, String resultId, int resultCount) {
+            File file,
+            JsonObject json,
+            String path,
+            String type,
+            String resultId,
+            int resultCount) {
         JsonElement array = json.get("ingredients");
         if (array == null || !array.isJsonArray()) {
             return defect(path, "is shapeless but names no 'ingredients' array");
@@ -323,14 +382,21 @@ public final class GrugRecipeTree {
 
         List<Ingredient> parsed = new ArrayList<>();
         for (JsonElement element : ingredients) {
-            Ingredient ingredient =
-                    ingredient(path, "ingredient " + (parsed.size() + 1), element);
+            Ingredient ingredient = ingredient(path, "ingredient " + (parsed.size() + 1), element);
             if (ingredient == null) return null;
             parsed.add(ingredient);
         }
 
         return new Recipe(
-                file, path, Kind.SHAPELESS, Collections.emptyList(), parsed, Collections.emptyList(), resultId, resultCount);
+                file,
+                path,
+                type,
+                Kind.SHAPELESS,
+                Collections.emptyList(),
+                parsed,
+                Collections.emptyList(),
+                resultId,
+                resultCount);
     }
 
     private static List<String> pattern(JsonObject json, String path) {
@@ -371,7 +437,9 @@ public final class GrugRecipeTree {
         return pattern;
     }
 
-    /** The first symbol the pattern uses that {@code key} does not name, or null when all are named. */
+    /**
+     * The first symbol the pattern uses that {@code key} does not name, or null when all are named.
+     */
     private static String firstUnmappedSymbol(List<String> pattern, JsonObject key) {
         for (String row : pattern) {
             for (char symbol : row.toCharArray()) {
@@ -402,7 +470,9 @@ public final class GrugRecipeTree {
 
     /** Whether an element is a JSON string, which every id and symbol in a recipe has to be. */
     private static boolean isText(JsonElement element) {
-        return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString();
+        return element != null
+                && element.isJsonPrimitive()
+                && element.getAsJsonPrimitive().isString();
     }
 
     private static String resultId(JsonObject json, String path) {

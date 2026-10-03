@@ -15,7 +15,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -134,13 +133,9 @@ public class GrugResourcePack extends AbstractResourcePack {
             ResourceType type, String namespace, String path, ResourceConsumer consumer) {
         String baseDir = type == ResourceType.SERVER_DATA ? "data" : "assets";
 
-        List<String> failures = new ArrayList<>();
         List<String> relatives =
                 GrugResourceIndex.findResources(
-                        GrugModLoader.getActiveGrugModsDir(), baseDir, namespace, path, failures);
-        for (String failure : failures) {
-            GrugModLoader.LOGGER.error(failure);
-        }
+                        GrugModLoader.getActiveGrugModsDir(), baseDir, namespace, path);
 
         for (String rel : relatives) {
             if (type == ResourceType.CLIENT_ASSETS

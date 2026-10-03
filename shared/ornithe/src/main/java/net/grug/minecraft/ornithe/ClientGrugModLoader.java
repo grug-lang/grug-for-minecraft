@@ -1,6 +1,8 @@
 package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.grug.minecraft.ornithe.client.GrugStaticTexture;
 import net.grug.minecraft.ornithe.resource.GrugResourcePackProvider;
@@ -48,19 +50,18 @@ public class ClientGrugModLoader implements ClientModInitializer {
                                     mc.textureManager.addDynamicTexture(
                                             new GrugStaticTexture(spriteId, 0, is));
                                 } else {
-                                    GrugModLoader.LOGGER.warn(
-                                            "Missing block texture "
+                                    // The model named this texture, so a mod shipped the reference
+                                    // and not the file. Leaving the slot as the atlas had it would
+                                    // render whatever a vanilla block happened to leave there.
+                                    GrugModTreeDefect.report(
+                                            "Block sprite "
+                                                    + spriteId
+                                                    + " has no texture: no mod ships "
                                                     + path
-                                                    + " for sprite "
-                                                    + spriteId);
+                                                    + ".");
                                 }
                             } catch (Exception e) {
-                                GrugModLoader.LOGGER.error(
-                                        "Failed to load block texture "
-                                                + path
-                                                + " for sprite "
-                                                + spriteId,
-                                        e);
+                                throw Grug.fatal("Failed to load the block texture " + path, e);
                             }
                         }
 

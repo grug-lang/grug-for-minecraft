@@ -4,7 +4,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
@@ -77,10 +76,12 @@ public final class GrugResourceIndex {
      * The paths, relative to {@code baseDir/namespace}, of every regular file under {@code
      * baseDir/namespace/path} in any mod.
      *
-     * @param failures collects a message for a directory that could not be walked, if non-null.
+     * <p>A directory that cannot be walked aborts rather than being reported and skipped: the
+     * caller is about to hand the game a list of what exists, and a list missing a directory it
+     * could not read is one the game cannot tell from a directory that is not there.
      */
     public static List<String> findResources(
-            File modsDir, String baseDir, String namespace, String path, List<String> failures) {
+            File modsDir, String baseDir, String namespace, String path) {
         List<String> found = new ArrayList<>();
         File[] modDirs = modsDir.listFiles(File::isDirectory);
         if (modDirs == null) return found;
@@ -89,7 +90,7 @@ public final class GrugResourceIndex {
             if (!isDirectory(targetDir)) continue;
 
             Path base = new File(modDir, baseDir + "/" + namespace).toPath();
-            collectResources(base, targetDir, found, failures);
+            collectResources(base, targetDir, found);
         }
         return found;
     }
@@ -101,16 +102,13 @@ public final class GrugResourceIndex {
     }
 
     /** Adds every regular file under {@code targetDir}, relative to {@code base}. */
-    @GrugGenerated("resource walk: a directory that cannot be walked")
-    private static void collectResources(
-            Path base, File targetDir, List<String> found, List<String> failures) {
+    @GrugGenerated("resource walk: a directory that cannot be walked is not forceable")
+    private static void collectResources(Path base, File targetDir, List<String> found) {
         try (Stream<Path> stream = Files.walk(targetDir.toPath())) {
             stream.filter(Files::isRegularFile)
                     .forEach(p -> found.add(base.relativize(p).toString().replace('\\', '/')));
         } catch (Exception e) {
-            if (failures != null) {
-                failures.add("Failed to walk resource directory: " + targetDir);
-            }
+            throw Grug.fatal("Failed to walk the resource directory " + targetDir, e);
         }
     }
 

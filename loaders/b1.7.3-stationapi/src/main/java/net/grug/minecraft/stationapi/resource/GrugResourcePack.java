@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.modificationstation.stationapi.api.resource.InputSupplier;
 import net.modificationstation.stationapi.api.resource.ResourcePack;
@@ -147,8 +148,11 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                                 out.write(line.getBytes(StandardCharsets.UTF_8));
                             }
                         } catch (Exception e) {
-                            InitListener.LOGGER.error(
-                                    "Failed to parse JSON lang file: " + jsonFile, e);
+                            // The language a mod ships is the only source of every name and
+                            // tooltip it has, so a file that cannot be read leaves the run
+                            // reporting
+                            // a language nobody chose.
+                            throw Grug.fatal("Failed to read the language file " + jsonFile, e);
                         }
                     }
                 }
@@ -253,8 +257,10 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                                             }
                                         });
                     } catch (Exception e) {
-                        InitListener.LOGGER.error(
-                                "Failed to walk resource directory: " + targetDir, e);
+                        // Carrying on would hand the game a list of resources that is missing a
+                        // directory nobody managed to read, which it cannot tell from one that is
+                        // not there.
+                        throw Grug.fatal("Failed to walk the resource directory " + targetDir, e);
                     }
                 }
             }
@@ -280,7 +286,7 @@ public class GrugResourcePack extends AbstractFileResourcePack {
                             }
                         }
                     } catch (Exception e) {
-                        InitListener.LOGGER.error("Failed to parse tag fragment: " + file, e);
+                        throw Grug.fatal("Failed to read the tag file " + file, e);
                     }
                 }
             }

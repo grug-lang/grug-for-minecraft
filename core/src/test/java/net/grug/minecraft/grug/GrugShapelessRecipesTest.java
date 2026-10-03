@@ -9,15 +9,17 @@ import org.junit.jupiter.api.Test;
 /**
  * Covers the shapeless matcher a game version with no shapeless recipes needs.
  *
- * <p>The registry is static, as it has to be for the mixin that reads it, so each test works on item
- * ids of its own: a match returns the first recipe that fits, and a recipe an earlier test left
- * behind must not be the one answering.
+ * <p>The registry is static, as it has to be for the mixin that reads it, so each test works on
+ * item ids of its own: a match returns the first recipe that fits, and a recipe an earlier test
+ * left behind must not be the one answering.
  */
 class GrugShapelessRecipesTest {
 
     private static int nextId = 1000;
 
-    /** Item ids and an output no other test uses, so nothing already registered can answer first. */
+    /**
+     * Item ids and an output no other test uses, so nothing already registered can answer first.
+     */
     private static final class Recipe {
         private final int first = nextId++;
         private final int second = nextId++;
@@ -71,7 +73,10 @@ class GrugShapelessRecipesTest {
         assertSame(
                 recipe.output,
                 GrugShapelessRecipes.match(
-                        grid(GrugShapelessRecipes.EMPTY_SLOT, recipe.first, GrugShapelessRecipes.EMPTY_SLOT)));
+                        grid(
+                                GrugShapelessRecipes.EMPTY_SLOT,
+                                recipe.first,
+                                GrugShapelessRecipes.EMPTY_SLOT)));
     }
 
     @Test
@@ -81,7 +86,10 @@ class GrugShapelessRecipesTest {
 
         assertNull(
                 GrugShapelessRecipes.match(
-                        grid(recipe.first, GrugShapelessRecipes.EMPTY_SLOT, GrugShapelessRecipes.EMPTY_SLOT)));
+                        grid(
+                                recipe.first,
+                                GrugShapelessRecipes.EMPTY_SLOT,
+                                GrugShapelessRecipes.EMPTY_SLOT)));
     }
 
     @Test
@@ -108,8 +116,7 @@ class GrugShapelessRecipesTest {
     @Test
     void matchesTheFirstRecipeThatFits() {
         Recipe skipped = new Recipe();
-        GrugShapelessRecipes.register(
-                new int[] {skipped.first, skipped.second}, skipped.output);
+        GrugShapelessRecipes.register(new int[] {skipped.first, skipped.second}, skipped.output);
         Recipe fits = new Recipe();
         GrugShapelessRecipes.register(new int[] {fits.first, fits.second}, fits.output);
 
@@ -122,8 +129,7 @@ class GrugShapelessRecipesTest {
         GrugShapelessRecipes.register(new int[] {ids.first, ids.second}, "registered first");
         GrugShapelessRecipes.register(new int[] {ids.first, ids.second}, "registered second");
 
-        assertEquals(
-                "registered first", GrugShapelessRecipes.match(grid(ids.first, ids.second)));
+        assertEquals("registered first", GrugShapelessRecipes.match(grid(ids.first, ids.second)));
     }
 
     @Test

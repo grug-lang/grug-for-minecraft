@@ -4,6 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugFaceTextures;
 import net.grug.minecraft.ornithe.GrugModLoader;
 
 import java.io.File;
@@ -19,9 +21,12 @@ import java.util.Map;
  * the Forge and StationAPI loaders use) straight from the grug mods directory.
  *
  * <p>Face indices match Block.getSprite(int side): 0 down, 1 up, 2 north, 3 south, 4 west, 5 east.
+ *
+ * <p>Which face key a built-in parent supplies, and what a face's key resolves to, is {@link
+ * GrugFaceTextures}'s, so Java tests can cover those rules. What is left here is the part that
+ * needs a running game: finding the model files in the mods directory and following their parents.
  */
 public final class GrugBlockModels {
-    private static final int MAX_DEPTH = 8;
 
     private GrugBlockModels() {}
 
@@ -33,7 +38,7 @@ public final class GrugBlockModels {
         Map<String, String> textures = new HashMap<>();
         String current = "grug:block/" + blockName;
 
-        for (int depth = 0; depth < MAX_DEPTH; depth++) {
+        for (int depth = 0; depth < GrugFaceTextures.MAX_DEPTH; depth++) {
             JsonObject model = readModel(current);
             if (model == null) {
                 return null;
@@ -54,9 +59,17 @@ public final class GrugBlockModels {
             }
             String parent = parentElement.getAsString();
 
-            String[] faceKeys = faceKeysForVanillaParent(parent);
+            String[] faceKeys = GrugFaceTextures.vanillaParentFaceKeys(parent);
             if (faceKeys != null) {
-                return resolveKeys(blockName, faceKeys, textures);
+                String[] faces = GrugFaceTextures.resolve(blockName, faceKeys, textures);
+                if (faces != null) {
+                    GrugModLoader.LOGGER.info(
+                            "Block '"
+                                    + blockName
+                                    + "' face textures (down, up, north, south, west, east): "
+                                    + Arrays.toString(faces));
+                }
+                return faces;
             }
 
             // Not a built-in parent, so it has to be another grug model
@@ -72,58 +85,6 @@ public final class GrugBlockModels {
         String namespace = textureRef.substring(0, colon);
         String path = textureRef.substring(colon + 1);
         return "assets/" + namespace + "/textures/" + path + ".png";
-    }
-
-    private static String[] faceKeysForVanillaParent(String parent) {
-        if (parent.startsWith("minecraft:")) {
-            parent = parent.substring("minecraft:".length());
-        }
-        return switch (parent) {
-            case "block/cube_all" -> new String[] {"all", "all", "all", "all", "all", "all"};
-            case "block/cube_bottom_top" ->
-                    new String[] {"bottom", "top", "side", "side", "side", "side"};
-            case "block/cube_column" -> new String[] {"end", "end", "side", "side", "side", "side"};
-            case "block/cube_top" -> new String[] {"side", "top", "side", "side", "side", "side"};
-            case "block/cube" -> new String[] {"down", "up", "north", "south", "west", "east"};
-            default -> null;
-        };
-    }
-
-    private static String[] resolveKeys(
-            String blockName, String[] faceKeys, Map<String, String> textures) {
-        String[] result = new String[faceKeys.length];
-        for (int face = 0; face < faceKeys.length; face++) {
-            String ref = lookup(textures, faceKeys[face]);
-            if (ref == null || ref.startsWith("minecraft:")) {
-                GrugModLoader.LOGGER.warn(
-                        "Block '"
-                                + blockName
-                                + "': texture key '"
-                                + faceKeys[face]
-                                + "' is missing or not a grug texture, falling back to a single"
-                                + " texture");
-                return null;
-            }
-            result[face] = ref;
-        }
-        GrugModLoader.LOGGER.info(
-                "Block '"
-                        + blockName
-                        + "' face textures (down, up, north, south, west, east): "
-                        + Arrays.toString(result));
-        return result;
-    }
-
-    /** Follows "#key" indirections and returns a "namespace:path" reference, or null. */
-    private static String lookup(Map<String, String> textures, String key) {
-        String value = textures.get(key);
-        for (int i = 0; i < MAX_DEPTH && value != null && value.startsWith("#"); i++) {
-            value = textures.get(value.substring(1));
-        }
-        if (value == null || value.startsWith("#")) {
-            return null;
-        }
-        return value.indexOf(':') < 0 ? "minecraft:" + value : value;
     }
 
     private static JsonObject readModel(String modelId) {
@@ -143,8 +104,10 @@ public final class GrugBlockModels {
                         Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
                     return JsonParser.parseReader(reader).getAsJsonObject();
                 } catch (Exception e) {
-                    GrugModLoader.LOGGER.error("Failed to parse model JSON: " + file, e);
-                    return null;
+                    // A model grug cannot read leaves the block on its single texture, which is a
+                    // rendering nobody chose, so the run stops here rather than reporting a picture
+                    // that no mod asked for.
+                    throw Grug.fatal("Failed to read the block model " + file, e);
                 }
             }
         }

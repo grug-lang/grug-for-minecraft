@@ -342,6 +342,11 @@ public class GrugModLoader {
             String[] updatedResources =
                     Grug.update(
                             errorMsg -> {
+                                // A contained mod err from the hot-reload path: the file that
+                                // failed
+                                // to compile is reported to the player and the run carries on with
+                                // the version it last had, exactly as the JNI layer lets a script
+                                // carry on after a host error.
                                 LOGGER.error(errorMsg);
                                 synchronized (Grug.runtimeErrorQueue) {
                                     Grug.runtimeErrorQueue.add(errorMsg);
