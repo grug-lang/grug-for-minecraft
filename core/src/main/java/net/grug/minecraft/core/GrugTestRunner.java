@@ -144,11 +144,18 @@ public class GrugTestRunner {
 
         if (currentEntityHandle == 0 && !startNextTest()) {
             // Nothing left to run.
-            if (passedCount == totalCount) {
-                System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
-                GrugCoverage.dump();
-            }
+            // Marked before the dump rather than after it, so that a dump which throws stops the
+            // loaders from queueing this runner again and repeating one failure once per tick.
             finished = true;
+            if (passedCount == totalCount) {
+                // Before announcing the run, because run-loader.sh reads that line as the whole run
+                // succeeding and stops watching: anything that goes wrong after it is never looked
+                // at, so a failed dump would have left the run green with no coverage data behind
+                // it. Dumping here also makes the line mean what it says, which is that the tests
+                // passed and their coverage was recorded.
+                GrugCoverage.dump();
+                System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
+            }
             return;
         }
 

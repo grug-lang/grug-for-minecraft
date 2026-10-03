@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 
 /**
@@ -11,23 +12,47 @@ import net.grug.minecraft.grug.GrugGenerated;
  * known to have passed makes that write deterministic.
  *
  * <p>The agent classes are resolved through the system class loader, since the mod class loader
- * doesn't necessarily delegate to it. The reflection keeps JaCoCo out of core's build, and this is
- * a no-op during normal gameplay.
+ * doesn't necessarily delegate to it. The reflection keeps JaCoCo out of core's build.
+ *
+ * <p>Not finding the agent is not a failure. A local run has none attached and so has nothing to
+ * dump, which ends the lookup silently. Everything past that point is a failure, and it takes the
+ * run down: a CI run that could not record its coverage must not report success and leave the
+ * coverage gate to infer the loss from absent data.
  */
 public final class GrugCoverage {
     private GrugCoverage() {}
 
     @GrugGenerated("CI coverage dump: only has work when a JaCoCo agent is attached")
     public static void dump() {
+        dump(ClassLoader.getSystemClassLoader());
+    }
+
+    /**
+     * Visible for tests: resolves the agent through {@code loader} rather than the system class
+     * loader, so a test can drive the no-agent case and a failing dump without a real agent.
+     */
+    @GrugGenerated("CI coverage dump: only has work when a JaCoCo agent is attached")
+    static void dump(ClassLoader loader) {
+        Class<?> runtime;
         try {
-            ClassLoader loader = ClassLoader.getSystemClassLoader();
-            Class<?> runtime = Class.forName("org.jacoco.agent.rt.RT", false, loader);
+            runtime = Class.forName("org.jacoco.agent.rt.RT", false, loader);
+        } catch (ClassNotFoundException e) {
+            // No JaCoCo agent is attached, so there is nothing to dump. Nothing went wrong, so this
+            // says nothing either.
+            return;
+        } catch (LinkageError | SecurityException e) {
+            // The agent's runtime class is on the class path but does not load, so an agent is
+            // attached and broken rather than absent.
+            throw Grug.fatal(
+                    "the JaCoCo agent is attached but org.jacoco.agent.rt.RT does not load: ", e);
+        }
+
+        try {
             Object agent = runtime.getMethod("getAgent").invoke(null);
             Class<?> agentType = Class.forName("org.jacoco.agent.rt.IAgent", false, loader);
             agentType.getMethod("dump", boolean.class).invoke(agent, false);
         } catch (ReflectiveOperationException | LinkageError | SecurityException e) {
-            // No JaCoCo agent is attached, so there is nothing to dump.
-            System.err.println("[GRUG CI] JaCoCo coverage dump skipped: " + e);
+            throw Grug.fatal("the JaCoCo agent is attached but could not dump its coverage: ", e);
         }
     }
 }
