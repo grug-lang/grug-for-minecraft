@@ -20,7 +20,7 @@ local _turn_setup() {
     x: number = origin.x()
     # The straight-pipe test runs first at the same origin and leaves its chests there, so this
     # test works a clear band above it instead of pulling from a leftover chest.
-    y: number = origin.y() + 40
+    y: number = origin.y() + 35
     z: number = origin.z()
 
     # The source is below the pipe and the engine beside it, so the pipe's first adjacent inventory

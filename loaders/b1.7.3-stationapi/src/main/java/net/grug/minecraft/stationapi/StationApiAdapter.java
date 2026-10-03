@@ -395,6 +395,16 @@ public class StationApiAdapter implements ModLoaderAdapter {
         placeBlockIn((World) levelObj, x, y, z, blockName);
     }
 
+    /**
+     * Places a block and reports it when the game did not put it there.
+     *
+     * <p>The write can fail without anything going wrong visibly: this version's world is 128
+     * blocks tall and {@code World.setBlock} returns false without writing for y at or above that,
+     * and a chunk the client has not received swallows the write too. Both used to surface much
+     * later as a fixture that had no block entity, which names the symptom rather than the cause.
+     * Reading the block back is what turns the silent drop into an err naming the position that was
+     * refused. See #151.
+     */
     private void placeBlockIn(World world, double x, double y, double z, String blockName) {
         Identifier id =
                 Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
@@ -406,6 +416,24 @@ public class StationApiAdapter implements ModLoaderAdapter {
             int posZ = (int) Math.floor(z);
 
             world.setBlock(posX, posY, posZ, targetBlock.id);
+
+            // A placement that reports false because the block was already there is not a failure,
+            // so the block's presence is the check rather than the return value.
+            if (world.getBlockId(posX, posY, posZ) != targetBlock.id) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "place_block: the game did not put "
+                                + blockName
+                                + " at "
+                                + posX
+                                + ", "
+                                + posY
+                                + ", "
+                                + posZ
+                                + ". This version's world is 128 blocks tall, so a y at or above"
+                                + " 128 is refused, and a position in a chunk the client has not"
+                                + " received is discarded.");
+            }
         } else {
             InitListener.LOGGER.error("placeBlock failed: Could not resolve block " + blockName);
         }

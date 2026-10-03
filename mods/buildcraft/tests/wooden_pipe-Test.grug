@@ -21,7 +21,7 @@ local _setup() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    y: number = origin.y() + 30
+    y: number = origin.y() + 25
     z: number = origin.z()
 
     level.place_block(x - 1, y, z, "minecraft:chest")
