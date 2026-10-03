@@ -122,16 +122,16 @@ class GrugFaceTexturesTest {
     void reportsAFaceWhoseKeyIsNotDefined() {
         String[] faces =
                 GrugFaceTextures.resolve(
-                        "thing",
-                        new String[] {"all", "side"},
-                        textures("all", "grug:block/thing"));
+                        "thing", new String[] {"all", "side"}, textures("all", "grug:block/thing"));
 
         assertNull(faces);
         List<String> reported = reported();
         assertEquals(1, reported.size(), reported.toString());
         assertTrue(
                 reported.get(0)
-                        .contains("Block 'thing' uses the texture key 'side', which its model does not define."),
+                        .contains(
+                                "Block 'thing' uses the texture key 'side', which its model does"
+                                        + " not define."),
                 reported.get(0));
     }
 

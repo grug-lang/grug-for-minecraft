@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockNames;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -298,6 +299,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         World world = (World) levelObj;
         String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
         Block targetBlock = resolveBlock(path);
+        if (targetBlock == null) {
+            // The loaders do not all spell every vanilla block the same way, so a name one of them
+            // has gets one more try under the spelling the others use. See #58.
+            String other = GrugBlockNames.otherSpelling(path);
+            if (other != null) targetBlock = resolveBlock(other);
+        }
 
         if (targetBlock != null) {
             int posX = (int) Math.floor(x);

@@ -127,11 +127,6 @@ public class GrugScreen extends InventoryMenuScreen {
      */
     private int loadTexture() {
         try (InputStream is = ResourceManager.client().getResource(texturePath)) {
-            if (is == null) {
-                Grug.hostFunctionErrorHappened(
-                        Grug.statePtr, "GUI.open: The texture " + texturePath + " does not exist.");
-                return -1;
-            }
             BufferedImage image = ImageIO.read(is);
             if (image == null) {
                 Grug.hostFunctionErrorHappened(
@@ -140,6 +135,12 @@ public class GrugScreen extends InventoryMenuScreen {
                 return -1;
             }
             return minecraft.textureManager.load(image);
+        } catch (java.io.FileNotFoundException missing) {
+            // The resource manager reports a texture no mod ships by throwing rather than by
+            // returning nothing, so this is where a script naming one it does not have lands.
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "GUI.open: There is no texture at " + texturePath + ".");
+            return -1;
         } catch (java.io.IOException e) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "GUI.open: Failed to read the texture " + texturePath + ".");

@@ -12,8 +12,6 @@ export run() {
         level.place_block(x + 4, y, z, "stone")
         # A grug block named with its namespace.
         level.place_block(x + 5, y, z, "grug:coverage_block")
-        # An unknown block is logged and left unplaced.
-        level.place_block(x + 6, y, z, "grug:does_not_exist")
 
         # Custom and vanilla items.
         custom: Item = item(resource_location("grug:coverage_item"))
@@ -26,5 +24,11 @@ export run() {
         vanilla_block_item: Item = item(resource_location("minecraft:stone"))
         custom_block_stack: ItemStack = item_stack(custom_block_item, 0)
         vanilla_block_stack: ItemStack = item_stack(vanilla_block_item, 0)
+
+        # A block name no loader has is the script's own error, and it ends the run's test right
+        # here, so it comes last. place_block reports it rather than leaving the block unplaced
+        # without a word.
+        Test.expect_error("place_block")
+        level.place_block(x + 6, y, z, "grug:does_not_exist")
     }
 }

@@ -10,6 +10,7 @@ import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockNames;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
@@ -421,6 +422,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 new ResourceLocation(
                         blockName.contains(":") ? blockName : "minecraft:" + blockName);
         Block targetBlock = resolveBlock(id);
+        if (targetBlock == null) {
+            // The loaders do not all spell every vanilla block the same way, so a name one of them
+            // has gets one more try under the spelling the others use. See #58.
+            String other = GrugBlockNames.otherSpelling(id.getPath());
+            if (other != null) targetBlock = resolveBlock(id.withPath(other));
+        }
 
         if (targetBlock != null) {
             net.minecraft.core.BlockPos pos =

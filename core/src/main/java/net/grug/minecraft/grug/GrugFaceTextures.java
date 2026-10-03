@@ -7,13 +7,13 @@ import java.util.Map;
  * {@code textures} map.
  *
  * <p>Lives in {@code net.grug.*} so Java tests can drive it against a scratch map, rather than in a
- * loader's {@code GrugBlockModels}, which can only reach a model by reading the mods directory out of
- * a running game.
+ * loader's {@code GrugBlockModels}, which can only reach a model by reading the mods directory out
+ * of a running game.
  *
  * <p>A face whose key names nothing is a mod-tree defect. The model asked for a texture and did not
- * say which, so the face would render whatever the atlas happened to hold, which is a picture nobody
- * chose. It is reported and the block falls back to its single texture, which is a real rendering
- * rather than a broken one.
+ * say which, so the face would render whatever the atlas happened to hold, which is a picture
+ * nobody chose. It is reported and the block falls back to its single texture, which is a real
+ * rendering rather than a broken one.
  */
 public final class GrugFaceTextures {
 
@@ -26,9 +26,9 @@ public final class GrugFaceTextures {
     /**
      * The face keys a built-in model parent supplies, or null for a parent that is another model.
      *
-     * <p>The keys are the ones vanilla's own block models use, so a grug model may parent one of them
-     * and fill in only the faces that differ. Indices match {@code Block.getSprite(int side)}: 0 down,
-     * 1 up, 2 north, 3 south, 4 west, 5 east.
+     * <p>The keys are the ones vanilla's own block models use, so a grug model may parent one of
+     * them and fill in only the faces that differ. Indices match {@code Block.getSprite(int side)}:
+     * 0 down, 1 up, 2 north, 3 south, 4 west, 5 east.
      */
     public static String[] vanillaParentFaceKeys(String parent) {
         String name =
@@ -54,11 +54,13 @@ public final class GrugFaceTextures {
     /**
      * The texture reference each face gets, or null once the model's own defect has been reported.
      *
-     * <p>A reference is handed back as written, namespace and all, because whether the texture can be
-     * loaded is a question for the resource loader: {@code grug:block/foo} is a file a mod ships and
-     * {@code minecraft:block/stone} is one it does not, and only the loader can tell them apart.
+     * <p>A reference is handed back as written, namespace and all, because whether the texture can
+     * be loaded is a question for the resource loader: {@code grug:block/foo} is a file a mod ships
+     * and {@code minecraft:block/stone} is one it does not, and only the loader can tell them
+     * apart.
      */
-    public static String[] resolve(String blockName, String[] faceKeys, Map<String, String> textures) {
+    public static String[] resolve(
+            String blockName, String[] faceKeys, Map<String, String> textures) {
         String[] result = new String[faceKeys.length];
         for (int face = 0; face < faceKeys.length; face++) {
             String ref = followKey(textures, faceKeys[face]);
@@ -79,8 +81,8 @@ public final class GrugFaceTextures {
     /**
      * The reference {@code key} names, or null when nothing in the map defines it.
      *
-     * <p>A value may point at another key with a leading {@code #}, as many model chains do. A chain
-     * that never lands is a cycle, which ends the walk like a key that was never there.
+     * <p>A value may point at another key with a leading {@code #}, as many model chains do. A
+     * chain that never lands is a cycle, which ends the walk like a key that was never there.
      */
     static String followKey(Map<String, String> textures, String key) {
         String value = textures.get(key);

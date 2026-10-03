@@ -46,20 +46,18 @@ public class ClientGrugModLoader implements ClientModInitializer {
                             int spriteId = entry.getKey();
                             String path = entry.getValue();
                             try (InputStream is = manager.getResource(path)) {
-                                if (is != null) {
-                                    mc.textureManager.addDynamicTexture(
-                                            new GrugStaticTexture(spriteId, 0, is));
-                                } else {
-                                    // The model named this texture, so a mod shipped the reference
-                                    // and not the file. Leaving the slot as the atlas had it would
-                                    // render whatever a vanilla block happened to leave there.
-                                    GrugModTreeDefect.report(
-                                            "Block sprite "
-                                                    + spriteId
-                                                    + " has no texture: no mod ships "
-                                                    + path
-                                                    + ".");
-                                }
+                                mc.textureManager.addDynamicTexture(
+                                        new GrugStaticTexture(spriteId, 0, is));
+                            } catch (java.io.FileNotFoundException missing) {
+                                // The model named this texture, so a mod shipped the reference and
+                                // not the file. Leaving the slot as the atlas had it would render
+                                // whatever a vanilla block happened to leave there.
+                                GrugModTreeDefect.report(
+                                        "Block sprite "
+                                                + spriteId
+                                                + " has no texture: no mod ships "
+                                                + path
+                                                + ".");
                             } catch (Exception e) {
                                 throw Grug.fatal("Failed to load the block texture " + path, e);
                             }
@@ -87,16 +85,29 @@ public class ClientGrugModLoader implements ClientModInitializer {
                 });
     }
 
+    /**
+     * The texture a block or item with no model resolves to, or null when it ships none.
+     *
+     * <p>A grug mod's assets are flat: {@code assets/grug/textures/<type>/<name>.png}, or one of
+     * the {@code _top}, {@code _side} and {@code _front} variants beside it. Looking for those is a
+     * search, so a name no mod ships is an answer rather than a failure, and nothing is reported: a
+     * block whose model gives no per-face textures has this and nothing else to draw with, which is
+     * a difference from a game that reads the model itself rather than a broken tree. What is not
+     * swallowed is a failure that is not "not there", because a name no mod ships and a resource
+     * manager that cannot answer are different things.
+     */
     private InputStream findTexture(ResourceManager manager, String type, String name) {
-        String[] suffixes = {"", "_top", "_side", "_front"};
-        for (String suffix : suffixes) {
+        for (String suffix : new String[] {"", "_top", "_side", "_front"}) {
+            String path = "assets/grug/textures/" + type + "/" + name + suffix + ".png";
             try {
-                String path = "assets/grug/textures/" + type + "/" + name + suffix + ".png";
                 InputStream is = manager.getResource(path);
                 if (is != null) {
                     return is;
                 }
-            } catch (Exception ignored) {
+            } catch (java.io.FileNotFoundException missing) {
+                // The next name beside it may be the one this block ships.
+            } catch (Exception e) {
+                throw Grug.fatal("Failed to read " + path, e);
             }
         }
         return null;

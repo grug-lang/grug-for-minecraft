@@ -13,8 +13,8 @@ import java.io.File;
  * Registers the recipes parsed by {@link GrugRecipeParser}.
  *
  * <p>This shim exists only because {@code CraftingManager.registerShaped} is package-private. The
- * actual parsing lives in {@code net.grug.*} so that Loom's remapping of the Minecraft namespace does
- * not change its runtime bytecode and break JaCoCo's class matching.
+ * actual parsing lives in {@code net.grug.*} so that Loom's remapping of the Minecraft namespace
+ * does not change its runtime bytecode and break JaCoCo's class matching.
  *
  * <p>It lives in the loader rather than in {@code shared/ornithe} because Alpha 1.1.2_01 has no
  * shapeless recipe to register: its {@code CraftingManager} knows one recipe shape and one entry
