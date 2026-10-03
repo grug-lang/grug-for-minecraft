@@ -480,7 +480,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
             // A placement that reports false because the block was already there is not a failure,
             // so the block's presence is the check rather than the return value. A y outside the
             // 256-block world height is refused, and a position in a chunk the client has not
-            // received swallows the write too. See #151.
+            // received swallows the write too. A write the game accepts and does not leave in place
+            // is reported the same way: the caller asked for a block that is not there afterwards.
+            // See #151.
             if (world.getBlockId(posX, posY, posZ) != targetBlock.blockID) {
                 Grug.hostFunctionErrorHappened(
                         Grug.statePtr,
