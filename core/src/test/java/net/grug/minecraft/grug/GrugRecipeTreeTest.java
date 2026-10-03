@@ -2,6 +2,7 @@ package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.GrugRecipeTree.Ingredient;
@@ -634,6 +635,44 @@ class GrugRecipeTreeTest {
     }
 
     @Test
+    void readsOnlyTheTypeOfARecipeFile() throws IOException {
+        recipe(
+                "mymod/data/grug/recipes/a.json",
+                "{\"type\": \"minecraft:crafting_shapeless\","
+                        + " \"ingredients\": [{\"item\": \"minecraft:dirt\"}],"
+                        + " \"result\": {\"id\": \"minecraft:dirt\"}}");
+
+        assertEquals(
+                "minecraft:crafting_shapeless",
+                GrugRecipeTree.readType(
+                        mods.resolve("mymod/data/grug/recipes/a.json").toFile(),
+                        "mymod/data/grug/recipes/a.json"));
+        assertTrue(reported().isEmpty(), reported().toString());
+    }
+
+    @Test
+    void reportsAFileThatDoesNotParseWhenReadingOnlyItsType() throws IOException {
+        recipe("mymod/data/grug/recipes/a.json", "{ not json");
+
+        assertNull(
+                GrugRecipeTree.readType(
+                        mods.resolve("mymod/data/grug/recipes/a.json").toFile(),
+                        "mymod/data/grug/recipes/a.json"));
+        assertReported("is not readable JSON");
+    }
+
+    @Test
+    void reportsAFileWithNoTypeWhenReadingOnlyItsType() throws IOException {
+        recipe("mymod/data/grug/recipes/a.json", "{\"result\": {\"id\": \"minecraft:dirt\"}}");
+
+        assertNull(
+                GrugRecipeTree.readType(
+                        mods.resolve("mymod/data/grug/recipes/a.json").toFile(),
+                        "mymod/data/grug/recipes/a.json"));
+        assertReported("names no recipe 'type'");
+    }
+
+    @Test
     void describesAnIngredient() {
         Ingredient stick = new Ingredient("item", "minecraft:stick");
 
@@ -662,18 +701,17 @@ class GrugRecipeTreeTest {
 
     @Test
     void judgesARecipeTypeByItsShape() {
-        assertEquals(true, GrugRecipeTree.isWellFormedType("minecraft:crafting_shaped"));
-        assertEquals(true, GrugRecipeTree.isWellFormedType("some_mod:blocks/thing.press"));
-        assertEquals(true, GrugRecipeTree.isWellFormedType("minecraft:a_b-c.d/e"));
+        assertTrue(GrugRecipeTree.isWellFormedType("minecraft:crafting_shaped"));
+        assertTrue(GrugRecipeTree.isWellFormedType("some_mod:blocks/thing.press"));
+        assertTrue(GrugRecipeTree.isWellFormedType("minecraft:a_b-c.d/e"));
 
-        assertEquals(false, GrugRecipeTree.isWellFormedType(null));
-        assertEquals(false, GrugRecipeTree.isWellFormedType("crafting_shaped"), "no namespace");
-        assertEquals(false, GrugRecipeTree.isWellFormedType("minecraft:"), "no path");
-        assertEquals(false, GrugRecipeTree.isWellFormedType(":crafting"), "no namespace name");
-        assertEquals(false, GrugRecipeTree.isWellFormedType("Mine:crafting"), "upper case");
-        assertEquals(
-                false, GrugRecipeTree.isWellFormedType("minecraft:Crafting"), "upper case path");
-        assertEquals(false, GrugRecipeTree.isWellFormedType(""), "empty");
+        assertFalse(GrugRecipeTree.isWellFormedType(null));
+        assertFalse(GrugRecipeTree.isWellFormedType("crafting_shaped"), "no namespace");
+        assertFalse(GrugRecipeTree.isWellFormedType("minecraft:"), "no path");
+        assertFalse(GrugRecipeTree.isWellFormedType(":crafting"), "no namespace name");
+        assertFalse(GrugRecipeTree.isWellFormedType("Mine:crafting"), "upper case");
+        assertFalse(GrugRecipeTree.isWellFormedType("minecraft:Crafting"), "upper case path");
+        assertFalse(GrugRecipeTree.isWellFormedType(""), "empty");
     }
 
     private static List<String> paths(List<File> files, File modsDir) {

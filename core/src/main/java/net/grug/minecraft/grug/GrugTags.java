@@ -132,11 +132,9 @@ public final class GrugTags {
             if (candidate.resolution.resolved()) {
                 return candidate.resolution;
             }
-            // An optional value that names nothing is what "optional" is for, so the next value
-            // gets
-            // its turn. A required one is the tag's own content being wrong, which no later value
-            // can
-            // make right.
+            // An optional value that names nothing is what "optional" is for, so the loop moves
+            // on. A required one is the tag's own content being wrong, and no later value can fix
+            // it.
             if (!candidate.optional) {
                 return candidate.resolution;
             }
@@ -153,11 +151,23 @@ public final class GrugTags {
             id = value.getAsString();
         } else if (value.isJsonObject() && value.getAsJsonObject().has("id")) {
             // The 1.19+ tag form, {"id": "minecraft:diamond", "required": false}, which is how a
-            // mod
-            // points at a tag another mod may or may not ship.
+            // mod points at a tag another mod may or may not ship.
             JsonObject object = value.getAsJsonObject();
-            id = object.get("id").getAsString();
-            optional = object.has("required") && !object.get("required").getAsBoolean();
+            JsonElement idElement = object.get("id");
+            if (!idElement.isJsonPrimitive() || !idElement.getAsJsonPrimitive().isString()) {
+                return new Value(
+                        Resolution.problem(
+                                "a value of the tag '"
+                                        + tagId
+                                        + "' names an id that is not a string"),
+                        false);
+            }
+            id = idElement.getAsString();
+            JsonElement requiredElement = object.get("required");
+            optional =
+                    requiredElement != null
+                            && requiredElement.isJsonPrimitive()
+                            && !requiredElement.getAsBoolean();
         } else {
             return new Value(
                     Resolution.problem(

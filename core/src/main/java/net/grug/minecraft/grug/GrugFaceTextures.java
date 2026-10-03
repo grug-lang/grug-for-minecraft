@@ -1,5 +1,8 @@
 package net.grug.minecraft.grug;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
 import java.util.Map;
 
 /**
@@ -65,17 +68,49 @@ public final class GrugFaceTextures {
         for (int face = 0; face < faceKeys.length; face++) {
             String ref = followKey(textures, faceKeys[face]);
             if (ref == null) {
+                // The key itself may be absent, or its chain of "#" references may not land on a
+                // texture, and the two read differently to whoever has to fix the model.
+                String problem =
+                        textures.containsKey(faceKeys[face])
+                                ? "whose '#' chain does not resolve to a texture."
+                                : "which its model does not define.";
                 GrugModTreeDefect.report(
                         "Block '"
                                 + blockName
                                 + "' uses the texture key '"
                                 + faceKeys[face]
-                                + "', which its model does not define.");
+                                + "', "
+                                + problem);
                 return null;
             }
             result[face] = ref;
         }
         return result;
+    }
+
+    /**
+     * Merges a model's {@code textures} object into {@code into}, reporting a value that is not a
+     * string and returning false for it.
+     *
+     * <p>The child model's entries are merged first, so {@code putIfAbsent} lets them win over a
+     * parent's, which is how the game reads the chain.
+     */
+    public static boolean mergeTextures(
+            String blockName, JsonObject textures, Map<String, String> into) {
+        for (Map.Entry<String, JsonElement> entry : textures.entrySet()) {
+            JsonElement value = entry.getValue();
+            if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+                GrugModTreeDefect.report(
+                        "Block '"
+                                + blockName
+                                + "' gives the texture key '"
+                                + entry.getKey()
+                                + "' a value that is not a string.");
+                return false;
+            }
+            into.putIfAbsent(entry.getKey(), value.getAsString());
+        }
+        return true;
     }
 
     /**

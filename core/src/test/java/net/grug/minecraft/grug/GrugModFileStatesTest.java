@@ -82,6 +82,62 @@ class GrugModFileStatesTest {
     }
 
     @Test
+    void deletedRemovesTheFileAndRecordsThePristineText() throws IOException {
+        givenAModFile("export init() {\n}\n");
+
+        GrugModFileStates.set(modsDir, path(), "deleted");
+
+        assertFalse(Files.exists(modFile()));
+        assertEquals(
+                "export init() {\n}\n",
+                new String(
+                        Files.readAllBytes(backupRoot.resolve(path() + ".grugbak")),
+                        StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void normalRestoresADeletedFileAndDropsTheRecord() throws IOException {
+        givenAModFile("export init() {\n}\n");
+        GrugModFileStates.set(modsDir, path(), "deleted");
+
+        GrugModFileStates.set(modsDir, path(), "normal");
+
+        assertEquals("export init() {\n}\n", modFileText());
+        assertFalse(Files.exists(backupRoot));
+    }
+
+    @Test
+    void deletingTheSameFileTwiceKeepsTheFirstRecord() throws IOException {
+        givenAModFile("export init() {\n}\n");
+        Path backup = backupRoot.resolve(path() + ".grugbak");
+        GrugModFileStates.set(modsDir, path(), "deleted");
+        Files.write(backup, "the first record".getBytes(StandardCharsets.UTF_8));
+
+        GrugModFileStates.set(modsDir, path(), "deleted");
+
+        assertFalse(Files.exists(modFile()));
+        assertEquals(
+                "the first record", new String(Files.readAllBytes(backup), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void deletingAFileAgainAfterItWasRestoredKeepsTheFirstRecord() throws IOException {
+        givenAModFile("export init() {\n}\n");
+        Path backup = backupRoot.resolve(path() + ".grugbak");
+        GrugModFileStates.set(modsDir, path(), "deleted");
+        Files.write(backup, "the first record".getBytes(StandardCharsets.UTF_8));
+        // A later run put the file back by hand, but the record it wrote on the way in is still
+        // there, so the second delete must not record the text a second time.
+        Files.write(modFile(), "export init() {\n}\n".getBytes(StandardCharsets.UTF_8));
+
+        GrugModFileStates.set(modsDir, path(), "deleted");
+
+        assertFalse(Files.exists(modFile()));
+        assertEquals(
+                "the first record", new String(Files.readAllBytes(backup), StandardCharsets.UTF_8));
+    }
+
+    @Test
     void settingTheSameStateTwiceKeepsTheFirstRecord() throws IOException {
         givenAModFile("export init() {\n}\n");
         Path backup = backupRoot.resolve(path() + ".grugbak");

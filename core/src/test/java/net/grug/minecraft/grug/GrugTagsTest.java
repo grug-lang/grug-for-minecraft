@@ -204,6 +204,29 @@ class GrugTagsTest {
     }
 
     @Test
+    void reportsATagValueWhoseIdIsNull() throws IOException {
+        tag("mymod/data/grug/tags/items/nullid.json", "{\"values\": [{\"id\": null}]}");
+
+        assertProblem("grug:nullid", "names an id that is not a string");
+    }
+
+    @Test
+    void reportsATagValueWhoseIdIsANumber() throws IOException {
+        tag("mymod/data/grug/tags/items/numberid.json", "{\"values\": [{\"id\": 5}]}");
+
+        assertProblem("grug:numberid", "names an id that is not a string");
+    }
+
+    @Test
+    void treatsANonPrimitiveRequiredFlagAsRequired() throws IOException {
+        tag(
+                "mymod/data/grug/tags/items/oddrequired.json",
+                "{\"values\": [{\"id\": \"#grug:missing\", \"required\": {}}]}");
+
+        assertProblem("grug:oddrequired", "no mod ships a tag file for 'grug:missing'");
+    }
+
+    @Test
     void reportsTheNestedTagsProblemWhenThereIsOne() throws IOException {
         tag("mymod/data/grug/tags/items/gears.json", "{\"values\": [\"#grug:missing\"]}");
 

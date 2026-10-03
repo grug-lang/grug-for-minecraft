@@ -1,8 +1,12 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -142,7 +146,57 @@ class GrugFaceTexturesTest {
                         "thing", new String[] {"all"}, textures("all", "#a", "a", "#b", "b", "#c"));
 
         assertNull(faces);
-        assertTrue(reported().get(0).contains("'all'"), reported().toString());
+        List<String> reported = reported();
+        assertEquals(1, reported.size(), reported.toString());
+        assertTrue(reported.get(0).contains("'all'"), reported.toString());
+        assertTrue(
+                reported.get(0).contains("whose '#' chain does not resolve to a texture."),
+                reported.toString());
+    }
+
+    @Test
+    void mergesATexturesObjectWithoutOverwritingTheChild() {
+        Map<String, String> into = new HashMap<>();
+        into.put("all", "grug:block/child");
+        JsonObject textures =
+                JsonParser.parseString(
+                                "{\"all\": \"grug:block/parent\","
+                                        + " \"side\": \"grug:block/side\"}")
+                        .getAsJsonObject();
+
+        assertTrue(GrugFaceTextures.mergeTextures("thing", textures, into));
+
+        assertEquals("grug:block/child", into.get("all"));
+        assertEquals("grug:block/side", into.get("side"));
+        assertTrue(reported().isEmpty(), reported().toString());
+    }
+
+    @Test
+    void reportsATextureValueThatIsNotAString() {
+        Map<String, String> into = new HashMap<>();
+        JsonObject textures =
+                JsonParser.parseString("{\"all\": {\"texture\": \"grug:block/thing\"}}")
+                        .getAsJsonObject();
+
+        assertFalse(GrugFaceTextures.mergeTextures("thing", textures, into));
+
+        assertTrue(into.isEmpty(), into.toString());
+        List<String> reported = reported();
+        assertEquals(1, reported.size(), reported.toString());
+        assertTrue(
+                reported.get(0).contains("Block 'thing' gives the texture key 'all'"),
+                reported.get(0));
+    }
+
+    @Test
+    void reportsATextureValueThatIsANumber() {
+        Map<String, String> into = new HashMap<>();
+        JsonObject textures = JsonParser.parseString("{\"all\": 5}").getAsJsonObject();
+
+        assertFalse(GrugFaceTextures.mergeTextures("thing", textures, into));
+
+        assertTrue(into.isEmpty(), into.toString());
+        assertEquals(1, reported().size(), reported().toString());
     }
 
     @Test
