@@ -34,18 +34,27 @@ import java.util.stream.Stream;
  */
 public final class GrugRecipeTree {
 
-    /** The one recipe type whose contents differ between the loaders. */
+    /** Which of grug's own recipe shapes a file is, which is all a loader needs to register it. */
     public enum Kind {
+        /** A shaped recipe: rows, and a key symbol per ingredient. */
         SHAPED,
+        /** A shapeless recipe: one item per ingredient, in any order. */
         SHAPELESS,
+        /** A type grug does not register, whose contents the tree did not judge. */
         OTHER
     }
 
     public static final String SHAPED = "minecraft:crafting_shaped";
     public static final String SHAPELESS = "minecraft:crafting_shapeless";
 
+    /** A crafting grid is at most 3 by 3. */
+    private static final int MAX_GRID = 3;
+
     /** A resource id, which is the shape a recipe type has to have to name anything at all. */
     private static final Pattern RESOURCE_ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
+
+    @GrugGenerated("utility class: never instantiated")
+    private GrugRecipeTree() {}
 
     /**
      * Whether a recipe's type is a resource id.
@@ -59,12 +68,6 @@ public final class GrugRecipeTree {
     public static boolean isWellFormedType(String type) {
         return type != null && RESOURCE_ID.matcher(type).matches();
     }
-
-    /** A crafting grid is at most 3 by 3. */
-    private static final int MAX_GRID = 3;
-
-    @GrugGenerated("utility class: never instantiated")
-    private GrugRecipeTree() {}
 
     /**
      * What an ingredient names: an item id, or a tag that stands for one.
