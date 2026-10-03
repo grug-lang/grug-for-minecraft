@@ -1,4 +1,0 @@
-# Fixture block for coverage. Exercises a stringToMaterial case (and a model case when it has a model).
-export init() {
-    set_material("cloth")
-}

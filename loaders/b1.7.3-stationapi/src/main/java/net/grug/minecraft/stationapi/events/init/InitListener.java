@@ -68,6 +68,25 @@ public class InitListener {
     public static final Map<String, Long> itemFiles = new HashMap<>();
     private static final Map<String, Long> blockFiles = new HashMap<>();
 
+    /**
+     * What each grug recipe file registered, keyed by its path in the mods tree, so that deleting a
+     * file can undo the registration.
+     *
+     * <p>The {@link URL} instance matters as much as the path: the registry holds a set of them,
+     * and a set can only remove an object it already holds.
+     */
+    private static final Map<String, RegisteredRecipe> registeredRecipes = new HashMap<>();
+
+    private static final class RegisteredRecipe {
+        private final Identifier type;
+        private final URL url;
+
+        RegisteredRecipe(Identifier type, URL url) {
+            this.type = type;
+            this.url = url;
+        }
+    }
+
     @EventListener
     private static void serverInit(InitEvent event) {
         LOGGER.info(NAMESPACE.toString());
@@ -258,24 +277,6 @@ public class InitListener {
         }
     }
 
-    /**
-     * What a grug recipe file registered, kept so that deleting it can undo the registration.
-     *
-     * <p>The {@link URL} instance matters as much as the path: the registry holds a set of them,
-     * and a set can only remove an object it already holds.
-     */
-    private static final class RegisteredRecipe {
-        private final Identifier type;
-        private final URL url;
-
-        RegisteredRecipe(Identifier type, URL url) {
-            this.type = type;
-            this.url = url;
-        }
-    }
-
-    private static final Map<String, RegisteredRecipe> registeredRecipes = new HashMap<>();
-
     private static void registerJsonRecipe(GrugRecipeTree.Recipe recipe) {
         Identifier recipeId = recipeType(recipe.type(), recipe.path());
         if (recipeId == null) return;
@@ -318,10 +319,12 @@ public class InitListener {
         return "minecraft".equals(namespace) || FabricLoader.getInstance().isModLoaded(namespace);
     }
 
-    private static URL createLegacyRecipeUrl(Path p)
-            throws MalformedURLException { // We intercept the file stream to rewrite modern {"id":
-        // "..."} to legacy
-        // {"item": "..."}
+    /**
+     * A URL the game can open for a recipe file, whose stream rewrites the modern {@code {"id":
+     * "..."}} result to the legacy {@code {"item": "..."}} one, so a mod only has to write it one
+     * way.
+     */
+    private static URL createLegacyRecipeUrl(Path p) throws MalformedURLException {
         return new URL(
                 "grugrecipe",
                 null,
