@@ -1,0 +1,61 @@
+# A shapeless recipe a mod ships has to register and craft. Alpha 1.1.2_01 has no shapeless recipe
+# of its own, so grug registers these in its own matcher and asks the game for them; this is the
+# test that says that path is wired up in a running game rather than only unit-tested.
+# Two arrangements of the same two ingredients, because shapeless means both order and position are
+# ignored: adjacent and in the order the recipe file lists them, then diagonal and reversed. A single
+# arrangement could not tell a shapeless match from a shaped one, because any two grid cells fit
+# inside a shaped pattern with blanks around them, so the pair has to move to prove anything.
+# The result is a count of 2 rather than 1, so the assertions can tell this recipe's own output from
+# whatever else might answer a grid, and the wrong-multiset grid has to answer nothing at all.
+# Band 10 is free: the coverage tests use 0, 20 and 30 and the pipe tests 25, 35, 40, 45 and 50.
+export run() {
+    # 1.2.5 holds its recipes in code and reads no JSON, so the recipe below is not registered
+    # there at all. Asking the loader is the only way to tell that apart from grug failing to
+    # register it. Every other loader registers it, 1.20.6 through Forge's own recipe manager.
+    if not Test.registers_mod_recipes() {
+        return
+    }
+
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 10
+    z: number = origin.z()
+
+    # An iron ingot rather than the dirt the shaped fixture uses: Alpha has no dirt item, so a dirt
+    # name resolves to the block there and cannot go in a slot.
+    stick: Item = item(resource_location("minecraft:stick"))
+    ingot: Item = item(resource_location("minecraft:iron_ingot"))
+
+    # Slots 0 and 1 are neighbours, in the order the recipe file lists its ingredients.
+    adjacent: BlockEntity = _grid(level, x, y, z)
+    set_item_in_slot(adjacent, 0, stick, 1)
+    set_item_in_slot(adjacent, 1, ingot, 1)
+    update_recipe_output(adjacent, 0)
+    Test.assert(take_crafting_result(adjacent, 2) == 2, "The adjacent ingredients should craft the shapeless recipe's two results.")
+    Test.assert(take_crafting_result(adjacent, 1) == 0, "The shapeless recipe should have nothing left to give.")
+
+    # Slots 4 and 8 are diagonal, and the items are the other way round.
+    diagonal: BlockEntity = _grid(level, x + 3, y, z)
+    set_item_in_slot(diagonal, 4, ingot, 1)
+    set_item_in_slot(diagonal, 8, stick, 1)
+    update_recipe_output(diagonal, 0)
+    Test.assert(take_crafting_result(diagonal, 2) == 2, "The diagonal ingredients should craft the same two results.")
+
+    # One stick too many is a different multiset, so nothing matches: the matcher takes each grid slot
+    # once, which is what stops a recipe asking for one ingredient from matching a grid holding two.
+    wrong: BlockEntity = _grid(level, x + 6, y, z)
+    set_item_in_slot(wrong, 0, stick, 1)
+    set_item_in_slot(wrong, 1, stick, 1)
+    update_recipe_output(wrong, 0)
+    Test.assert(take_crafting_result(wrong, 1) == 0, "Two of one ingredient should not match a recipe that names it once.")
+}
+
+# The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
+# the block to place rather than a chest or the autocrafting table.
+local _grid(level: Level, x: number, y: number, z: number) BlockEntity {
+    level.place_block(x, y, z, "grug:coverage_block")
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(found.has(), "The coverage block should have a block entity after being placed.")
+    return found.unwrap()
+}
