@@ -25,6 +25,7 @@ import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
@@ -778,6 +779,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
         if (player != null) {
             player.setPositionAndRotation(savedX, savedY, savedZ, savedYaw, savedPitch);
         }
+    }
+
+    @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    public void closeOpenScreenForTest() {
+        ModLoader.getMinecraftInstance().displayGuiScreen((GuiScreen) null);
     }
 
     @Override
