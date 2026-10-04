@@ -189,4 +189,14 @@ class GrugScreenshotsTest {
 
         assertTrue(error.getMessage().contains("not two views of the same rectangle"));
     }
+
+    @Test
+    void aRectangleOfADifferentWidthIsRejectedToo() {
+        // The same size check reached through its other half. Without this the width comparison is
+        // only ever exercised as the one that decides, so the height one is never the deciding half
+        // and a mismatch in width alone would go untested.
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugScreenshots.changedPercent(solid(4, 4, 0), solid(8, 4, 0)));
+    }
 }
