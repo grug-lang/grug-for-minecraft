@@ -50,10 +50,11 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     @Override
     public Object testPlayer() {
-        // Deliberately not List<ServerPlayerEntity>: this loader's class of that name is marked
-        // server-only, and Fabric Loader refuses to load a class whose signature names one. A local
-        // variable's type argument is erased, so naming it here would be the hazard this file
-        // documents avoiding, and the element is cast where it is used.
+        // Deliberately not List<ServerPlayerEntity>. Fabric Loader will not define a class the game
+        // marked server-only in a client, so any reference the verifier has to resolve here would
+        // break every client. A local variable's type argument is erased and so would survive, but
+        // it promises a type the runtime cannot hand over: the next loop or cast written in this
+        // method would break the client, and nothing at the call site would say why.
         List<?> players = MinecraftServerInstance.get().playerManager.players;
         return players.isEmpty() ? null : players.get(0);
     }

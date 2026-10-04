@@ -29,10 +29,11 @@ public interface ModLoaderAdapter {
      * Refuses a call that needs a client when this process is a dedicated server, and says whether
      * it refused.
      *
-     * <p>This is what the four client-only functions are made of: a camera to put somewhere, a
-     * window to look through it in, a frame to read back from, and a local player whose right-click
-     * the game will route. A dedicated server has none of those, so letting one of them through
-     * raises something from inside the game's client classes rather than saying what is wrong.
+     * <p>This is what the client-only functions are made of: a camera to put somewhere, a window to
+     * look through it in, a frame to read back from, a local player whose right-click the game will
+     * route, and the player the test bands are measured from. A dedicated server has none of those,
+     * so letting one through raises something from inside the game's client classes rather than
+     * saying what is wrong.
      *
      * <p>It lives here, on the interface, rather than in {@code HostFunctions} because that is
      * where "which functions need a client" belongs, and because every loader's implementations of
@@ -142,12 +143,17 @@ public interface ModLoaderAdapter {
     double takeCraftingResult(Object blockEntityObj, double amount);
 
     /**
-     * The level this process's tests build their fixtures in.
+     * The level this process's tests build their fixtures in, or null when this side has none yet.
      *
-     * <p>On a dedicated server that is the server's own level, never a client's: there is no client
-     * to ask. On a client it is the client's world, and which world that is depends on the loader,
-     * because on 1.20.6 a singleplayer client's world is a copy of the one the integrated server
-     * owns and a fixture has to go into the copy that owns it. See each adapter's own answer.
+     * <p>A dedicated server answers with its own level, because there is no client to ask. A client
+     * answers with whichever world its loader says owns the block: on 1.20.6 a singleplayer
+     * client's world is a mirror of the integrated server's, and a fixture has to go into the one
+     * that owns it, so that loader prefers the server's answer; the other four hand back the
+     * client's own world. Read each adapter's implementation rather than assuming one rule: they
+     * differ because the game differs.
+     *
+     * <p>Null is what a side with no world yet reports, and only StationAPI does that today,
+     * because it has no server-side answer until #165.
      */
     Object getLevel();
 
@@ -186,6 +192,16 @@ public interface ModLoaderAdapter {
      */
     void roundTripNbt(Object blockEntityObj);
 
+    /**
+     * The position the test bands are measured from: {@link #testPlayer()} plus 3 on each loader,
+     * because that is where the bands already sit in every test. Null when this side has no player,
+     * which on a dedicated server means nobody has joined.
+     *
+     * <p>It goes through a player rather than through the level on purpose, so it needs the same
+     * refusal on a dedicated server as the other client-only functions: every loader that can be a
+     * server answers this one from the server's own objects, and a loader that cannot has to say so
+     * instead of reaching for a client that is not there.
+     */
     Vec3 getTestOrigin();
 
     Vec3 setupGraphicsTestCamera();

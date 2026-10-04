@@ -70,11 +70,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     /**
      * StationAPI loads on a dedicated server, so this is the game's own answer rather than an
-     * assumption. What a dedicated server then gets from the two handles below is not the answer
-     * yet: see #165, which is also why this class cannot hold the server-side glue itself. Fabric
-     * Loader refuses to load a class the game marked server-only from a client process, so anything
-     * naming one has to sit behind StationAPI's {@code stationapi:event_bus_server} entrypoint
-     * instead.
+     * assumption. What a dedicated server then gets from the handles below is not the answer yet:
+     * see #165, which is also why this class cannot hold the server-side glue itself. Fabric Loader
+     * will not define a class the game marked server-only in a client process, so a class
+     * referencing one has to sit behind StationAPI's {@code stationapi:event_bus_server} entrypoint
+     * and be reached from a branch nothing on a client resolves.
      */
     @Override
     public GrugSide getSide() {
@@ -284,8 +284,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @GrugGenerated(
             "the dedicated-server refusal can only be taken on a server, and CI launches none until"
-                    + " #165. The client path below is the same cast every loader does, measured in"
-                    + " their own adapters.")
+                + " #165. The client path below is this loader's own way of reaching the client,"
+                + " because Fabric Loader hands it back as an Object.")
     @Override
     public Object getLevel() {
         if (refusesOnADedicatedServer("Test.get_client_level")) return null;
@@ -298,8 +298,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @GrugGenerated(
             "the dedicated-server refusal can only be taken on a server, and CI launches none until"
-                    + " #165. The client path below is the same cast every loader does, measured in"
-                    + " their own adapters.")
+                + " #165. The client path below is this loader's own way of reaching the client,"
+                + " because Fabric Loader hands it back as an Object.")
     @Override
     public Object testPlayer() {
         if (refusesOnADedicatedServer("Test.get_player")) return null;
@@ -635,6 +635,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 (x, y, z) -> isAir(level, x, y, z), player.x, player.boundingBox.minY, player.z);
     }
 
+    @GrugGenerated(
+            "the dedicated-server refusal can only be taken on a server, and CI launches none until"
+                + " #165. The client path below is this loader's own way of reaching the client,"
+                + " because Fabric Loader hands it back as an Object.")
     @Override
     public boolean registersModRecipes() {
         // InitListener hands the mods' data/<namespace>/recipes tree to StationAPI to parse.
@@ -643,6 +647,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public Vec3 getTestOrigin() {
+        if (refusesOnADedicatedServer("Test.get_origin")) return null;
+
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();

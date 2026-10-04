@@ -85,8 +85,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      *       {@code "server": false}. b1.7.3's says {@code true} and lists one.
      *   <li>The game jar holds no {@code net.minecraft.server.MinecraftServer}; b1.7.3's server jar
      *       does.
-     *   <li>Both OSL jars this version resolves declare {@code "environment": "client"}, so Ornithe
-     *       would not load its lifecycle or resource libraries on a server even if one existed.
+     *   <li>Seven of the thirteen OSL jars this version resolves declare {@code "environment":
+     *       "client"}, including the lifecycle and resource-loader ones this loader and its server
+     *       entrypoint are built against, so Ornithe would not load them on a server even if one
+     *       existed.
      * </ul>
      */
     @Override
