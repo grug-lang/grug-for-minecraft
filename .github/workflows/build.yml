@@ -246,7 +246,12 @@ jobs:
       # and Loom content never gets in. Keyed per loader, because ForgeGradle and Loom both write to
       # the same directory and no loader may restore another's, and on the files that name the
       # Minecraft and mapping versions, so a version bump misses instead of serving the old one.
+      #
+      # Not 1.2.5-forge: it does not provision a Minecraft at all, it clones the pinned MCP snapshot
+      # into its own build directory (fetchMcpSnapshot, 13s), so none of these paths would exist and
+      # the action would report that no cache was saved.
       - name: Cache the Minecraft toolchain
+        if: matrix.dir != '1.2.5-forge'
         uses: actions/cache@v4
         with:
           path: |
