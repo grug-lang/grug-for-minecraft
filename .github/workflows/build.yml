@@ -240,6 +240,27 @@ jobs:
             core/build/generated/sources/grug
           key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
+      # Gradle's own state on the loader side: the distribution each loader's wrapper pins, and the
+      # dependency cache its build resolves against. cache: gradle above covers both paths, but what
+      # it restores is whatever the job that saved it happened to resolve, and the job that saves it is
+      # the one that ran first and resolved the least: grug-rs, which only ever builds core on Gradle
+      # 8.14. So every loader was downloading its own Gradle distribution again and re-resolving its
+      # own dependencies from the network on every run, which is most of the 29s each one spent
+      # between starting Gradle and reaching its first task.
+      #
+      # One entry for all five rather than one per loader, because unlike the Forge and Loom
+      # directories below, nothing in here belongs to a single loader: modules-2 is content addressed
+      # and the distributions are shared. Keyed on every file that decides what is resolvable, so a
+      # version, a repository or a plugin bump misses rather than restoring a graph that no longer
+      # matches the build.
+      - name: Cache the Gradle distributions and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches/modules-2
+          key: grug-gradle-${{ runner.os }}-${{ hashFiles('gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+
       # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
       # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
       # job in this workflow is grug-rs, which never resolves a Minecraft, so it wins and the Forge
@@ -247,18 +268,32 @@ jobs:
       # the same directory and no loader may restore another's, and on the files that name the
       # Minecraft and mapping versions, so a version bump misses instead of serving the old one.
       #
-      # Not 1.2.5-forge: it does not provision a Minecraft at all, it clones the pinned MCP snapshot
-      # into its own build directory (fetchMcpSnapshot, 13s), so none of these paths would exist and
-      # the action would report that no cache was saved.
+      # Not the assets: downloadAssets takes 1.9s from resources.download.minecraft.net, which is not
+      # worth the 500MB the asset index and objects take in the entry. 1.2.5-forge is excluded
+      # entirely, because it does not provision a Minecraft at all (see the snapshot below), so none of
+      # these paths would exist there and the action would report that no cache was saved.
       - name: Cache the Minecraft toolchain
         if: matrix.dir != '1.2.5-forge'
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches/forge_gradle
+            ~/.gradle/caches/forge_gradle/mcp_repo
+            ~/.gradle/caches/forge_gradle/minecraft_repo
+            ~/.gradle/caches/forge_gradle/minecraft_user_repo
+            ~/.gradle/caches/forge_gradle/maven_downloader
             ~/.gradle/caches/fabric-loom
             ~/.gradle/caches/ornithe-keratin
           key: grug-minecraft-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+
+      # 1.2.5-forge's Minecraft is the pinned MCP snapshot its build clones, 170MB into its own build
+      # directory, which is 13s of its Build step. Keyed on the build file that holds the pin, so a
+      # different snapshot misses rather than restoring the previous one.
+      - name: Cache the 1.2.5 MCP snapshot
+        if: matrix.dir == '1.2.5-forge'
+        uses: actions/cache@v4
+        with:
+          path: loaders/1.2.5-forge/build/mcp125
+          key: grug-mcp125-${{ runner.os }}-${{ hashFiles('loaders/1.2.5-forge/build.gradle') }}
 
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
       # screenshots pixel-for-pixel, which needs a stable Mesa/font stack
