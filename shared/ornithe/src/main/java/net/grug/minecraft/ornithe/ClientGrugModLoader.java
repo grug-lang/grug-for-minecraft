@@ -26,8 +26,8 @@ public class ClientGrugModLoader implements ClientModInitializer {
     private static final int ITEMS = 1;
 
     /**
-     * The grug sprite already living in each slot of each atlas, so a reload refreshes the pixels of
-     * the sprite it already has rather than adding another one.
+     * The grug sprite already living in each slot of each atlas, so a reload refreshes the pixels
+     * of the sprite it already has rather than adding another one.
      *
      * <p>Keyed by sprite index rather than by the file the texture came from, because that index is
      * the block's identity: two blocks can name the same texture and each gets its own index, so a
@@ -105,15 +105,14 @@ public class ClientGrugModLoader implements ClientModInitializer {
     }
 
     /**
-     * Puts {@code is}'s pixels into {@code spriteId}'s slot of {@code atlas}, registering the sprite
-     * with the texture manager the first time it is seen.
+     * Puts {@code is}'s pixels into {@code spriteId}'s slot of {@code atlas}, registering the
+     * sprite with the texture manager the first time it is seen.
      *
      * <p>No OpenGL happens here. The texture manager re-uploads every dynamic texture it holds on
      * every tick, so the pixels land in the atlas on the next tick, which also means a slot that
      * fails to read keeps rendering the texture that was in it rather than going blank.
      */
-    private static void upload(
-            TextureManager textures, int atlas, int spriteId, InputStream is) {
+    private static void upload(TextureManager textures, int atlas, int spriteId, InputStream is) {
         Map<Integer, GrugStaticTexture> sprites = atlas == TERRAIN ? TERRAIN_SPRITES : ITEM_SPRITES;
         GrugStaticTexture sprite = sprites.get(spriteId);
         if (sprite == null) {
