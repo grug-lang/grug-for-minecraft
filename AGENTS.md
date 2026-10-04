@@ -140,6 +140,37 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   there and not after it: `run-loader.sh` stops watching the log at that announcement, so anything
   below it is never read.
 
+## Versions are pinned, and there is no Dependabot
+
+Every version this repository builds against is pinned to an exact value, and every one of them has to
+be bumped by hand:
+
+| what | pinned where | how to bump |
+| :--- | :--- | :--- |
+| Gradle plugins | each `loaders/*/build.gradle` | `id '...' version '...'` |
+| Gradle distributions | `distributionSha256Sum` in each `gradle-wrapper.properties` | `curl -sSL <url>.sha256` |
+| GitHub Actions | a commit SHA with the release as a comment in each workflow | `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` |
+| Python | `pip install <name>==<version>` in the workflow that needs it | PyPI |
+| grug-rs | `grugRsRevision` in `core/build.gradle.kts` | `git ls-remote` |
+| Minecraft, mappings, libraries | `gradle.properties` | already exact |
+
+Two of these were not, and cost time rather than safety. A dynamic plugin selector such as
+`[6.0.24,6.2)` or `0.7.+` is not a version: Gradle has to ask the repository what matches now on every
+configuration, and `1.20.6-forge` spent 28 of its 63 second Build step there (#191). Pinning it locally
+saved 0s to 2s, because a warm `~/.gradle` already has the answer, so only CI shows the difference.
+
+A `distributionSha256Sum` is checked only when the distribution is downloaded, so a wrong value fails
+on a fresh machine and never on a warm one. Each was verified against the downloaded zip before being
+committed, and enforcing it looks like this:
+
+```
+Expected checksum: '00000010d3c7d3e5da131b76bbf22b5a4c0786e9d892dae8c1658d4b484de3caa'
+  Actual checksum: '61ad310d3c7d3e5da131b76bbf22b5a4c0786e9d892dae8c1658d4b484de3caa'
+```
+
+To test that a new checksum is enforced rather than merely present, delete the extracted distribution
+or point `GRADLE_USER_HOME` at an empty directory first. Otherwise a warm machine passes either way.
+
 ## Reading CI timings
 
 Measure before and after from the workflow's own job timings rather than estimating:
