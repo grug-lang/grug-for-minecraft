@@ -114,13 +114,13 @@ public interface ModLoaderAdapter {
      * Whether this loader registers the crafting recipes mods ship under {@code
      * data/<namespace>/recipes}.
      *
-     * <p>Four of the five do, each through its own version's recipe machinery: the Ornithe loaders
+     * <p>Every loader does, each through its own version's recipe machinery: the Ornithe loaders
      * parse the tree with {@code GrugRecipeTree} and hand the result to {@code CraftingManager},
-     * StationAPI hands the files to its recipe registry, and 1.20.6 serves the tree to Forge as a
-     * pack so the level's own recipe manager loads it. 1.2.5 does not, because its {@code
-     * CraftingManager} holds recipes added in code and reads no JSON. A test asserting a shipped
-     * recipe asks this before asserting, so a loader that cannot do it does not fail the run for
-     * it.
+     * StationAPI hands the files to its recipe registry, 1.20.6 serves the tree to Forge as a pack
+     * so the level's own recipe manager loads it, and 1.2.5 parses the tree and calls the game's
+     * own {@code ModLoader.addRecipe} and {@code addShapelessRecipe}. A test asserting a shipped
+     * recipe asks this before asserting, so a future loader that cannot do it does not fail the run
+     * for it.
      */
     boolean registersModRecipes();
 
