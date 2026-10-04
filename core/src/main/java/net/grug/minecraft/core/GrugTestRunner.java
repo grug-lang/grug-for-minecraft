@@ -6,8 +6,11 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 /**
  * Drives every {@code *-Test.grug} file, one real game tick at a time.
@@ -61,6 +64,7 @@ public class GrugTestRunner {
             };
 
     private final TestEntityOps ops;
+    private final LongSupplier clock;
     private final List<Map.Entry<String, Long>> tests;
     private final int totalCount;
 
@@ -72,6 +76,15 @@ public class GrugTestRunner {
 
     private long currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private int currentTick = 0;
+
+    /** When the running test started, so its duration can be worked out when it ends. */
+    private long currentTestStartNanos = 0;
+
+    /**
+     * How long each test that finished took, in the order they ran. A path is unique because the
+     * runner took it from a map's keys, so it doubles as the key here.
+     */
+    private final Map<String, Long> testNanos = new LinkedHashMap<>();
 
     private boolean finished = false;
 
@@ -89,7 +102,21 @@ public class GrugTestRunner {
 
     public GrugTestRunner(
             Map<String, Long> fileIds, List<String> referenceErrors, TestEntityOps ops) {
+        this(fileIds, referenceErrors, ops, System::nanoTime);
+    }
+
+    /**
+     * Visible for tests: the same, with the clock that measures how long each test took. A seam
+     * because the only thing worth asserting about those durations is their order, and ordering two
+     * real durations means either sleeping long enough to be sure or racing.
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock) {
         this.ops = ops;
+        this.clock = clock;
 
         // A run refuses to start on a malformed screenshots/ tree. This is the same check CI hits,
         // so an author sees every violation locally before it ever reaches a pull request.
@@ -154,7 +181,9 @@ public class GrugTestRunner {
                 // succeeding and stops watching: anything that goes wrong after it is never looked
                 // at, so a failed dump would have left the run green with no coverage data behind
                 // it. Dumping here also makes the line mean what it says, which is that the tests
-                // passed and their coverage was recorded.
+                // passed and their coverage was recorded. The times go first for the same reason,
+                // and before the dump because a dump that throws is exactly when they are wanted.
+                printTestTimes();
                 GrugCoverage.dump();
                 System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
             }
@@ -218,6 +247,7 @@ public class GrugTestRunner {
                 }
                 System.out.println("[GRUG CI] PASS " + path + " (expected error)");
                 passedCount++;
+                recordTestTime(path);
                 destroyCurrentEntity();
                 nextTestIndex++;
                 currentTick = 0;
@@ -269,10 +299,67 @@ public class GrugTestRunner {
             Grug.printQueue.add("\u00A7aPASS " + path);
         }
         passedCount++;
+        recordTestTime(path);
 
         destroyCurrentEntity();
         nextTestIndex++;
         currentTick = 0;
+    }
+
+    /**
+     * Notes how long the test that just finished took.
+     *
+     * <p>Wall clock rather than ticks, because the question this answers is how long a run waits. A
+     * test's tick count says nothing about that: one that spreads itself over two hundred ticks
+     * waiting for a frame is quick, and one that does a single expensive call in a single tick is
+     * slow.
+     */
+    private void recordTestTime(String path) {
+        testNanos.put(path, clock.getAsLong() - currentTestStartNanos);
+    }
+
+    /**
+     * Prints what every test took, slowest first, because that is the order which says something: a
+     * reader looking for the one to fix starts at the top. Whole milliseconds, since nothing below
+     * that is worth acting on and the extra digits would only make the column harder to scan.
+     *
+     * <p>Silent when no test ran, because a heading over no rows is noise.
+     */
+    private void printTestTimes() {
+        List<Map.Entry<String, Long>> slowestFirst = new ArrayList<>(testNanos.entrySet());
+        if (slowestFirst.isEmpty()) {
+            // A heading over no rows, on a run that found no tests to run, says nothing.
+            return;
+        }
+        slowestFirst.sort((first, second) -> Long.compare(second.getValue(), first.getValue()));
+
+        long totalNanos = 0;
+        int width = 1;
+        for (Map.Entry<String, Long> entry : slowestFirst) {
+            totalNanos += entry.getValue();
+            width = Math.max(width, Long.toString(millis(entry.getValue())).length());
+        }
+
+        System.out.println(
+                "[GRUG CI] Test times, slowest first ("
+                        + slowestFirst.size()
+                        + " tests, "
+                        + millis(totalNanos)
+                        + "ms total):");
+        for (Map.Entry<String, Long> entry : slowestFirst) {
+            System.out.println(
+                    "[GRUG CI] "
+                            + String.format(
+                                    Locale.ROOT,
+                                    "%" + width + "dms  %s",
+                                    millis(entry.getValue()),
+                                    entry.getKey()));
+        }
+    }
+
+    /** Whole milliseconds, which is the resolution the printed times are stated at. */
+    private static long millis(long nanos) {
+        return nanos / 1_000_000L;
     }
 
     /**
@@ -296,6 +383,10 @@ public class GrugTestRunner {
 
         Map.Entry<String, Long> entry = tests.get(nextTestIndex);
         String path = entry.getKey();
+
+        // Started before the entity exists, so the time includes the setup a test needs rather than
+        // reporting only the part after it, which would make the cheapest test look free.
+        currentTestStartNanos = clock.getAsLong();
 
         System.out.println("[GRUG CI] Executing test: " + path);
 

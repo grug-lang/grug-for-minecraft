@@ -11,10 +11,15 @@ import net.grug.minecraft.grug.Vec3;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /** Covers {@link GrugTestRunner}'s state machine through its {@code TestEntityOps} seam. */
 class GrugTestRunnerTest {
@@ -29,10 +34,27 @@ class GrugTestRunnerTest {
         int created;
         int destroyed;
 
+        /**
+         * The path of the test now running, worked out from the file id the runner creates it with.
+         * The runner exposes only the owning mod to the script, so a fake that has to tell tests
+         * apart by anything else is guessing.
+         */
+        String activePath = "";
+
+        /** Set by a test that needs to address its fakes by path. */
+        void pathsAre(Map<String, Long> files) {
+            for (Map.Entry<String, Long> entry : files.entrySet()) {
+                pathOfFileId.put(entry.getValue(), entry.getKey());
+            }
+        }
+
+        private final Map<Long, String> pathOfFileId = new LinkedHashMap<>();
+
         @Override
         public long createEntity(long fileId) {
             created++;
             if (throwOnCreate != null) throw throwOnCreate;
+            activePath = pathOfFileId.getOrDefault(fileId, "");
             return nextHandle++;
         }
 
@@ -429,5 +451,135 @@ class GrugTestRunnerTest {
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
         assertNull(Grug.testOrigin);
+    }
+
+    /**
+     * A clock that reports whatever the test tells it to, so a duration is a value the test chose
+     * rather than one it had to outwait. That is what makes the order in the test below a fact
+     * about the printing rather than about how fast this machine happens to be.
+     */
+    private static final class StepClock implements LongSupplier {
+        private long nanos = 0;
+
+        @Override
+        public long getAsLong() {
+            return nanos;
+        }
+
+        void advance(long amount) {
+            nanos += amount;
+        }
+    }
+
+    private static final long MS = 1_000_000L;
+
+    /** Runs {@code body} and returns everything it printed to the console. */
+    private static String capture(Runnable body) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PrintStream saved = System.out;
+        try {
+            System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8));
+            body.run();
+        } finally {
+            System.setOut(saved);
+        }
+        return new String(out.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private static GrugTestRunner timedRunner(
+            FakeOps ops, Map<String, Long> files, LongSupplier c) {
+        return new GrugTestRunner(files, List.of(), ops, c);
+    }
+
+    /** The rows of the printed table, which are the lines naming a test and its time. */
+    private static List<String> tableRows(String printed) {
+        return printed.lines()
+                .filter(line -> line.contains("ms  mymod/"))
+                .collect(Collectors.toList());
+    }
+
+    @Test
+    void printsEveryTestsTimeSlowestFirst() {
+        // The order is the point: someone looking for the test worth fixing reads from the top, so
+        // a
+        // table in run order would leave them sorting it by hand every time.
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        Map<String, Long> timePerTest = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        files.put("mymod/code/c-Test.grug", 3L);
+        timePerTest.put("mymod/code/a-Test.grug", 30 * MS);
+        timePerTest.put("mymod/code/b-Test.grug", 10 * MS);
+        timePerTest.put("mymod/code/c-Test.grug", 300 * MS);
+        ops.pathsAre(files);
+        // Each script advances the clock by its own amount, so the durations are the three above
+        // rather than whatever three real tests happened to take.
+        ops.onCall = () -> clock.advance(timePerTest.get(ops.activePath));
+
+        String printed = capture(() -> runToEnd(timedRunner(ops, files, clock)));
+
+        assertEquals(
+                List.of(
+                        "[GRUG CI] 300ms  mymod/code/c-Test.grug",
+                        "[GRUG CI]  30ms  mymod/code/a-Test.grug",
+                        "[GRUG CI]  10ms  mymod/code/b-Test.grug"),
+                tableRows(printed),
+                printed);
+        // The heading totals them, so the sum can be compared against what the run itself took.
+        assertTrue(
+                printed.contains("[GRUG CI] Test times, slowest first (3 tests, 340ms total):"),
+                printed);
+    }
+
+    @Test
+    void printsNothingWhenNoTestRan() {
+        // A heading over no rows is noise, and a run that found no tests is already reported by the
+        // line that follows it.
+        String printed =
+                capture(() -> runToEnd(timedRunner(new FakeOps(), Map.of(), new StepClock())));
+
+        assertFalse(printed.contains("Test times"), printed);
+    }
+
+    @Test
+    void announcesTheRunAfterTheTimesSoTheyAreNotCutOff() {
+        // run-loader.sh stops watching the log at the announcement, so anything printed after it is
+        // never read. That is why the times go first.
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        ops.onCall = () -> clock.advance(5 * MS);
+
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        timedRunner(
+                                                ops, Map.of("mymod/code/a-Test.grug", 1L), clock)));
+
+        int times = printed.indexOf("Test times, slowest first");
+        int announced = printed.indexOf("ALL 1 TESTS PASSED");
+        assertTrue(times >= 0, printed);
+        assertTrue(announced >= 0, printed);
+        assertTrue(times < announced, printed);
+    }
+
+    @Test
+    void printsNoTableForAFailedRun() {
+        // A failed run prints the failure, not a table. The table only ever claims to describe a
+        // passing one, so a failure must not put a partial one out.
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        ops.completed = false;
+
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        timedRunner(
+                                                ops, Map.of("mymod/code/a-Test.grug", 1L), clock)));
+
+        assertFalse(printed.contains("Test times"), printed);
     }
 }
