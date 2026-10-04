@@ -61,6 +61,12 @@ public final class GrugScreenshot {
 
     @Override
     public String toString() {
-        return "GrugScreenshot[tolerancePercent=" + tolerancePercent + "]";
+        // Whether this one captured is the difference the class javadoc spends a paragraph on,
+        // and this is the one place a log line can show it.
+        return "GrugScreenshot[tolerancePercent="
+                + tolerancePercent
+                + ", captured="
+                + (captured != null)
+                + "]";
     }
 }

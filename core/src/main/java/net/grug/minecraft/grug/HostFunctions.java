@@ -413,10 +413,11 @@ public class HostFunctions {
             long screenshotId, double x1, double y1, double x2, double y2) {
         GrugScreenshot screenshot = (GrugScreenshot) Grug.entityData.get(screenshotId).object;
         BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
-        // A null capture has already been reported by the adapter, and storing null would leave the
-        // entity indistinguishable from one that never captured, so the comparison below reports
-        // the
-        // missing capture by name instead.
+        // The adapter has already reported a capture it could not take, so the null is stored
+        // rather than thrown from here. Storing it is what lets differs_from name the missing
+        // capture, which tells a test author which of the two screenshots to look at, where an
+        // unchecked one would throw a NullPointerException from inside the comparison and leave
+        // them to guess.
         Grug.addEntityWithId(
                 screenshotId, GrugEntityType.Screenshot, screenshot.withCapture(capture));
         return screenshotId;
