@@ -6,6 +6,10 @@ plugins {
 
 apply from: '../../gradle/jacoco-loader.gradle'
 
+// The hand-off from core: the repository this resolves it from and the version it asks for both come
+// from gradle/grug-core.gradle, which core publishes under too.
+apply from: '../../gradle/grug-core.gradle'
+
 base {
     archivesName = project.properties["archives_base_name"]
 }
@@ -34,7 +38,10 @@ sourceSets {
 }
 
 repositories {
-    mavenLocal()
+    maven {
+        name = 'grugBuild'
+        url = grugCoreRepository.toURI()
+    }
 
     maven {
         name = 'Ornithe Releases'
@@ -48,8 +55,8 @@ repositories {
 }
 
 dependencies {
-    implementation "net.grug:grug-core:${project.grug_core_version}"
-    include "net.grug:grug-core:${project.grug_core_version}"
+    implementation "net.grug:grug-core:$grugCoreVersion"
+    include "net.grug:grug-core:$grugCoreVersion"
 
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"

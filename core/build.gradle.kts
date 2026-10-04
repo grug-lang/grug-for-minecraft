@@ -8,7 +8,16 @@ plugins {
 }
 
 group = providers.gradleProperty("maven_group").get()
-version = providers.gradleProperty("mod_version").get()
+
+// The four loaders that run a Gradle wrapper of their own resolve core from a repository rather than
+// as a project, so this publishes them a coordinate to ask for. gradle/grug-core.gradle holds the
+// repository, the version and the reason both are what they are, and the loaders read it too.
+apply(from = "../gradle/grug-core.gradle")
+
+val grugCoreVersion = the<ExtraPropertiesExtension>().get("grugCoreVersion") as String
+val grugCoreRepository = the<ExtraPropertiesExtension>().get("grugCoreRepository") as File
+
+version = grugCoreVersion
 
 java.sourceCompatibility = JavaVersion.VERSION_17
 java.targetCompatibility = JavaVersion.VERSION_17
@@ -254,6 +263,17 @@ publishing {
             from(components["java"])
 
             artifactId = "grug-core"
+        }
+    }
+
+    repositories {
+        // Inside the checkout rather than in ~/.m2. The loaders that build on their own wrapper
+        // resolve core from here, and a checkout is a directory of its own, so one worktree's core
+        // is invisible to the loaders beside another. Published to the repository rather than to
+        // mavenLocal, so no build on this machine writes a coordinate somebody else can overwrite.
+        maven {
+            name = "grugBuild"
+            url = grugCoreRepository.toURI()
         }
     }
 }

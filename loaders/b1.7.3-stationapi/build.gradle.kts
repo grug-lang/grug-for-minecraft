@@ -1,3 +1,4 @@
+import java.io.File
 import java.net.URI
 
 plugins {
@@ -7,6 +8,13 @@ plugins {
 }
 
 apply(from = "../../gradle/jacoco-loader.gradle")
+
+// The hand-off from core: the repository this resolves it from and the version it asks for both come
+// from gradle/grug-core.gradle, which core publishes under too.
+apply(from = "../../gradle/grug-core.gradle")
+
+val grugCoreVersion = project.property("grugCoreVersion") as String
+val grugCoreRepository = project.property("grugCoreRepository") as File
 
 java.sourceCompatibility = JavaVersion.VERSION_17
 java.targetCompatibility = JavaVersion.VERSION_17
@@ -29,7 +37,10 @@ loom {
 }
 
 repositories {
-    mavenLocal()
+    maven {
+        name = "grugBuild"
+        url = grugCoreRepository.toURI()
+    }
 
     maven("https://maven.glass-launcher.net/snapshots/")
     maven("https://maven.glass-launcher.net/releases/")
@@ -49,8 +60,8 @@ repositories {
 }
 
 dependencies {
-    implementation("net.grug:grug-core:${project.properties["grug_core_version"]}")
-    include("net.grug:grug-core:${project.properties["grug_core_version"]}")
+    implementation("net.grug:grug-core:$grugCoreVersion")
+    include("net.grug:grug-core:$grugCoreVersion")
 
     minecraft("com.mojang:minecraft:b1.7.3")
     mappings("net.glasslauncher:biny:${project.properties["yarn_mappings"]}:v2")

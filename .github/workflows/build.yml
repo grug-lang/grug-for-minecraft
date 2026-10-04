@@ -71,6 +71,13 @@ jobs:
           python3 .github/scripts/report_native_abort_test.py
           python3 .github/scripts/run_loader_test.py
 
+      # The four standalone loaders resolve core from the repository the root build publishes it
+      # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
+      # would resolve the right jar and nothing would notice. This is the check that says otherwise,
+      # against a miniature repository and real Gradle.
+      - name: Test the core hand-off
+        run: python3 .github/scripts/grug_core_handoff_test.py
+
       # The coverage job downloads these to build the combined report the coverage gate checks.
       - name: Upload the coverage exec
         uses: actions/upload-artifact@v4

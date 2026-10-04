@@ -22,6 +22,10 @@ plugins {
     id 'java'
 }
 
+// The hand-off from core: the repository this resolves it from and the version it asks for both come
+// from gradle/grug-core.gradle, which core publishes under too.
+apply from: '../../gradle/grug-core.gradle'
+
 group = 'net.grug'
 version = '1.0.0'
 
@@ -54,8 +58,11 @@ def MCP_REPO = 'https://github.com/pablo67340/Working-Minecraft-1.2.5-MCP-with-F
 def MCP_COMMIT = 'b598d55f8a1e0e9cbda27517cfaa6d4a3224b202'
 
 repositories {
-    // grug-core is published to mavenLocal by the root build before this one runs.
-    mavenLocal()
+    // grug-core is published into this repository by the root build before this one runs.
+    maven {
+        name = 'grugBuild'
+        url = grugCoreRepository.toURI()
+    }
     mavenCentral()
     // launchwrapper 1.5 is not on Maven Central.
     maven { url = 'https://libraries.minecraft.net' }
@@ -83,7 +90,7 @@ dependencies {
     compileOnly 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
     compileOnly 'net.java.jinput:jinput:2.0.5'
 
-    implementation 'net.grug:grug-core:1.0.0'
+    implementation "net.grug:grug-core:$grugCoreVersion"
     implementation 'com.google.guava:guava:33.2.1-jre'
     implementation 'com.google.code.gson:gson:2.11.0'
     implementation 'org.jetbrains:annotations:23.0.0'
@@ -107,7 +114,7 @@ dependencies {
     runtimeLibs 'net.java.jinput:jinput:2.0.5'
     runtimeLibs 'org.lwjgl.lwjgl:lwjgl:2.9.0'
     runtimeLibs 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
-    runtimeLibs 'net.grug:grug-core:1.0.0'
+    runtimeLibs "net.grug:grug-core:$grugCoreVersion"
     runtimeLibs 'com.google.guava:guava:33.2.1-jre'
     runtimeLibs 'com.google.code.gson:gson:2.11.0'
     runtimeLibs 'org.jetbrains:annotations:23.0.0'
