@@ -36,11 +36,6 @@ client while another Gradle build is launching a game.
   new worktree at an existing checkout with `-Pgrug.mcpSnapshot=<path>` instead of cloning again.
 - The Gradle daemon and the `~/.gradle` caches are shared. Two builds can run at once, but they
   can block on cache locks, so prefer to let another agent's build finish first.
-- `~/.m2` is shared as well, and the four standalone loaders consume `net.grug:grug-core` from it.
-  A publish from another worktree can overwrite the artifact under this branch's feet, which shows
-  up as `Failed to load class file for '...'` from a class this branch added. Delete
-  `~/.m2/repository/net/grug/grug-core/<version>` and republish
-  (`./gradlew :core:publishMavenJavaPublicationToMavenLocal`) before suspecting the branch.
 
 ## Writing and explaining
 
@@ -129,6 +124,10 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 - The real tasks live in `loaders/<loader>/build.gradle`; the four standalone loaders also have a
   `root.gradle` that the root project's `runClient` execs, so both invocations reach them. A
   plain `runClient` is for playing and leaves `run/saves` alone; only `run-loader.sh` resets it.
+- The four standalone loaders resolve `net.grug:grug-core` from `build/maven`, which
+  `gradle/grug-core.gradle` names and `core` publishes into under a version stamped with the commit.
+  Both entry points above publish it first; a loader's own build run on its own asks for the
+  coordinate of the commit it is on and fails to resolve if that commit has not been published here.
 - The suite fails fast at the first `[GRUG CI] FAIL`. To verify tests that run after a known
   failure, temporarily copy the capture from
   `loaders/<loader>/run/grug-screenshot-artifacts/<mod>/screenshots/<name>/N.png` into the golden

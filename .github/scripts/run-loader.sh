@@ -51,10 +51,11 @@ if [ "$PHASE" = update-goldens ]; then
   export GRUG_UPDATE_GOLDENS=1
 fi
 
-# Standalone loaders have their own Gradle wrapper and consume core via mavenLocal.
+# Standalone loaders have their own Gradle wrapper and consume core from the repository the root
+# build publishes it into, so that publish has to happen before the loader's own build runs.
 if [ -f "${LOADER_DIR}/root.gradle" ]; then
-  echo "==> Publishing core to mavenLocal"
-  ./gradlew :core:publishMavenJavaPublicationToMavenLocal "${gradle_args[@]}" || exit 1
+  echo "==> Publishing core into build/maven"
+  ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository "${gradle_args[@]}" || exit 1
   cd "$LOADER_DIR"
   task_prefix=""
 else

@@ -1,0 +1,65 @@
+import java.util.Properties
+
+// The hand-off between `core` and the four loaders that run a Gradle wrapper of their own.
+//
+// The root build is on Gradle 8.14 and those loaders are on 9.5.1, which is why they cannot be one
+// composite build: `core` publishes itself and the loaders resolve it instead. Both halves read the
+// coordinate from here, so a loader cannot ask for a version `core` does not publish.
+//
+// The repository is inside the checkout rather than in the user's ~/.m2, so a worktree publishes
+// into a directory of its own and a loader beside it can only ever resolve that one. Nothing needs
+// locking, naming or cleaning up, because there is no longer a single global slot to race over.
+//
+// The version carries the commit. Resolved modules are cached in ~/.gradle, which every worktree on
+// the machine shares, so a fixed 1.0.0 is a coordinate one worktree publishes and another resolves.
+// A coordinate that moves with the commit cannot go stale that way: a loader asks for the commit it
+// is on, so a core published before the last commit is not a version it can find, and it fails to
+// resolve rather than compiling against one in silence. A republish of the coordinate it does ask
+// for is a file in its own repository, which Gradle reads afresh on every build, so an edit that has
+// not been committed is picked up as well.
+// .github/scripts/grug_core_handoff_test.py holds all three of those claims to it.
+
+// core/ is a project of the root build, whose own directory is the repository root, while a loader
+// is the root project of a build of its own and sits two directories below it.
+def repoRoot = project == project.rootProject
+    ? project.projectDir.parentFile.parentFile
+    : project.rootProject.projectDir
+
+// Where `core` publishes and where every loader resolves it from. build/ is per worktree, so the
+// directory under it is too.
+ext.grugCoreRepository = new File(new File(repoRoot, 'build'), 'maven')
+
+// The base version is read out of the root gradle.properties rather than kept in a property each
+// loader has its own copy of, so there is one place to change it.
+def rootPropertiesFile = new File(repoRoot, 'gradle.properties')
+if (!rootPropertiesFile.isFile()) {
+    throw new GradleException(
+        "${repoRoot.absolutePath} is not the grug-for-minecraft checkout: it holds no " +
+            'gradle.properties to read the version out of.'
+    )
+}
+def rootProperties = new Properties()
+rootPropertiesFile.withInputStream { rootProperties.load(it) }
+
+// git is not a new requirement: the build already clones grug-rs with it, so every tree this build
+// runs in is a checkout. The commit is read here rather than passed in, because a loader that ran
+// before its own core had been published has to fail rather than resolve an older one.
+def commitProcess = new ProcessBuilder(
+    'git', '-C', repoRoot.absolutePath, 'rev-parse', '--short=12', 'HEAD'
+)
+    .redirectErrorStream(true)
+    .start()
+
+// Read before waiting, so a full pipe cannot deadlock on a message longer than the buffer.
+def commitOutput = commitProcess.inputStream.getText('UTF-8').trim()
+if (commitProcess.waitFor() != 0) {
+    throw new GradleException(
+        "Could not read the commit in ${repoRoot.absolutePath}, which grug-core's published " +
+            "version is stamped with. core is built out of a git checkout, because the build clones " +
+            "grug-rs with git. git said: ${commitOutput}"
+    )
+}
+
+// toString(), so the loaders whose builds are written in Kotlin get a String rather than the GString
+// this interpolation produces in a Groovy script.
+ext.grugCoreVersion = "${rootProperties.getProperty('mod_version')}-${commitOutput}".toString()

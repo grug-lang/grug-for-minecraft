@@ -1,5 +1,5 @@
 tasks.register("runClient") {
-    dependsOn(":core:publishMavenJavaPublicationToMavenLocal")
+    dependsOn(":core:publishMavenJavaPublicationToGrugBuildRepository")
 
     doLast {
         def isWindows =
