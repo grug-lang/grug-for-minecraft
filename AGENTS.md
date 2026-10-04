@@ -147,7 +147,7 @@ be bumped by hand:
 
 | what | pinned where | how to bump |
 | :--- | :--- | :--- |
-| Gradle plugins | each `loaders/*/build.gradle` | `id '...' version '...'` |
+| Gradle plugins | each `loaders/*/build.gradle` or `build.gradle.kts` | `id '...' version '...'` |
 | Gradle distributions | `distributionSha256Sum` in each `gradle-wrapper.properties` | `curl -sSL <url>.sha256` |
 | GitHub Actions | a commit SHA with the release as a comment in each workflow | `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` |
 | Python | `pip install <name>==<version>` in the workflow that needs it | PyPI |
@@ -188,13 +188,23 @@ Four traps, each of which cost a run here:
 
 - **`gh workflow run --ref <branch>` measures cold.** Caches written by a pull request live on
   `refs/pull/<n>/merge` and a dispatch on the branch cannot read them. Push a commit to measure warm.
-- **A cache is only written when its key is absent, so changing a cache's list of paths needs a
-  changing key.** `build.yml` hashes itself into all of them for that reason. A cache restored
-  unchanged is the symptom.
-- **The repo cache store is 10GB and evicts.** It filled with stale duplicates of the same key, which
-  evicted the live ForgeGradle cache and put `1.20.6-forge` back to 276s. If one loader suddenly gets
-  slow, look for duplicate keys first:
-  `gh api "repos/grug-lang/grug-for-minecraft/actions/caches?per_page=100"`, keep the newest per key.
+- **A cache is written once per key per ref, and only when it is absent.** Two consequences, and both
+  have cost a run here. The first is that changing a cache's *list of paths* while leaving its key
+  alone does nothing at all: the stale entry restores successfully and the save is then skipped, so the
+  change silently has no effect. The symptom is a cache that *hits* when you expected a miss, not one
+  that restores unchanged. `build.yml` now hashes itself into all of its keys, which is what makes the
+  path list part of what the key describes.
+- **Caches are scoped to a ref, and a pull request's are not the base branch's.** The same key exists
+  as a separate entry on `refs/pull/<n>/merge` for each open pull request, and `main` cannot read any
+  of them. Verified: `pre-commit-Linux-b34053ba...` was present three times at once, on three different
+  pull request merge refs. So every open branch writes its own copy of the same gigabytes, a cache
+  measured on a pull request is discarded when it merges, and `main` starts cold.
+- **The repo cache store is 10GB and evicts, and the churn above is what fills it.** Every new
+  generation of a key costs another immutable entry, and four generations of a 424MB entry plus four of
+  a 93MB one existed on one pull request simultaneously. Eviction takes out the live ForgeGradle cache,
+  which presents as one loader suddenly being slow. Look for superseded generations first:
+  `gh api "repos/grug-lang/grug-for-minecraft/actions/caches?per_page=100"`, keeping the newest per key
+  per ref.
 - **The first run of a cache cannot tell you what it is worth.** Every change here needs two runs, and
   a run whose first job repopulated everything is not a measurement of anything.
 

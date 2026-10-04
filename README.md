@@ -89,8 +89,8 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 ```
 
 A full run of all five takes about two minutes of game time and, on a 15GB machine, has to be at most
-two at a time. Before the run, `GrugTestRunner` prints what every test took, slowest first, so the
-slow one to look at is at the top rather than the one you have to go looking for.
+two at a time. When a run finishes, `GrugTestRunner` prints what every test took, slowest first, so
+the slow one to look at is at the top rather than the one you have to go looking for.
 
 ### Multiplayer
 

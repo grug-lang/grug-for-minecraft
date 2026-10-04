@@ -157,9 +157,11 @@ jobs:
       - name: Test the core hand-off
         run: python3 .github/scripts/grug_core_handoff_test.py
       # The coverage job used to ask Gradle for this path, which cost it a cold Gradle start (~35s)
-      # for one string. This job already runs Gradle against a daemon that is warm by now, so it
-      # resolves the jar instead, and the version stays the jacoco plugin's own with no second place
-      # to keep it in sync. Staged under a fixed name because only the upload step reads it.
+      # for one string. This job has already resolved core's dependencies and has a Gradle home with
+      # them in, so it resolves the jar instead, and the version stays the jacoco plugin's own with no
+      # second place to keep it in sync. Note that gradle.properties sets org.gradle.daemon=false, so
+      # this is a second daemon fork rather than a warm one: what it saves is the resolution and the
+      # cold cache, not the startup. Staged under a fixed name because only the upload step reads it.
       - name: Locate the JaCoCo CLI
         run: |
           cli=$(./gradlew -q :core:printJacocoCliPath -Dgrug.activeLoader=a1.1.2_01-ornithe | grep '^JACOCO_CLI=' | cut -d= -f2)
@@ -253,14 +255,18 @@ jobs:
       # of what it bought.
       #
       # One entry for all five, which is also its limit: only the first loader to finish writes it, so
-      # what lands in it is that loader's resolved subset and not the union. Measured, the parts that
-      # leaves out cost nothing visible, because the loader-specific gaps are not where the time goes:
-      # b1.7.3-stationapi's window between starting Gradle and "> Configure project" is 27s both with
-      # and without this, and it has no network activity in it, so what is in there is not resolution.
-      # Per-loader keys would close the gap and would gain no more than that.
+      # what lands in it is that loader's resolved subset and not the union, and once the key exists
+      # nobody writes it again, so a dependency added to a later loader afterwards is never cached.
+      # Measured, the parts that leaves out cost nothing visible, because the loader-specific gaps are
+      # not where the time goes: b1.7.3-stationapi's window between starting Gradle and "> Configure
+      # project" is 27s both with and without its scripts cached, and that window has no network
+      # activity in it at all, so what is in there is not resolution. Per-loader keys would close the
+      # coverage gap; that they would gain nothing more is reasoned from that window, not measured.
       #
       # Keyed on every file that decides what is resolvable, so a version, repository or plugin bump
-      # misses rather than restoring a graph that no longer matches the build.
+      # misses rather than restoring a graph that no longer matches the build. The standalone loaders'
+      # own root.gradle is not in the key because it resolves nothing: it registers the task that execs
+      # their own wrapper.
       - name: Cache the Gradle distributions and dependencies
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -275,6 +281,10 @@ jobs:
       # and Loom content never gets in. Keyed per loader, because ForgeGradle and Loom both write to
       # the same directory and no loader may restore another's, and on the files that name the
       # Minecraft and mapping versions, so a version bump misses instead of serving the old one.
+      #
+      # Which means loaders/*/gradle.properties and not just the build files: that is where every
+      # loader's minecraft_version and mappings actually live, a subproject's properties file overriding
+      # the root one, so a bump there with the key unchanged restores the old Minecraft.
       #
       # Not the assets: downloadAssets takes 1.9s from resources.download.minecraft.net, which is not
       # worth the 500MB the asset index and objects take in the entry. 1.2.5-forge is excluded
@@ -291,7 +301,7 @@ jobs:
             ~/.gradle/caches/forge_gradle/maven_downloader
             ~/.gradle/caches/fabric-loom
             ~/.gradle/caches/ornithe-keratin
-          key: grug-minecraft-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          key: grug-minecraft-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'loaders/*/gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       # 1.2.5-forge's Minecraft is the pinned MCP snapshot its build clones, 170MB into its own build
       # directory, which is 13s of its Build step. Keyed on the build file that holds the pin, so a
