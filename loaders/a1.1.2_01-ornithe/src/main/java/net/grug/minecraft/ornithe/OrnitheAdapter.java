@@ -76,10 +76,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     /**
      * Always a client, and not as a shortcut: Ornithe ships no dedicated server for this Minecraft
-     * version at all. Its own version metadata says {@code "server": false} for a1.1.2_01 with no
-     * server download, and the lifecycle library it resolves has no server package either, so a
-     * second process cannot exist to report anything else. Alpha 1.1.2_01 did have a dedicated
-     * server in the real game; this loader has no way to reach it.
+     * version at all, so a second process cannot exist to report anything else. Alpha 1.1.2_01 did
+     * have a dedicated server in the real game; this loader has no way to reach it. Three
+     * independent reasons:
+     *
+     * <ul>
+     *   <li>The version metadata has no server download, and loom's normalized copy records that as
+     *       {@code "server": false}. b1.7.3's says {@code true} and lists one.
+     *   <li>The game jar holds no {@code net.minecraft.server.MinecraftServer}; b1.7.3's server jar
+     *       does.
+     *   <li>Both OSL jars this version resolves declare {@code "environment": "client"}, so Ornithe
+     *       would not load its lifecycle or resource libraries on a server even if one existed.
+     * </ul>
      */
     @Override
     public GrugSide getSide() {
