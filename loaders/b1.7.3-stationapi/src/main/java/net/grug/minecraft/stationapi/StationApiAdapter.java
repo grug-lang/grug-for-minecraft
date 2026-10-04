@@ -645,6 +645,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    public void closeOpenScreenForTest() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        mc.setScreen(null);
+    }
+
+    @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         @SuppressWarnings("deprecation")
