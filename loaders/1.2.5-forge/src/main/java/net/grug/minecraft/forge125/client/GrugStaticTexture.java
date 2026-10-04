@@ -66,6 +66,12 @@ public class GrugStaticTexture extends FMLTextureFX {
         super(sprite);
         this.file = file;
         this.engine = engine;
+        // tileImage, and the inherited bindImage, rather than a texture id cached the way
+        // ModTextureStatic does it. bindImage resolves the atlas by name on every call, so a
+        // texture-pack reload that moves the atlas is picked up; a cached id from
+        // RenderEngine.getTexture would still point at the old one, which is the whole reason this
+        // class exists. ModTextureStatic can afford the id because it overrides setup() and never
+        // calls bindImage at all.
         this.tileImage = atlas;
         // One tile, which is what a grug texture is: the sprite has no size of its own, and
         // updateDynamicTextures walks this many tiles of the atlas per effect.
@@ -86,6 +92,17 @@ public class GrugStaticTexture extends FMLTextureFX {
      */
     public void read() {
         BufferedImage image = readImage();
+        // tileSizeBase, not a constant, because imageData and this method have to agree about how
+        // big a tile is: TextureFX starts imageData at 1024 bytes for a 16 pixel tile, and
+        // FMLTextureFX.setup reallocates it to tileSizeSquare << 2 in the same callback that sets
+        // tileSizeBase from the atlas width, so the two are consistent at every point read() can be
+        // called. Reading the field afresh each time is what keeps them so across a reload.
+        //
+        // The one thing that would break it is an atlas wider than 256 pixels, which would make
+        // tileSizeBase larger than the 16 this class was constructed with. The constructor's read
+        // would then scale the texture into 16 pixels of a tile that is now bigger, and the sprite
+        // would show that corner until the next reload rescaled it. 1.2.5's own /terrain.png and
+        // /gui/items.png are 256x256, so tileSizeBase stays 16 and this cannot arise.
         int side = this.tileSizeBase;
         if (image.getWidth() != side || image.getHeight() != side) {
             // A grug texture is one tile of the atlas, so an image of any other size is scaled into

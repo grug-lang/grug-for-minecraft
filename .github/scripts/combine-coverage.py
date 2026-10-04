@@ -98,8 +98,10 @@ EXCLUDED_CLASSES = {
     "GrugContainer",
     "VanillaNames",
     "GrugItem",
-    # Uploads grug textures into the two atlases 1.2.5 stitches at startup, which is GL work a
-    # headless CI cannot reach.
+    # Uploads grug textures into the two atlases 1.2.5 stitches at startup. Not excluded because the
+    # GL work is out of reach: CI does run it, and coverage/tests/hot_reload_texture-Test.grug passes
+    # here precisely because it succeeds. It is excluded for the reason given above this whole block,
+    # that 1.2.5 contributes no exec data to measure it with.
     "GrugTextures",
 }
 
