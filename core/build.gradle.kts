@@ -117,6 +117,12 @@ val grugRsUrl = "https://github.com/grug-lang/grug-rs.git"
 // Pinned for stability. Bump this every so often.
 val grugRsRevision = "92cce90489b9104b51786c01616c7817bd291bf7"
 
+// Where the adapter links grug-rs from. cloneGrugRs and buildGrugRs both write this one file.
+val libGruggers = grugRsDir.resolve("target/release/libgruggers.a")
+
+// A libgruggers.a built elsewhere, as a path. See stagePrebuiltGrugRs below.
+val prebuiltGrugRs = providers.gradleProperty("grug.prebuiltGrugRs").orNull
+
 val cloneGrugRs = tasks.register("cloneGrugRs") {
     doLast {
         if (!grugRsDir.resolve(".git").exists()) {
@@ -136,9 +142,7 @@ val cloneGrugRs = tasks.register("cloneGrugRs") {
 val buildGrugRs = tasks.register("buildGrugRs") {
     dependsOn(cloneGrugRs)
 
-    val libFile = grugRsDir.resolve("target/release/libgruggers.a")
-
-    outputs.file(libFile)
+    outputs.file(libGruggers)
     outputs.upToDateWhen { false }
 
     doLast {
@@ -146,6 +150,24 @@ val buildGrugRs = tasks.register("buildGrugRs") {
             listOf("cargo", "build", "--release", "-p", "gruggers"),
             grugRsDir
         )
+    }
+}
+
+// CI builds the grug-rs static library once and hands the same libgruggers.a to every job as an
+// artifact, because it depends on nothing but the pinned revision above: the same bytes link into
+// all five loaders. Pointing -Pgrug.prebuiltGrugRs at that file stages it where buildGrugAdapter
+// links from and takes cloneGrugRs and buildGrugRs out of the task graph, so a job that was handed a
+// library never clones grug-rs or runs cargo. Registered only when the property is set, which leaves
+// a local build's task graph, and its up-to-date behaviour, exactly as it was.
+val stagePrebuiltGrugRs = prebuiltGrugRs?.let { prebuilt ->
+    tasks.register("stagePrebuiltGrugRs") {
+        inputs.file(prebuilt)
+        outputs.file(libGruggers)
+
+        doLast {
+            libGruggers.parentFile.mkdirs()
+            File(prebuilt).copyTo(libGruggers, overwrite = true)
+        }
     }
 }
 
@@ -193,7 +215,7 @@ val generateGrugAdapter = tasks.register("generateGrugAdapter") {
 }
 
 val buildGrugAdapter = tasks.register("buildGrugAdapter") {
-    dependsOn(buildGrugRs, generateGrugAdapter)
+    dependsOn(stagePrebuiltGrugRs ?: buildGrugRs, generateGrugAdapter)
 
     val adapterC = nativeSrcDir.resolve("adapter.c")
 
@@ -202,9 +224,6 @@ val buildGrugAdapter = tasks.register("buildGrugAdapter") {
         .files
         .filter { it.name.endsWith(".c") }
         .singleFile
-
-    val libGruggers = grugRsDir
-        .resolve("target/release/libgruggers.a")
 
     val outLib = nativesOutDir
         .resolve("libadapter.so")

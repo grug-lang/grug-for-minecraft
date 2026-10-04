@@ -45,6 +45,18 @@ LOG_FILE="${REPO_ROOT}/${LOADER_DIR}/run/ci-run-loader.log"
 export GRUG_CI=true
 gradle_args=(-Dgrug.activeLoader="$LOADER" --stacktrace)
 
+# CI builds the grug-rs static library once per run and passes it to every job as an artifact,
+# because it is the same file for all five loaders. Handing it over takes cloneGrugRs and buildGrugRs
+# out of the task graph, which is a git fetch plus a cargo build this job would otherwise repeat. Left
+# unset locally, where building grug-rs from the pinned revision is the point.
+if [ -n "${GRUG_PREBUILT_GRUG_RS:-}" ]; then
+  if [ ! -f "$GRUG_PREBUILT_GRUG_RS" ]; then
+    echo "==> ERROR: GRUG_PREBUILT_GRUG_RS is set to '$GRUG_PREBUILT_GRUG_RS', which is not a file." >&2
+    exit 1
+  fi
+  gradle_args+=(-Pgrug.prebuiltGrugRs="$GRUG_PREBUILT_GRUG_RS")
+fi
+
 # Accept unmatched screenshot captures into the mods' screenshots/ directories, so a contributor
 # reviews the new PNGs in the working tree instead of copying them out of the artifacts directory.
 if [ "$PHASE" = update-goldens ]; then
