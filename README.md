@@ -69,6 +69,22 @@ Use the following Gradle commands to build and run the specific mod loader envir
 | **Beta 1.7.3** | StationAPI | `./gradlew :loaders:b1.7.3-stationapi:runClient` |
 | **Alpha 1.1.2_01** | Ornithe | `./gradlew :loaders:a1.1.2_01-ornithe:runClient` |
 
+### Running the Tests
+
+CI runs the whole suite on all five loaders, which is the only thing that proves a change works
+everywhere, and it is far more than most changes need. Booting a game is most of its cost, so run the
+part your change can reach:
+
+| what you changed | what to run |
+| :--- | :--- |
+| `core/`, `mod_api.json`, the grug adapter generator | `./gradlew :core:test -Dgrug.activeLoader=a1.1.2_01-ornithe` and `python3 core/test_generate.py`. No game boots. |
+| one loader | `.github/scripts/run-loader.sh <loader-dir-name> run` under `xvfb-run`, for that loader only |
+| a grug script, or a mod | the loader you are developing for, since every `*-Test.grug` joins all five suites |
+
+A full run of all five takes about two minutes of game time and, on a 15GB machine, has to be at most
+two at a time. Before the run, `GrugTestRunner` prints what every test took, slowest first, so the
+slow one to look at is at the top rather than the one you have to go looking for.
+
 ### Multiplayer
 
 **grug is singleplayer-only today.** No loader runs the test suite or opens a GUI on a dedicated
