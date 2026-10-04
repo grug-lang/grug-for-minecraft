@@ -727,9 +727,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public boolean registersModRecipes() {
-        // This version's CraftingManager holds IRecipes added in code and reads no JSON at all, and
-        // the loader serves this mod no data/ pack, so nothing here reads a mod's recipe tree.
-        return false;
+        // GrugRecipeParser reads the mods' data/<namespace>/recipes tree in modsLoaded and hands
+        // each recipe to ModLoader.addRecipe or addShapelessRecipe.
+        return true;
     }
 
     @Override

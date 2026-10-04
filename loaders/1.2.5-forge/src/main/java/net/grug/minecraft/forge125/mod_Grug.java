@@ -37,6 +37,9 @@ public class mod_Grug extends BaseMod {
     public static final Map<String, Long> blockFiles = new HashMap<>();
     public static final Map<String, Long> itemFiles = new HashMap<>();
 
+    /** The mods directory {@link #load()} resolved, which recipe registration reads in return. */
+    private static File activeGrugDir;
+
     /** The running client, or null before it exists. */
     public static Minecraft minecraft() {
         return ModLoader.getMinecraftInstance();
@@ -58,7 +61,7 @@ public class mod_Grug extends BaseMod {
         }
 
         File modApiJson = new File(runGrugDir, "mod_api.json");
-        File activeGrugDir = getActiveGrugModsDir(runGrugDir);
+        activeGrugDir = getActiveGrugModsDir(runGrugDir);
 
         try (InputStream in = mod_Grug.class.getResourceAsStream("/mod_api.json")) {
             if (in == null) {
@@ -110,6 +113,7 @@ public class mod_Grug extends BaseMod {
     @Override
     public void modsLoaded() {
         GrugBlocks.init();
+        GrugRecipeParser.registerAll(activeGrugDir);
     }
 
     /**
