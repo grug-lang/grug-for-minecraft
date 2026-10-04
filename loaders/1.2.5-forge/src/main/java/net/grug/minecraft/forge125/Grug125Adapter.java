@@ -726,6 +726,13 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean registersModRecipes() {
+        // This version declares its recipes in code and has no JSON recipe format, so the mods'
+        // data/<namespace>/recipes tree is never read here.
+        return false;
+    }
+
+    @Override
     public Vec3 getTestOrigin() {
         EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
         return new Vec3(player.posX, player.posY + 3.0, player.posZ);

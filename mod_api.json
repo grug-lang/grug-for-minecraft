@@ -252,6 +252,12 @@
 						"name": "bool"
 					}
 				},
+				"registers_mod_recipes": {
+					"description": "Test only: whether this loader registers the crafting recipes a mod ships under `data/<namespace>/recipes`. The loaders built on Ornithe and on StationAPI read that tree; the 1.2.5 and 1.20.6 Forge loaders hand the grid to the game's own recipe manager instead, which knows nothing a grug mod ships. A test that asserts a shipped recipe asks this first, because where the tree is never read the recipe is not registered, and asserting it anyway would fail the run for something that loader cannot do.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"notify_neighbors": {
 					"description": "Test only: notifies the neighbours of a position as if the block there had changed, so a test can deliver an on_neighbor_change without a non-quiet block write.",
 					"parameters": [

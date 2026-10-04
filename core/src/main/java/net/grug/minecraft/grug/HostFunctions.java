@@ -93,6 +93,19 @@ public class HostFunctions {
         return GrugReference.isReferenceRun();
     }
 
+    /**
+     * Test only: whether this loader registers the crafting recipes a mod ships under its {@code
+     * data/<namespace>/recipes} tree, which the Ornithe and StationAPI loaders do and the two Forge
+     * loaders do not.
+     *
+     * <p>A test that asserts one of those recipes asks this first. Where the tree is never read the
+     * recipe does not exist, and asserting it anyway fails the run for something the loader cannot
+     * do rather than for something grug got wrong.
+     */
+    public static boolean Test_registers_mod_recipes() {
+        return GrugCore.getAdapter().registersModRecipes();
+    }
+
     public static long Test_setup_graphics_camera() {
         return Grug.addEntity(GrugEntityType.Vec3, GrugCore.getAdapter().setupGraphicsTestCamera());
     }
