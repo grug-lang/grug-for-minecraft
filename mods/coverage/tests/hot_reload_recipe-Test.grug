@@ -1,7 +1,10 @@
 # Removes the trailing newline from a recipe, so the loaders' recipe hot-reload path runs, then
 # restores it. Removing a newline keeps the JSON valid, unlike the invalid state used for code files.
+# It disturbs the shapeless fixture rather than the shaped one because StationAPI's hot-reload path
+# reads the changed file's type and re-registers under that id, so this drives the recipe type the
+# shapeless backport is about. The shaped fixture stays covered by the removal test deleting it.
 change_baseline: number = -1
-path: string = "coverage/data/grug/recipes/crafting/result_item.json"
+path: string = "coverage/data/grug/recipes/crafting/shapeless_recipe.json"
 
 export run() {
     if Test.tick() == 0 {
