@@ -334,6 +334,41 @@ public final class GrugScreenshots {
         }
     }
 
+    /**
+     * The share of pixels that differ between two captures of the same rectangle, from 0 to 100.
+     *
+     * <p>A pixel counts as changed when any of its red, green or blue channels differs at all, and
+     * alpha is ignored, as in {@link #verify}. A surface the game lights per vertex can come out a
+     * single part brighter between two runs, so a caller that wants to ignore that asks for a
+     * percentage rather than for no change at all.
+     *
+     * <p>This is how a test says "the game is now drawing something else" without a reference image
+     * to compare against, which matters because one rendering is not the same everywhere: the same
+     * crop of the same block differs between Minecraft versions and between platforms, and a
+     * reference image has to be accepted once per appearance, while two captures of one session
+     * agree with each other about everything except what the test changed.
+     *
+     * @throws IllegalArgumentException when the captures are not the same size, which means the two
+     *     halves of a test asked for different rectangles rather than that anything changed.
+     */
+    public static double changedPercent(BufferedImage a, BufferedImage b) {
+        if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) {
+            throw new IllegalArgumentException(
+                    "the two captures are "
+                            + a.getWidth()
+                            + "x"
+                            + a.getHeight()
+                            + " and "
+                            + b.getWidth()
+                            + "x"
+                            + b.getHeight()
+                            + ", so they are not two views of the same rectangle");
+        }
+        int total = a.getWidth() * a.getHeight();
+        if (total == 0) return 0;
+        return 100.0 * countDifferences(a, b) / total;
+    }
+
     /** The numbered references in a directory, ordered 1, 2, 3, ... If it doesn't exist, empty. */
     private static List<File> listReferences(File directory) {
         List<File> references = new ArrayList<>();

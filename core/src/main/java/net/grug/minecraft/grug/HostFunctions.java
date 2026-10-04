@@ -4,6 +4,8 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugModFidelity;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
+import java.awt.image.BufferedImage;
+import java.util.Locale;
 import java.util.OptionalInt;
 
 public class HostFunctions {
@@ -398,6 +400,72 @@ public class HostFunctions {
         GrugCore.getAdapter()
                 .assertScreenshotEquals(
                         referencePath, x1, y1, x2, y2, screenshot.tolerancePercent());
+    }
+
+    /**
+     * Reads the rectangle into this entity, so a later {@code Screenshot.differs_from} can compare
+     * it with another capture of the same rectangle.
+     *
+     * <p>Whole percentages only on {@code differs_from}, for the same reason {@code tolerance} is:
+     * the arithmetic is over a pixel count.
+     */
+    public static long Screenshot_capture(
+            long screenshotId, double x1, double y1, double x2, double y2) {
+        GrugScreenshot screenshot = (GrugScreenshot) Grug.entityData.get(screenshotId).object;
+        BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
+        // A null capture has already been reported by the adapter, and storing null would leave the
+        // entity indistinguishable from one that never captured, so the comparison below reports
+        // the
+        // missing capture by name instead.
+        Grug.addEntityWithId(
+                screenshotId, GrugEntityType.Screenshot, screenshot.withCapture(capture));
+        return screenshotId;
+    }
+
+    public static void Screenshot_differs_from(long screenshotId, long otherId, double percent) {
+        GrugScreenshot screenshot = (GrugScreenshot) Grug.entityData.get(screenshotId).object;
+        GrugScreenshot other = (GrugScreenshot) Grug.entityData.get(otherId).object;
+        String name = "Screenshot.differs_from";
+
+        if (percent < 0 || percent > 100 || percent != Math.floor(percent)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    name
+                            + ": percent must be a whole number between 0 and 100, but got "
+                            + percent
+                            + ".");
+            return;
+        }
+        if (screenshot.captured() == null || other.captured() == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    name
+                            + ": both screenshots have to be captured first, with"
+                            + " Screenshot.capture, before they can be compared.");
+            return;
+        }
+
+        double changed;
+        try {
+            changed = GrugScreenshots.changedPercent(screenshot.captured(), other.captured());
+        } catch (IllegalArgumentException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, name + ": " + e.getMessage());
+            return;
+        }
+
+        if (changed < percent) {
+            // One decimal place, so a share just short of the threshold does not read as having met
+            // it, and a whole number does not read as if it were rounded down from something
+            // higher.
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    name
+                            + ": the frame still shows what it showed before, since only "
+                            + String.format(Locale.ROOT, "%.1f", changed)
+                            + "% of its pixels changed and at least "
+                            + (int) percent
+                            + "% was asked for.");
+        }
     }
 
     public static double Vec3_x(long vec3Id) {

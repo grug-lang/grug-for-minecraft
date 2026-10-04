@@ -1,0 +1,10 @@
+# A screenshot that never captured anything cannot be compared, and saying so beats a NullPointerException
+# from inside the comparison. Test.screenshot() alone builds the builder without reading a frame.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("have to be captured first")
+        captured: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        never_read: Screenshot = Test.screenshot()
+        never_read.differs_from(captured, 50)
+    }
+}

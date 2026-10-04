@@ -701,6 +701,31 @@ public class StationApiAdapter implements ModLoaderAdapter {
             double x2,
             double y2,
             double tolerancePercent) {
+        BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
+        if (capture == null) {
+            return; // captureChecked already reported why
+        }
+
+        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
+        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
+        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
+        File referenceDirectory = new File(InitListener.getActiveGrugModsDir(), referencePath);
+        GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
+    }
+
+    @Override
+    public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        return captureChecked("Screenshot.capture", x1, y1, x2, y2);
+    }
+
+    /**
+     * Checks the rectangle and reads it, reporting {@code operation} as the thing that wanted it.
+     * Both screenshot entry points share this so a bad coordinate is reported the same way either
+     * way; only the name in front of the message differs.
+     */
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    private BufferedImage captureChecked(
+            String operation, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure.
         String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
@@ -708,13 +733,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
         if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
         if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
         if (bad != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.equals: " + bad);
-            return;
+            Grug.hostFunctionErrorHappened(Grug.statePtr, operation + ": " + bad);
+            return null;
         }
         if (x2 <= x1 || y2 <= y1) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Screenshot.equals: the rectangle is empty, since ("
+                    operation
+                            + ": the rectangle is empty, since ("
                             + (int) x2
                             + ","
                             + (int) y2
@@ -723,7 +749,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
                             + ","
                             + (int) y1
                             + ")");
-            return;
+            return null;
         }
 
         // A defensive safety net rather than the primary sizing mechanism: R forces 1280x720 around
@@ -735,7 +761,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 || mc.displayHeight != GrugScreenshots.HEIGHT) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Screenshot.equals: the window is "
+                    operation
+                            + ": the window is "
                             + mc.displayWidth
                             + "x"
                             + mc.displayHeight
@@ -743,20 +770,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
                             + GrugScreenshots.WIDTH
                             + "x"
                             + GrugScreenshots.HEIGHT);
-            return;
+            return null;
         }
 
-        BufferedImage capture =
-                captureRectangle((int) x1, (int) y1, (int) x2, (int) y2, mc.displayHeight);
-        if (capture == null) {
-            return; // captureRectangle already reported why
-        }
-
-        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
-        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
-        File referenceDirectory = new File(InitListener.getActiveGrugModsDir(), referencePath);
-        GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
+        return captureRectangle(
+                operation, (int) x1, (int) y1, (int) x2, (int) y2, mc.displayHeight);
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
@@ -791,7 +809,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
      */
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private static BufferedImage captureRectangle(
-            int x1, int y1, int x2, int y2, int windowHeight) {
+            String operation, int x1, int y1, int x2, int y2, int windowHeight) {
         int width = x2 - x1;
         int height = y2 - y1;
         int glY = windowHeight - y2;
@@ -802,15 +820,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
             GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
         } catch (RuntimeException e) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Screenshot.equals: the pixel readback failed unexpectedly: " + e);
+                    Grug.statePtr, operation + ": the pixel readback failed unexpectedly: " + e);
             return null;
         }
         int glError = GL11.glGetError();
         if (glError != GL11.GL_NO_ERROR) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Screenshot.equals: glReadPixels failed with GL error 0x"
+                    operation
+                            + ": glReadPixels failed with GL error 0x"
                             + Integer.toHexString(glError)
                             + ", so the capture cannot be trusted. A multisampled or otherwise "
                             + "unreadable framebuffer is the usual cause.");
@@ -832,7 +850,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         } catch (RuntimeException e) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Screenshot.equals: could not build an image from the readback: " + e);
+                    operation + ": could not build an image from the readback: " + e);
             return null;
         }
     }

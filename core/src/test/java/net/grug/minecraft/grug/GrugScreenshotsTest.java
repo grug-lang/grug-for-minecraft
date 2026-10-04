@@ -1,11 +1,13 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,7 +15,8 @@ import java.util.List;
 
 /**
  * Covers the {@code screenshots/} tree convention enforced by {@link
- * GrugScreenshots#validateReferenceTrees(java.io.File)}.
+ * GrugScreenshots#validateReferenceTrees(java.io.File)}, and the share-of-pixels-changed measure
+ * {@link GrugScreenshots#changedPercent} reports for a test that compares two of its own captures.
  */
 class GrugScreenshotsTest {
 
@@ -127,5 +130,63 @@ class GrugScreenshotsTest {
     void treatsAMissingModsDirectoryAsEmpty() {
         assertEquals(
                 List.of(), GrugScreenshots.validateReferenceTrees(mods.resolve("nope").toFile()));
+    }
+
+    /** A solid image, so a test can say which pixels it repainted. */
+    private static BufferedImage solid(int width, int height, int rgb) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                image.setRGB(x, y, rgb);
+            }
+        }
+        return image;
+    }
+
+    @Test
+    void twoCapturesOfAnUnchangedFrameDifferInNothing() {
+        BufferedImage before = solid(10, 10, 0x203040);
+
+        assertEquals(0.0, GrugScreenshots.changedPercent(before, solid(10, 10, 0x203040)));
+    }
+
+    @Test
+    void aPixelCountsAsChangedWhenAnyChannelDiffers() {
+        BufferedImage before = solid(4, 1, 0x000000);
+        BufferedImage after = solid(4, 1, 0x000000);
+        // Only the blue channel, and only on one of the four pixels.
+        after.setRGB(2, 0, 0x000001);
+
+        // One part in 255 on one pixel of four: a change of a single unit still counts, which is
+        // what lets a caller ask for a percentage instead of having to ignore small changes itself.
+        assertEquals(25.0, GrugScreenshots.changedPercent(before, after));
+    }
+
+    @Test
+    void aWhollyRepaintedFrameDiffersInEveryPixel() {
+        assertEquals(
+                100.0,
+                GrugScreenshots.changedPercent(solid(8, 8, 0x000000), solid(8, 8, 0xFFFFFF)));
+    }
+
+    @Test
+    void alphaAloneIsNotAChange() {
+        BufferedImage before = solid(4, 4, 0x102030);
+        BufferedImage after = solid(4, 4, 0x102030);
+        after.setRGB(1, 1, 0xFF102030 | 0x40000000);
+
+        // The framebuffer may not even carry alpha, and nothing in the game draws with it, so
+        // counting it would make an opaque capture look changed when nothing about the picture was.
+        assertEquals(0.0, GrugScreenshots.changedPercent(before, after));
+    }
+
+    @Test
+    void twoCapturesOfDifferentRectanglesAreRejected() {
+        IllegalArgumentException error =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> GrugScreenshots.changedPercent(solid(4, 4, 0), solid(4, 5, 0)));
+
+        assertTrue(error.getMessage().contains("not two views of the same rectangle"));
     }
 }

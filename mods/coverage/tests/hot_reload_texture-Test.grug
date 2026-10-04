@@ -1,26 +1,25 @@
 # Swaps the texture a block renders with, waits until the engine reports the change and the loaders
-# have reloaded their resources, and screenshots the same rectangle twice: once with the texture the
-# mod ships, and once with the file's bytes swapped for the sibling beside it.
+# have reloaded their resources, and then checks that the frame the block is drawn in changed.
 # (The engine reports a changed non-grug file through Grug.update, and the loaders answer it.)
 # Swapping a file for a sibling is what editing a texture in a paint program looks like from the
 # engine's side, and the report it waits for is the one every loader answers by reloading: Alpha and
-# Beta re-upload their grug sprites, StationAPI and Forge reload their resource packs. Without the
-# swap the screenshots would be two copies of the same frame, which every loader passes whether or
-# not it reloads anything.
+# Beta re-upload their grug sprites, StationAPI and Forge reload their resource packs.
+# Comparing the two frames is what makes the assertion mean something. Two reference images would not:
+# a frame that never changed would match the reference for the shipped texture on every loader, so
+# "the swap was picked up" would rest on a reviewer having noticed that the two accepted PNGs differ.
+# Asking for half the rectangle is deliberately far from the noise floor. A block face a block from
+# the camera is lit per vertex, and a vertex comes out a single part brighter on some runs than
+# others, so a handful of pixels wobble between two captures of an unchanged frame; a texture swap
+# repaints every pixel of it.
 # The "normal" state at the end puts the shipped texture back, and a run that dies before it gets
 # there is put back by the next startup, so an interrupted run cannot leave the mod's texture
 # swapped for the run after it.
-# Both comparisons are pixel exact, which is why the crop sits between two rows of the texture
-# rather than anywhere convenient. A crop that straddles a texel boundary picked up a band of three
-# rows one part brighter on some runs and not others, and a tolerance cannot paper over that here:
-# the harness fails a run that asks for more slack than the capture needs, so 0 fails on the runs
-# that wobble and 1 fails on the runs that do not. Inside one texel there is no boundary to cross,
-# and three consecutive Alpha runs then matched exactly. See the pull request for the measurements.
 swapped: bool = false
 reload_seen: bool = false
 change_baseline: number = -1
 reloaded_at: number = -1
 path: string = "coverage/assets/grug/textures/block/coverage_block.png"
+before: Option[Screenshot] = Option.new()
 
 export run() {
     if Test.tick() == 0 {
@@ -37,10 +36,10 @@ export run() {
         # measures the same wait against the same camera, so 40 is a known-good figure here.
         Test.not_done()
     } else if not swapped {
-        # The texture the mod ships, before anything has been disturbed. Its own reference
-        # directory, because one directory holding both renderings would let the swapped capture
-        # match the shipped one and pass a loader that never reloaded anything.
-        Test.screenshot().equals(r"screenshots/hot_reload_texture", 620, 62, 700, 118)
+        # The shipped texture, read first so the swap has something to be compared against, and read
+        # only once the frame has settled so the two captures are the same number of ticks apart.
+        before.set(Test.screenshot().capture(620, 62, 700, 118))
+
         change_baseline = Test.hot_reload_count(path)
         Test.set_mod_file_state(path, "swapped")
         swapped = true
@@ -60,7 +59,8 @@ export run() {
         # than for the report alone.
         Test.not_done()
     } else {
-        Test.screenshot().equals(r"screenshots/hot_reload_texture_swapped", 620, 62, 700, 118)
+        reloaded: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
+        reloaded.differs_from(before.unwrap(), 50)
         Test.set_mod_file_state(path, "normal")
         Test.restore_camera()
     }
@@ -70,14 +70,15 @@ export run() {
 # field of view, eye height and camera offsets, and one crop has to hold for all five loaders. A
 # single block big enough to cover the frame cannot also sit where the camera happens to be looking,
 # because a block at arm's length still leaves sky, ground and the HUD in shot, and the sky is full
-# of drifting clouds that would make the capture unreproducible.
-# So this builds a five by five wall one block in front of the player, which at that range covers
-# the frame several times over on every one of them. Everything the crop can see is then an opaque
-# face of the block whose texture the test swaps.
+# of drifting clouds that would move under the crop between the two captures.
+# So this builds a five by five wall one block in front of the player, which at that range covers the
+# frame several times over on every one of them. Everything the crop can see is then an opaque face
+# of the block whose texture the test swaps.
 # "One block" here means one block past origin.z(), and the player stands at a half coordinate, so
 # the wall is half a block from the camera. At that range one texel of a 16x16 texture covers about
-# 70 pixels of the frame, which is why the crop above has to be placed against a texel boundary
-# rather than merely against something that looks the same.
+# 70 pixels of the frame, which is why the crop above sits against a texel boundary rather than
+# merely against something that looks the same: a crop straddling one picked up three rows a single
+# part brighter on some runs, which is noise here but would have been a failing reference image.
 local _wall_in_front_of(origin: Vec3) {
     level: Level = Test.get_client_level()
     z: number = origin.z() + 1

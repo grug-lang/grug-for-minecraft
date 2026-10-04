@@ -895,6 +895,56 @@
 							}
 						}
 					]
+				},
+				"capture": {
+					"description": "Reads the given pixel rectangle of the current frame and remembers it on this screenshot, so a later `differs_from` can compare it with another capture of the same rectangle. Unlike `equals` this needs no reference images, which is what makes it the way to check that the game redrew something: one rendering is not the same on every Minecraft version and platform, so a reference image has to be accepted once per appearance, while two captures of one session agree with each other about everything except what the test changed. A pixel counts as changed when any of its red, green or blue channels differs at all. Capturing replaces what this screenshot holds, so capture the earlier frame first and compare against it afterwards. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
+					"return_type": {
+						"name": "Screenshot"
+					},
+					"parameters": [
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"differs_from": {
+					"description": "Fails the test unless at least `percent` of the pixels of this screenshot differ from another one, both of which have to have been read with `capture` first. This is the assertion for a change the test caused, such as a texture it swapped: a frame that still shows what it showed before changes nothing and fails, however much of it happens to wobble by a single lighting unit between two runs. The two captures have to be the same size, which is how a test that cropped two different rectangles is caught rather than compared. Note that a percent of 0 always passes, so ask for the share of the rectangle the change is actually expected to cover: swapping a whole texture changes every pixel of it, while a change to one sprite in a sprite sheet may be a small part of the frame.",
+					"parameters": [
+						{
+							"name": "other",
+							"type": {
+								"name": "Screenshot"
+							}
+						},
+						{
+							"name": "percent",
+							"description": "A whole number from 0 to 100: the share of pixels that must differ. Note that 0 always passes.",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},
