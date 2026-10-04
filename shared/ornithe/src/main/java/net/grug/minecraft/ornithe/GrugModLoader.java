@@ -77,7 +77,10 @@ public class GrugModLoader implements ModInitializer {
             throw Grug.fatal("Failed to extract default grug mods", e);
         }
 
-        GrugCore.initialize(new OrnitheAdapter(), modApiJson, activeGrugDir);
+        // The adapter that answers for the level and player handles depends on which process this
+        // is, and this class is shared with the Alpha loader, so each loader's own OrnitheAdapter
+        // picks. See #162 for why the two handles cannot both be the client's.
+        GrugCore.initialize(OrnitheAdapter.forCurrentEnvironment(), modApiJson, activeGrugDir);
         FileInfo[] files = Grug.compileAllFiles();
 
         blockFiles.clear();

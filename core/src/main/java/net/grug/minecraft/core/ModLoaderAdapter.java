@@ -1,6 +1,8 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.BlockPos;
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.Vec3;
 
 import java.awt.image.BufferedImage;
@@ -13,6 +15,47 @@ public interface ModLoaderAdapter {
 
     /** The directory the loaded grug mods live in, which is what the screenshot tree is under. */
     File getGrugModsDirectory();
+
+    /**
+     * Which process this is: the client, or a dedicated server.
+     *
+     * <p>A loader knows without asking, because the game told it. A loader that has no dedicated
+     * server at all still answers {@link GrugSide#CLIENT}, and its adapter then has nothing on the
+     * server side to disagree with.
+     */
+    GrugSide getSide();
+
+    /**
+     * Refuses a call that needs a client when this process is a dedicated server, and says whether
+     * it refused.
+     *
+     * <p>This is the four functions a screenshot test is made of: a window to move a camera in, a
+     * frame to read back, and a local player whose right-click the game will route. A dedicated
+     * server has none of the three, so letting one of them through raises something from inside the
+     * game's client classes rather than saying what is wrong.
+     *
+     * <p>It lives here, on the interface, rather than in {@code HostFunctions} because that is
+     * where "which functions need a client" belongs, and because every loader's implementations of
+     * those four functions are already outside the coverage gate for being GL glue. A branch in
+     * {@code HostFunctions} would have had to be excluded instead, which would have taken the
+     * delegation that surrounds it out of measurement with it.
+     *
+     * <p>A refusal is a host function error rather than a fatal: it names the function, it fails
+     * the test that called it, and the game keeps running, which is what a mod's mistake deserves.
+     */
+    @GrugGenerated("the refusal needs a dedicated server, which no CI run launches until #163")
+    default boolean refuseWithoutAClient(String function) {
+        GrugSide side = getSide();
+        if (side == GrugSide.CLIENT) return false;
+
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                function
+                        + ": This needs a client, and grug is running on "
+                        + side.description()
+                        + ".");
+        return true;
+    }
 
     void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj);
 
@@ -98,10 +141,22 @@ public interface ModLoaderAdapter {
      */
     double takeCraftingResult(Object blockEntityObj, double amount);
 
-    Object getClientLevel();
+    /**
+     * The level this process's tests build their fixtures in: the client's world, or the level a
+     * dedicated server is running.
+     *
+     * <p>Not the client's world on a dedicated server, where there is no client to ask, and not the
+     * client's world when the client is connected to somebody else either: a multiplayer client's
+     * world is a copy of the server's, and a fixture placed in one is not in the other.
+     */
+    Object getLevel();
 
-    /** The local client player, or null when there is none. Lets a test drive GUI.open directly. */
-    Object getPlayer();
+    /**
+     * The player a test anchors its fixtures to and drives {@link #openGui} with: the local player
+     * on a client, or a connected player on a dedicated server. Null when this side has none yet,
+     * which on a dedicated server means nobody has joined.
+     */
+    Object testPlayer();
 
     /**
      * Whether the client has received the chunks a test setup builds in: the neighbourhood around

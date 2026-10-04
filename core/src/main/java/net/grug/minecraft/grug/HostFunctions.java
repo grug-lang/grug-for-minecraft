@@ -24,19 +24,41 @@ public class HostFunctions {
     }
 
     public static long Test_get_client_level() {
-        Object level = GrugCore.getAdapter().getClientLevel();
+        return addLevel(GrugCore.getAdapter().getLevel());
+    }
+
+    @GrugGenerated("no level yet: impossible while a test runs")
+    private static long addLevel(Object level) {
+        if (level == null) {
+            // Which side it is matters to whoever reads this: a client has a world the moment one
+            // is
+            // loaded, and a dedicated server has its level from the moment it starts, so an empty
+            // one means a server with no world yet.
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.get_client_level: There is no level to test in on "
+                            + GrugCore.getAdapter().getSide().description()
+                            + " yet.");
+            return 0;
+        }
         return Grug.addEntity(GrugEntityType.Level, level);
     }
 
     public static long Test_get_player() {
-        return addPlayer(GrugCore.getAdapter().getPlayer());
+        return addPlayer(GrugCore.getAdapter().testPlayer());
     }
 
     @GrugGenerated("no local player: impossible while a test runs")
     private static long addPlayer(Object player) {
         if (player == null) {
+            // Which side it is matters to whoever reads this: on a client there is a local player
+            // the moment a world is loaded, so an empty one means the test is running too early,
+            // and on a dedicated server it means nobody has joined yet.
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.get_player: There is no local player.");
+                    Grug.statePtr,
+                    "Test.get_player: There is no player to test from on "
+                            + GrugCore.getAdapter().getSide().description()
+                            + " yet.");
             return 0;
         }
         return Grug.addEntity(GrugEntityType.Player, player);

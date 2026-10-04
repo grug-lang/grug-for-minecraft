@@ -251,7 +251,10 @@ public class GrugModLoader {
 
         File activeGrugDir = getActiveGrugModsDir();
 
-        GrugCore.initialize(new ForgeAdapter(), modApiJson, activeGrugDir);
+        // mods.toml declares this mod BOTH, so this class runs on a client and on a dedicated
+        // server, and the adapter that answers for the level and player handles differs between
+        // them. See #162.
+        GrugCore.initialize(ForgeAdapter.forCurrentEnvironment(), modApiJson, activeGrugDir);
 
         FileInfo[] files = Grug.compileAllFiles();
 

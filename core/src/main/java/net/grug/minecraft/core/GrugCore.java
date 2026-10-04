@@ -18,6 +18,13 @@ public class GrugCore {
             ModLoaderAdapter loaderAdapter, File modApiJson, File grugModsDir) {
         adapter = loaderAdapter;
 
+        // Ahead of everything else, because the side decides what the level and player handles can
+        // answer. A loader that cannot report one would fail much later as a null the mod sees as a
+        // missing player, which names the symptom rather than the cause.
+        if (adapter.getSide() == null) {
+            throw Grug.fatal("The loader adapter did not report which side grug is running on.");
+        }
+
         // Ahead of everything that reads the mods tree, because a run that was killed partway
         // through a hot-reload test left the file it was editing in a test state, and the
         // compiler's complaint about that file names a stray character rather than the run that

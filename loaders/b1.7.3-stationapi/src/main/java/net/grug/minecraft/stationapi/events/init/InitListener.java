@@ -141,6 +141,10 @@ public class InitListener {
             extractDefaultGrugMods(runGrugDir.toPath());
         }
 
+        // One adapter for both processes for now. The dedicated-server one cannot live here:
+        // preInit
+        // runs on both sides, and Fabric Loader refuses to load a class the game marked server-only
+        // from a client, so naming one from a common class is enough to break the client. See #165.
         GrugCore.initialize(new StationApiAdapter(), modApiJson, activeGrugDir);
 
         FileInfo[] files = Grug.compileAllFiles();

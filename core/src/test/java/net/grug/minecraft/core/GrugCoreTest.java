@@ -23,6 +23,11 @@ class GrugCoreTest {
      * startup path before {@code Grug.init} reaches for the native library.
      */
     private ModLoaderAdapter recordingAdapter(List<String> log) {
+        return adapter(log, GrugSide.CLIENT);
+    }
+
+    /** The same, with the one answer a startup cannot do without being told which side it is on. */
+    private ModLoaderAdapter adapter(List<String> log, GrugSide side) {
         return (ModLoaderAdapter)
                 Proxy.newProxyInstance(
                         getClass().getClassLoader(),
@@ -30,6 +35,9 @@ class GrugCoreTest {
                         (proxy, method, args) -> {
                             if (method.getName().equals("logInfo")) {
                                 log.add(String.valueOf(args[0]));
+                            }
+                            if (method.getName().equals("getSide")) {
+                                return side;
                             }
                             return null;
                         });
@@ -40,7 +48,27 @@ class GrugCoreTest {
         Files.createDirectories(mods.resolve("mymod"));
         assertThrows(
                 IllegalStateException.class,
-                () -> GrugCore.initialize(null, new File("mod_api.json"), mods.toFile()));
+                () ->
+                        GrugCore.initialize(
+                                recordingAdapter(new ArrayList<>()),
+                                new File("mod_api.json"),
+                                mods.toFile()));
+    }
+
+    @Test
+    void initializeRejectsAnAdapterThatCannotSayWhichSideItIs() {
+        // A loader that forgot the new method answers null, and every level or player lookup would
+        // then fail much later as a missing player. Startup is where the cause is still nameable.
+        IllegalStateException error =
+                assertThrows(
+                        IllegalStateException.class,
+                        () ->
+                                GrugCore.initialize(
+                                        adapter(new ArrayList<>(), null),
+                                        new File("mod_api.json"),
+                                        mods.toFile()));
+
+        assertTrue(error.getMessage().contains("which side"), error.getMessage());
     }
 
     @Test
