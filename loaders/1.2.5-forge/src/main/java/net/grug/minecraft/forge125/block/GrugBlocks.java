@@ -51,12 +51,6 @@ public final class GrugBlocks {
     /** The atlas grug item sprites live in. */
     private static final String ITEMS_ATLAS = "/gui/items.png";
 
-    /** Block script clean name -> terrain sprite index, for the blocks that ship a texture. */
-    public static final Map<String, Integer> BLOCK_SPRITES = new HashMap<String, Integer>();
-
-    /** Item script clean name -> items sprite index, for the items that ship a texture. */
-    public static final Map<String, Integer> ITEM_SPRITES = new HashMap<String, Integer>();
-
     /**
      * Texture path in the mods tree -> terrain sprite index.
      *
@@ -174,7 +168,6 @@ public final class GrugBlocks {
         if (path == null) return;
 
         int sprite = claimSprite(BLOCK_TEXTURES, TERRAIN_ATLAS, path);
-        BLOCK_SPRITES.put(cleanName, sprite);
         block.sprite = sprite;
     }
 
@@ -187,7 +180,6 @@ public final class GrugBlocks {
         if (path == null) return;
 
         int sprite = claimSprite(ITEM_TEXTURES, ITEMS_ATLAS, path);
-        ITEM_SPRITES.put(cleanName, sprite);
         item.setIconIndex(sprite);
     }
 
@@ -199,7 +191,9 @@ public final class GrugBlocks {
      * bitset of the slots FML reserves for mods in that atlas. Counting up from a number instead,
      * which is what this loader used to do, puts grug's sprites on top of vanilla's and of any
      * other mod's. FML answers -1 where there is no render engine, which is the dedicated server's
-     * copy of ModLoader, and nothing reads a sprite without one.
+     * copy of ModLoader. This loader has no server run configuration, so that path is not exercised
+     * here and the -1 is cached and assigned like any other value; a server run would be where to
+     * find out what that does.
      */
     private static int claimSprite(Map<String, Integer> claimed, String atlas, String path) {
         Integer existing = claimed.get(path);
