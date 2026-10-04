@@ -64,8 +64,11 @@ thread caused non-unwinding panic. aborting.
 # is a race the classification must not depend on; the delay keeps every write between two polls.
 # The process lingers because a fake that exited instantly could win the poll race, which is the
 # classification under test.
+# Every invocation appends its arguments to FAKE_GRADLE_ARGS, so a test can assert what the script
+# told Gradle to build with.
 GRADLE = """\
 #!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$FAKE_GRADLE_ARGS"
 sleep "${FAKE_GRADLE_START_DELAY:-0.5}"
 cat "$FAKE_GRADLE_LOG"
 sleep "${FAKE_GRADLE_SLEEP:-2}"
@@ -105,7 +108,9 @@ class RunLoaderTest(unittest.TestCase):
         gradlew.write_text(GRADLE)
         gradlew.chmod(0o755)
 
-    def run_script(self, log: str, exit_code: int) -> subprocess.CompletedProcess:
+    def run_script(
+        self, log: str, exit_code: int, extra_env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess:
         log_file = self.tmp / "gradle.log"
         log_file.write_text(log)
 
@@ -114,11 +119,13 @@ class RunLoaderTest(unittest.TestCase):
             # be non-empty: nothing here reaches a window.
             "FAKE_GRADLE_LOG": str(log_file),
             "FAKE_GRADLE_EXIT": str(exit_code),
+            "FAKE_GRADLE_ARGS": str(self.tmp / "gradle-args.txt"),
             "DISPLAY": ":99",
             "HOME": str(self.tmp),
             "PATH": "/usr/bin:/bin:/usr/local/bin",
             "GRUG_CI_RUN_TIMEOUT": "30",
         }
+        env.update(extra_env or {})
         summary = self.tmp / "summary.md"
         # The script only appends when it has something to report, so start it as an empty file the
         # way GitHub does and read back whatever ended up there.
@@ -138,6 +145,10 @@ class RunLoaderTest(unittest.TestCase):
             check=False,
         )
         result.summary = summary.read_text()
+        # Absent rather than empty when the script never got as far as Gradle, which is itself
+        # something a test asserts.
+        args_file = self.tmp / "gradle-args.txt"
+        result.gradle_args = args_file.read_text() if args_file.exists() else ""
         return result
 
     def test_abort_is_reported_as_a_grug_panic_not_a_plain_exit(self):
@@ -206,6 +217,43 @@ class RunLoaderTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("No such loader directory", result.stderr)
+
+    def test_a_prebuilt_grug_rs_library_is_handed_to_gradle(self):
+        # CI builds the static library once and passes it down, which is the only way the loader jobs
+        # skip cloneGrugRs and buildGrugRs. Gradle has to be told, so the property is what the script
+        # is checked for.
+        prebuilt = self.tmp / "libgruggers.a"
+        prebuilt.write_bytes(b"not a real static library")
+
+        result = self.run_script(PASSING_LOG, 0, {"GRUG_PREBUILT_GRUG_RS": str(prebuilt)})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"-Pgrug.prebuiltGrugRs={prebuilt}", result.gradle_args)
+
+    def test_no_prebuilt_library_means_gradle_builds_it(self):
+        # Left unset, which is every local run: the property must be absent rather than empty, or
+        # Gradle would stage nothing and link against a missing file.
+        result = self.run_script(PASSING_LOG, 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("grug.prebuiltGrugRs", result.gradle_args)
+
+    def test_a_prebuilt_library_that_is_not_there_fails_the_run(self):
+        # An artifact download that silently produced nothing would otherwise fall back to building
+        # grug-rs from scratch, which costs every job the time the sharing was meant to save and says
+        # nothing about why.
+        result = self.run_script(
+            PASSING_LOG,
+            0,
+            {"GRUG_PREBUILT_GRUG_RS": str(self.tmp / "nowhere" / "libgruggers.a")},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("GRUG_PREBUILT_GRUG_RS", result.stderr)
+        self.assertIn("which is not a file", result.stderr)
+        # It has to fail before the game is launched, or the run would report a pass that never used
+        # the library it was handed.
+        self.assertEqual(result.gradle_args, "")
 
 
 if __name__ == "__main__":

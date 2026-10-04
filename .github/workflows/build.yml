@@ -30,8 +30,63 @@ jobs:
           print("matrix=" + json.dumps(loaders))
           EOF
 
+  # grug-rs builds once per run and the loader jobs link the very same libgruggers.a. It depends on
+  # nothing in this repository except the revision core/build.gradle.kts pins, so before this job each
+  # of the five loader jobs (and the core job) repeated a git fetch and a cargo build on identical
+  # inputs. An artifact from this run cannot be a stale one: it is produced by this workflow, on the
+  # same runner image, from the revision this commit pins.
+  grug-rs:
+    name: build grug-rs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # Part of the key because it is what built the library: a .a from a different rustc carries a
+      # different metadata version, which is a link error rather than a silently wrong library, but
+      # naming it in the key means the cache simply misses instead.
+      - name: Read the Rust version
+        id: rust
+        run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
+
+      # Keyed on the file holding the pinned revision, so a ref bump rebuilds and anything else hits.
+      - name: Restore the static library
+        id: grugRsLibrary
+        uses: actions/cache/restore@v4
+        with:
+          path: core/build/grug-rs/target/release/libgruggers.a
+          key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts') }}
+
+      - name: Build the static library
+        if: steps.grugRsLibrary.outputs.cache-hit != 'true'
+        run: ./gradlew :core:cloneGrugRs :core:buildGrugRs -Dgrug.activeLoader=a1.1.2_01-ornithe
+
+      - name: Save the static library
+        if: steps.grugRsLibrary.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: core/build/grug-rs/target/release/libgruggers.a
+          key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts') }}
+
+      - name: Upload the static library
+        uses: actions/upload-artifact@v4
+        with:
+          name: grug-rs-library
+          path: core/build/grug-rs/target/release/libgruggers.a
+          if-no-files-found: error
+          retention-days: 7
+
   core:
     name: core tests
+    needs: grug-rs
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -43,14 +98,34 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle
+
+      # Waits on the grug-rs job, which is why the static library is downloaded before anything runs:
+      # core's tests load libadapter.so, so they need the library this commit links against.
+      - name: Download the grug-rs static library
+        uses: actions/download-artifact@v4
+        with:
+          name: grug-rs-library
+          path: .grug-ci
+
+      # A hit here means this push changed neither mod_api.json nor the generator, and the three
+      # generated files are already the right ones, so generateGrugAdapter is up to date and does not
+      # run again. Those two files are its whole input set, so the key is everything it depends on.
+      - name: Restore the generated adapter
+        uses: actions/cache@v4
+        with:
+          path: |
+            core/build/generated/grug
+            core/build/generated/sources/grug
+          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
       # The active-loader property scopes the settings to core plus one no-op loader, so this job
-      # doesn't configure every loader's build plugins just to run core's JUnit tests.
+      # doesn't configure every loader's build plugins just to run core's JUnit tests. The prebuilt
+      # property is what run-loader.sh passes for the loader jobs: core's tests load libadapter.so,
+      # so they need the static library this commit links against.
       - name: Test core
-        run: ./gradlew :core:test -Dgrug.activeLoader=a1.1.2_01-ornithe
+        run: ./gradlew :core:test -Dgrug.activeLoader=a1.1.2_01-ornithe -Pgrug.prebuiltGrugRs="${{ github.workspace }}/.grug-ci/libgruggers.a"
 
-      # The generated adapter/bridge code is mechanically derived, so its type tables are tested
-      # directly rather than being chased for coverage.
       - name: Test the grug adapter generator
         run: python3 core/test_generate.py
 
@@ -77,6 +152,15 @@ jobs:
       # against a miniature repository and real Gradle.
       - name: Test the core hand-off
         run: python3 .github/scripts/grug_core_handoff_test.py
+      # The coverage job used to ask Gradle for this path, which cost it a cold Gradle start (~35s)
+      # for one string. This job already runs Gradle against a daemon that is warm by now, so it
+      # resolves the jar instead, and the version stays the jacoco plugin's own with no second place
+      # to keep it in sync. Staged under a fixed name because only the upload step reads it.
+      - name: Locate the JaCoCo CLI
+        run: |
+          cli=$(./gradlew -q :core:printJacocoCliPath -Dgrug.activeLoader=a1.1.2_01-ornithe | grep '^JACOCO_CLI=' | cut -d= -f2)
+          mkdir -p coverage/tools
+          cp "$cli" coverage/tools/jacoco-cli.jar
 
       # The coverage job downloads these to build the combined report the coverage gate checks.
       - name: Upload the coverage exec
@@ -95,9 +179,17 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload the JaCoCo CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-cli
+          path: coverage/tools/jacoco-cli.jar
+          if-no-files-found: error
+          retention-days: 7
+
   build:
     name: ${{ matrix.dir }}
-    needs: discover
+    needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -114,6 +206,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle
 
       # The 1.2.5 loader boots its game on Java 8. Install a JDK 8 alongside the build JDK and hand
       # its path to the loader through GRUG_JAVA8. JAVA_HOME goes back to 21 afterwards so the
@@ -129,6 +222,23 @@ jobs:
       - name: Restore JDK 21 for Gradle (1.2.5-forge only)
         if: matrix.dir == '1.2.5-forge'
         run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
+
+      - name: Download the grug-rs static library
+        uses: actions/download-artifact@v4
+        with:
+          name: grug-rs-library
+          path: .grug-ci
+
+      # A hit here means this push changed neither mod_api.json nor the generator, so the three
+      # generated files are already the right ones and Gradle's own up-to-date check on
+      # generateGrugAdapter skips the run.
+      - name: Restore the generated adapter
+        uses: actions/cache@v4
+        with:
+          path: |
+            core/build/generated/grug
+            core/build/generated/sources/grug
+          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
       # screenshots pixel-for-pixel, which needs a stable Mesa/font stack
@@ -146,12 +256,15 @@ jobs:
 
       - name: Build (${{ matrix.dir }})
         run: .github/scripts/run-loader.sh "${{ matrix.dir }}" build
+        env:
+          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
 
       - name: Run tests (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" run
         env:
           # Empty for every loader except 1.2.5-forge; its game JVM uses this Java 8.
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
+          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
@@ -237,18 +350,20 @@ jobs:
           pattern: coverage-*
           path: coverage/artifacts
 
-      # Resolved through Gradle so the CLI stays in sync with the jacoco plugin's version.
-      - name: Locate the JaCoCo CLI
-        id: jacoco
-        run: |
-          cli=$(./gradlew -q :core:printJacocoCliPath -Dgrug.activeLoader=a1.1.2_01-ornithe | grep '^JACOCO_CLI=' | cut -d= -f2)
-          echo "cli=$cli" >> "$GITHUB_OUTPUT"
+      # The jar the core job resolved, so this job never starts Gradle. It used to run a
+      # ./gradlew -q :core:printJacocoCliPath of its own, which cost about 35 seconds of cold start
+      # to print one path and made it the second slowest job in the workflow.
+      - name: Download the JaCoCo CLI
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-cli
+          path: coverage/tools
 
       - name: Combine the coverage data and require 100%
         run: |
           python3 .github/scripts/combine-coverage.py \
             --artifacts coverage/artifacts \
-            --jacoco-cli "${{ steps.jacoco.outputs.cli }}" \
+            --jacoco-cli coverage/tools/jacoco-cli.jar \
             --output coverage/report \
             --require-100
 
