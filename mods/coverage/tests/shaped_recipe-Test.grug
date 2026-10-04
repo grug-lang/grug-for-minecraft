@@ -1,7 +1,6 @@
 # A shaped recipe a mod ships has to register and craft. The shapeless sibling next door drives the
-# same wiring for a recipe Alpha has no registration of its own for; this one asserts the shaped
-# half, which had no end-to-end test on any loader until the 1.2.5 loader read the mods' data/ trees
-# like the other four already did.
+# shapeless path; this one asserts the shaped half, which had no end-to-end test on any loader until
+# the 1.2.5 loader read the mods' data/ trees like the other four already did.
 # Band 15 is free: the recipe tests use 6, 10, 25, 35, 40, 45 and 50, and the coverage tests
 # 0, 20 and 30.
 export run() {
@@ -18,7 +17,7 @@ export run() {
     z: number = origin.z()
 
     stick: Item = item(resource_location("minecraft:stick"))
-    ingot: Item = item(resource_location("minecraft:iron_ingot"))
+    flint: Item = item(resource_location("minecraft:flint"))
 
     # Slot 0 is the single cell of shaped_recipe.json's one-row "S" pattern.
     grid: BlockEntity = _grid(level, x, y, z)
@@ -27,11 +26,12 @@ export run() {
     Test.assert(take_crafting_result(grid, 1) == 1, "A single stick should craft the shaped recipe's one result.")
     Test.assert(take_crafting_result(grid, 1) == 0, "The shaped recipe should have nothing left to give.")
 
-    # An iron ingot is not the stick the recipe names, so nothing matches.
+    # Flint is not the stick the recipe names, so nothing matches. An iron ingot would not do:
+    # 1.20.6 crafts nine iron nuggets from one.
     wrong: BlockEntity = _grid(level, x + 3, y, z)
-    set_item_in_slot(wrong, 0, ingot, 1)
+    set_item_in_slot(wrong, 0, flint, 1)
     update_recipe_output(wrong, 0)
-    Test.assert(take_crafting_result(wrong, 1) == 0, "An iron ingot should not match a recipe that names a stick.")
+    Test.assert(take_crafting_result(wrong, 1) == 0, "A flint should not match a recipe that names a stick.")
 }
 
 # The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
