@@ -58,12 +58,16 @@ jobs:
         run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
 
       # Keyed on the file holding the pinned revision, so a ref bump rebuilds and anything else hits.
+      # This workflow is in its own caches' keys, everywhere below as well, because the key has to
+      # describe the cache and not only its inputs: the list of paths is part of what is being
+      # described, and a key that ignored it would go on restoring an entry holding something else
+      # after the paths changed.
       - name: Restore the static library
         id: grugRsLibrary
         uses: actions/cache/restore@v4
         with:
           path: core/build/grug-rs/target/release/libgruggers.a
-          key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts') }}
+          key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts', '.github/workflows/build.yml') }}
 
       - name: Build the static library
         if: steps.grugRsLibrary.outputs.cache-hit != 'true'
@@ -74,7 +78,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: core/build/grug-rs/target/release/libgruggers.a
-          key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts') }}
+          key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts', '.github/workflows/build.yml') }}
 
       - name: Upload the static library
         uses: actions/upload-artifact@v4
@@ -117,7 +121,7 @@ jobs:
           path: |
             core/build/generated/grug
             core/build/generated/sources/grug
-          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
+          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py', '.github/workflows/build.yml') }}
 
       # The active-loader property scopes the settings to core plus one no-op loader, so this job
       # doesn't configure every loader's build plugins just to run core's JUnit tests. The prebuilt
@@ -238,7 +242,7 @@ jobs:
           path: |
             core/build/generated/grug
             core/build/generated/sources/grug
-          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
+          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py', '.github/workflows/build.yml') }}
 
       # Gradle's own state on the loader side: the distribution each loader's wrapper pins, the
       # dependency cache its build resolves against, and the compiled form of its build scripts.
@@ -267,7 +271,7 @@ jobs:
             ~/.gradle/caches/modules-2
             ~/.gradle/caches/*/kotlin-dsl
             ~/.gradle/caches/*/groovy-dsl
-          key: grug-gradle-${{ runner.os }}-${{ hashFiles('gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          key: grug-gradle-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
       # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
@@ -291,7 +295,7 @@ jobs:
             ~/.gradle/caches/forge_gradle/maven_downloader
             ~/.gradle/caches/fabric-loom
             ~/.gradle/caches/ornithe-keratin
-          key: grug-minecraft-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          key: grug-minecraft-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       # 1.2.5-forge's Minecraft is the pinned MCP snapshot its build clones, 170MB into its own build
       # directory, which is 13s of its Build step. Keyed on the build file that holds the pin, so a
@@ -301,7 +305,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: loaders/1.2.5-forge/build/mcp125
-          key: grug-mcp125-${{ runner.os }}-${{ hashFiles('loaders/1.2.5-forge/build.gradle') }}
+          key: grug-mcp125-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
 
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
       # screenshots pixel-for-pixel, which needs a stable Mesa/font stack
