@@ -635,16 +635,16 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 (x, y, z) -> isAir(level, x, y, z), player.x, player.boundingBox.minY, player.z);
     }
 
-    @GrugGenerated(
-            "the dedicated-server refusal can only be taken on a server, and CI launches none until"
-                + " #165. The client path below is this loader's own way of reaching the client,"
-                + " because Fabric Loader hands it back as an Object.")
     @Override
     public boolean registersModRecipes() {
         // InitListener hands the mods' data/<namespace>/recipes tree to StationAPI to parse.
         return true;
     }
 
+    @GrugGenerated(
+            "the dedicated-server refusal can only be taken on a server, and CI launches none until"
+                + " #165. The client path below is this loader's own way of reaching the client,"
+                + " because Fabric Loader hands it back as an Object.")
     @Override
     public Vec3 getTestOrigin() {
         if (refusesOnADedicatedServer("Test.get_origin")) return null;
