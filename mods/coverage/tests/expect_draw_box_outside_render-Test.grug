@@ -1,0 +1,7 @@
+# draw_box only means anything while a block entity's render() is drawing, because that is the only
+# state there is for a draw call to go into. A test is not that, so calling it here must report an
+# error rather than silently drawing nothing.
+export run() {
+    Test.expect_error("while a block entity's render() is drawing")
+    draw_box(0, 0, 0, 1, 1, 1)
+}

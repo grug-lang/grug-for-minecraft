@@ -19,6 +19,8 @@ import java.util.List;
 public class GrugBlockEntity extends BlockEntity implements Inventory {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private boolean renderFnIdResolved = false;
     private boolean initStarted = false;
 
     /**
@@ -197,6 +199,30 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
 
             Grug.fnEntities = oldFnEntities;
         }
+    }
+
+    /**
+     * This block entity's grug entity handle, or 0 when it has none yet.
+     *
+     * <p>A chunk can be compiled before the block entity has ticked, which is when its geometry is
+     * drawn, so the render path inits rather than assuming a tick got there first.
+     */
+    public long getGrugEntityHandle() {
+        initGrug();
+        return entityHandle;
+    }
+
+    /**
+     * This block entity's render function, or {@link Grug#INVALID_GRUG_EXPORT_FN_ID} when its
+     * script has none. Looked up once and remembered, because a chunk compile asks for it per block
+     * and the lookup goes through the state lock.
+     */
+    public long getRenderFnId() {
+        if (!renderFnIdResolved) {
+            renderFnId = Grug.getExportFnId("BlockEntity", "render");
+            renderFnIdResolved = true;
+        }
+        return renderFnId;
     }
 
     /**

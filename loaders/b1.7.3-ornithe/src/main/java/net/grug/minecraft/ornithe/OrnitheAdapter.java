@@ -428,6 +428,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean supportsCustomBlockGeometry() {
+        // Beta 1.7.3 renders blocks through RenderBlocks rather than Alpha's BlockRenderer, and
+        // this has been written for Alpha only. Saying so here keeps set_custom_render's error
+        // honest about this loader rather than letting a custom-rendered block draw as a cube.
+        return false;
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
@@ -752,6 +760,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
             return null;
         }
+
+        // A screen left open by an earlier test would sit over the world and be captured in
+        // every frame after it, since the tests share one game. Closing it here rather than in
+        // the test that opened it keeps that test's own world state untouched, which matters:
+        // closing a screen is not a no-op for a later test that shares the world.
+        MinecraftInstance.get().openScreen(null);
 
         savedX = player.x;
         savedY = player.y;

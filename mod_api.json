@@ -138,6 +138,11 @@
 					]
 				},
 				{
+					"name": "render",
+					"description": "Called by the game when it builds this block's geometry, for a block whose init() called `set_custom_render`. Everything drawn here replaces the block's usual model, so a machine can draw a shape no model JSON describes: pipes that join up to their neighbours, animated parts, anything conditional on the world. Build the shape with `draw_box`. The game calls this again whenever it rebuilds the geometry, which includes every neighbouring block change, so read the neighbours here rather than caching the shape in a member variable. A block that declares `set_custom_render` and draws nothing reports an error, because nothing on screen is not a shape anyone chose.",
+					"engine_called": true
+				},
+				{
 					"name": "tick",
 					"description": "Called every game tick, so every 0.05 seconds.",
 					"engine_called": true
@@ -302,7 +307,7 @@
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
 				"setup_graphics_camera": {
-					"description": "Saves the player's current position and rotation, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
+					"description": "Saves the player's current position and rotation, closes whatever GUI is open so the world is what gets captured, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
 					"return_type": {
 						"name": "Vec3"
 					}
@@ -1021,6 +1026,47 @@
 				}
 			]
 		},
+		"draw_box": {
+			"description": "Draws one axis-aligned box as part of the geometry a block entity's render pass is building. The coordinates are block-local, from 0 to 1 on each axis measured from the block's minimum corner, so 0.25 on the y axis is a quarter of a block above the block's bottom face and 1 is flush with the far side. Each of the box's six faces is drawn with the block's own texture, the whole of it, lit and face-culled the way the game lights every other block. Boxes are drawn whole rather than merged, so two boxes that touch leave a shared face in between: the depth test hides it against the box behind it, and it costs nothing to see. Only legal during a render pass, which only `render` opens.",
+			"parameters": [
+				{
+					"name": "x1",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y1",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z1",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "x2",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y2",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z2",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"drop_inventory": {
 			"description": "Drops the inventory of a block entity into the world.",
 			"parameters": [
@@ -1507,6 +1553,9 @@
 				}
 			]
 		},
+		"set_custom_render": {
+			"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. Reports an error on a loader that cannot draw custom geometry at all."
+		},
 		"set_extractable_slots": {
 			"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it.",
 			"parameters": [
@@ -1660,6 +1709,12 @@
 					}
 				}
 			]
+		},
+		"supports_custom_geometry": {
+			"description": "Whether this Minecraft version can draw a block's own geometry. A block whose init() calls `set_custom_render` on a version that cannot is a shape nobody can draw, so a mod that wants to work on more than one version asks this first and calls `set_custom_render` only where the answer is yes, drawing its ordinary model elsewhere. Only `a1.1.2_01-ornithe` does today; each other loader reports that from the declaration itself rather than failing every frame it could have drawn.",
+			"return_type": {
+				"name": "bool"
+			}
 		},
 		"take_crafting_result": {
 			"description": "Takes part of a block entity's crafting result. The result is not an inventory slot: a grug block entity holds it in a dedicated container, and a reference tile computes it on demand.",

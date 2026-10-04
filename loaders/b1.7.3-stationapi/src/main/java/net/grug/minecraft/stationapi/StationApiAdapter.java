@@ -618,6 +618,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean supportsCustomBlockGeometry() {
+        // Alpha's implementation hooks the chunk tesselation this loader does not have, and it has
+        // not been written for StationAPI yet. Saying so here keeps set_custom_render's error
+        // honest about this loader rather than letting a custom-rendered block draw as a cube.
+        return false;
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
@@ -694,6 +702,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
                     Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
             return null;
         }
+
+        // A screen left open by an earlier test would sit over the world and be captured in
+        // every frame after it, since the tests share one game. Closing it here rather than in
+        // the test that opened it keeps that test's own world state untouched, which matters:
+        // closing a screen is not a no-op for a later test that shares the world.
+        mc.setScreen(null);
 
         savedX = player.x;
         savedY = player.y;

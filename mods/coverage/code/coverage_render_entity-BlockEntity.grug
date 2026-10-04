@@ -1,0 +1,88 @@
+# Draws a shape no model JSON can express: a core with an arm reaching towards each neighbour that
+# is the same block. One block then draws a straight run, a corner, a cross or a cap depending on
+# what it is joined to, and the arms meet exactly on the boundary between two blocks, so a run
+# reads as one pipe. That is the whole point of the hook, and the screenshot test that covers it.
+# The neighbours are read here rather than cached in a member variable because the game calls
+# render() again whenever it rebuilds the geometry, which is after every neighbouring block change,
+# so a cached shape would go stale the moment this block was joined to something. The x, y and z
+# below are the block's own centre, from the member scope the same way, and are the ones every
+# neighbour offset is measured from.
+level: Level = get_block_entity_level(me)
+pos: BlockPos = get_block_pos_of_block_entity(me)
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# The core, inset from every face so an arm leaving it is visibly a separate part rather than a bump
+# on a full block.
+export render() {
+    draw_box(0.3, 0.3, 0.3, 0.7, 0.7, 0.7)
+
+    _arm(0)
+    _arm(1)
+    _arm(2)
+    _arm(3)
+    _arm(4)
+    _arm(5)
+}
+
+# One arm towards the neighbour in the given side, drawn only when that neighbour is this block.
+# The sides are the six the rest of the codebase numbers the same way: 0 down, 1 up, 2 north,
+# 3 south, 4 west and 5 east.
+local _arm(side: number) {
+    if level.get_block(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) != "grug:coverage_render" {
+        return
+    }
+
+    # An arm spans from the core's face to this block's own face. Two neighbouring blocks each draw
+    # their own, so the pair meets on the boundary between them rather than overlapping.
+    if side == 0 {
+        draw_box(0.375, 0.0, 0.375, 0.625, 0.3, 0.625)
+    }
+    if side == 1 {
+        draw_box(0.375, 0.7, 0.375, 0.625, 1.0, 0.625)
+    }
+    if side == 2 {
+        draw_box(0.375, 0.375, 0.0, 0.625, 0.625, 0.3)
+    }
+    if side == 3 {
+        draw_box(0.375, 0.375, 0.7, 0.625, 0.625, 1.0)
+    }
+    if side == 4 {
+        draw_box(0.0, 0.375, 0.375, 0.3, 0.625, 0.625)
+    }
+    if side == 5 {
+        draw_box(0.7, 0.375, 0.375, 1.0, 0.625, 0.625)
+    }
+}
+
+local _neighbor_x(side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}

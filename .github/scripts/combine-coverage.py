@@ -54,6 +54,7 @@ EXCLUDED_CLASSES = {
     "TitleScreenMixin",
     "ResourcePackManagerMixin",
     "CraftingManagerMixin",
+    "BlockRendererMixin",
     "GrugMixin",
     "LiquidBlockRendererMixin",
     "ServerGrugModLoader",
@@ -86,6 +87,10 @@ EXCLUDED_CLASSES = {
     "GrugBlockEntity",
     "GrugBlock",
     "GrugBlocks",
+    # Draws a block entity's own geometry into Alpha's chunk compile, which a headless CI cannot
+    # drive. The pass bookkeeping and box it works from are game-independent and measured in core's
+    # GrugRenderPass and GrugBox.
+    "GrugBoxRenderer",
     # Render/model glue, like the resource-pack classes above.
     "GrugBlockModels",
     # 1.2.5 Forge runs on Java 8 with no JaCoCo agent (the loader cannot be instrumented without a
