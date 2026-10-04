@@ -42,13 +42,13 @@ export run() {
     update_recipe_output(diagonal, 0)
     Test.assert(take_crafting_result(diagonal, 2) == 2, "The diagonal ingredients should craft the same two results.")
 
-    # One stick too many is a different multiset, so nothing matches: the matcher takes each grid slot
-    # once, which is what stops a recipe asking for one ingredient from matching a grid holding two.
+    # Two sticks are not the stick and iron ingot the recipe names, so nothing matches: a grid answers
+    # only when it holds exactly the ingredients the recipe lists, each as often as it lists them.
     wrong: BlockEntity = _grid(level, x + 6, y, z)
     set_item_in_slot(wrong, 0, stick, 1)
     set_item_in_slot(wrong, 1, stick, 1)
     update_recipe_output(wrong, 0)
-    Test.assert(take_crafting_result(wrong, 1) == 0, "Two of one ingredient should not match a recipe that names it once.")
+    Test.assert(take_crafting_result(wrong, 1) == 0, "Two sticks should not match a recipe naming a stick and an iron ingot.")
 }
 
 # The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
