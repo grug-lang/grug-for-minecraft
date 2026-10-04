@@ -504,6 +504,16 @@ public class HostFunctions {
 
     // Host functions
 
+    public static boolean is_slot_extractable(long blockEntityId, double slot) {
+        return GrugSlotAccess.isExtractable(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+    }
+
+    public static boolean is_slot_insertable(long blockEntityId, double slot) {
+        return GrugSlotAccess.isInsertable(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+    }
+
     public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
         GrugCore.getAdapter()
                 .consumeCraftingIngredients(
@@ -573,6 +583,28 @@ public class HostFunctions {
                         .getBlockPosOfBlockEntity(
                                 HostFunctionHelpers.resolveBlockEntity(blockEntityId));
         return Grug.addEntity(GrugEntityType.BlockPos, pos);
+    }
+
+    public static double get_crafting_result_damage(long blockEntityId) {
+        Object stack =
+                GrugCore.getAdapter()
+                        .getResultStack(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+        return stack != null ? GrugCore.getAdapter().getStackDamage(stack) : 0;
+    }
+
+    public static long get_crafting_result_item(long blockEntityId) {
+        Object stack =
+                GrugCore.getAdapter()
+                        .getResultStack(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+        if (stack != null) {
+            return Grug.addEntity(
+                    GrugEntityType.Option,
+                    new GrugOption(
+                            Grug.addEntity(
+                                    GrugEntityType.Item,
+                                    GrugCore.getAdapter().getStackItem(stack))));
+        }
+        return Grug.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
     public static double get_inventory_size(long blockEntityId) {
@@ -712,6 +744,16 @@ public class HostFunctions {
                         slot,
                         Grug.entityData.get(itemId).object,
                         count);
+    }
+
+    public static void set_extractable_slots(long blockEntityId, double first, double last) {
+        GrugSlotAccess.declareExtractable(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), first, last);
+    }
+
+    public static void set_insertable_slots(long blockEntityId, double first, double last) {
+        GrugSlotAccess.declareInsertable(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), first, last);
     }
 
     public static void set_material(String materialName) {

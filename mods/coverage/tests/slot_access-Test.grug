@@ -1,0 +1,118 @@
+# Covers the slot-access rules and the crafting-result reads: a block entity that declares no rule is
+# accessible everywhere, a declared range is reported by is_slot_extractable and is_slot_insertable and
+# is what insert_item_into_inventory fills, an empty range denies everything, and a crafting result
+# reads as an item and a damage while there is one and as an empty Option and a zero without.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        # Band 15 with an x offset, clear of every other test's fixtures: a rule lives on the block entity
+        # object and its leftovers live in its slots, and the world outlives a test, so a fixture
+        # another test shares a band with would be handed both. Band 15's other user is
+        # coverage/tests/shaped_recipe-Test.grug, at the origin and 3 blocks east of it.
+        x: number = origin.x() + 12
+        y: number = origin.y() + 15
+        z: number = origin.z()
+
+        level.place_block(x, y, z, "grug:coverage_block")
+        be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        Test.assert(be_opt.has(), "The coverage block should have a block entity.")
+        be: BlockEntity = be_opt.unwrap()
+        diamond: Item = item(resource_location("minecraft:diamond"))
+
+        # Nothing declared, so every slot is open, including the slot one past the last, which is where a
+        # crafting result lives.
+        Test.assert(is_slot_extractable(be, 0), "An undeclared inventory should be extractable.")
+        Test.assert(is_slot_extractable(be, 9), "An undeclared inventory's result slot should be extractable.")
+        Test.assert(is_slot_insertable(be, 0), "An undeclared inventory should be insertable.")
+        Test.assert(is_slot_insertable(be, 8), "An undeclared inventory should be insertable.")
+
+        # A block entity with no result container at all is the same as one with an empty result.
+        Test.assert(not get_crafting_result_item(be).has(), "An uncrafted grid should have no result.")
+        Test.assert(get_crafting_result_damage(be) == 0, "An uncrafted grid's result damage should be 0.")
+
+        slot: number = 0
+        while slot < 9 {
+            set_item_in_slot(be, slot, diamond, 1)
+            slot = slot + 1
+        }
+
+        # Declaring an insert range narrows what insert_item_into_inventory fills, and the top-up pass is
+        # narrowed as well as the empty-slot pass: slot 3 already holds a diamond, and only it grows.
+        set_insertable_slots(be, 3, 4)
+        Test.assert(not is_slot_insertable(be, 2), "A slot below a declared range should not be insertable.")
+        Test.assert(is_slot_insertable(be, 3), "The first slot of a declared range should be insertable.")
+        Test.assert(is_slot_insertable(be, 4), "The last slot of a declared range should be insertable.")
+        Test.assert(not is_slot_insertable(be, 5), "A slot above a declared range should not be insertable.")
+
+        inserted: number = insert_item_into_inventory(be, diamond, 0, 1)
+        Test.assert(inserted == 1, "The declared slot should have taken the diamond.")
+        Test.assert(get_item_count_in_slot(be, 3) == 2, "Only the declared slot should have grown.")
+        Test.assert(get_item_count_in_slot(be, 2) == 1, "A slot below the declared range should be untouched.")
+        Test.assert(get_item_count_in_slot(be, 0) == 1, "A slot below the declared range should be untouched.")
+
+        # An inventory with no slot another block may use takes nothing at all.
+        set_insertable_slots(be, 8, 7)
+        Test.assert(not is_slot_insertable(be, 8), "A last below the first should declare no slot.")
+        Test.assert(insert_item_into_inventory(be, diamond, 0, 1) == 0, "A denied inventory should take nothing.")
+
+        # Extraction is gated the same way as insertion, and this is the transfer a machine's rule
+        # exists for: a bulk scan for an item must not reach into the slots the block has closed off.
+        set_extractable_slots(be, 3, 4)
+        Test.assert(not is_slot_extractable(be, 0), "A slot below a declared range should be denied.")
+        Test.assert(is_slot_extractable(be, 3), "The first slot of a declared range should be extractable.")
+        Test.assert(not is_slot_extractable(be, 5), "A slot above a declared range should be denied.")
+
+        # Five diamonds are asked for. Only the two declared slots are scanned, and between them
+        # they hold 2 and 1, so 3 of the 5 come out and the denied slots are never looked at.
+        extracted: number = extract_item_from_inventory(be, diamond, 0, 5)
+        Test.assert(extracted == 3, "Only the two declared slots should have been drained.")
+        Test.assert(get_item_count_in_slot(be, 3) == 0, "A declared slot should have been emptied.")
+        Test.assert(get_item_count_in_slot(be, 4) == 0, "A declared slot should have been emptied.")
+        Test.assert(get_item_count_in_slot(be, 0) == 1, "A denied slot should be left alone.")
+        Test.assert(get_item_count_in_slot(be, 8) == 1, "A denied slot should be left alone.")
+
+        # Reading is not a transfer, so counting still sees every slot: only the two bulk transfer
+        # functions consult the rule. Ten diamonds went in and three came out.
+        Test.assert(count_item_in_inventory(be, diamond, 0) == 7, "Counting should still see every slot.")
+
+        # Granting the result slot alone, which is what a machine does, keeps its grid out of reach.
+        set_extractable_slots(be, 9, 9)
+        Test.assert(not is_slot_extractable(be, 0), "A grid slot outside the declared range should be denied.")
+        Test.assert(is_slot_extractable(be, 9), "The declared result slot should be extractable.")
+
+        # Three wheat in the top row craft one bread. Wheat and bread are items rather than blocks on
+        # every loader, so the result can be named and compared, unlike a grid of diamonds, whose 3x3
+        # recipe is the diamond block.
+        wheat: Item = item(resource_location("minecraft:wheat"))
+        slot = 3
+        while slot < 9 {
+            set_item_count_in_slot(be, slot, 0)
+            slot = slot + 1
+        }
+        slot = 0
+        while slot < 3 {
+            set_item_in_slot(be, slot, wheat, 1)
+            slot = slot + 1
+        }
+        update_recipe_output(be, 0)
+
+        result_opt: Option[Item] = get_crafting_result_item(be)
+        Test.assert(result_opt.has(), "The three wheat should have crafted a result.")
+        if result_opt.has() {
+            Test.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
+        }
+        Test.assert(get_crafting_result_damage(be) == 0, "A crafted bread should be undamaged.")
+
+        # The permissive default is per block entity, so a chest that declared nothing is untouched by
+        # the rule the coverage block just declared.
+        level.place_block(x + 1, y, z, "minecraft:chest")
+        chest_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+        Test.assert(chest_opt.has(), "The chest should have a block entity.")
+        chest: BlockEntity = chest_opt.unwrap()
+        Test.assert(is_slot_extractable(chest, 0), "A chest that declared nothing should be extractable.")
+        Test.assert(is_slot_insertable(chest, 0), "A chest that declared nothing should be insertable.")
+        Test.assert(not get_crafting_result_item(chest).has(), "A chest should have no crafting result.")
+        Test.assert(get_crafting_result_damage(chest) == 0, "A chest's result damage should be 0.")
+    }
+}

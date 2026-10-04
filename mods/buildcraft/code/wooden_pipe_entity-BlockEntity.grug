@@ -1,6 +1,8 @@
 # The wooden pipe in outline: when an adjacent redstone engine powers it, it pulls one item from the
 # inventory it extracts from into its own one-slot inventory, then pushes that item on to the next
 # inventory or pipe, or drops it when nothing accepts it.
+# Which slots of that inventory the pipe may touch is the inventory's own rule, asked through
+# is_slot_extractable, so a machine can offer a pipe its output and keep its ingredients to itself.
 # This is not the full old BuildCraft pipe: it has no travelling item entity and no connection
 # matrix. Instead it is one-slot buffered, it prefers a real inventory over another pipe so a chain
 # of pipes feeds forward, and it only ever extracts from one side, so it cannot pump the same item
@@ -80,7 +82,27 @@ local _is_inventory(nx: number, ny: number, nz: number) bool {
     if not neighbor_opt.has() {
         return false
     }
-    return get_inventory_size(neighbor_opt.unwrap()) > 0
+    return _has_extractable_slot(neighbor_opt.unwrap())
+}
+
+# Whether this inventory offers a pipe anything. The slot after the last inventory slot is the
+# crafting result, which is not an inventory slot but is what a machine like the autocrafting table
+# offers, and an inventory with no slots at all offers nothing, which is what keeps the redstone
+# engine out of the pipe's way.
+local _has_extractable_slot(neighbor: BlockEntity) bool {
+    size: number = get_inventory_size(neighbor)
+    if size <= 0 {
+        return false
+    }
+
+    slot: number = 0
+    while slot <= size {
+        if is_slot_extractable(neighbor, slot) {
+            return true
+        }
+        slot = slot + 1
+    }
+    return false
 }
 
 local _try_push() {
@@ -127,28 +149,68 @@ local _pull_one_from(nx: number, ny: number, nz: number) bool {
     neighbor: BlockEntity = neighbor_opt.unwrap()
     size: number = get_inventory_size(neighbor)
     slot: number = 0
-    while slot < size {
-        if get_item_count_in_slot(neighbor, slot) > 0 {
-            item_opt: Option[Item] = get_item_in_slot(neighbor, slot)
-            if item_opt.has() {
-                # Read the damage before taking, because taking empties the slot.
-                damage: number = get_item_damage_in_slot(neighbor, slot)
-                # take_item_from_slot, not extract_item_from_inventory. They look interchangeable,
-                # but only the former calls removeItem and then fires output_taken, which is what
-                # drives the autocrafting table's restock and craft loop. extract_item_from_inventory
-                # only fires item_extracted, which the table ignores for its output slot.
-                taken: number = take_item_from_slot(neighbor, slot, 1)
-                if taken > 0 {
-                    set_item_in_slot(me, 0, item_opt.unwrap(), 1)
-                    set_item_damage_in_slot(me, 0, damage)
-                    return true
-                }
+    while slot <= size {
+        if is_slot_extractable(neighbor, slot) {
+            if _take_from(neighbor, slot, size) {
+                return true
             }
         }
         slot = slot + 1
     }
 
     return false
+}
+
+# Takes one item from the slot the neighbour offers. Everything but the slot after the last inventory
+# slot is a plain inventory slot; that one is the crafting result, which only take_crafting_result
+# reaches, so it is read and taken through its own pair of functions.
+local _take_from(neighbor: BlockEntity, slot: number, size: number) bool {
+    if slot == size {
+        return _take_crafting_result(neighbor)
+    }
+
+    if get_item_count_in_slot(neighbor, slot) == 0 {
+        return false
+    }
+
+    item_opt: Option[Item] = get_item_in_slot(neighbor, slot)
+    if not item_opt.has() {
+        return false
+    }
+
+    # Read the damage before taking, because taking empties the slot.
+    damage: number = get_item_damage_in_slot(neighbor, slot)
+    # take_item_from_slot, not extract_item_from_inventory. They look interchangeable, but only the
+    # former calls removeItem and then fires output_taken, which is what drives the autocrafting
+    # table's restock and craft loop. extract_item_from_inventory only fires item_extracted, which
+    # the table ignores for its output slot.
+    taken: number = take_item_from_slot(neighbor, slot, 1)
+    if taken == 0 {
+        return false
+    }
+
+    _store(item_opt.unwrap(), damage)
+    return true
+}
+
+local _take_crafting_result(neighbor: BlockEntity) bool {
+    result_opt: Option[Item] = get_crafting_result_item(neighbor)
+    if not result_opt.has() {
+        return false
+    }
+
+    damage: number = get_crafting_result_damage(neighbor)
+    if take_crafting_result(neighbor, 1) == 0 {
+        return false
+    }
+
+    _store(result_opt.unwrap(), damage)
+    return true
+}
+
+local _store(item: Item, damage: number) {
+    set_item_in_slot(me, 0, item, 1)
+    set_item_damage_in_slot(me, 0, damage)
 }
 
 local _push_to_inventory(item: Item) bool {

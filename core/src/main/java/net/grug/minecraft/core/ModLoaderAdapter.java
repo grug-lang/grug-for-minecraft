@@ -143,6 +143,19 @@ public interface ModLoaderAdapter {
     double takeCraftingResult(Object blockEntityObj, double amount);
 
     /**
+     * /** The result stack a block entity's crafting result holds right now, or null when it has no
+     * result. Not an inventory slot: a grug block entity keeps the result in its own holder, and a
+     * reference tile computes it on demand, so only the adapter knows what "no result" is here.
+     */
+    Object getResultStack(Object blockEntityObj);
+
+    /** The Item in a result stack, for {@link #getResultStack} to read. */
+    Object getStackItem(Object stackObj);
+
+    /** The damage of a result stack, for {@link #getResultStack} to read. */
+    double getStackDamage(Object stackObj);
+
+    /**
      * The level this process's tests build their fixtures in, or null when this side has none yet.
      *
      * <p>A dedicated server answers with its own level, because there is no client to ask. A client

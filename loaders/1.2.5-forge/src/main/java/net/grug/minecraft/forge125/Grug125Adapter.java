@@ -17,6 +17,7 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -171,6 +172,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.getSizeInventory() && remainingToExtract > 0; i++) {
+            if (!GrugSlotAccess.isExtractable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getStackInSlot(i);
             if (stack != null && stack.getItem() == item && stack.getItemDamage() == (int) damage) {
                 int extractFromSlot = Math.min(stack.stackSize, remainingToExtract);
@@ -186,6 +188,23 @@ public class Grug125Adapter implements ModLoaderAdapter {
         IInventory inv = (IInventory) blockEntityObj;
         ItemStack removed = inv.decrStackSize((int) slot, (int) amount);
         return removed != null ? removed.stackSize : 0;
+    }
+
+    @Override
+    public Object getResultStack(Object blockEntityObj) {
+        // This loader compiles to Java 8 bytecode, so no pattern matching here.
+        if (!(blockEntityObj instanceof GrugBlockEntity)) return null;
+        return ((GrugBlockEntity) blockEntityObj).getResultStack();
+    }
+
+    @Override
+    public Object getStackItem(Object stackObj) {
+        return ((ItemStack) stackObj).getItem();
+    }
+
+    @Override
+    public double getStackDamage(Object stackObj) {
+        return ((ItemStack) stackObj).getItemDamage();
     }
 
     @Override
@@ -261,8 +280,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
         int maxStack = item.getItemStackLimit();
         int remaining = (int) amount;
 
-        // Top up matching stacks first, then use empty slots, like a player's inventory fills.
+        // Top up matching stacks first, then fill empty slots, like a player's inventory fills. A
+        // block entity that declares a rule only has its insertable slots filled, which for an
+        // inventory declaring none is all of them.
         for (int i = 0; i < inventory.getSizeInventory() && remaining > 0; i++) {
+            if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             ItemStack stack = inventory.getStackInSlot(i);
             if (stack != null && stack.getItem() == item && stack.getItemDamage() == meta) {
                 int room = maxStack - stack.stackSize;
@@ -275,6 +297,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
         }
 
         for (int i = 0; i < inventory.getSizeInventory() && remaining > 0; i++) {
+            if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             if (inventory.getStackInSlot(i) == null) {
                 int add = Math.min(maxStack, remaining);
                 ItemStack stack = new ItemStack(item, add);
