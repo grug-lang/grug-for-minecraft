@@ -95,11 +95,10 @@ public class HostFunctions {
 
     /**
      * Test only: whether this loader registers the crafting recipes a mod ships under its {@code
-     * data/<namespace>/recipes} tree, which every loader but 1.2.5 does.
+     * data/<namespace>/recipes} tree. Every loader does.
      *
-     * <p>A test that asserts one of those recipes asks this first. Where the tree is never read the
-     * recipe does not exist, and asserting it anyway fails the run for something the loader cannot
-     * do rather than for something grug got wrong.
+     * <p>A test that asserts one of those recipes asks this first, so a future loader that cannot
+     * register the tree does not fail the run for something it cannot do.
      */
     public static boolean Test_registers_mod_recipes() {
         return GrugCore.getAdapter().registersModRecipes();

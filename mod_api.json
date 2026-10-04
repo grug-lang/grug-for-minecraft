@@ -253,7 +253,7 @@
 					}
 				},
 				"registers_mod_recipes": {
-					"description": "Test only: whether this loader registers the crafting recipes a mod ships under `data/<namespace>/recipes`. Four of the five do, each through its own version's recipe machinery: the Ornithe loaders parse the tree themselves and hand the result to the game's CraftingManager, StationAPI hands the files to its recipe registry, and 1.20.6 serves the tree to Forge as a pack so the level's own recipe manager loads it. 1.2.5 does not, because its CraftingManager holds recipes added in code and reads no JSON at all. A test that asserts a shipped recipe asks this first, because on a loader that registers none the recipe is not registered, and asserting it anyway would fail the run for something that loader cannot do.",
+					"description": "Test only: whether this loader registers the crafting recipes a mod ships under `data/<namespace>/recipes`. Every loader does, each through its own version's recipe machinery: the Ornithe loaders parse the tree themselves and hand the result to the game's CraftingManager, StationAPI hands the files to its recipe registry, 1.20.6 serves the tree to Forge as a pack so the level's own recipe manager loads it, and 1.2.5 parses the tree and calls the game's own ModLoader.addRecipe and addShapelessRecipe. A test that asserts a shipped recipe asks this first, so a future loader that registers none does not fail the run for something it cannot do.",
 					"return_type": {
 						"name": "bool"
 					}

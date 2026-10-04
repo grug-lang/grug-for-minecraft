@@ -9,9 +9,9 @@
 # whatever else might answer a grid, and the wrong-multiset grid has to answer nothing at all.
 # Band 10 is free: the coverage tests use 0, 20 and 30 and the pipe tests 25, 35, 40, 45 and 50.
 export run() {
-    # 1.2.5 holds its recipes in code and reads no JSON, so the recipe below is not registered
-    # there at all. Asking the loader is the only way to tell that apart from grug failing to
-    # register it. Every other loader registers it, 1.20.6 through Forge's own recipe manager.
+    # A loader that registers no mod recipe and one that failed to register this recipe both answer
+    # the grid with nothing, so the loader is asked rather than assumed. Every loader registers a
+    # mod's recipes now: 1.2.5 parses the tree itself and 1.20.6 through Forge's own recipe manager.
     if not Test.registers_mod_recipes() {
         return
     }
