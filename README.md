@@ -69,6 +69,26 @@ Use the following Gradle commands to build and run the specific mod loader envir
 | **Beta 1.7.3** | StationAPI | `./gradlew :loaders:b1.7.3-stationapi:runClient` |
 | **Alpha 1.1.2_01** | Ornithe | `./gradlew :loaders:a1.1.2_01-ornithe:runClient` |
 
+### Multiplayer
+
+**grug is singleplayer-only today.** No loader runs the test suite, a mod's `tick`, or a GUI on a
+dedicated server, and no loader is exercised in multiplayer by CI. The table below says where each
+one actually stands, because "not supported" and "cannot exist" are different answers and only the
+first is a piece of work in progress.
+
+| Minecraft Version | Mod Loader | Dedicated server exists? | grug on a dedicated server | `GUI.open` across a connection |
+| :--- | :--- | :--- | :--- | :--- |
+| **1.20.6** | Forge | yes | no, [#167](https://github.com/grug-lang/grug-for-minecraft/issues/167) | the server side of it already exists (`ServerPlayer.openMenu`), unexercised: [#167](https://github.com/grug-lang/grug-for-minecraft/issues/167) |
+| **1.2.5** | Forge | yes, Minecraft 1.2.5 shipped one | no, and grug registers on the client side only: [#166](https://github.com/grug-lang/grug-for-minecraft/issues/166) | no |
+| **Beta 1.7.3** | Ornithe | yes | blocks, items, block entities and recipes already register server-side; no runner: [#163](https://github.com/grug-lang/grug-for-minecraft/issues/163) | no, it reports a host-function error: [#164](https://github.com/grug-lang/grug-for-minecraft/issues/164) |
+| **Beta 1.7.3** | StationAPI | yes | registration and recipes already run, because StationAPI's common event bus runs on a server; no runner or resource pack: [#165](https://github.com/grug-lang/grug-for-minecraft/issues/165) | no |
+| **Alpha 1.1.2_01** | Ornithe | **no.** Ornithe ships no server jar for this version | not reachable | not reachable |
+
+The Alpha row is about this loader rather than about Minecraft: Alpha 1.1.2_01 did have a dedicated
+server in the real game, but Ornithe's version metadata for it says `"server": false` and has no
+server download at all, so there is no second process for grug to run in. `a1.1.2_01-ornithe` is
+therefore client-only by construction rather than by choice.
+
 ### Accepting Screenshot References
 
 A screenshot test compares its capture against the numbered PNGs in the mod's `screenshots/<name>/`

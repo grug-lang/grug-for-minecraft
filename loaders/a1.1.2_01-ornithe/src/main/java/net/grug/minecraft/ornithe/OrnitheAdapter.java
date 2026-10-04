@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
@@ -54,6 +55,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     /** Block id to name, populated lazily: a reverse lookup scans every block field. */
     private final Map<Integer, String> blockNamesById = new HashMap<>();
 
+    /**
+     * The adapter for whichever process this is, which for this loader is always the client one:
+     * see {@link #getSide()}. Called from the shared {@code GrugModLoader}, which cannot name this
+     * loader's adapter itself.
+     */
+    public static ModLoaderAdapter forCurrentEnvironment() {
+        return new OrnitheAdapter();
+    }
+
     @Override
     public File getGameDirectory() {
         return FabricLoader.getInstance().getGameDir().toFile();
@@ -62,6 +72,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public File getGrugModsDirectory() {
         return GrugModLoader.getActiveGrugModsDir();
+    }
+
+    /**
+     * Always a client, and not as a shortcut: Ornithe ships no dedicated server for this Minecraft
+     * version at all. Its own version metadata says {@code "server": false} for a1.1.2_01 with no
+     * server download, and the lifecycle library it resolves has no server package either, so a
+     * second process cannot exist to report anything else. Alpha 1.1.2_01 did have a dedicated
+     * server in the real game; this loader has no way to reach it.
+     */
+    @Override
+    public GrugSide getSide() {
+        return GrugSide.CLIENT;
     }
 
     @Override
@@ -519,12 +541,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object getClientLevel() {
+    public Object getLevel() {
         return MinecraftInstance.get().world;
     }
 
     @Override
-    public Object getPlayer() {
+    public Object testPlayer() {
         return MinecraftInstance.get().player;
     }
 
@@ -695,7 +717,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public boolean isWorldReady(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
-        Object level = getClientLevel();
+        Object level = getLevel();
 
         // y is the eye reference in this version, so the feet come from the collision box.
         return GrugWorldReady.isReady(

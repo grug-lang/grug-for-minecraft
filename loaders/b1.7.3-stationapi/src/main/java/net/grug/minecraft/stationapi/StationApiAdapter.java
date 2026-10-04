@@ -1,6 +1,8 @@
 package net.grug.minecraft.stationapi;
 
+import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
@@ -38,6 +40,7 @@ import org.lwjgl.opengl.GL11;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.Map;
 
 public class StationApiAdapter implements ModLoaderAdapter {
 
@@ -48,6 +51,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
     private static final GrugVanillaBlocks.Loader CANONICAL_BLOCKS =
             GrugVanillaBlocks.forLoader("b1.7.3-stationapi");
 
+    /**
+     * What StationAPI's environment type means to grug, answered as a lookup rather than a
+     * conditional so the constant has no branch for the coverage gate to have to see both sides of.
+     */
+    private static final Map<EnvType, GrugSide> SIDES =
+            Map.of(EnvType.CLIENT, GrugSide.CLIENT, EnvType.SERVER, GrugSide.DEDICATED_SERVER);
+
     @Override
     public File getGameDirectory() {
         return FabricLoader.getInstance().getGameDir().toFile();
@@ -56,6 +66,19 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public File getGrugModsDirectory() {
         return InitListener.getActiveGrugModsDir();
+    }
+
+    /**
+     * StationAPI loads on a dedicated server, so this is the game's own answer rather than an
+     * assumption. What a dedicated server then gets from the two handles below is not the answer
+     * yet: see #165, which is also why this class cannot hold the server-side glue itself. Fabric
+     * Loader refuses to load a class the game marked server-only from a client process, so anything
+     * naming one has to sit behind StationAPI's {@code stationapi:event_bus_server} entrypoint
+     * instead.
+     */
+    @Override
+    public GrugSide getSide() {
+        return SIDES.get(FabricLoader.getInstance().getEnvironmentType());
     }
 
     /**
@@ -259,20 +282,42 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return ((BlockEntity) blockEntityObj).world;
     }
 
+    @GrugGenerated("the dedicated-server answer is #165, and it cannot live in this class")
     @Override
-    public Object getClientLevel() {
+    public Object getLevel() {
+        requireAClient("Test.get_client_level");
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return mc.world;
     }
 
+    @GrugGenerated("the dedicated-server answer is #165, and it cannot live in this class")
     @Override
-    public Object getPlayer() {
+    public Object testPlayer() {
+        requireAClient("Test.get_player");
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return mc.player;
+    }
+
+    /**
+     * Refuses the two handles on a dedicated server until #165 gives this loader a server-side
+     * adapter.
+     *
+     * <p>A fatal rather than a null, because there is nothing to return and letting the cast of
+     * {@code getGameInstance()} fail would report a {@code NullPointerException} from inside Fabric
+     * Loader's client-only path instead of saying that the server side is not built yet.
+     */
+    @GrugGenerated("the dedicated-server answer is #165, which no CI run exercises until then")
+    private void requireAClient(String function) {
+        if (getSide() != GrugSide.DEDICATED_SERVER) return;
+
+        throw Grug.fatal(
+                function
+                        + ": grug has no dedicated-server adapter on StationAPI yet, so a"
+                        + " dedicated server cannot answer for its level or its player. See #165.");
     }
 
     @Override
@@ -569,7 +614,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public boolean isWorldReady(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
-        Object level = getClientLevel();
+        Object level = getLevel();
 
         // y is the eye reference in this version, so the feet come from the collision box.
         return GrugWorldReady.isReady(
@@ -597,6 +642,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public Vec3 setupGraphicsTestCamera() {
+        if (refuseWithoutAClient("Test.setup_graphics_camera")) return null;
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
@@ -626,6 +672,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
+        if (refuseWithoutAClient("Test.restore_camera")) return;
         if (!graphicsCameraSaved) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -655,6 +702,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        if (refuseWithoutAClient("Test.use_block")) return;
         World world = (World) levelObj;
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
@@ -701,6 +749,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
             double x2,
             double y2,
             double tolerancePercent) {
+        if (refuseWithoutAClient("Screenshot.equals")) return;
         BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
         if (capture == null) {
             return; // captureChecked already reported why

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
@@ -40,6 +41,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.server.ServerLifecycleHooks;
@@ -54,6 +57,18 @@ import java.util.concurrent.CountDownLatch;
 public class ForgeAdapter implements ModLoaderAdapter {
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    /**
+     * The adapter for whichever process this is. Called from {@code GrugModLoader}, which runs on
+     * both sides because {@code mods.toml} declares the mod {@code BOTH}.
+     */
+    @GrugGenerated(
+            "the choice is which process the game is, which a client run only ever picks one of")
+    public static ModLoaderAdapter forCurrentEnvironment() {
+        return FMLEnvironment.dist == Dist.DEDICATED_SERVER
+                ? new ServerForgeAdapter()
+                : new ForgeAdapter();
+    }
+
     @Override
     public File getGameDirectory() {
         return FMLPaths.GAMEDIR.get().toFile();
@@ -62,6 +77,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public File getGrugModsDirectory() {
         return GrugModLoader.getActiveGrugModsDir();
+    }
+
+    @Override
+    public GrugSide getSide() {
+        return GrugSide.CLIENT;
     }
 
     @Override
@@ -246,9 +266,19 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return ((BlockEntity) blockEntityObj).getLevel();
     }
 
-    @GrugGenerated("client level: the server-vs-client choice is loader plumbing")
+    /**
+     * The running server's world when there is one, and the client's own copy otherwise.
+     *
+     * <p>In singleplayer the two are not the same object: the client holds a {@code ClientLevel}
+     * that mirrors the {@code ServerLevel}, and a block placed through the client is placed in the
+     * mirror. A fixture has to go into the world that owns it, so the server's answer wins and the
+     * client's is only there for a client connected to somebody else, where there is no local
+     * server at all.
+     */
+    @GrugGenerated(
+            "singleplayer versus a connected client: which world owns the block is loader plumbing")
     @Override
-    public Object getClientLevel() {
+    public Object getLevel() {
         if (ServerLifecycleHooks.getCurrentServer() != null) {
             return ServerLifecycleHooks.getCurrentServer().overworld();
         }
@@ -256,7 +286,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object getPlayer() {
+    public Object testPlayer() {
         return Minecraft.getInstance().player;
     }
 
@@ -516,7 +546,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public boolean isWorldReady(Object playerObj) {
         Player player = (Player) playerObj;
-        Object level = getClientLevel();
+        Object level = getLevel();
 
         return GrugWorldReady.isReady(
                 (x, y, z) -> isAir(level, x, y, z), player.getX(), player.getY(), player.getZ());
@@ -550,6 +580,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public Vec3 setupGraphicsTestCamera() {
+        if (refuseWithoutAClient("Test.setup_graphics_camera")) return null;
         // The test runner is driven from the integrated server thread, but the camera is the client
         // player's, so client-side work is marshalled onto the client (render) thread.
         final Vec3[] result = new Vec3[1];
@@ -585,6 +616,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
+        if (refuseWithoutAClient("Test.restore_camera")) return;
         if (!graphicsCameraSaved) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -618,6 +650,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        if (refuseWithoutAClient("Test.use_block")) return;
         onClientThread(() -> useBlockOnClient(x, y, z));
     }
 
@@ -652,6 +685,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
             double x2,
             double y2,
             double tolerancePercent) {
+        if (refuseWithoutAClient("Screenshot.equals")) return;
         BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
         if (capture == null) {
             return; // captureChecked already reported why

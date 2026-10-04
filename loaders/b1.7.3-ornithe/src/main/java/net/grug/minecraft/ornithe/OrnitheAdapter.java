@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
@@ -54,6 +55,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     /** Block id to name, populated lazily: a reverse lookup scans every block field. */
     private final Map<Integer, String> blockNamesById = new HashMap<>();
 
+    /**
+     * The adapter for whichever process this is. Called from {@code GrugModLoader.init()}, which is
+     * shared with the Alpha loader and so cannot name this loader's server adapter itself.
+     */
+    @GrugGenerated(
+            "the choice is which process the game is, which a client run only ever picks one of")
+    public static ModLoaderAdapter forCurrentEnvironment() {
+        return FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER
+                ? new ServerOrnitheAdapter()
+                : new OrnitheAdapter();
+    }
+
     @Override
     public File getGameDirectory() {
         return FabricLoader.getInstance().getGameDir().toFile();
@@ -62,6 +75,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public File getGrugModsDirectory() {
         return GrugModLoader.getActiveGrugModsDir();
+    }
+
+    @Override
+    public GrugSide getSide() {
+        return GrugSide.CLIENT;
     }
 
     @Override
@@ -520,12 +538,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object getClientLevel() {
+    public Object getLevel() {
         return MinecraftInstance.get().world;
     }
 
     @Override
-    public Object getPlayer() {
+    public Object testPlayer() {
         return MinecraftInstance.get().player;
     }
 
@@ -679,7 +697,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public boolean isWorldReady(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
-        Object level = getClientLevel();
+        Object level = getLevel();
 
         // y is the eye reference in this version, so the feet come from the collision box.
         return GrugWorldReady.isReady(
@@ -705,6 +723,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public Vec3 setupGraphicsTestCamera() {
+        if (refuseWithoutAClient("Test.setup_graphics_camera")) return null;
         PlayerEntity player = MinecraftInstance.get().player;
         if (player == null) {
             Grug.hostFunctionErrorHappened(
@@ -731,6 +750,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
+        if (refuseWithoutAClient("Test.restore_camera")) return;
         if (!graphicsCameraSaved) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -755,6 +775,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        if (refuseWithoutAClient("Test.use_block")) return;
         World world = (World) levelObj;
         PlayerEntity player = MinecraftInstance.get().player;
         if (player == null) {
@@ -797,6 +818,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             double x2,
             double y2,
             double tolerancePercent) {
+        if (refuseWithoutAClient("Screenshot.equals")) return;
         BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
         if (capture == null) {
             return; // captureChecked already reported why

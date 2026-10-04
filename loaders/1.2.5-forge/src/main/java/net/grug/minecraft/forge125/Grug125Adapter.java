@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125;
 
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge125.block.GrugBlock;
@@ -55,6 +56,17 @@ public class Grug125Adapter implements ModLoaderAdapter {
      */
     private static final GrugVanillaBlocks.Loader CANONICAL_BLOCKS =
             GrugVanillaBlocks.forLoader("1.2.5-forge");
+
+    /**
+     * Always a client, and not as a shortcut: {@code mod_Grug} is registered on the client side
+     * only, so this adapter is only ever constructed in a client process and there is no server
+     * instance for it to answer about. Minecraft 1.2.5 does have a dedicated server, so whether
+     * grug should support one is open; see #166, which decides that and updates this.
+     */
+    @Override
+    public GrugSide getSide() {
+        return GrugSide.CLIENT;
+    }
 
     private static File gameDir() {
         return ModLoader.getMinecraftInstance().mcDataDir;
@@ -685,12 +697,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object getClientLevel() {
+    public Object getLevel() {
         return ModLoader.getMinecraftInstance().theWorld;
     }
 
     @Override
-    public Object getPlayer() {
+    public Object testPlayer() {
         return ModLoader.getMinecraftInstance().thePlayer;
     }
 
@@ -716,7 +728,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public boolean isWorldReady(Object playerObj) {
         EntityPlayer player = (EntityPlayer) playerObj;
-        Object level = getClientLevel();
+        Object level = getLevel();
 
         // posY is the eye reference in this version, so the feet come from the collision box.
         return GrugWorldReady.isReady(
@@ -746,6 +758,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public Vec3 setupGraphicsTestCamera() {
+        if (refuseWithoutAClient("Test.setup_graphics_camera")) return null;
         Minecraft mc = ModLoader.getMinecraftInstance();
         EntityPlayer player = mc.thePlayer;
         if (player == null) {
@@ -773,6 +786,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
+        if (refuseWithoutAClient("Test.restore_camera")) return;
         if (!graphicsCameraSaved) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -797,6 +811,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        if (refuseWithoutAClient("Test.use_block")) return;
         World world = (World) levelObj;
         EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
         if (player == null) {
@@ -847,6 +862,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
             double x2,
             double y2,
             double tolerancePercent) {
+        if (refuseWithoutAClient("Screenshot.equals")) return;
         BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
         if (capture == null) {
             return; // captureChecked already reported why
