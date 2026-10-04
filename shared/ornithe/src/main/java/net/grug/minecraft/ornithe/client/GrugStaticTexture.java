@@ -24,7 +24,8 @@ public class GrugStaticTexture extends DynamicTexture {
     }
 
     /**
-     * Replaces this sprite's pixels with the 16x16 chunk at the top left of the image in {@code is}.
+     * Replaces this sprite's pixels with the 16x16 chunk at the top left of the image in {@code
+     * is}.
      *
      * <p>Callable more than once on purpose. This is how a hot reload of a texture reaches the
      * atlas: the loader has already allocated the sprite slots, so a changed texture is a change to

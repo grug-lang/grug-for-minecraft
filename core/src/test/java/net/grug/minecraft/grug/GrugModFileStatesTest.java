@@ -91,7 +91,9 @@ class GrugModFileStatesTest {
         return "mymod/assets/mymod/textures/block/stone.png";
     }
 
-    /** A PNG in the assets tree, with the sibling the {@code "swapped"} state copies in beside it. */
+    /**
+     * A PNG in the assets tree, with the sibling the {@code "swapped"} state copies in beside it.
+     */
     private void givenABinaryAsset(byte[] original, byte[] replacement) throws IOException {
         modsDir = Files.createDirectories(tmp.resolve("mods")).toFile();
         Path textures =
@@ -138,7 +140,8 @@ class GrugModFileStatesTest {
         modsDir = Files.createDirectories(tmp.resolve("mods")).toFile();
         Path mod = Files.createDirectories(modsDir.toPath().resolve("mymod"));
         Files.write(mod.resolve("LICENSE"), "the original".getBytes(StandardCharsets.UTF_8));
-        Files.write(mod.resolve("LICENSE.swap"), "the replacement".getBytes(StandardCharsets.UTF_8));
+        Files.write(
+                mod.resolve("LICENSE.swap"), "the replacement".getBytes(StandardCharsets.UTF_8));
         backupRoot = tmp.resolve(".grug_test_backups");
 
         GrugModFileStates.set(modsDir, "mymod/LICENSE", "swapped");

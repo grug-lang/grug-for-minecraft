@@ -91,7 +91,7 @@ public final class GrugModFileStates {
             return;
         }
 
-if (!isDisturbance(state)) {
+        if (!isDisturbance(state)) {
             throw new IllegalArgumentException(
                     "Unknown mod file state '"
                             + state
@@ -289,9 +289,9 @@ if (!isDisturbance(state)) {
     /**
      * The bytes that put {@code path} into {@code state}, which is not {@code "normal"}.
      *
-     * @throws IOException when {@link #SWAPPED} asks for a file that is not there, since a swap with
-     *     nothing to swap in would otherwise be a state that disturbs nothing and so never reports a
-     *     change to wait for.
+     * @throws IOException when {@link #SWAPPED} asks for a file that is not there, since a swap
+     *     with nothing to swap in would otherwise be a state that disturbs nothing and so never
+     *     reports a change to wait for.
      */
     private static byte[] disturbed(Path path, byte[] contents, String state) throws IOException {
         if (INVALID.equals(state)) {
