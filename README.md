@@ -78,8 +78,15 @@ part your change can reach:
 | what you changed | what to run |
 | :--- | :--- |
 | `core/`, `mod_api.json`, the grug adapter generator | `./gradlew :core:test -Dgrug.activeLoader=a1.1.2_01-ornithe` and `python3 core/test_generate.py`. No game boots. |
-| one loader | `.github/scripts/run-loader.sh <loader-dir-name> run` under `xvfb-run`, for that loader only |
+| one loader | `.github/scripts/run-loader.sh <loader-dir-name> run`, under `xvfb-run` if there is no X server |
 | a grug script, or a mod | the loader you are developing for, since every `*-Test.grug` joins all five suites |
+
+With no display to hand, that is:
+
+```sh
+xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
+  .github/scripts/run-loader.sh <loader-dir-name> run
+```
 
 A full run of all five takes about two minutes of game time and, on a 15GB machine, has to be at most
 two at a time. Before the run, `GrugTestRunner` prints what every test took, slowest first, so the
