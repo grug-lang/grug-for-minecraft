@@ -105,9 +105,14 @@ local _check() {
     # The rendered shape against the flat background: a run of three, each with arms reaching to
     # its neighbours and none on the outer ends.
     # Pixel-exact, and it has to stay that way: a tolerance would accept a shape that had lost an
-    # arm, which is the one thing this test exists to catch. The background exists so that it can
-    # be, see coverage_flat-Block.grug.
+    # arm, which is the one thing this test exists to catch.
+    # The top of the rectangle is the one place that needs care. The wall's top corner is a step
+    # darker than the rest of its face, and which pixels land on that step shifts by one between
+    # runs: measured here and on the CI runner, a capture differed from its reference in exactly the
+    # five pixels at the rectangle's top-right corner, each by one step of 255. The rectangle
+    # therefore starts eight rows below the wall's top corner, the same reason the autocrafting table
+    # test insets past the soft edge of its panel.
     # The reference is a directory of numbered PNGs and the capture passes if it matches any of
     # them, because the same shape rasterises differently on each Minecraft version.
-    Test.screenshot().equals(r"screenshots/coverage_render", 450, 190, 850, 320)
+    Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
 }
