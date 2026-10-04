@@ -136,6 +136,40 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   Goldens are per distinct rendering, not per loader.
 - Coverage must stay at 100% on `core`. Loader UI/GL classes are excluded by
   `.github/scripts/combine-coverage.py`.
+- `GrugTestRunner` prints every test's time, slowest first, just before `ALL N TESTS PASSED`. Print
+  there and not after it: `run-loader.sh` stops watching the log at that announcement, so anything
+  below it is never read.
+
+## Reading CI timings
+
+Measure before and after from the workflow's own job timings rather than estimating:
+
+```sh
+gh api "repos/grug-lang/grug-for-minecraft/actions/runs/<id>/jobs?per_page=100"
+```
+
+Each step has `started_at` and `completed_at`. Within a step, the gaps between `> Task` lines in
+`gh api .../actions/runs/<id>/logs > logs.zip` say where the time went; cargo's own `Finished
+\`release\` profile ... in Xs` line is the only trustworthy figure for a Rust build, because Gradle
+buffers a subprocess's output and flushes it when the task ends.
+
+Four traps, each of which cost a run here:
+
+- **`gh workflow run --ref <branch>` measures cold.** Caches written by a pull request live on
+  `refs/pull/<n>/merge` and a dispatch on the branch cannot read them. Push a commit to measure warm.
+- **A cache is only written when its key is absent, so changing a cache's list of paths needs a
+  changing key.** `build.yml` hashes itself into all of them for that reason. A cache restored
+  unchanged is the symptom.
+- **The repo cache store is 10GB and evicts.** It filled with stale duplicates of the same key, which
+  evicted the live ForgeGradle cache and put `1.20.6-forge` back to 276s. If one loader suddenly gets
+  slow, look for duplicate keys first:
+  `gh api "repos/grug-lang/grug-for-minecraft/actions/caches?per_page=100"`, keep the newest per key.
+- **The first run of a cache cannot tell you what it is worth.** Every change here needs two runs, and
+  a run whose first job repopulated everything is not a measurement of anything.
+
+`main` moves while a branch is open, so a baseline taken against an old `main` is not comparable to
+the branch after a rebase: the test count changes. Take the baseline from
+`gh workflow run build.yml --ref main` when the comparison matters.
 
 ## grug language rules that cost runs
 
