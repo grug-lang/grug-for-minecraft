@@ -1,0 +1,89 @@
+# Swaps the texture a block renders with, waits until the engine reports the change and the loaders
+# have reloaded their resources, and screenshots the same rectangle twice: once with the texture the
+# mod ships, and once with the file's bytes swapped for the sibling beside it.
+# (The engine reports a changed non-grug file through Grug.update, and the loaders answer it.)
+# Swapping a file for a sibling is what editing a texture in a paint program looks like from the
+# engine's side, and the report it waits for is the one every loader answers by reloading: Alpha and
+# Beta re-upload their grug sprites, StationAPI and Forge reload their resource packs. Without the
+# swap the screenshots would be two copies of the same frame, which every loader passes whether or
+# not it reloads anything.
+# The "normal" state at the end puts the shipped texture back, and a run that dies before it gets
+# there is put back by the next startup, so an interrupted run cannot leave the mod's texture
+# swapped for the run after it.
+# Both comparisons are pixel exact. A tolerance is not available here: the harness fails a run that
+# asks for more than the capture needs, and this capture needs 0 on a good run and cannot be given
+# 1 on a bad one. See the pull request for what the bad run does.
+swapped: bool = false
+reload_seen: bool = false
+change_baseline: number = -1
+reloaded_at: number = -1
+path: string = "coverage/assets/grug/textures/block/coverage_block.png"
+
+export run() {
+    if Test.tick() == 0 {
+        # An earlier test in the run opens the autocrafting table's GUI and never closes it, and a
+        # screen outlives the test that opened it, so without this the panel is still up and covers
+        # the middle of the frame.
+        Test.close_screen()
+        origin: Vec3 = Test.setup_graphics_camera()
+        _wall_in_front_of(origin)
+        Test.not_done()
+    } else if Test.tick() < 40 {
+        # How long a placed block takes to reach the framebuffer: Alpha has to mesh the chunk around
+        # it and upload its texture before anything is drawn. The autocrafting table GUI test
+        # measures the same wait against the same camera, so 40 is a known-good figure here.
+        Test.not_done()
+    } else if not swapped {
+        # The texture the mod ships, before anything has been disturbed. Its own reference
+        # directory, because one directory holding both renderings would let the swapped capture
+        # match the shipped one and pass a loader that never reloaded anything.
+        Test.screenshot().equals(r"screenshots/hot_reload_texture", 620, 62, 700, 118)
+        change_baseline = Test.hot_reload_count(path)
+        Test.set_mod_file_state(path, "swapped")
+        swapped = true
+        Test.not_done()
+    } else if not reload_seen {
+        # Waiting for the engine to report the write, rather than for a fixed number of ticks, is
+        # what makes this independent of filesystem timestamp granularity and of the engine's
+        # one-second poll interval.
+        if Test.hot_reload_count(path) > change_baseline {
+            reload_seen = true
+            reloaded_at = Test.tick()
+        }
+        Test.not_done()
+    } else if Test.tick() < reloaded_at + 40 {
+        # The report only says the engine saw the file. The loader still has to answer it, and
+        # StationAPI's resource reload runs off-thread, so this waits for a rendered frame rather
+        # than for the report alone.
+        Test.not_done()
+    } else {
+        Test.screenshot().equals(r"screenshots/hot_reload_texture_swapped", 620, 62, 700, 118)
+        Test.set_mod_file_state(path, "normal")
+        Test.restore_camera()
+    }
+}
+
+# The block's face has to fill the frame, because where exactly it lands depends on each version's
+# field of view, eye height and camera offsets, and one crop has to hold for all five loaders. A
+# single block big enough to cover the frame cannot also sit where the camera happens to be looking,
+# because a block at arm's length still leaves sky, ground and the HUD in shot, and the sky is full
+# of drifting clouds that would make the capture unreproducible.
+# So this builds a five by five wall one block in front of the player, which at that range covers
+# the frame several times over on every one of them. Everything the crop can see is then an opaque
+# face of the block whose texture the test swaps.
+local _wall_in_front_of(origin: Vec3) {
+    level: Level = Test.get_client_level()
+    z: number = origin.z() + 1
+    across: number = -2
+    while across <= 2 {
+        x: number = origin.x() + across
+        # From one below the player's feet to the origin itself, which is three above them, so the
+        # wall reaches past the top and bottom of a level view from where the camera sits.
+        up: number = -4
+        while up <= 0 {
+            level.place_block(x, origin.y() + up, z, "grug:coverage_block")
+            up = up + 1
+        }
+        across = across + 1
+    }
+}
