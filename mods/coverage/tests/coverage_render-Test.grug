@@ -106,13 +106,16 @@ local _check() {
     # its neighbours and none on the outer ends.
     # Pixel-exact, and it has to stay that way: a tolerance would accept a shape that had lost an
     # arm, which is the one thing this test exists to catch.
-    # The top of the rectangle is the one place that needs care. The wall's top corner is a step
-    # darker than the rest of its face, and which pixels land on that step shifts by one between
-    # runs: measured here and on the CI runner, a capture differed from its reference in exactly the
-    # five pixels at the rectangle's top-right corner, each by one step of 255. The rectangle
-    # therefore starts eight rows below the wall's top corner, the same reason the autocrafting table
-    # test insets past the soft edge of its panel.
-    # The reference is a directory of numbered PNGs and the capture passes if it matches any of
-    # them, because the same shape rasterises differently on each Minecraft version.
+    # The reference directory holds two PNGs because the background renders differently on the two
+    # machines this runs on. Alpha shades a block face from the light at each neighbouring position,
+    # which quantises into one-step bands, and where those bands fall on the CI runner differs from
+    # where they fall on a desktop by one step over part of the wall. The shape itself is identical
+    # on both: compared pixel by pixel across the two references, every pixel of the arms and the
+    # core matches, and all 1602 differing pixels are background and all of them differ by exactly
+    # one step. That is the case a numbered reference directory exists for.
+    # The top of the rectangle is the one place that needed care first: the wall's top corner is a
+    # step darker than the rest of its face, and which pixels land on that step shifted by one
+    # between runs of the same build. The rectangle therefore starts below the wall's top corner,
+    # the same reason the autocrafting table test insets past the soft edge of its panel.
     Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
 }
