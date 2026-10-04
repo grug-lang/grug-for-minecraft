@@ -601,6 +601,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void closeOpenScreenForTest() {
+        // Marshalled like the other graphics calls, because the runner advances on the server
+        // thread while the screen belongs to the client. onClientThread waits for the task, so the
+        // screen is gone by the time this returns and not merely by the next client tick.
+        onClientThread(() -> Minecraft.getInstance().setScreen(null));
+    }
+
+    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         onClientThread(() -> useBlockOnClient(x, y, z));

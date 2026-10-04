@@ -122,6 +122,16 @@ public interface ModLoaderAdapter {
 
     void restoreCameraAfterGraphicsTest();
 
+    /**
+     * Closes whatever screen the client currently has open, so a test that captures the world is
+     * not looking at a panel an earlier test opened and never closed.
+     *
+     * <p>Tests share one client for the whole run, so an open screen outlives the test that opened
+     * it. That is invisible until a later test takes a screenshot and finds the world behind a
+     * panel it did not ask for.
+     */
+    void closeOpenScreenForTest();
+
     void useBlockForTest(Object levelObj, double x, double y, double z);
 
     /**

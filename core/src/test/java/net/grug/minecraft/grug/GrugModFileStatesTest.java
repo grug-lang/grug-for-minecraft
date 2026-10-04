@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -79,6 +80,95 @@ class GrugModFileStatesTest {
         GrugModFileStates.set(modsDir, path(), "no_trailing_newline");
 
         assertEquals("export init() {\n}", modFileText());
+    }
+
+    /** Bytes no charset decodes back to themselves, so a text record cannot hold them. */
+    private static final byte[] PNG_HEADER = {
+        (byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00, (byte) 0xFF, (byte) 0xFE
+    };
+
+    private String assetPath() {
+        return "mymod/assets/mymod/textures/block/stone.png";
+    }
+
+    /** A PNG in the assets tree, with the sibling the {@code "swapped"} state copies in beside it. */
+    private void givenABinaryAsset(byte[] original, byte[] replacement) throws IOException {
+        modsDir = Files.createDirectories(tmp.resolve("mods")).toFile();
+        Path textures =
+                Files.createDirectories(
+                        modsDir.toPath().resolve("mymod/assets/mymod/textures/block"));
+        Files.write(textures.resolve("stone.png"), original);
+        Files.write(textures.resolve("stone.swap.png"), replacement);
+        backupRoot = tmp.resolve(".grug_test_backups");
+    }
+
+    @Test
+    void swappedCopiesTheSiblingInAndNormalRestoresTheBytesExactly() throws IOException {
+        byte[] original = new byte[] {'a', (byte) 0xFF, 'b'};
+        byte[] replacement = new byte[] {'c', (byte) 0x80, 'd', (byte) 0xFE};
+        givenABinaryAsset(original, replacement);
+        Path asset = modsDir.toPath().resolve(assetPath());
+
+        GrugModFileStates.set(modsDir, assetPath(), "swapped");
+
+        assertArrayEquals(replacement, Files.readAllBytes(asset));
+
+        GrugModFileStates.set(modsDir, assetPath(), "normal");
+
+        // Byte for byte, not merely equal once decoded: an asset that round-tripped through a
+        // charset came back holding replacement characters and no longer decoded as an image.
+        assertArrayEquals(original, Files.readAllBytes(asset));
+    }
+
+    @Test
+    void swappedLeavesTheSiblingItCopiedFromAlone() throws IOException {
+        givenABinaryAsset(new byte[] {'a'}, PNG_HEADER);
+        Path sibling = modsDir.toPath().resolve("mymod/assets/mymod/textures/block/stone.swap.png");
+
+        GrugModFileStates.set(modsDir, assetPath(), "swapped");
+        GrugModFileStates.set(modsDir, assetPath(), "normal");
+
+        // The sibling is the fixture the next run swaps in with, so putting the file it was copied
+        // over back must not spend it.
+        assertArrayEquals(PNG_HEADER, Files.readAllBytes(sibling));
+    }
+
+    @Test
+    void swappedLooksBesideAFileWhoseNameHasNoExtension() throws IOException {
+        modsDir = Files.createDirectories(tmp.resolve("mods")).toFile();
+        Path mod = Files.createDirectories(modsDir.toPath().resolve("mymod"));
+        Files.write(mod.resolve("LICENSE"), "the original".getBytes(StandardCharsets.UTF_8));
+        Files.write(mod.resolve("LICENSE.swap"), "the replacement".getBytes(StandardCharsets.UTF_8));
+        backupRoot = tmp.resolve(".grug_test_backups");
+
+        GrugModFileStates.set(modsDir, "mymod/LICENSE", "swapped");
+
+        assertEquals(
+                "the replacement",
+                new String(Files.readAllBytes(mod.resolve("LICENSE")), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void swappedWithNoSiblingToSwapInFails() throws IOException {
+        givenABinaryAsset(PNG_HEADER, PNG_HEADER);
+        Files.delete(modsDir.toPath().resolve("mymod/assets/mymod/textures/block/stone.swap.png"));
+
+        // Carrying on would write back the file's own bytes, which reports no change to the engine
+        // and leaves a test waiting for a hot reload that can never arrive.
+        assertThrows(
+                IOException.class, () -> GrugModFileStates.set(modsDir, assetPath(), "swapped"));
+    }
+
+    @Test
+    void aRunKilledWhileSwappingAnAssetIsRepairedOnTheNextStartup() throws IOException {
+        givenABinaryAsset(PNG_HEADER, new byte[] {(byte) 0xFE, 0x00});
+        List<String> log = new ArrayList<>();
+
+        GrugModFileStates.set(modsDir, assetPath(), "swapped");
+        GrugModFileStates.restoreInterruptedRuns(modsDir, log::add);
+
+        assertArrayEquals(PNG_HEADER, Files.readAllBytes(modsDir.toPath().resolve(assetPath())));
+        assertEquals(1, log.size(), log.toString());
     }
 
     @Test

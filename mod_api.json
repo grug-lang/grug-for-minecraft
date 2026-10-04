@@ -216,7 +216,7 @@
 						},
 						{
 							"name": "state",
-							"description": "One of \"normal\", \"invalid\" (fails to compile) or \"no_trailing_newline\" (still valid JSON).",
+							"description": "One of \"normal\", \"invalid\" (fails to compile), \"no_trailing_newline\" (still valid JSON), or \"swapped\" (the bytes of the sibling file whose name carries \".swap\" before the extension, which is how a binary asset such as a texture can be replaced with different content).",
 							"type": {
 								"name": "string"
 							}
@@ -286,6 +286,9 @@
 				},
 				"restore_camera": {
 					"description": "Restores the player to the position saved by the most recent `setup_graphics_camera` call."
+				},
+				"close_screen": {
+					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
 				"setup_graphics_camera": {
 					"description": "Saves the player's current position and rotation, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
