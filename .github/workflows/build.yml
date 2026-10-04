@@ -247,6 +247,10 @@ jobs:
       # Forge and Loom content never gets in. Keyed per loader, so no loader ever restores another's,
       # and on the files that name the Minecraft and mapping versions, so the content is the one this
       # loader produced and a version bump misses instead of serving the old one.
+      #
+      # Both halves of where it lands: Loom keeps the remapped Minecraft under the project's .gradle
+      # and the remapped mod jars under its build directory, and neither is in ~/.gradle, so caching
+      # only the home cache restores 12MB and leaves :compileJava doing all the work.
       - name: Cache the Minecraft toolchain
         uses: actions/cache@v4
         with:
@@ -254,6 +258,8 @@ jobs:
             ~/.gradle/caches/forge_gradle
             ~/.gradle/caches/fabric-loom
             ~/.gradle/caches/ornithe-keratin
+            loaders/${{ matrix.dir }}/.gradle/loom-cache
+            loaders/${{ matrix.dir }}/build/loom-cache
           key: grug-minecraft-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
