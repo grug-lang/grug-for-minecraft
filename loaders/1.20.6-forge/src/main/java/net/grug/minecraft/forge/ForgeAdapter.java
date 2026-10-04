@@ -58,8 +58,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
-     * The adapter for whichever process this is. Called from {@code GrugModLoader}, which runs on
-     * both sides because {@code mods.toml} declares the mod {@code BOTH}.
+     * The adapter for whichever process this is, called from {@code GrugModLoader}, which runs on
+     * both sides: Forge loads a {@code @Mod} class on whichever side the game started as, and
+     * grug's {@code [[mods]]} block in {@code mods.toml} has no {@code side} key at all. The two
+     * {@code side = "BOTH"} lines in that file are on the dependency blocks, which say how those
+     * two dependencies resolve, not how grug loads.
      */
     @GrugGenerated(
             "the choice is which process the game is, which a client run only ever picks one of")

@@ -2,7 +2,9 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.Vec3;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 /**
@@ -14,9 +16,10 @@ import net.minecraftforge.server.ServerLifecycleHooks;
  * process this is, is the same code: the registries have no client in them, the recipe manager has
  * no client in it, and neither has any of the inventory or entity host functions.
  *
- * <p>Only the side and the player are replaced. {@code getLevel} and {@code getTestOrigin} are not,
- * because the client adapter already prefers the running server's world and its first player when
- * there is one, and a dedicated server always has both.
+ * <p>Only the side, the player and the origin are replaced. {@code getLevel} is not, because the
+ * client adapter already prefers the running server's world when there is one, and a dedicated
+ * server has one from the moment it starts. {@code getTestOrigin} has to be, because the inherited
+ * one reads the local client player, which a dedicated server does not have.
  *
  * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
  * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
@@ -45,5 +48,20 @@ public class ServerForgeAdapter extends ForgeAdapter {
     public Object testPlayer() {
         var players = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers();
         return players.isEmpty() ? null : (ServerPlayer) players.get(0);
+    }
+
+    /**
+     * The player's position plus 3, from the connected player rather than from the local client.
+     *
+     * <p>Null when nobody has joined, for the same reason {@link #testPlayer()} is null then.
+     * Leaving this one to the inherited version would throw instead of answering, because {@code
+     * Minecraft.getInstance()} is null on a dedicated server.
+     */
+    @Override
+    public Vec3 getTestOrigin() {
+        Player player = (Player) testPlayer();
+        if (player == null) return null;
+
+        return new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
     }
 }

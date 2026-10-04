@@ -72,22 +72,23 @@ Use the following Gradle commands to build and run the specific mod loader envir
 ### Multiplayer
 
 **grug is singleplayer-only today.** No loader runs the test suite or opens a GUI on a dedicated
-server, and no loader is exercised in multiplayer by CI. A mod's `tick` is the exception: it runs
-wherever the mod's blocks are registered, which on three of the five loaders already includes a
-dedicated server, but nothing has ever run there to prove it. The table below says where each loader
-actually stands, because "not supported" and "cannot exist" are different answers and only the first
-is a piece of work in progress.
+server, and no loader is exercised in multiplayer by CI. A mod's `tick` is the exception, and only in
+the sense that it would be called: it runs wherever the mod's blocks are registered, which on three of
+the five loaders already includes a dedicated server, but nobody has ever observed it happen there.
+The table below says where each loader actually stands, because "not supported" and "cannot exist" are
+different answers and only the first is a piece of work in progress.
 
 | Minecraft Version | Mod Loader | Dedicated server exists? | grug on a dedicated server | `GUI.open` across a connection |
 | :--- | :--- | :--- | :--- | :--- |
 | **1.20.6** | Forge | yes | no, [#167](https://github.com/grug-lang/grug-for-minecraft/issues/167) | the server side of it already exists (`ServerPlayer.openMenu`), unexercised: [#167](https://github.com/grug-lang/grug-for-minecraft/issues/167) |
-| **1.2.5** | Forge | yes, Minecraft 1.2.5 shipped one | no. `mod_Grug` cannot load without a client, so grug is client-only here until #166 says otherwise | no |
+| **1.2.5** | Forge | yes, Minecraft 1.2.5 shipped one | no. `mod_Grug` cannot load without a client, so grug is client-only here until [#166](https://github.com/grug-lang/grug-for-minecraft/issues/166) says otherwise | no |
 | **Beta 1.7.3** | Ornithe | yes | blocks, items, block entities and recipes already register server-side; no runner: [#163](https://github.com/grug-lang/grug-for-minecraft/issues/163) | no, it reports a host-function error: [#164](https://github.com/grug-lang/grug-for-minecraft/issues/164) |
-| **Beta 1.7.3** | StationAPI | yes | registration and recipes already run, because StationAPI's common event bus runs on a server; no runner or resource pack: [#165](https://github.com/grug-lang/grug-for-minecraft/issues/165) | no |
+| **Beta 1.7.3** | StationAPI | yes | registration and recipes already run, because StationAPI's common event bus runs on a server; no runner or resource pack: [#165](https://github.com/grug-lang/grug-for-minecraft/issues/165) | no, and nothing opens it: the screen handler is registered client-side only, and [#165](https://github.com/grug-lang/grug-for-minecraft/issues/165) is where that has to change |
 | **Alpha 1.1.2_01** | Ornithe | **no.** Ornithe ships no server jar for this version | not reachable | not reachable |
 
 The Alpha row is about this loader rather than about Minecraft: Alpha 1.1.2_01 did have a dedicated
-server in the real game, but Ornithe ships no server jar for it and declares its own OSL artifacts
+server in the real game, but Ornithe ships no server jar for it, and seven of the thirteen OSL jars
+that version resolves, including the two this loader is built against, declare
 `"environment": "client"`, so there is no second process for grug to run in.
 `a1.1.2_01-ornithe` is therefore client-only by construction rather than by choice.
 
