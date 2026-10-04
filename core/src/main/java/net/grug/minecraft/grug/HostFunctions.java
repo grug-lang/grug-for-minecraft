@@ -112,6 +112,17 @@ public class HostFunctions {
         GrugCore.getAdapter().restoreCameraAfterGraphicsTest();
     }
 
+    /**
+     * Test only: closes whatever screen the client has open.
+     *
+     * <p>One client serves the whole run, so a screen a test opened outlives it. A screenshot test
+     * that follows one which opened a GUI needs this, or it captures that panel rather than the
+     * world, and the golden it writes down silently becomes the panel.
+     */
+    public static void Test_close_screen() {
+        GrugCore.getAdapter().closeOpenScreenForTest();
+    }
+
     public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
         GrugCore.getAdapter().notifyNeighbors(Grug.entityData.get(levelId).object, x, y, z);
     }

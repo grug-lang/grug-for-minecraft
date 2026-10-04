@@ -773,6 +773,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    public void closeOpenScreenForTest() {
+        MinecraftInstance.get().openScreen(null);
+    }
+
+    @Override
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void assertScreenshotEquals(
             String referencePath,
             double x1,
