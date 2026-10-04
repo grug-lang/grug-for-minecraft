@@ -240,17 +240,12 @@ jobs:
             core/build/generated/sources/grug
           key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
-      # The Minecraft itself, which is what Loom and ForgeGradle spend most of the Build step on: for
-      # the Loom loaders it is all of :compileJava, for Forge it is the whole MCP pipeline. It cannot
-      # go in cache: gradle above, because that key belongs to whichever job saves it first, and the
-      # lightest job in this workflow is grug-rs, which never resolves a Minecraft, so it wins and the
-      # Forge and Loom content never gets in. Keyed per loader, so no loader ever restores another's,
-      # and on the files that name the Minecraft and mapping versions, so the content is the one this
-      # loader produced and a version bump misses instead of serving the old one.
-      #
-      # Both halves of where it lands: Loom keeps the remapped Minecraft under the project's .gradle
-      # and the remapped mod jars under its build directory, and neither is in ~/.gradle, so caching
-      # only the home cache restores 12MB and leaves :compileJava doing all the work.
+      # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
+      # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
+      # job in this workflow is grug-rs, which never resolves a Minecraft, so it wins and the Forge
+      # and Loom content never gets in. Keyed per loader, because ForgeGradle and Loom both write to
+      # the same directory and no loader may restore another's, and on the files that name the
+      # Minecraft and mapping versions, so a version bump misses instead of serving the old one.
       - name: Cache the Minecraft toolchain
         uses: actions/cache@v4
         with:
@@ -258,8 +253,6 @@ jobs:
             ~/.gradle/caches/forge_gradle
             ~/.gradle/caches/fabric-loom
             ~/.gradle/caches/ornithe-keratin
-            loaders/${{ matrix.dir }}/.gradle/loom-cache
-            loaders/${{ matrix.dir }}/build/loom-cache
           key: grug-minecraft-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
