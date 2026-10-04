@@ -522,6 +522,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 (x, y, z) -> isAir(level, x, y, z), player.getX(), player.getY(), player.getZ());
     }
 
+    @Override
+    public boolean registersModRecipes() {
+        // Forge's own recipe manager does the work, because grug adds a pack whose data side is the
+        // mods' data/<namespace> trees, so the level's RecipeManager loads grug:recipes/... itself.
+        return true;
+    }
+
     @GrugGenerated("test origin: server-vs-client player choice is loader plumbing")
     @Override
     public Vec3 getTestOrigin() {

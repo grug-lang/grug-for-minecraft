@@ -703,6 +703,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean registersModRecipes() {
+        // GrugRecipeHelper registers the mods' data/<namespace>/recipes tree at startup.
+        return true;
+    }
+
+    @Override
     public Vec3 getTestOrigin() {
         PlayerEntity player = MinecraftInstance.get().player;
         return new Vec3(player.x, player.y + 3.0, player.z);

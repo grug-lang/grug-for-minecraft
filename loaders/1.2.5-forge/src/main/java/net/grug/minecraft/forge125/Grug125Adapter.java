@@ -726,6 +726,13 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean registersModRecipes() {
+        // This version's CraftingManager holds IRecipes added in code and reads no JSON at all, and
+        // the loader serves this mod no data/ pack, so nothing here reads a mod's recipe tree.
+        return false;
+    }
+
+    @Override
     public Vec3 getTestOrigin() {
         EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
         return new Vec3(player.posX, player.posY + 3.0, player.posZ);
