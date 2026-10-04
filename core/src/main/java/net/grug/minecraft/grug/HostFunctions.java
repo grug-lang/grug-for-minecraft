@@ -27,13 +27,12 @@ public class HostFunctions {
         return addLevel(GrugCore.getAdapter().getLevel());
     }
 
-    @GrugGenerated("no level yet: impossible while a test runs")
+    @GrugGenerated("no level yet: only a dedicated server reaches it, and CI launches none")
     private static long addLevel(Object level) {
         if (level == null) {
             // Which side it is matters to whoever reads this: a client has a world the moment one
-            // is
-            // loaded, and a dedicated server has its level from the moment it starts, so an empty
-            // one means a server with no world yet.
+            // is loaded, and a dedicated server has its level from the moment it starts, so an
+            // empty one means a server with no world yet.
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.get_client_level: There is no level to test in on "
@@ -48,7 +47,7 @@ public class HostFunctions {
         return addPlayer(GrugCore.getAdapter().testPlayer());
     }
 
-    @GrugGenerated("no local player: impossible while a test runs")
+    @GrugGenerated("no player yet: only a dedicated server reaches it, and CI launches none")
     private static long addPlayer(Object player) {
         if (player == null) {
             // Which side it is matters to whoever reads this: on a client there is a local player

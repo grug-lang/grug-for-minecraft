@@ -6,6 +6,8 @@ import net.grug.minecraft.grug.Vec3;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
 
+import java.util.List;
+
 /**
  * The adapter for a b1.7.3 dedicated server, which is the same loader as {@link OrnitheAdapter} in
  * a second process rather than a second mode.
@@ -14,12 +16,13 @@ import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
  * net.grug.minecraft.core.ModLoaderAdapter} again, because everything that is not about which
  * process this is, is the same code: the block registry has no client in it, the recipe manager has
  * no client in it, and neither has any of the inventory or entity host functions. What a server
- * cannot inherit is the pair of handles, and that is all this replaces.
+ * cannot inherit is the pair of handles and the origin that follows from one of them, and that is
+ * all this replaces.
  *
- * <p>The client-only functions are inherited too, and are not overridden here because core refuses
- * them before the adapter is reached: {@code HostFunctions.refusedWithoutAClient} is what turns a
- * screenshot test on a server into an err naming the function, rather than an exception from inside
- * {@code net.minecraft.client}.
+ * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
+ * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
+ * test on a server into an err naming the function, rather than an exception from inside {@code
+ * net.minecraft.client}.
  *
  * <p>Whole class is excluded from coverage until CI launches a server: see #163, which is the
  * change that runs this class and takes it back off the list.
@@ -47,19 +50,28 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      */
     @Override
     public Object testPlayer() {
-        // The field is a raw List in this version, so this is as specific as the answer can be
-        // without a cast the compiler would only warn about.
-        java.util.List<?> players = MinecraftServerInstance.get().playerManager.players;
+        // Deliberately not List<ServerPlayerEntity>: this loader's class of that name is marked
+        // server-only, and Fabric Loader refuses to load a class whose signature names one. A local
+        // variable's type argument is erased, so naming it here would be the hazard this file
+        // documents avoiding, and the element is cast where it is used.
+        List<?> players = MinecraftServerInstance.get().playerManager.players;
         return players.isEmpty() ? null : players.get(0);
     }
 
     /**
      * The player's position plus 3, which is what the client adapter does and therefore what the
      * bands the tests build in mean on a server too.
+     *
+     * <p>Null rather than an exception when nobody has joined, because {@link #testPlayer()}
+     * promises null for that case and this must not be the place that contradicts it. The runner
+     * has no reason to start before somebody is connected, so this is what a run that did anyway
+     * would report.
      */
     @Override
     public Vec3 getTestOrigin() {
         PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return null;
+
         return new Vec3(player.x, player.y + 3.0, player.z);
     }
 }

@@ -18,10 +18,10 @@ import net.minecraftforge.server.ServerLifecycleHooks;
  * because the client adapter already prefers the running server's world and its first player when
  * there is one, and a dedicated server always has both.
  *
- * <p>The client-only functions are inherited too, and are not overridden here because core refuses
- * them before the adapter is reached: {@code HostFunctions.refusedWithoutAClient} is what turns a
- * screenshot test on a server into an err naming the function, rather than an exception from inside
- * {@code net.minecraft.client}.
+ * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
+ * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
+ * test on a server into an err naming the function, rather than an exception from inside {@code
+ * net.minecraft.client}.
  *
  * <p>Whole class is excluded from coverage until CI launches a server: see #167.
  */

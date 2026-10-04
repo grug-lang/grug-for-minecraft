@@ -282,20 +282,28 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return ((BlockEntity) blockEntityObj).world;
     }
 
-    @GrugGenerated("the dedicated-server answer is #165, and it cannot live in this class")
+    @GrugGenerated(
+            "the dedicated-server refusal can only be taken on a server, and CI launches none until"
+                    + " #165. The client path below is the same cast every loader does, measured in"
+                    + " their own adapters.")
     @Override
     public Object getLevel() {
-        requireAClient("Test.get_client_level");
+        if (refusesOnADedicatedServer("Test.get_client_level")) return null;
+
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return mc.world;
     }
 
-    @GrugGenerated("the dedicated-server answer is #165, and it cannot live in this class")
+    @GrugGenerated(
+            "the dedicated-server refusal can only be taken on a server, and CI launches none until"
+                    + " #165. The client path below is the same cast every loader does, measured in"
+                    + " their own adapters.")
     @Override
     public Object testPlayer() {
-        requireAClient("Test.get_player");
+        if (refusesOnADedicatedServer("Test.get_player")) return null;
+
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
@@ -304,20 +312,26 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     /**
      * Refuses the two handles on a dedicated server until #165 gives this loader a server-side
-     * adapter.
+     * adapter, and says whether it refused.
      *
-     * <p>A fatal rather than a null, because there is nothing to return and letting the cast of
-     * {@code getGameInstance()} fail would report a {@code NullPointerException} from inside Fabric
-     * Loader's client-only path instead of saying that the server side is not built yet.
+     * <p>A host function error rather than a fatal, because it is the same bounded defect as a
+     * missing level or a missing player: the mod asked for something this side cannot give, the
+     * test that asked fails, and a server shared with other players keeps running. A fatal here
+     * would take down every player on it for one test's mistake.
+     *
+     * <p>The caller then reports a second, more generic message about the empty answer. Two
+     * messages for one mistake is the price of keeping this one here rather than in every caller.
      */
     @GrugGenerated("the dedicated-server answer is #165, which no CI run exercises until then")
-    private void requireAClient(String function) {
-        if (getSide() != GrugSide.DEDICATED_SERVER) return;
+    private boolean refusesOnADedicatedServer(String function) {
+        if (getSide() != GrugSide.DEDICATED_SERVER) return false;
 
-        throw Grug.fatal(
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
                 function
-                        + ": grug has no dedicated-server adapter on StationAPI yet, so a"
-                        + " dedicated server cannot answer for its level or its player. See #165.");
+                        + ": grug has no dedicated-server adapter on StationAPI yet, so a dedicated"
+                        + " server cannot answer for its level or its player. See #165.");
+        return true;
     }
 
     @Override

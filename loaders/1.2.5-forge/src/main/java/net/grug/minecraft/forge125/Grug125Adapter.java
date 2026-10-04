@@ -58,10 +58,16 @@ public class Grug125Adapter implements ModLoaderAdapter {
             GrugVanillaBlocks.forLoader("1.2.5-forge");
 
     /**
-     * Always a client, and not as a shortcut: {@code mod_Grug} is registered on the client side
-     * only, so this adapter is only ever constructed in a client process and there is no server
-     * instance for it to answer about. Minecraft 1.2.5 does have a dedicated server, so whether
-     * grug should support one is open; see #166, which decides that and updates this.
+     * Always a client, and not because anything registers this mod client-side only: FML 1.2.5's
+     * {@code Loader} scans the mods directory with no side filter, so on a dedicated server it
+     * would find {@code mod_Grug} too. The class cannot load there instead, because it names {@code
+     * net.minecraft.client.Minecraft} and Minecraft 1.2.5's server jar has no {@code
+     * net.minecraft.client} package.
+     *
+     * <p>That is a fact about this loader rather than a decision, so whether grug should support a
+     * 1.2.5 dedicated server is still open; see #166. There is a handle to build on: in the
+     * server's own {@code ModLoader}, {@code getMinecraftInstance()} returns {@code
+     * getMinecraftServerInstance()}.
      */
     @Override
     public GrugSide getSide() {

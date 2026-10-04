@@ -29,10 +29,10 @@ public interface ModLoaderAdapter {
      * Refuses a call that needs a client when this process is a dedicated server, and says whether
      * it refused.
      *
-     * <p>This is the four functions a screenshot test is made of: a window to move a camera in, a
-     * frame to read back, and a local player whose right-click the game will route. A dedicated
-     * server has none of the three, so letting one of them through raises something from inside the
-     * game's client classes rather than saying what is wrong.
+     * <p>This is what the four client-only functions are made of: a camera to put somewhere, a
+     * window to look through it in, a frame to read back from, and a local player whose right-click
+     * the game will route. A dedicated server has none of those, so letting one of them through
+     * raises something from inside the game's client classes rather than saying what is wrong.
      *
      * <p>It lives here, on the interface, rather than in {@code HostFunctions} because that is
      * where "which functions need a client" belongs, and because every loader's implementations of
@@ -142,12 +142,12 @@ public interface ModLoaderAdapter {
     double takeCraftingResult(Object blockEntityObj, double amount);
 
     /**
-     * The level this process's tests build their fixtures in: the client's world, or the level a
-     * dedicated server is running.
+     * The level this process's tests build their fixtures in.
      *
-     * <p>Not the client's world on a dedicated server, where there is no client to ask, and not the
-     * client's world when the client is connected to somebody else either: a multiplayer client's
-     * world is a copy of the server's, and a fixture placed in one is not in the other.
+     * <p>On a dedicated server that is the server's own level, never a client's: there is no client
+     * to ask. On a client it is the client's world, and which world that is depends on the loader,
+     * because on 1.20.6 a singleplayer client's world is a copy of the one the integrated server
+     * owns and a fixture has to go into the copy that owns it. See each adapter's own answer.
      */
     Object getLevel();
 
