@@ -151,7 +151,7 @@ class GrugScreenshotsTest {
     }
 
     @Test
-    void aPixelCountsAsChangedWhenAChannelMovesFarEnough() {
+    void aPixelCountsAsChangedWhenBlueMovesFarEnough() {
         BufferedImage before = solid(4, 1, 0x000000);
         BufferedImage after = solid(4, 1, 0x000000);
         // Only the blue channel, and only on one of the four pixels, and by enough to clear the
@@ -159,6 +159,27 @@ class GrugScreenshotsTest {
         after.setRGB(2, 0, 0x00000F);
 
         assertEquals(25.0, GrugScreenshots.changedPercent(before, after));
+    }
+
+    @Test
+    void aPixelCountsAsChangedWhenRedMovesFarEnough() {
+        BufferedImage before = solid(4, 1, 0x000000);
+        BufferedImage after = solid(4, 1, 0x0F0000);
+
+        // The channel comparison is written as three alternatives, so each of the first two has to
+        // be
+        // the one that decides, not only the last: a check that short-circuits is only as covered
+        // as
+        // its longest arm.
+        assertEquals(100.0, GrugScreenshots.changedPercent(before, after));
+    }
+
+    @Test
+    void aPixelCountsAsChangedWhenGreenMovesFarEnough() {
+        BufferedImage before = solid(4, 1, 0x000000);
+        BufferedImage after = solid(4, 1, 0x00FF00);
+
+        assertEquals(100.0, GrugScreenshots.changedPercent(before, after));
     }
 
     @Test
