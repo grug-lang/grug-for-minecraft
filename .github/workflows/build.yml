@@ -240,6 +240,22 @@ jobs:
             core/build/generated/sources/grug
           key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
+      # The Minecraft itself, which is what Loom and ForgeGradle spend most of the Build step on: for
+      # the Loom loaders it is all of :compileJava, for Forge it is the whole MCP pipeline. It cannot
+      # go in cache: gradle above, because that key belongs to whichever job saves it first, and the
+      # lightest job in this workflow is grug-rs, which never resolves a Minecraft, so it wins and the
+      # Forge and Loom content never gets in. Keyed per loader, so no loader ever restores another's,
+      # and on the files that name the Minecraft and mapping versions, so the content is the one this
+      # loader produced and a version bump misses instead of serving the old one.
+      - name: Cache the Minecraft toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/forge_gradle
+            ~/.gradle/caches/fabric-loom
+            ~/.gradle/caches/ornithe-keratin
+          key: grug-minecraft-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+
       # Pinned to ubuntu-24.04 (not ubuntu-latest): a later goal compares
       # screenshots pixel-for-pixel, which needs a stable Mesa/font stack
       # across runs.
