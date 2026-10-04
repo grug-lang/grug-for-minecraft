@@ -10,9 +10,12 @@
 # The "normal" state at the end puts the shipped texture back, and a run that dies before it gets
 # there is put back by the next startup, so an interrupted run cannot leave the mod's texture
 # swapped for the run after it.
-# Both comparisons are pixel exact. A tolerance is not available here: the harness fails a run that
-# asks for more than the capture needs, and this capture needs 0 on a good run and cannot be given
-# 1 on a bad one. See the pull request for what the bad run does.
+# Both comparisons are pixel exact, which is why the crop sits between two rows of the texture
+# rather than anywhere convenient. A crop that straddles a texel boundary picked up a band of three
+# rows one part brighter on some runs and not others, and a tolerance cannot paper over that here:
+# the harness fails a run that asks for more slack than the capture needs, so 0 fails on the runs
+# that wobble and 1 fails on the runs that do not. Inside one texel there is no boundary to cross,
+# and three consecutive Alpha runs then matched exactly. See the pull request for the measurements.
 swapped: bool = false
 reload_seen: bool = false
 change_baseline: number = -1
@@ -71,6 +74,10 @@ export run() {
 # So this builds a five by five wall one block in front of the player, which at that range covers
 # the frame several times over on every one of them. Everything the crop can see is then an opaque
 # face of the block whose texture the test swaps.
+# "One block" here means one block past origin.z(), and the player stands at a half coordinate, so
+# the wall is half a block from the camera. At that range one texel of a 16x16 texture covers about
+# 70 pixels of the frame, which is why the crop above has to be placed against a texel boundary
+# rather than merely against something that looks the same.
 local _wall_in_front_of(origin: Vec3) {
     level: Level = Test.get_client_level()
     z: number = origin.z() + 1
