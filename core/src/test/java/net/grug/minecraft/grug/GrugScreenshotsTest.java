@@ -151,15 +151,32 @@ class GrugScreenshotsTest {
     }
 
     @Test
-    void aPixelCountsAsChangedWhenAnyChannelDiffers() {
+    void aPixelCountsAsChangedWhenAChannelMovesFarEnough() {
         BufferedImage before = solid(4, 1, 0x000000);
         BufferedImage after = solid(4, 1, 0x000000);
-        // Only the blue channel, and only on one of the four pixels.
-        after.setRGB(2, 0, 0x000001);
+        // Only the blue channel, and only on one of the four pixels, and by enough to clear the
+        // floor a change of lighting cannot reach.
+        after.setRGB(2, 0, 0x00000F);
 
-        // One part in 255 on one pixel of four: a change of a single unit still counts, which is
-        // what lets a caller ask for a percentage instead of having to ignore small changes itself.
         assertEquals(25.0, GrugScreenshots.changedPercent(before, after));
+    }
+
+    @Test
+    void aPixelTheLightingMovedByOnePartIsNotAChange() {
+        BufferedImage before = solid(4, 1, 0x000000);
+        BufferedImage after = solid(4, 1, 0x000000);
+        // One part in 255 on every pixel, which is what per-vertex lighting does to a face between
+        // two
+        // captures. A comparison that counted this would report a change where there was none, and
+        // a
+        // test would have to ask for a threshold high enough to hide it, which is the same as
+        // asking
+        // for the wrong thing more precisely.
+        for (int x = 0; x < 4; x++) {
+            after.setRGB(x, 0, 0x000001);
+        }
+
+        assertEquals(0.0, GrugScreenshots.changedPercent(before, after));
     }
 
     @Test
