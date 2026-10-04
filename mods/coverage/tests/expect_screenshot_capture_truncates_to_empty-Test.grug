@@ -1,0 +1,12 @@
+# A crop whose far edge truncates to its near edge is a crop of nothing, and has to be reported as
+# the empty rectangle it is. As doubles the two edges compare as an increase, so a check that read
+# them let (590, 310, 590.5, 410) through, and the capture then failed with a raw exception from a
+# zero-width image rather than naming the coordinate responsible. The width is computed from the
+# truncated values, so those are what the check compares and what the message prints, and all three
+# now agree. Screenshot.equals shares the same check, so it reaches the same report.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("the rectangle is empty")
+        Test.screenshot().capture(590, 310, 590.5, 410)
+    }
+}

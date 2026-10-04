@@ -687,18 +687,26 @@ public class ForgeAdapter implements ModLoaderAdapter {
             Grug.hostFunctionErrorHappened(Grug.statePtr, operation + ": " + bad);
             return null;
         }
-        if (x2 <= x1 || y2 <= y1) {
+        // The truncated values rather than the doubles, because they are what the width below is
+        // computed from and what the message prints. Comparing the doubles let a rectangle through
+        // that truncates to nothing, such as (590, 310, 590.5, 410), and the width then threw from
+        // inside a zero-width image rather than being reported as the typo it was.
+        int left = (int) x1;
+        int top = (int) y1;
+        int right = (int) x2;
+        int bottom = (int) y2;
+        if (right <= left || bottom <= top) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     operation
                             + ": the rectangle is empty, since ("
-                            + (int) x2
+                            + right
                             + ","
-                            + (int) y2
+                            + bottom
                             + ") is not below and right of ("
-                            + (int) x1
+                            + left
                             + ","
-                            + (int) y1
+                            + top
                             + ")");
             return null;
         }
