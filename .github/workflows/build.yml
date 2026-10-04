@@ -244,33 +244,29 @@ jobs:
             core/build/generated/sources/grug
           key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py', '.github/workflows/build.yml') }}
 
-      # Gradle's own state on the loader side: the distribution each loader's wrapper pins, the
-      # dependency cache its build resolves against, and the compiled form of its build scripts.
-      # cache: gradle above covers the first two paths, but what it restores is whatever the job that
-      # saved it happened to resolve, and the job that saves it is the one that ran first and resolved
-      # the least: grug-rs, which only ever builds core on Gradle 8.14. So every loader was downloading
-      # its own Gradle distribution again on every run, and re-resolving its own dependencies from the
-      # network.
+      # Gradle's own state on the loader side: the distribution each loader's wrapper pins and the
+      # dependency cache its build resolves against. cache: gradle above covers both paths, but what it
+      # restores is whatever the job that saved it happened to resolve, and the job that saves it is the
+      # one that ran first and resolved the least: grug-rs, which only ever builds core on Gradle 8.14.
+      # So every loader was downloading its own Gradle distribution again on every run. Removing the
+      # "Fetching distribution" line from every loader's log is what this bought, and it is the whole
+      # of what it bought.
       #
-      # The script caches are here for b1.7.3-stationapi, which is the one loader written in Kotlin
-      # rather than Groovy: Gradle compiles a .gradle.kts to a class before it can run it, and nothing
-      # else here holds that. It is 20s slower than the three Groovy loaders between starting Gradle
-      # and reaching "> Configure project", with no network activity in that window at all, which is
-      # what compilation rather than resolution looks like.
+      # One entry for all five, which is also its limit: only the first loader to finish writes it, so
+      # what lands in it is that loader's resolved subset and not the union. Measured, the parts that
+      # leaves out cost nothing visible, because the loader-specific gaps are not where the time goes:
+      # b1.7.3-stationapi's window between starting Gradle and "> Configure project" is 27s both with
+      # and without this, and it has no network activity in it, so what is in there is not resolution.
+      # Per-loader keys would close the gap and would gain no more than that.
       #
-      # One entry for all five rather than one per loader, because unlike the Forge and Loom
-      # directories below, nothing in here belongs to a single loader: modules-2 is content addressed,
-      # the distributions are shared, and a script cache is keyed by the script it came from. Keyed on
-      # every file that decides what is resolvable, so a version, repository or plugin bump misses
-      # rather than restoring a graph that no longer matches the build.
-      - name: Cache the Gradle distributions, dependencies and build scripts
+      # Keyed on every file that decides what is resolvable, so a version, repository or plugin bump
+      # misses rather than restoring a graph that no longer matches the build.
+      - name: Cache the Gradle distributions and dependencies
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/wrapper
             ~/.gradle/caches/modules-2
-            ~/.gradle/caches/*/kotlin-dsl
-            ~/.gradle/caches/*/groovy-dsl
           key: grug-gradle-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
