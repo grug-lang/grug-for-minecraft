@@ -58,6 +58,14 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     }
 
     /**
+     * The cached result as it stands, or null when there is none. This game's empty stack is null,
+     * so the check is the slot's own null rather than an emptiness test.
+     */
+    public ItemStack getResultStack() {
+        return resultInventory.getItem(0);
+    }
+
+    /**
      * Alpha has no reusable one-slot inventory, unlike the newer loaders' SimpleInventory, so the
      * holder implements {@link Inventory} directly.
      */
@@ -117,7 +125,27 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
 
         if (entityHandle != 0) {
             tickFnId = Grug.getExportFnId("BlockEntity", "tick");
+            long initFnId = Grug.getExportFnId("BlockEntity", "init");
+            if (initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                callExportFn(initFnId);
+            }
         }
+    }
+
+    /**
+     * Runs one export function on this block entity's grug entity, with its host entities rooted
+     * and {@code me} resolving to this block entity.
+     *
+     * <p>{@code me} is bound for the call because init is where a script first reaches for it: a
+     * block entity whose member scope only declares has nothing bound yet.
+     */
+    private void callExportFn(long fnId) {
+        List<GrugObject> oldFnEntities = Grug.fnEntities;
+        Grug.fnEntities = childEntities;
+        Grug.currentlyInitializingBlockEntity = this;
+        Grug.callExportFn(entityHandle, fnId);
+        Grug.currentlyInitializingBlockEntity = null;
+        Grug.fnEntities = oldFnEntities;
     }
 
     @GrugGenerated(

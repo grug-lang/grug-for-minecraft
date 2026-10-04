@@ -9,6 +9,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -174,6 +175,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.getSize() && remainingToExtract > 0; i++) {
+            if (!GrugSlotAccess.isExtractable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getItem(i);
             if (stack != null && stack.getItem() == item && stack.metadata == (int) damage) {
                 int extractFromSlot = Math.min(stack.size, remainingToExtract);
@@ -193,8 +195,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         int maxSize = new ItemStack(item, 1).getMaxSize();
         int remaining = (int) amount;
 
-        // Top up existing stacks first, then use empty slots, like a player's inventory fills.
+        // Top up existing stacks first, then use empty slots, like a player's inventory fills. A
+        // block entity that declares a rule only has its insertable slots filled, which for an
+        // inventory declaring none is all of them.
         for (int i = 0; i < inv.getSize() && remaining > 0; i++) {
+            if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getItem(i);
             if (stack != null && stack.getItem() == item && stack.metadata == meta) {
                 int room = maxSize - stack.size;
@@ -207,6 +212,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
 
         for (int i = 0; i < inv.getSize() && remaining > 0; i++) {
+            if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             if (inv.getItem(i) == null) {
                 int add = Math.min(maxSize, remaining);
                 ItemStack stack = new ItemStack(item, add);
@@ -224,6 +230,22 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         Inventory inv = (Inventory) blockEntityObj;
         ItemStack removed = inv.removeItem((int) slot, (int) amount);
         return removed != null ? removed.size : 0;
+    }
+
+    @Override
+    public Object getResultStack(Object blockEntityObj) {
+        if (!(blockEntityObj instanceof GrugBlockEntity gbe)) return null;
+        return gbe.getResultStack();
+    }
+
+    @Override
+    public Object getStackItem(Object stackObj) {
+        return ((ItemStack) stackObj).getItem();
+    }
+
+    @Override
+    public double getStackDamage(Object stackObj) {
+        return ((ItemStack) stackObj).metadata;
     }
 
     @Override

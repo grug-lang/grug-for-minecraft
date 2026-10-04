@@ -9,6 +9,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -203,6 +204,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.size() && remainingToExtract > 0; i++) {
+            if (!GrugSlotAccess.isExtractable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getStack(i);
             if (stack != null && stack.getItem() == item && stack.getDamage() == (int) damage) {
                 int extractFromSlot = Math.min(stack.count, remainingToExtract);
@@ -222,8 +224,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
         int maxSize = new ItemStack(item, 1, meta).getMaxCount();
         int remaining = (int) amount;
 
-        // Top up existing stacks first, then use empty slots, like a player's inventory fills.
+        // Top up existing stacks first, then use empty slots, like a player's inventory fills. A
+        // block entity that declares a rule only has its insertable slots filled, which for an
+        // inventory declaring none is all of them.
         for (int i = 0; i < inv.size() && remaining > 0; i++) {
+            if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getStack(i);
             if (stack != null && stack.getItem() == item && stack.getDamage() == meta) {
                 int room = maxSize - stack.count;
@@ -236,6 +241,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         }
 
         for (int i = 0; i < inv.size() && remaining > 0; i++) {
+            if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             if (inv.getStack(i) == null) {
                 int add = Math.min(maxSize, remaining);
                 inv.setStack(i, new ItemStack(item, add, meta));
@@ -251,6 +257,22 @@ public class StationApiAdapter implements ModLoaderAdapter {
         Inventory inv = (Inventory) blockEntityObj;
         ItemStack removed = inv.removeStack((int) slot, (int) amount);
         return removed != null ? removed.count : 0;
+    }
+
+    @Override
+    public Object getResultStack(Object blockEntityObj) {
+        if (!(blockEntityObj instanceof GrugBlockEntity gbe)) return null;
+        return gbe.getResultStack();
+    }
+
+    @Override
+    public Object getStackItem(Object stackObj) {
+        return ((ItemStack) stackObj).getItem();
+    }
+
+    @Override
+    public double getStackDamage(Object stackObj) {
+        return ((ItemStack) stackObj).getDamage();
     }
 
     @Override

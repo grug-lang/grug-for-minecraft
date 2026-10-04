@@ -1,0 +1,149 @@
+# A powered pipe beside an autocrafting table has to take the table's crafting result rather than
+# the wheat in its recipe grid. The table declares the result as its only extractable slot, so this
+# is what proves the rule reaches the pipe: without it the pipe would drain the grid into the chest
+# one wheat per tick instead of moving a single crafted bread.
+pipe_table_table: Option[BlockEntity] = Option.new()
+pipe_table_chest: Option[BlockEntity] = Option.new()
+pipe_table_pipe: Option[BlockEntity] = Option.new()
+
+# The tick the pipe was placed on, or -1 before that. The wait after it is counted from there rather
+# than from the start of the test, so however long the table took to declare comes out of the budget
+# before the pipe gets any, not out of the pipe's.
+pipe_placed_at: number = -1
+
+export run() {
+    if Test.tick() == 0 {
+        _setup_table()
+        Test.not_done()
+    } else if not _table_has_declared() {
+        # The table declares what another block may use of it in init(), and init runs when the
+        # block entity's grug entity is created, which on some loaders is its first tick rather than
+        # its placement. Waiting for the declaration beats a fixed tick count, and the pipe is placed
+        # after, which is the order a player builds in.
+        Test.not_done()
+    } else if pipe_placed_at < 0 {
+        _check_rule()
+        _setup_pipe()
+        pipe_placed_at = Test.tick()
+        Test.not_done()
+    } else if Test.tick() < pipe_placed_at + 25 {
+        Test.not_done()
+    } else {
+        _check()
+    }
+}
+
+# The table's init() is what a pipe goes by, and an inventory that has declared nothing is extractable
+# everywhere, so a denied grid slot is what says the table has spoken.
+local _table_has_declared() bool {
+    return not is_slot_extractable(pipe_table_table.unwrap(), 0)
+}
+
+# Three wheat in the top row craft one bread. Wheat and bread are items rather than blocks on every
+# loader, so the recipe's result can be named and compared, unlike a grid of diamonds, whose 3x3
+# recipe is the diamond block.
+local _setup_table() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x() + 12
+    # Band 5, the one free band left: 0, 6, 10, 15, 20, 25, 30, 35, 40, 45 and 50 are all taken by
+    # another test, and the x offset keeps this clear of the redstone engine at the origin, whose
+    # torch stands in this band.
+    y: number = origin.y() + 5
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "grug:autocrafting_table")
+    table_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    Test.assert(table_opt.has(), "The autocrafting table should have a block entity.")
+    table: BlockEntity = table_opt.unwrap()
+    pipe_table_table.set(table)
+
+    wheat: Item = item(resource_location("minecraft:wheat"))
+    slot: number = 0
+    while slot < 3 {
+        set_item_in_slot(table, slot, wheat, 1)
+        slot = slot + 1
+    }
+    update_recipe_output(table, 0)
+
+    result_opt: Option[Item] = get_crafting_result_item(table)
+    Test.assert(result_opt.has(), "The three wheat should have crafted a result.")
+    if result_opt.has() {
+        Test.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
+    }
+    Test.assert(get_crafting_result_damage(table) == 0, "A crafted bread should be undamaged.")
+}
+
+# The table's own rule, which is what the pipe has to go by: its grid is not extractable and its
+# result, the slot one past the grid, is.
+local _check_rule() {
+    table: BlockEntity = pipe_table_table.unwrap()
+    Test.assert(get_inventory_size(table) == 9, "The table should have a nine-slot grid.")
+    Test.assert(not is_slot_extractable(table, 0), "A pipe must not extract from the recipe grid.")
+    Test.assert(not is_slot_extractable(table, 8), "A pipe must not extract from the recipe grid.")
+    Test.assert(is_slot_extractable(table, 9), "A pipe must be able to extract the crafting result.")
+    Test.assert(is_slot_insertable(table, 0), "A pipe must be able to insert into the recipe grid.")
+    Test.assert(not is_slot_insertable(table, 9), "The table does not offer its crafting result for insertion.")
+}
+
+# The table sits to the pipe's west and the chest to its east, so the side scan reaches the table
+# before the chest and the pipe pulls from the table rather than the other way round. The engine is
+# below the pipe, where a torch powers it.
+local _setup_pipe() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x() + 12
+    y: number = origin.y() + 5
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    level.place_block(x + 1, y, z, "minecraft:chest")
+    level.place_block(x, y - 3, z, "minecraft:stone")
+    level.place_block(x, y - 2, z, "minecraft:redstone_torch")
+    level.place_block(x, y - 1, z, "grug:redstone_engine")
+
+    chest_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(chest_opt.has(), "The chest should have a block entity.")
+    Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    Test.assert(level.has_neighbor_signal(x, y - 1, z), "The engine should be powered by the torch.")
+    Test.assert(level.has_neighbor_signal(x, y, z), "The pipe should be powered by the engine.")
+
+    pipe_table_chest.set(chest_opt.unwrap())
+    pipe_table_pipe.set(pipe_opt.unwrap())
+}
+
+local _check() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x() + 12
+    y: number = origin.y() + 5
+    z: number = origin.z()
+
+    chest: BlockEntity = pipe_table_chest.unwrap()
+    table: BlockEntity = pipe_table_table.unwrap()
+    pipe: BlockEntity = pipe_table_pipe.unwrap()
+
+    # One bread, not three wheat. A pipe reading the grid instead of the result would take a wheat
+    # per tick until the grid ran dry, so both the count and the item are what separate the two.
+    Test.assert(get_item_count_in_slot(chest, 0) == 1, "The chest should hold exactly 1 bread.")
+    chest_item: Option[Item] = get_item_in_slot(chest, 0)
+    Test.assert(chest_item.has(), "The chest's slot 0 should hold an item.")
+    if chest_item.has() {
+        Test.assert(equals(chest_item.unwrap(), item(resource_location("minecraft:bread"))), "The chest should hold the crafted bread, not a wheat.")
+    }
+
+    Test.assert(get_item_count_in_slot(pipe, 0) == 0, "The pipe should not still be holding the bread.")
+    Test.assert(not get_crafting_result_item(table).has(), "The table should have no result left.")
+    slot: number = 0
+    while slot < 9 {
+        # (A call's arguments have to stay on one line in grug, hence the local.)
+        count: number = get_item_count_in_slot(table, slot)
+        Test.assert(count == 0, "The crafted wheat should be gone from the grid.")
+        slot = slot + 1
+    }
+
+    # Nothing was dropped on the way: the chest took it, and an item entity here would mean the pipe
+    # gave up on the push.
+    Test.assert(level.count_item_entities(x, y, z, 5) == 0, "The pipe should not have dropped anything.")
+}

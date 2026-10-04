@@ -8,6 +8,21 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
+# Which of this table's slots another block may use, mirroring the reference's ISpecialInventory: it
+# takes the crafting result and fills the recipe grid, and never the ingredients the table is
+# crafting from. The result sits one slot past the inventory, because it is not an inventory slot.
+# This is declared in init() rather than in member scope, which can only declare. init() runs when
+# this block entity's grug entity is created, which on 1.20.6 is when the block is placed but on the
+# other loaders is its first tick, so the rule is not necessarily in place the moment the table
+# appears. That is tracked as its own issue rather than worked around here: a pipe beside the table
+# re-picks what it pulls from every tick, so it settles once this has run either way.
+result_slot: number = get_inventory_size(me)
+
+export init() {
+    set_extractable_slots(me, result_slot, result_slot)
+    set_insertable_slots(me, 0, result_slot - 1)
+}
+
 export item_extracted(slot: number, amount: number) {
     if slot >= 0 and slot <= 8 {
         update_recipe_output(me, 0)

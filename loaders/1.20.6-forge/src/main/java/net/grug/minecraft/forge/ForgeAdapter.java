@@ -13,6 +13,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
@@ -186,6 +187,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         Item item = (Item) itemObj;
         int remainingToExtract = (int) amount;
         for (int i = 0; i < inv.getContainerSize() && remainingToExtract > 0; i++) {
+            if (!GrugSlotAccess.isExtractable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getItem(i);
             if (!stack.isEmpty() && stack.is(item) && stack.getDamageValue() == (int) damage) {
                 int extractFromSlot = Math.min(stack.getCount(), remainingToExtract);
@@ -205,8 +207,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
         int maxSize = new ItemStack(item).getMaxStackSize();
         int remaining = (int) amount;
 
-        // Top up existing stacks first, then use empty slots, like a player's inventory fills.
+        // Top up existing stacks first, then use empty slots, like a player's inventory fills. A
+        // block entity that declares a rule only has its insertable slots filled, which for an
+        // inventory declaring none is all of them.
         for (int i = 0; i < inv.getContainerSize() && remaining > 0; i++) {
+            if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getItem(i);
             if (!stack.isEmpty() && stack.is(item) && stack.getDamageValue() == meta) {
                 int room = maxSize - stack.getCount();
@@ -219,6 +224,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         }
 
         for (int i = 0; i < inv.getContainerSize() && remaining > 0; i++) {
+            if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             if (inv.getItem(i).isEmpty()) {
                 int add = Math.min(maxSize, remaining);
                 ItemStack stack = new ItemStack(item, add);
@@ -236,6 +242,22 @@ public class ForgeAdapter implements ModLoaderAdapter {
         Container inv = (Container) blockEntityObj;
         ItemStack removed = inv.removeItem((int) slot, (int) amount);
         return !removed.isEmpty() ? removed.getCount() : 0;
+    }
+
+    @Override
+    public Object getResultStack(Object blockEntityObj) {
+        if (!(blockEntityObj instanceof GrugBlockEntity gbe)) return null;
+        return gbe.getResultStack();
+    }
+
+    @Override
+    public Object getStackItem(Object stackObj) {
+        return ((ItemStack) stackObj).getItem();
+    }
+
+    @Override
+    public double getStackDamage(Object stackObj) {
+        return ((ItemStack) stackObj).getDamageValue();
     }
 
     @Override

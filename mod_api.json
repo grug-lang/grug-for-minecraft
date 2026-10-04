@@ -80,6 +80,11 @@
 			"description": "A block entity.",
 			"export_functions": [
 				{
+					"name": "init",
+					"description": "Called once when this block entity's grug entity is created, which is before its first tick. Member scope runs first and can only declare, so this is the first point at which a block entity can call anything: it is where an inventory declares which of its slots another block may use, and where anything else a block entity has to set up once belongs.",
+					"engine_called": true
+				},
+				{
 					"name": "on_neighbor_change",
 					"description": "Called when a neighbouring block changes, so a machine can re-evaluate its connections instead of polling every tick.",
 					"parameters": []
@@ -1071,7 +1076,7 @@
 			]
 		},
 		"extract_item_from_inventory": {
-			"description": "Extracts a specific amount of an item from an inventory.",
+			"description": "Extracts a specific amount of an item from an inventory, scanning its slots for one that holds that item. Only the slots the block entity lets another block extract from are scanned, which for an inventory declaring no such rule is all of them.",
 			"return_type": {
 				"name": "number"
 			},
@@ -1131,7 +1136,7 @@
 			]
 		},
 		"insert_item_into_inventory": {
-			"description": "Inserts up to amount of an item with the given damage into a block entity's inventory, returning how many were actually inserted.",
+			"description": "Inserts up to amount of an item with the given damage into a block entity's inventory, returning how many were actually inserted. Only the slots the block entity lets another block insert into are filled, which for an inventory declaring no such rule is all of them.",
 			"return_type": {
 				"name": "number"
 			},
@@ -1158,6 +1163,39 @@
 					"name": "amount",
 					"type": {
 						"name": "number"
+					}
+				}
+			]
+		},
+		"get_crafting_result_damage": {
+			"description": "The damage of a block entity's crafting result, or 0 when it has no result. The result is not an inventory slot: a grug block entity keeps it in a dedicated container, and a reference tile computes it on demand. A block entity with no result container at all answers 0 rather than reporting an error, so this can be asked of any inventory; take_crafting_result, which consumes the result, reports an error there instead because taking from nothing is a different mistake from there being nothing to take.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				}
+			]
+		},
+		"get_crafting_result_item": {
+			"description": "The Item in a block entity's crafting result, if it has one, without taking it. The result is not an inventory slot: a grug block entity keeps it in a dedicated container, and a reference tile computes it on demand, so take_crafting_result is how it is consumed. A block entity with no result container at all answers an empty Option rather than reporting an error.",
+			"return_type": {
+				"name": "Option",
+				"generics": [
+					{
+						"name": "Item"
+					}
+				]
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
 					}
 				}
 			]
@@ -1252,6 +1290,46 @@
 					"type": {
 						"name": "resource",
 						"resource_extension": ".png"
+					}
+				}
+			]
+		},
+		"is_slot_extractable": {
+			"description": "Whether this slot of a block entity's inventory is one another block may take from, which is how a machine keeps the slots it does not want emptied. The slots are the inventory's own, followed by its crafting result as the slot after the last one, so slot get_inventory_size(block_entity) is that result. A block entity that declares no rule with set_extractable_slots is extractable everywhere, which is what a vanilla chest is. The rule says which slots are open rather than what is in them: a caller that also wants to match items reads the slot with get_item_in_slot itself, and a caller managing its own slots uses take_item_from_slot, which is not restricted by this.",
+			"return_type": {
+				"name": "bool"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"is_slot_insertable": {
+			"description": "Whether this slot of a block entity's inventory is one another block may put into, which is how a machine keeps the slots it does not want filled. Only the inventory's own slots are ever filled, so slot get_inventory_size(block_entity), the crafting result, is insertable only when a range says so. A block entity that declares no rule with set_insertable_slots is insertable everywhere, which is what a vanilla chest is. insert_item_into_inventory fills only the slots this accepts, and set_item_in_slot still writes to any of them.",
+			"return_type": {
+				"name": "bool"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "slot",
+					"type": {
+						"name": "number"
 					}
 				}
 			]
@@ -1429,11 +1507,57 @@
 				}
 			]
 		},
+		"set_extractable_slots": {
+			"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "first",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "last",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"set_hardness": {
 			"description": "Sets the mining hardness of the block.",
 			"parameters": [
 				{
 					"name": "value",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"set_insertable_slots": {
+			"description": "Declares the slots of this block entity's inventory another block may put into, the first and the last inclusive. A last below the first declares no slot at all. This is a permission rather than a lock: insert_item_into_inventory fills only these slots and set_item_in_slot still writes to any of them, so a block managing its own slots is unaffected. A block entity that declares nothing is insertable everywhere, and declaring again replaces the earlier range rather than adding to it.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "first",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "last",
 					"type": {
 						"name": "number"
 					}

@@ -67,6 +67,12 @@ public class GrugBlockEntity extends BlockEntity implements Container {
         return resultContainer.removeItem(0, amount);
     }
 
+    /** The cached result as it stands, or null when there is none. */
+    public ItemStack getResultStack() {
+        ItemStack stack = resultContainer.getItem(0);
+        return !stack.isEmpty() ? stack : null;
+    }
+
     @Override
     public void onLoad() {
         super.onLoad();
@@ -81,7 +87,27 @@ public class GrugBlockEntity extends BlockEntity implements Container {
 
         if (entityHandle != 0) {
             tickFnId = Grug.getExportFnId("BlockEntity", "tick");
+            long initFnId = Grug.getExportFnId("BlockEntity", "init");
+            if (initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                callExportFn(initFnId);
+            }
         }
+    }
+
+    /**
+     * Runs one export function on this block entity's grug entity, with its host entities rooted
+     * and {@code me} resolving to this block entity.
+     *
+     * <p>{@code me} is bound for the call because init is where a script first reaches for it: a
+     * block entity whose member scope only declares has nothing bound yet.
+     */
+    private void callExportFn(long fnId) {
+        List<GrugObject> oldFnEntities = Grug.fnEntities;
+        Grug.fnEntities = childEntities;
+        Grug.currentlyInitializingBlockEntity = this;
+        Grug.callExportFn(entityHandle, fnId);
+        Grug.currentlyInitializingBlockEntity = null;
+        Grug.fnEntities = oldFnEntities;
     }
 
     @GrugGenerated(

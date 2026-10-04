@@ -109,6 +109,11 @@
 				"what": "The wooden pipe chooses its extraction side automatically instead of storing it in the block's metadata.",
 				"why": "The port has no block metadata access or wrench yet; the reference stores the side in the pipe's metadata and cycles it with a wrench (PipeLogicWood.switchSource).",
 				"status": "open"
+			},
+			{
+				"what": "Which slots of an inventory another block may use is a slot range the block entity declares, rather than the reference's side-aware ISpecialInventory.",
+				"why": "The reference asks the neighbour inventory itself, per side and per item (ISpecialInventory.addItem and extractItem). grug exports can only be called by the host and cannot return a value, so the rule is declared to the host instead and read back with is_slot_extractable.",
+				"status": "open"
 			}
 		]
 	},
