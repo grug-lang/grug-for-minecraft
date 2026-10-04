@@ -1,0 +1,10 @@
+# A fractional percentage has no meaning over a pixel count, so it is rejected before anything is
+# compared. Zero would pass every comparison and so cannot be the reason for the check.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("percent must be a whole number")
+        first: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        second: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        second.differs_from(first, 12.5)
+    }
+}

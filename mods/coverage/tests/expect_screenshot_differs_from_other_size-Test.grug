@@ -1,0 +1,10 @@
+# Two captures of different rectangles are not comparable, so the shape mismatch is reported rather
+# than silently comparing the overlapping part of them.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("not two views of the same rectangle")
+        small: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        tall: Screenshot = Test.screenshot().capture(590, 310, 690, 450)
+        tall.differs_from(small, 50)
+    }
+}

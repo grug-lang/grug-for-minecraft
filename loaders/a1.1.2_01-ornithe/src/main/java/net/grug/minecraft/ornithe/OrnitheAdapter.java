@@ -786,6 +786,33 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             double x2,
             double y2,
             double tolerancePercent) {
+        BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
+        if (capture == null) {
+            return; // captureChecked already reported why
+        }
+
+        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
+        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
+        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
+        File referenceDirectory = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
+        GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
+    }
+
+    @Override
+    public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        return captureChecked("Screenshot.capture", x1, y1, x2, y2);
+    }
+
+    /**
+     * Checks the rectangle and reads it, reporting {@code operation} as the thing that wanted it.
+     *
+     * <p>Both screenshot entry points share this so a bad coordinate is reported the same way
+     * either way; only the name in front of the message differs, so a test reading the log can tell
+     * which call it was.
+     */
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    private BufferedImage captureChecked(
+            String operation, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure. (1300 instead of 130 is an easy mistake to
         // make while writing a new test, and is the whole reason this lists the offending name.)
@@ -794,13 +821,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
         if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
         if (bad != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.equals: " + bad);
-            return;
+            Grug.hostFunctionErrorHappened(Grug.statePtr, operation + ": " + bad);
+            return null;
         }
         if (x2 <= x1 || y2 <= y1) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Screenshot.equals: the rectangle is empty, since ("
+                    operation
+                            + ": the rectangle is empty, since ("
                             + (int) x2
                             + ","
                             + (int) y2
@@ -809,7 +837,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                             + ","
                             + (int) y1
                             + ")");
-            return;
+            return null;
         }
 
         // A defensive safety net rather than the primary sizing mechanism: R forces 1280x720
@@ -819,7 +847,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (mc.width != GrugScreenshots.WIDTH || mc.height != GrugScreenshots.HEIGHT) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Screenshot.equals: the window is "
+                    operation
+                            + ": the window is "
                             + mc.width
                             + "x"
                             + mc.height
@@ -827,19 +856,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                             + GrugScreenshots.WIDTH
                             + "x"
                             + GrugScreenshots.HEIGHT);
-            return;
+            return null;
         }
 
-        BufferedImage capture = captureRectangle((int) x1, (int) y1, (int) x2, (int) y2, mc.height);
-        if (capture == null) {
-            return; // captureRectangle already reported why
-        }
-
-        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
-        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
-        File referenceDirectory = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
-        GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
+        return captureRectangle(operation, (int) x1, (int) y1, (int) x2, (int) y2, mc.height);
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
@@ -878,7 +898,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      */
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private static BufferedImage captureRectangle(
-            int x1, int y1, int x2, int y2, int windowHeight) {
+            String operation, int x1, int y1, int x2, int y2, int windowHeight) {
         int width = x2 - x1;
         int height = y2 - y1;
         int glY = windowHeight - y2;
@@ -892,8 +912,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             // the script carries on, which would turn a broken capture into a passing test. Report
             // it the way every other problem here is reported, so that the script aborts instead.
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Screenshot.equals: the pixel readback failed unexpectedly: " + e);
+                    Grug.statePtr, operation + ": the pixel readback failed unexpectedly: " + e);
             return null;
         }
         int glError = GL11.glGetError();
@@ -901,7 +920,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (glError != GL11.GL_NO_ERROR) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Screenshot.equals: glReadPixels failed with GL error 0x"
+                    operation
+                            + ": glReadPixels failed with GL error 0x"
                             + Integer.toHexString(glError)
                             + ", so the capture cannot be trusted. A multisampled or otherwise "
                             + "unreadable framebuffer is the usual cause.");
@@ -929,7 +949,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         } catch (RuntimeException e) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "Screenshot.equals: could not build an image from the readback: " + e);
+                    operation + ": could not build an image from the readback: " + e);
             return null;
         }
     }

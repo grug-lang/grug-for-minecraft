@@ -1,0 +1,12 @@
+# Two captures of the same frame are the same frame, so a comparison that asks for a change has to
+# fail. This is what stops Screenshot.differs_from from passing a loader that never reloaded anything:
+# without a case that fails, nothing says the assertion is able to.
+# Both captures are in one tick and neither calls Test.not_done, so they read the same framebuffer.
+export run() {
+    # Matched on the wording rather than the number, so the check does not depend on how the
+    # share is formatted.
+    Test.expect_error("the frame still shows what it showed before")
+    first: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+    second: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+    second.differs_from(first, 50)
+}

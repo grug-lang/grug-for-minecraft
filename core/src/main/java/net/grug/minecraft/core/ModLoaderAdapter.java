@@ -3,6 +3,7 @@ package net.grug.minecraft.core;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Vec3;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 
 public interface ModLoaderAdapter {
@@ -160,4 +161,15 @@ public interface ModLoaderAdapter {
             double x2,
             double y2,
             double tolerancePercent);
+
+    /**
+     * Reads the rectangle out of the current frame, or returns null after reporting why it could
+     * not: a coordinate outside the frame, or an empty rectangle.
+     *
+     * <p>Separate from {@link #assertScreenshotEquals} so a test can hold two captures of the same
+     * rectangle and compare them with each other, which is how it checks that the game redrew
+     * something. Comparing against a reference image instead has to be accepted once per rendering,
+     * and the same crop of the same block does not render identically on every version or platform.
+     */
+    BufferedImage captureScreenshot(double x1, double y1, double x2, double y2);
 }
