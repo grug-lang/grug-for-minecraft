@@ -3,9 +3,13 @@
   "ingredients": [
     {
       "item": "minecraft:stick"
+    },
+    {
+      "item": "minecraft:iron_ingot"
     }
   ],
   "result": {
-    "id": "grug:coverage_item"
+    "id": "grug:coverage_item",
+    "count": 2
   }
 }

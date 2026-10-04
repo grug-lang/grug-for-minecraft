@@ -577,6 +577,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean registersModRecipes() {
+        // InitListener hands the mods' data/<namespace>/recipes tree to StationAPI to parse.
+        return true;
+    }
+
+    @Override
     public Vec3 getTestOrigin() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =

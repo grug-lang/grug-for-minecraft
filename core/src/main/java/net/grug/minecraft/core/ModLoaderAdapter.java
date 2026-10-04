@@ -111,6 +111,18 @@ public interface ModLoaderAdapter {
     boolean isWorldReady(Object playerObj);
 
     /**
+     * Whether this loader registers the crafting recipes mods ship under {@code
+     * data/<namespace>/recipes}.
+     *
+     * <p>The Ornithe and StationAPI loaders read that tree and register what it declares. The 1.2.5
+     * and 1.20.6 Forge loaders hand a crafting grid to the game's own recipe manager, which knows
+     * nothing a grug mod ships, so a recipe is not registered there. A test asserting a shipped
+     * recipe asks this before asserting, so a loader that cannot do it does not fail the run for
+     * it.
+     */
+    boolean registersModRecipes();
+
+    /**
      * Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load
      * paths without the game actually saving and reloading a world.
      */
