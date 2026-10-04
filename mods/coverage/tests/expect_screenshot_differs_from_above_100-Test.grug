@@ -1,0 +1,10 @@
+# Above 100 there is no such share of pixels, so it is rejected. Together with the negative case this
+# closes both ends of the range the comparison accepts, and 100 itself stays allowed.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("percent must be a whole number")
+        first: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        second: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        second.differs_from(first, 101)
+    }
+}

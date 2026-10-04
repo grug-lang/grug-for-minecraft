@@ -1,5 +1,7 @@
 # A screenshot that never captured anything cannot be compared, and saying so beats a NullPointerException
-# from inside the comparison. Test.screenshot() alone builds the builder without reading a frame.
+# from inside the comparison. Test.screenshot() alone builds the builder without reading a frame. The
+# other one being the unread one is the case a test hits by accident; this one is where the screenshot
+# being compared is the one that was never read, so both halves of the check need their own test.
 export run() {
     if Test.tick() == 0 {
         Test.expect_error("have to be captured first")

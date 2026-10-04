@@ -1,0 +1,11 @@
+# The screenshot doing the comparing is the one that never captured anything. This is the other half of
+# the check the previous test covers: there the unread one was the argument, here it is the receiver,
+# and a test that only ever does it one way never exercises the other.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("have to be captured first")
+        never_read: Screenshot = Test.screenshot()
+        captured: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        never_read.differs_from(captured, 50)
+    }
+}

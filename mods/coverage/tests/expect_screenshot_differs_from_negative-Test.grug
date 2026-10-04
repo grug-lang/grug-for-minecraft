@@ -1,0 +1,11 @@
+# A negative percentage is not a share of anything, so it is rejected rather than read as zero, which
+# would pass every comparison. Only the fractional half of the same check has its own test; this is the
+# other end of the range.
+export run() {
+    if Test.tick() == 0 {
+        Test.expect_error("percent must be a whole number")
+        first: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        second: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
+        second.differs_from(first, -1)
+    }
+}

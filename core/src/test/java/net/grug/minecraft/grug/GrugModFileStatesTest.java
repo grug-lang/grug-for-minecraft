@@ -82,6 +82,20 @@ class GrugModFileStatesTest {
         assertEquals("export init() {\n}", modFileText());
     }
 
+    @Test
+    void noTrailingNewlineLeavesAnEmptyFileEmpty() throws IOException {
+        // Reading the file as bytes rather than as text is what makes the length a thing to ask
+        // about, so the empty file is the case that has to be answered rather than indexed into.
+        modsDir = Files.createDirectories(tmp.resolve("mods")).toFile();
+        Path assets = Files.createDirectories(modsDir.toPath().resolve("mymod/assets"));
+        Files.write(assets.resolve("empty.png"), new byte[0]);
+        backupRoot = tmp.resolve(".grug_test_backups");
+
+        GrugModFileStates.set(modsDir, "mymod/assets/empty.png", "no_trailing_newline");
+
+        assertEquals(0, Files.readAllBytes(assets.resolve("empty.png")).length);
+    }
+
     /** Bytes no charset decodes back to themselves, so a text record cannot hold them. */
     private static final byte[] PNG_HEADER = {
         (byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00, (byte) 0xFF, (byte) 0xFE

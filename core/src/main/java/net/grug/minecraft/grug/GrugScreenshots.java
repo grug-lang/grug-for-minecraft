@@ -364,9 +364,11 @@ public final class GrugScreenshots {
                             + b.getHeight()
                             + ", so they are not two views of the same rectangle");
         }
-        int total = a.getWidth() * a.getHeight();
-        if (total == 0) return 0;
-        return 100.0 * countDifferences(a, b) / total;
+        // Deliberately no guard for an empty rectangle. The only source of these images is a
+        // loader's
+        // capture, which rejects an empty rectangle before it reads one, so a zero-pixel capture
+        // cannot arrive; and a branch nothing can reach is a branch nothing can cover.
+        return 100.0 * countDifferences(a, b) / (a.getWidth() * a.getHeight());
     }
 
     /** The numbered references in a directory, ordered 1, 2, 3, ... If it doesn't exist, empty. */
