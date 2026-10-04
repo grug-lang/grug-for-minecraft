@@ -1,0 +1,18 @@
+# A block whose block entity draws its own geometry: a core with an arm towards each neighbour that
+# is the same block, so one block draws a straight run, a corner or a cross depending on what it is
+# joined to. The shape lives in the block entity's render(); this file only declares that there is
+# one.
+export init() {
+    set_hardness(1)
+    set_material("stone")
+    set_block_entity(e"coverage_render_entity")
+    set_inventory_size(1)
+
+    # Asked rather than called unconditionally, because the declaration reports an error on a
+    # version that cannot draw custom geometry and this block is registered on every loader. Where
+    # the answer is no it draws the ordinary cube from its model instead, which is a shape, so there
+    # is nothing to report. Only a1.1.2_01-ornithe says yes today.
+    if supports_custom_geometry() {
+        set_custom_render()
+    }
+}

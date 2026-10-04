@@ -127,6 +127,17 @@ public interface ModLoaderAdapter {
 
     String getBlock(Object levelObj, double x, double y, double z);
 
+    /**
+     * Whether this loader can draw a block's own geometry, which set_custom_render declares a block
+     * wants. A loader that cannot says so at the declaration rather than at every draw, so the mod
+     * author gets one error naming the host function they called.
+     *
+     * <p>How the geometry is then drawn is deliberately not here: it needs the loader's own
+     * renderer and its position in the frame, which only its render path has. Each loader hooks
+     * that where its version renders blocks.
+     */
+    boolean supportsCustomBlockGeometry();
+
     boolean isAir(Object levelObj, double x, double y, double z);
 
     double countItemEntities(Object levelObj, double x, double y, double z, double radius);

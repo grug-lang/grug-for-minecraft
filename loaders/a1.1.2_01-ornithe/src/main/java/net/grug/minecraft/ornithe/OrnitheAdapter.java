@@ -441,6 +441,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean supportsCustomBlockGeometry() {
+        // BlockRendererMixin hands the chunk's own BlockRenderer to GrugBoxRenderer, so a block
+        // that declares custom rendering is drawn by the same tesselation every other block in the
+        // chunk goes through, lit and culled by the game rather than by us.
+        return true;
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
@@ -781,6 +789,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
             return null;
         }
+
+        // A screen left open by an earlier test would sit over the world and be captured in
+        // every frame after it, since the tests share one game. Closing it here rather than in
+        // the test that opened it keeps that test's own world state untouched, which matters:
+        // closing a screen is not a no-op for a later test that shares the world.
+        MinecraftInstance.get().openScreen(null);
 
         savedX = player.x;
         savedY = player.y;

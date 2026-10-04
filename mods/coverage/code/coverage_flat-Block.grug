@@ -1,0 +1,9 @@
+# The background the custom-rendering screenshot test is compared against. It exists only as a
+# flat, single-colour surface: Alpha rounds a textured face differently between two runs of the same
+# build, so a screenshot test that diffs a real block texture against itself fails about half the
+# time on pixels that did not change. A uniform texture has no gradient to round, which is what lets
+# the comparison stay pixel-exact. The geometry test needs a still background, not a pretty one.
+export init() {
+    set_hardness(1)
+    set_material("stone")
+}

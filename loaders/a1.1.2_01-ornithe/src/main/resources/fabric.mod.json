@@ -21,7 +21,8 @@
     },
     "mixins": [
         "grug.mixins.json",
-        "grug.shapeless.mixins.json"
+        "grug.shapeless.mixins.json",
+        "grug.custom_geometry.mixins.json"
     ],
     "depends": {
         "minecraft": "1.0.0-alpha.1.2.1"

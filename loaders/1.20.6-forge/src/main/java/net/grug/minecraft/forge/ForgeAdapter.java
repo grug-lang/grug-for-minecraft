@@ -535,6 +535,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean supportsCustomBlockGeometry() {
+        // 1.20.6 has block entity renderers, so the port forward is a matter of registering one
+        // for GrugBlockEntity and cancelling the model; that has not been written yet, and saying
+        // so here keeps set_custom_render's error honest about this loader.
+        return false;
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         net.minecraft.core.BlockPos pos =
@@ -621,6 +629,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
                     Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
             return;
         }
+
+        // A screen left open by an earlier test would sit over the world and be captured in
+        // every frame after it, since the tests share one game. Closing it here rather than in
+        // the test that opened it keeps that test's own world state untouched, which matters:
+        // closing a screen is not a no-op for a later test that shares the world.
+        Minecraft.getInstance().setScreen(null);
 
         savedX = player.getX();
         savedY = player.getY();
