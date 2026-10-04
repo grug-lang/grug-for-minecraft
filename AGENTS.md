@@ -124,7 +124,7 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 - The real tasks live in `loaders/<loader>/build.gradle`; the four standalone loaders also have a
   `root.gradle` that the root project's `runClient` execs, so both invocations reach them. A
   plain `runClient` is for playing and leaves `run/saves` alone; only `run-loader.sh` resets it.
-- The four standalone loaders resolve `net.grug:grug-core` from `build/maven`, which
+- The four standalone loaders resolve `net.grug:grug-core` from the checkout's `build/maven`, which
   `gradle/grug-core.gradle` names and `core` publishes into under a version stamped with the commit.
   Both entry points above publish it first; a loader's own build run on its own asks for the
   coordinate of the commit it is on and fails to resolve if that commit has not been published here.
