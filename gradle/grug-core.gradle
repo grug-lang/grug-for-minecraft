@@ -1,3 +1,4 @@
+import java.io.IOException
 import java.util.Properties
 
 // The hand-off between `core` and the four loaders that run a Gradle wrapper of their own.
@@ -10,13 +11,14 @@ import java.util.Properties
 // into a directory of its own and a loader beside it can only ever resolve that one. Nothing needs
 // locking, naming or cleaning up, because there is no longer a single global slot to race over.
 //
-// The version carries the commit. Resolved modules are cached in ~/.gradle, which every worktree on
-// the machine shares, so a fixed 1.0.0 is a coordinate one worktree publishes and another resolves.
-// A coordinate that moves with the commit cannot go stale that way: a loader asks for the commit it
-// is on, so a core published before the last commit is not a version it can find, and it fails to
-// resolve rather than compiling against one in silence. A republish of the coordinate it does ask
-// for is a file in its own repository, which Gradle reads afresh on every build, so an edit that has
-// not been committed is picked up as well.
+// The version carries the commit because this checkout's own build/maven accumulates. A fixed 1.0.0
+// stays in it from an earlier commit, so a loader building before the root build has published the
+// commit it is on would resolve that commit's core and compile quietly against it. A coordinate that
+// moves is one this tree has not published, and the resolution fails naming it.
+//
+// Freshness inside a commit is the repository's doing, not the stamp's: Gradle reads a local
+// repository's modules on every build instead of serving them out of ~/.gradle, so a republish under
+// the coordinate the loader does ask for is a file it reads again.
 // .github/scripts/grug_core_handoff_test.py holds all three of those claims to it.
 
 // core/ is a project of the root build, whose own directory is the repository root, while a loader
@@ -41,14 +43,40 @@ if (!rootPropertiesFile.isFile()) {
 def rootProperties = new Properties()
 rootPropertiesFile.withInputStream { rootProperties.load(it) }
 
-// git is not a new requirement: the build already clones grug-rs with it, so every tree this build
-// runs in is a checkout. The commit is read here rather than passed in, because a loader that ran
-// before its own core had been published has to fail rather than resolve an older one.
-def commitProcess = new ProcessBuilder(
-    'git', '-C', repoRoot.absolutePath, 'rev-parse', '--short=12', 'HEAD'
-)
-    .redirectErrorStream(true)
-    .start()
+// Properties answers null for a key that is not there, and the interpolation below would fold that
+// into a coordinate reading null-<commit>, which core would then publish under and every loader
+// would agree on. Two halves agreeing is not a check, so this asks for the key instead. The base
+// version used to be read through providers.gradleProperty(...).get(), which throws when it is
+// absent, and this keeps the build stopping at configuration time when it is renamed away.
+def baseVersion = rootProperties.getProperty('mod_version')
+if (baseVersion == null) {
+    throw new GradleException(
+        "${rootPropertiesFile.absolutePath} declares no mod_version, which the version grug-core is " +
+            'published under is built from.'
+    )
+}
+
+// git is what reads the commit. Every build that compiles core already needed it, because
+// buildGrugRs clones grug-rs with git, but a loader's own build did not need a checkout before this
+// file and does now. That is the price of the two halves agreeing on the coordinate by reading it in
+// one place, and a tree that is not a checkout has no commit to stamp with, which is an err below
+// rather than a version without one.
+def commitProcess
+try {
+    commitProcess = new ProcessBuilder(
+        'git', '-C', repoRoot.absolutePath, 'rev-parse', '--short=12', 'HEAD'
+    )
+        .redirectErrorStream(true)
+        .start()
+} catch (IOException e) {
+    // start() throws before any of this file's own reporting can run, so the missing binary is
+    // reported here rather than as a raw "Cannot run program git" from the JDK.
+    throw new GradleException(
+        "Could not run git to read the commit in ${repoRoot.absolutePath}, which the version " +
+            "grug-core is published under is stamped with. ${e.message}",
+        e
+    )
+}
 
 // Read before waiting, so a full pipe cannot deadlock on a message longer than the buffer.
 def commitOutput = commitProcess.inputStream.getText('UTF-8').trim()
@@ -62,4 +90,4 @@ if (commitProcess.waitFor() != 0) {
 
 // toString(), so the loaders whose builds are written in Kotlin get a String rather than the GString
 // this interpolation produces in a Groovy script.
-ext.grugCoreVersion = "${rootProperties.getProperty('mod_version')}-${commitOutput}".toString()
+ext.grugCoreVersion = "${baseVersion}-${commitOutput}".toString()

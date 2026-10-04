@@ -19,6 +19,8 @@ loaders resolve on 9.5.1, and both were measured to re-read a local repository's
 build rather than serve them out of ~/.gradle, which is what the republish test is about.
 """
 
+import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -32,8 +34,25 @@ REPO_ROOT = SCRIPTS.parent.parent
 # of the root build.
 STANDALONE_LOADERS = ("1.2.5-forge", "a1.1.2_01-ornithe", "b1.7.3-ornithe", "b1.7.3-stationapi")
 
-# Enough of an identity for git to commit in a temporary directory, whose owner may have none.
-IDENTITY = ("-c", "user.name=grug", "-c", "user.email=grug@example.com")
+# Enough of an identity for git to commit in a temporary directory, whose owner may have none, and
+# enough of a commit to ignore the developer's global config, which may sign and may be configured
+# for a different user. Signing is pinned off because a passphrase-prompting key would block the run.
+IDENTITY = (
+    "-c",
+    "user.name=grug",
+    "-c",
+    "user.email=grug@example.com",
+    "-c",
+    "commit.gpgsign=false",
+)
+
+# git stamps the committer clock into the commit object at one-second resolution, so two checkouts
+# meant to share a commit get different ones whenever a second boundary falls between them. That is
+# the whole premise of the two-worktree test, so the clock is pinned rather than left to the machine.
+CLOCK = {
+    "GIT_AUTHOR_DATE": "2020-01-01T00:00:00+00:00",
+    "GIT_COMMITTER_DATE": "2020-01-01T00:00:00+00:00",
+}
 
 # A miniature of this checkout's core, publishing itself the way core/build.gradle.kts does. The
 # marker file stands in for the classes and the mods the real jar carries, so a consumer can read
@@ -137,6 +156,13 @@ mod_version = 1.0.0
 ROOT_SETTINGS = "rootProject.name = 'grug-miniature'\ninclude 'core'\n"
 
 
+# The version and the repository both come from gradle/grug-core.gradle, which core publishes under
+# as well, so neither half holds a copy that can fall out of date. Matched rather than compared
+# literally, because "${grugCoreVersion}" and "$grugCoreVersion" are both the coordinate and only a
+# literal version is the regression.
+STAMPED_COORDINATE = r"net\.grug:grug-core:\$\{?grugCoreVersion\}?"
+
+
 class GrugCoreHandoffTest(unittest.TestCase):
     """Resolves a miniature repository with real Gradle, then reads the real build files."""
 
@@ -179,6 +205,7 @@ class GrugCoreHandoffTest(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            env={**os.environ, **CLOCK},
         )
         self.assertEqual(result.returncode, 0, f"git {' '.join(args)}: {result.stderr}")
         return result.stdout.strip()
@@ -221,8 +248,12 @@ class GrugCoreHandoffTest(unittest.TestCase):
         return jar_name[len("grug-core-") : -len(".jar")], marker
 
     def gradle(self, project: Path, *args: str) -> subprocess.CompletedProcess:
+        # --no-daemon on the command line rather than the miniature's gradle.properties, because that
+        # file is only read by the producer: the consumer is a build of its own and Gradle does not
+        # look upward for one. Without this the consumer starts a daemon with a three-hour idle
+        # timeout, in the shared ~/.gradle registry, for a project directory this test deletes.
         return subprocess.run(
-            [str(REPO_ROOT / "gradlew"), "-p", str(project), *args],
+            [str(REPO_ROOT / "gradlew"), "-p", str(project), "--no-daemon", *args],
             cwd=project,
             capture_output=True,
             text=True,
@@ -303,10 +334,8 @@ class GrugCoreHandoffTest(unittest.TestCase):
             with self.subTest(loader=loader):
                 build = self.loader_build(loader)
 
-                # The version and the repository both come from gradle/grug-core.gradle, which core
-                # publishes under as well, so neither half holds a copy that can fall out of date.
-                self.assertIn("net.grug:grug-core:$grugCoreVersion", build)
-                self.assertIn("grugCoreRepository.toURI()", build)
+                self.assertRegex(build, STAMPED_COORDINATE)
+                self.assertIn("grugCoreRepository", build)
                 self.assertIn("gradle/grug-core.gradle", build)
 
                 # The literal coordinate and the property that carried it are what this replaced.
@@ -327,10 +356,10 @@ class GrugCoreHandoffTest(unittest.TestCase):
         self.assertIn("version = grugCoreVersion", core)
         self.assertIn("url = grugCoreRepository.toURI()", core)
 
-        declared = next(
-            line for line in core.splitlines() if line.strip().startswith('name = "grug')
-        )
-        repository = declared.split('"')[1]
+        # Found by the block that publishes into the shared repository, rather than by how that
+        # repository's name is spelled, so a second repository cannot change the answer.
+        publishing_block = core.split("url = grugCoreRepository.toURI()")[0].rsplit("maven {", 1)[1]
+        repository = re.search(r'name = "([^"]+)"', publishing_block).group(1)
         # Gradle capitalizes the repository's name and appends the repository type to the task name.
         task = (
             "publishMavenJavaPublicationTo" + repository[0].upper() + repository[1:] + "Repository"
