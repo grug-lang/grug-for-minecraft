@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.block;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge125.item.GrugItem;
 import net.grug.minecraft.forge125.mod_Grug;
@@ -7,11 +8,13 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugResourceIndex;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,14 +45,29 @@ public final class GrugBlocks {
     /** First item id searched, for the same reason. */
     public static final int START_ITEM_ID = 400;
 
-    /** Block script clean name -> terrain sprite index. */
+    /** The atlas grug block sprites live in. */
+    private static final String TERRAIN_ATLAS = "/terrain.png";
+
+    /** The atlas grug item sprites live in. */
+    private static final String ITEMS_ATLAS = "/gui/items.png";
+
+    /** Block script clean name -> terrain sprite index, for the blocks that ship a texture. */
     public static final Map<String, Integer> BLOCK_SPRITES = new HashMap<String, Integer>();
 
-    /** Item script clean name -> items sprite index. */
+    /** Item script clean name -> items sprite index, for the items that ship a texture. */
     public static final Map<String, Integer> ITEM_SPRITES = new HashMap<String, Integer>();
 
-    private static int nextBlockSpriteId = 160;
-    private static int nextItemSpriteId = 160;
+    /**
+     * Texture path in the mods tree -> terrain sprite index.
+     *
+     * <p>Keyed by the file rather than by the block, because two blocks naming one texture can
+     * share a slot (vanilla shares slots the same way) and FML only has 32 terrain slots for every
+     * mod in the pack.
+     */
+    public static final Map<String, Integer> BLOCK_TEXTURES = new HashMap<String, Integer>();
+
+    /** Texture path in the mods tree -> items sprite index, shared the same way. */
+    public static final Map<String, Integer> ITEM_TEXTURES = new HashMap<String, Integer>();
 
     private static boolean registered = false;
 
@@ -99,9 +117,7 @@ public final class GrugBlocks {
             block.setBlockName("grug_" + cleanName);
             mod_Grug.LOGGER.info("grug:" + cleanName + " got block id " + blockId);
 
-            int blockSprite = nextBlockSpriteId++;
-            BLOCK_SPRITES.put(cleanName, blockSprite);
-            block.sprite = blockSprite;
+            assignBlockSprite(block, cleanName);
 
             ModLoader.registerBlock(block);
         }
@@ -135,10 +151,82 @@ public final class GrugBlocks {
             item.setItemName(cleanName);
             mod_Grug.LOGGER.info("grug:" + cleanName + " got item id " + itemId);
 
-            int itemSprite = nextItemSpriteId++;
-            ITEM_SPRITES.put(cleanName, itemSprite);
-            item.setIconIndex(itemSprite);
+            assignItemIcon(item, cleanName);
         }
+    }
+
+    /**
+     * Gives {@code block} the terrain slot of the texture its mod ships, if it ships one.
+     *
+     * <p>grug has no host function for naming a block's texture, so a block names one by
+     * convention: the first of {@code assets/grug/textures/block/<name>.png} and its {@code _top},
+     * {@code _side} and {@code _front} variants that some mod ships, which is the same search the
+     * Ornithe loaders make for their flat fallback name. 1.2.5 draws every face of a block from one
+     * sprite, so the first one found is the block's texture.
+     *
+     * <p>A block no mod ships a texture for is left alone rather than given a slot of its own: FML
+     * has 32 terrain slots for the whole pack, so a slot spent on a block with nothing to draw is
+     * one a mod that has a texture cannot have. It keeps the sprite {@code Block} gave it, which is
+     * what a 1.2.5 block registered without a texture renders from anyway.
+     */
+    private static void assignBlockSprite(GrugBlock block, String cleanName) {
+        String path = findTexture("block", cleanName);
+        if (path == null) return;
+
+        int sprite = claimSprite(BLOCK_TEXTURES, TERRAIN_ATLAS, path);
+        BLOCK_SPRITES.put(cleanName, sprite);
+        block.sprite = sprite;
+    }
+
+    /**
+     * Gives {@code item} the items-atlas slot of the texture its mod ships, if it ships one, on the
+     * same terms as {@link #assignBlockSprite}.
+     */
+    private static void assignItemIcon(GrugItem item, String cleanName) {
+        String path = findTexture("item", cleanName);
+        if (path == null) return;
+
+        int sprite = claimSprite(ITEM_TEXTURES, ITEMS_ATLAS, path);
+        ITEM_SPRITES.put(cleanName, sprite);
+        item.setIconIndex(sprite);
+    }
+
+    /**
+     * The slot {@code path} renders in, claiming a free one the first time it is asked for.
+     *
+     * <p>Goes through {@code ModLoader.getUniqueSpriteIndex}, which is {@code
+     * cpw.mods.fml.client.SpriteHelper} handing out the lowest slot no other mod has taken, from a
+     * bitset of the slots FML reserves for mods in that atlas. Counting up from a number instead,
+     * which is what this loader used to do, puts grug's sprites on top of vanilla's and of any
+     * other mod's. FML answers -1 where there is no render engine, which is the dedicated server's
+     * copy of ModLoader, and nothing reads a sprite without one.
+     */
+    private static int claimSprite(Map<String, Integer> claimed, String atlas, String path) {
+        Integer existing = claimed.get(path);
+        if (existing != null) return existing.intValue();
+
+        int sprite = ModLoader.getUniqueSpriteIndex(atlas);
+        claimed.put(path, sprite);
+        return sprite;
+    }
+
+    /**
+     * The path in the mods tree of the texture a block or item of this name draws with, or null
+     * when no mod ships one.
+     *
+     * <p>Null is an answer rather than a failure, and nothing is reported: with no host function
+     * for naming a texture, a block that ships none is a block that asked for exactly that, which
+     * is how the other loaders answer the same flat-name search when the block's model carries the
+     * textures instead. The {@code _top}, {@code _side} and {@code _front} names are looked for
+     * beside it because those are the ones a mod splits a block's faces into.
+     */
+    private static String findTexture(String type, String cleanName) {
+        File modsDir = GrugCore.getAdapter().getGrugModsDirectory();
+        for (String suffix : new String[] {"", "_top", "_side", "_front"}) {
+            String path = "assets/grug/textures/" + type + "/" + cleanName + suffix + ".png";
+            if (GrugResourceIndex.findDirectResource(modsDir, path) != null) return path;
+        }
+        return null;
     }
 
     /**

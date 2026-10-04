@@ -98,6 +98,9 @@ EXCLUDED_CLASSES = {
     "GrugContainer",
     "VanillaNames",
     "GrugItem",
+    # Uploads grug textures into the two atlases 1.2.5 stitches at startup, which is GL work a
+    # headless CI cannot reach.
+    "GrugTextures",
 }
 
 

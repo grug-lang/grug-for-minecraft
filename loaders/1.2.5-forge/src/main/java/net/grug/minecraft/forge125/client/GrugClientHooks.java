@@ -183,6 +183,16 @@ public class GrugClientHooks implements ITickHandler {
      * tick, the cadence the other four loaders use.
      */
     private void gameTick(Minecraft minecraft) {
+        // The grug sprites cannot be handed to the texture manager before the atlas exists: FML
+        // asks
+        // the client handler how large a tile is, and that answer is the size setupTexture recorded
+        // when the pack's /terrain.png was first loaded and stitched, which is a world being drawn.
+        // The first tick that has a render engine is the earliest point there is anything to
+        // register into.
+        if (minecraft.renderEngine != null) {
+            GrugTextures.register(minecraft.renderEngine);
+        }
+
         if ("true".equals(System.getenv("GRUG_CI")) && !ciTestsRan && minecraft.thePlayer != null) {
             // The runner starts as soon as the player exists, which can be before the client has
             // received the chunks the tests build in. Wait for them; a world that never arrives
@@ -239,6 +249,18 @@ public class GrugClientHooks implements ITickHandler {
         String[] updatedResources = Grug.update(GrugClientHooks::logError);
         if (updatedResources.length > 0 && minecraft.renderEngine != null) {
             minecraft.renderEngine.refreshTextures();
+            // refreshTextures re-stitches every atlas from the texture pack, and in doing so it
+            // runs
+            // setup() on every registered effect, which allocates that effect's pixels again, and
+            // it
+            // overwrites every tile. The grug sprites have to read their files after that rather
+            // than
+            // before, because the change the engine reported is a file in the mods tree that no
+            // atlas
+            // ever held. Each read pushes its own pixels into its tile, so a reload does not wait
+            // on
+            // the game's own per-tick upload.
+            GrugTextures.reload();
         }
 
         if (minecraft.thePlayer != null) {
