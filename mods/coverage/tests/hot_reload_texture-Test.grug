@@ -7,10 +7,12 @@
 # Comparing the two frames is what makes the assertion mean something. Two reference images would not:
 # a frame that never changed would match the reference for the shipped texture on every loader, so
 # "the swap was picked up" would rest on a reviewer having noticed that the two accepted PNGs differ.
-# Asking for half the rectangle is deliberately far from the noise floor. A block face a block from
-# the camera is lit per vertex, and a vertex comes out a single part brighter on some runs than
-# others, so a handful of pixels wobble between two captures of an unchanged frame; a texture swap
-# repaints every pixel of it.
+# Asking for a tenth of the rectangle, and a pixel only counts as changed once a channel has moved
+# more than a part in sixteen, are the two halves of leaving lighting out of it. Per-vertex lighting
+# on a face moves a channel by one part between two captures of an unchanged frame, and a texture swap
+# moves one by about eighty, so the floor separates them outright. The share is low because the crop
+# is not wholly wall on every version: on 1.20.6 it measured 37 percent of the crop changing, which is
+# why a threshold near half turned a working reload into an intermittent failure.
 # The "normal" state at the end puts the shipped texture back, and a run that dies before it gets
 # there is put back by the next startup, so an interrupted run cannot leave the mod's texture
 # swapped for the run after it.
@@ -60,7 +62,7 @@ export run() {
         Test.not_done()
     } else {
         reloaded: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
-        reloaded.differs_from(before.unwrap(), 50)
+        reloaded.differs_from(before.unwrap(), 10)
         Test.set_mod_file_state(path, "normal")
         Test.restore_camera()
     }

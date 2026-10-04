@@ -335,12 +335,24 @@ public final class GrugScreenshots {
     }
 
     /**
-     * The share of pixels that differ between two captures of the same rectangle, from 0 to 100.
+     * How far any one channel has to move before a pixel counts as changed, as a step in the 0 to
+     * 255 range.
      *
-     * <p>A pixel counts as changed when any of its red, green or blue channels differs at all, and
-     * alpha is ignored, as in {@link #verify}. A surface the game lights per vertex can come out a
-     * single part brighter between two runs, so a caller that wants to ignore that asks for a
-     * percentage rather than for no change at all.
+     * <p>A surface the game lights per vertex can come out a single part brighter between two
+     * captures of an unchanged frame, measured at one unit on this crop. Counting that as a change
+     * makes the comparison sensitive to lighting, which is exactly what a test asking "did the game
+     * redraw something" is not asking. A texture swapped for a different image moves a channel by
+     * around 80, so the floor sits well under the smallest change worth reporting and well over the
+     * noise.
+     */
+    private static final int CHANGED_CHANNEL_FLOOR = 8;
+
+    /**
+     * The share of pixels that visibly differ between two captures of the same rectangle, from 0 to
+     * 100.
+     *
+     * <p>A pixel counts as changed when any of its red, green or blue channels differs by more than
+     * {@link #CHANGED_CHANNEL_FLOOR}, and alpha is ignored, as in {@link #verify}.
      *
      * <p>This is how a test says "the game is now drawing something else" without a reference image
      * to compare against, which matters because one rendering is not the same everywhere: the same
@@ -368,7 +380,30 @@ public final class GrugScreenshots {
         // loader's
         // capture, which rejects an empty rectangle before it reads one, so a zero-pixel capture
         // cannot arrive; and a branch nothing can reach is a branch nothing can cover.
-        return 100.0 * countDifferences(a, b) / (a.getWidth() * a.getHeight());
+        int total = a.getWidth() * a.getHeight();
+        return 100.0 * countVisibleDifferences(a, b) / total;
+    }
+
+    /**
+     * The pixels where a channel moved by more than {@link #CHANGED_CHANNEL_FLOOR}, which is fewer
+     * than {@link #countDifferences} counts and is a number a change of lighting does not reach.
+     */
+    private static int countVisibleDifferences(BufferedImage a, BufferedImage b) {
+        int changed = 0;
+        for (int y = 0; y < a.getHeight(); y++) {
+            for (int x = 0; x < a.getWidth(); x++) {
+                int actual = a.getRGB(x, y);
+                int expected = b.getRGB(x, y);
+                if (Math.abs(((actual >> 16) & 0xFF) - ((expected >> 16) & 0xFF))
+                                > CHANGED_CHANNEL_FLOOR
+                        || Math.abs(((actual >> 8) & 0xFF) - ((expected >> 8) & 0xFF))
+                                > CHANGED_CHANNEL_FLOOR
+                        || Math.abs((actual & 0xFF) - (expected & 0xFF)) > CHANGED_CHANNEL_FLOOR) {
+                    changed++;
+                }
+            }
+        }
+        return changed;
     }
 
     /** The numbered references in a directory, ordered 1, 2, 3, ... If it doesn't exist, empty. */
