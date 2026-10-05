@@ -19,8 +19,8 @@ import java.util.List;
  *
  * <p>Nothing here reports an error itself. A JVM test cannot call into the native adapter that
  * carries {@code Grug.hostFunctionErrorHappened}, so the reporting lives in the caller that can:
- * {@link HostFunctions} for a draw call outside a pass, and each loader for a pass that drew
- * nothing.
+ * {@link HostFunctions} for a draw call outside a pass, and {@link GrugBlockGeometry} for a pass
+ * that drew nothing.
  */
 public final class GrugRenderPass {
     private static final List<GrugBox> BOXES = new ArrayList<>();
