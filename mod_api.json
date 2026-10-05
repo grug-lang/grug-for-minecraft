@@ -307,7 +307,7 @@
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
 				"setup_graphics_camera": {
-					"description": "Saves the player's current position and rotation, closes whatever GUI is open so the world is what gets captured, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
+					"description": "Saves the player's current position and rotation, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
 					"return_type": {
 						"name": "Vec3"
 					}
@@ -1027,7 +1027,7 @@
 			]
 		},
 		"draw_box": {
-			"description": "Draws one axis-aligned box as part of the geometry a block entity's render pass is building. The coordinates are block-local, from 0 to 1 on each axis measured from the block's minimum corner, so 0.25 on the y axis is a quarter of a block above the block's bottom face and 1 is flush with the far side. Each of the box's six faces is drawn with the block's own texture, the whole of it, lit and face-culled the way the game lights every other block. Boxes are drawn whole rather than merged, so two boxes that touch leave a shared face in between: the depth test hides it against the box behind it, and it costs nothing to see. Only legal during a render pass, which only `render` opens. Nothing checks the numbers: a box outside 0 to 1, or one whose far corner is nearer than its near corner, is drawn as given, so a shape that comes out wrong is the author's arithmetic and not the engine's clipping.",
+			"description": "Draws one axis-aligned box as part of the geometry a block entity's render pass is building. The coordinates are block-local, from 0 to 1 on each axis measured from the block's minimum corner, so 0.25 on the y axis is a quarter of a block above the block's bottom face and 1 is flush with the far side. Each of the box's six faces is drawn with the block's own texture, the whole of it, lit and face-culled the way the game lights every other block. Boxes are drawn whole rather than merged, so two boxes that touch leave a shared face in between: the depth test hides it against the box behind it, and it costs nothing to see. Only legal during a render pass, which only `render` opens. Nothing checks the numbers, so a box outside 0 to 1 is not clipped to the block and a box whose far corner is nearer than its near corner is not corrected: what ends up on screen is the arithmetic the author wrote. Alpha's tesselation reads the shape as it stands, so an inverted box produces inverted faces rather than an error.",
 			"parameters": [
 				{
 					"name": "x1",

@@ -790,12 +790,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             return null;
         }
 
-        // A screen left open by an earlier test would sit over the world and be captured in
-        // every frame after it, since the tests share one game. Closing it here rather than in
-        // the test that opened it keeps that test's own world state untouched, which matters:
-        // closing a screen is not a no-op for a later test that shares the world.
-        MinecraftInstance.get().openScreen(null);
-
         savedX = player.x;
         savedY = player.y;
         savedZ = player.z;
@@ -813,8 +807,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // run roughly one time in four. Staying put keeps the build site inside chunks that are
         // already loaded and lit.
         //
-        // Nothing is lost by it: a screenshot test crops a rectangle of the frame, and whichever
-        // version it is comparing, the panel or the world it wants is centred in the window.
+        // Nothing is lost by it: a screenshot test crops a rectangle of the frame, and the GUI is
+        // always centred in the window, so the terrain behind it is never part of the comparison.
         player.setPositionAndAngles(player.x, player.y, player.z, 0.0F, 0.0F);
 
         // +3 mirrors getTestOrigin()'s convention: an origin a little above the player to build on.

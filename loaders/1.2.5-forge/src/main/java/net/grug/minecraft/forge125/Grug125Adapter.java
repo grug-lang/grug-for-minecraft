@@ -805,12 +805,6 @@ public class Grug125Adapter implements ModLoaderAdapter {
             return null;
         }
 
-        // A screen left open by an earlier test would sit over the world and be captured in
-        // every frame after it, since the tests share one game. Closing it here rather than in
-        // the test that opened it keeps that test's own world state untouched, which matters:
-        // closing a screen is not a no-op for a later test that shares the world.
-        mc.displayGuiScreen(null);
-
         savedX = player.posX;
         savedY = player.posY;
         savedZ = player.posZ;
@@ -820,8 +814,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
         // Level the view so the frame does not depend on which way the player was looking, but
         // deliberately do NOT move them: teleporting into a chunk the client has not lit yet
-        // crashes this generation of the game. A screenshot test crops a rectangle, and whichever
-        // version it is comparing, the panel or the world it wants is centred in the window.
+        // crashes this generation of the game. A screenshot test crops a rectangle with the GUI
+        // centred, so the terrain behind it never matters.
         player.setPositionAndRotation(player.posX, player.posY, player.posZ, 0.0F, 0.0F);
 
         return new Vec3(player.posX, player.posY + 3.0, player.posZ);

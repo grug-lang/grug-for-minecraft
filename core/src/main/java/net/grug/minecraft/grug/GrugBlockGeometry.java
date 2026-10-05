@@ -1,6 +1,8 @@
 package net.grug.minecraft.grug;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Runs a block entity's render pass and hands back the geometry it drew.
@@ -12,25 +14,38 @@ import java.util.List;
  */
 public final class GrugBlockGeometry {
 
+    /**
+     * The blocks already reported, so a player hears about a broken one once rather than on every
+     * chunk rebuild. Keyed on the same description the report carries, which names the block and
+     * where it is, so two different broken blocks are two lines and one broken block is one line
+     * however often the game redraws it.
+     *
+     * <p>Never cleared. A block that is fixed and breaks again is not reported twice, which is the
+     * right way round: the player has been told, and a mod author reloading the script that fixes
+     * it wants the run to pass, not a second identical line.
+     */
+    private static final Set<String> REPORTED_BLOCKS = new HashSet<>();
+
     @GrugGenerated("utility class: never instantiated")
     private GrugBlockGeometry() {}
 
     /**
      * Draws {@code entityHandle}'s render function and returns the boxes it drew.
      *
-     * <p>Reports, rather than throws, when there is nothing to draw. A block that declared custom
-     * rendering can end up with nothing to draw for two separate reasons, and each names the call
-     * that would fix it. Both are reported, because a block that renders as nothing is not a shape
-     * anyone chose and silence would let it ship. The sandbox is that the script carries on
-     * afterwards.
-     *
-     * <p>Neither report can go through {@link Grug#hostFunctionErrorHappened}. That reports from
-     * inside a grug call, and by here the render function has returned and grug has already popped
-     * the frame it pushed, so the call stack this would report against is empty and grug aborts the
-     * game rather than failing the run. {@link GrugModTreeDefect} is the reporting channel that
-     * works from outside a call.
+     * @param blockDescription what to call this block in a report, which is how its author finds it
+     * @return the boxes the render function drew, in the order it drew them
+     *     <p>Reports, rather than throws, when there is nothing to draw. A block that declared
+     *     custom rendering can end up with nothing to draw for two separate reasons, and each names
+     *     the call that would fix it. Both are reported, because a block that renders as nothing is
+     *     not a shape anyone chose and silence would let it ship. The sandbox is that the script
+     *     carries on afterwards.
+     *     <p>Neither report can go through {@link Grug#hostFunctionErrorHappened}. That reports
+     *     from inside a grug call, and by here the render function has returned and grug has
+     *     already popped the frame it pushed, so the call stack this would report against is empty
+     *     and grug aborts the game rather than failing the run. {@link GrugModTreeDefect} is the
+     *     reporting channel that works from outside a call.
      */
-    public static List<GrugBox> draw(long entityHandle, long renderFnId) {
+    public static List<GrugBox> draw(long entityHandle, long renderFnId, String blockDescription) {
         GrugRenderPass.open();
 
         // The pass closes even when the render call does not come back, because callExportFn
@@ -54,7 +69,7 @@ public final class GrugBlockGeometry {
 
         // Behind a method of its own, so that what is excluded is the choice between the reports
         // and not the pass bookkeeping around it, which every run reaches.
-        reportNoGeometry(entityHandle, ranRender, boxes);
+        reportNoGeometry(entityHandle, ranRender, boxes, blockDescription);
 
         return boxes;
     }
@@ -110,19 +125,32 @@ public final class GrugBlockGeometry {
                     + " run, so only a game reaches it; the no-block-entity arm is what"
                     + " GrugBlockGeometryTest covers")
     private static void reportNoGeometry(
-            long entityHandle, boolean ranRender, List<GrugBox> boxes) {
+            long entityHandle, boolean ranRender, List<GrugBox> boxes, String blockDescription) {
+        String report = null;
         if (!ranRender) {
-            GrugModTreeDefect.report(
-                    "set_custom_render: the block declared custom rendering, but it has no block"
-                        + " entity, so there is no render() to draw with and the block renders as"
-                        + " nothing. Either add the block entity with set_block_entity, or drop the"
-                        + " set_custom_render() call.");
+            report =
+                    "set_custom_render: "
+                            + blockDescription
+                            + " declared custom rendering, but it has no block entity, so there is"
+                            + " no render() to draw with and the block renders as nothing. Either"
+                            + " add the block entity with set_block_entity, or drop the"
+                            + " set_custom_render() call.";
         } else if (boxes.isEmpty()) {
-            GrugModTreeDefect.report(
-                    "set_custom_render: the block declared custom rendering, but its block entity's"
-                            + " render() drew no geometry, so the block renders as nothing. Either"
-                            + " add an export render() to the block entity's script that calls"
-                            + " draw_box, or drop the set_custom_render() call.");
+            report =
+                    "set_custom_render: "
+                            + blockDescription
+                            + " declared custom rendering, but its block entity's render() drew no"
+                            + " geometry, so the block renders as nothing. Either add an export"
+                            + " render() to the block entity's script that calls draw_box, or drop"
+                            + " the set_custom_render() call.";
+        }
+
+        // Once per block rather than once per chunk compile. The game redraws a broken block every
+        // time its chunk is rebuilt and every loader drains this queue into chat, so without this a
+        // machine that renders as nothing would say so again on every rebuild, for as long as the
+        // player kept it in view.
+        if (report != null && REPORTED_BLOCKS.add(blockDescription)) {
+            GrugModTreeDefect.report(report);
         }
     }
 }

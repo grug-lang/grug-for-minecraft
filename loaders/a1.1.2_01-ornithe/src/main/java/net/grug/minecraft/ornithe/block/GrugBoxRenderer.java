@@ -1,5 +1,7 @@
 package net.grug.minecraft.ornithe.block;
 
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugBox;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -58,7 +60,7 @@ public final class GrugBoxRenderer {
         // shared Block instance rather than per position, so leaving a box behind would reshape
         // every later block of the same type in this chunk compile, and the frame after it.
         try {
-            for (GrugBox box : drawGeometry(grugBlockEntity)) {
+            for (GrugBox box : drawGeometry(grugBlock, grugBlockEntity, x, y, z)) {
                 setShape(block, box);
                 renderer.tesselateBlock(block, x, y, z);
             }
@@ -75,10 +77,30 @@ public final class GrugBoxRenderer {
      * <p>A block entity with no render function is handed to core rather than special-cased here:
      * core is what reports it, and it reports it as a block that declared custom rendering and then
      * drew nothing, which is what the author wrote.
+     *
+     * <p>The block and its position go with the call so the report can name them. A mod with a
+     * machine that renders as nothing has one of those among a hundred blocks in a chunk, and a
+     * report that cannot say which is a report the author has to search for.
      */
-    private static List<GrugBox> drawGeometry(GrugBlockEntity blockEntity) {
+    private static List<GrugBox> drawGeometry(
+            GrugBlock grugBlock, GrugBlockEntity blockEntity, int x, int y, int z) {
         return GrugBlockGeometry.draw(
-                blockEntity.getGrugEntityHandle(), blockEntity.getRenderFnId());
+                blockEntity.getGrugEntityHandle(),
+                blockEntity.getRenderFnId(),
+                describe(grugBlock, x, y, z));
+    }
+
+    /**
+     * The block and where it is, for a report to name.
+     *
+     * <p>The id the block was registered under, which is the name a mod author wrote, rather than
+     * the number the game knows it by. Taken from the block's own grug data rather than from the
+     * world, so it costs nothing here: this runs inside a chunk compile.
+     */
+    private static String describe(GrugBlock grugBlock, int x, int y, int z) {
+        GrugBlockData data = Grug.blockDataByFileId.get(grugBlock.blockFileId);
+        String name = data != null ? data.id : "an unknown grug block";
+        return name + " at " + x + ", " + y + ", " + z;
     }
 
     private static void setShape(Block block, GrugBox box) {

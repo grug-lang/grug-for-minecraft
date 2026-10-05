@@ -38,9 +38,12 @@ export run() {
 local _setup() {
     level: Level = Test.get_client_level()
 
-    # This closes the GUI the autocrafting table test opened earlier in the suite. It sorts first
-    # because it is under buildcraft/, the tests share one game, and a screen left open sits over
-    # the world in every frame after it. Without that, this test's capture is of that GUI.
+    # The autocrafting table test, which sorts before this one because it is under buildcraft/,
+    # opens the real GUI and leaves it open: one client serves the whole run, so a screen outlives
+    # the test that opened it and sits over the world in every frame after. hot_reload_texture-Test
+    # closes it for the same reason. Without this the capture below is of that panel.
+    Test.close_screen()
+
     origin: Vec3 = Test.setup_graphics_camera()
     x: number = origin.x()
     y: number = origin.y()
