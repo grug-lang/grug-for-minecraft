@@ -25,11 +25,11 @@ import java.util.List;
  * decide which texture each face uses, so declaring custom rendering changes the shape and nothing
  * else, which is what a mod author expects of the assets that already work.
  *
- * <p>Excluded from coverage: this only runs inside a chunk compile, which a headless CI cannot
- * drive. The rules behind it are game-independent and measured in core's GrugRenderPass and
- * GrugBox.
+ * <p>Excluded from coverage because the class carries {@link GrugGenerated}, which JaCoCo drops
+ * whole (see that annotation). The pass bookkeeping and box this works from are game-independent,
+ * and are measured in core's GrugRenderPass and GrugBox.
  */
-@GrugGenerated("runs inside a chunk compile, which a headless CI cannot drive")
+@GrugGenerated("draws into a chunk compile, so it is coupled to the renderer rather than to grug")
 public final class GrugBoxRenderer {
 
     @GrugGenerated("utility class: never instantiated")

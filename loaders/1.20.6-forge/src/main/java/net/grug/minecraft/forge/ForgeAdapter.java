@@ -644,8 +644,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
         graphicsCameraSaved = true;
 
         // Level the view so the frame doesn't depend on which way the player was looking. Do not
-        // move them: the screenshot crops a rectangle with the GUI centred, so terrain behind it
-        // never matters, and moving risks loading unlit chunks.
+        // move them: the screenshot crops a rectangle, and whichever version it is comparing, the
+        // panel or the world it wants is centred in the window, so terrain behind it never matters.
+        // Moving them risks loading unlit chunks.
         player.setYRot(0.0F);
         player.setXRot(0.0F);
 

@@ -271,7 +271,13 @@ public final class Grug {
     @GrugGenerated("block re-init: a missing handle or init export cannot be produced by a test")
     private static void reinitializeBlock(
             GrugBlockData blockData, long fileId, String path, List<String> reloadTriggers) {
+        // Cleared so the reload's init() re-declares from scratch rather than keeping what the
+        // previous version of the file declared. blockEntityString because a script that dropped
+        // its set_block_entity would otherwise keep the old one, and customRender for the same
+        // reason: a script that dropped its set_custom_render would otherwise go on drawing custom
+        // geometry against whatever the new file exports.
         blockData.blockEntityString = null;
+        blockData.customRender = false;
 
         currentlyInitializingBlock = blockData;
         long tempEntityHandle = createEntity(fileId);

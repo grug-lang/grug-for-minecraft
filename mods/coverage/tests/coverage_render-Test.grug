@@ -48,9 +48,10 @@ local _setup() {
 
     # The camera setup levels the view without moving the player, so the run has to be built in
     # front of them at their own eye height for it to be on screen at all. setup_graphics_camera
-    # returns the player's position plus 3, so -3 puts the block layer back at the player's feet,
-    # and a live Alpha player looks 0.12 above their own feet, which -3.5 sits just under. yaw 0
-    # looks towards +z, so +4 is in front of them rather than inside them.
+    # returns the player's position plus 3, and place_block floors what it is given, so y - 3.5 puts
+    # the run a whole block below the origin: at the player's feet rather than at head height, which
+    # is what puts it in the lower half of the frame. yaw 0 looks towards +z, so +4 is in front of
+    # them rather than inside them.
     # A straight run along x, so the middle block draws arms on two opposite sides and none
     # elsewhere. Three rather than one, because a lone block draws only its core: a cube inset from
     # the faces, which says nothing about the arms the hook exists for. The outer two prove the arms

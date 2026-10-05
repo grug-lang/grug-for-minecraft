@@ -25,8 +25,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * goes through the game's own path.
  *
  * <p>{@code forcedSprite} is left alone rather than honoured: it is the mining-progress overlay,
- * which tesselates a second copy of the block's shape with a crack texture. A grug block being
- * mined draws its geometry once, so the crack shows on the shape rather than over a cube.
+ * which sets it and then tesselates a second copy of the block. Cancelling this call cancels that
+ * second copy too, so a custom-rendered block being mined shows its geometry with no crack overlay
+ * on it. That is the honest consequence of cancelling here, and it is left as it is rather than
+ * special cased, because a crack drawn over custom geometry would need the shape applied twice.
  */
 @Mixin(BlockRenderer.class)
 public class BlockRendererMixin {

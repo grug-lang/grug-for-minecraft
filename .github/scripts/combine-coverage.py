@@ -87,9 +87,10 @@ EXCLUDED_CLASSES = {
     "GrugBlockEntity",
     "GrugBlock",
     "GrugBlocks",
-    # Draws a block entity's own geometry into Alpha's chunk compile, which a headless CI cannot
-    # drive. The pass bookkeeping and box it works from are game-independent and measured in core's
-    # GrugRenderPass and GrugBox.
+    # Draws a block entity's own geometry into Alpha's chunk compile. The class carries
+    # GrugGenerated, so JaCoCo already drops it; this entry says so in one place next to the other
+    # loader exclusions rather than leaving it to be rediscovered. The pass bookkeeping and box it
+    # works from are game-independent and measured in core's GrugRenderPass and GrugBox.
     "GrugBoxRenderer",
     # Render/model glue, like the resource-pack classes above.
     "GrugBlockModels",
