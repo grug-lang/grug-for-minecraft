@@ -708,12 +708,18 @@ public class HostFunctions {
     }
 
     public static void draw_box(double x1, double y1, double z1, double x2, double y2, double z2) {
-        // A draw call outside a render pass is a mod mistake rather than an engine one, and the
-        // sandbox is that the script carries on afterwards: see the mod_api.json description.
+        // A draw call outside a render pass, or one whose corners are the wrong way round, is a mod
+        // mistake rather than an engine one, and the sandbox is that the script carries on
+        // afterwards: see the mod_api.json description. One report for both, because record has one
+        // answer and the two causes are the same thing: the box was not recorded.
         if (!GrugRenderPass.record(x1, y1, z1, x2, y2, z2)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "draw_box: Can only be called while a block entity's render() is drawing.");
+                    "draw_box: The box was not recorded. It can only be called while a block"
+                        + " entity's render() is drawing, and its corners have to be the right way"
+                        + " round: the first of each pair is the near corner and must be no greater"
+                        + " than the second, so draw_box(0, 0, 0, 1, 1, 1) and not draw_box(1, 0,"
+                        + " 0, 0, 1, 1).");
         }
     }
 

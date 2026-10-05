@@ -49,6 +49,35 @@ class GrugRenderPassTest {
     }
 
     @Test
+    void aBoxTheRightWayRoundIsOrdered() {
+        assertTrue(GrugRenderPass.isOrdered(new GrugBox(0.25, 0.25, 0.25, 0.75, 0.75, 0.75)));
+    }
+
+    @Test
+    void aFlatBoxIsOrderedBecauseItsFacesAreTouching() {
+        // Zero thickness on one axis is a plate, not a mistake: the arms are drawn that way, one
+        // surface where two boxes meet, so the rule cannot be strict about it.
+        assertTrue(GrugRenderPass.isOrdered(new GrugBox(0.0, 0.5, 0.5, 1.0, 0.5, 0.5)));
+    }
+
+    @Test
+    void aBoxWithItsCornersTheWrongWayRoundIsNotOrdered() {
+        assertFalse(GrugRenderPass.isOrdered(new GrugBox(0.75, 0.25, 0.25, 0.25, 0.75, 0.75)));
+        assertFalse(GrugRenderPass.isOrdered(new GrugBox(0.25, 0.75, 0.25, 0.75, 0.25, 0.75)));
+        assertFalse(GrugRenderPass.isOrdered(new GrugBox(0.25, 0.25, 0.75, 0.75, 0.75, 0.25)));
+    }
+
+    @Test
+    void aBoxThatReachesPastTheBlockIsOrderedBecauseTheRangeIsNotTheRule() {
+        // An arm is drawn where its neighbour is, which is exactly why it is visible against a
+        // solid
+        // neighbour: the game draws a face the block does not reach unconditionally. Refusing the
+        // range would refuse the shape the hook exists for.
+        assertTrue(GrugRenderPass.isOrdered(new GrugBox(-0.25, 0.0, 0.0, 0.5, 1.0, 1.0)));
+        assertTrue(GrugRenderPass.isOrdered(new GrugBox(0.5, 0.0, 0.0, 1.25, 1.0, 1.0)));
+    }
+
+    @Test
     void anOpenPassRecordsWhatWasDrawn() {
         GrugRenderPass.open();
         GrugRenderPass.record(0.25, 0.25, 0.25, 0.75, 0.75, 0.75);
