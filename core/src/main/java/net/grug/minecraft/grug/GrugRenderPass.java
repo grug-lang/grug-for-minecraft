@@ -35,8 +35,11 @@ public final class GrugRenderPass {
     }
 
     /**
-     * Opens a pass, discarding anything a previous one left behind. Nesting is impossible from a
-     * script and unreachable from a loader, so reaching it means the engine is broken.
+     * Opens a pass, with nothing recorded in it. Nesting is impossible from a script and
+     * unreachable from a loader, so reaching it means the engine is broken, and that is reported as
+     * an invariant rather than recovered from: a second pass would cross-contaminate one block's
+     * boxes into another's geometry, and quietly dropping the first one's boxes would draw the
+     * wrong shape without saying so.
      */
     public static void open() {
         if (open) {

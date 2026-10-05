@@ -813,8 +813,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // run roughly one time in four. Staying put keeps the build site inside chunks that are
         // already loaded and lit.
         //
-        // Nothing is lost by it: a screenshot test crops a rectangle of the frame, and the GUI is
-        // always centred in the window, so the terrain behind it is never part of the comparison.
+        // Nothing is lost by it: a screenshot test crops a rectangle of the frame, and whichever
+        // version it is comparing, the panel or the world it wants is centred in the window.
         player.setPositionAndAngles(player.x, player.y, player.z, 0.0F, 0.0F);
 
         // +3 mirrors getTestOrigin()'s convention: an origin a little above the player to build on.

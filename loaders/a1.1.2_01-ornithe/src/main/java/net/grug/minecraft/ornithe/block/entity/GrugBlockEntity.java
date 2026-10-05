@@ -213,9 +213,15 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     }
 
     /**
-     * This block entity's render function, or {@link Grug#INVALID_GRUG_EXPORT_FN_ID} when its
-     * script has none. Looked up once and remembered, because a chunk compile asks for it per block
-     * and the lookup goes through the state lock.
+     * The id of the {@code render} export, looked up once and remembered, because a chunk compile
+     * asks for it per block and the lookup goes through the state lock.
+     *
+     * <p>This is never {@link Grug#INVALID_GRUG_EXPORT_FN_ID}. grug builds its table of export ids
+     * from {@code mod_api.json} rather than from the files that are loaded, and this PR adds {@code
+     * render} to that table, so the id resolves on every loader whatever any script exports.
+     * Whether <em>this</em> block entity's script has one is a different question, and the engine
+     * answers it by declining the call without reporting, so it shows up as a pass that drew
+     * nothing. See {@link net.grug.minecraft.grug.GrugBlockGeometry}.
      */
     public long getRenderFnId() {
         if (!renderFnIdResolved) {
