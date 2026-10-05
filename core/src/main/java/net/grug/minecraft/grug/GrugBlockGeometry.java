@@ -20,9 +20,12 @@ public final class GrugBlockGeometry {
      * where it is, so two different broken blocks are two lines and one broken block is one line
      * however often the game redraws it.
      *
-     * <p>Never cleared. A block that is fixed and breaks again is not reported twice, which is the
-     * right way round: the player has been told, and a mod author reloading the script that fixes
-     * it wants the run to pass, not a second identical line.
+     * <p>Never cleared, which is a trade and not a free win. The cost is real: in one session a
+     * block can be fixed, break again, and render as nothing with nothing said. That is accepted
+     * because the alternative is a report on every chunk rebuild for as long as the player keeps
+     * the block in view, and a run has already ended at the first one anyway, since {@code
+     * run-loader.sh} fails on the first {@code FAIL} line and stops the client. The audience for a
+     * repeat is a player, not a test run.
      */
     private static final Set<String> REPORTED_BLOCKS = new HashSet<>();
 
@@ -136,13 +139,23 @@ public final class GrugBlockGeometry {
                             + " add the block entity with set_block_entity, or drop the"
                             + " set_custom_render() call.";
         } else if (boxes.isEmpty()) {
+            // This cannot say which of four things happened, because it cannot tell them apart:
+            // render() may be absent, may never call draw_box, may have every box refused, or may
+            // have stopped early on another host function's error. The last two have already been
+            // reported by the thing that refused or failed, and those say precisely which, so the
+            // wording points at them rather than guessing. GrugRenderPass does not count refusals
+            // and callRender does not read the result the native call gives it, so naming one cause
+            // here would be naming a cause this report cannot distinguish from the other three.
             report =
                     "set_custom_render: "
                             + blockDescription
                             + " declared custom rendering, but its block entity's render() drew no"
-                            + " geometry, so the block renders as nothing. Either add an export"
-                            + " render() to the block entity's script that calls draw_box, or drop"
-                            + " the set_custom_render() call.";
+                            + " geometry, so the block renders as nothing. If a draw_box or other"
+                            + " error was reported for it above, that says which of these it was"
+                            + " and that is the one to fix: every box was refused, or render()"
+                            + " stopped early. Otherwise add an export render() to the block"
+                            + " entity's script that calls draw_box, or drop the"
+                            + " set_custom_render() call.";
         }
 
         // Once per block rather than once per chunk compile. The game redraws a broken block every
