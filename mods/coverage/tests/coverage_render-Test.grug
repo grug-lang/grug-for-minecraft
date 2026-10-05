@@ -106,13 +106,15 @@ local _check() {
     # its neighbours and none on the outer ends.
     # Pixel-exact, and it has to stay that way: a tolerance would accept a shape that had lost an
     # arm, which is the one thing this test exists to catch.
-    # The reference directory holds two PNGs because the background renders differently on the two
-    # machines this runs on. Alpha shades a block face from the light at each neighbouring position,
-    # which quantises into one-step bands, and where those bands fall on the CI runner differs from
-    # where they fall on a desktop by one step over part of the wall. The shape itself is identical
-    # on both: compared pixel by pixel across the two references, every pixel of the arms and the
-    # core matches, and all 1602 differing pixels are background and all of them differ by exactly
-    # one step. That is the case a numbered reference directory exists for.
+    # The reference directory holds three PNGs, and the shape is pixel-identical in all three: each
+    # has the same 13587 non-grey pixels in the same rows and columns. They differ only in the grey
+    # background, and only by one step per channel. Alpha shades a block face from the light at each
+    # neighbouring position, which quantises into one-step bands, and where a band boundary falls
+    # across the wall depends on the machine and on how long that wall has been settling: 1.png and
+    # 2.png are two renderings of the background a week apart, and 3.png is a third from a run whose
+    # preceding test left a different amount of settling behind it. Verified rather than assumed:
+    # every differing pixel between any two of the three is neutral grey in both, so no part of the
+    # geometry moves. That is the case a numbered reference directory exists for.
     # The top of the rectangle is the one place that needed care first: the wall's top corner is a
     # step darker than the rest of its face, and which pixels land on that step shifted by one
     # between runs of the same build. The rectangle therefore starts below the wall's top corner,

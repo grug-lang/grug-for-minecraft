@@ -729,32 +729,37 @@ public class HostFunctions {
             return;
         }
 
-        applyCustomRender();
+        // The declaration is what this line is, and it is measured: it is reached on
+        // a1.1.2_01-ornithe.
+        // What decides it and what it reports on a loader that cannot are behind the call.
+        Grug.currentlyInitializingBlock.customRender = declareCustomRender();
     }
 
     /**
-     * Applies the declaration on the block being initialized, or reports that this loader cannot.
+     * Reports that this loader cannot draw a block's own geometry, and answers that it cannot.
      *
-     * <p>Kept apart, and excluded from coverage, because the report is unreachable by the suite:
-     * every mod that declares custom rendering asks supports_custom_geometry() first, so the
-     * loaders that cannot draw it never arrive here. A mod that skips the guard is the failure this
-     * reports, and it fails its own run. The whole method is behind the annotation rather than just
-     * the report, because one uncovered call line in the caller would leave set_custom_render short
-     * of full coverage for a reason a reader cannot see.
+     * <p>Answer and report are this one method, and the whole of it is excluded, because a
+     * committed mod that declares custom rendering asks supports_custom_geometry() first and so
+     * never gets here on the four loaders that cannot draw it. A mod that skips that guard is the
+     * failure this reports, and it fails its own run. It is a method rather than a branch in the
+     * caller so that the call above is one measured line: a branch there would leave the
+     * unsupported-loader arm uncovered, and excluding that arm would exclude the declaration with
+     * it.
      */
     @GrugGenerated(
-            "unsupported-loader report: no committed mod calls set_custom_render unguarded, so"
-                    + " only a mod that skips the supports_custom_geometry() guard reaches it")
-    private static void applyCustomRender() {
-        if (!GrugCore.getAdapter().supportsCustomBlockGeometry()) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "set_custom_render: This Minecraft version cannot draw a block's own geometry;"
-                            + " only a1.1.2_01-ornithe implements it today.");
-            return;
+            "unsupported-loader answer and report: no committed mod calls set_custom_render"
+                    + " unguarded, so only a mod that skips the supports_custom_geometry() guard"
+                    + " arrives here")
+    private static boolean declareCustomRender() {
+        if (GrugCore.getAdapter().supportsCustomBlockGeometry()) {
+            return true;
         }
 
-        Grug.currentlyInitializingBlock.customRender = true;
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "set_custom_render: This Minecraft version cannot draw a block's own geometry;"
+                        + " only a1.1.2_01-ornithe implements it today.");
+        return false;
     }
 
     public static void set_hardness(double value) {

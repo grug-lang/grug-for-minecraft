@@ -238,6 +238,9 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
             entityHandle = 0;
             childEntities.clear();
         }
+        // Reset with the handle, so a tile that is re-inited after a hot reload resolves its render
+        // function again rather than answering from a cache the destroyed entity left behind.
+        renderFnIdResolved = false;
     }
 
     // --- Inventory Implementation ---
