@@ -66,54 +66,46 @@ public final class GrugRenderPass {
     /**
      * Records one box.
      *
+     * <p>A box whose far corner is nearer than its near corner is refused rather than drawn,
+     * because nothing else would say so. The engine reads the shape as it stands and builds each
+     * face quad straight from it, so on a reversed axis the four faces that span it come out wound
+     * backwards and back-face culling discards them, while the two faces at its ends survive at
+     * swapped depths. The author asked for a box and gets two loose faces where the other four used
+     * to be: visibly wrong, and undiagnosed, since the caller's report of a pass that drew nothing
+     * cannot catch it either, a reversed box being a box and the pass having recorded something.
+     *
      * @return false when there is no open pass, or when the box is the wrong way round. The caller
-     *     reports that rather than this class, and nothing is recorded either way.
+     *     reports that rather than this class, and nothing is recorded either way. Refusing does
+     *     not silence the caller's other report: a pass whose only box was refused records nothing,
+     *     so the author reads about the refusal and about the empty result, and both are true.
      */
     public static boolean record(double x1, double y1, double z1, double x2, double y2, double z2) {
         if (!open) {
             return false;
         }
-        return recordOrdered(new GrugBox(x1, y1, z1, x2, y2, z2));
-    }
 
-    /**
-     * Whether a box's corners are the right way round, which is what makes it a box.
-     *
-     * <p>The first of each pair is the near corner and has to be no greater than the second. The
-     * range is deliberately not part of this: a box that reaches past the block is a shape an
-     * author may well want, and it is what makes an arm visible against a solid neighbour, because
-     * the game draws a face the block does not reach unconditionally.
-     *
-     * <p>Pure, and the whole of the rule. {@link #recordOrdered} is what acts on the answer, and it
-     * cannot be measured because nothing in the suite draws a reversed box.
-     */
-    public static boolean isOrdered(GrugBox box) {
-        return box.x1() <= box.x2() && box.y1() <= box.y2() && box.z1() <= box.z2();
-    }
-
-    /**
-     * Records the box if it is the right way round.
-     *
-     * <p>A box whose far corner is nearer than its near corner is refused rather than drawn,
-     * because nothing else would say so. The engine reads the shape as it stands and builds each
-     * face quad straight from it, so a reversed box would come out as a shape with faces missing
-     * rather than as nothing. It would also slip past the caller's report of a pass that drew
-     * nothing, since that report fires when a pass records nothing and a reversed box is a box.
-     *
-     * <p>Refusing it does not silence that report: a pass whose only box was refused still records
-     * nothing, so the author reads about the refusal and about the empty result. Both are true and
-     * the second one is the one that names what the player sees.
-     */
-    @GrugGenerated(
-            "the wrong-way-round refusal: it needs a render pass holding a reversed box, which no"
-                + " committed mod draws and no test can arrange, since a test cannot open a pass")
-    private static boolean recordOrdered(GrugBox box) {
+        GrugBox box = new GrugBox(x1, y1, z1, x2, y2, z2);
         if (!isOrdered(box)) {
             return false;
         }
 
         BOXES.add(box);
         return true;
+    }
+
+    /**
+     * Whether a box's corners are the right way round, which is what makes it a box.
+     *
+     * <p>The first of each pair is the near corner and has to be no greater than the second.
+     *
+     * <p>The range is deliberately not part of this. The game draws a box reaching past its block
+     * unclipped, so an author gets the arithmetic they wrote rather than a shape grug chose, which
+     * is the one thing this API never does. Zero thickness on an axis is not a mistake either: a
+     * plate is a shape, and this rule is about which corner comes first, not about how far apart
+     * the two are.
+     */
+    public static boolean isOrdered(GrugBox box) {
+        return box.x1() <= box.x2() && box.y1() <= box.y2() && box.z1() <= box.z2();
     }
 
     /**

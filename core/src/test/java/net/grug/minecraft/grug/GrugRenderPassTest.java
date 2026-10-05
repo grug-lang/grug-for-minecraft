@@ -54,9 +54,10 @@ class GrugRenderPassTest {
     }
 
     @Test
-    void aFlatBoxIsOrderedBecauseItsFacesAreTouching() {
-        // Zero thickness on one axis is a plate, not a mistake: the arms are drawn that way, one
-        // surface where two boxes meet, so the rule cannot be strict about it.
+    void aFlatBoxIsOrderedBecauseAPlateIsAShape() {
+        // Zero thickness on one axis is a plate. The rule is about which corner comes first, not
+        // about how far apart the two are, so a box whose two corners on an axis coincide is still
+        // the right way round.
         assertTrue(GrugRenderPass.isOrdered(new GrugBox(0.0, 0.5, 0.5, 1.0, 0.5, 0.5)));
     }
 
@@ -69,12 +70,33 @@ class GrugRenderPassTest {
 
     @Test
     void aBoxThatReachesPastTheBlockIsOrderedBecauseTheRangeIsNotTheRule() {
-        // An arm is drawn where its neighbour is, which is exactly why it is visible against a
-        // solid
-        // neighbour: the game draws a face the block does not reach unconditionally. Refusing the
-        // range would refuse the shape the hook exists for.
+        // The game draws a box reaching past its block unclipped, so the author gets the arithmetic
+        // they wrote rather than a shape grug chose. Refusing the range would be grug picking a
+        // different box than the mod asked for, which is the one thing this API never does.
         assertTrue(GrugRenderPass.isOrdered(new GrugBox(-0.25, 0.0, 0.0, 0.5, 1.0, 1.0)));
         assertTrue(GrugRenderPass.isOrdered(new GrugBox(0.5, 0.0, 0.0, 1.25, 1.0, 1.0)));
+    }
+
+    @Test
+    void aBoxTheWrongWayRoundIsRefusedAndNotRecorded() {
+        // The refusal is reachable without a game: open() is public and touches nothing but Java
+        // state, so a test arranges one and calls record directly. Nothing is recorded, which is
+        // what leaves the pass empty for the caller to report.
+        GrugRenderPass.open();
+
+        assertFalse(GrugRenderPass.record(0.75, 0.25, 0.25, 0.25, 0.75, 0.75));
+        assertEquals(List.of(), GrugRenderPass.recorded());
+    }
+
+    @Test
+    void aRefusedBoxDoesNotStopTheOnesAfterIt() {
+        GrugRenderPass.open();
+        GrugRenderPass.record(0.75, 0.25, 0.25, 0.25, 0.75, 0.75);
+
+        assertTrue(GrugRenderPass.record(0.25, 0.25, 0.25, 0.75, 0.75, 0.75));
+        assertEquals(
+                List.of(new GrugBox(0.25, 0.25, 0.25, 0.75, 0.75, 0.75)),
+                GrugRenderPass.recorded());
     }
 
     @Test
