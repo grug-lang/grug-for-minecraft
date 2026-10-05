@@ -66,14 +66,49 @@ public final class GrugRenderPass {
     /**
      * Records one box.
      *
-     * @return false when there is no open pass, which is the one way a draw call can arrive outside
-     *     a render pass. The caller reports that rather than this class, and nothing is recorded.
+     * @return false when there is no open pass, or when the box is the wrong way round. The caller
+     *     reports that rather than this class, and nothing is recorded either way.
      */
     public static boolean record(double x1, double y1, double z1, double x2, double y2, double z2) {
         if (!open) {
             return false;
         }
-        BOXES.add(new GrugBox(x1, y1, z1, x2, y2, z2));
+        return recordOrdered(new GrugBox(x1, y1, z1, x2, y2, z2));
+    }
+
+    /**
+     * Whether a box's corners are the right way round, which is what makes it a box.
+     *
+     * <p>The first of each pair is the near corner and has to be no greater than the second. The
+     * range is deliberately not part of this: a box that reaches past the block is a shape an
+     * author may well want, and it is what makes an arm visible against a solid neighbour, because
+     * Alpha draws a face the block does not reach unconditionally.
+     *
+     * <p>Pure, and the whole of the rule. {@link #recordOrdered} is what acts on the answer, and it
+     * cannot be measured because nothing in the suite draws a reversed box.
+     */
+    public static boolean isOrdered(GrugBox box) {
+        return box.x1() <= box.x2() && box.y1() <= box.y2() && box.z1() <= box.z2();
+    }
+
+    /**
+     * Records the box if it is the right way round.
+     *
+     * <p>A box whose far corner is nearer than its near corner is refused rather than drawn,
+     * because nothing else would say so. The engine reads the shape as it stands and builds each
+     * face quad from it, so a reversed box comes out as a shape with faces missing rather than as
+     * nothing, and the caller's "drew no geometry" report cannot catch it: a box was recorded, it
+     * just is not the one that was asked for.
+     */
+    @GrugGenerated(
+            "the wrong-way-round refusal: it needs a render pass holding a reversed box, which no"
+                + " committed mod draws and no test can arrange, since a test cannot open a pass")
+    private static boolean recordOrdered(GrugBox box) {
+        if (!isOrdered(box)) {
+            return false;
+        }
+
+        BOXES.add(box);
         return true;
     }
 
