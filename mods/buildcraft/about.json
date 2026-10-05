@@ -97,7 +97,7 @@
 		"deviations": [
 			{
 				"what": "The wooden pipe renders as a cube instead of a centre with arms.",
-				"why": "grug only supports blockstate/model JSON until the block-entity rendering hook lands.",
+				"why": "The block-entity rendering hook draws a block's own geometry, but only on a1.1.2_01-ornithe so far, and the pipe does not use it yet.",
 				"status": "open"
 			},
 			{
