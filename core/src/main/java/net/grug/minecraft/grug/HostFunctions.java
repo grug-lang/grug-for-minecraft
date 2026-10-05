@@ -747,9 +747,11 @@ public class HostFunctions {
      * it.
      */
     @GrugGenerated(
-            "unsupported-loader answer and report: no committed mod calls set_custom_render"
+            "the unsupported-loader arm of the answer: no committed mod calls set_custom_render"
                     + " unguarded, so only a mod that skips the supports_custom_geometry() guard"
-                    + " arrives here")
+                    + " reports here. The supported arm runs on every a1.1.2_01-ornithe run and is"
+                    + " excluded only because JaCoCo drops the whole method, which is coarser than"
+                    + " the branch that is actually unreachable")
     private static boolean declareCustomRender() {
         if (GrugCore.getAdapter().supportsCustomBlockGeometry()) {
             return true;
