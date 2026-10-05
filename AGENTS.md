@@ -100,6 +100,13 @@ The README calls `mod_api.json` frozen. That discourages API growth for its own 
 changes: removing or replacing entries, adding test-only helpers, and fixing tooling are all
 fine, so do not block those on the freeze.
 
+Nothing outside this repository consumes the API yet, which is the other half of why. There is no mod
+in the wild for a removal to break, so delete a host function outright rather than deprecating it,
+and do not soften a removal into a warning. That is also why there is no changelog and should not be
+one yet: a project with no users has no audience for release notes, and the file would only age.
+Say it in the commit and the issue, which is where someone reading this repository looks. Revisit
+this paragraph when the first external mod exists.
+
 Any file named `*-Test.grug` under `mods/` joins every loader's suite, so tests live in
 `mods/<mod>/tests/`. One that does not is an err, not a warning: `GrugFileIndex` reports it to the
 player in chat and as a `[GRUG CI] FAIL` line, which fails the run. It matters because
