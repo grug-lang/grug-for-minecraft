@@ -82,7 +82,7 @@ public final class GrugRenderPass {
      * <p>The first of each pair is the near corner and has to be no greater than the second. The
      * range is deliberately not part of this: a box that reaches past the block is a shape an
      * author may well want, and it is what makes an arm visible against a solid neighbour, because
-     * Alpha draws a face the block does not reach unconditionally.
+     * the game draws a face the block does not reach unconditionally.
      *
      * <p>Pure, and the whole of the rule. {@link #recordOrdered} is what acts on the answer, and it
      * cannot be measured because nothing in the suite draws a reversed box.
@@ -96,9 +96,13 @@ public final class GrugRenderPass {
      *
      * <p>A box whose far corner is nearer than its near corner is refused rather than drawn,
      * because nothing else would say so. The engine reads the shape as it stands and builds each
-     * face quad from it, so a reversed box comes out as a shape with faces missing rather than as
-     * nothing, and the caller's "drew no geometry" report cannot catch it: a box was recorded, it
-     * just is not the one that was asked for.
+     * face quad straight from it, so a reversed box would come out as a shape with faces missing
+     * rather than as nothing. It would also slip past the caller's report of a pass that drew
+     * nothing, since that report fires when a pass records nothing and a reversed box is a box.
+     *
+     * <p>Refusing it does not silence that report: a pass whose only box was refused still records
+     * nothing, so the author reads about the refusal and about the empty result. Both are true and
+     * the second one is the one that names what the player sees.
      */
     @GrugGenerated(
             "the wrong-way-round refusal: it needs a render pass holding a reversed box, which no"
