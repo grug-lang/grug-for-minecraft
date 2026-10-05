@@ -27,6 +27,15 @@ import java.util.List;
  */
 class GrugBlockGeometryTest {
 
+    /**
+     * A block description for a test to report against, distinct per test so they cannot collide.
+     */
+    private static final String A_BLOCK = "grug:a_machine at 1, 2, 3";
+
+    private static final String ANOTHER_BLOCK = "grug:another_machine at 4, 5, 6";
+
+    private static final String A_THIRD_BLOCK = "grug:a_third_machine at 7, 8, 9";
+
     private final List<String> reported = new ArrayList<>();
 
     @BeforeEach
@@ -58,7 +67,7 @@ class GrugBlockGeometryTest {
         // of
         // the guard a JVM test can reach, since a real handle needs the native side. Passing it on
         // would hand the native code a null entity pointer, so draw has to notice it is zero.
-        List<GrugBox> boxes = GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID);
+        List<GrugBox> boxes = GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID, A_BLOCK);
 
         assertTrue(boxes.isEmpty(), "There is nothing to draw, so no boxes come back.");
 
@@ -70,11 +79,33 @@ class GrugBlockGeometryTest {
         assertTrue(
                 reports.get(0).contains("set_block_entity"),
                 "The report names the call that would fix it: " + reports.get(0));
+        assertTrue(
+                reports.get(0).contains(A_BLOCK),
+                "The report says which block, or an author with a hundred of them is left"
+                        + " searching: "
+                        + reports.get(0));
+    }
+
+    @Test
+    void oneBrokenBlockIsReportedOnceHoweverOftenItIsDrawn() {
+        // The game redraws a block every time its chunk is rebuilt, and every loader drains this
+        // queue into chat, so a report that repeated would say the same thing again on every
+        // rebuild for as long as the player kept the block in view.
+        GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID, ANOTHER_BLOCK);
+        GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID, ANOTHER_BLOCK);
+        GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID, ANOTHER_BLOCK);
+
+        List<String> reports = drainReports();
+        assertEquals(
+                1, reports.size(), "Three draws of one broken block is one report, not three.");
+        assertTrue(
+                reports.get(0).contains(ANOTHER_BLOCK),
+                "And it is that block's: " + reports.get(0));
     }
 
     @Test
     void thePassIsClosedEvenWhenThereWasNothingToRun() {
-        GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID);
+        GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID, A_THIRD_BLOCK);
 
         assertFalse(
                 GrugRenderPass.isOpen(),
