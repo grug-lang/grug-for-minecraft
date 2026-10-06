@@ -116,7 +116,7 @@ jobs:
       # generated files are already the right ones, so generateGrugAdapter is up to date and does not
       # run again. Those two files are its whole input set, so the key is everything it depends on.
       - name: Restore the generated adapter
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             core/build/generated/grug
@@ -239,7 +239,7 @@ jobs:
       # generated files are already the right ones and Gradle's own up-to-date check on
       # generateGrugAdapter skips the run.
       - name: Restore the generated adapter
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             core/build/generated/grug
@@ -268,7 +268,7 @@ jobs:
       # own root.gradle is not in the key because it resolves nothing: it registers the task that execs
       # their own wrapper.
       - name: Cache the Gradle distributions and dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/wrapper
@@ -292,7 +292,7 @@ jobs:
       # these paths would exist there and the action would report that no cache was saved.
       - name: Cache the Minecraft toolchain
         if: matrix.dir != '1.2.5-forge'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches/forge_gradle/mcp_repo
@@ -308,7 +308,7 @@ jobs:
       # different snapshot misses rather than restoring the previous one.
       - name: Cache the 1.2.5 MCP snapshot
         if: matrix.dir == '1.2.5-forge'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: loaders/1.2.5-forge/build/mcp125
           key: grug-mcp125-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
