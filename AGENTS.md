@@ -134,7 +134,8 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 - The four standalone loaders resolve `net.grug:grug-core` from the checkout's `build/maven`, which
   `gradle/grug-core.gradle` names and `core` publishes into under a version stamped with the commit.
   Both entry points above publish it first; a loader's own build run on its own asks for the
-  coordinate of the commit it is on and fails to resolve if that commit has not been published here.
+  coordinate of the commit it is on and fails to resolve if that commit has not been published here,
+  or was pruned by a later publish, which keeps only the current commit's core.
 - The suite fails fast at the first `[GRUG CI] FAIL`. To verify tests that run after a known
   failure, temporarily copy the capture from
   `loaders/<loader>/run/grug-screenshot-artifacts/<mod>/screenshots/<name>/N.png` into the golden

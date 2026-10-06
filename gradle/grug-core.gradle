@@ -160,10 +160,11 @@ tasks.register('pruneGrugCoreRepository') {
     }
 }
 
-// Run it after every publish into the repository above, so nothing has to remember to. Matching the
+// Run it after every publish into a maven repository, so nothing has to remember to. Matching the
 // publish-to-a-repository type rather than the task name keeps this correct if the repository is
-// renamed, and it leaves publishToMavenLocal alone, which writes somewhere else. A loader registers
-// this task too but has no such publish task, so the wiring is a no-op there.
+// renamed, and it leaves publishToMavenLocal alone, which writes somewhere else. A loader that
+// publishes to a repository of its own triggers this too, which is harmless: the prune only touches
+// this checkout's grug-core directory and always keeps the current commit's coordinates.
 tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository).configureEach {
     finalizedBy 'pruneGrugCoreRepository'
 }
