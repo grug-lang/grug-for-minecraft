@@ -6,7 +6,7 @@ plugins {
     // answer stops depending on what the repository serves today. A range or a `+` is a selector, not
     // a version: Gradle has to ask the repository what matches now on every configuration, because the
     // answer is allowed to change. That was 28 of this loader's 63 second Build step. See #191.
-    id 'net.minecraftforge.gradle' version '6.0.54'
+    id 'net.minecraftforge.gradle' version '7.0.40'
     id 'org.spongepowered.mixin' version '0.7.38'
 }
 
