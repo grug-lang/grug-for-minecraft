@@ -10,6 +10,10 @@ plugins {
     id 'org.spongepowered.mixin' version '0.7.38'
 }
 
+// The configuration cache is deliberately not enabled, because this project cannot store one:
+// ForgeGradle's MinecraftRunTask and compileJava and MixinGradle's addMixinsToJar all fail to
+// serialize, and so do core's script tasks and the git calls in gradle/grug-core.gradle. See #191
+// for the measurements.
 apply from: '../../gradle/jacoco-loader.gradle'
 
 version = mod_version
