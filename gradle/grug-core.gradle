@@ -129,3 +129,41 @@ if (dirtyProcess.waitFor() != 0) {
 ext.grugCoreVersion = dirtyOutput.isEmpty()
     ? "${baseVersion}-${commitOutput}".toString()
     : "${baseVersion}-${commitOutput}-dirty".toString()
+
+// build/maven keeps one directory per commit visited, and no clean task removes it because the root
+// project owns no build directory. A worktree that checks out many commits, or rebases, therefore
+// grows a grug-core per visit, at about 3 MB each. Prune it to the coordinates this commit can be
+// asked for, which are the only ones a loader of this checkout resolves.
+//
+// Both of those coordinates are kept rather than only the one just published: a clean tree asks for
+// the clean name and a dirty tree for the -dirty one, and the version stamp carries -dirty precisely
+// so a clean resolve does not get the dirty jar. Deleting the clean directory on a dirty publish
+// would bring that failure back as a resolve error instead.
+def grugCoreArtifactsDir = new File(grugCoreRepository, 'net/grug/grug-core')
+def grugCoreCleanVersion = grugCoreVersion.replaceFirst(/-dirty$/, '')
+
+tasks.register('pruneGrugCoreRepository') {
+    description = 'Removes every published grug-core but the coordinates this commit can be asked for.'
+    // A publish that changed nothing still has an older commit's directory to remove, so this runs
+    // every time rather than only when something upstream did.
+    outputs.upToDateWhen { false }
+    doLast {
+        if (!grugCoreArtifactsDir.isDirectory()) {
+            return
+        }
+        def keep = [grugCoreCleanVersion, grugCoreVersion] as Set
+        grugCoreArtifactsDir.eachDir { dir ->
+            if (!keep.contains(dir.name)) {
+                dir.deleteDir()
+            }
+        }
+    }
+}
+
+// Run it after every publish into the repository above, so nothing has to remember to. Matching the
+// publish-to-a-repository type rather than the task name keeps this correct if the repository is
+// renamed, and it leaves publishToMavenLocal alone, which writes somewhere else. A loader registers
+// this task too but has no such publish task, so the wiring is a no-op there.
+tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository).configureEach {
+    finalizedBy 'pruneGrugCoreRepository'
+}
