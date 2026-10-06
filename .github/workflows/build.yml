@@ -81,7 +81,7 @@ jobs:
           key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts', '.github/workflows/build.yml') }}
 
       - name: Upload the static library
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: grug-rs-library
           path: core/build/grug-rs/target/release/libgruggers.a
@@ -170,7 +170,7 @@ jobs:
 
       # The coverage job downloads these to build the combined report the coverage gate checks.
       - name: Upload the coverage exec
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-exec-core
           path: core/build/jacoco/test.exec
@@ -178,7 +178,7 @@ jobs:
           retention-days: 7
 
       - name: Upload the compiled classes
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-classes-core
           path: core/build/classes/java/main
@@ -186,7 +186,7 @@ jobs:
           retention-days: 7
 
       - name: Upload the JaCoCo CLI
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: jacoco-cli
           path: coverage/tools/jacoco-cli.jar
@@ -357,7 +357,7 @@ jobs:
 
       - name: Upload the coverage exec
         if: matrix.dir != '1.2.5-forge'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-exec-${{ matrix.dir }}
           path: loaders/${{ matrix.dir }}/build/jacoco/runClient.exec
@@ -366,7 +366,7 @@ jobs:
 
       - name: Upload the compiled classes
         if: matrix.dir != '1.2.5-forge'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-classes-${{ matrix.dir }}
           path: coverage-classes
@@ -375,7 +375,7 @@ jobs:
 
       - name: Upload logs and crash reports
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: loader-${{ matrix.dir }}-logs
           path: |
@@ -391,7 +391,7 @@ jobs:
       # directory to accept this platform's rendering.
       - name: Upload unmatched screenshot captures
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: loader-${{ matrix.dir }}-screenshots
           path: loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
@@ -441,7 +441,7 @@ jobs:
             --require-100
 
       - name: Upload the coverage report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: coverage/report
