@@ -143,6 +143,16 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   Goldens are per distinct rendering, not per loader.
 - Coverage must stay at 100% on `core`. Loader UI/GL classes are excluded by
   `.github/scripts/combine-coverage.py`.
+- Coverage for a host function comes from a real game run first: a committed mod's own path if it
+  reaches the code, otherwise a grug test in `mods/coverage/`, because only those cross the JNI
+  boundary. A Java test is the fallback, for code a grug script cannot reach and for a property it
+  cannot assert, such as what a pass recorded. `@GrugGenerated` is the last resort after all three,
+  so try them in that order and let the reason record what each attempt proved.
+- An exclusion is invisible to the number it produces, since you wrote it: excluding before measuring
+  means the measurement confirms the design rather than testing it. The trap is reading "no test can
+  reach this" off "a grug test cannot reach this", which is what cost two commits on
+  `GrugRenderPass.record`: its refusal cannot be reached from a grug test, but `open()` is public and
+  touches only Java state, so two lines of unit test cover it.
 - `GrugTestRunner` prints every test's time, slowest first, just before `ALL N TESTS PASSED`. Print
   there and not after it: `run-loader.sh` stops watching the log at that announcement, so anything
   below it is never read.
