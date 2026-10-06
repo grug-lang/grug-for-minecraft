@@ -302,6 +302,14 @@ the branch after a rebase: the test count changes. Take the baseline from
 ## Workflow
 
 - Create an issue before a pull request. Rewrite a thin issue rather than deleting it.
+- Give every issue a type and then an effort level. The type is `Bug`, `Feature` or `Task`, and the
+  effort is `High`, `Medium` or `Low`. Neither is a label, and `gh` has no flag for either, so both go
+  through the API: the type with `gh api repos/grug-lang/grug-for-minecraft/issues/<n> -X PATCH
+  -f type=Bug`, and the effort with `gh api repos/grug-lang/grug-for-minecraft/issues/<n>/issue-field-values
+  -X POST --input -` and a body of `{"issue_field_values":[{"field_id":36963465,"value":"Medium"}]}`,
+  where `36963465` is the org's Effort field. The type comes first because Effort is pinned to Bug,
+  Task and Feature but not to "Issues without a type", so it does not appear in the sidebar until the
+  issue has a type.
 - Pull requests merge only with the maintainer's authorization. The repository merges by rebase,
   not squash.
 - Do not add repository documentation. This file is the exception, and findings still belong in
