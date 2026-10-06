@@ -88,6 +88,44 @@ if (commitProcess.waitFor() != 0) {
     )
 }
 
+// The commit alone does not say what was published: a tree with uncommitted edits publishes those
+// edits under the commit's own coordinate, and build/maven keeps the last publish there. A clean
+// resolve of that commit is then handed the dirty jar while the tree says otherwise. That is an
+// ordinary loop rather than an exotic one, because `git stash` and a rebase both visit one commit
+// twice with different states. A `-dirty` suffix gives a dirty publish a coordinate of its own, so it
+// cannot take the one a clean tree asks for.
+//
+// The status is scoped to the paths that reach the jar, so an edit to a loader, to this file or to a
+// workflow does not mint a new coordinate for nothing. The scope is also why the answer depends on
+// .gitignore: build outputs are ignored and read as clean, which is a property of the rules rather
+// than of git.
+def dirtyProcess
+try {
+    dirtyProcess = new ProcessBuilder(
+        'git', '-C', repoRoot.absolutePath, 'status', '--porcelain', '--',
+        'mod_api.json', 'core/src', 'core/generate.py', 'mods'
+    )
+        .redirectErrorStream(true)
+        .start()
+} catch (IOException e) {
+    throw new GradleException(
+        "Could not run git to read the working tree state in ${repoRoot.absolutePath}, which " +
+            "grug-core's published version is stamped with. ${e.message}",
+        e
+    )
+}
+
+// Read before waiting, so a full pipe cannot deadlock on a message longer than the buffer.
+def dirtyOutput = dirtyProcess.inputStream.getText('UTF-8').trim()
+if (dirtyProcess.waitFor() != 0) {
+    throw new GradleException(
+        "Could not read the working tree state in ${repoRoot.absolutePath}, which grug-core's " +
+            "published version is stamped with. git said: ${dirtyOutput}"
+    )
+}
+
 // toString(), so the loaders whose builds are written in Kotlin get a String rather than the GString
 // this interpolation produces in a Groovy script.
-ext.grugCoreVersion = "${baseVersion}-${commitOutput}".toString()
+ext.grugCoreVersion = dirtyOutput.isEmpty()
+    ? "${baseVersion}-${commitOutput}".toString()
+    : "${baseVersion}-${commitOutput}-dirty".toString()
