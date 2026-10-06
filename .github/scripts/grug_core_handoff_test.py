@@ -277,6 +277,11 @@ class GrugCoreHandoffTest(unittest.TestCase):
         # The jar is named after the coordinate, so its name is what the loader was handed.
         return jar_name[len("grug-core-") : -len(".jar")], marker
 
+    def artifacts(self, root: Path) -> list[str]:
+        """The version directories the published repository holds, by name, ignoring its metadata."""
+        directory = root / "build" / "maven" / "net" / "grug" / "grug-core"
+        return sorted(entry.name for entry in directory.iterdir() if entry.is_dir())
+
     def gradle(self, project: Path, *args: str) -> subprocess.CompletedProcess:
         # --no-daemon on the command line rather than the miniature's gradle.properties, because that
         # file is only read by the producer: the consumer is a build of its own and Gradle does not
@@ -391,6 +396,33 @@ class GrugCoreHandoffTest(unittest.TestCase):
         (root / "notes.txt").write_text("not in the jar\n")
 
         self.assertEqual(self.resolved(root), (self.coordinate(root), "first"))
+
+    def test_a_publish_prunes_every_other_commits_core(self):
+        # The repository keeps one directory per commit visited and nothing else removes them, so a
+        # worktree that checks out many commits, or rebases, grows a core per visit. A publish prunes
+        # every commit but the one it is publishing.
+        root = self.worktree("checkout", "first")
+        self.publish(root)
+        self.assertEqual(self.artifacts(root), [self.coordinate(root)])
+
+        # Move to a second commit and publish there, the way a checkout or a rebase does.
+        self.set_marker(root, "second")
+        moved = self.commit(root, "second commit")
+        self.publish(root)
+
+        self.assertEqual(self.artifacts(root), [moved])
+
+    def test_a_publish_keeps_both_coordinates_of_this_commit(self):
+        # A clean tree asks for the clean name and a dirty tree for the -dirty one. The dirty-tree fix
+        # needs the clean jar to survive a dirty publish, so both coordinates of this commit are kept.
+        root = self.worktree("checkout", "first")
+        self.publish(root)
+        self.publish(root, "second")
+
+        self.assertEqual(
+            self.artifacts(root),
+            sorted([self.coordinate(root), f"{self.coordinate(root)}-dirty"]),
+        )
 
     # -- what the real build files say ---------------------------------------------------------------
 
