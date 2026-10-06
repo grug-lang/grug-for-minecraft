@@ -32,6 +32,19 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS.parent.parent
 
+# The paths gradle/grug-core.gradle scopes its dirty status to, parsed out of it so the miniature's
+# idea of a dirty tree is the real build's rather than a copy that can drift away from it. A parse
+# that finds nothing makes every miniature tree dirty, which fails the tests loudly rather than
+# quietly agreeing with a scope the script no longer has.
+DIRTY_PATHS = re.findall(
+    r"'([^']+)'",
+    re.search(
+        r"'status', '--porcelain', '--',\s*(.+?)\)",
+        (REPO_ROOT / "gradle" / "grug-core.gradle").read_text(),
+        re.DOTALL,
+    ).group(1),
+)
+
 # The four loaders with a root.gradle, which is to say the four that do not resolve core as a project
 # of the root build.
 STANDALONE_LOADERS = ("1.2.5-forge", "a1.1.2_01-ornithe", "b1.7.3-ornithe", "b1.7.3-stationapi")
@@ -229,19 +242,10 @@ class GrugCoreHandoffTest(unittest.TestCase):
         """The coordinate both halves of this checkout's hand-off agree on right now.
 
         A dirty tree publishes under the commit's coordinate with -dirty appended, so this is both
-        what a publish writes to and what a resolve asks for at the same moment. The paths match the
-        ones the script scopes its git status to, so an edit outside them does not move it.
+        what a publish writes to and what a resolve asks for at the same moment. The paths are the
+        script's own, parsed at import, so an edit outside them does not move it.
         """
-        dirty = self.git(
-            root,
-            "status",
-            "--porcelain",
-            "--",
-            "mod_api.json",
-            "core/src",
-            "core/generate.py",
-            "mods",
-        )
+        dirty = self.git(root, "status", "--porcelain", "--", *DIRTY_PATHS)
         return f"{self.coordinate(root)}-dirty" if dirty else self.coordinate(root)
 
     def publish(self, root: Path, marker: str | None = None, coordinate: str | None = None) -> None:
@@ -374,6 +378,18 @@ class GrugCoreHandoffTest(unittest.TestCase):
         # Revert the edit, so the tree is clean at the same commit again, and resolve without
         # republishing. The clean coordinate has to still hold the clean jar.
         self.set_marker(root, "first")
+        self.assertEqual(self.resolved(root), (self.coordinate(root), "first"))
+
+    def test_an_edit_outside_the_jar_does_not_move_the_coordinate(self):
+        # The scope is what keeps an edit to a loader, to the script itself or to a workflow from
+        # minting a new coordinate for nothing. The marker is the only scoped file in the miniature,
+        # so a file beside it must leave the coordinate where it is.
+        root = self.worktree("checkout", "first")
+        self.publish(root)
+        self.assertEqual(self.resolved(root), (self.coordinate(root), "first"))
+
+        (root / "notes.txt").write_text("not in the jar\n")
+
         self.assertEqual(self.resolved(root), (self.coordinate(root), "first"))
 
     # -- what the real build files say ---------------------------------------------------------------
