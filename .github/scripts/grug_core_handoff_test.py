@@ -198,6 +198,10 @@ class GrugCoreHandoffTest(unittest.TestCase):
         )
         (root / "gradle.properties").write_text(ROOT_GRADLE_PROPERTIES)
         (root / "settings.gradle").write_text(ROOT_SETTINGS)
+        # The real checkout ignores its build outputs, which is why they never enter a commit or the
+        # dirty check. The miniature needs the same, or a checkout between its commits trips over the
+        # outputs of the last build.
+        (root / ".gitignore").write_text("build/\n.gradle/\n")
 
         (root / "core").mkdir()
         (root / "core" / "build.gradle").write_text(CORE_BUILD)
@@ -234,9 +238,13 @@ class GrugCoreHandoffTest(unittest.TestCase):
         self.git(root, *IDENTITY, "commit", "-q", "-m", message)
         return self.coordinate(root)
 
+    def revision(self, root: Path) -> str:
+        """The short commit the version is stamped with."""
+        return self.git(root, "rev-parse", "--short=12", "HEAD")
+
     def coordinate(self, root: Path) -> str:
         """The commit's own coordinate, before the -dirty a dirty tree appends to it."""
-        return f"1.0.0-{self.git(root, 'rev-parse', '--short=12', 'HEAD')}"
+        return f"1.0.0-{self.revision(root)}"
 
     def version(self, root: Path) -> str:
         """The coordinate both halves of this checkout's hand-off agree on right now.
@@ -423,6 +431,24 @@ class GrugCoreHandoffTest(unittest.TestCase):
             self.artifacts(root),
             sorted([self.coordinate(root), f"{self.coordinate(root)}-dirty"]),
         )
+
+    def test_a_commit_pruned_by_a_later_publish_needs_a_republish(self):
+        # The prune removes an older commit's core, so checking back out to that commit and resolving
+        # without republishing fails naming the coordinate, the same way never publishing it does.
+        # That is the leftover a rebase leaves behind, and removing it is the point of the prune.
+        root = self.worktree("checkout", "first")
+        self.publish(root)
+        first = self.revision(root)
+        first_coordinate = self.coordinate(root)
+
+        self.set_marker(root, "second")
+        self.commit(root, "second commit")
+        self.publish(root)
+
+        self.git(root, "checkout", "-q", first)
+        result = self.resolve(root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(first_coordinate, self.output(result))
 
     # -- what the real build files say ---------------------------------------------------------------
 
