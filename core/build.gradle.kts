@@ -36,7 +36,7 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok:1.18.42")
     implementation("org.jetbrains:annotations:23.0.0")
     implementation("com.google.guava:guava:33.2.1-jre")
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.google.code.gson:gson:2.14.0")
 
     testImplementation(platform("org.junit:junit-bom:5.10.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
