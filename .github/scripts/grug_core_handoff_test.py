@@ -5,7 +5,9 @@ Those loaders cannot be projects of the root build, because the root build is on
 they are on 9.5.1, so `core` publishes itself and they resolve it. The change this guards took that
 from the shared ~/.m2 to build/maven inside the checkout and stamped the version with the commit,
 and the failure it replaces was silent: a loader that resolves a core from another worktree compiles,
-runs, and fails later somewhere else, so a branch looks broken when it is not.
+runs, and fails later somewhere else, so a branch looks broken when it is not. The stamp also carries
+a -dirty suffix while the files that reach the jar are edited, so a publish from a dirty tree cannot
+take the commit's own coordinate.
 
 So the tests build a miniature of this repository rather than testing Gradle: a producer at core/, a
 consumer at loaders/fake/, the real gradle/grug-core.gradle copied in, and a commit for it to stamp
@@ -56,7 +58,8 @@ CLOCK = {
 
 # A miniature of this checkout's core, publishing itself the way core/build.gradle.kts does. The
 # marker file stands in for the classes and the mods the real jar carries, so a consumer can read
-# back which jar it was given.
+# back which jar it was given. It lives under core/src because that is one of the paths the version's
+# dirty check reads, so editing it stands in for editing the real core.
 CORE_BUILD = """\
 plugins {
     id 'java-library'
@@ -71,7 +74,7 @@ version = grugCoreVersion
 def markerFile = layout.buildDirectory.file('marker/marker.txt')
 
 tasks.register('marker') {
-    def source = file('marker.txt')
+    def source = file('src/marker.txt')
     inputs.file(source)
     outputs.file(markerFile)
     doLast {
@@ -197,7 +200,9 @@ class GrugCoreHandoffTest(unittest.TestCase):
         return root
 
     def set_marker(self, root: Path, marker: str) -> None:
-        (root / "core" / "marker.txt").write_text(f"{marker}\n")
+        marker_file = root / "core" / "src" / "marker.txt"
+        marker_file.parent.mkdir(parents=True, exist_ok=True)
+        marker_file.write_text(f"{marker}\n")
 
     def git(self, root: Path, *args: str) -> str:
         result = subprocess.run(
@@ -217,10 +222,29 @@ class GrugCoreHandoffTest(unittest.TestCase):
         return self.coordinate(root)
 
     def coordinate(self, root: Path) -> str:
-        """The version both halves of this checkout's hand-off agree on."""
+        """The commit's own coordinate, before the -dirty a dirty tree appends to it."""
         return f"1.0.0-{self.git(root, 'rev-parse', '--short=12', 'HEAD')}"
 
-    def publish(self, root: Path, marker: str | None = None) -> None:
+    def version(self, root: Path) -> str:
+        """The coordinate both halves of this checkout's hand-off agree on right now.
+
+        A dirty tree publishes under the commit's coordinate with -dirty appended, so this is both
+        what a publish writes to and what a resolve asks for at the same moment. The paths match the
+        ones the script scopes its git status to, so an edit outside them does not move it.
+        """
+        dirty = self.git(
+            root,
+            "status",
+            "--porcelain",
+            "--",
+            "mod_api.json",
+            "core/src",
+            "core/generate.py",
+            "mods",
+        )
+        return f"{self.coordinate(root)}-dirty" if dirty else self.coordinate(root)
+
+    def publish(self, root: Path, marker: str | None = None, coordinate: str | None = None) -> None:
         if marker is not None:
             self.set_marker(root, marker)
 
@@ -229,7 +253,9 @@ class GrugCoreHandoffTest(unittest.TestCase):
 
         # The publish has to land in this checkout's own directory, which is the whole of the change:
         # one worktree's core is nowhere near another's loader.
-        published = root / "build" / "maven" / "net" / "grug" / "grug-core" / self.coordinate(root)
+        if coordinate is None:
+            coordinate = self.version(root)
+        published = root / "build" / "maven" / "net" / "grug" / "grug-core" / coordinate
         self.assertTrue(published.is_dir(), f"{published} does not hold the published core")
 
     def resolve(self, root: Path) -> subprocess.CompletedProcess:
@@ -279,16 +305,17 @@ class GrugCoreHandoffTest(unittest.TestCase):
         self.assertEqual(self.resolved(root), (self.coordinate(root), "first"))
 
     def test_a_republished_core_reaches_a_loader_without_a_new_commit(self):
-        # The everyday case: edit core, publish again, run the loader. The commit has not moved, so
-        # the coordinate has not either, and this is where a loader that trusted the copy of a fixed
-        # 1.0.0 in ~/.gradle would go on compiling against the jar it resolved last time.
+        # The everyday case: edit core, publish again, run the loader. The commit has not moved, and
+        # both publishes are from the same dirty tree, so the coordinate has not moved either, and
+        # this is where a loader that trusted the copy of a fixed 1.0.0 in ~/.gradle would go on
+        # compiling against the jar it resolved last time.
         root = self.worktree("checkout", "first")
-        self.publish(root)
-        self.assertEqual(self.resolved(root)[1], "first")
-
         self.publish(root, "second")
-
         self.assertEqual(self.resolved(root)[1], "second")
+
+        self.publish(root, "third")
+
+        self.assertEqual(self.resolved(root)[1], "third")
 
     def test_a_commit_with_no_publish_fails_rather_than_resolving_the_one_before_it(self):
         # What a loader's own build does when it runs before the root build has published the commit
@@ -314,9 +341,9 @@ class GrugCoreHandoffTest(unittest.TestCase):
         self.assertEqual(self.resolved(root), (moved, "second"))
 
     def test_two_worktrees_on_the_same_commit_do_not_resolve_each_others_core(self):
-        # The bug this change is about: two checkouts of one commit, each with its own edit in the
-        # working tree, both publishing under the same version, sharing ~/.gradle. A loader has to be
-        # able to tell which of the two jars is its own.
+        # The bug #175 is about: two checkouts of one commit, each with its own edit in the working
+        # tree, both publishing under the same version, sharing ~/.gradle. A loader has to be able to
+        # tell which of the two jars is its own.
         first = self.worktree("worktree-a", "first")
         second = self.worktree("worktree-b", "first")
         self.assertEqual(self.coordinate(first), self.coordinate(second))
@@ -324,8 +351,30 @@ class GrugCoreHandoffTest(unittest.TestCase):
         self.publish(first, "worktree a")
         self.publish(second, "worktree b")
 
-        self.assertEqual(self.resolved(first), (self.coordinate(first), "worktree a"))
-        self.assertEqual(self.resolved(second), (self.coordinate(second), "worktree b"))
+        # Both are dirty, so both publish under the same -dirty coordinate. What keeps them apart is
+        # the per-checkout repository, not the version, which is the whole of #175's change.
+        self.assertEqual(self.version(first), self.version(second))
+        self.assertEqual(self.resolved(first), (self.version(first), "worktree a"))
+        self.assertEqual(self.resolved(second), (self.version(second), "worktree b"))
+
+    def test_a_dirty_publish_does_not_take_the_commit_s_own_coordinate(self):
+        # A publish from a dirty tree used to land on the commit's own coordinate, so a later clean
+        # resolve of the same commit was handed the dirty jar while the tree said otherwise. That is
+        # what a stash or a rebase does: it visits one commit twice with different states.
+        root = self.worktree("checkout", "first")
+        self.publish(root)
+        self.assertEqual(self.resolved(root), (self.coordinate(root), "first"))
+
+        # Publish from a dirty tree. Where it lands is what this asserts, so it publishes directly
+        # rather than through the helper that already expects the suffix.
+        self.set_marker(root, "second")
+        result = self.gradle(root, ":core:publishMavenJavaPublicationToGrugBuildRepository")
+        self.assertEqual(result.returncode, 0, f"publishing failed:\n{self.output(result)}")
+
+        # Revert the edit, so the tree is clean at the same commit again, and resolve without
+        # republishing. The clean coordinate has to still hold the clean jar.
+        self.set_marker(root, "first")
+        self.assertEqual(self.resolved(root), (self.coordinate(root), "first"))
 
     # -- what the real build files say ---------------------------------------------------------------
 
