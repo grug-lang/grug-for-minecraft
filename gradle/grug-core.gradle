@@ -95,10 +95,10 @@ if (commitProcess.waitFor() != 0) {
 // twice with different states. A `-dirty` suffix gives a dirty publish a coordinate of its own, so it
 // cannot take the one a clean tree asks for.
 //
-// The status is scoped to the paths that reach the jar, so an edit to a loader, to this file or to a
-// workflow does not mint a new coordinate for nothing. The scope is also why the answer depends on
-// .gitignore: build outputs are ignored and read as clean, which is a property of the rules rather
-// than of git.
+// The status is scoped to the paths that feed the jar, so an edit to a loader, to this file or to a
+// workflow does not mint a new coordinate for nothing. `core/src` is the whole source tree rather
+// than only its main half, so a test-only edit is reported too, which is the safe way to be wrong.
+// An ignored file under the scope is not reported, because .gitignore decides that rather than git.
 def dirtyProcess
 try {
     dirtyProcess = new ProcessBuilder(
