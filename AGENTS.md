@@ -158,10 +158,17 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   there and not after it: `run-loader.sh` stops watching the log at that announcement, so anything
   below it is never read.
 
-## Versions are pinned, and there is no Dependabot
+## Versions are pinned, and Dependabot proposes the bumps
 
-Every version this repository builds against is pinned to an exact value, and every one of them has to
-be bumped by hand:
+Every version this repository builds against is pinned to an exact value. `.github/dependabot.yml`
+checks the GitHub Actions, Gradle and pip pins weekly, so most are proposed rather than remembered.
+Two stay manual: grug-rs, which is pinned for stability and is a behavioural change to the VM rather
+than a dependency bump, and the Gradle distributions, whose 8.14 and 9.5.1 split is a choice about
+which loaders tolerate which Gradle. Read a proposed major version (setup-java v4 to v5, say) before
+taking it, because it changes how a job behaves.
+
+The table below is where each pin lives and how to move it by hand, which is also what a bot's
+suggestion has to be checked against:
 
 | what | pinned where | how to bump |
 | :--- | :--- | :--- |

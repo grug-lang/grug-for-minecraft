@@ -1,0 +1,45 @@
+# Dependabot proposes the version bumps this repository pins by hand. Every pin is still checked in
+# and reviewed; the bot only saves the remembering. grug-rs is deliberately absent: it is pinned for
+# stability, and a new revision is a behavioural change to the VM rather than a dependency bump.
+version: 2
+updates:
+  # The GitHub Actions pins, the largest group, at a commit SHA with the release in a comment.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # The root build and every loader. The four loaders below run a Gradle wrapper of their own and have
+  # a settings.gradle each, so each is a build of its own. 1.20.6-forge is a project of the root build
+  # but is listed on its own as well, so a dependency is not missed whichever way Dependabot resolves
+  # the root settings file's conditional includes.
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gradle
+    directory: /loaders/1.20.6-forge
+    schedule:
+      interval: weekly
+  - package-ecosystem: gradle
+    directory: /loaders/1.2.5-forge
+    schedule:
+      interval: weekly
+  - package-ecosystem: gradle
+    directory: /loaders/a1.1.2_01-ornithe
+    schedule:
+      interval: weekly
+  - package-ecosystem: gradle
+    directory: /loaders/b1.7.3-ornithe
+    schedule:
+      interval: weekly
+  - package-ecosystem: gradle
+    directory: /loaders/b1.7.3-stationapi
+    schedule:
+      interval: weekly
+
+  # The two pip installs in the workflows.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
