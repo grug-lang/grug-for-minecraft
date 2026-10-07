@@ -13,9 +13,11 @@ import java.util.List;
  * only place a draw call can go, because the geometry has to end up in whatever the loader's
  * rendering stack is in the middle of building, and only the loader knows what that is.
  *
- * <p>There is at most one open pass, and it never spans a thread: the loader that opens it draws it
- * and closes it within one call, and a script cannot start a loader's render. Opening a second pass
- * anyway is a broken engine invariant rather than a mod mistake, so it throws.
+ * <p>There is at most one open pass at a time. The caller ({@link GrugBlockGeometry}) holds {@link
+ * GrugStateLock} across the whole pass, so two loaders on different threads cannot interleave their
+ * open/record/close even on a version that rebuilds chunks on worker threads. A script cannot start
+ * a loader's render. Opening a second pass anyway is a broken engine invariant rather than a mod
+ * mistake, so it throws.
  *
  * <p>Nothing here reports an error itself. A JVM test cannot call into the native adapter that
  * carries {@code Grug.hostFunctionErrorHappened}, so the reporting lives in the caller that can:

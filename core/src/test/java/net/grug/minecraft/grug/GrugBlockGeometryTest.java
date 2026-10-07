@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Covers what {@link GrugBlockGeometry} does when a block declared custom rendering but has nothing
@@ -110,5 +112,54 @@ class GrugBlockGeometryTest {
         assertFalse(
                 GrugRenderPass.isOpen(),
                 "A pass left open would make the next block's pass fail its nesting invariant.");
+    }
+
+    @Test
+    void twoThreadsDrawingConcurrentlyDoNotCrossContaminateOrDeadlock() throws Exception {
+        // 1.20.6 rebuilds chunks on worker threads, so two block entities can be inside draw at
+        // once. The state lock serializes them: each sees a clean pass, and neither deadlocks on
+        // the reentrant acquisition callExportFn would make. With handle 0 no native call happens,
+        // so the test exercises the lock and the pass bookkeeping without a game.
+        int threadCount = 8;
+        int iterations = 50;
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threadCount);
+        List<Throwable> errors = new ArrayList<>();
+
+        for (int t = 0; t < threadCount; t++) {
+            final int threadId = t;
+            new Thread(
+                            () -> {
+                                try {
+                                    startLatch.await();
+                                    for (int i = 0; i < iterations; i++) {
+                                        GrugBlockGeometry.draw(
+                                                0,
+                                                Grug.INVALID_GRUG_EXPORT_FN_ID,
+                                                "grug:thread_" + threadId + "_iter_" + i);
+                                    }
+                                } catch (Throwable e) {
+                                    synchronized (errors) {
+                                        errors.add(e);
+                                    }
+                                } finally {
+                                    doneLatch.countDown();
+                                }
+                            })
+                    .start();
+        }
+
+        startLatch.countDown();
+        boolean finished = doneLatch.await(30, TimeUnit.SECONDS);
+
+        assertTrue(finished, "Threads deadlocked: did not finish within 30 seconds");
+        assertTrue(errors.isEmpty(), "Threads threw: " + errors);
+
+        // Each thread's draws are serialized by the lock, so every pass is clean: no nesting
+        // invariant was tripped, and the pass is closed at the end.
+        assertFalse(
+                GrugRenderPass.isOpen(),
+                "A concurrent draw left the pass open, which means the lock did not serialize"
+                    + " them.");
     }
 }
