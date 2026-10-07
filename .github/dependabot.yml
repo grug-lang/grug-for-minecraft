@@ -43,3 +43,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+# The root Gradle wrapper and ForgeGradle are deliberately absent from the updates above.
+# The SpongePowered Mixin plugin (0.7.38) is abandoned and does not support Gradle 9.x, and
+# ForgeGradle 6.0.54 also does not support Gradle 9.x. The root wrapper must stay at 8.14
+# because 1.20.6-forge uses both ForgeGradle and the Mixin plugin. ForgeGradle 7 requires
+# Gradle 9.3.0+, so it cannot be bumped either. These pins are frozen until a maintained
+# Mixin plugin that supports Gradle 9.x exists.
