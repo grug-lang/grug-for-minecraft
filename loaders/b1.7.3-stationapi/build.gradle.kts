@@ -67,9 +67,13 @@ dependencies {
     mappings("net.glasslauncher:biny:${project.properties["yarn_mappings"]}:v2")
     modImplementation("net.fabricmc:fabric-loader:${project.properties["loader_version"]}")
 
+    // slf4j-api 2.x needs the 2.0 Log4j bridge. The 1.8 bridge implements the SLF4J 1.8
+    // SLF4JServiceProvider, whose misspelled getRequesteApiVersion() the 2.x version sanity check
+    // calls as getRequestedApiVersion(), throwing AbstractMethodError. log4j-slf4j2-impl tracks
+    // log4j-core, so both stay on the same version.
     implementation("org.apache.logging.log4j:log4j-core:2.26.1")
-    implementation("org.slf4j:slf4j-api:1.8.0-beta4")
-    implementation("org.apache.logging.log4j:log4j-slf4j18-impl:2.18.0")
+    implementation("org.slf4j:slf4j-api:2.0.20")
+    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1")
 
     compileOnly("org.projectlombok:lombok:1.18.48")
     annotationProcessor("org.projectlombok:lombok:1.18.48")
