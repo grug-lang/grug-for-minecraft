@@ -49,32 +49,43 @@ public final class GrugBlockGeometry {
      *     reporting channel that works from outside a call.
      */
     public static List<GrugBox> draw(long entityHandle, long renderFnId, String blockDescription) {
-        GrugRenderPass.open();
-
-        // The pass closes even when the render call does not come back, because callExportFn
-        // rethrows a fatal raised inside the script once the native call returns to Java. A pass
-        // left open would make the next block's open() report a nesting invariant rather than the
-        // defect that actually happened. The fatal still propagates: this is about which message
-        // the player reads, not about swallowing anything.
-        boolean ranRender;
-        List<GrugBox> boxes;
+        // The whole pass runs under the state lock, because 1.20.6 rebuilds chunks on worker
+        // threads and two concurrent passes would interleave open/record/close on the static
+        // state, cross-contaminating one block's boxes into another's geometry. The lock is
+        // reentrant, so the callExportFn inside callRender and any host function the render
+        // function calls acquire it again on the same thread without deadlocking. This also
+        // protects REPORTED_BLOCKS below, which is mutated from the same call path.
+        GrugStateLock.lock();
         try {
-            // A block that declared custom rendering without a block entity script has no entity to
-            // run a render function on, and passing the zero handle on would hand the native side a
-            // null entity pointer.
-            ranRender = false;
-            if (entityHandle != 0) {
-                ranRender = callRender(entityHandle, renderFnId);
+            GrugRenderPass.open();
+
+            // The pass closes even when the render call does not come back, because callExportFn
+            // rethrows a fatal raised inside the script once the native call returns to Java. A
+            // pass left open would make the next block's open() report a nesting invariant rather
+            // than the defect that actually happened. The fatal still propagates: this is about
+            // which message the player reads, not about swallowing anything.
+            boolean ranRender;
+            List<GrugBox> boxes;
+            try {
+                // A block that declared custom rendering without a block entity script has no
+                // entity to run a render function on, and passing the zero handle on would hand the
+                // native side a null entity pointer.
+                ranRender = false;
+                if (entityHandle != 0) {
+                    ranRender = callRender(entityHandle, renderFnId);
+                }
+            } finally {
+                boxes = GrugRenderPass.close();
             }
+
+            // Behind a method of its own, so that what is excluded is the choice between the
+            // reports and not the pass bookkeeping around it, which every run reaches.
+            reportNoGeometry(entityHandle, ranRender, boxes, blockDescription);
+
+            return boxes;
         } finally {
-            boxes = GrugRenderPass.close();
+            GrugStateLock.unlock();
         }
-
-        // Behind a method of its own, so that what is excluded is the choice between the reports
-        // and not the pass bookkeeping around it, which every run reaches.
-        reportNoGeometry(entityHandle, ranRender, boxes, blockDescription);
-
-        return boxes;
     }
 
     /**
