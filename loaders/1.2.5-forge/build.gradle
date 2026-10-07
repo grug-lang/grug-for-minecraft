@@ -110,7 +110,7 @@ dependencies {
 
     runtimeLibs 'net.minecraft:launchwrapper:1.5'
     runtimeLibs 'org.ow2.asm:asm-all:5.2'
-    runtimeLibs 'net.sf.jopt-simple:jopt-simple:4.5'
+    runtimeLibs 'net.sf.jopt-simple:jopt-simple:5.0.4'
     runtimeLibs 'net.java.jinput:jinput:2.0.10'
     runtimeLibs 'org.lwjgl.lwjgl:lwjgl:2.9.3'
     runtimeLibs 'org.lwjgl.lwjgl:lwjgl_util:2.9.3'
