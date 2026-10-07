@@ -34,7 +34,7 @@ repositories {
 dependencies {
     compileOnly("org.projectlombok:lombok:1.18.48")
     annotationProcessor("org.projectlombok:lombok:1.18.48")
-    implementation("org.jetbrains:annotations:23.0.0")
+    implementation("org.jetbrains:annotations:26.1.0")
     implementation("com.google.guava:guava:33.7.2-jre")
     implementation("com.google.code.gson:gson:2.14.0")
 
