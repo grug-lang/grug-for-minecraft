@@ -11,13 +11,6 @@ render_block: Option[BlockEntity] = Option.new()
 
 export run() {
     if Test.tick() == 0 {
-        # Only a1.1.2_01-ornithe implements the hook today, and the others would draw the cube this
-        # test exists to show is gone. Asking first is the shape the recipe tests use: a loader that
-        # cannot do it does not fail the run for it. This goes away as the others land.
-        if not supports_custom_geometry() {
-            return
-        }
-
         _setup()
         Test.not_done()
     } else if Test.tick() < 60 {

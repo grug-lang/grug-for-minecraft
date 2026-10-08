@@ -7,12 +7,5 @@ export init() {
     set_material("stone")
     set_block_entity(e"coverage_render_entity")
     set_inventory_size(1)
-
-    # Asked rather than called unconditionally, because the declaration reports an error on a
-    # version that cannot draw custom geometry and this block is registered on every loader. Where
-    # the answer is no it draws the ordinary cube from its model instead, which is a shape, so there
-    # is nothing to report. Only a1.1.2_01-ornithe says yes today.
-    if supports_custom_geometry() {
-        set_custom_render()
-    }
+    set_custom_render()
 }
