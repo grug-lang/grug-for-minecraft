@@ -104,6 +104,10 @@ EXCLUDED_CLASSES = {
     "GrugContainer",
     "VanillaNames",
     "GrugItem",
+    # The screen Test.close_screen displays on 1.2.5 so the headless focus check does not open the
+    # in-game menu over a screenshot. Same reason as GrugScreen: GUI glue a headless CI cannot
+    # measure beyond the run that uses it.
+    "GrugEmptyScreen",
     # Uploads grug textures into the two atlases 1.2.5 stitches at startup. Not excluded because the
     # GL work is out of reach: CI does run it, and coverage/tests/hot_reload_texture-Test.grug passes
     # here precisely because it succeeds. It is excluded for the reason given above this whole block,

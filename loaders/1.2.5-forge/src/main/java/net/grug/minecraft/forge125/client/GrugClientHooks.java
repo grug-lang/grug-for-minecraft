@@ -10,6 +10,7 @@ import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.minecraft.client.Minecraft;
+import net.minecraft.src.GuiIngameMenu;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.KeyBinding;
@@ -294,6 +295,15 @@ public class GrugClientHooks implements ITickHandler {
             minecraft.startWorld(
                     "World1", "World1", new WorldSettings(0L, 0, true, false, WorldType.DEFAULT));
             minecraft.displayGuiScreen((GuiScreen) null);
+        }
+
+        // The game opens its in-game menu half a second after the window goes inactive, which on
+        // the headless display the tests run on it always is, and the menu pauses the world behind
+        // it. While a run is going, swap it for the empty screen the screenshot tests close to, so
+        // a test that just closed a screen does not have the menu appear over the world it built.
+        // See GrugEmptyScreen.
+        if (testRunner != null && minecraft.currentScreen instanceof GuiIngameMenu) {
+            minecraft.displayGuiScreen(new GrugEmptyScreen());
         }
 
         // A captured frame must not depend on where the invisible pointer happens to be: 1.2.5's

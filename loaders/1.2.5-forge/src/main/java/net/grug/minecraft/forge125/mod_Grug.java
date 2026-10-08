@@ -1,16 +1,21 @@
 package net.grug.minecraft.forge125;
 
+import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.common.FMLCommonHandler;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.GrugBlocks;
+import net.grug.minecraft.forge125.block.GrugBoxRenderer;
 import net.grug.minecraft.forge125.client.GrugClientHooks;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
+import net.minecraft.src.Block;
+import net.minecraft.src.IBlockAccess;
 import net.minecraft.src.ModLoader;
+import net.minecraft.src.RenderBlocks;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +41,13 @@ public class mod_Grug extends BaseMod {
 
     public static final Map<String, Long> blockFiles = new HashMap<>();
     public static final Map<String, Long> itemFiles = new HashMap<>();
+
+    /**
+     * The FML render ID for blocks that declare custom geometry, or -1 before {@link #load()}
+     * registers it. FML hands out ids starting at 30, outside RenderBlocks' own switch, so a block
+     * returning this reaches FML's renderWorldBlock hook rather than drawing its cube.
+     */
+    private static int customRenderId = -1;
 
     /** The mods directory {@link #load()} resolved, which recipe registration reads in return. */
     private static File activeGrugDir;
@@ -73,6 +85,12 @@ public class mod_Grug extends BaseMod {
         }
 
         GrugCore.initialize(new Grug125Adapter(), modApiJson, activeGrugDir);
+
+        // Register the custom render type for blocks that declare custom geometry. FML hands out
+        // ids starting at 30, outside RenderBlocks' own switch, so a block returning this reaches
+        // FML's renderWorldBlock hook rather than drawing its cube.
+        customRenderId = FMLClientHandler.instance().obtainBlockModelIdFor(this, false);
+
         FileInfo[] files = Grug.compileAllFiles();
 
         blockFiles.clear();
@@ -114,6 +132,40 @@ public class mod_Grug extends BaseMod {
     public void modsLoaded() {
         GrugBlocks.init();
         GrugRecipeParser.registerAll(activeGrugDir);
+    }
+
+    /**
+     * The FML render ID for blocks that declare custom geometry.
+     *
+     * <p>Read by {@code GrugBlock.getRenderType()} so a custom-rendered block reaches this mod's
+     * {@link #renderWorldBlock} hook instead of drawing its cube.
+     */
+    public static int getCustomRenderId() {
+        return customRenderId;
+    }
+
+    /**
+     * Draws a custom-rendered block's geometry, called by FML when a block's render type is outside
+     * RenderBlocks' own switch.
+     *
+     * <p>This is the 1.2.5 equivalent of Alpha's BlockRendererMixin: the game's own tesselation
+     * does the drawing, so lighting, face culling and atlas coordinates come from the game rather
+     * than from a second rule kept in step with it. The block does not also draw its cube, because
+     * the default case in renderBlockByRenderType does not call renderStandardBlock.
+     *
+     * <p>The mining overlay is not drawn for a custom-rendered block, because FML's hook replaces
+     * the whole tesselation call. That is issue #201 and applies to every loader.
+     */
+    @Override
+    public boolean renderWorldBlock(
+            RenderBlocks renderer,
+            IBlockAccess world,
+            int x,
+            int y,
+            int z,
+            Block block,
+            int modelID) {
+        return GrugBoxRenderer.render(renderer, world, block, x, y, z);
     }
 
     /**
