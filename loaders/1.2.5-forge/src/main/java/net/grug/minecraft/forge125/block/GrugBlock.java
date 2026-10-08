@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge125.block;
 
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
+import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
@@ -49,6 +50,29 @@ public class GrugBlock extends BlockContainer {
 
     public int getInventorySize() {
         return blockData().inventorySize;
+    }
+
+    /**
+     * Whether the block draws its own geometry from its block entity's render function, declared by
+     * set_custom_render, instead of the cube its model describes.
+     */
+    public boolean drawsCustomGeometry() {
+        return blockData().customRender;
+    }
+
+    /**
+     * The render type the game's block renderer switches on.
+     *
+     * <p>A block that declares custom rendering returns the FML render ID {@code mod_Grug}
+     * registered, which is outside the switch's own cases and so reaches FML's {@code
+     * renderWorldBlock} hook. A block that does not returns 0, the standard cube.
+     */
+    @Override
+    public int getRenderType() {
+        if (drawsCustomGeometry()) {
+            return mod_Grug.getCustomRenderId();
+        }
+        return 0;
     }
 
     /**

@@ -7,6 +7,7 @@ import net.grug.minecraft.forge125.block.GrugBlock;
 import net.grug.minecraft.forge125.block.GrugBlocks;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge125.client.GlBridge;
+import net.grug.minecraft.forge125.client.GrugEmptyScreen;
 import net.grug.minecraft.forge125.client.GrugScreen;
 import net.grug.minecraft.forge125.grug.DummyCraftingInventory;
 import net.grug.minecraft.forge125.grug.VanillaNames;
@@ -27,7 +28,6 @@ import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
@@ -670,11 +670,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public boolean supportsCustomBlockGeometry() {
-        // 1.2.5 renders blocks through RenderBlocks and draws tile entities through
-        // ISimpleBlockRendering, and Alpha's implementation hooks neither. Saying so here keeps
-        // set_custom_render's error honest about this loader rather than letting a custom-rendered
-        // block draw as a cube.
-        return false;
+        // FML's renderWorldBlock hook is the extension point: a block that declares custom
+        // rendering returns a render type outside RenderBlocks' own switch, which reaches
+        // mod_Grug.renderWorldBlock and from there GrugBoxRenderer, so the block is drawn by the
+        // same tesselation every other block in the chunk goes through, lit and culled by the game
+        // rather than by us.
+        return true;
     }
 
     @Override
@@ -846,7 +847,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void closeOpenScreenForTest() {
-        ModLoader.getMinecraftInstance().displayGuiScreen((GuiScreen) null);
+        // Not null: on a headless client the window is never active, so 1.2.5's focus check would
+        // put its in-game menu up over the next frame and pause the world behind it. The empty
+        // screen keeps the focus check quiet and the world ticking. See GrugEmptyScreen.
+        ModLoader.getMinecraftInstance().displayGuiScreen(new GrugEmptyScreen());
     }
 
     @Override
