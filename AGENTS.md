@@ -295,6 +295,10 @@ the branch after a rebase: the test count changes. Take the baseline from
   depends on what it captures: a GUI capture can come from `update-goldens` here, while a world
   capture has to come from a failing CI job's artifact. See the golden bullet under Running a
   loader.
+- `tolerance()` in a test is a last resort for a rendering difference that cannot be fixed, never
+  a way to quiet a flaky capture. Every call must have a comment above it linking the issue that
+  tracks the difference and saying whether more research could remove the call. A capture that is
+  not reproducible from run to run is its own bug to fix, like #253.
 
 ## Fidelity and the reference
 
