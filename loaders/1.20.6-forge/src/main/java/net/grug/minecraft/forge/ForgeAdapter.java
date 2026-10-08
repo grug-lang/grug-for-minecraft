@@ -535,16 +535,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public boolean supportsCustomBlockGeometry() {
-        // ModelEvent.ModifyBakingResult replaces a custom-rendered block's baked model with
-        // GrugBakedModel, which runs the block entity's render pass during chunk meshing and emits
-        // the recorded boxes as quads for ModelBlockRenderer to light. The block keeps its ordinary
-        // model for every other purpose, and the state's own face culling is replaced by per-box
-        // culling in the model.
-        return true;
-    }
-
-    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         net.minecraft.core.BlockPos pos =

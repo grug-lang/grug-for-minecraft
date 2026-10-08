@@ -618,15 +618,6 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public boolean supportsCustomBlockGeometry() {
-        // BlockRenderManager.render is the extension point: a mixin cancels it for a block that
-        // declares custom rendering and defers to GrugBoxRenderer, which sets the block's bounding
-        // box per recorded box and calls renderBlock, so the block is drawn by the same tesselation
-        // every other block in the chunk goes through, lit and culled by the game rather than by us.
-        return true;
-    }
-
-    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;

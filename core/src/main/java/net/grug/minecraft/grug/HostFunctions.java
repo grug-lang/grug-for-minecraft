@@ -723,10 +723,6 @@ public class HostFunctions {
         }
     }
 
-    public static boolean supports_custom_geometry() {
-        return GrugCore.getAdapter().supportsCustomBlockGeometry();
-    }
-
     public static void set_custom_render() {
         if (Grug.currentlyInitializingBlock == null) {
             Grug.hostFunctionErrorHappened(
@@ -735,39 +731,9 @@ public class HostFunctions {
             return;
         }
 
-        // The declaration is what this line is, and it is measured: it is reached on
-        // a1.1.2_01-ornithe.
-        // What decides it and what it reports on a loader that cannot are behind the call.
-        Grug.currentlyInitializingBlock.customRender = declareCustomRender();
-    }
-
-    /**
-     * Reports that this loader cannot draw a block's own geometry, and answers that it cannot.
-     *
-     * <p>Answer and report are this one method, and the whole of it is excluded, because a
-     * committed mod that declares custom rendering asks supports_custom_geometry() first and so
-     * never gets here on the four loaders that cannot draw it. A mod that skips that guard is the
-     * failure this reports, and it fails its own run. It is a method rather than a branch in the
-     * caller so that the call above is one measured line: a branch there would leave the
-     * unsupported-loader arm uncovered, and excluding that arm would exclude the declaration with
-     * it.
-     */
-    @GrugGenerated(
-            "the unsupported-loader arm of the answer: no committed mod calls set_custom_render"
-                    + " unguarded, so only a mod that skips the supports_custom_geometry() guard"
-                    + " reports here. The supported arm runs on every a1.1.2_01-ornithe run and is"
-                    + " excluded only because JaCoCo drops the whole method, which is coarser than"
-                    + " the branch that is actually unreachable")
-    private static boolean declareCustomRender() {
-        if (GrugCore.getAdapter().supportsCustomBlockGeometry()) {
-            return true;
-        }
-
-        Grug.hostFunctionErrorHappened(
-                Grug.statePtr,
-                "set_custom_render: This Minecraft version cannot draw a block's own geometry;"
-                        + " only a1.1.2_01-ornithe implements it today.");
-        return false;
+        // Every loader implements the render hook, so the declaration is unconditional. This
+        // line is measured: a block that declares custom rendering reaches it on every loader.
+        Grug.currentlyInitializingBlock.customRender = true;
     }
 
     public static void set_hardness(double value) {

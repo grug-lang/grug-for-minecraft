@@ -1710,12 +1710,6 @@
 				}
 			]
 		},
-		"supports_custom_geometry": {
-			"description": "Whether this Minecraft version can draw a block's own geometry. A block whose init() calls `set_custom_render` on a version that cannot is a shape nobody can draw, so a mod that wants to work on more than one version asks this first and calls `set_custom_render` only where the answer is yes, drawing its ordinary model elsewhere. Only `a1.1.2_01-ornithe` does today; each other loader reports that from the declaration itself rather than failing every frame it could have drawn.",
-			"return_type": {
-				"name": "bool"
-			}
-		},
 		"take_crafting_result": {
 			"description": "Takes part of a block entity's crafting result. The result is not an inventory slot: a grug block entity holds it in a dedicated container, and a reference tile computes it on demand.",
 			"return_type": {
