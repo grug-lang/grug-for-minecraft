@@ -429,10 +429,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean supportsCustomBlockGeometry() {
-        // Beta 1.7.3 renders blocks through RenderBlocks rather than Alpha's BlockRenderer, and
-        // this has been written for Alpha only. Saying so here keeps set_custom_render's error
-        // honest about this loader rather than letting a custom-rendered block draw as a cube.
-        return false;
+        // BlockRenderer.tesselateInWorld is the extension point: a mixin cancels it for a block
+        // that declares custom rendering and defers to GrugBoxRenderer, which sets the block's
+        // shape per recorded box and calls tesselateWithMaxAmbientOcclusion, so the block is drawn
+        // by the same tesselation every other block in the chunk goes through, lit and culled by
+        // the game rather than by us.
+        return true;
     }
 
     @Override

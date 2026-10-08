@@ -1,0 +1,12 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "package": "net.grug.minecraft.ornithe.mixin",
+    "compatibilityLevel": "JAVA_17",
+    "client": [
+        "BlockRendererMixin"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}
