@@ -536,10 +536,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean supportsCustomBlockGeometry() {
-        // 1.20.6 has block entity renderers, so the port forward is a matter of registering one
-        // for GrugBlockEntity and cancelling the model; that has not been written yet, and saying
-        // so here keeps set_custom_render's error honest about this loader.
-        return false;
+        // ModelEvent.ModifyBakingResult replaces a custom-rendered block's baked model with
+        // GrugBakedModel, which runs the block entity's render pass during chunk meshing and emits
+        // the recorded boxes as quads for ModelBlockRenderer to light. The block keeps its ordinary
+        // model for every other purpose, and the state's own face culling is replaced by per-box
+        // culling in the model.
+        return true;
     }
 
     @Override
