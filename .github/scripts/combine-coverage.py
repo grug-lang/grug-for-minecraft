@@ -55,6 +55,7 @@ EXCLUDED_CLASSES = {
     "ResourcePackManagerMixin",
     "CraftingManagerMixin",
     "BlockRendererMixin",
+    "BlockRenderManagerMixin",
     "GrugMixin",
     "LiquidBlockRendererMixin",
     "ServerGrugModLoader",

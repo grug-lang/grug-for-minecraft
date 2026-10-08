@@ -11,6 +11,7 @@ import net.grug.minecraft.stationapi.events.init.ClientInitListener;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.minecraft.client.Minecraft;
 import net.modificationstation.stationapi.api.client.resource.ReloadableAssetsManager;
+import net.modificationstation.stationapi.api.resource.ResourceReload;
 import net.modificationstation.stationapi.api.tick.TickScheduler;
 import net.modificationstation.stationapi.api.util.Util;
 import net.modificationstation.stationapi.impl.client.resource.AssetsReloaderImpl;
@@ -46,6 +47,19 @@ public class GrugClientHooks {
 
     private boolean titleSet = false;
     private boolean ciTestsRan = false;
+
+    /**
+     * The one startup reload whose completion a CI run waits for before firing its tests.
+     *
+     * <p>This loader's first resource load can bake a grug block's model before the grug pack's
+     * sprite is available, which leaves the world block on the missing sprite. Nothing reloads
+     * afterwards on its own: the hot-reload path only reloads when a file changes, and a fresh
+     * checkout changes nothing. One reload once the client has a player puts the real sprite into
+     * the atlas and rebuilds the models before a frame or a test depends on them.
+     */
+    private ResourceReload startupReload = null;
+
+    private boolean startupReloadStarted = false;
 
     /**
      * How long to wait for the client to receive the world before failing the run. A placement into
@@ -167,14 +181,34 @@ public class GrugClientHooks {
         this.title = title;
     }
 
+    /**
+     * Whether a screenshot test run is currently driving the client.
+     *
+     * <p>Read by {@code MinecraftMixin.pauseGame} to decline the focus-loss pause while a run owns
+     * the client: a headless display is never active, so this version would otherwise open its menu
+     * half a second into every run and pause the world behind it. See #195.
+     */
+    public boolean isTestRunActive() {
+        return testRunner != null;
+    }
+
     public void tick() {
         if (!titleSet) {
             Display.setTitle(title);
             titleSet = true;
         }
 
+        if (!startupReloadStarted && minecraft.player != null) {
+            startupReloadStarted = true;
+            startupReload = reloadAssets();
+        }
+
         // CI auto-execution
-        if ("true".equals(System.getenv("GRUG_CI")) && !ciTestsRan && minecraft.player != null) {
+        if ("true".equals(System.getenv("GRUG_CI"))
+                && !ciTestsRan
+                && minecraft.player != null
+                && startupReload != null
+                && startupReload.isComplete()) {
             // The runner starts as soon as the player exists, which can be before the client has
             // received the chunks the tests build in. Wait for them; a world that never arrives
             // fails the run instead of starting tests against placeholder chunks.
@@ -247,13 +281,7 @@ public class GrugClientHooks {
         if (updatedResources.length > 0) {
             // Bypass StationAPI's ReloadScreenManager entirely to avoid the blue overlay
             // and Escape bug.
-            AssetsReloaderImpl.RESOURCE_PACK_MANAGER.scanPacks();
-            ReloadableAssetsManager.INSTANCE.reload(
-                    Util.getMainWorkerExecutor(),
-                    TickScheduler.CLIENT_RENDER_END::distributed,
-                    AssetsReloaderImpl.COMPLETED_UNIT_FUTURE,
-                    (reloader, formatString, location) -> {}, // No-op profiler
-                    AssetsReloaderImpl.RESOURCE_PACK_MANAGER.createResourcePacks());
+            reloadAssets();
         }
 
         if (minecraft.player != null) {
@@ -271,6 +299,23 @@ public class GrugClientHooks {
                 }
             }
         }
+    }
+
+    /**
+     * Reloads the client's resources through StationAPI's own reloader.
+     *
+     * <p>It bypasses {@code ReloadScreenManager} entirely to avoid its blue overlay and Escape bug,
+     * and it is the whole of both reload paths: the one after a mod file changed, and the one
+     * startup performs so the grug pack's sprites are in the atlas before anything draws them.
+     */
+    private static ResourceReload reloadAssets() {
+        AssetsReloaderImpl.RESOURCE_PACK_MANAGER.scanPacks();
+        return ReloadableAssetsManager.INSTANCE.reload(
+                Util.getMainWorkerExecutor(),
+                TickScheduler.CLIENT_RENDER_END::distributed,
+                AssetsReloaderImpl.COMPLETED_UNIT_FUTURE,
+                (reloader, formatString, location) -> {}, // No-op profiler
+                AssetsReloaderImpl.RESOURCE_PACK_MANAGER.createResourcePacks());
     }
 
     /**
