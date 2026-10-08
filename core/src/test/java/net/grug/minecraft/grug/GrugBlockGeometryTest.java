@@ -160,6 +160,6 @@ class GrugBlockGeometryTest {
         assertFalse(
                 GrugRenderPass.isOpen(),
                 "A concurrent draw left the pass open, which means the lock did not serialize"
-                    + " them.");
+                        + " them.");
     }
 }

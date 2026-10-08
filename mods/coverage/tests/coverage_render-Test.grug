@@ -49,19 +49,17 @@ local _setup() {
     y: number = origin.y()
     z: number = origin.z()
 
-    # The camera setup levels the view without moving the player, so the run has to be built in
-    # front of them at their own eye height for it to be on screen at all. setup_graphics_camera
-    # returns the player's position plus 3, and place_block floors what it is given, so y - 3.5 puts
-    # the run a whole block below the origin: at the player's feet rather than at head height, which
-    # is what puts it in the lower half of the frame. yaw 0 looks towards +z, so +4 is in front of
-    # them rather than inside them.
+    # The camera setup levels the view without moving the player. setup_graphics_camera returns the
+    # render camera's position plus 3, so y - 1.88 puts the run just above the camera, which is
+    # where the crop below expects it. yaw 0 looks towards +z, so +4 is in front of them rather
+    # than inside them.
     # A straight run along x, so the middle block draws arms on two opposite sides and none
     # elsewhere. Three rather than one, because a lone block draws only its core: a cube inset from
     # the faces, which says nothing about the arms the hook exists for. The outer two prove the arms
     # are read from the neighbours, since neither draws one on its outer end.
-    level.place_block(x - 1, y - 3.5, z + 4, "grug:coverage_render")
-    level.place_block(x, y - 3.5, z + 4, "grug:coverage_render")
-    level.place_block(x + 1, y - 3.5, z + 4, "grug:coverage_render")
+    level.place_block(x - 1, y - 1.88, z + 4, "grug:coverage_render")
+    level.place_block(x, y - 1.88, z + 4, "grug:coverage_render")
+    level.place_block(x + 1, y - 1.88, z + 4, "grug:coverage_render")
 
     # A wall behind it, so the shape is compared against one flat colour rather than against the
     # world. The world is not a stable background to diff against: Alpha's clouds drift with the
@@ -74,7 +72,7 @@ local _setup() {
     # is the middle of a flat face.
     _wall(level, x - 6, y - 9, z + 6)
 
-    be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 3.5, z + 4)
+    be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
     Test.assert(be_opt.has(), "The custom-rendered block should have a block entity.")
     render_block.set(be_opt.unwrap())
 }

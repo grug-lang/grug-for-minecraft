@@ -94,8 +94,8 @@ local _wall_in_front_of(origin: Vec3) {
     across: number = -2
     while across <= 2 {
         x: number = origin.x() + across
-        # From one below the player's feet to the origin itself, which is three above them, so the
-        # wall reaches past the top and bottom of a level view from where the camera sits.
+        # From one below the camera to the origin itself, which is three above it, so the wall
+        # reaches past the top and bottom of a level view from where the camera sits.
         up: number = -4
         while up <= 0 {
             level.place_block(x, origin.y() + up, z, "grug:coverage_block")
