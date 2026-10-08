@@ -619,10 +619,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean supportsCustomBlockGeometry() {
-        // Alpha's implementation hooks the chunk tesselation this loader does not have, and it has
-        // not been written for StationAPI yet. Saying so here keeps set_custom_render's error
-        // honest about this loader rather than letting a custom-rendered block draw as a cube.
-        return false;
+        // BlockRenderManager.render is the extension point: a mixin cancels it for a block that
+        // declares custom rendering and defers to GrugBoxRenderer, which sets the block's bounding
+        // box per recorded box and calls renderBlock, so the block is drawn by the same tesselation
+        // every other block in the chunk goes through, lit and culled by the game rather than by us.
+        return true;
     }
 
     @Override

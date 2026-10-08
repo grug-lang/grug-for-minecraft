@@ -37,6 +37,27 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         grug$hooks.tick();
     }
 
+    /**
+     * Declines the focus-loss pause while a screenshot test run owns the client.
+     *
+     * <p>A headless display is never the active window, so this version's {@code
+     * GameRenderer.onFrameUpdate} opens the in-game menu half a second into every run and pauses
+     * the world behind it. That costs more than the menu over a capture: a paused world stops
+     * ticking the block entities the tests placed, so every test after the one that closed its
+     * screen meets a frozen world. The pause cannot be undone from a tick either, because the tick
+     * that would close the menu does not run while the game is paused. The run owning the client is
+     * what makes refusing the pause correct rather than intrusive; the R hotkey leaves the game
+     * running and does not.
+     *
+     * <p>See #195.
+     */
+    @Inject(method = "pauseGame", at = @At("HEAD"), cancellable = true)
+    private void grug$declinePauseDuringRun(CallbackInfo ci) {
+        if (grug$hooks.isTestRunActive()) {
+            ci.cancel();
+        }
+    }
+
     @Override
     public void grug$sendChat(String line) {
         this.player.sendMessage(line);

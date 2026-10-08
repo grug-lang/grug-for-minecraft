@@ -52,6 +52,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -67,6 +68,17 @@ public class InitListener {
 
     public static final Map<String, Long> itemFiles = new HashMap<>();
     private static final Map<String, Long> blockFiles = new HashMap<>();
+
+    /**
+     * Every registered grug block, so the client can reach the ones that draw their own geometry
+     * when a resource reload hands it a new texture atlas to point them at.
+     */
+    private static final List<GrugBlock> grugBlocks = new ArrayList<>();
+
+    /** The registered grug blocks, in registration order. */
+    public static List<GrugBlock> getGrugBlocks() {
+        return grugBlocks;
+    }
 
     /**
      * What each grug recipe file registered, keyed by its path in the mods tree, so that deleting a
@@ -230,8 +242,9 @@ public class InitListener {
             Grug.currentlyInitializingBlock = null;
 
             Material mat = stringToMaterial(blockData.material);
-            new GrugBlock(blockId, blockFileId, mat, blockData.hardness)
-                    .setTranslationKey(blockId.namespace, blockId.path);
+            GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
+            block.setTranslationKey(blockId.namespace, blockId.path);
+            grugBlocks.add(block);
         }
     }
 
