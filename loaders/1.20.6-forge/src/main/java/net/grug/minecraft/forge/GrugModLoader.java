@@ -5,6 +5,7 @@ import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.forge.block.GrugBakedModel;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
@@ -22,6 +23,9 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.renderer.block.BlockModelShaper;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.packs.PackLocationInfo;
@@ -43,6 +47,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ModelEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.common.extensions.IForgeMenuType;
 import net.minecraftforge.event.AddPackFindersEvent;
@@ -381,6 +386,33 @@ public class GrugModLoader {
         public static void onKeyRegister(RegisterKeyMappingsEvent event) {
             event.register(RUN_TESTS_KEY);
             event.register(FORCE_RESOLUTION_KEY);
+        }
+
+        /**
+         * Replaces the baked model of every block that declared custom rendering with one that
+         * draws its block entity's geometry instead of its cube.
+         *
+         * <p>The map is keyed by the model location the blockstate resolves to, which for a block
+         * state is the block's registry name and its properties rather than the model file the
+         * blockstate names, so the lookup does not depend on how a mod's blockstate JSON points at
+         * its model. The original model stays inside the wrapper, which is where the sprite of each
+         * face and the particle icon still come from.
+         *
+         * <p>This runs on a model-baking worker thread, so it touches only the registry and the
+         * already compiled block data, which is what the event's own contract asks for.
+         */
+        @SubscribeEvent
+        public static void onModifyBakingResult(ModelEvent.ModifyBakingResult event) {
+            for (RegistryObject<GrugBlock> blockReg : registeredGrugBlocks) {
+                GrugBlock block = blockReg.get();
+                if (!block.drawsCustomGeometry()) continue;
+
+                ModelResourceLocation location =
+                        BlockModelShaper.stateToModelLocation(block.defaultBlockState());
+                BakedModel original = event.getModels().get(location);
+                if (original == null) continue;
+                event.getModels().put(location, new GrugBakedModel(original));
+            }
         }
     }
 

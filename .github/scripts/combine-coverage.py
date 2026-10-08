@@ -93,6 +93,9 @@ EXCLUDED_CLASSES = {
     # loader exclusions rather than leaving it to be rediscovered. The pass bookkeeping and box it
     # works from are game-independent and measured in core's GrugRenderPass and GrugBox.
     "GrugBoxRenderer",
+    # 1.20.6's draw loop: a BakedModel that runs the pass during chunk meshing and emits the boxes
+    # as quads. Same reason as GrugBoxRenderer.
+    "GrugBakedModel",
     # Render/model glue, like the resource-pack classes above.
     "GrugBlockModels",
     # 1.2.5 Forge runs on Java 8 with no JaCoCo agent (the loader cannot be instrumented without a

@@ -43,6 +43,14 @@ public class GrugBlock extends Block implements EntityBlock {
     }
 
     /**
+     * Whether the block draws its own geometry from its block entity's render function, declared by
+     * set_custom_render, instead of the cube its model describes.
+     */
+    public boolean drawsCustomGeometry() {
+        return blockData().customRender;
+    }
+
+    /**
      * The data for this block.
      *
      * <p>A {@code GrugBlock} is only ever built from a declared block, so the lookup always has an

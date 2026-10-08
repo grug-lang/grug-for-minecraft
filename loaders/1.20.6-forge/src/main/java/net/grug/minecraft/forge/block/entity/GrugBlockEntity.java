@@ -25,6 +25,8 @@ import java.util.List;
 public class GrugBlockEntity extends BlockEntity implements Container {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private boolean renderFnIdResolved = false;
     private boolean initStarted = false;
 
     /**
@@ -154,6 +156,37 @@ public class GrugBlockEntity extends BlockEntity implements Container {
         }
     }
 
+    /**
+     * This block entity's grug entity handle, or 0 when it has none yet.
+     *
+     * <p>A chunk can be compiled before the block entity has ticked, which is when its geometry is
+     * drawn, so the render path inits rather than assuming a tick got there first. On this version
+     * the render path is the chunk mesher, which runs on a worker thread, but every native entry
+     * takes the state lock, so the init is safe from there.
+     */
+    public long getGrugEntityHandle() {
+        initGrug();
+        return entityHandle;
+    }
+
+    /**
+     * The id of the {@code render} export, looked up once and remembered, because a chunk compile
+     * asks for it per block and the lookup goes through the state lock.
+     *
+     * <p>This is never {@link Grug#INVALID_GRUG_EXPORT_FN_ID}. grug builds its table of export ids
+     * from {@code mod_api.json} rather than from the files that are loaded, so the id resolves
+     * whatever any script exports. Whether <em>this</em> block entity's script has one is a
+     * different question, and the engine answers it by declining the call without reporting, so it
+     * shows up as a pass that drew nothing. See {@link net.grug.minecraft.grug.GrugBlockGeometry}.
+     */
+    public long getRenderFnId() {
+        if (!renderFnIdResolved) {
+            renderFnId = Grug.getExportFnId("BlockEntity", "render");
+            renderFnIdResolved = true;
+        }
+        return renderFnId;
+    }
+
     @Override
     public void setRemoved() {
         super.setRemoved();
@@ -162,6 +195,9 @@ public class GrugBlockEntity extends BlockEntity implements Container {
             entityHandle = 0;
             childEntities.clear();
         }
+        // Reset with the handle, so a tile that is re-inited after a hot reload resolves its render
+        // function again rather than answering from a cache the destroyed entity left behind.
+        renderFnIdResolved = false;
     }
 
     // --- Container Implementation ---
