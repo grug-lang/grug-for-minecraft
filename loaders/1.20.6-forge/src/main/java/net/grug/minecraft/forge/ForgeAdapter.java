@@ -643,7 +643,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
         player.setYRot(0.0F);
         player.setXRot(0.0F);
 
-        result[0] = new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
+        // The origin is the render camera's position plus 3, so a test that builds from it lands
+        // the same distance above the camera on every loader. The camera here is the player's eye.
+        result[0] = new Vec3(player.getX(), player.getEyeY() + 3.0, player.getZ());
     }
 
     @Override

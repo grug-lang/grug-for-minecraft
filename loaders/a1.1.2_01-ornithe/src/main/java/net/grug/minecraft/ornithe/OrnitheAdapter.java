@@ -811,8 +811,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // always centred in the window, so the terrain behind it is never part of the comparison.
         player.setPositionAndAngles(player.x, player.y, player.z, 0.0F, 0.0F);
 
-        // +3 mirrors getTestOrigin()'s convention: an origin a little above the player to build on.
-        return new Vec3(player.x, player.y + 3.0, player.z);
+        // The origin is the render camera's position plus 3, so a test that builds from it lands
+        // the same distance above the camera on every loader. This version's player.y sits an eye
+        // height above the camera, which is what the subtraction converts.
+        return new Vec3(player.x, player.y - 1.62 + 3.0, player.z);
     }
 
     @Override

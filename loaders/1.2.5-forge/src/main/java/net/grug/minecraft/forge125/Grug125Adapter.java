@@ -818,6 +818,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
         // centred, so the terrain behind it never matters.
         player.setPositionAndRotation(player.posX, player.posY, player.posZ, 0.0F, 0.0F);
 
+        // The origin is the render camera's position plus 3, so a test that builds from it lands
+        // the same distance above the camera on every loader. This version's render camera sits at
+        // the player's own position, so there is nothing to convert.
         return new Vec3(player.posX, player.posY + 3.0, player.posZ);
     }
 
