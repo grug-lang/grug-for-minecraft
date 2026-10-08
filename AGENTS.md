@@ -8,9 +8,9 @@ stopped being true.
 
 ## Machine limits
 
-This is a ~15 GB laptop. More than two Minecraft clients at once has hard-locked it and killed
-the desktop session. Run loaders serially, never more than two at a time, and never start a
-client while another Gradle build is launching a game.
+The development machine has about 15 GB of RAM. More than two Minecraft clients at once has
+hard-locked it and killed the desktop session. Run loaders serially, never more than two at a
+time, and never start a client while another Gradle build is launching a game.
 
 ## Working alongside other agents
 
@@ -142,6 +142,13 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   directory as the next number, re-run, then delete it.
 - `update-goldens` accepts an unmatched capture as the next number and never overwrites one.
   Goldens are per distinct rendering, not per loader.
+- A locally accepted reference is not proof that CI accepts it. A GUI capture (the autocrafting
+  table panel) is the same locally and on the runners, but a world capture is not: the
+  `coverage_render` crop differs between a local run and CI by a one or two channel step band
+  across the wall, so a reference generated locally can fail every CI loader job. For a world
+  capture, take the failing job's artifact instead: `gh run download <run-id> --name
+  loader-<loader>-screenshots`, which holds the capture at `coverage/screenshots/<name>/N.png`.
+  Review the PNG, and delete any local reference it replaces.
 - Coverage must stay at 100% on `core`. Loader UI/GL classes are excluded by
   `.github/scripts/combine-coverage.py`.
 - Coverage for a host function comes from a real game run first: a committed mod's own path if it
@@ -284,7 +291,10 @@ the branch after a rebase: the test count changes. Take the baseline from
 - A fixed tick budget races the engine, and a setup at tick 0 can run before the client has
   received the chunk it builds in. Prefer waiting for a condition, and use `Option.has()` for
   probing, because `Test.assert` fails the test on the spot.
-- A new screenshot must be accepted through `update-goldens`, never copied by hand.
+- A new screenshot reference must be reviewed before it is committed, and where it comes from
+  depends on what it captures: a GUI capture can come from `update-goldens` here, while a world
+  capture has to come from a failing CI job's artifact. See the golden bullet under Running a
+  loader.
 
 ## Fidelity and the reference
 
