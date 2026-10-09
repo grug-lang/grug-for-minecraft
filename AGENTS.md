@@ -338,6 +338,9 @@ the branch after a rebase: the test count changes. Take the baseline from
   not squash.
 - Do not add repository documentation. This file is the exception, and findings still belong in
   issues and pull requests.
+- When the user has to look at images, copy them into one directory and give that path in the
+  reply. The agent picks the directory, and a subdirectory of `/tmp` is fine; never assume a
+  personal directory such as a Downloads folder, and never leave the user to find the files.
 - When more than one path is plausible, save progress in a draft pull request whose description
   carries every measurement and the open question.
 - Wait with a tool that watches, not with a hardcoded sleep. `sleep 30` and then look guesses how
