@@ -16,11 +16,13 @@ package net.grug.minecraft.core;
  * three blocks down it stays out of frame and its light still reaches the fixture around the block
  * the player stands on.
  *
- * <p>The inside is cleared to air, so whatever terrain, leaves or earlier fixtures were there do
- * not block the torch light or show in a capture. It is cleared top down, so a plant whose support
- * is also inside the room is cleared before the support is: the other order pops it off as an item,
- * which the player then picks up. The walls reach below the floor, so no sky light leaks in under
- * them.
+ * <p>The whole box the room occupies is cleared to air first, so whatever terrain, leaves or
+ * earlier fixtures were there do not block the torch light or show in a capture. That is the inside
+ * plus the one-block ring the shell is built in: the shell replaces a ring column from the bottom
+ * up, so a plant standing on one would otherwise see the block under it replaced first and drop as
+ * an item the player can pick up. It is all cleared top down, so a plant goes before the block it
+ * stands on, and so does one on the ceiling layer. The walls reach below the floor, so no sky light
+ * leaks in under them.
  *
  * <p>It is built before every test with {@link #DEFAULT_RADIUS}, and again whenever a test asks for
  * a different one through {@code Test.set_box_radius}, because a fixture that reaches further than
@@ -69,17 +71,14 @@ public final class GrugTestBox {
         // cannot leave a gap under it for the sky light to pour through.
         int wallBottomY = Math.min(py - radius - 1, torchFloorY);
 
-        // The inside first, so the shell is not part of what gets cleared. Only blocks that are not
-        // already air are replaced: that is most of the work on the first test and almost none on
-        // the tests after it. Top down, so a plant whose support is also inside the room is cleared
-        // before the support is: the other order pops it off as an item, which the player then
-        // picks up and carries into later captures.
-        for (int y = ceilingY - 1; y >= torchY; y--) {
-            for (int z = minZ; z <= maxZ; z++) {
-                for (int x = minX; x <= maxX; x++) {
-                    if (!adapter.isAir(level, x, y, z)) {
-                        adapter.placeBlock(level, x, y, z, "minecraft:air");
-                    }
+        // The whole box the room will occupy, cleared first and top down, so a plant is cleared
+        // before the block it stands on: the other order pops it off as an item, which the player
+        // then picks up and carries into later captures. Only blocks that are not already air are
+        // replaced.
+        for (int y = ceilingY; y >= wallBottomY; y--) {
+            for (int z = minZ - 1; z <= maxZ + 1; z++) {
+                for (int x = minX - 1; x <= maxX + 1; x++) {
+                    clearBlock(adapter, level, x, y, z);
                 }
             }
         }
@@ -93,6 +92,20 @@ public final class GrugTestBox {
             }
         }
         adapter.placeBlock(level, px, py - 1, pz, "minecraft:stone");
+
+        // A torch on every floor tile, so the floor's light level is the same everywhere. The
+        // player's column is left clear: a torch under the block they stand on would be boxed in.
+        // The torches go in before the shell: the ring is clear then, so every torch is placed on
+        // its floor and none attaches to a wall. That matters on 1.2.5, where a torch attaches to a
+        // solid side when it has one and a torch whose attachment is cleared drops even while its
+        // floor still supports it.
+        for (int z = minZ; z <= maxZ; z++) {
+            for (int x = minX; x <= maxX; x++) {
+                if (x != px || z != pz) {
+                    adapter.placeBlock(level, x, torchY, z, "minecraft:torch");
+                }
+            }
+        }
 
         for (int y = wallBottomY; y <= ceilingY; y++) {
             for (int z = minZ - 1; z <= maxZ + 1; z++) {
@@ -110,15 +123,12 @@ public final class GrugTestBox {
                 adapter.placeBlock(level, x, ceilingY, z, "minecraft:stone");
             }
         }
+    }
 
-        // A torch on every floor tile, so the floor's light level is the same everywhere. The
-        // player's column is left clear: a torch under the block they stand on would be boxed in.
-        for (int z = minZ; z <= maxZ; z++) {
-            for (int x = minX; x <= maxX; x++) {
-                if (x != px || z != pz) {
-                    adapter.placeBlock(level, x, torchY, z, "minecraft:torch");
-                }
-            }
+    /** Clears one block to air, unless it is already air. */
+    private static void clearBlock(ModLoaderAdapter adapter, Object level, int x, int y, int z) {
+        if (!adapter.isAir(level, x, y, z)) {
+            adapter.placeBlock(level, x, y, z, "minecraft:air");
         }
     }
 }
