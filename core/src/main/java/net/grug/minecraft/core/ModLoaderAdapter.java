@@ -231,6 +231,18 @@ public interface ModLoaderAdapter {
      */
     void closeOpenScreenForTest();
 
+    /**
+     * Builds the sealed room the runner puts around the player before every test, and again when a
+     * test asks for a different radius through {@code Test.set_box_radius}. See {@link GrugTestBox}
+     * for what the room is and why it exists.
+     *
+     * <p>The player's feet are the anchor, so the floor replaces the block they stand on and they
+     * do not move. An adapter whose player's y is the eye height subtracts it first; one whose
+     * player's y is already the feet passes it through. Nothing is built when there is no player,
+     * which is the dedicated server before anyone has joined.
+     */
+    void buildTestBox(int radius);
+
     void useBlockForTest(Object levelObj, double x, double y, double z);
 
     /**

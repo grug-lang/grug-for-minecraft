@@ -146,6 +146,15 @@ public class HostFunctions {
         GrugCore.getAdapter().closeOpenScreenForTest();
     }
 
+    /**
+     * Test only: rebuilds the sealed room the runner puts around the player, with a different
+     * radius. The runner builds a small one before every test; a test whose fixture reaches further
+     * than that calls this at the top of its setup. See #253.
+     */
+    public static void Test_set_box_radius(double radius) {
+        GrugCore.getAdapter().buildTestBox((int) radius);
+    }
+
     public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
         GrugCore.getAdapter().notifyNeighbors(Grug.entityData.get(levelId).object, x, y, z);
     }

@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge125;
 
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge125.block.GrugBlock;
@@ -523,23 +524,31 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
         World world = (World) levelObj;
         String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
-        Block targetBlock = resolveBlock(path);
 
-        if (targetBlock == null) {
-            // A name that resolves nowhere is a defect in the mod, not a block to skip: it would
-            // leave the mod building against a block it never got, which is the cross loader
-            // mismatch the canonical name table exists to remove. The host function error is the
-            // report, so there is no second log line.
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "place_block: Could not resolve block " + blockName);
-            return;
+        // air is the one name resolveBlock cannot answer, because this version has no air block to
+        // resolve: air is the absence of one, block id 0. Placing it is how a test removes a block,
+        // so it skips the lookup and is placed like any other block.
+        int blockId = 0;
+        if (!path.equals("air")) {
+            Block targetBlock = resolveBlock(path);
+
+            if (targetBlock == null) {
+                // A name that resolves nowhere is a defect in the mod, not a block to skip: it
+                // would leave the mod building against a block it never got, which is the cross
+                // loader mismatch the canonical name table exists to remove. The host function
+                // error is the report, so there is no second log line.
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr, "place_block: Could not resolve block " + blockName);
+                return;
+            }
+            blockId = targetBlock.blockID;
         }
 
         int posX = (int) Math.floor(x);
         int posY = (int) Math.floor(y);
         int posZ = (int) Math.floor(z);
 
-        world.setBlockWithNotify(posX, posY, posZ, targetBlock.blockID);
+        world.setBlockWithNotify(posX, posY, posZ, blockId);
 
         // A placement that reports false because the block was already there is not a failure,
         // so the block's presence is the check rather than the return value. A y outside the
@@ -547,7 +556,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
         // received swallows the write too. A write the game accepts and does not leave in place
         // is reported the same way: the caller asked for a block that is not there afterwards.
         // See #151.
-        if (world.getBlockId(posX, posY, posZ) != targetBlock.blockID) {
+        if (world.getBlockId(posX, posY, posZ) != blockId) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "place_block: the game did not put "
@@ -733,6 +742,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public Object testPlayer() {
         return ModLoader.getMinecraftInstance().thePlayer;
+    }
+
+    @Override
+    @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
+    public void buildTestBox(int radius) {
+        EntityPlayer player = (EntityPlayer) testPlayer();
+        if (player == null) return;
+        GrugTestBox.build(this, getLevel(), player.posX, player.posY - 1.62, player.posZ, radius);
     }
 
     @Override

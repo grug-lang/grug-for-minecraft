@@ -14,13 +14,13 @@ export run() {
         _setup()
         Test.not_done()
     } else if Test.tick() < 60 {
-        # How long the placed shape takes to reach the framebuffer, and how long the wall's light
-        # takes to settle. Alpha has to mesh the chunk around the new blocks, upload the texture and
-        # compile the chunk before any of the geometry is drawn, and every block placed re-lights its
-        # column for a few ticks after that. Measured on the CI stack the first real frame lands
-        # between tick 16 and tick 30 depending on how loaded the machine is; 60 leaves a wide margin
-        # over both, and costs 3 seconds of a 200-tick budget. Raise it rather than touch the crop
-        # rectangle if a capture ever comes out stale.
+        # How long the placed shape takes to reach the framebuffer. Alpha has to mesh the chunk
+        # around the new blocks, upload the texture and compile the chunk before any of the geometry
+        # is drawn, and every block placed re-lights its column for a few ticks after that. Measured
+        # on the CI stack the first real frame lands between tick 16 and tick 30 depending on how
+        # loaded the machine is; 60 leaves a wide margin over both, and costs 3 seconds of a
+        # 200-tick budget. Raise it rather than touch the crop rectangle if a capture ever comes out
+        # stale.
         Test.not_done()
     } else {
         _check()
@@ -36,6 +36,17 @@ local _setup() {
     # the test that opened it and sits over the world in every frame after. hot_reload_texture-Test
     # closes it for the same reason. Without this the capture below is of that panel.
     Test.close_screen()
+
+    # The runner builds a sealed, torch-lit room around the player before every test, so the
+    # capture's light does not come from the sky: its brightness moves with the time of day, which
+    # the suite reaches at a different tick on every run, and the canopy above the fixture shades it
+    # unevenly, so the wall's one-step light bands landed in different places from run to run. Ten
+    # 1.20.6 re-runs produced nine captures in eight states, and a 1.2.5 band alternated between two
+    # positions. The default room is small; this fixture reaches further than it, so ask for a room
+    # that holds the shape, the wall two blocks behind it, and both ends of that wall. Asked for
+    # before the fixture goes in, so the room's clearing cannot take the fixture out again. See
+    # #253.
+    Test.set_box_radius(6)
 
     origin: Vec3 = Test.setup_graphics_camera()
     x: number = origin.x()
@@ -55,14 +66,10 @@ local _setup() {
     level.place_block(x + 1, y - 1.88, z + 4, "grug:coverage_render")
 
     # A wall behind it, so the shape is compared against one flat colour rather than against the
-    # world. The world is not a stable background to diff against: Alpha's clouds drift with the
-    # clock and its leaves shimmer, and its block textures round differently between two runs of the
-    # same build, which is why the wall is grug:coverage_flat and why its texture is a single
-    # colour.
-    # Built far larger than the crop and centred on it, for the same reason the autocrafting table
-    # test insets its crop: a silhouette edge is where two nearly-equal shades round differently
-    # between runs. Every edge of this wall falls outside the rectangle below, so what is compared
-    # is the middle of a flat face.
+    # room's stone. Built far larger than the crop and centred on it, for the same reason the
+    # autocrafting table test insets its crop: a silhouette edge is where two nearly-equal shades
+    # round differently between runs. Every edge of this wall falls outside the rectangle below, so
+    # what is compared is the middle of a flat face.
     _wall(level, x - 6, y - 9, z + 6)
 
     be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
@@ -101,17 +108,9 @@ local _check() {
     # its neighbours and none on the outer ends.
     # Pixel-exact, and it has to stay that way: a tolerance would accept a shape that had lost an
     # arm, which is the one thing this test exists to catch.
-    # The reference directory holds three PNGs, and the geometry is pixel-identical in all three:
-    # the set of non-grey pixels is the same set, not merely the same count. They differ only in
-    # the grey background, and only by one step per channel. Alpha shades a block face from the
-    # light at each neighbouring position, which quantises into one-step bands, and where a band
-    # boundary falls across the wall depends on the machine and on how long that wall has been
-    # settling, which in turn depends on what ran before this test. Measured across the three pairs:
-    # 1602, 3196 and 1594 differing pixels, every one of them neutral grey in both images and one
-    # step out on all three channels. That is the case a numbered reference directory exists for.
-    # The top of the rectangle is the one place that needed care first: the wall's top corner is a
-    # step darker than the rest of its face, and which pixels land on that step shifted by one
-    # between runs of the same build. The rectangle therefore starts below the wall's top corner,
-    # the same reason the autocrafting table test insets past the soft edge of its panel.
+    # The reference directory holds one PNG per distinct rendering: the shape's own pixels are the
+    # same set on every loader, and the flat background differs per version because each shades a
+    # face from its own light table. What the room removes is the run-to-run movement of the light
+    # bands, which is what the numbered references used to absorb.
     Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
 }

@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
@@ -359,25 +360,34 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void placeBlock(Object levelObj, double x, double y, double z, String blockName) {
         World world = (World) levelObj;
         String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
-        // The canonical name table already answers under the name this loader spells a block with,
-        // so resolveBlock is the whole lookup. See #58.
-        Block targetBlock = resolveBlock(path);
 
-        if (targetBlock == null) {
-            // A name that resolves nowhere is a defect in the mod, not a block to skip: it would
-            // leave the mod building against a block it never got, which is the cross loader
-            // mismatch the canonical name table exists to remove. The host function error is the
-            // report, so there is no second log line.
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "place_block: Could not resolve block " + blockName);
-            return;
+        // air is the one name resolveBlock cannot answer, because this version has no air block to
+        // resolve: air is the absence of one, block id 0. Placing it is how a test removes a block,
+        // so it skips the lookup and is placed like any other block.
+        int blockId = 0;
+        Block targetBlock = null;
+        if (!path.equals("air")) {
+            // The canonical name table already answers under the name this loader spells a block
+            // with, so resolveBlock is the whole lookup. See #58.
+            targetBlock = resolveBlock(path);
+
+            if (targetBlock == null) {
+                // A name that resolves nowhere is a defect in the mod, not a block to skip: it
+                // would leave the mod building against a block it never got, which is the cross
+                // loader mismatch the canonical name table exists to remove. The host function
+                // error is the report, so there is no second log line.
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr, "place_block: Could not resolve block " + blockName);
+                return;
+            }
+            blockId = targetBlock.id;
         }
 
         int posX = (int) Math.floor(x);
         int posY = (int) Math.floor(y);
         int posZ = (int) Math.floor(z);
 
-        world.setBlockQuietly(posX, posY, posZ, targetBlock.id);
+        world.setBlockQuietly(posX, posY, posZ, blockId);
 
         if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
             targetBlock.onAdded(world, posX, posY, posZ);
@@ -389,7 +399,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // a chunk the client has not received swallows the write too. A write the game accepts
         // and does not leave in place is reported the same way: the caller asked for a block
         // that is not there afterwards. See #151.
-        if (world.getBlock(posX, posY, posZ) != targetBlock.id) {
+        if (world.getBlock(posX, posY, posZ) != blockId) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "place_block: the game did not put "
@@ -580,6 +590,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public Object testPlayer() {
         return MinecraftInstance.get().player;
+    }
+
+    @Override
+    @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
+    public void buildTestBox(int radius) {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
+        GrugTestBox.build(this, getLevel(), player.x, player.y - 1.62, player.z, radius);
     }
 
     @Override
@@ -801,12 +819,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         //
         // Nothing is lost by it: a screenshot test crops a rectangle of the frame, and the GUI is
         // always centred in the window, so the terrain behind it is never part of the comparison.
-        player.setPositionAndAngles(player.x, player.y, player.z, 0.0F, 0.0F);
+        // setPositionAndAngles takes the feet, not this version's eye-height player.y, so passing
+        // the feet is what keeps the player where they are. Passing the eye would raise them an eye
+        // height, which is what this call used to do.
+        player.setPositionAndAngles(player.x, player.y - 1.62, player.z, 0.0F, 0.0F);
 
         // The origin is the render camera's position plus 3, so a test that builds from it lands
-        // the same distance above the camera on every loader. This version's player.y sits an eye
-        // height above the camera, which is what the subtraction converts.
-        return new Vec3(player.x, player.y - 1.62 + 3.0, player.z);
+        // the same distance above the camera on every loader. This version's render camera sits at
+        // player.y, so there is nothing to convert.
+        return new Vec3(player.x, player.y + 3.0, player.z);
     }
 
     @Override
@@ -823,7 +844,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
         PlayerEntity player = MinecraftInstance.get().player;
         if (player != null) {
-            player.setPositionAndAngles(savedX, savedY, savedZ, savedYaw, savedPitch);
+            // The saved y is the eye; the feet are what setPositionAndAngles wants, so the restore
+            // puts the player back rather than raising them again.
+            player.setPositionAndAngles(savedX, savedY - 1.62, savedZ, savedYaw, savedPitch);
         }
     }
 
