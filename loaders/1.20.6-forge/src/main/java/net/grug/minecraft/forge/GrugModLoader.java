@@ -26,6 +26,7 @@ import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.block.BlockModelShaper;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
+import net.minecraft.client.tutorial.TutorialSteps;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.packs.PackLocationInfo;
@@ -554,6 +555,7 @@ public class GrugModLoader {
                                         + " ms. Firing tests!");
                         grug$testsRan = true;
                         if (WINDOW.beginRun()) {
+                            stopTutorialForRun(mc);
                             grug$testRunner = new GrugTestRunner();
                             grug$testRunnerFromCI = true;
                             advanceTestRunner(mc);
@@ -578,6 +580,7 @@ public class GrugModLoader {
                 if (grug$testRunFinished) {
                     grug$testRunFinished = false;
                     WINDOW.endRun();
+                    restoreTutorialAfterRun(mc);
                 }
 
                 updateCursorReadout(mc);
@@ -622,9 +625,38 @@ public class GrugModLoader {
             // The polls consume the presses they report, so this has to run every tick a press is
             // meant to count. The tick it reports a run press in is the one that starts the run.
             if (WINDOW.tick(KEYS)) {
+                stopTutorialForRun(mc);
                 grug$testRunner = new GrugTestRunner();
                 grug$testRunnerFromCI = false;
                 advanceTestRunner(mc);
+            }
+        }
+
+        /** The tutorial step a run found, put back when the run ends. */
+        private static TutorialSteps savedTutorialStep = null;
+
+        /**
+         * Stops the tutorial before a run starts, because its "Move with WASD" toast stays over the
+         * world until the player moves and a run never moves them. Left alone, it appears about
+         * five seconds into the run and sits over the right end of the coverage_render shape, which
+         * is part of what the capture is compared against. Only the step is set: the tutorial's own
+         * tick would recreate a stopped step from the option, so the option is what has to change,
+         * and {@link #restoreTutorialAfterRun} puts back the step a run found.
+         */
+        @GrugGenerated("dev-only: the toast would land in a capture")
+        private static void stopTutorialForRun(Minecraft mc) {
+            if (savedTutorialStep == null) {
+                savedTutorialStep = mc.options.tutorialStep;
+                mc.getTutorial().setStep(TutorialSteps.NONE);
+            }
+        }
+
+        /** Puts the tutorial step back, and only if a run changed it. */
+        @GrugGenerated("dev-only: the toast would land in a capture")
+        private static void restoreTutorialAfterRun(Minecraft mc) {
+            if (savedTutorialStep != null) {
+                mc.getTutorial().setStep(savedTutorialStep);
+                savedTutorialStep = null;
             }
         }
 

@@ -306,6 +306,17 @@
 				"close_screen": {
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
+				"set_box_radius": {
+					"description": "Rebuilds the sealed room the runner builds around the player before every test, with the given radius. The room is a hollow box of stone with a torch on every floor tile, so its light comes from torches rather than the sky, and a screenshot does not change with the time of day. The default room is small; a test whose fixture reaches further than that asks for a bigger one. See #253.",
+					"parameters": [
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"setup_graphics_camera": {
 					"description": "Saves the player's current position and rotation, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
 					"return_type": {

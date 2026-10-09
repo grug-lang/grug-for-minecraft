@@ -1,0 +1,124 @@
+package net.grug.minecraft.core;
+
+/**
+ * The sealed room the runner builds around the player before every test.
+ *
+ * <p>Why a room at all: the sky is not a reproducible light source. Its brightness moves with the
+ * time of day, which a run reaches at a different tick every time, and the terrain and canopy above
+ * a fixture shade it unevenly, so a world screenshot taken under it lands on different lighting
+ * bands from run to run. Inside the room there is no sky light at all: the torches are the only
+ * light, and block light does not change with the world clock. See #253.
+ *
+ * <p>The room is a hollow box of stone with a torch on every floor tile but the player's column, so
+ * the light level is the same across the whole floor. The floor itself sits three blocks below the
+ * player's feet and the player stands on a single block at their own level: a torch's smoke rises a
+ * couple of blocks, and from a floor at the player's feet it would drift into a capture, while from
+ * three blocks down it stays out of frame and its light still reaches the fixture around the block
+ * the player stands on.
+ *
+ * <p>The inside is cleared to air, so whatever terrain, leaves or earlier fixtures were there do
+ * not block the torch light or show in a capture. It is cleared top down, so a plant whose support
+ * is also inside the room is cleared before the support is: the other order pops it off as an item,
+ * which the player then picks up. The walls reach below the floor, so no sky light leaks in under
+ * them.
+ *
+ * <p>It is built before every test with {@link #DEFAULT_RADIUS}, and again whenever a test asks for
+ * a different one through {@code Test.set_box_radius}, because a fixture that reaches further than
+ * the default room needs a bigger one around it.
+ */
+public final class GrugTestBox {
+    /**
+     * The room's half-size in blocks. The default is a 7x7x7 room, small enough that rebuilding it
+     * before every test is cheap and that a test's fixture at one of the usual offsets lands
+     * outside it.
+     */
+    public static final int DEFAULT_RADIUS = 3;
+
+    /** How far below the player's feet the torch floor sits, in blocks. */
+    private static final int TORCH_FLOOR_DEPTH = 4;
+
+    private GrugTestBox() {}
+
+    /**
+     * Builds the room, centred on the player's feet.
+     *
+     * <p>The feet, rather than the eye, are the anchor: the block the player stands on goes in the
+     * block under them, so the player does not move when it replaces the ground they were standing
+     * on. A caller that knows only the eye height has to subtract it first, which is what each
+     * adapter's version of {@link ModLoaderAdapter#buildTestBox(int)} does.
+     */
+    public static void build(
+            ModLoaderAdapter adapter,
+            Object level,
+            double feetX,
+            double feetY,
+            double feetZ,
+            int radius) {
+        int px = (int) Math.floor(feetX);
+        int py = (int) Math.floor(feetY);
+        int pz = (int) Math.floor(feetZ);
+
+        int minX = px - radius;
+        int maxX = px + radius;
+        int minZ = pz - radius;
+        int maxZ = pz + radius;
+        int ceilingY = py + 2 * radius + 1;
+        int torchFloorY = py - TORCH_FLOOR_DEPTH;
+        int torchY = torchFloorY + 1;
+        // Below the floor by more than the room is wide, so a slope or a dip just outside the wall
+        // cannot leave a gap under it for the sky light to pour through.
+        int wallBottomY = Math.min(py - radius - 1, torchFloorY);
+
+        // The inside first, so the shell is not part of what gets cleared. Only blocks that are not
+        // already air are replaced: that is most of the work on the first test and almost none on
+        // the tests after it. Top down, so a plant whose support is also inside the room is cleared
+        // before the support is: the other order pops it off as an item, which the player then
+        // picks up and carries into later captures.
+        for (int y = ceilingY - 1; y >= torchY; y--) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    if (!adapter.isAir(level, x, y, z)) {
+                        adapter.placeBlock(level, x, y, z, "minecraft:air");
+                    }
+                }
+            }
+        }
+
+        // The torch floor, and the single block the player stands on. The floor goes in below the
+        // player's feet, so the light comes up around the block they stand on and their feet stay
+        // where they are.
+        for (int z = minZ; z <= maxZ; z++) {
+            for (int x = minX; x <= maxX; x++) {
+                adapter.placeBlock(level, x, torchFloorY, z, "minecraft:stone");
+            }
+        }
+        adapter.placeBlock(level, px, py - 1, pz, "minecraft:stone");
+
+        for (int y = wallBottomY; y <= ceilingY; y++) {
+            for (int z = minZ - 1; z <= maxZ + 1; z++) {
+                adapter.placeBlock(level, minX - 1, y, z, "minecraft:stone");
+                adapter.placeBlock(level, maxX + 1, y, z, "minecraft:stone");
+            }
+            for (int x = minX - 1; x <= maxX + 1; x++) {
+                adapter.placeBlock(level, x, y, minZ - 1, "minecraft:stone");
+                adapter.placeBlock(level, x, y, maxZ + 1, "minecraft:stone");
+            }
+        }
+
+        for (int z = minZ - 1; z <= maxZ + 1; z++) {
+            for (int x = minX - 1; x <= maxX + 1; x++) {
+                adapter.placeBlock(level, x, ceilingY, z, "minecraft:stone");
+            }
+        }
+
+        // A torch on every floor tile, so the floor's light level is the same everywhere. The
+        // player's column is left clear: a torch under the block they stand on would be boxed in.
+        for (int z = minZ; z <= maxZ; z++) {
+            for (int x = minX; x <= maxX; x++) {
+                if (x != px || z != pz) {
+                    adapter.placeBlock(level, x, torchY, z, "minecraft:torch");
+                }
+            }
+        }
+    }
+}

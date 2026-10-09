@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
@@ -316,6 +317,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
+    public void buildTestBox(int radius) {
+        Player player = (Player) testPlayer();
+        if (player == null) return;
+        GrugTestBox.build(this, getLevel(), player.getX(), player.getY(), player.getZ(), radius);
+    }
+
+    @Override
     public void roundTripNbt(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
         Level level = be.getLevel();
@@ -475,9 +484,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
         ResourceLocation id =
                 new ResourceLocation(
                         blockName.contains(":") ? blockName : "minecraft:" + blockName);
-        // The canonical name table already answers under the name this loader spells a block with,
-        // so resolveBlock is the whole lookup. See #58.
-        Block targetBlock = resolveBlock(id);
+        // air cannot go through resolveBlock: Forge's registry answers AIR for a name it does not
+        // know, so air and "not a block" are the same answer there. Placing air is how a test
+        // removes a block, so it skips the lookup and is placed like any other block.
+        Block targetBlock = id.getPath().equals("air") ? Blocks.AIR : resolveBlock(id);
 
         if (targetBlock == null) {
             // A name that resolves nowhere is a defect in the mod, not a block to skip: it would

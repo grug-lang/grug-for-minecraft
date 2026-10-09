@@ -63,8 +63,17 @@ public class GrugTestRunner {
                 }
             };
 
+    /**
+     * Builds the room a test runs in. A seam like {@link TestEntityOps}: the unit tests drive the
+     * runner without a game to build anything in.
+     */
+    public interface TestBoxBuilder {
+        void build(int radius);
+    }
+
     private final TestEntityOps ops;
     private final LongSupplier clock;
+    private final TestBoxBuilder boxBuilder;
     private final List<Map.Entry<String, Long>> tests;
     private final int totalCount;
 
@@ -92,17 +101,20 @@ public class GrugTestRunner {
         this(
                 Grug.fileIds,
                 GrugScreenshots.validateReferenceTrees(
-                        GrugCore.getAdapter().getGrugModsDirectory()));
+                        GrugCore.getAdapter().getGrugModsDirectory()),
+                NATIVE_OPS,
+                System::nanoTime,
+                radius -> GrugCore.getAdapter().buildTestBox(radius));
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
     public GrugTestRunner(Map<String, Long> fileIds, List<String> referenceErrors) {
-        this(fileIds, referenceErrors, NATIVE_OPS);
+        this(fileIds, referenceErrors, NATIVE_OPS, System::nanoTime, radius -> {});
     }
 
     public GrugTestRunner(
             Map<String, Long> fileIds, List<String> referenceErrors, TestEntityOps ops) {
-        this(fileIds, referenceErrors, ops, System::nanoTime);
+        this(fileIds, referenceErrors, ops, System::nanoTime, radius -> {});
     }
 
     /**
@@ -115,8 +127,22 @@ public class GrugTestRunner {
             List<String> referenceErrors,
             TestEntityOps ops,
             LongSupplier clock) {
+        this(fileIds, referenceErrors, ops, clock, radius -> {});
+    }
+
+    /**
+     * Visible for tests: the same, with the room builder the loaders wire to the game. The other
+     * constructors build no room, because a unit test has no world to build one in.
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock,
+            TestBoxBuilder boxBuilder) {
         this.ops = ops;
         this.clock = clock;
+        this.boxBuilder = boxBuilder;
 
         // A run refuses to start on a malformed screenshots/ tree. This is the same check CI hits,
         // so an author sees every violation locally before it ever reaches a pull request.
@@ -413,6 +439,11 @@ public class GrugTestRunner {
         Grug.testExpectedError = null;
         Grug.testFidelityOverride = null;
         Grug.testOrigin = null;
+
+        // Before the test's first tick, so a fixture it places at tick 0 lands inside the room. A
+        // test whose fixture reaches further than the default room calls Test.set_box_radius at the
+        // top of its setup, which rebuilds the room at the radius it asks for.
+        boxBuilder.build(GrugTestBox.DEFAULT_RADIUS);
         return true;
     }
 

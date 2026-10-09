@@ -10,6 +10,7 @@ import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.minecraft.client.Minecraft;
+import net.minecraft.src.GrugTorchFlicker;
 import net.minecraft.src.GuiIngameMenu;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
@@ -280,6 +281,13 @@ public class GrugClientHooks implements ITickHandler {
 
     /** The frame, for the work that has to happen before one is drawn. */
     private void renderTick(Minecraft minecraft) {
+        // The lightmap multiplies a random walk into the block-light color (see GrugTorchFlicker),
+        // so pin it on every frame a run draws: the value the game picked this tick would otherwise
+        // make the same scene a light step brighter or darker than another run's capture of it.
+        if (testRunner != null) {
+            GrugTorchFlicker.pin(minecraft.entityRenderer);
+        }
+
         // The title screen is a GUI and has no world yet, so the game tick never fires there; this
         // is what notices the title screen and kicks off the CI world load.
         if ("true".equals(System.getenv("GRUG_CI"))

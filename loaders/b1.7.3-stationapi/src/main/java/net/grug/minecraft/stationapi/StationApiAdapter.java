@@ -3,6 +3,7 @@ package net.grug.minecraft.stationapi;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
@@ -332,6 +333,18 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return mc.player;
     }
 
+    @Override
+    @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
+    public void buildTestBox(int radius) {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
+        // y is the eye reference in this version, so the feet come from the collision box. The room
+        // is anchored to the feet: built around the eye, the block the player stands on lands
+        // inside
+        // their legs, they fall through it, and every test drops them a little further.
+        GrugTestBox.build(this, getLevel(), player.x, player.boundingBox.minY, player.z, radius);
+    }
+
     /**
      * Refuses the two handles on a dedicated server until #165 gives this loader a server-side
      * adapter, and says whether it refused.
@@ -502,39 +515,47 @@ public class StationApiAdapter implements ModLoaderAdapter {
     private void placeBlockIn(World world, double x, double y, double z, String blockName) {
         Identifier id =
                 Identifier.of(blockName.contains(":") ? blockName : "minecraft:" + blockName);
-        // StationAPI registers a name for some vanilla blocks that means a different block than it
-        // does elsewhere (its redstone_torch is the unlit torch, while the other four loaders call
-        // the lit one that), so the table is consulted before the registry rather than after it:
-        // the name a script wrote often does resolve here, just to the wrong block. A grug block
-        // keeps its own namespace, so it never goes through the table.
-        Block targetBlock =
-                isVanilla(blockName)
-                        ? BlockRegistry.INSTANCE.get(
-                                Identifier.of("minecraft:" + localName(id.getPath())))
-                        : null;
-        if (targetBlock == null) {
-            targetBlock = BlockRegistry.INSTANCE.get(id);
-        }
 
-        if (targetBlock == null) {
-            // A name that resolves nowhere is a defect in the mod, not a block to skip: it would
-            // leave the mod building against a block it never got, which is the cross loader
-            // mismatch the canonical name table exists to remove. The host function error is the
-            // report, so there is no second log line.
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "place_block: Could not resolve block " + blockName);
-            return;
+        // air is the one name the registry cannot answer for the same reason the others cannot:
+        // there is no air block in this version, air is block id 0. Placing it is how a test
+        // removes a block, so it skips the lookup and is placed like any other block.
+        int blockId = 0;
+        if (!id.getPath().equals("air")) {
+            // StationAPI registers a name for some vanilla blocks that means a different block than
+            // it does elsewhere (its redstone_torch is the unlit torch, while the other four
+            // loaders call the lit one that), so the table is consulted before the registry rather
+            // than after it: the name a script wrote often does resolve here, just to the wrong
+            // block. A grug block keeps its own namespace, so it never goes through the table.
+            Block targetBlock =
+                    isVanilla(blockName)
+                            ? BlockRegistry.INSTANCE.get(
+                                    Identifier.of("minecraft:" + localName(id.getPath())))
+                            : null;
+            if (targetBlock == null) {
+                targetBlock = BlockRegistry.INSTANCE.get(id);
+            }
+
+            if (targetBlock == null) {
+                // A name that resolves nowhere is a defect in the mod, not a block to skip: it
+                // would leave the mod building against a block it never got, which is the cross
+                // loader mismatch the canonical name table exists to remove. The host function
+                // error is the report, so there is no second log line.
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr, "place_block: Could not resolve block " + blockName);
+                return;
+            }
+            blockId = targetBlock.id;
         }
 
         int posX = (int) Math.floor(x);
         int posY = (int) Math.floor(y);
         int posZ = (int) Math.floor(z);
 
-        world.setBlock(posX, posY, posZ, targetBlock.id);
+        world.setBlock(posX, posY, posZ, blockId);
 
         // A placement that reports false because the block was already there is not a failure,
         // so the block's presence is the check rather than the return value.
-        if (world.getBlockId(posX, posY, posZ) != targetBlock.id) {
+        if (world.getBlockId(posX, posY, posZ) != blockId) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "place_block: the game did not put "
