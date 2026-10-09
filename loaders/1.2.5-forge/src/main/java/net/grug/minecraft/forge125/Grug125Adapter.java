@@ -785,6 +785,13 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isWorldSettled() {
+        // 1.2.5 does its light work inside the block write and its mesh work within the next frame
+        // or two, and its reference has never moved between runs, so there is nothing to wait for.
+        return true;
+    }
+
+    @Override
     public boolean registersModRecipes() {
         // GrugRecipeParser reads the mods' data/<namespace>/recipes tree in modsLoaded and hands
         // each recipe to ModLoader.addRecipe or addShapelessRecipe.

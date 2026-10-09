@@ -186,6 +186,15 @@ public interface ModLoaderAdapter {
     boolean isWorldReady(Object playerObj);
 
     /**
+     * Whether the client has finished the light updates and chunk rebuilds that placing a fixture
+     * set off. The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild
+     * can run while a light update is still settling, so a capture taken too early can land a light
+     * step away from the reference. Loaders whose lighting and meshing are synchronous have nothing
+     * to wait for and answer true.
+     */
+    boolean isWorldSettled();
+
+    /**
      * Whether this loader registers the crafting recipes mods ship under {@code
      * data/<namespace>/recipes}.
      *

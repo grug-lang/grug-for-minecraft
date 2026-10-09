@@ -19,8 +19,16 @@ export run() {
         # is drawn, and every block placed re-lights its column for a few ticks after that. Measured
         # on the CI stack the first real frame lands between tick 16 and tick 30 depending on how
         # loaded the machine is; 60 leaves a wide margin over both, and costs 3 seconds of a
-        # 200-tick budget. Raise it rather than touch the crop rectangle if a capture ever comes out
-        # stale.
+        # 200-tick budget.
+        Test.not_done()
+    } else if not Test.world_settled() {
+        # The mesh bakes a face's per-vertex light when its section is rebuilt, and 1.20.6 rebuilds
+        # sections off-thread, so a rebuild can run while a light update is still settling: the
+        # capture then lands one light step away from the reference, in the wedge where the
+        # interpolated light crosses a rounding boundary. That is the 22-pixel band that landed in
+        # one of the five repeats. This is the wait for it: the loader reports false until its light
+        # engine and its mesh rebuilds are done, and a world that never settles runs into the test's
+        # own budget rather than capturing something that moved.
         Test.not_done()
     } else {
         _check()

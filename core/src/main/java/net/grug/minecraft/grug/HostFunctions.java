@@ -155,6 +155,18 @@ public class HostFunctions {
         GrugCore.getAdapter().buildTestBox((int) radius);
     }
 
+    /**
+     * Test only: whether the client has finished the light updates and chunk rebuilds that placing
+     * a fixture set off.
+     *
+     * <p>The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can
+     * run while a light update is still settling, so a capture taken too early can land a light
+     * step away from the reference. A screenshot test waits for this before capturing. See #253.
+     */
+    public static boolean Test_world_settled() {
+        return GrugCore.getAdapter().isWorldSettled();
+    }
+
     public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
         GrugCore.getAdapter().notifyNeighbors(Grug.entityData.get(levelId).object, x, y, z);
     }

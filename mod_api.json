@@ -317,6 +317,12 @@
 						}
 					]
 				},
+				"world_settled": {
+					"description": "Whether the client has finished the light updates and chunk rebuilds that placing a fixture set off. The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light update is still settling, so a capture taken too early can land a light step away from the reference. A screenshot test waits for this before capturing, and loaders whose lighting and meshing are synchronous always report true. See #253.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"setup_graphics_camera": {
 					"description": "Saves the player's current position and rotation, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
 					"return_type": {
