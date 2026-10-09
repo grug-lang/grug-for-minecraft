@@ -744,6 +744,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isWorldSettled() {
+        // Beta 1.7.3 does its light work inside the block write and its mesh work within the next
+        // frame or two, and its reference has never moved between runs, so there is nothing to wait
+        // for.
+        return true;
+    }
+
+    @Override
     public boolean registersModRecipes() {
         // GrugRecipeHelper registers the mods' data/<namespace>/recipes tree at startup.
         return true;

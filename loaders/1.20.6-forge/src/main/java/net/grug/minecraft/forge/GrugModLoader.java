@@ -556,6 +556,7 @@ public class GrugModLoader {
                         grug$testsRan = true;
                         if (WINDOW.beginRun()) {
                             stopTutorialForRun(mc);
+                            shrinkViewForRun(mc);
                             grug$testRunner = new GrugTestRunner();
                             grug$testRunnerFromCI = true;
                             advanceTestRunner(mc);
@@ -581,6 +582,7 @@ public class GrugModLoader {
                     grug$testRunFinished = false;
                     WINDOW.endRun();
                     restoreTutorialAfterRun(mc);
+                    restoreViewAfterRun(mc);
                 }
 
                 updateCursorReadout(mc);
@@ -626,6 +628,7 @@ public class GrugModLoader {
             // meant to count. The tick it reports a run press in is the one that starts the run.
             if (WINDOW.tick(KEYS)) {
                 stopTutorialForRun(mc);
+                shrinkViewForRun(mc);
                 grug$testRunner = new GrugTestRunner();
                 grug$testRunnerFromCI = false;
                 advanceTestRunner(mc);
@@ -657,6 +660,34 @@ public class GrugModLoader {
             if (savedTutorialStep != null) {
                 mc.getTutorial().setStep(savedTutorialStep);
                 savedTutorialStep = null;
+            }
+        }
+
+        /** The render distance a run found, put back when the run ends. */
+        private static Integer savedRenderDistance = null;
+
+        /**
+         * Shrinks the view to the smallest the game allows before a run starts.
+         *
+         * <p>A run's room is 13 blocks across, so a default view only streams in far chunks that
+         * the light engine and the section rebuilds then have to work through. On a
+         * software-rendered CI runner that work outlasts the test's tick budget, so the wait for
+         * the world to settle before a capture never finishes. See #253.
+         */
+        @GrugGenerated("dev-only: the view is shrunk for a run")
+        private static void shrinkViewForRun(Minecraft mc) {
+            if (savedRenderDistance == null) {
+                savedRenderDistance = mc.options.renderDistance().get();
+                mc.options.renderDistance().set(2);
+            }
+        }
+
+        /** Puts the render distance back, and only if a run changed it. */
+        @GrugGenerated("dev-only: the view is shrunk for a run")
+        private static void restoreViewAfterRun(Minecraft mc) {
+            if (savedRenderDistance != null) {
+                mc.options.renderDistance().set(savedRenderDistance);
+                savedRenderDistance = null;
             }
         }
 

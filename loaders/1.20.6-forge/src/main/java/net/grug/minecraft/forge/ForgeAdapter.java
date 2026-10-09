@@ -19,10 +19,13 @@ import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
@@ -585,6 +588,33 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
         return GrugWorldReady.isReady(
                 (x, y, z) -> isAir(level, x, y, z), player.getX(), player.getY(), player.getZ());
+    }
+
+    @Override
+    public boolean isWorldSettled() {
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientLevel level = minecraft.level;
+        if (level == null) {
+            return true;
+        }
+        if (level.getChunkSource().getLightEngine().hasLightWork()) {
+            return false;
+        }
+        if (!minecraft.levelRenderer.hasRenderedAllSections()) {
+            return false;
+        }
+        // A singleplayer client's light comes from the integrated server, so the server's own light
+        // engine has to be done too: its updates reach the client as packets, and the client can
+        // look idle while the server is still computing them.
+        MinecraftServer server = minecraft.getSingleplayerServer();
+        if (server != null) {
+            ServerLevel serverLevel = server.getLevel(level.dimension());
+            if (serverLevel != null
+                    && serverLevel.getChunkSource().getLightEngine().hasLightWork()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
