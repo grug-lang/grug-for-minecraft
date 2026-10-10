@@ -60,6 +60,12 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
 public class ForgeAdapter implements ModLoaderAdapter {
+    /**
+     * This loader's directory under {@code loaders/}, which names the screenshot references it
+     * produces.
+     */
+    private static final String LOADER_NAME = "1.20.6-forge";
+
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
@@ -92,6 +98,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public File getGrugModsDirectory() {
         return GrugModLoader.getActiveGrugModsDir();
+    }
+
+    @Override
+    public String getLoaderName() {
+        return LOADER_NAME;
     }
 
     @Override
@@ -821,8 +832,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
         }
 
         // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
-        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
+        // the mods root gives the reference directory on disk. That directory holds PNGs named
+        // after the loaders that produced them, and the assertion passes if the capture matches
+        // any of them; see GrugScreenshots.
         File referenceDirectory = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
         GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
     }

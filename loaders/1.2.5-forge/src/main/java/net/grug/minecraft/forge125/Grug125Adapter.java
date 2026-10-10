@@ -52,12 +52,18 @@ import java.util.Map;
 public class Grug125Adapter implements ModLoaderAdapter {
 
     /**
+     * This loader's directory under {@code loaders/}, which names the screenshot references it
+     * produces.
+     */
+    private static final String LOADER_NAME = "1.2.5-forge";
+
+    /**
      * This loader's column of the canonical vanilla block name table, so a mod naming a block gets
      * the same block here as it would on every other loader. It matters more here than elsewhere:
      * 1.2.5 spells most blocks with MCP field names that resolve nowhere else.
      */
     private static final GrugVanillaBlocks.Loader CANONICAL_BLOCKS =
-            GrugVanillaBlocks.forLoader("1.2.5-forge");
+            GrugVanillaBlocks.forLoader(LOADER_NAME);
 
     /**
      * Always a client, and not because anything registers this mod client-side only: FML 1.2.5's
@@ -88,6 +94,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public File getGrugModsDirectory() {
         return mod_Grug.getActiveGrugModsDir(new File(gameDir(), "grug_mods"));
+    }
+
+    @Override
+    public String getLoaderName() {
+        return LOADER_NAME;
     }
 
     @Override
@@ -964,8 +975,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
         }
 
         // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
-        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
+        // the mods root gives the reference directory on disk. That directory holds PNGs named
+        // after the loaders that produced them, and the assertion passes if the capture matches
+        // any of them; see GrugScreenshots.
         File referenceDirectory = new File(getGrugModsDirectory(), referencePath);
         GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
     }

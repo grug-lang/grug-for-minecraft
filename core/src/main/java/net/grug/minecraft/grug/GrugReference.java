@@ -58,9 +58,10 @@ public final class GrugReference {
 
     /**
      * Whether this run accepts new screenshot goldens instead of failing on a miss. An explicit,
-     * reviewable update: an unmatched capture is written into the mod's reference directory as the
-     * next number, so it lands in the working tree for the author to inspect and commit. CI does
-     * not set this, so a normal run never writes a golden, and the accept still happens through the
+     * reviewable update: an unmatched capture is written into the mod's reference directory under
+     * the running loader's own name, replacing that loader's previous reference when the rendering
+     * changed, so it lands in the working tree for the author to inspect and commit. CI does not
+     * set this, so a normal run never writes a golden, and the accept still happens through the
      * same comparison the verifier uses.
      */
     public static boolean isUpdateGoldens() {

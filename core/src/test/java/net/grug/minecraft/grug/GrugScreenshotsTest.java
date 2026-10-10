@@ -13,6 +13,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import javax.imageio.ImageIO;
+
 /**
  * Covers the {@code screenshots/} tree convention enforced by {@link
  * GrugScreenshots#validateReferenceTrees(java.io.File)}, and the share-of-pixels-changed measure
@@ -20,12 +22,24 @@ import java.util.List;
  */
 class GrugScreenshotsTest {
 
+    /** The name of a loader under {@code loaders/}, so a reference may carry it. */
+    private static final String LOADER = "b1.7.3-ornithe";
+
+    /** A second loader name, for a directory that holds two references. */
+    private static final String OTHER_LOADER = "1.2.5-forge";
+
     @TempDir Path mods;
 
     private void touch(String relativePath) throws IOException {
         Path path = mods.resolve(relativePath);
         Files.createDirectories(path.getParent());
         Files.createFile(path);
+    }
+
+    private void writePng(String relativePath, BufferedImage image) throws IOException {
+        Path path = mods.resolve(relativePath);
+        Files.createDirectories(path.getParent());
+        ImageIO.write(image, "png", path.toFile());
     }
 
     private List<String> validate() {
@@ -38,24 +52,34 @@ class GrugScreenshotsTest {
         assertTrue(errors.get(0).contains(fragment), errors.get(0));
     }
 
+    /** A solid image, so a test can say which pixels it repainted. */
+    private static BufferedImage solid(int width, int height, int rgb) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                image.setRGB(x, y, rgb);
+            }
+        }
+        return image;
+    }
+
     @Test
-    void acceptsDenseOneBasedReferences() throws IOException {
-        touch("mymod/screenshots/table/1.png");
-        touch("mymod/screenshots/table/2.png");
-        touch("mymod/screenshots/table/3.png");
+    void acceptsLoaderNamedReferences() throws IOException {
+        writePng("mymod/screenshots/table/" + LOADER + ".png", solid(2, 2, 0x101010));
+        writePng("mymod/screenshots/table/" + OTHER_LOADER + ".png", solid(2, 2, 0x202020));
         assertEquals(List.of(), validate());
     }
 
     @Test
     void acceptsNestedGroups() throws IOException {
-        touch("mymod/screenshots/gui/table/1.png");
-        touch("mymod/screenshots/gui/chest/1.png");
+        writePng("mymod/screenshots/gui/table/" + LOADER + ".png", solid(2, 2, 0));
+        writePng("mymod/screenshots/gui/chest/" + OTHER_LOADER + ".png", solid(2, 2, 0));
         assertEquals(List.of(), validate());
     }
 
     @Test
     void acceptsScreenshotsDirectoryItselfAsAReference() throws IOException {
-        touch("mymod/screenshots/1.png");
+        writePng("mymod/screenshots/" + LOADER + ".png", solid(2, 2, 0));
         assertEquals(List.of(), validate());
     }
 
@@ -66,56 +90,99 @@ class GrugScreenshotsTest {
     }
 
     @Test
-    void rejectsZeroAsAReferenceNumber() throws IOException {
-        touch("mymod/screenshots/table/0.png");
-        assertSingleErrorContaining("0.png");
+    void rejectsANumberedReference() throws IOException {
+        touch("mymod/screenshots/table/1.png");
+        assertSingleErrorContaining("1.png");
     }
 
     @Test
-    void rejectsALeadingZero() throws IOException {
-        touch("mymod/screenshots/table/01.png");
-        assertSingleErrorContaining("01.png");
+    void rejectsANameThatIsNotALoader() throws IOException {
+        writePng("mymod/screenshots/table/b1.7.3-forge.png", solid(2, 2, 0));
+        assertSingleErrorContaining("b1.7.3-forge.png");
+    }
+
+    @Test
+    void rejectsACapitalizedLoaderName() throws IOException {
+        writePng("mymod/screenshots/table/B1.7.3-ornithe.png", solid(2, 2, 0));
+        assertSingleErrorContaining("B1.7.3-ornithe.png");
     }
 
     @Test
     void rejectsAnUppercaseExtension() throws IOException {
-        touch("mymod/screenshots/table/1.PNG");
-        assertSingleErrorContaining("1.PNG");
+        writePng("mymod/screenshots/table/" + LOADER + ".PNG", solid(2, 2, 0));
+        assertSingleErrorContaining(LOADER + ".PNG");
+    }
+
+    @Test
+    void rejectsANameWithoutThePngExtension() throws IOException {
+        touch("mymod/screenshots/table/" + LOADER);
+        assertSingleErrorContaining(LOADER);
     }
 
     @Test
     void rejectsANonPngFile() throws IOException {
-        touch("mymod/screenshots/table/1.png");
+        writePng("mymod/screenshots/table/" + LOADER + ".png", solid(2, 2, 0));
         touch("mymod/screenshots/table/README.md");
         assertSingleErrorContaining("README.md");
     }
 
     @Test
-    void rejectsAGapInTheNumbering() throws IOException {
-        touch("mymod/screenshots/table/1.png");
-        touch("mymod/screenshots/table/3.png");
-        assertSingleErrorContaining("missing 2.png");
-    }
-
-    @Test
     void rejectsMixingReferencesWithASubdirectory() throws IOException {
-        touch("mymod/screenshots/table/1.png");
-        touch("mymod/screenshots/table/sub/1.png");
+        writePng("mymod/screenshots/table/" + LOADER + ".png", solid(2, 2, 0));
+        writePng("mymod/screenshots/table/sub/" + OTHER_LOADER + ".png", solid(2, 2, 0));
         List<String> errors = validate();
         assertTrue(errors.stream().anyMatch(error -> error.contains("mixes")), errors.toString());
     }
 
     @Test
-    void reportsAnUnparseablyLargeNumberInsteadOfThrowing() throws IOException {
-        touch("mymod/screenshots/table/9999999999.png");
-        assertSingleErrorContaining("9999999999.png");
+    void rejectsTwoPixelIdenticalReferences() throws IOException {
+        writePng("mymod/screenshots/table/" + LOADER + ".png", solid(2, 2, 0x102030));
+        writePng("mymod/screenshots/table/" + OTHER_LOADER + ".png", solid(2, 2, 0x102030));
+        assertSingleErrorContaining(OTHER_LOADER + ".png and " + LOADER + ".png");
+    }
+
+    @Test
+    void acceptsTwoReferencesThatDiffer() throws IOException {
+        writePng("mymod/screenshots/table/" + LOADER + ".png", solid(2, 2, 0x102030));
+        writePng("mymod/screenshots/table/" + OTHER_LOADER + ".png", solid(2, 2, 0x102031));
+        assertEquals(List.of(), validate());
+    }
+
+    @Test
+    void acceptsReferencesOfDifferentSizes() throws IOException {
+        writePng("mymod/screenshots/table/" + LOADER + ".png", solid(2, 2, 0x102030));
+        // A different width, and a different height at the same width, so both halves of the size
+        // check decide for some pair rather than the width short-circuiting every time.
+        writePng("mymod/screenshots/table/" + OTHER_LOADER + ".png", solid(3, 2, 0x102030));
+        writePng("mymod/screenshots/table/a1.1.2_01-ornithe.png", solid(2, 3, 0x102030));
+        assertEquals(List.of(), validate());
+    }
+
+    @Test
+    void reportsEveryIdenticalPair() throws IOException {
+        // Sorted by name, so the first file is 1.2.5-forge.png and it is the one every later
+        // identical file is reported against.
+        writePng("mymod/screenshots/table/a1.1.2_01-ornithe.png", solid(2, 2, 0x102030));
+        writePng("mymod/screenshots/table/b1.7.3-ornithe.png", solid(2, 2, 0x102030));
+        writePng("mymod/screenshots/table/1.2.5-forge.png", solid(2, 2, 0x102030));
+        List<String> errors = validate();
+        assertEquals(2, errors.size(), errors.toString());
+        assertTrue(
+                errors.get(0).contains("1.2.5-forge.png and a1.1.2_01-ornithe.png"), errors.get(0));
+        assertTrue(errors.get(1).contains("1.2.5-forge.png and b1.7.3-ornithe.png"), errors.get(1));
+    }
+
+    @Test
+    void rejectsAReferenceThatCannotBeRead() throws IOException {
+        touch("mymod/screenshots/table/" + LOADER + ".png");
+        assertSingleErrorContaining("could not be read");
     }
 
     @Test
     void reportsEveryViolationAcrossMods() throws IOException {
-        touch("one/screenshots/table/0.png");
-        touch("two/screenshots/chest/1.png");
-        touch("two/screenshots/chest/3.png");
+        writePng("one/screenshots/table/0.png", solid(2, 2, 0));
+        writePng("two/screenshots/chest/" + LOADER + ".png", solid(2, 2, 0));
+        writePng("two/screenshots/chest/" + OTHER_LOADER + ".png", solid(2, 2, 0));
         List<String> errors = validate();
         assertEquals(2, errors.size(), errors.toString());
         assertTrue(
@@ -130,17 +197,6 @@ class GrugScreenshotsTest {
     void treatsAMissingModsDirectoryAsEmpty() {
         assertEquals(
                 List.of(), GrugScreenshots.validateReferenceTrees(mods.resolve("nope").toFile()));
-    }
-
-    /** A solid image, so a test can say which pixels it repainted. */
-    private static BufferedImage solid(int width, int height, int rgb) {
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                image.setRGB(x, y, rgb);
-            }
-        }
-        return image;
     }
 
     @Test

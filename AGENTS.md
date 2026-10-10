@@ -90,7 +90,7 @@ behaviour undefined, and which side of the sandbox the code is on.
 | `mods/<mod>/assets/` | assets shipped with the mod |
 | `mods/<mod>/data/` | data shipped with the mod |
 | `mods/<mod>/about.json` | metadata, including the `recreation` block: reference, artifacts, runtime, deviations |
-| `mods/<mod>/screenshots/<name>/N.png` | golden references, one per distinct rendering |
+| `mods/<mod>/screenshots/<name>/<loader>.png` | golden references, named after the loader that produced them |
 | `loaders/<loader>/` | one per Minecraft version and mod loader; `src/main/java` holds its adapter |
 | `test-saves/<name>.zip` and `loaders/<loader>/test-save.txt` | the world a loader's tests start from |
 | `.github/scripts/run-loader.sh` | the only supported way to run a loader |
@@ -138,17 +138,19 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   or was pruned by a later publish, which keeps only the current commit's core.
 - The suite fails fast at the first `[GRUG CI] FAIL`. To verify tests that run after a known
   failure, temporarily copy the capture from
-  `loaders/<loader>/run/grug-screenshot-artifacts/<mod>/screenshots/<name>/N.png` into the golden
-  directory as the next number, re-run, then delete it.
-- `update-goldens` accepts an unmatched capture as the next number and never overwrites one.
-  Goldens are per distinct rendering, not per loader.
+  `loaders/<loader>/run/grug-screenshot-artifacts/<mod>/screenshots/<name>/<loader>.png` over that
+  loader's reference, re-run, then restore the reference with `git checkout`.
+- `update-goldens` accepts an unmatched capture as `<loader>.png`, replacing that loader's own
+  previous reference when its rendering changed, and never touches another loader's file. A
+  rendering two loaders share is one file.
 - A locally accepted reference is not proof that CI accepts it. A GUI capture (the autocrafting
   table panel) is the same locally and on the runners, but a world capture is not: the
   `coverage_render` crop differs between a local run and CI by a one or two channel step band
   across the wall, so a reference generated locally can fail every CI loader job. For a world
   capture, take the failing job's artifact instead: `gh run download <run-id> --name
-  loader-<loader>-screenshots`, which holds the capture at `coverage/screenshots/<name>/N.png`.
-  Review the PNG, and delete any local reference it replaces.
+  loader-<loader>-screenshots`, which holds the capture at
+  `coverage/screenshots/<name>/<loader>.png`. Review the PNG, and delete any local reference it
+  replaces.
 - Coverage must stay at 100% on `core`. Loader UI/GL classes are excluded by
   `.github/scripts/combine-coverage.py`.
 - Coverage for a host function comes from a real game run first: a committed mod's own path if it
