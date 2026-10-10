@@ -27,6 +27,11 @@ package net.grug.minecraft.core;
  * <p>It is built before every test with {@link #DEFAULT_RADIUS}, and again whenever a test asks for
  * a different one through {@code Test.set_box_radius}, because a fixture that reaches further than
  * the default room needs a bigger one around it.
+ *
+ * <p>The build clears the whole test area, not just the room's box: {@link #AREA_RADIUS} blocks
+ * around the player and {@link #AREA_TOP} above their feet, which covers the bands the tests build
+ * their fixtures in. That is what lets every test start from the same empty world instead of from
+ * what an earlier test, or an earlier suite pass, left behind. See #254.
  */
 public final class GrugTestBox {
     /**
@@ -35,6 +40,19 @@ public final class GrugTestBox {
      * outside it.
      */
     public static final int DEFAULT_RADIUS = 3;
+
+    /**
+     * The test area's half-size in blocks. Every fixture the suite builds is within this of the
+     * player, so clearing the area removes what an earlier test left and no test has to compensate.
+     */
+    private static final int AREA_RADIUS = 16;
+
+    /**
+     * How far above the player's feet the test area reaches: the top band's fixtures are at +50,
+     * and an item dropped on one of them rests a fraction of a block above it, so the top has to
+     * clear the fixture's own block, not just the band.
+     */
+    private static final int AREA_TOP = 56;
 
     /** How far below the player's feet the torch floor sits, in blocks. */
     private static final int TORCH_FLOOR_DEPTH = 4;
@@ -71,13 +89,19 @@ public final class GrugTestBox {
         // cannot leave a gap under it for the sky light to pour through.
         int wallBottomY = Math.min(py - radius - 1, torchFloorY);
 
-        // The whole box the room will occupy, cleared first and top down, so a plant is cleared
-        // before the block it stands on: the other order pops it off as an item, which the player
-        // then picks up and carries into later captures. Only blocks that are not already air are
-        // replaced.
-        for (int y = ceilingY; y >= wallBottomY; y--) {
-            for (int z = minZ - 1; z <= maxZ + 1; z++) {
-                for (int x = minX - 1; x <= maxX + 1; x++) {
+        // The whole test area is cleared first, top down, so a plant is cleared before the block it
+        // stands on: the other order pops it off as an item, which the player then picks up and
+        // carries into later captures. The area reaches past the room's box to the bands the tests
+        // build their fixtures in, so every test starts from the same empty world. Only blocks that
+        // are not already air are replaced.
+        int areaMinX = px - AREA_RADIUS;
+        int areaMaxX = px + AREA_RADIUS;
+        int areaMinZ = pz - AREA_RADIUS;
+        int areaMaxZ = pz + AREA_RADIUS;
+        int areaTopY = py + AREA_TOP;
+        for (int y = areaTopY; y >= wallBottomY; y--) {
+            for (int z = areaMinZ; z <= areaMaxZ; z++) {
+                for (int x = areaMinX; x <= areaMaxX; x++) {
                     clearBlock(adapter, level, x, y, z);
                 }
             }
@@ -124,14 +148,11 @@ public final class GrugTestBox {
             }
         }
 
-        // The items go last, once the room is sealed again: whatever the block clearing freed,
-        // including the roof an earlier test's drop was resting on, and whatever else is inside.
-        // The player picks up anything that lands near them, and an item in the hotbar shows in
-        // every capture that has one in frame. The ceiling is back by this point, so an item still
-        // above the box settles on the roof rather than falling into the room behind the sweep. See
-        // #254.
+        // The items go last, once the room is sealed again: whatever the block clearing freed and
+        // whatever else is in the area. The player picks up anything that lands near them, and an
+        // item in the hotbar shows in every capture that has one in frame. See #254.
         adapter.clearItemEntities(
-                level, minX - 1, wallBottomY, minZ - 1, maxX + 1, ceilingY, maxZ + 1);
+                level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
     }
 
     /** Clears one block to air, unless it is already air. */

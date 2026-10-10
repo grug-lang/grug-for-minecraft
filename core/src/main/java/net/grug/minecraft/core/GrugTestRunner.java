@@ -497,6 +497,9 @@ public class GrugTestRunner {
 
     /** Reports a failure, aborts the whole run, and cleans up. */
     private void fail(String path, String msg) {
+        for (String line : Grug.printQueue) {
+            System.out.println("[GRUG CI] pending: " + line);
+        }
         Grug.printQueue.clear();
 
         System.out.println("[GRUG CI] FAIL " + path);

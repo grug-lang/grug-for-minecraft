@@ -277,9 +277,10 @@ the branch after a rebase: the test count changes. Take the baseline from
 
 - `run()` is called once per game tick. `Test.not_done()` keeps the test alive; returning without
   it ends the test.
-- `Test.get_origin()` is the player's position plus 3. Fixtures are built in bands above it, and
-  they are left behind for later tests, so pick a free band. The pipe tests use +25, +35, +40,
-  +45 and +50.
+- `Test.get_origin()` is the player's position plus 3. Fixtures are built in bands above it; the
+  room build clears the whole test area (the room's box plus the bands, 16 blocks around the player
+  and 56 above their feet) before every test, so fixtures are not left behind for a later test or a
+  later suite pass, and a test must not compensate for what an earlier one did.
 - The bands are measured from the player, so their absolute height depends on where the player
   spawns, and both Alpha and Beta 1.7.3 cap the world at 128 blocks. `test-saves/b1.7.3.zip` puts
   the player on a column whose surface is y=70, so the top band lands at y=124 there. A new band

@@ -722,7 +722,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         }
         for (ItemEntity item : toRemove) {
-            item.remove();
+            // remove() only marks the entity dead; the immediate one takes it out of the world's
+            // entity lists, which is what a query in the same tick needs to miss it.
+            world.removeEntityNow(item);
         }
     }
 

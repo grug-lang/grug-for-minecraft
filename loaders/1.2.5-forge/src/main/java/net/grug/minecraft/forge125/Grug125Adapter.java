@@ -499,6 +499,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
         }
         for (EntityItem item : toRemove) {
             item.setDead();
+            // setDead() alone leaves the entity in the loaded list until the world's own update,
+            // which runs after the runner's tick, so a test that queries in the same tick would
+            // still see it. Do the rest of the removal here, the way World.updateEntities does.
+            if (item.addedToChunk) {
+                world.getChunkFromChunkCoords(item.chunkCoordX, item.chunkCoordZ)
+                        .removeEntity(item);
+            }
+            world.loadedEntityList.remove(item);
         }
     }
 

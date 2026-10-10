@@ -19,8 +19,7 @@ local _turn_setup() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    # The straight-pipe test runs first at the same origin and leaves its chests there, so this
-    # test works a clear band above it instead of pulling from a leftover chest.
+    # The straight-pipe test runs first at the same origin, so this test works a different band.
     y: number = origin.y() + 35
     z: number = origin.z()
 

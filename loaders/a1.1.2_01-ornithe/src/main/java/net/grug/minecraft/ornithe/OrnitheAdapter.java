@@ -761,7 +761,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         }
         for (ItemEntity item : toRemove) {
+            // The world's entity list is what the queries and the world's own update walk, so
+            // taking the entity out of it here is what makes a query in the same tick miss it.
+            // Alpha has no immediate removal method; remove() is its dead flag.
             item.remove();
+            world.entities.remove(item);
         }
     }
 
