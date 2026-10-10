@@ -1,0 +1,5 @@
+# set_light_emission rejects a level that is not a whole number.
+export run() {
+    Test.expect_error("whole number from 0 to 15")
+    set_light_emission(1.5)
+}

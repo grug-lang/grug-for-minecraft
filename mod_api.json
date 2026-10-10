@@ -1727,6 +1727,17 @@
 				}
 			]
 		},
+		"set_light_emission": {
+			"description": "Sets how much light the block emits: a whole number from 0 to 15, the way glowstone emits 15. A block that emits the maximum lights every neighbouring air block at one level, which is what lets a screenshot test's fixture have a uniform crop with no light contour for a stale update to land on the wrong side of. See #262.",
+			"parameters": [
+				{
+					"name": "level",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"take_crafting_result": {
 			"description": "Takes part of a block entity's crafting result. The result is not an inventory slot: a grug block entity holds it in a dedicated container, and a reference tile computes it on demand.",
 			"return_type": {
