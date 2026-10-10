@@ -96,9 +96,12 @@ public class GrugModLoader {
      * below this size means a compile is in flight. The settle answer needs that phase: {@code
      * LevelRenderer.hasRenderedAllSections}, the queue check alone it used to rest on, counts
      * queued and finished compiles only, so it can say yes while a worker is still compiling the
-     * section a capture is about to read. See #259.
+     * section a capture is about to read. It is volatile because the mixin writes it on the client
+     * thread while the settle answer reads it on the integrated server thread: the write happens
+     * before that thread starts today, but nothing in the code says the pool is only built once,
+     * and a stale 0 would never let the wait succeed. See #259.
      */
-    private static int sectionBufferPoolSize = 0;
+    private static volatile int sectionBufferPoolSize = 0;
 
     public static void recordSectionBufferPoolSize(int size) {
         sectionBufferPoolSize = size;
