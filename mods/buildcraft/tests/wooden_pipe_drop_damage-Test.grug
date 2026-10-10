@@ -1,11 +1,12 @@
 # Covers the wooden pipe preserving an item's damage when it drops the item because nothing accepts it.
 pipe_drop_source: Option[BlockEntity] = Option.new()
+pipe_drop_self: Option[BlockEntity] = Option.new()
 
 export run() {
     if Test.tick() == 0 {
         _drop_setup()
         Test.not_done()
-    } else if Test.tick() < 15 {
+    } else if not _drop_pipe_has_moved() {
         Test.not_done()
     } else {
         _drop_check()
@@ -31,8 +32,11 @@ local _drop_setup() {
     level.place_block(x, y - 1, z, "grug:redstone_engine")
 
     source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    self_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     Test.assert(source_opt.has(), "The source chest should have a block entity.")
+    Test.assert(self_opt.has(), "The pipe should have a block entity.")
     pipe_drop_source.set(source_opt.unwrap())
+    pipe_drop_self.set(self_opt.unwrap())
 
     sword: Item = item(resource_location("minecraft:diamond_sword"))
     set_item_in_slot(pipe_drop_source.unwrap(), 0, sword, 1)
@@ -57,4 +61,13 @@ local _drop_check() {
         dropped: ItemEntity = found.unwrap()
         Test.assert(dropped.damage() == 7, "The dropped sword should keep its damage.")
     }
+}
+
+# The pipe has finished with the item once it has left the source chest and the pipe's own one-slot
+# buffer. Nothing accepts the item here, so that also means it is on the ground, which is what _check
+# asserts, damage and all. See #173.
+local _drop_pipe_has_moved() bool {
+    source_empty: bool = get_item_count_in_slot(pipe_drop_source.unwrap(), 0) == 0
+    pipe_empty: bool = get_item_count_in_slot(pipe_drop_self.unwrap(), 0) == 0
+    return source_empty and pipe_empty
 }

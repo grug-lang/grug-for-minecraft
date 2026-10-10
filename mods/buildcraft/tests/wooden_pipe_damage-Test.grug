@@ -7,7 +7,7 @@ export run() {
     if Test.tick() == 0 {
         _damage_setup()
         Test.not_done()
-    } else if Test.tick() < 20 {
+    } else if not _damage_pipe_has_moved() {
         Test.not_done()
     } else {
         _damage_check()
@@ -60,4 +60,13 @@ local _damage_check() {
     Test.assert(source_count == 0, "The source chest should be empty.")
     Test.assert(target_count == 1, "The target chest should hold the sword.")
     Test.assert(target_damage == 7, "The moved sword should keep its damage.")
+}
+
+# Same wait as wooden_pipe-Test.grug: the pipe has finished handling the item once it has left the
+# source chest and the pipe's own one-slot buffer, and the damage it arrived with is what _check
+# asserts. See #173.
+local _damage_pipe_has_moved() bool {
+    source_empty: bool = get_item_count_in_slot(pipe_damage_source.unwrap(), 0) == 0
+    pipe_empty: bool = get_item_count_in_slot(pipe_damage_self.unwrap(), 0) == 0
+    return source_empty and pipe_empty
 }

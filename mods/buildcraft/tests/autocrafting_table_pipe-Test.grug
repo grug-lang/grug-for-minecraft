@@ -6,10 +6,10 @@ pipe_table_table: Option[BlockEntity] = Option.new()
 pipe_table_chest: Option[BlockEntity] = Option.new()
 pipe_table_pipe: Option[BlockEntity] = Option.new()
 
-# The tick the pipe was placed on, or -1 before that. The wait after it is counted from there rather
-# than from the start of the test, so however long the table took to declare comes out of the budget
-# before the pipe gets any, not out of the pipe's.
-pipe_placed_at: number = -1
+# Whether the pipe has been placed yet. It goes in after the table has declared, which is the order a
+# player builds in, and the wait after that is for what the pipe does with the result rather than for
+# a tick count. See #173.
+pipe_is_placed: bool = false
 
 export run() {
     if Test.tick() == 0 {
@@ -21,12 +21,12 @@ export run() {
         # its placement. Waiting for the declaration beats a fixed tick count, and the pipe is placed
         # after, which is the order a player builds in.
         Test.not_done()
-    } else if pipe_placed_at < 0 {
+    } else if not pipe_is_placed {
         _check_rule()
         _setup_pipe()
-        pipe_placed_at = Test.tick()
+        pipe_is_placed = true
         Test.not_done()
-    } else if Test.tick() < pipe_placed_at + 25 {
+    } else if not _bread_has_moved() {
         Test.not_done()
     } else {
         _check()
@@ -146,4 +146,13 @@ local _check() {
     # Nothing was dropped on the way: the chest took it, and an item entity here would mean the pipe
     # gave up on the push.
     Test.assert(level.count_item_entities(x, y, z, 5) == 0, "The pipe should not have dropped anything.")
+}
+
+# The pipe moving the crafted bread into the chest is what this test observes, and the game's own tick
+# is the only clock that moves it. Waiting for the chest rather than for the table's result slot is
+# deliberate: the bug this test exists for is a pipe that drains the recipe grid, and that pipe would
+# leave the result slot filled forever, turning the failure into a wait that never converges instead
+# of the item assertion that names the wheat. See #173.
+local _bread_has_moved() bool {
+    return get_item_count_in_slot(pipe_table_chest.unwrap(), 0) > 0
 }

@@ -7,7 +7,7 @@ export run() {
     if Test.tick() == 0 {
         _turn_setup()
         Test.not_done()
-    } else if Test.tick() < 20 {
+    } else if not _turn_pipe_has_moved() {
         Test.not_done()
     } else {
         _turn_check()
@@ -57,4 +57,13 @@ local _turn_check() {
     Test.assert(source_count == 0, "The source chest should be empty.")
     Test.assert(target_count == 1, "The north chest should hold the diamond.")
     Test.assert(pipe_count == 0, "The pipe should not still be holding the diamond.")
+}
+
+# Same wait as wooden_pipe-Test.grug: the pipe has finished handling the item once it has left the
+# source chest and the pipe's own one-slot buffer; the corner it turned is what _check asserts. See
+# #173.
+local _turn_pipe_has_moved() bool {
+    source_empty: bool = get_item_count_in_slot(pipe_turn_source.unwrap(), 0) == 0
+    pipe_empty: bool = get_item_count_in_slot(pipe_turn_self.unwrap(), 0) == 0
+    return source_empty and pipe_empty
 }
