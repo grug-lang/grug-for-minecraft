@@ -129,6 +129,15 @@ public interface ModLoaderAdapter {
 
     boolean isAir(Object levelObj, double x, double y, double z);
 
+    /**
+     * Removes every item entity inside the box, which is how the items a fixture drops stop the
+     * player from picking them up and carrying them into a later capture. The room builder calls it
+     * before every test, so an item an earlier test left on the ground is gone before the next one
+     * starts. See #254.
+     */
+    void clearItemEntities(
+            Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2);
+
     double countItemEntities(Object levelObj, double x, double y, double z, double radius);
 
     void notifyNeighbors(Object levelObj, double x, double y, double z);

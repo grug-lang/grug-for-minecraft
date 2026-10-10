@@ -395,6 +395,17 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void clearItemEntities(
+            Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
+        Level world = (Level) levelObj;
+        net.minecraft.world.phys.AABB box =
+                new net.minecraft.world.phys.AABB(x1, y1, z1, x2, y2, z2);
+        for (ItemEntity item : world.getEntitiesOfClass(ItemEntity.class, box)) {
+            item.discard();
+        }
+    }
+
+    @Override
     public Object findItemEntity(Object levelObj, double x, double y, double z, double radius) {
         Level world = (Level) levelObj;
         net.minecraft.world.phys.AABB box =

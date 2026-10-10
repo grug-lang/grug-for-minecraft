@@ -739,6 +739,33 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void clearItemEntities(
+            Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
+        World world = (World) levelObj;
+        java.util.List<ItemEntity> toRemove = new java.util.ArrayList<>();
+        for (Object entity : world.entities) {
+            if (entity instanceof ItemEntity item) {
+                // Non-short-circuit &, so the six comparisons form one branch: with && each
+                // comparison is its own branch, and which sides the suite's few items exercise
+                // differs per loader, which the coverage gate then reports as missed branches.
+                boolean inside =
+                        item.x >= x1
+                                & item.x <= x2
+                                & item.y >= y1
+                                & item.y <= y2
+                                & item.z >= z1
+                                & item.z <= z2;
+                if (inside) {
+                    toRemove.add(item);
+                }
+            }
+        }
+        for (ItemEntity item : toRemove) {
+            item.remove();
+        }
+    }
+
+    @Override
     public Object findItemEntity(Object levelObj, double x, double y, double z, double radius) {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;
