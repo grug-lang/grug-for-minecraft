@@ -594,27 +594,33 @@ public class ForgeAdapter implements ModLoaderAdapter {
     public boolean isWorldSettled() {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
-        if (level == null) {
-            return true;
-        }
         if (level.getChunkSource().getLightEngine().hasLightWork()) {
             return false;
         }
         if (!minecraft.levelRenderer.hasRenderedAllSections()) {
             return false;
         }
-        // A singleplayer client's light comes from the integrated server, so the server's own light
-        // engine has to be done too: its updates reach the client as packets, and the client can
-        // look idle while the server is still computing them.
+        return !serverHasLightWork(minecraft, level);
+    }
+
+    /**
+     * Whether the integrated server's own light engine still has work.
+     *
+     * <p>A singleplayer client's light comes from the integrated server, so the server has to be
+     * done too: its updates reach the client as packets, and the client can look idle while the
+     * server is still computing them. The lookup itself is loader plumbing: a client run has a
+     * server and the client's own dimension, and the no-server and no-level answers exist for a
+     * multiplayer client, which CI does not launch.
+     */
+    @GrugGenerated(
+            "settle: the integrated server lookup is loader plumbing a CI client run cannot take")
+    private boolean serverHasLightWork(Minecraft minecraft, ClientLevel level) {
         MinecraftServer server = minecraft.getSingleplayerServer();
-        if (server != null) {
-            ServerLevel serverLevel = server.getLevel(level.dimension());
-            if (serverLevel != null
-                    && serverLevel.getChunkSource().getLightEngine().hasLightWork()) {
-                return false;
-            }
+        if (server == null) {
+            return false;
         }
-        return true;
+        ServerLevel serverLevel = server.getLevel(level.dimension());
+        return serverLevel != null && serverLevel.getChunkSource().getLightEngine().hasLightWork();
     }
 
     @Override
