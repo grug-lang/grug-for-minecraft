@@ -153,12 +153,25 @@ def gen_wrapper(
     elif resolved_return in ("string", "resource", "entity"):
         lines.append(f"    jstring res = (jstring)(*env)->CallStaticObjectMethod({full_args});")
         lines.append("    CHECK(env);")
-        lines.append("    const char* res_utf = (*env)->GetStringUTFChars(env, res, NULL);")
+        lines.append(
+            "    // CHECK cleared an exception the Java function threw, and a call that threw answers"
+        )
+        lines.append(
+            "    // NULL; GetStringUTFChars(NULL) would take the JVM down. The script carries on with"
+        )
+        lines.append(
+            "    // the empty string, the way the other return types carry on with a zero value."
+        )
+        lines.append(
+            '    const char* res_utf = res == NULL ? "" : (*env)->GetStringUTFChars(env, res, NULL);'
+        )
         lines.append(
             "    char* res_owned = strdup(res_utf); // intentionally leaked: grug borrows this pointer"
         )
-        lines.append("    (*env)->ReleaseStringUTFChars(env, res, res_utf);")
-        lines.append("    (*env)->DeleteLocalRef(env, res);")
+        lines.append("    if (res != NULL) {")
+        lines.append("        (*env)->ReleaseStringUTFChars(env, res, res_utf);")
+        lines.append("        (*env)->DeleteLocalRef(env, res);")
+        lines.append("    }")
         result_expr = "(union grug_value){._string = res_owned}"
     else:
         jni_type = {"number": "jdouble", "bool": "jboolean"}.get(resolved_return, "jlong")

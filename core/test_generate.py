@@ -79,5 +79,15 @@ class GenericBridgeExpansionTest(unittest.TestCase):
                 )
 
 
+class HostWrapperTest(unittest.TestCase):
+    def test_a_cleared_exception_is_not_read_as_a_string_result(self):
+        wrapper = generate.gen_wrapper("get_block", [], "string")
+        # CHECK prints and clears the exception a host function threw, and CallStaticObjectMethod
+        # answers NULL in that case. Reading that NULL with GetStringUTFChars would take the JVM
+        # down, so the wrapper must carry on with the empty string instead.
+        self.assertIn('res == NULL ? "" : (*env)->GetStringUTFChars(env, res, NULL)', wrapper)
+        self.assertIn("if (res != NULL) {", wrapper)
+
+
 if __name__ == "__main__":
     unittest.main()
