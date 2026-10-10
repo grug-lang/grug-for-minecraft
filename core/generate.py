@@ -574,7 +574,7 @@ def generate(mod_api: Dict[str, Any]) -> str:
             out.append(f'    grug_register_host_fn(state, "{fn["grug_name"]}", (void*){c_name});')
         else:
             out.append(
-                f'    grug_register_method(state, "{fn["grug_class"]}", "{fn["grug_method"]}", (void*){c_name});'
+                f'    grug_register_host_method(state, "{fn["grug_class"]}", "{fn["grug_method"]}", (void*){c_name});'
             )
     out.append("}")
     out.append("")
