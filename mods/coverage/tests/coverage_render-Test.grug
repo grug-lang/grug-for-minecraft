@@ -109,10 +109,11 @@ local _setup() {
     level.place_block(x + 1, y - 1.88, z + 4, "grug:coverage_render")
 
     # A wall behind it, so the shape is compared against one flat colour rather than against the
-    # room's stone. Built far larger than the crop and centred on it, for the same reason the
-    # autocrafting table test insets its crop: a silhouette edge is where two nearly-equal shades
-    # round differently between runs. Every edge of this wall falls outside the rectangle below, so
-    # what is compared is the middle of a flat face.
+    # room's stone. Built larger than the crop and centred on it, for the same reason the autocrafting
+    # table test insets its crop: a silhouette edge is where two
+    # nearly-equal shades round differently between runs. The top-right corner still reads one step
+    # below the rest and can move by one more: a pixel that sits between two shades, which no larger
+    # wall, stronger remesh, longer view or pinned time moves. See #262 and #264.
     _wall(level, x - 6, y - 9, z + 6)
 
     be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
@@ -120,7 +121,7 @@ local _setup() {
     render_block.set(be_opt.unwrap())
 }
 
-# Thirteen blocks square of grug:coverage_flat at (x0, y0, z), which covers the crop with room to
+# Thirteen blocks square of grug:coverage_flat_lit at (x0, y0, z), which covers the crop with room to
 # spare. Kept small on purpose: every block placed re-lights the columns around it for several ticks
 # afterwards, so a capture taken before that settles lands on a wall one brightness step away from
 # the reference. The level is passed in rather than reached for: grug only allows variable
@@ -130,7 +131,7 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     while wy < y0 + 13 {
         wx: number = x0
         while wx < x0 + 13 {
-            level.place_block(wx, wy, z, "grug:coverage_flat")
+            level.place_block(wx, wy, z, "grug:coverage_flat_lit")
             wx = wx + 1
         }
         wy = wy + 1
@@ -153,17 +154,16 @@ local _check() {
     # arm, which is the one thing this test exists to catch.
     # The reference directory holds one PNG per distinct rendering: the shape's own pixels are the
     # same set on every loader, and the flat background differs per version because each shades a
-    # face from its own light table. What the room removes is the run-to-run movement of the light
-    # bands, which is what the numbered references used to absorb.
+    # face from its own light table. 1.20.6 has two references: its top-right corner can round either
+    # way, and both captures are kept so a run that lands on the other side still passes. See #264.
     Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
 }
 
 # Meshes the crop's section again from the settled light by changing a block state and putting it
-# back. The wall's top-left block is outside the crop, and stone and grug:coverage_flat are both
-# opaque and unlit, so the swap changes no light and no compared pixel; what it does is dirty the
-# wall's sections and their neighbours, which is what makes the mesh read the light the wait above
-# settled. Without it the capture is a coin toss between the settled bake and one made while the
-# light was still propagating, and both are byte-identical when they happen. See #259.
+# back. The swapped block is outside the crop, and stone and grug:coverage_flat_lit look the same,
+# so the swap changes no compared pixel. It does change the light while the block is stone, and
+# that settles again: the lit block is at the maximum level, so a leftover from that change cannot
+# be brighter than the correct value. See #262.
 local _force_remesh() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
@@ -171,6 +171,6 @@ local _force_remesh() {
     y: number = origin.y()
     z: number = origin.z()
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
-    level.place_block(x - 6, y + 3, z + 6, "grug:coverage_flat")
-    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "grug:coverage_flat", "The remesh swap should have put the wall block back.")
+    level.place_block(x - 6, y + 3, z + 6, "grug:coverage_flat_lit")
+    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "grug:coverage_flat_lit", "The remesh swap should have put the wall block back.")
 }

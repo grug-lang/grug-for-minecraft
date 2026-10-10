@@ -814,6 +814,26 @@ public class HostFunctions {
                     Grug.statePtr, "set_material: Can only be called during a Block's init().");
     }
 
+    public static void set_light_emission(double level) {
+        // The level is judged before the init context, the way set_block_entity judges its name
+        // first: it is what puts each rejection in reach of a test, which the branch gate needs.
+        if (level != Math.floor(level) || level < 0 || level > 15) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "set_light_emission: the level is "
+                            + level
+                            + ", but it has to be a whole number from 0 to 15.");
+            return;
+        }
+        if (Grug.currentlyInitializingBlock == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "set_light_emission: Can only be called during a Block's init().");
+            return;
+        }
+        Grug.currentlyInitializingBlock.lightEmission = (int) level;
+    }
+
     public static double take_crafting_result(long blockEntityId, double amount) {
         return GrugCore.getAdapter()
                 .takeCraftingResult(HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount);

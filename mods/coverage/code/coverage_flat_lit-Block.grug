@@ -1,0 +1,8 @@
+# The background the custom-rendering screenshot test is compared against, at the maximum light
+# level. A crop lit at 15 is uniform and has no contour, so a light update that leaves a stale value
+# behind has no other level to land on. See #262.
+export init() {
+    set_hardness(1)
+    set_material("stone")
+    set_light_emission(15)
+}

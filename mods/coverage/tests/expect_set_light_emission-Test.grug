@@ -1,0 +1,5 @@
+# set_light_emission is only legal during a Block's init(), so calling it here must report an error.
+export run() {
+    Test.expect_error("set_light_emission")
+    set_light_emission(15)
+}
