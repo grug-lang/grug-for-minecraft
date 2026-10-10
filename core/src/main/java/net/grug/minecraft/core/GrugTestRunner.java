@@ -108,10 +108,6 @@ public class GrugTestRunner {
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
-    public GrugTestRunner(Map<String, Long> fileIds, List<String> referenceErrors) {
-        this(fileIds, referenceErrors, NATIVE_OPS, System::nanoTime, radius -> {});
-    }
-
     public GrugTestRunner(
             Map<String, Long> fileIds, List<String> referenceErrors, TestEntityOps ops) {
         this(fileIds, referenceErrors, ops, System::nanoTime, radius -> {});
