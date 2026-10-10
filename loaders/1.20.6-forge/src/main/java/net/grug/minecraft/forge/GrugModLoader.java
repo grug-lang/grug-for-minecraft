@@ -88,6 +88,26 @@ public class GrugModLoader {
         return ClientForgeEvents.grug$testRunner != null;
     }
 
+    /**
+     * The section buffer pool's size, recorded by {@link SectionBufferBuilderPoolMixin} when the
+     * pool is built, or 0 before that.
+     *
+     * <p>Each section compile a worker is running holds one of the pool's buffers, so a free count
+     * below this size means a compile is in flight. The settle answer needs that phase: {@code
+     * LevelRenderer.hasRenderedAllSections}, the queue check alone it used to rest on, counts
+     * queued and finished compiles only, so it can say yes while a worker is still compiling the
+     * section a capture is about to read. See #259.
+     */
+    private static int sectionBufferPoolSize = 0;
+
+    public static void recordSectionBufferPoolSize(int size) {
+        sectionBufferPoolSize = size;
+    }
+
+    public static int getSectionBufferPoolSize() {
+        return sectionBufferPoolSize;
+    }
+
     public static final DeferredRegister<Block> BLOCKS =
             DeferredRegister.create(ForgeRegistries.BLOCKS, MODID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
