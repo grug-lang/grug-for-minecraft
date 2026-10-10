@@ -9,20 +9,34 @@
 # background end up is worked out from where the camera setup leaves them, in _setup.
 render_block: Option[BlockEntity] = Option.new()
 
+# Whether the fixture has been meshed again from the settled light yet. See _force_remesh.
+remeshed: bool = false
+
+# How many runner ticks have passed since the swap. See the wait in run().
+remesh_ticks: number = 0
+
+# How many runner ticks in a row the world has answered settled. See the hold in run().
+settled_ticks: number = 0
+
 export run() {
     if Test.tick() == 0 {
         _setup()
         Test.not_done()
     } else if not Test.world_settled() {
-        # The mesh bakes a face's per-vertex light when its section is rebuilt, and 1.20.6 rebuilds
-        # sections off-thread, so a rebuild can run while a light update is still settling: the
-        # capture then lands one light step away from the reference, in the wedge where the
-        # interpolated light crosses a rounding boundary. That is the 22-pixel band that landed in
-        # one of the five repeats. This is the wait for it: the loader reports false until its light
-        # engine and its mesh rebuilds are done, and a world that never settles runs into the test's
-        # own budget rather than capturing something that moved. Asking from the first tick is also
-        # what exercises the answer's client-side "not yet" outcomes, which are gone by the time the
-        # floor below expires.
+        # The mesh below has to read the settled light, so the wait comes first: the loader reports
+        # false until its light engine and its mesh rebuilds are done, and a world that never settles
+        # runs into the test's own budget rather than capturing something that moved. Asking from the
+        # first tick is also what exercises the answer's client-side "not yet" outcomes, which are
+        # gone by the time the floor below expires.
+        settled_ticks = 0
+        Test.not_done()
+    } else if settled_ticks < 5 {
+        # One settled answer is not enough to swap on. A light packet already in flight can land a
+        # tick later, and a light update re-meshes only the section it changed, not the neighbours
+        # whose faces sample it, so a mesh made just before it would keep the older light in a wedge
+        # forever. Five answers in a row is well past the tick an in-flight update takes to arrive.
+        # See #259.
+        settled_ticks = settled_ticks + 1
         Test.not_done()
     } else if Test.tick() < 60 {
         # How long the placed shape takes to reach the framebuffer. Alpha has to mesh the chunk
@@ -31,6 +45,25 @@ export run() {
         # on the CI stack the first real frame lands between tick 16 and tick 30 depending on how
         # loaded the machine is; 60 leaves a wide margin over both, and costs 3 seconds of a
         # 200-tick budget.
+        Test.not_done()
+    } else if not remeshed {
+        _force_remesh()
+        remeshed = true
+        Test.not_done()
+    } else if remesh_ticks < 5 {
+        # The loaders that mesh synchronously answer settled immediately, so their capture could
+        # otherwise be taken before the swap's mesh has been rendered, and the frame it reads would
+        # be the one from before the swap. Five runner ticks is past the frame or two those loaders
+        # take, and costs nothing on 1.20.6, where the wait below is the real one. See #259.
+        remesh_ticks = remesh_ticks + 1
+        Test.not_done()
+    } else if not Test.world_settled() {
+        # Waiting for the mesh the swap scheduled. A rebuild bakes a face's per-vertex light, and a
+        # rebuild that ran while the light was still propagating keeps that mid-propagation light
+        # until something dirties the section again: a light update only re-meshes the section it
+        # changed, not the neighbours whose faces sample it, so the stale bake would never be
+        # corrected on its own. The swap is what corrects it, and this is the wait for the fresh mesh
+        # to land. See #259.
         Test.not_done()
     } else {
         _check()
@@ -123,4 +156,21 @@ local _check() {
     # face from its own light table. What the room removes is the run-to-run movement of the light
     # bands, which is what the numbered references used to absorb.
     Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
+}
+
+# Meshes the crop's section again from the settled light by changing a block state and putting it
+# back. The wall's top-left block is outside the crop, and stone and grug:coverage_flat are both
+# opaque and unlit, so the swap changes no light and no compared pixel; what it does is dirty the
+# wall's sections and their neighbours, which is what makes the mesh read the light the wait above
+# settled. Without it the capture is a coin toss between the settled bake and one made while the
+# light was still propagating, and both are byte-identical when they happen. See #259.
+local _force_remesh() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
+    level.place_block(x - 6, y + 3, z + 6, "grug:coverage_flat")
+    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "grug:coverage_flat", "The remesh swap should have put the wall block back.")
 }
