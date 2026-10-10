@@ -386,6 +386,39 @@ public final class Grug {
         }
     }
 
+    /**
+     * {@link #createEntity} with the host entities the call creates rooted in {@code owner} and
+     * {@code me} resolving to {@code initializingBlockEntity}, under the state lock.
+     *
+     * <p>The root list and the {@code me} binding are process-global state that host functions read
+     * while a call runs, so they have to be swapped inside the same critical section as the call. A
+     * swap made around a call that takes the lock is a race with every other entry into grug: a
+     * block-entity tick on the game thread swaps in a list it drops on return, and a chunk-compile
+     * worker inside this call then roots the entities its member scope creates in that dropped
+     * list. The script keeps their ids, the weak entity table drops them once the collector runs,
+     * and the next host function that dereferences one throws inside the JNI call, which takes the
+     * JVM down. Holding the lock across the swap, the call and the restore closes that window; the
+     * lock is reentrant, so the native entry's own acquisition nests. See #258.
+     */
+    public static long createEntityWithOwner(
+            long fileId, List<GrugObject> owner, Object initializingBlockEntity) {
+        GrugStateLock.lock();
+        try {
+            List<GrugObject> oldFnEntities = fnEntities;
+            Object oldInitializingBlockEntity = currentlyInitializingBlockEntity;
+            fnEntities = owner;
+            currentlyInitializingBlockEntity = initializingBlockEntity;
+            try {
+                return nativeCreateEntity(statePtr, fileId);
+            } finally {
+                currentlyInitializingBlockEntity = oldInitializingBlockEntity;
+                fnEntities = oldFnEntities;
+            }
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
     public static long getExportFnId(String entityType, String fnName) {
         GrugStateLock.lock();
         try {
@@ -405,6 +438,33 @@ public final class Grug {
         }
         throwPendingFatal();
         return result;
+    }
+
+    /**
+     * {@link #callExportFn} with the host entities the call creates rooted in {@code owner} and
+     * {@code me} resolving to {@code initializingBlockEntity}. The swap has the same hazard and the
+     * same fix as {@link #createEntityWithOwner}.
+     */
+    public static void callExportFnWithOwner(
+            long entityHandle,
+            long exportFnId,
+            List<GrugObject> owner,
+            Object initializingBlockEntity) {
+        GrugStateLock.lock();
+        try {
+            List<GrugObject> oldFnEntities = fnEntities;
+            Object oldInitializingBlockEntity = currentlyInitializingBlockEntity;
+            fnEntities = owner;
+            currentlyInitializingBlockEntity = initializingBlockEntity;
+            try {
+                callExportFn(entityHandle, exportFnId);
+            } finally {
+                currentlyInitializingBlockEntity = oldInitializingBlockEntity;
+                fnEntities = oldFnEntities;
+            }
+        } finally {
+            GrugStateLock.unlock();
+        }
     }
 
     // The JNI layer prints and clears any exception thrown inside a game function, and the script

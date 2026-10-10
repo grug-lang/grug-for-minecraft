@@ -96,12 +96,7 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
      * block entity whose member scope only declares has nothing bound yet.
      */
     private void callExportFn(long fnId) {
-        List<GrugObject> oldFnEntities = Grug.fnEntities;
-        Grug.fnEntities = childEntities;
-        Grug.currentlyInitializingBlockEntity = this;
-        Grug.callExportFn(entityHandle, fnId);
-        Grug.currentlyInitializingBlockEntity = null;
-        Grug.fnEntities = oldFnEntities;
+        Grug.callExportFnWithOwner(entityHandle, fnId, childEntities, this);
     }
 
     @GrugGenerated(
@@ -128,13 +123,7 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
         long fileId = ((GrugBlock) block).getEntityFileId();
         if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
 
-        Grug.currentlyInitializingBlockEntity = this;
-        List<GrugObject> oldFnEntities = Grug.fnEntities;
-        Grug.fnEntities = childEntities;
-        long handle = Grug.createEntity(fileId);
-        Grug.fnEntities = oldFnEntities;
-        Grug.currentlyInitializingBlockEntity = null;
-        return handle;
+        return Grug.createEntityWithOwner(fileId, childEntities, this);
     }
 
     @Override
@@ -146,12 +135,7 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
         }
 
         if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-            List<GrugObject> oldFnEntities = Grug.fnEntities;
-            Grug.fnEntities = new ArrayList<GrugObject>();
-
-            Grug.callExportFn(entityHandle, tickFnId);
-
-            Grug.fnEntities = oldFnEntities;
+            Grug.callExportFnWithOwner(entityHandle, tickFnId, new ArrayList<>(), null);
         }
     }
 
