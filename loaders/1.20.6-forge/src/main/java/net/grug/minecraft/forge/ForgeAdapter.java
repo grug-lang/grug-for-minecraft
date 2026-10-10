@@ -615,7 +615,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
      */
     @GrugGenerated(
             "settle: the integrated server lookup is loader plumbing a CI client run cannot"
-                + " observe")
+                    + " observe")
     private boolean serverSettled(Minecraft minecraft, ClientLevel level) {
         MinecraftServer server = minecraft.getSingleplayerServer();
         if (server == null) {
