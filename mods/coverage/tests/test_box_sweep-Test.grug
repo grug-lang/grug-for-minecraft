@@ -1,6 +1,9 @@
 # The room build sweeps the item entities out of its box, so a fixture's drops cannot be picked up
-# and carried into a later capture. This spawns one inside the room, forces a rebuild through
-# Test.set_box_radius, and checks the sweep took it. See #254.
+# and carried into a later capture. This spawns one inside the room and one in the last block the
+# area clearing reaches, forces a rebuild through Test.set_box_radius, and checks the sweep took
+# both. The second is the boundary: a block covers [x, x + 1), so an item resting in the last
+# cleared block sits past the block's own coordinate, and a sweep whose bound stops at that
+# coordinate leaves it behind. See #254.
 export run() {
     if Test.tick() == 0 {
         level: Level = Test.get_client_level()
@@ -11,6 +14,20 @@ export run() {
         entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
         entity.entity().set_delta_movement(vec3_zero())
         entity.entity().spawn(level)
+
+        # The area reaches 16 blocks around the player and the origin is the player's position plus
+        # 3, so the player's block plus 16 is the last cleared one. Its block is asserted clear
+        # first, so a smaller area fails here instead of leaving an item outside the swept box.
+        px: number = floor(origin.x() - 3)
+        pz: number = floor(origin.z() - 3)
+        Test.assert(level.is_air(px + 16, origin.y(), pz), "The test area should reach 16 blocks from the player.")
+        # A block under it, so the item rests at a known height for the probe below instead of
+        # falling to whatever the terrain there happens to be.
+        level.place_block(px + 16, origin.y() - 1, pz, "minecraft:stone")
+        edge_stack: ItemStack = item_stack(sword, 3)
+        edge: ItemEntity = item_entity(level, px + 16.5, origin.y(), pz + 0.5, edge_stack)
+        edge.entity().set_delta_movement(vec3_zero())
+        edge.entity().spawn(level)
     } else if Test.tick() == 1 {
         Test.set_box_radius(4)
     } else {
@@ -18,5 +35,10 @@ export run() {
         origin: Vec3 = Test.get_origin()
         found: Option[ItemEntity] = level.find_item_entity(origin.x(), origin.y(), origin.z(), 10)
         Test.assert(not found.has(), "The room build's sweep should have removed the spawned item.")
+
+        px: number = floor(origin.x() - 3)
+        pz: number = floor(origin.z() - 3)
+        edge_found: Option[ItemEntity] = level.find_item_entity(px + 16.5, origin.y(), pz + 0.5, 2)
+        Test.assert(not edge_found.has(), "The room build's sweep should have removed the item in the last cleared block.")
     }
 }

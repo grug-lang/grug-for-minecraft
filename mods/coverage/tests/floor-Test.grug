@@ -1,0 +1,12 @@
+# floor turns a position, which has a fraction, into the block coordinate it is in. The negative
+# cases are the ones an implementation that truncates instead gets wrong.
+export run() {
+    if Test.tick() == 0 {
+        Test.assert(floor(2.5) == 2, "floor(2.5) should be 2.")
+        Test.assert(floor(2) == 2, "floor(2) should be 2.")
+        Test.assert(floor(0) == 0, "floor(0) should be 0.")
+        Test.assert(floor(-0.5) == -1, "floor(-0.5) should be -1.")
+        Test.assert(floor(-2) == -2, "floor(-2) should be -2.")
+        Test.assert(floor(-2.5) == -3, "floor(-2.5) should be -3.")
+    }
+}

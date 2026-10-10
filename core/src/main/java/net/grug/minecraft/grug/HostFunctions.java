@@ -851,6 +851,14 @@ public class HostFunctions {
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
     }
 
+    /**
+     * The largest whole number at or below the given number, which is how a position becomes the
+     * block coordinate it is in.
+     */
+    public static double floor(double value) {
+        return Math.floor(value);
+    }
+
     public static long vec3_zero() {
         return Grug.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
     }
