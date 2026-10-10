@@ -722,9 +722,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             }
         }
         for (ItemEntity item : toRemove) {
-            // remove() only marks the entity dead; the immediate one takes it out of the world's
-            // entity lists, which is what a query in the same tick needs to miss it.
-            world.removeEntityNow(item);
+            // The world's entity list is what the queries and the world's own update walk, so
+            // taking the entity out of it here is what makes a query in the same tick miss it.
+            // The immediate removal method is not used: it exists in the named jar but does not
+            // resolve at runtime on this loader's toolchain, which fails the run with a
+            // NoSuchMethodError as soon as an item is in range. remove() is the dead flag.
+            item.remove();
+            world.entities.remove(item);
         }
     }
 
