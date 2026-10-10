@@ -1,5 +1,7 @@
-# Placing foo_block makes examplemod's BlockEntity run its module-level calls and its 10-tick
-# spawn, so this waits a few ticks rather than finishing on tick 0.
+# Placing foo_block makes examplemod's BlockEntity run its module-level calls and its 10-tick spawn, so
+# this waits for that spawn rather than for a fixed number of runner ticks: Test.tick() counts runner
+# ticks, which are rendered frames, and how many game ticks that is depends on how loaded the machine
+# is. See #173.
 export run() {
     if Test.tick() == 0 {
         level: Level = Test.get_client_level()
@@ -13,8 +15,21 @@ export run() {
         Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
 
         Test.not_done()
-    } else if Test.tick() < 15 {
-        # Let the block entity tick far enough to run its 10-tick spawn once.
+    } else if not _diamond_has_spawned() {
         Test.not_done()
+    } else {
+        Test.assert(true, "The block entity spawned its diamond.")
     }
+}
+
+# The diamond is spawned 2 blocks above the block with no velocity, and nothing else in the suite drops
+# an item that close to the origin.
+local _diamond_has_spawned() bool {
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level: Level = Test.get_client_level()
+    found: Option[ItemEntity] = level.find_item_entity(x, y + 2, z, 2)
+    return found.has()
 }
