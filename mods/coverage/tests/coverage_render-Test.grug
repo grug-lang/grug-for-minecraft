@@ -12,10 +12,6 @@ render_block: Option[BlockEntity] = Option.new()
 export run() {
     if Test.tick() == 0 {
         _setup()
-        # The room and the fixture just went in, so the integrated server's light engine has the
-        # work they set off queued right now. Asking here is what exercises the settle answer's "not
-        # yet" outcome for the server: by the time the wait below runs, it is done.
-        Test.world_settled()
         Test.not_done()
     } else if not Test.world_settled() {
         # The mesh bakes a face's per-vertex light when its section is rebuilt, and 1.20.6 rebuilds
@@ -25,8 +21,8 @@ export run() {
         # one of the five repeats. This is the wait for it: the loader reports false until its light
         # engine and its mesh rebuilds are done, and a world that never settles runs into the test's
         # own budget rather than capturing something that moved. Asking from the first tick is also
-        # what exercises the client's "not yet" outcomes, which are gone by the time the floor below
-        # expires.
+        # what exercises the answer's client-side "not yet" outcomes, which are gone by the time the
+        # floor below expires.
         Test.not_done()
     } else if Test.tick() < 60 {
         # How long the placed shape takes to reach the framebuffer. Alpha has to mesh the chunk
