@@ -29,6 +29,7 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifier;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
@@ -742,25 +743,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void clearItemEntities(
             Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
         World world = (World) levelObj;
-        java.util.List<ItemEntity> toRemove = new java.util.ArrayList<>();
-        for (Object entity : world.entities) {
-            if (entity instanceof ItemEntity item) {
-                // Non-short-circuit &, so the six comparisons form one branch: with && each
-                // comparison is its own branch, and which sides the suite's few items exercise
-                // differs per loader, which the coverage gate then reports as missed branches.
-                boolean inside =
-                        item.x >= x1
-                                & item.x <= x2
-                                & item.y >= y1
-                                & item.y <= y2
-                                & item.z >= z1
-                                & item.z <= z2;
-                if (inside) {
-                    toRemove.add(item);
-                }
-            }
-        }
-        for (ItemEntity item : toRemove) {
+        // The game's own box query, so the filtering is its branches and not ours: the six
+        // comparisons this used to make are twelve branch outcomes, and the suite's few items only
+        // ever exercise one side of each, which the coverage gate then reports as missed. It
+        // returns a fresh list, so removing from the world's own list while walking it is safe.
+        for (ItemEntity item :
+                world.getEntitiesOfType(ItemEntity.class, Box.of(x1, y1, z1, x2, y2, z2))) {
             // The world's entity list is what the queries and the world's own update walk, so
             // taking the entity out of it here is what makes a query in the same tick miss it.
             // Alpha has no immediate removal method; remove() is its dead flag.
