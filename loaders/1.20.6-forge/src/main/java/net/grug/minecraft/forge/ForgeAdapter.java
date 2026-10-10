@@ -63,6 +63,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
+     * How many client ticks a screenshot's wait for a client-side idle state may take before it
+     * gives up and captures the frame the client has. The first tick that finds nothing left is
+     * enough, and the rest is margin for a loaded runner. See #259.
+     */
+    private static final int SETTLE_WAIT_CLIENT_TICKS = 100;
+
+    /**
      * The adapter for whichever process this is, called from {@code GrugModLoader}, which runs on
      * both sides: Forge loads a {@code @Mod} class on whichever side the game started as, and
      * grug's {@code [[mods]]} block in {@code mods.toml} has no {@code side} key at all. The two
@@ -594,13 +601,49 @@ public class ForgeAdapter implements ModLoaderAdapter {
     public boolean isWorldSettled() {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
-        if (level.getChunkSource().getLightEngine().hasLightWork()) {
-            return false;
-        }
-        if (!minecraft.levelRenderer.hasRenderedAllSections()) {
+        if (!clientSettled(minecraft)) {
             return false;
         }
         return serverSettled(minecraft, level);
+    }
+
+    /**
+     * Whether the client's own rendering state has nothing left that a frame's bake depends on: its
+     * light engine is idle, and its section renderer has neither queued nor in-flight compiles.
+     *
+     * <p>This is the half of the settle answer a screenshot wait can hold for on its own, because
+     * it advances on the client tick while the wait runs on the server thread and blocks it: a wait
+     * that included the server half would freeze the server light work it was waiting for, since
+     * that engine only drains on the server tick. The server half is the test's own wait in {@link
+     * #isWorldSettled}, one call per test tick, where the server is free to tick. See #259.
+     */
+    private static boolean clientSettled(Minecraft minecraft) {
+        return !minecraft.level.getChunkSource().getLightEngine().hasLightWork()
+                && rendererIdle(minecraft);
+    }
+
+    /**
+     * Whether the client's chunk renderer has nothing left that a capture would have to be taken
+     * after.
+     *
+     * <p>{@code LevelRenderer.hasRenderedAllSections} is {@code
+     * SectionRenderDispatcher.isQueueEmpty}, and that counts queued and finished compiles only: a
+     * compile a worker is running has been taken off the queues and holds one of the section buffer
+     * pool's buffers, so the pool's free count is what says one is in flight. A capture taken while
+     * it runs reads the frame from before that compile's light, which is the one-step band in the
+     * crop's corner. The pool's size is recorded when it is built, by the mixin next to this
+     * class's loader. See #259.
+     */
+    @GrugGenerated(
+            "settle: the in-flight phase is a compile running while the queues are empty, which a"
+                    + " run reaches at the tail of a batch but cannot force; the idle answer as a"
+                    + " whole stays measured through the caller's outcome")
+    private static boolean rendererIdle(Minecraft minecraft) {
+        if (!minecraft.levelRenderer.hasRenderedAllSections()) {
+            return false;
+        }
+        return minecraft.levelRenderer.getSectionRenderDispatcher().getFreeBufferCount()
+                == GrugModLoader.getSectionBufferPoolSize();
     }
 
     /**
@@ -761,7 +804,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
             double y2,
             double tolerancePercent) {
         if (refuseWithoutAClient("Screenshot.equals")) return;
-        BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
+        BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2, true);
         if (capture == null) {
             return; // captureChecked already reported why
         }
@@ -775,17 +818,21 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
-        return captureChecked("Screenshot.capture", x1, y1, x2, y2);
+        // No settle wait: this capture is compared with another capture, so it stays the frame the
+        // test asked for at the moment it asked, not the frame after the world settles.
+        return captureChecked("Screenshot.capture", x1, y1, x2, y2, false);
     }
 
     /**
      * Checks the rectangle and reads it, reporting {@code operation} as the thing that wanted it.
      * Both screenshot entry points share this so a bad coordinate is reported the same way either
-     * way; only the name in front of the message differs.
+     * way; only the name in front of the message, and whether the read waits for a settled world,
+     * differ. The assertion path waits, because it compares the capture against a committed PNG; a
+     * capture that another capture is compared with stays immediate.
      */
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private BufferedImage captureChecked(
-            String operation, double x1, double y1, double x2, double y2) {
+            String operation, double x1, double y1, double x2, double y2, boolean waitForSettled) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure.
         String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
@@ -840,7 +887,101 @@ public class ForgeAdapter implements ModLoaderAdapter {
             return null;
         }
 
-        return captureOnClientThread((int) x1, (int) y1, (int) x2, (int) y2);
+        if (!waitForSettled) {
+            return captureOnClientThread(left, top, right, bottom);
+        }
+        return captureSettledOnClientThread(operation, left, top, right, bottom);
+    }
+
+    /**
+     * Reads the rectangle on a client tick whose own rendering state is idle, retrying until one
+     * is.
+     *
+     * <p>The check and the read share one client task, so a light update or a section rebuild that
+     * lands after the test's own {@code Test.world_settled} answer cannot land between them: the
+     * read waits for the same answer's client half, re-taken immediately before it. Only the client
+     * half is re-taken, because this wait runs on the server thread and blocks it: the integrated
+     * server cannot drain its own light work while the wait is running, so a wait that included the
+     * server half would never finish on a runner whose server is still catching up. The server half
+     * is the test's own wait, one call per test tick, where the server is free. A client that never
+     * goes idle is not an error either: the frame it has is captured and the comparison decides,
+     * because a crop of a GUI does not depend on the section renderer at all. See #259.
+     */
+    @GrugGenerated(
+            "screenshot settle wait: loader plumbing that waits on the client's own tick loop,"
+                    + " which only a running client provides; the retry paths need the light or"
+                    + " rebuild work this wait exists to absorb")
+    private BufferedImage captureSettledOnClientThread(
+            String operation, int x1, int y1, int x2, int y2) {
+        Minecraft minecraft = Minecraft.getInstance();
+        for (int attempt = 0; attempt < SETTLE_WAIT_CLIENT_TICKS; attempt++) {
+            BufferedImage[] result = new BufferedImage[1];
+            boolean[] captured = {false};
+            onClientThread(
+                    () -> captureIfClientSettled(minecraft, x1, y1, x2, y2, result, captured));
+            if (captured[0]) {
+                return result[0];
+            }
+        }
+        // Not an error: a crop of a GUI does not depend on the section renderer, which is what a
+        // busy runner would otherwise fail a capture over, and the comparison is what catches a
+        // frame that moved. See #259.
+        reportCaptureStillRendering(operation);
+        return captureOnClientThread(x1, y1, x2, y2);
+    }
+
+    /**
+     * The client task the wait posts: it captures only on a tick whose client is idle, and returns
+     * without capturing otherwise so the wait posts again.
+     *
+     * <p>It is its own method rather than a lambda body because JaCoCo measures a lambda as its own
+     * method, and the wait's own exclusion does not carry over to it: its two branches would then
+     * be measured, and the retry branch is only reached on a run loaded enough to be busy at the
+     * capture.
+     */
+    @GrugGenerated(
+            "screenshot settle wait: the branches are the wait's retry paths, reached or not"
+                    + " depending on how loaded the runner is")
+    private static void captureIfClientSettled(
+            Minecraft minecraft,
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            BufferedImage[] result,
+            boolean[] captured) {
+        if (!clientSettled(minecraft)) {
+            return;
+        }
+        result[0] = capture(x1, y1, x2, y2);
+        captured[0] = true;
+    }
+
+    /**
+     * Names the part of the client that was still busy when a capture's wait ran out. Not an error,
+     * and not a verdict: a crop of a GUI does not depend on the section renderer, so the capture is
+     * taken anyway and the comparison decides. This line is what says which of the two it was when
+     * one does fail.
+     */
+    @GrugGenerated(
+            "screenshot settle wait: a diagnostic on the give-up path, reached or not depending on"
+                    + " how loaded the runner is")
+    private static void reportCaptureStillRendering(String operation) {
+        Minecraft minecraft = Minecraft.getInstance();
+        boolean light = minecraft.level.getChunkSource().getLightEngine().hasLightWork();
+        boolean queues = !minecraft.levelRenderer.hasRenderedAllSections();
+        int free = minecraft.levelRenderer.getSectionRenderDispatcher().getFreeBufferCount();
+        int total = GrugModLoader.getSectionBufferPoolSize();
+        LOGGER.info(
+                "{}: the client still had work after {} client ticks (light work pending: {},"
+                    + " section queues busy: {}, free section buffers: {}/{}), so the capture is"
+                    + " the frame the client had",
+                operation,
+                SETTLE_WAIT_CLIENT_TICKS,
+                light,
+                queues,
+                free,
+                total);
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */

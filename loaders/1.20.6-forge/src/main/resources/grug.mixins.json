@@ -6,7 +6,8 @@
     "refmap": "grug.refmap.json",
     "client": [
         "LightTextureMixin",
-        "LiquidBlockRendererMixin"
+        "LiquidBlockRendererMixin",
+        "SectionBufferBuilderPoolMixin"
     ],
     "injectors": {
         "defaultRequire": 1
