@@ -80,6 +80,11 @@ public class GrugTestRunner {
     private int nextTestIndex = 0;
     private int passedCount = 0;
 
+    /** How many times the suite runs, and how many of those are left to start. */
+    private final int repeats;
+
+    private int repeatsRemaining;
+
     /** 0 when no test is active, meaning "start the next one". */
     private long currentEntityHandle = 0;
 
@@ -104,13 +109,14 @@ public class GrugTestRunner {
                         GrugCore.getAdapter().getGrugModsDirectory()),
                 NATIVE_OPS,
                 System::nanoTime,
-                radius -> GrugCore.getAdapter().buildTestBox(radius));
+                radius -> GrugCore.getAdapter().buildTestBox(radius),
+                repeatsFromEnv());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
     public GrugTestRunner(
             Map<String, Long> fileIds, List<String> referenceErrors, TestEntityOps ops) {
-        this(fileIds, referenceErrors, ops, System::nanoTime, radius -> {});
+        this(fileIds, referenceErrors, ops, System::nanoTime, radius -> {}, 1);
     }
 
     /**
@@ -123,7 +129,7 @@ public class GrugTestRunner {
             List<String> referenceErrors,
             TestEntityOps ops,
             LongSupplier clock) {
-        this(fileIds, referenceErrors, ops, clock, radius -> {});
+        this(fileIds, referenceErrors, ops, clock, radius -> {}, 1);
     }
 
     /**
@@ -135,10 +141,13 @@ public class GrugTestRunner {
             List<String> referenceErrors,
             TestEntityOps ops,
             LongSupplier clock,
-            TestBoxBuilder boxBuilder) {
+            TestBoxBuilder boxBuilder,
+            int repeats) {
         this.ops = ops;
         this.clock = clock;
         this.boxBuilder = boxBuilder;
+        this.repeats = repeats;
+        this.repeatsRemaining = repeats;
 
         // A run refuses to start on a malformed screenshots/ tree. This is the same check CI hits,
         // so an author sees every violation locally before it ever reaches a pull request.
@@ -187,6 +196,30 @@ public class GrugTestRunner {
     }
 
     /**
+     * The repeat count {@code GRUG_CI_REPEATS} asks for, or 1 when it is unset.
+     *
+     * <p>A value that is not a positive whole number is fatal rather than rounded or ignored: the
+     * run's shape is undefined otherwise, and one refused start beats a run nobody can describe.
+     */
+    static int parseRepeats(String value) {
+        if (value == null || value.isEmpty()) return 1;
+        int repeats;
+        try {
+            repeats = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw Grug.fatal("GRUG_CI_REPEATS is not a whole number: " + value);
+        }
+        if (repeats < 1) {
+            throw Grug.fatal("GRUG_CI_REPEATS has to be at least 1, but is " + value);
+        }
+        return repeats;
+    }
+
+    private static int repeatsFromEnv() {
+        return parseRepeats(System.getenv("GRUG_CI_REPEATS"));
+    }
+
+    /**
      * Does exactly one unit of work: starts the next test if none is active, then makes exactly one
      * {@code Test.run()} call for it. Meant to be called once per real Minecraft tick.
      */
@@ -195,6 +228,25 @@ public class GrugTestRunner {
 
         if (currentEntityHandle == 0 && !startNextTest()) {
             // Nothing left to run.
+            if (repeatsRemaining > 1) {
+                // A repeat is another sample of the same suite, for a flake that passes most runs
+                // and fails some. A failure above aborts the whole run already, so a repeat is a
+                // detector rather than a second chance. The room is rebuilt before every test, so
+                // each repeat starts every test with a fresh one; the fixtures the tests leave
+                // above the room are re-placed where they were.
+                repeatsRemaining--;
+                nextTestIndex = 0;
+                passedCount = 0;
+                printTestTimes();
+                System.out.println(
+                        "[GRUG CI] repeat "
+                                + (repeats - repeatsRemaining)
+                                + " of "
+                                + repeats
+                                + " complete, starting the next");
+                testNanos.clear();
+                return;
+            }
             // Marked before the dump rather than after it, so that a dump which throws stops the
             // loaders from queueing this runner again and repeating one failure once per tick.
             finished = true;
