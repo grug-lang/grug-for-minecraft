@@ -48,11 +48,17 @@ import java.util.Map;
 public class StationApiAdapter implements ModLoaderAdapter {
 
     /**
+     * This loader's directory under {@code loaders/}, which names the screenshot references it
+     * produces.
+     */
+    private static final String LOADER_NAME = "b1.7.3-stationapi";
+
+    /**
      * This loader's column of the canonical vanilla block name table, so a mod naming a block gets
      * the same block here as it would on every other loader.
      */
     private static final GrugVanillaBlocks.Loader CANONICAL_BLOCKS =
-            GrugVanillaBlocks.forLoader("b1.7.3-stationapi");
+            GrugVanillaBlocks.forLoader(LOADER_NAME);
 
     /**
      * What StationAPI's environment type means to grug, answered as a lookup rather than a
@@ -69,6 +75,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public File getGrugModsDirectory() {
         return InitListener.getActiveGrugModsDir();
+    }
+
+    @Override
+    public String getLoaderName() {
+        return LOADER_NAME;
     }
 
     /**
@@ -847,8 +858,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
         }
 
         // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the reference directory on disk. That directory holds numbered PNGs
-        // and the assertion passes if the capture matches any of them; see GrugScreenshots.
+        // the mods root gives the reference directory on disk. That directory holds PNGs named
+        // after the loaders that produced them, and the assertion passes if the capture matches
+        // any of them; see GrugScreenshots.
         File referenceDirectory = new File(InitListener.getActiveGrugModsDir(), referencePath);
         GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
     }

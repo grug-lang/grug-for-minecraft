@@ -401,7 +401,7 @@ jobs:
           retention-days: 7
 
       # A screenshot that matched none of a reference's accepted PNGs is written here, mirroring the
-      # reference path. Download this artifact and drop the numbered PNGs into the reference
+      # reference path. Download this artifact and drop the loader-named PNGs into the reference
       # directory to accept this platform's rendering.
       - name: Upload unmatched screenshot captures
         if: always()
