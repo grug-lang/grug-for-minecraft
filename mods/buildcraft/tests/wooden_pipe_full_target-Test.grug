@@ -17,7 +17,8 @@ export run() {
     if Test.tick() == 0 {
         _full_target_setup()
         Test.not_done()
-    } else if not _full_target_pipe_has_moved() {
+    } else if not _full_target_pipe_has_moved() or Test.tick() < 25 {
+        # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
         Test.not_done()
     } else {
         _full_target_check()

@@ -10,7 +10,9 @@ export run() {
     if Test.tick() == 0 {
         _setup()
         Test.not_done()
-    } else if not _pipe_has_moved() {
+    } else if not _pipe_has_moved() or Test.tick() < 20 {
+        # The floor keeps the suite's timing where the coverage_render references were captured,
+        # which that fixture's light depends on (#262). The condition is what gates this wait.
         Test.not_done()
     } else {
         _check()

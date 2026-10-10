@@ -15,7 +15,8 @@ export run() {
         Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
 
         Test.not_done()
-    } else if not _diamond_has_spawned() {
+    } else if not _diamond_has_spawned() or Test.tick() < 15 {
+        # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
         Test.not_done()
     } else {
         Test.assert(true, "The block entity spawned its diamond.")

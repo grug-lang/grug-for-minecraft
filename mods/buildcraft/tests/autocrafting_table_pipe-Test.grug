@@ -6,10 +6,10 @@ pipe_table_table: Option[BlockEntity] = Option.new()
 pipe_table_chest: Option[BlockEntity] = Option.new()
 pipe_table_pipe: Option[BlockEntity] = Option.new()
 
-# Whether the pipe has been placed yet. It goes in after the table has declared, which is the order a
-# player builds in, and the wait after that is for what the pipe does with the result rather than for
-# a tick count. See #173.
-pipe_is_placed: bool = false
+# The tick the pipe was placed on, or -1 before that. The wait after it is for what the pipe does
+# with the result rather than for a tick count, and it also keeps the old floor of 25 ticks, which is
+# where the suite's timing, and so the coverage_render references, were captured (#262).
+pipe_placed_at: number = -1
 
 export run() {
     if Test.tick() == 0 {
@@ -21,12 +21,13 @@ export run() {
         # its placement. Waiting for the declaration beats a fixed tick count, and the pipe is placed
         # after, which is the order a player builds in.
         Test.not_done()
-    } else if not pipe_is_placed {
+    } else if pipe_placed_at < 0 {
         _check_rule()
         _setup_pipe()
-        pipe_is_placed = true
+        pipe_placed_at = Test.tick()
         Test.not_done()
-    } else if not _bread_has_moved() {
+    } else if not _bread_has_moved() or Test.tick() < pipe_placed_at + 25 {
+        # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
         Test.not_done()
     } else {
         _check()

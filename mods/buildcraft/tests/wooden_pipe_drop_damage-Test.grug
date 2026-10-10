@@ -6,7 +6,8 @@ export run() {
     if Test.tick() == 0 {
         _drop_setup()
         Test.not_done()
-    } else if not _drop_pipe_has_moved() {
+    } else if not _drop_pipe_has_moved() or Test.tick() < 15 {
+        # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
         Test.not_done()
     } else {
         _drop_check()
