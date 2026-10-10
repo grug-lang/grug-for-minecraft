@@ -150,9 +150,10 @@ local _test_graphics_check() {
     # aren't reproducible: captured over and over, they drift by one and move around, reaching 5px in
     # from the edge. Insetting well past that costs none of the layout, which is all far inside.
     # To re-derive these: press M to force 1280x720, open this GUI, and hover a corner of the panel
-    # to read the pixel off the chat readout. The reference is a directory holding one numbered PNG
-    # per accepted rendering of this rectangle (1.png, 2.png, ...): the same UI looks different on
-    # each Minecraft version and platform, and the assertion passes if the capture matches any of them.
+    # to read the pixel off the chat readout. The reference is a directory holding one PNG per
+    # loader, named after the loader that produced it (b1.7.3-ornithe.png): the same UI looks
+    # different on each Minecraft version and platform, and the assertion passes if the capture
+    # matches any of them.
     Test.screenshot().equals(r"screenshots/autocrafting_table_gui", 386, 121, 894, 599)
 
     # The screenshot only means something if it shows live block data, so check the inventory it was

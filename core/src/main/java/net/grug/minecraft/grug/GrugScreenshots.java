@@ -5,36 +5,37 @@ import net.grug.minecraft.core.GrugCore;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
-import java.util.regex.Pattern;
 
 import javax.imageio.ImageIO;
 
 /**
  * Reference-image handling shared by every loader's {@code Screenshot.equals()}.
  *
- * <p>The reference path names a directory of numbered PNGs ({@code 1.png}, {@code 2.png}, ...). By
- * default the assertion passes when the capture is pixel-identical to any one of them, and a small
- * per-pixel tolerance can allow each individual pixel to differ slightly where the rendering cannot
- * be reproduced exactly. There is deliberately no single canonical image: the same UI renders
- * differently on each Minecraft version (fonts, item sprites, GUI scaling), so every accepted
- * appearance gets its own file and one test stays green on all of them. It also means a contributor
- * can add their own environment's rendering with a one-file pull request.
+ * <p>The reference path names a directory of PNGs, each named after the loader directory that
+ * produced it ({@code b1.7.3-ornithe.png}). By default the assertion passes when the capture is
+ * pixel-identical to any one of them, and a small per-pixel tolerance can allow each individual
+ * pixel to differ slightly where the rendering cannot be reproduced exactly. There is deliberately
+ * no single canonical image: the same UI renders differently on each Minecraft version (fonts, item
+ * sprites, GUI scaling), so every accepted appearance gets its own file and one test stays green on
+ * all of them. A loader renders a screenshot one way, so it owns at most one file, and a rendering
+ * two loaders share is one file named after one of them.
  *
  * <p>A directory with no references yet is bootstrapped locally, and for a reference run: the first
- * capture is written as {@code 1.png} and accepted, so a new screenshot test doesn't need its
- * directory created by hand. A normal CI run refuses to bootstrap, so an uncommitted golden fails
- * the run by name instead of being certified by the very capture it should verify. A capture that
- * matches none of an existing directory's references is instead written to the screenshot-artifacts
- * directory (mirroring the reference path) so CI can upload it, and the test fails; promoting that
- * artifact into the reference directory is how a new rendering is accepted. Setting {@code
- * GRUG_UPDATE_GOLDENS=1} (or a loader's {@code update-goldens} phase) accepts the miss into the
- * reference directory as the next number instead, so the author reviews the new PNG in the working
- * tree and commits it.
+ * capture is written as {@code <loader>.png} and accepted, so a new screenshot test doesn't need
+ * its directory created by hand. A normal CI run refuses to bootstrap, so an uncommitted golden
+ * fails the run by name instead of being certified by the very capture it should verify. A capture
+ * that matches none of an existing directory's references is instead written to the
+ * screenshot-artifacts directory (mirroring the reference path) so CI can upload it, and the test
+ * fails; promoting that artifact into the reference directory is how a new rendering is accepted.
+ * Setting {@code GRUG_UPDATE_GOLDENS=1} (or a loader's {@code update-goldens} phase) accepts the
+ * miss into the reference directory under the running loader's own name instead, replacing that
+ * loader's previous reference when the rendering changed, so the author reviews the new PNG in the
+ * working tree and commits it.
  */
 public final class GrugScreenshots {
     /** Screenshot tests are pixel-exact against references captured at this resolution. */
@@ -42,12 +43,8 @@ public final class GrugScreenshots {
 
     public static final int HEIGHT = 720;
 
-    /**
-     * A leaf entry: a lowercase .png whose name is a positive number (1, 2, ...), capped at nine
-     * digits. The cap keeps the number inside an int; without it a name like 9999999999.png would
-     * match and then throw out of the validator instead of being reported.
-     */
-    private static final Pattern REFERENCE_NAME = Pattern.compile("[1-9][0-9]{0,8}\\.png");
+    /** The exact lower-case extension every reference and every artifact carries. */
+    private static final String REFERENCE_EXTENSION = ".png";
 
     /** Where a capture that matched no reference is stashed for CI to upload. */
     private static final String ARTIFACTS_DIRECTORY = "grug-screenshot-artifacts";
@@ -60,10 +57,20 @@ public final class GrugScreenshots {
 
     private static final int DIFF_ALPHA = 0xCC;
 
+    /**
+     * The loader directory names a reference may be named after, which are the directories under
+     * {@code loaders/}. They come from the canonical block table's columns, which every loader
+     * names itself in and which {@code vanilla_blocks.py} keeps equal to the directories
+     * themselves, so a typo or a rename cannot leave a reference named after a loader that no
+     * longer exists.
+     */
+    private static final Set<String> LOADER_NAMES =
+            Collections.unmodifiableSet(new HashSet<>(GrugVanillaBlocks.loaderIds()));
+
     private GrugScreenshots() {}
 
     /**
-     * Passes if {@code capture} matches one of the numbered PNGs in {@code referenceDirectory},
+     * Passes if {@code capture} matches one of the loader-named PNGs in {@code referenceDirectory},
      * bootstraps that directory with the capture when it has no references yet, and otherwise
      * reports the closest miss and writes the capture to the artifacts directory.
      *
@@ -82,15 +89,20 @@ public final class GrugScreenshots {
                 referenceDirectory,
                 referencePath,
                 new File(GrugCore.getAdapter().getGameDirectory(), ARTIFACTS_DIRECTORY),
+                GrugCore.getAdapter().getLoaderName(),
                 tolerancePercent);
     }
 
-    /** The real entry point, with the artifacts directory passed in so tests can drive it. */
+    /**
+     * The real entry point, with the artifacts directory and the loader name passed in so tests can
+     * drive it.
+     */
     static void verify(
             BufferedImage capture,
             File referenceDirectory,
             String referencePath,
             File artifactsRoot,
+            String loaderName,
             double tolerancePercent) {
         List<File> references = listReferences(referenceDirectory);
 
@@ -110,7 +122,7 @@ public final class GrugScreenshots {
                                 + referenceDirectory
                                 + "; a golden must be committed, not captured during the run.");
             }
-            addReference(capture, referenceDirectory, referencePath);
+            addReference(capture, referenceDirectory, referencePath, loaderName);
             return;
         }
 
@@ -181,17 +193,13 @@ public final class GrugScreenshots {
             return;
         }
 
-        // The capture is named after the free slot it would fill, so accepting it is a plain copy
-        // of
-        // the artifact into the reference directory.
-        int targetNumber = nextNumber(referenceDirectory);
-
-        // An explicit golden update accepts the miss into the reference directory instead of
-        // stashing it, so the author reviews the new PNG in the working tree and commits it.
+        // An explicit golden update accepts the miss into the reference directory under the running
+        // loader's own name instead of stashing it, so the author reviews the new PNG in the
+        // working tree and commits it. The name is the loader's, so an update can only replace
+        // that loader's own previous rendering, never another loader's reference. The artifact
+        // below carries the same name, so accepting a capture is a plain copy of it.
         if (GrugReference.isUpdateGoldens()) {
-            File accepted =
-                    writeAcceptedReference(
-                            capture, referenceDirectory, referencePath, targetNumber);
+            File accepted = writeReference(capture, referenceDirectory, referencePath, loaderName);
             String acceptedMessage =
                     "Accepted screenshot reference "
                             + referencePath
@@ -209,7 +217,7 @@ public final class GrugScreenshots {
             return;
         }
 
-        File artifact = writeArtifact(capture, referencePath, artifactsRoot, targetNumber);
+        File artifact = writeArtifact(capture, referencePath, artifactsRoot, loaderName);
 
         // The closest reference is the useful one to diff against: it keeps the highlighted area as
         // small as possible, so a localized red patch reads as a change while an all-red frame
@@ -246,8 +254,9 @@ public final class GrugScreenshots {
                         + " To accept it, copy the capture into "
                         + referenceDirectory
                         + " as "
-                        + targetNumber
-                        + ".png, or re-run with "
+                        + loaderName
+                        + REFERENCE_EXTENSION
+                        + ", or re-run with "
                         + GrugReference.UPDATE_GOLDENS_ENV_VAR
                         + "=1.");
     }
@@ -256,8 +265,10 @@ public final class GrugScreenshots {
      * Checks the reference trees under a mods directory against the {@code screenshots/}
      * convention, returning every violation (empty when the tree is valid). The convention is that,
      * under a mod's {@code screenshots/}, every directory is either a group (subdirectories only)
-     * or a reference (only {@code 1.png}, {@code 2.png}, ... with no gaps), the two are never
-     * mixed, and a name is exactly a lowercase {@code .png} of a positive number.
+     * or a reference (only PNGs named after a loader directory under {@code loaders/}), the two are
+     * never mixed, a name is exactly a loader directory's name with the lower-case {@code .png}
+     * extension, and no two references in one directory are pixel-identical, because one file
+     * covers both renderings.
      *
      * <p>This is deliberately the only implementation of the rules: the loaders run it before a
      * test run so authors see violations locally, and CI fails through the very same path, so the
@@ -288,50 +299,90 @@ public final class GrugScreenshots {
         for (File entry : entries) {
             (entry.isDirectory() ? subdirectories : files).add(entry);
         }
+        // Sorted, so the errors a tree produces are in the same order on every machine rather than
+        // following the filesystem's own.
+        subdirectories.sort(Comparator.comparing(File::getName));
+        files.sort(Comparator.comparing(File::getName));
 
         if (!subdirectories.isEmpty() && !files.isEmpty()) {
             errors.add(
                     path
                             + " mixes reference PNGs with subdirectories; a directory is either a"
-                            + " group of subdirectories or a directory of numbered PNGs, never"
+                            + " group of subdirectories or a directory of references, never"
                             + " both.");
         }
 
-        if (!files.isEmpty()) {
-            Set<Integer> numbers = new TreeSet<>();
-            for (File file : files) {
-                if (!REFERENCE_NAME.matcher(file.getName()).matches()) {
+        List<File> references = new ArrayList<>();
+        for (File file : files) {
+            if (!isReferenceName(file.getName())) {
+                errors.add(
+                        path
+                                + "/"
+                                + file.getName()
+                                + " is not a valid reference name; a reference is named after the"
+                                + " loader directory that produced it ("
+                                + String.join(", ", GrugVanillaBlocks.loaderIds())
+                                + "), with the exact lower-case .png extension.");
+                continue;
+            }
+            references.add(file);
+        }
+
+        // Two references that are pixel-identical are the same rendering twice. One file covers
+        // both loaders, so the other is an orphan that a later edit could update while the first
+        // went stale; the pair is reported instead of quietly comparing one rendering twice.
+        List<File> seen = new ArrayList<>();
+        List<BufferedImage> seenImages = new ArrayList<>();
+        for (File reference : references) {
+            BufferedImage image = read(reference);
+            if (image == null) {
+                errors.add(path + "/" + reference.getName() + " could not be read as a PNG.");
+                continue;
+            }
+            for (int i = 0; i < seenImages.size(); i++) {
+                if (identicalPixels(seenImages.get(i), image)) {
                     errors.add(
                             path
                                     + "/"
-                                    + file.getName()
-                                    + " is not a valid reference name; references are numbered from"
-                                    + " 1 (1.png, 2.png, ...) with the exact lowercase .png"
-                                    + " extension.");
-                    continue;
-                }
-                numbers.add(referenceNumber(file));
-            }
-
-            int expected = 1;
-            for (int number : numbers) {
-                if (number != expected) {
-                    errors.add(
-                            path
-                                    + " is missing "
-                                    + expected
-                                    + ".png, so its references are not"
-                                    + " numbered 1, 2, 3, ... without gaps.");
-                    // Report the gap once, rather than cascading it into every later number.
+                                    + seen.get(i).getName()
+                                    + " and "
+                                    + reference.getName()
+                                    + " are pixel-identical; one file covers both renderings, so"
+                                    + " delete one of them.");
                     break;
                 }
-                expected++;
             }
+            seen.add(reference);
+            seenImages.add(image);
         }
 
         for (File subdirectory : subdirectories) {
             validateReferenceDirectory(subdirectory, path + "/" + subdirectory.getName(), errors);
         }
+    }
+
+    /**
+     * Whether a file name is a loader directory's name plus the exact lower-case .png extension.
+     */
+    private static boolean isReferenceName(String name) {
+        if (!name.endsWith(REFERENCE_EXTENSION)) {
+            return false;
+        }
+        return LOADER_NAMES.contains(
+                name.substring(0, name.length() - REFERENCE_EXTENSION.length()));
+    }
+
+    /**
+     * Whether two references are the same rendering: the same size, and no pixel whose red, green
+     * or blue channel differs. Alpha is ignored, exactly as in {@link #verify}, because a capture
+     * matches a reference on its RGB alone; two files that would accept the same capture are one
+     * reference.
+     */
+    private static boolean identicalPixels(BufferedImage a, BufferedImage b) {
+        if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) {
+            return false;
+        }
+        return maxPixelChange(a, b) == 0;
     }
 
     /**
@@ -406,7 +457,7 @@ public final class GrugScreenshots {
         return changed;
     }
 
-    /** The numbered references in a directory, ordered 1, 2, 3, ... If it doesn't exist, empty. */
+    /** The references in a directory, sorted by name. If it doesn't exist, empty. */
     private static List<File> listReferences(File directory) {
         List<File> references = new ArrayList<>();
         File[] files = directory.listFiles();
@@ -414,23 +465,20 @@ public final class GrugScreenshots {
             return references;
         }
         for (File file : files) {
-            if (REFERENCE_NAME.matcher(file.getName()).matches()) {
+            if (file.getName().endsWith(REFERENCE_EXTENSION)) {
                 references.add(file);
             }
         }
-        references.sort(Comparator.comparingInt(GrugScreenshots::referenceNumber));
+        references.sort(Comparator.comparing(File::getName));
         return references;
-    }
-
-    private static int referenceNumber(File file) {
-        return Integer.parseInt(file.getName().substring(0, file.getName().length() - 4));
     }
 
     /**
      * Writes the capture as the directory's first reference, creating the directory if needed. Only
-     * called when the directory has no references yet, so this always writes {@code 1.png}.
+     * called when the directory has no references yet, so this always writes the loader's own name.
      */
-    private static void addReference(BufferedImage capture, File directory, String referencePath) {
+    private static void addReference(
+            BufferedImage capture, File directory, String referencePath, String loaderName) {
         if (!directory.exists() && !directory.mkdirs()) {
             throw Grug.fatal(
                     "Screenshot: could not create the reference directory "
@@ -439,7 +487,7 @@ public final class GrugScreenshots {
                             + directory
                             + ").");
         }
-        File reference = writeFirstReference(capture, directory, referencePath);
+        File reference = writeReference(capture, directory, referencePath, loaderName);
         String message =
                 "Wrote the first screenshot reference "
                         + referencePath
@@ -456,64 +504,49 @@ public final class GrugScreenshots {
         }
     }
 
-    @GrugGenerated("reference write: a failed write is reported, not measured")
-    private static File writeFirstReference(
-            BufferedImage capture, File directory, String referencePath) {
-        try {
-            File reference = new File(directory, nextNumber(directory) + ".png");
-            ImageIO.write(capture, "png", reference);
-            return reference;
-        } catch (Exception e) {
-            throw Grug.fatal(
-                    "Screenshot: failed to write a reference for " + referencePath + ": " + e);
-        }
-    }
-
     /**
-     * Writes an accepted capture into the reference directory at the free slot the mismatch named.
-     * Unlike the artifact write this fails loudly, because a golden that silently did not land
-     * would look accepted while the next run still misses.
+     * Writes the capture under the loader's own name, replacing that loader's previous reference
+     * when there is one. Unlike the artifact write this fails loudly, because a golden that
+     * silently did not land would look accepted while the next run still misses.
      */
     @GrugGenerated("reference write: a failed write is reported, not measured")
-    private static File writeAcceptedReference(
-            BufferedImage capture, File directory, String referencePath, int number) {
+    private static File writeReference(
+            BufferedImage capture, File directory, String referencePath, String loaderName) {
         try {
-            File reference = new File(directory, number + ".png");
+            File reference = new File(directory, loaderName + REFERENCE_EXTENSION);
             ImageIO.write(capture, "png", reference);
             return reference;
         } catch (Exception e) {
             throw Grug.fatal(
-                    "Screenshot: failed to write an accepted reference for "
-                            + referencePath
-                            + ": "
-                            + e);
+                    "Screenshot: failed to write the reference for " + referencePath + ": " + e);
         }
     }
 
     /**
-     * Writes the unmatched capture to the artifacts directory under the given number, which is the
-     * free slot in the reference directory, so promoting it is a plain copy.
+     * Writes the unmatched capture to the artifacts directory under the loader's name, which is the
+     * file promoting it into the reference directory would land on, so accepting it is a plain
+     * copy.
      */
     private static File writeArtifact(
-            BufferedImage capture, String referencePath, File artifactsRoot, int number) {
+            BufferedImage capture, String referencePath, File artifactsRoot, String loaderName) {
         File directory = artifactDirectory(referencePath, artifactsRoot);
         if (!directory.exists() && !directory.mkdirs()) {
-            return new File(directory, number + ".png");
+            return new File(directory, loaderName + REFERENCE_EXTENSION);
         }
-        return writeArtifactFile(capture, directory, referencePath, number);
+        return writeArtifactFile(capture, directory, referencePath, loaderName);
     }
 
     @GrugGenerated("artifact write: never hide the actual screenshot mismatch")
     private static File writeArtifactFile(
-            BufferedImage capture, File directory, String referencePath, int number) {
+            BufferedImage capture, File directory, String referencePath, String loaderName) {
         try {
-            File artifact = new File(directory, number + ".png");
+            File artifact = new File(directory, loaderName + REFERENCE_EXTENSION);
             ImageIO.write(capture, "png", artifact);
             return artifact;
         } catch (Exception e) {
             // The artifact is a convenience for collecting missing references; never let failing to
             // write it hide the actual screenshot mismatch.
-            return new File(referencePath, number + ".png");
+            return new File(referencePath, loaderName + REFERENCE_EXTENSION);
         }
     }
 
@@ -588,21 +621,6 @@ public final class GrugScreenshots {
                         / 255;
         int b = ((foreground & 0xFF) * DIFF_ALPHA + (background & 0xFF) * inverse + 127) / 255;
         return (r << 16) | (g << 8) | b;
-    }
-
-    /** The smallest number at or above 1 not already used, so gaps get filled rather than left. */
-    private static int nextNumber(File directory) {
-        Set<Integer> used = new HashSet<>();
-        for (File file : listEntries(directory)) {
-            if (REFERENCE_NAME.matcher(file.getName()).matches()) {
-                used.add(referenceNumber(file));
-            }
-        }
-        int next = 1;
-        while (used.contains(next)) {
-            next++;
-        }
-        return next;
     }
 
     /** A directory's entries, or an empty array when it cannot be listed. */

@@ -17,6 +17,17 @@ public interface ModLoaderAdapter {
     File getGrugModsDirectory();
 
     /**
+     * The name of this loader's directory under the repository's {@code loaders/}, which is what a
+     * screenshot reference this loader produces is named after.
+     *
+     * <p>Every adapter already names itself for the canonical block table, so this is that same
+     * name rather than a second one to keep in step. The reference validator checks every reference
+     * name against the loader directory names, so a renamed loader or a misspelled reference is
+     * caught instead of leaving an orphaned PNG.
+     */
+    String getLoaderName();
+
+    /**
      * Which process this is: the client, or a dedicated server.
      *
      * <p>A loader knows without asking, because the game told it. A loader that has no dedicated

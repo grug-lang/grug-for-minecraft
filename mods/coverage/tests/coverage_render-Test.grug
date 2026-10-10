@@ -152,12 +152,11 @@ local _check() {
     # its neighbours and none on the outer ends.
     # Pixel-exact, and it has to stay that way: a tolerance would accept a shape that had lost an
     # arm, which is the one thing this test exists to catch.
-    # The reference directory holds one PNG per distinct rendering: the shape's own pixels are the
-    # same set on every loader, and the flat background differs per version because each shades a
-    # face from its own light table. 1.20.6 has three references: its top-right corner can round
-    # either way, and the second pass of a repeats run lands a further step brighter along the same
-    # contours, so all three captures are kept and a run that lands on any of them passes. See #262
-    # and #264.
+    # The reference directory holds one PNG per loader: the shape's own pixels are the same set on
+    # every loader, and the flat background differs per version because each shades a face from its
+    # own light table. 1.20.6's reference is the state pass 1 usually lands on; its top-right corner
+    # can round the other way, and a repeats run's second pass lands a step brighter along the same
+    # contours, so either of those misses until #262 and #264 are fixed.
     Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
 }
 
