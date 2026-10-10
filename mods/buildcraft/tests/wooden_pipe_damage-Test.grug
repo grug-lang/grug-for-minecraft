@@ -7,7 +7,8 @@ export run() {
     if Test.tick() == 0 {
         _damage_setup()
         Test.not_done()
-    } else if not _damage_pipe_has_moved() {
+    } else if not _damage_pipe_has_moved() or Test.tick() < 20 {
+        # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
         Test.not_done()
     } else {
         _damage_check()
