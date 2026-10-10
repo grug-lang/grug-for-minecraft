@@ -1170,6 +1170,20 @@
 				}
 			]
 		},
+		"floor": {
+			"description": "The largest whole number at or below the given number: floor(2.5) is 2 and floor(-2.5) is -3. A position in the world is a number with a fraction, while a block coordinate is a whole number, and this is how a mod turns one into the other.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "value",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"get_block_entity_level": {
 			"description": "Gets the Level (dimension) a BlockEntity is in.",
 			"return_type": {
