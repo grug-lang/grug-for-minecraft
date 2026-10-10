@@ -123,6 +123,15 @@ public final class GrugTestBox {
                 adapter.placeBlock(level, x, ceilingY, z, "minecraft:stone");
             }
         }
+
+        // The items go last, once the room is sealed again: whatever the block clearing freed,
+        // including the roof an earlier test's drop was resting on, and whatever else is inside.
+        // The player picks up anything that lands near them, and an item in the hotbar shows in
+        // every capture that has one in frame. The ceiling is back by this point, so an item still
+        // above the box settles on the roof rather than falling into the room behind the sweep. See
+        // #254.
+        adapter.clearItemEntities(
+                level, minX - 1, wallBottomY, minZ - 1, maxX + 1, ceilingY, maxZ + 1);
     }
 
     /** Clears one block to air, unless it is already air. */
