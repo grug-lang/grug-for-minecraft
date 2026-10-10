@@ -1,0 +1,22 @@
+# The room build sweeps the item entities out of its box, so a fixture's drops cannot be picked up
+# and carried into a later capture. This spawns one inside the room, forces a rebuild through
+# Test.set_box_radius, and checks the sweep took it. See #254.
+export run() {
+    if Test.tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+
+        sword: Item = item(resource_location("minecraft:diamond_sword"))
+        stack: ItemStack = item_stack(sword, 3)
+        entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
+        entity.entity().set_delta_movement(vec3_zero())
+        entity.entity().spawn(level)
+    } else if Test.tick() == 1 {
+        Test.set_box_radius(4)
+    } else {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        found: Option[ItemEntity] = level.find_item_entity(origin.x(), origin.y(), origin.z(), 10)
+        Test.assert(not found.has(), "The room build's sweep should have removed the spawned item.")
+    }
+}
