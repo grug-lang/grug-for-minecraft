@@ -349,9 +349,10 @@ jobs:
           # repository variable GRUG_CI_REPEATS, then 1, which is what pull request runs use
           # because their inputs context is empty. See #268.
           GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
-          # The watch covers the whole run, so a repeats=2 run needs about twice the default 120s
-          # before its two passes have both finished.
-          GRUG_CI_RUN_TIMEOUT: '900'
+          # The watch covers the whole run. The baseline experiment on this branch runs 20 passes,
+          # so the timeout is set well past what one pass takes; on main it only has to cover the
+          # two passes a repeats=2 dispatch runs.
+          GRUG_CI_RUN_TIMEOUT: '5400'
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
