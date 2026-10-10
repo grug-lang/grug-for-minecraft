@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      repeats:
+        # Empty uses the repository variable GRUG_CI_REPEATS, then 1. See #268.
+        description: 'Suite passes per loader run; empty uses the repository variable or 1'
+        type: string
 
 permissions:
   contents: read
@@ -340,6 +345,10 @@ jobs:
           # Empty for every loader except 1.2.5-forge; its game JVM uses this Java 8.
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
+          # How many times the suite runs in one test run. A dispatch input wins, then the
+          # repository variable GRUG_CI_REPEATS, then 1, which is what pull request runs use
+          # because their inputs context is empty. See #268.
+          GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
