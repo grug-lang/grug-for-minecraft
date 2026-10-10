@@ -47,9 +47,7 @@ local _setup_table() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x() + 12
-    # Band 5, the one free band left: 0, 6, 10, 15, 20, 25, 30, 35, 40, 45 and 50 are all taken by
-    # another test, and the x offset keeps this clear of the redstone engine at the origin, whose
-    # torch stands in this band.
+    # Band 5, below the bands the pipe tests use, and the x offset keeps this clear of the origin.
     y: number = origin.y() + 5
     z: number = origin.z()
 

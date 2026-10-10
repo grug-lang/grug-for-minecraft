@@ -454,7 +454,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
             }
         }
         for (ItemEntity item : toRemove) {
-            item.markDead();
+            // markDead() only marks the entity dead; World.remove takes it out of the world's
+            // entity lists, which is what a query in the same tick needs to miss it.
+            world.remove(item);
         }
     }
 
