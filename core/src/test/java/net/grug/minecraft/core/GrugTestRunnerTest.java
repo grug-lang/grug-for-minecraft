@@ -3,6 +3,7 @@ package net.grug.minecraft.core;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.Grug;
@@ -137,6 +138,43 @@ class GrugTestRunnerTest {
         assertTrue(runner.isFinished());
         assertTrue(ops.destroyed == 1);
         assertTrue(ops.created == 1);
+    }
+
+    @Test
+    void parsesTheRepeatCount() {
+        assertEquals(1, GrugTestRunner.parseRepeats(null));
+        assertEquals(1, GrugTestRunner.parseRepeats(""));
+        assertEquals(4, GrugTestRunner.parseRepeats("4"));
+        assertThrows(IllegalStateException.class, () -> GrugTestRunner.parseRepeats("0"));
+        assertThrows(IllegalStateException.class, () -> GrugTestRunner.parseRepeats("two"));
+    }
+
+    @Test
+    void repeatsTheSuiteAndAnnouncesOnceAtTheEnd() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        ops.pathsAre(files);
+        GrugTestRunner runner =
+                new GrugTestRunner(files, List.of(), ops, System::nanoTime, radius -> {}, 3);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PrintStream old = System.out;
+        System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8));
+        try {
+            runToEnd(runner);
+        } finally {
+            System.setOut(old);
+        }
+
+        assertTrue(runner.isFinished());
+        // Two tests, three times, each created and destroyed once.
+        assertEquals(6, ops.created);
+        assertEquals(6, ops.destroyed);
+        String log = out.toString(StandardCharsets.UTF_8);
+        assertEquals(1, log.split("ALL 2 TESTS PASSED", -1).length - 1);
+        assertEquals(2, log.split("complete, starting the next", -1).length - 1);
     }
 
     @Test
