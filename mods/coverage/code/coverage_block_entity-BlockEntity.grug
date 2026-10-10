@@ -1,0 +1,4 @@
+# A quiet block entity. A coverage_block only needs one to exist, and binding examplemod's
+# foo_block_entity made every coverage_block spawn a diamond every 10 game ticks. The walls the
+# screenshot tests build are dozens of these, so the room rained diamonds, the player picked them up,
+# and they showed in the next pass's captures. See #254.
