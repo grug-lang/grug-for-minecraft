@@ -305,11 +305,15 @@ public class GrugTestRunner {
                 }
                 // The same message is also waiting for the chat, and a red message about an error
                 // this test asked for is noise, so it is not shown. That is all this drain is for,
-                // and clearing the chat queue cannot affect the match above.
+                // and clearing the chat queue cannot affect the match above. The clear holds the
+                // queue's monitor, like every other access, because the client hook drains it
+                // under that monitor.
                 synchronized (Grug.runtimeErrorQueue) {
                     Grug.runtimeErrorQueue.clear();
                 }
-                Grug.printQueue.clear();
+                synchronized (Grug.printQueue) {
+                    Grug.printQueue.clear();
+                }
                 if (!actual.contains(Grug.testExpectedError)) {
                     fail(
                             path,
@@ -497,10 +501,15 @@ public class GrugTestRunner {
 
     /** Reports a failure, aborts the whole run, and cleans up. */
     private void fail(String path, String msg) {
-        for (String line : Grug.printQueue) {
-            System.out.println("[GRUG CI] pending: " + line);
+        // The client hook drains this queue under its monitor, so the pending messages are read
+        // and cleared under the same monitor: a concurrent poll could otherwise invalidate the
+        // iteration, and a message queued in the tick the test failed in would be lost.
+        synchronized (Grug.printQueue) {
+            for (String line : Grug.printQueue) {
+                System.out.println("[GRUG CI] pending: " + line);
+            }
+            Grug.printQueue.clear();
         }
-        Grug.printQueue.clear();
 
         System.out.println("[GRUG CI] FAIL " + path);
         System.out.println("[GRUG CI] " + msg);
