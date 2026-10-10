@@ -151,8 +151,12 @@ public final class GrugTestBox {
         // The items go last, once the room is sealed again: whatever the block clearing freed and
         // whatever else is in the area. The player picks up anything that lands near them, and an
         // item in the hotbar shows in every capture that has one in frame. See #254.
+        // The upper bounds are one past the last cleared block: a block at areaMaxX covers
+        // [areaMaxX, areaMaxX + 1), so an item resting in that block has a position past its own
+        // coordinate and the sweep would leave it behind. The lower bounds need no adjustment,
+        // because a block's interior starts at its coordinate.
         adapter.clearItemEntities(
-                level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
+                level, areaMinX, wallBottomY, areaMinZ, areaMaxX + 1, areaTopY + 1, areaMaxZ + 1);
     }
 
     /** Clears one block to air, unless it is already air. */
