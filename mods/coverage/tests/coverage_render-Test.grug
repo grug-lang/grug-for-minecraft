@@ -169,6 +169,8 @@ local _check() {
 # that settles again: the lit block is at the maximum level, so a leftover from that change cannot
 # be brighter than the correct value. See #262.
 local _force_remesh() {
+    # Experiment branch for #270 step 3: three swaps rather than one, at three corners of the wall,
+    # so the crop's section is dirtied and re-meshed more than once. Revert with the branch.
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -176,5 +178,9 @@ local _force_remesh() {
     z: number = origin.z()
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
     level.place_block(x - 6, y + 3, z + 6, "grug:coverage_flat_lit")
-    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "grug:coverage_flat_lit", "The remesh swap should have put the wall block back.")
+    level.place_block(x + 6, y + 3, z + 6, "minecraft:stone")
+    level.place_block(x + 6, y + 3, z + 6, "grug:coverage_flat_lit")
+    level.place_block(x - 6, y - 9, z + 6, "minecraft:stone")
+    level.place_block(x - 6, y - 9, z + 6, "grug:coverage_flat_lit")
+    Test.assert(level.get_block(x - 6, y - 9, z + 6) == "grug:coverage_flat_lit", "The remesh swap should have put the wall block back.")
 }
