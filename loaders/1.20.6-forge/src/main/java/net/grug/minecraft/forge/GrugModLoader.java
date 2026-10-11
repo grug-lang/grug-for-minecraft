@@ -581,6 +581,7 @@ public class GrugModLoader {
                         if (WINDOW.beginRun()) {
                             stopTutorialForRun(mc);
                             shrinkViewForRun(mc);
+                            flattenLightingForRun(mc);
                             grug$testRunner = new GrugTestRunner();
                             grug$testRunnerFromCI = true;
                             advanceTestRunner(mc);
@@ -607,6 +608,7 @@ public class GrugModLoader {
                     WINDOW.endRun();
                     restoreTutorialAfterRun(mc);
                     restoreViewAfterRun(mc);
+                    restoreLightingAfterRun(mc);
                 }
 
                 updateCursorReadout(mc);
@@ -653,6 +655,7 @@ public class GrugModLoader {
             if (WINDOW.tick(KEYS)) {
                 stopTutorialForRun(mc);
                 shrinkViewForRun(mc);
+                flattenLightingForRun(mc);
                 grug$testRunner = new GrugTestRunner();
                 grug$testRunnerFromCI = false;
                 advanceTestRunner(mc);
@@ -712,6 +715,35 @@ public class GrugModLoader {
             if (savedRenderDistance != null) {
                 mc.options.renderDistance().set(savedRenderDistance);
                 savedRenderDistance = null;
+            }
+        }
+
+        /** The smooth lighting a run found, put back when the run ends. */
+        private static Boolean savedAmbientOcclusion = null;
+
+        /**
+         * Turns smooth lighting off before a run starts.
+         *
+         * <p>Experiment branch for #270 step 4: the coverage_render crop's top-right corner is a
+         * smooth-lighting gradient, and the flip is that gradient's last bit rounding either way.
+         * Without the interpolation every face is lit flat from its own cell, so no compared pixel
+         * sits on a rounding boundary. This changes the shape's shading as well as the corner's, so
+         * the branch carries its own references. Revert with the branch.
+         */
+        @GrugGenerated("dev-only: smooth lighting is turned off for a run")
+        private static void flattenLightingForRun(Minecraft mc) {
+            if (savedAmbientOcclusion == null) {
+                savedAmbientOcclusion = mc.options.ambientOcclusion().get();
+                mc.options.ambientOcclusion().set(false);
+            }
+        }
+
+        /** Puts smooth lighting back, and only if a run changed it. */
+        @GrugGenerated("dev-only: smooth lighting is turned off for a run")
+        private static void restoreLightingAfterRun(Minecraft mc) {
+            if (savedAmbientOcclusion != null) {
+                mc.options.ambientOcclusion().set(savedAmbientOcclusion);
+                savedAmbientOcclusion = null;
             }
         }
 
