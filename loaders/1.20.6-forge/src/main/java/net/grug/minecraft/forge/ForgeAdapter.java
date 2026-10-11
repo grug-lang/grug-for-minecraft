@@ -66,8 +66,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * How many client ticks a screenshot's wait for a client-side idle state may take before it
      * gives up and captures the frame the client has. The first tick that finds nothing left is
      * enough, and the rest is margin for a loaded runner. See #259.
+     *
+     * <p>Experiment branch for #270 step 4: 400 rather than 100, and the capture waits for two
+     * consecutive idle ticks rather than one. The flipped runs are the ones whose capture took the
+     * give-up path with the section queues still busy, and a frame can be one tick behind the
+     * rebuild the wait is holding for. Revert with the branch.
      */
-    private static final int SETTLE_WAIT_CLIENT_TICKS = 100;
+    private static final int SETTLE_WAIT_CLIENT_TICKS = 400;
 
     /**
      * The adapter for whichever process this is, called from {@code GrugModLoader}, which runs on
@@ -925,11 +930,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private BufferedImage captureSettledOnClientThread(
             String operation, int x1, int y1, int x2, int y2) {
         Minecraft minecraft = Minecraft.getInstance();
+        int[] idleTicks = {0};
         for (int attempt = 0; attempt < SETTLE_WAIT_CLIENT_TICKS; attempt++) {
             BufferedImage[] result = new BufferedImage[1];
             boolean[] captured = {false};
             onClientThread(
-                    () -> captureIfClientSettled(minecraft, x1, y1, x2, y2, result, captured));
+                    () -> captureIfClientSettled(
+                            minecraft, x1, y1, x2, y2, result, captured, idleTicks));
             if (captured[0]) {
                 return result[0];
             }
@@ -942,8 +949,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * The client task the wait posts: it captures only on a tick whose client is idle, and returns
-     * without capturing otherwise so the wait posts again.
+     * The client task the wait posts: it captures only on the second consecutive tick whose client
+     * is idle, and returns without capturing otherwise so the wait posts again. The first idle
+     * answer says the last compile finished, but the frame the framebuffer holds may still be from
+     * before that compile's upload, so the tick after it is the first one drawn with it.
      *
      * <p>It is its own method rather than a lambda body because JaCoCo measures a lambda as its own
      * method, and the wait's own exclusion does not carry over to it: its two branches would then
@@ -960,8 +969,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
             int x2,
             int y2,
             BufferedImage[] result,
-            boolean[] captured) {
+            boolean[] captured,
+            int[] idleTicks) {
         if (!clientSettled(minecraft)) {
+            idleTicks[0] = 0;
+            return;
+        }
+        idleTicks[0]++;
+        if (idleTicks[0] < 2) {
             return;
         }
         result[0] = capture(x1, y1, x2, y2);
