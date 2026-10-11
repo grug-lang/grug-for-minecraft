@@ -8,6 +8,7 @@
         "CoverageDrawProbeMixin",
         "CoverageMeshProbeMixin",
         "CoverageVertexProbeMixin",
+        "GuiAccess",
         "LightTextureAccess",
         "LightTextureMixin",
         "LiquidBlockRendererMixin",

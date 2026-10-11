@@ -9,6 +9,7 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.world.level.LightLayer;
 
 import org.joml.Matrix4f;
 import org.slf4j.Logger;
@@ -52,9 +53,24 @@ public abstract class CoverageDrawProbeMixin {
         grug$lastLogSecond = second;
         float[] fogColor = RenderSystem.getShaderFogColor();
         float[] color = RenderSystem.getShaderColor();
+        // The light-based vignette's strength and the light it is derived from, so its convergence
+        // can be watched across a run and compared between passes.
+        Minecraft mc = Minecraft.getInstance();
+        float vignette = ((GuiAccess) (Object) mc.gui).grug$vignetteBrightness();
+        int playerBlockLight = -1;
+        int playerSkyLight = -1;
+        if (mc.level != null && mc.getCameraEntity() != null) {
+            net.minecraft.core.BlockPos eye =
+                    net.minecraft.core.BlockPos.containing(
+                            mc.getCameraEntity().getX(),
+                            mc.getCameraEntity().getEyeY(),
+                            mc.getCameraEntity().getZ());
+            playerBlockLight = mc.level.getBrightness(LightLayer.BLOCK, eye);
+            playerSkyLight = mc.level.getBrightness(LightLayer.SKY, eye);
+        }
         GRUG_LOGGER.info(
                 "[coverage-draw] fogStart={} fogEnd={} fogColor={},{},{},{} fogShape={}"
-                        + " color={},{},{},{}",
+                        + " color={},{},{},{} vignette={} playerLight={}/{} gameTime={}",
                 RenderSystem.getShaderFogStart(),
                 RenderSystem.getShaderFogEnd(),
                 fogColor[0],
@@ -65,7 +81,11 @@ public abstract class CoverageDrawProbeMixin {
                 color[0],
                 color[1],
                 color[2],
-                color[3]);
+                color[3],
+                vignette,
+                playerBlockLight,
+                playerSkyLight,
+                mc.level == null ? -1 : mc.level.getGameTime());
         if (!grug$loggedSources) {
             grug$loggedSources = true;
             grug$logSource("shaders/core/rendertype_solid.vsh");

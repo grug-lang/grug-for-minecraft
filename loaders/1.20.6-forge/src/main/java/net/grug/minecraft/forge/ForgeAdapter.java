@@ -11,6 +11,7 @@ import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
+import net.grug.minecraft.forge.mixin.GuiAccess;
 import net.grug.minecraft.forge.mixin.LightTextureAccess;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
@@ -44,6 +45,7 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -1061,9 +1063,25 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 LOGGER.info("[coverage-dump] lightmap write failed: {}", e.toString());
             }
             float[] fogColor = RenderSystem.getShaderFogColor();
+            // The light-based vignette's strength and the light it is derived from: the vignette is
+            // a full-screen multiply whose strength is a smoothed function of the light at the
+            // camera entity, which is the wall's radial field.
+            float vignette = ((GuiAccess) (Object) mc.gui).grug$vignetteBrightness();
+            int playerBlockLight = -1;
+            int playerSkyLight = -1;
+            if (mc.level != null && mc.getCameraEntity() != null) {
+                net.minecraft.core.BlockPos eye =
+                        net.minecraft.core.BlockPos.containing(
+                                mc.getCameraEntity().getX(),
+                                mc.getCameraEntity().getEyeY(),
+                                mc.getCameraEntity().getZ());
+                playerBlockLight = mc.level.getBrightness(LightLayer.BLOCK, eye);
+                playerSkyLight = mc.level.getBrightness(LightLayer.SKY, eye);
+            }
             LOGGER.info(
                     "[coverage-dump] rect {},{},{},{} dayTime={} skyDarken={} gamma={} flicker={}"
-                        + " fogStart={} fogEnd={} fogColor={},{},{} fogShape={} renderDistance={}",
+                        + " fogStart={} fogEnd={} fogColor={},{},{} fogShape={} renderDistance={}"
+                        + " vignette={} playerLight={}/{} gameTime={}",
                     x1,
                     y1,
                     x2,
@@ -1078,7 +1096,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
                     fogColor[1],
                     fogColor[2],
                     RenderSystem.getShaderFogShape(),
-                    mc.options.renderDistance().get());
+                    mc.options.renderDistance().get(),
+                    vignette,
+                    playerBlockLight,
+                    playerSkyLight,
+                    mc.level == null ? -1 : mc.level.getGameTime());
             Screenshot.grab(
                     dumpDir,
                     "fullframe-" + dumpCounter + "-" + x1 + "-" + y1 + "-" + x2 + "-" + y2,
