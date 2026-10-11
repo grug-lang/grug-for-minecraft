@@ -6,6 +6,7 @@
     "refmap": "grug.refmap.json",
     "client": [
         "CoverageDrawProbeMixin",
+        "CoverageMeshProbeMixin",
         "CoverageVertexProbeMixin",
         "LightTextureAccess",
         "LightTextureMixin",
