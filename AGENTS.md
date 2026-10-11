@@ -138,11 +138,11 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   ```
 
   On CI, dispatch the workflow with `repeats` instead: `gh workflow run build.yml --ref <branch> -f
-  repeats=20`. The dispatch input wins, then the repository variable `GRUG_CI_REPEATS`, then 1, which
-  is what pull request runs use. The workflow sets `GRUG_CI_RUN_TIMEOUT` to 900, so a long repeats
-  run needs that raised on the branch too. Every pass compares against the same references, so a
-  repeats run fails at the first capture that matches none of them, and `GrugTestRunner` logs
-  `repeat N of M complete` between passes.
+  repeats=20`. The dispatch input wins, then the repository variable `GRUG_CI_REPEATS`, then 1; pull
+  request runs have no input, so they repeat only while that variable is unset. The workflow sets
+  `GRUG_CI_RUN_TIMEOUT` to 900, so a long repeats run needs that raised on the branch too. Every pass
+  compares against the same references, so a repeats run fails at the first capture that matches
+  none of them, and `GrugTestRunner` logs `repeat N of M complete` between passes.
 - The real tasks live in `loaders/<loader>/build.gradle`; the four standalone loaders also have a
   `root.gradle` that the root project's `runClient` execs, so both invocations reach them. A
   plain `runClient` is for playing and leaves `run/saves` alone; only `run-loader.sh` resets it.
