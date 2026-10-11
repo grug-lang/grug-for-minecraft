@@ -249,11 +249,12 @@ Four traps, each of which cost a run here:
   of them. Verified: `pre-commit-Linux-b34053ba...` was present three times at once, on three different
   pull request merge refs. So every open branch writes its own copy of the same gigabytes, and a cache
   measured on a pull request is discarded when it merges.
-- **Each new pull request therefore starts cold, and that is where the cost is.** `build.yml` triggers on
-  `pull_request` and `workflow_dispatch` only, with no `push`, so merging to `main` runs nothing and there
-  is no `main` run to be cold. One cold run per pull request, then every push to it hits, which is where
-  the saving lands. A push that touches neither `build.yml` nor a properties file moves no key and keeps
-  every cache; one that does touch either pays to repopulate.
+- **Each new pull request therefore starts cold, and that is where the cost is.** A pull request's caches
+  live on its merge ref, and each new pull request gets a new one, so it starts cold while every later
+  push to the same pull request hits, which is where the saving lands. `build.yml` also triggers on `push`
+  to `main`, which runs the fleet once per loader on every merge, against `main`'s own caches. A push that
+  touches neither `build.yml` nor a properties file moves no key and keeps every cache; one that does
+  touch either pays to repopulate.
 - **The repo cache store is 10GB and evicts, and the churn above is what fills it.** Every new
   generation of a key costs another immutable entry, and four generations of a 424MB entry plus four of
   a 93MB one existed on one pull request simultaneously. Eviction takes out the live ForgeGradle cache,
