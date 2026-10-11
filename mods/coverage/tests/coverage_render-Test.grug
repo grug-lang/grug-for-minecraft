@@ -154,10 +154,12 @@ local _check() {
     # arm, which is the one thing this test exists to catch.
     # The reference directory holds one PNG per distinct rendering: the shape's own pixels are the
     # same set on every loader, and the flat background differs per version because each shades a
-    # face from its own light table. 1.20.6's accepted state on this branch is 4.png, the flat-lit
-    # capture from the branch's first CI run: with the interpolation gone the corner has no gradient
-    # to round, and whether a pass still produces a second state is what the repeats measure. See
-    # #263, #262 and #264.
+    # face from its own light table. 1.20.6's accepted states on this branch are 4.png, the flat-lit
+    # capture from the branch's first CI run, and 5.png, the state its second run's later passes
+    # produce: the cold and warm states still differ at the crop's top corners, 452 pixels, the same
+    # ones the smooth-lit pair differs at, so turning the interpolation off did not make the crop one
+    # state. Whether a pass still produces a third state is what the repeats measure. See #263, #262
+    # and #264.
     Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
 }
 
