@@ -23,11 +23,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>The fixture places a thirteen square wall of {@code grug:coverage_flat_lit} at the graphics
  * origin plus {@code z + 6}. The origin is the player's eye plus three, in y only, so the wall is at
  * camera {@code z + 6} and the cells just in front of it, the ones its faces sample, are at camera
- * {@code z + 5}, {@code x - 6} to {@code x + 6} and {@code y - 6} to {@code y + 6}. Only cells below
- * the maximum are printed: the wall emits the maximum, so a cell that is not at 15 is a leftover or
- * a gap, which is the shape of the difference #262 and #264 describe. The first dispatch of this
- * probe scanned {@code z + 8}, two blocks behind the wall, because its comment assumed the origin's
- * three was added to every component; the reading was the space behind the wall.
+ * {@code z + 5}, {@code x - 6} to {@code x + 6} and {@code y - 6} to {@code y + 6}. Every cell is
+ * printed as {@code block/sky}, with the level's day time on the line: the wall emits the maximum, so
+ * a block value that is not 15 is a leftover or a gap, and the sky value says whether the day time
+ * reaches the room at all, which is the other input the crop's top corners move with. The first
+ * dispatch of this probe scanned {@code z + 8}, two blocks behind the wall, because its comment
+ * assumed the origin's three was added to every component; the reading was the space behind the
+ * wall.
  *
  * <p>Not for committing: this is measurement scaffolding for the step's experiment branch.
  */
@@ -57,15 +59,15 @@ public abstract class CoverageLightProbeMixin {
                 + " player=" + (minecraft.player == null ? "none" : minecraft.player.position())
                 + " yaw=" + (minecraft.player == null ? 0.0f : minecraft.player.getYRot())
                 + " pitch=" + (minecraft.player == null ? 0.0f : minecraft.player.getXRot())
-                + " below-max on the wall's front plane:");
+                + " dayTime=" + level.getDayTime()
+                + " block/sky on the wall's front plane:");
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int dx = -7; dx <= 7; dx++) {
             for (int dy = -7; dy <= 7; dy++) {
                 pos.set(cx + dx, cy + dy, cz + 5);
                 int block = level.getBrightness(LightLayer.BLOCK, pos);
-                if (block < 15) {
-                    line.append(' ').append(dx).append(',').append(dy).append('=').append(block);
-                }
+                int sky = level.getBrightness(LightLayer.SKY, pos);
+                line.append(' ').append(dx).append(',').append(dy).append('=').append(block).append('/').append(sky);
             }
         }
         System.out.println(line);
