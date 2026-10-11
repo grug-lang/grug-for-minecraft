@@ -22,7 +22,6 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -1051,8 +1050,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
             Minecraft mc = Minecraft.getInstance();
             LightTextureAccess access =
                     (LightTextureAccess) (Object) mc.gameRenderer.lightTexture();
+            // Under the screenshot-artifacts tree, so a CI failure's artifact upload carries the
+            // lightmap and the full frame next to the crop they explain.
+            File dumpDir = new File("grug-screenshot-artifacts/dump");
+            dumpDir.mkdirs();
             try {
-                access.grug$lightPixels().writeToFile(new File("lightmap-" + dumpCounter + ".png"));
+                access.grug$lightPixels()
+                        .writeToFile(new File(dumpDir, "lightmap-" + dumpCounter + ".png"));
             } catch (IOException e) {
                 LOGGER.info("[coverage-dump] lightmap write failed: {}", e.toString());
             }
@@ -1076,7 +1080,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
                     RenderSystem.getShaderFogShape(),
                     mc.options.renderDistance().get());
             Screenshot.grab(
-                    new File("."),
+                    dumpDir,
                     "fullframe-" + dumpCounter + "-" + x1 + "-" + y1 + "-" + x2 + "-" + y2,
                     target,
                     component -> {});
