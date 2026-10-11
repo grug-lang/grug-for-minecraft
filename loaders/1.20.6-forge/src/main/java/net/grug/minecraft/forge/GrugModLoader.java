@@ -333,8 +333,7 @@ public class GrugModLoader {
                                     new GrugBlock(
                                             BlockBehaviour.Properties.of()
                                                     .mapColor(MapColor.STONE)
-                                                    .strength(blockData.hardness)
-                                                    .lightLevel(state -> blockData.lightEmission),
+                                                    .strength(blockData.hardness),
                                             blockFileId));
             registeredGrugBlocks.add(blockReg);
 
