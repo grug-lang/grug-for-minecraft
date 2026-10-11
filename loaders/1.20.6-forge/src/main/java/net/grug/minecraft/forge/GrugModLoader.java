@@ -697,12 +697,15 @@ public class GrugModLoader {
          * the light engine and the section rebuilds then have to work through. On a
          * software-rendered CI runner that work outlasts the test's tick budget, so the wait for
          * the world to settle before a capture never finishes. See #253.
+         *
+         * <p>Experiment branch for #270 step 3: 12 rather than 2, to test the fog as the input
+         * that varies in the coverage_render flip. Revert with the branch.
          */
         @GrugGenerated("dev-only: the view is shrunk for a run")
         private static void shrinkViewForRun(Minecraft mc) {
             if (savedRenderDistance == null) {
                 savedRenderDistance = mc.options.renderDistance().get();
-                mc.options.renderDistance().set(2);
+                mc.options.renderDistance().set(12);
             }
         }
 
