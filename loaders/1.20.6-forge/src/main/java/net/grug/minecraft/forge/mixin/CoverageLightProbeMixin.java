@@ -21,10 +21,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * run's pass 1 can be compared with pass 2+.
  *
  * <p>The fixture places a thirteen square wall of {@code grug:coverage_flat_lit} at the graphics
- * origin plus {@code z + 6}, and the origin is the camera plus three, so the cells just in front of
- * the wall are at camera {@code z + 8}, {@code x - 4} to {@code x + 10} and {@code y - 7} to {@code
- * y + 7}. Only cells below the maximum are printed: the wall emits the maximum, so a cell that is
- * not at 15 is a leftover or a gap, which is the shape of the difference #262 and #264 describe.
+ * origin plus {@code z + 6}. The origin is the player's eye plus three, in y only, so the wall is at
+ * camera {@code z + 6} and the cells just in front of it, the ones its faces sample, are at camera
+ * {@code z + 5}, {@code x - 6} to {@code x + 6} and {@code y - 6} to {@code y + 6}. Only cells below
+ * the maximum are printed: the wall emits the maximum, so a cell that is not at 15 is a leftover or
+ * a gap, which is the shape of the difference #262 and #264 describe. The first dispatch of this
+ * probe scanned {@code z + 8}, two blocks behind the wall, because its comment assumed the origin's
+ * three was added to every component; the reading was the space behind the wall.
  *
  * <p>Not for committing: this is measurement scaffolding for the step's experiment branch.
  */
@@ -56,9 +59,9 @@ public abstract class CoverageLightProbeMixin {
                 + " pitch=" + (minecraft.player == null ? 0.0f : minecraft.player.getXRot())
                 + " below-max on the wall's front plane:");
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int dx = -4; dx <= 10; dx++) {
+        for (int dx = -7; dx <= 7; dx++) {
             for (int dy = -7; dy <= 7; dy++) {
-                pos.set(cx + dx, cy + dy, cz + 8);
+                pos.set(cx + dx, cy + dy, cz + 5);
                 int block = level.getBrightness(LightLayer.BLOCK, pos);
                 if (block < 15) {
                     line.append(' ').append(dx).append(',').append(dy).append('=').append(block);
