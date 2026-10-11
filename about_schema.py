@@ -5,7 +5,7 @@ from pathlib import Path
 
 import jsonschema
 
-# The loaders/ directory names mapped to the Minecraft version each is for, so a recreation block
+# The loaders/ directory names mapped to the Minecraft version each is for, so a recreation entry
 # cannot pin a loader and a Minecraft version that disagree. Every loader directory belongs here.
 LOADER_MINECRAFT = {
     "1.2.5-forge": "1.2.5",
@@ -15,16 +15,22 @@ LOADER_MINECRAFT = {
     "b1.7.3-stationapi": "b1.7.3",
 }
 
-# The Java versions the loaders are tested on, so a recreation block cannot quietly name another.
+# The Java versions the loaders are tested on, so a recreation entry cannot quietly name another.
 JAVA_VERSIONS = ("8", "17", "21")
 
+# The fields that belong to the build a port recreates. The first derived_from entry is that build
+# and the only one that may carry them; later entries are its own sources.
+RECREATION_FIELDS = ("fidelity", "artifacts", "runtime", "install", "deviations")
 
-def runtime_errors(runtime: dict, loaders_dir: Path | None = None) -> list:
-    """The runtime rules that need the repository, not only the recreation block.
+
+def runtime_errors(
+    runtime: dict, path: str = "/derived_from/0/runtime", loaders_dir: Path | None = None
+) -> list:
+    """The runtime rules that need the repository, not only the recreation entry.
 
     The loader has to be a real ``loaders/`` directory, and its Minecraft and Java versions have to
-    be ones that loader actually targets, so a recreation block cannot point at a runtime that
-    cannot exist.
+    be ones that loader actually targets, so a recreation entry cannot point at a runtime that
+    cannot exist. ``path`` is the runtime object's json path, so the errors read as the file's.
     """
     errors = []
     if loaders_dir is None:
@@ -35,7 +41,7 @@ def runtime_errors(runtime: dict, loaders_dir: Path | None = None) -> list:
         if not (loaders_dir / loader).is_dir():
             errors.append(
                 (
-                    "/recreation/runtime/loader",
+                    f"{path}/loader",
                     f"{loader!r} is not a directory under {loaders_dir.name}/;"
                     " runtime.loader must name the loader directory the reference runs on.",
                 )
@@ -43,7 +49,7 @@ def runtime_errors(runtime: dict, loaders_dir: Path | None = None) -> list:
         elif loader not in LOADER_MINECRAFT:
             errors.append(
                 (
-                    "/recreation/runtime/loader",
+                    f"{path}/loader",
                     f"{loader!r} has no Minecraft version in LOADER_MINECRAFT;"
                     " add the loader to that table so minecraft can be checked.",
                 )
@@ -54,7 +60,7 @@ def runtime_errors(runtime: dict, loaders_dir: Path | None = None) -> list:
             if isinstance(minecraft, str) and minecraft != expected:
                 errors.append(
                     (
-                        "/recreation/runtime/minecraft",
+                        f"{path}/minecraft",
                         f"minecraft is {minecraft!r} but loader {loader!r} is for {expected!r}.",
                     )
                 )
@@ -63,7 +69,7 @@ def runtime_errors(runtime: dict, loaders_dir: Path | None = None) -> list:
     if isinstance(java, str) and java not in JAVA_VERSIONS:
         errors.append(
             (
-                "/recreation/runtime/java",
+                f"{path}/java",
                 f"java is {java!r} but must be one of {', '.join(JAVA_VERSIONS)}.",
             )
         )
@@ -71,35 +77,37 @@ def runtime_errors(runtime: dict, loaders_dir: Path | None = None) -> list:
     return errors
 
 
-def recreation_errors(data: dict) -> list:
-    """The recreation rules jsonschema cannot express.
+def recreation_errors(derived_from) -> list:
+    """The recreation rules jsonschema cannot express, over the derived_from array.
 
-    Returns (json_path, message) pairs, matching how the schema errors are reported.
+    The first entry is the build this port recreates, and the only one that may carry the recreation
+    fields; later entries are that build's own sources. Returns (json_path, message) pairs, matching
+    how the schema errors are reported.
     """
     errors = []
-    recreation = data.get("recreation")
-    if not isinstance(recreation, dict):
+    if not isinstance(derived_from, list):
         return errors
 
-    reference = recreation.get("reference")
-    if isinstance(reference, dict):
-        name = reference.get("name")
-        derived_from = data.get("derived_from")
-        derived_names = set()
-        if isinstance(derived_from, list):
-            for entry in derived_from:
-                if isinstance(entry, dict) and isinstance(entry.get("name"), str):
-                    derived_names.add(entry["name"])
-        if isinstance(name, str) and name not in derived_names:
-            errors.append(
-                (
-                    "/recreation/reference/name",
-                    f"{name!r} must name a derived_from entry; a reference's repository comes"
-                    " from there rather than being repeated in the recreation block.",
+    for index, entry in enumerate(derived_from):
+        if index == 0 or not isinstance(entry, dict):
+            continue
+        for field in RECREATION_FIELDS:
+            if field in entry:
+                errors.append(
+                    (
+                        f"/derived_from/{index}/{field}",
+                        "only the first derived_from entry may carry the recreation fields;"
+                        " later entries are that build's own sources.",
+                    )
                 )
-            )
 
-    artifacts = recreation.get("artifacts")
+    if not derived_from or not isinstance(derived_from[0], dict):
+        return errors
+
+    entry = derived_from[0]
+    path = "/derived_from/0"
+
+    artifacts = entry.get("artifacts")
     if not isinstance(artifacts, list):
         artifacts = []
 
@@ -113,9 +121,9 @@ def recreation_errors(data: dict) -> list:
         if artifact.get("mirrors") and not allowed:
             errors.append(
                 (
-                    f"/recreation/artifacts/{index}/mirrors",
+                    f"{path}/artifacts/{index}/mirrors",
                     "a mirror redistributes the artifact, so mirrors requires"
-                    f" /recreation/artifacts/{index}/redistribution/allowed to be true.",
+                    f" {path}/artifacts/{index}/redistribution/allowed to be true.",
                 )
             )
 
@@ -125,46 +133,46 @@ def recreation_errors(data: dict) -> list:
         if name in artifact_names:
             errors.append(
                 (
-                    f"/recreation/artifacts/{index}/name",
+                    f"{path}/artifacts/{index}/name",
                     f"artifact names must be unique; {name!r} is already used by"
-                    f" /recreation/artifacts/{artifact_names[name]}/name.",
+                    f" {path}/artifacts/{artifact_names[name]}/name.",
                 )
             )
         else:
             artifact_names[name] = index
 
-    if recreation.get("fidelity") == "exact" and not artifacts:
+    if entry.get("fidelity") == "exact" and not artifacts:
         errors.append(
             (
-                "/recreation/artifacts",
+                f"{path}/artifacts",
                 "an exact recreation needs artifacts to diff against;"
-                " add /recreation/artifacts or lower /recreation/fidelity.",
+                f" add {path}/artifacts or lower {path}/fidelity.",
             )
         )
 
-    if recreation.get("fidelity") == "exact" and recreation.get("deviations"):
+    if entry.get("fidelity") == "exact" and entry.get("deviations"):
         errors.append(
             (
-                "/recreation/deviations",
+                f"{path}/deviations",
                 "an exact recreation has no deviations; a deliberate difference means the"
-                " fidelity is behavioral or inspired, so remove the deviations or lower it.",
+                " fidelity is behavioral, so remove the deviations or lower it.",
             )
         )
 
-    install = recreation.get("install")
+    install = entry.get("install")
     files = install.get("files") if isinstance(install, dict) else None
     if isinstance(files, list):
         for name in files:
             if name not in artifact_names:
                 errors.append(
                     (
-                        "/recreation/install/files",
+                        f"{path}/install/files",
                         f"{name!r} is not the name of any artifact;"
                         " every install file must name an artifact.",
                     )
                 )
 
-    runtime = recreation.get("runtime")
+    runtime = entry.get("runtime")
     if isinstance(runtime, dict):
         errors.extend(runtime_errors(runtime))
 
@@ -208,7 +216,7 @@ def main() -> int:
             continue
 
         errors = list(validator.iter_errors(data))
-        recreation_problems = recreation_errors(data)
+        recreation_problems = recreation_errors(data.get("derived_from"))
         if errors or recreation_problems:
             has_error = True
             print(f"FAILED: {rel_path}", file=sys.stderr)

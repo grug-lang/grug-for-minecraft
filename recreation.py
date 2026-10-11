@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reference artifacts handling for a mod's recreation block.
+"""Reference artifacts handling for the recreation fields of a mod's first derived_from entry.
 
 A grug port is verified against committed goldens, which needs nothing but the port. Regenerating
 those goldens is the only part that needs the reference artifacts, and that is deliberately a
@@ -35,23 +35,39 @@ INSTALL_SUMMARIES = {
     "source_build": "Build the reference from config, then install the result.",
 }
 
+# The fields that belong to the build a port recreates. The first derived_from entry is that build
+# and the only one that may carry them; about_schema.py holds the same list for the rules it
+# enforces, and the schema itself requires four of them on any entry that carries one.
+RECREATION_FIELDS = ("fidelity", "artifacts", "runtime", "install", "deviations")
+
 
 def load_recreation(about_path: Path) -> dict | None:
-    """The recreation block of an about.json, or None when the mod has none."""
+    """The first derived_from entry of an about.json, or None when the mod recreates nothing.
+
+    The first entry is the build this port recreates, and the only one that carries the recreation
+    fields; later entries are that build's own sources.
+    """
     data = json.loads(about_path.read_text(encoding="utf-8"))
-    recreation = data.get("recreation")
-    return recreation if isinstance(recreation, dict) else None
+    derived_from = data.get("derived_from")
+    if not isinstance(derived_from, list) or not derived_from:
+        return None
+    entry = derived_from[0]
+    if not isinstance(entry, dict):
+        return None
+    if not any(field in entry for field in RECREATION_FIELDS):
+        return None
+    return entry
 
 
-def artifacts_of(recreation: dict) -> list:
-    """The recreation block's artifacts, one per file the reference ships."""
-    artifacts = recreation.get("artifacts")
+def artifacts_of(entry: dict) -> list:
+    """The entry's artifacts, one per file the reference ships."""
+    artifacts = entry.get("artifacts")
     return artifacts if isinstance(artifacts, list) else []
 
 
-def artifact_named(recreation: dict, name: str) -> dict | None:
+def artifact_named(entry: dict, name: str) -> dict | None:
     """The artifact staged as name, or None when no artifact claims that name."""
-    for artifact in artifacts_of(recreation):
+    for artifact in artifacts_of(entry):
         if artifact.get("name") == name:
             return artifact
     return None
@@ -71,13 +87,13 @@ def verify_artifact(artifact: dict, artifact_path: Path) -> list:
     actual_size = artifact_path.stat().st_size
     if actual_size != artifact["size"]:
         errors.append(
-            f"size is {actual_size} bytes but the recreation block pins {artifact['size']}"
+            f"size is {actual_size} bytes but the recreation entry pins {artifact['size']}"
         )
 
     actual_sha256 = sha256_of(artifact_path)
     if actual_sha256 != artifact["sha256"]:
         errors.append(
-            f"sha256 is {actual_sha256} but the recreation block pins {artifact['sha256']}"
+            f"sha256 is {actual_sha256} but the recreation entry pins {artifact['sha256']}"
         )
 
     return errors
@@ -90,16 +106,21 @@ def download_artifact(artifact: dict, destination: Path) -> None:
         shutil.copyfileobj(response, out)
 
 
-def install_plan(recreation: dict) -> str:
+def install_plan(entry: dict) -> str:
     """A human-readable description of what installing and running the reference involves."""
-    runtime = recreation["runtime"]
-    install = recreation["install"]
+    runtime = entry["runtime"]
+    install = entry["install"]
     operation = INSTALL_SUMMARIES[install["type"]]
+
+    revision = entry.get("revision")
+    reference = f"Reference: {entry['name']}"
+    if isinstance(revision, str):
+        reference += f" at {revision}"
 
     lines = [
         f"Runtime: Minecraft {runtime['minecraft']}, loader directory {runtime['loader']},"
         f" loader version {runtime['loader_version']}, Java {runtime['java']}.",
-        f"Reference: {recreation['reference']['name']} at {recreation['reference']['revision']}.",
+        reference + ".",
         f"Install ({install['type']}): {operation}",
     ]
     for field in ("files", "libs", "jvm_args"):
@@ -108,26 +129,26 @@ def install_plan(recreation: dict) -> str:
     if "config" in install:
         lines.append(f"  config: {json.dumps(install['config'], sort_keys=True)}")
 
-    for artifact in artifacts_of(recreation):
+    for artifact in artifacts_of(entry):
         lines.append(
             f"  artifact: {artifact['name']} {artifact['url']} sha256 {artifact['sha256']}"
         )
 
-    deviations = recreation.get("deviations", [])
+    deviations = entry.get("deviations", [])
     if deviations:
-        lines.append(f"Intentional deviations: {len(deviations)} (see the recreation block).")
+        lines.append(f"Intentional deviations: {len(deviations)} (see the recreation entry).")
 
     return "\n".join(lines)
 
 
-def stage_install(recreation: dict, artifacts_dir: Path, destination: Path) -> list:
+def stage_install(entry: dict, artifacts_dir: Path, destination: Path) -> list:
     """Writes the install into destination, returning the paths it created.
 
     Every install file names an artifact, whose copy in artifacts_dir is verified before it is
     copied as that name. Only a mods_folder install is automated. The other types need a loader, a
     launcher, or a build this script cannot drive, so they are reported rather than half-done.
     """
-    install = recreation["install"]
+    install = entry["install"]
     if install["type"] != "mods_folder":
         raise ValueError(
             f"Staging a {install['type']} install is not automated;"
@@ -137,10 +158,10 @@ def stage_install(recreation: dict, artifacts_dir: Path, destination: Path) -> l
     destination.mkdir(parents=True, exist_ok=True)
     created = []
     for name in install["files"]:
-        artifact = artifact_named(recreation, name)
+        artifact = artifact_named(entry, name)
         if artifact is None:
             raise ValueError(
-                f"{name} names no artifact in the recreation block;"
+                f"{name} names no artifact in the recreation entry;"
                 " every install file must name an artifact."
             )
 
@@ -158,7 +179,7 @@ def stage_install(recreation: dict, artifacts_dir: Path, destination: Path) -> l
     return created
 
 
-def stage_command(recreation: dict, args) -> int:
+def stage_command(entry: dict, args) -> int:
     """Stages already downloaded artifacts, verifying each before it touches the destination."""
     if args.destination is None:
         print("FAILED: stage needs --destination.", file=sys.stderr)
@@ -171,12 +192,12 @@ def stage_command(recreation: dict, args) -> int:
         return 1
 
     try:
-        created = stage_install(recreation, args.artifacts, args.destination)
+        created = stage_install(entry, args.artifacts, args.destination)
     except ValueError as error:
         print(f"FAILED: {error}", file=sys.stderr)
         return 1
 
-    runtime = recreation["runtime"]
+    runtime = entry["runtime"]
     for path in created:
         print(f"Staged {path}")
     print(
@@ -189,16 +210,16 @@ def stage_command(recreation: dict, args) -> int:
 
 
 def recreation_mods(mods_dir: Path) -> list:
-    """Every mod under mods_dir with a recreation block, as (about.json path, recreation) pairs."""
+    """Every mod under mods_dir with a recreation entry, as (about.json path, entry) pairs."""
     mods = []
     for about_path in sorted(mods_dir.glob("*/about.json")):
-        recreation = load_recreation(about_path)
-        if recreation is not None:
-            mods.append((about_path, recreation))
+        entry = load_recreation(about_path)
+        if entry is not None:
+            mods.append((about_path, entry))
     return mods
 
 
-def verify_artifacts(recreation: dict, output: Path) -> list:
+def verify_artifacts(entry: dict, output: Path) -> list:
     """Downloads every artifact into output and checks its pinned size and hash.
 
     Returns (url, message) pairs for the artifacts that could not be verified, so the caller can
@@ -206,7 +227,7 @@ def verify_artifacts(recreation: dict, output: Path) -> list:
     """
     output.mkdir(parents=True, exist_ok=True)
     failures = []
-    for artifact in artifacts_of(recreation):
+    for artifact in artifacts_of(entry):
         target = output / artifact["name"]
         try:
             download_artifact(artifact, target)
@@ -228,15 +249,15 @@ def verify_artifacts(recreation: dict, output: Path) -> list:
 
 def report_failures(failures: list) -> int:
     """Prints the verification failures and returns the failure exit code."""
-    print("FAILED: some artifacts do not match the recreation block:", file=sys.stderr)
+    print("FAILED: some artifacts do not match the recreation entry:", file=sys.stderr)
     for url, message in failures:
         print(f"  - {url}: {message}", file=sys.stderr)
     return 1
 
 
-def verify_command(recreation: dict, output: Path) -> int:
+def verify_command(entry: dict, output: Path) -> int:
     """Downloads every artifact of one mod into output and checks its pinned size and hash."""
-    failures = verify_artifacts(recreation, output)
+    failures = verify_artifacts(entry, output)
     if failures:
         return report_failures(failures)
     return 0
@@ -252,13 +273,13 @@ def verify_all_command(mods_dir: Path, output: Path) -> int:
     """
     mods = recreation_mods(mods_dir)
     if not mods:
-        print(f"No recreation blocks found under {mods_dir}.", file=sys.stderr)
+        print(f"No recreation entries found under {mods_dir}.", file=sys.stderr)
         return 1
 
     failures = []
-    for about_path, recreation in mods:
+    for about_path, entry in mods:
         print(f"Verifying {about_path} ({about_path.parent.name})")
-        for url, message in verify_artifacts(recreation, output / about_path.parent.name):
+        for url, message in verify_artifacts(entry, output / about_path.parent.name):
             failures.append((f"{about_path}: {url}", message))
 
     if failures:
@@ -307,23 +328,23 @@ def main() -> int:
     if args.command == "verify-all":
         return verify_all_command(args.path, args.output)
 
-    recreation = load_recreation(args.path)
-    if recreation is None:
-        print(f"FAILED: {args.path} has no recreation block.", file=sys.stderr)
+    entry = load_recreation(args.path)
+    if entry is None:
+        print(f"FAILED: {args.path} has no recreation entry.", file=sys.stderr)
         return 1
 
     if args.command == "plan":
-        print(install_plan(recreation))
+        print(install_plan(entry))
         return 0
 
     if args.command == "stage":
-        return stage_command(recreation, args)
+        return stage_command(entry, args)
 
-    if not artifacts_of(recreation):
+    if not artifacts_of(entry):
         print(f"FAILED: {args.path} has no artifacts to verify.", file=sys.stderr)
         return 1
 
-    return verify_command(recreation, args.output)
+    return verify_command(entry, args.output)
 
 
 if __name__ == "__main__":

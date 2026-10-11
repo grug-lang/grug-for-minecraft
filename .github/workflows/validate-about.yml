@@ -53,7 +53,7 @@ jobs:
           python3 dead_links_test.py
 
       # Every artifact is a network fetch, so this is its own step rather than part of a test. Scope
-      # it to every mod with a recreation block for now; at scale it should be scoped to the mods
+      # it to every mod with a recreation entry for now; at scale it should be scoped to the mods
       # the pull request changes.
       - name: Fetch and hash-verify recreation artifacts
         run: |

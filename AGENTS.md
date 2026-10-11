@@ -89,7 +89,7 @@ behaviour undefined, and which side of the sandbox the code is on.
 | `mods/<mod>/tests/*.grug` | tests: `X-Test.grug`, which is a `Test` entity like any other grug file |
 | `mods/<mod>/assets/` | assets shipped with the mod |
 | `mods/<mod>/data/` | data shipped with the mod |
-| `mods/<mod>/about.json` | metadata, including the `recreation` block: reference, artifacts, runtime, deviations |
+| `mods/<mod>/about.json` | metadata, including the recreation fields on the first `derived_from` entry |
 | `mods/<mod>/screenshots/<name>/<loader>.png` | golden references, named after the loader that produced them |
 | `loaders/<loader>/` | one per Minecraft version and mod loader; `src/main/java` holds its adapter |
 | `test-saves/<name>.zip` and `loaders/<loader>/test-save.txt` | the world a loader's tests start from |
@@ -321,10 +321,11 @@ the branch after a rebase: the test count changes. Take the baseline from
 
 ## Fidelity and the reference
 
-- A port targets the build in `mods/<mod>/about.json`'s `recreation` block: `artifacts` are the
-  reference files, `runtime` is where they run, and `deviations` lists every deliberate
-  difference. `about_schema.py` refuses `"fidelity": "exact"` while any deviation is present, so
-  the deviations array is the checklist for `exact` (BuildCraft's is issue #75).
+- A port targets the build named by the first entry of `mods/<mod>/about.json`'s `derived_from`
+  array: that entry's `artifacts` are the reference files, its `runtime` is where they run, and its
+  `deviations` lists every deliberate difference. `about_schema.py` refuses `"fidelity": "exact"`
+  while any deviation is present, so the deviations array is the checklist for `exact` (BuildCraft's
+  is issue #75).
 - Read the reference code before inventing a model. The pinned BuildCraft jars are on this
   machine under `~/.technic/modpacks/tekkit/mods/`, and a decompiler (Vineflower) is in the
   Gradle cache. `PipeItemsWood` and `PipeLogicWood` are good examples of what that saved.

@@ -1,5 +1,6 @@
 package net.grug.minecraft.core;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -15,13 +16,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The {@code recreation.fidelity} every mod declares in its {@code about.json}, read once at
- * startup.
+ * The {@code fidelity} the first {@code derived_from} entry of a mod's {@code about.json} declares,
+ * read once at startup.
  *
  * <p>{@code exact} promises the reference is reproduced pixel for pixel. A promise nothing enforces
  * is a comment, so this is the map {@code Screenshot.tolerance} consults: a mod that claims to be
- * exact may not widen a screenshot comparison to accept a pixel that differs. The other two values
- * promise nothing about pixels, so they say nothing here.
+ * exact may not widen a screenshot comparison to accept a pixel that differs. The other value
+ * promises nothing about pixels, so it says nothing here.
  *
  * <p>Only the metadata lives here. Which mod owns the running test is test-runner state, so that
  * lives in {@link Grug} next to the rest of it, and this class asks {@link
@@ -36,7 +37,7 @@ public final class GrugModFidelity {
      * Every fidelity {@code about.json} accepts, so a test-only override can be checked against it.
      */
     public static final List<String> FIDELITIES =
-            Collections.unmodifiableList(Arrays.asList(EXACT, "behavioral", "inspired"));
+            Collections.unmodifiableList(Arrays.asList(EXACT, "behavioral"));
 
     private static final Map<String, String> fidelityByMod = new HashMap<>();
 
@@ -84,7 +85,8 @@ public final class GrugModFidelity {
     }
 
     /**
-     * The {@code recreation.fidelity} in {@code aboutJson}, or null when there is none to read.
+     * The fidelity the first {@code derived_from} entry declares, or null when there is none to
+     * read.
      *
      * <p>Anything unexpected reads as no fidelity rather than as a failure: {@code about_schema.py}
      * is what rejects a malformed {@code about.json}, and refusing to start the game over metadata
@@ -101,14 +103,18 @@ public final class GrugModFidelity {
             String contents =
                     new String(Files.readAllBytes(aboutJson.toPath()), StandardCharsets.UTF_8);
             JsonObject about = JsonParser.parseString(contents).getAsJsonObject();
-            if (!about.has("recreation") || !about.get("recreation").isJsonObject()) {
+            if (!about.has("derived_from") || !about.get("derived_from").isJsonArray()) {
                 return null;
             }
-            JsonObject recreation = about.getAsJsonObject("recreation");
-            if (!recreation.has("fidelity") || !recreation.get("fidelity").isJsonPrimitive()) {
+            JsonArray derivedFrom = about.getAsJsonArray("derived_from");
+            if (derivedFrom.isEmpty() || !derivedFrom.get(0).isJsonObject()) {
                 return null;
             }
-            return recreation.get("fidelity").getAsString();
+            JsonObject entry = derivedFrom.get(0).getAsJsonObject();
+            if (!entry.has("fidelity") || !entry.get("fidelity").isJsonPrimitive()) {
+                return null;
+            }
+            return entry.get("fidelity").getAsString();
         } catch (Exception e) {
             return null;
         }

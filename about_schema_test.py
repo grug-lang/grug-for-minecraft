@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Tests the recreation block's schema and the rules that jsonschema cannot express.
+"""Tests the lineage entry's schema and the recreation rules jsonschema cannot express.
 
-The recreation block is what makes a port diffable against the real mod it recreates, so a mistake
-in it is a mistake in every recreation mod. The rules that matter most here are the four the schema
-delegates to about_schema.py: a mirror needs redistribution rights, an exact recreation needs
-artifacts to diff against, an exact recreation has no deviations, and a reference names a
-derived_from entry.
+The recreation fields are what make a port diffable against the real mod it recreates, so a mistake
+in them is a mistake in every recreation mod. They live on the first derived_from entry, the build
+the port recreates; later entries are that build's own sources and may not carry them. The rules that
+matter most here are the four the schema delegates to about_schema.py: a mirror needs redistribution
+rights, an exact recreation needs artifacts to diff against, an exact recreation has no deviations,
+and only the first lineage entry may carry the recreation fields.
 """
 
-import copy
 import json
 import os
 import sys
@@ -24,32 +24,14 @@ import about_schema
 ROOT = Path(__file__).resolve().parent
 
 
-def base_mod() -> dict:
-    """A minimal mod that already satisfies everything outside recreation."""
+def base_entry() -> dict:
+    """A minimal lineage entry that recreates its reference."""
     return {
-        "name": "Test",
-        "version": "1.0.0",
-        "game_version": "b1.7.3",
-        "authors": ["someone"],
-        "repository": {"url": "https://example.com/mod"},
-        "licenses": [{"name": "MIT", "url": "https://example.com/license"}],
-        "derived_from": [
-            {
-                "name": "Reference",
-                "repository": {"url": "https://example.com/reference"},
-                "licenses": [{"name": "MIT", "url": "https://example.com/reference-license"}],
-            }
-        ],
-    }
-
-
-def base_recreation() -> dict:
-    return {
+        "name": "Reference",
+        "repository": {"url": "https://example.com/reference"},
+        "revision": "0" * 40,
+        "licenses": [{"name": "MIT", "url": "https://example.com/reference-license"}],
         "fidelity": "behavioral",
-        "reference": {
-            "name": "Reference",
-            "revision": "0" * 40,
-        },
         "artifacts": [
             {
                 "name": "reference.jar",
@@ -69,6 +51,19 @@ def base_recreation() -> dict:
     }
 
 
+def base_mod() -> dict:
+    """A minimal mod whose first lineage entry recreates its reference."""
+    return {
+        "name": "Test",
+        "version": "1.0.0",
+        "game_version": "b1.7.3",
+        "authors": ["someone"],
+        "repository": {"url": "https://example.com/mod"},
+        "licenses": [{"name": "MIT", "url": "https://example.com/license"}],
+        "derived_from": [base_entry()],
+    }
+
+
 class RecreationSchemaTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -79,7 +74,9 @@ class RecreationSchemaTest(unittest.TestCase):
 
     def errors(self, data: dict) -> list:
         messages = [error.message for error in self.validator.iter_errors(data)]
-        messages += [message for _, message in about_schema.recreation_errors(data)]
+        messages += [
+            message for _, message in about_schema.recreation_errors(data.get("derived_from"))
+        ]
         return messages
 
     def assertValid(self, data: dict):
@@ -92,63 +89,85 @@ class RecreationSchemaTest(unittest.TestCase):
             f"expected {fragment!r} in {errors!r}",
         )
 
-    def mod_with(self, recreation: dict) -> dict:
+    def mod_with(self, entry: dict) -> dict:
         mod = base_mod()
-        mod["recreation"] = recreation
+        mod["derived_from"] = [entry]
         return mod
 
     def test_a_minimal_recreation_is_valid(self):
-        self.assertValid(self.mod_with(base_recreation()))
-
-    def test_a_reference_must_name_a_derived_from_entry(self):
-        recreation = base_recreation()
-        recreation["reference"]["name"] = "Something Else"
-        self.assertInvalid(self.mod_with(recreation), "must name a derived_from entry")
-
-    def test_a_reference_without_derived_from_is_rejected(self):
-        mod = self.mod_with(base_recreation())
-        del mod["derived_from"]
-        self.assertInvalid(mod, "must name a derived_from entry")
-
-    def test_recreation_is_optional(self):
         self.assertValid(base_mod())
 
+    def test_recreation_fields_are_optional(self):
+        # A lineage entry that records where a port came from does not have to recreate it.
+        mod = base_mod()
+        for field in about_schema.RECREATION_FIELDS:
+            mod["derived_from"][0].pop(field, None)
+        self.assertValid(mod)
+
+    def test_a_partial_recreation_is_rejected(self):
+        entry = base_entry()
+        del entry["runtime"]
+        self.assertInvalid(self.mod_with(entry), "'runtime' is a required property")
+
+    def test_a_revision_is_optional(self):
+        entry = base_entry()
+        del entry["revision"]
+        self.assertValid(self.mod_with(entry))
+
+    def test_only_the_first_entry_may_carry_recreation_fields(self):
+        # Later entries are the first entry's own sources, so a recreation field on one of them is a
+        # mistake about what the array records.
+        mod = base_mod()
+        mod["derived_from"].append(
+            {
+                "name": "Original",
+                "repository": {"url": "https://example.com/original"},
+                "licenses": [{"name": "MIT", "url": "https://example.com/original-license"}],
+                "fidelity": "behavioral",
+            }
+        )
+        self.assertEqual(
+            ["/derived_from/1/fidelity"],
+            [path for path, _ in about_schema.recreation_errors(mod["derived_from"])],
+        )
+        self.assertInvalid(mod, "only the first derived_from entry")
+
     def test_an_exact_recreation_needs_an_artifact(self):
-        recreation = base_recreation()
-        recreation["fidelity"] = "exact"
-        del recreation["artifacts"]
-        self.assertInvalid(self.mod_with(recreation), "exact recreation needs artifacts")
+        entry = base_entry()
+        entry["fidelity"] = "exact"
+        del entry["artifacts"]
+        self.assertInvalid(self.mod_with(entry), "exact recreation needs artifacts")
 
     def test_an_exact_recreation_with_an_artifact_is_valid(self):
-        recreation = base_recreation()
-        recreation["fidelity"] = "exact"
-        self.assertValid(self.mod_with(recreation))
+        entry = base_entry()
+        entry["fidelity"] = "exact"
+        self.assertValid(self.mod_with(entry))
 
     def test_an_exact_recreation_with_a_deviation_is_rejected(self):
-        recreation = base_recreation()
-        recreation["fidelity"] = "exact"
-        recreation["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
-        self.assertInvalid(self.mod_with(recreation), "exact recreation has no deviations")
+        entry = base_entry()
+        entry["fidelity"] = "exact"
+        entry["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
+        self.assertInvalid(self.mod_with(entry), "exact recreation has no deviations")
 
     def test_a_behavioral_recreation_with_a_deviation_is_valid(self):
-        recreation = base_recreation()
-        recreation["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
-        self.assertValid(self.mod_with(recreation))
+        entry = base_entry()
+        entry["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
+        self.assertValid(self.mod_with(entry))
 
     def test_a_mirror_without_redistribution_rights_is_rejected(self):
-        recreation = base_recreation()
-        recreation["artifacts"][0]["mirrors"] = ["https://mirror.example.com/reference.jar"]
-        self.assertInvalid(self.mod_with(recreation), "mirror")
+        entry = base_entry()
+        entry["artifacts"][0]["mirrors"] = ["https://mirror.example.com/reference.jar"]
+        self.assertInvalid(self.mod_with(entry), "mirror")
 
     def test_a_mirror_with_redistribution_rights_is_accepted(self):
-        recreation = base_recreation()
-        recreation["artifacts"][0]["redistribution"] = {"allowed": True, "basis": "MIT"}
-        recreation["artifacts"][0]["mirrors"] = ["https://mirror.example.com/reference.jar"]
-        self.assertValid(self.mod_with(recreation))
+        entry = base_entry()
+        entry["artifacts"][0]["redistribution"] = {"allowed": True, "basis": "MIT"}
+        entry["artifacts"][0]["mirrors"] = ["https://mirror.example.com/reference.jar"]
+        self.assertValid(self.mod_with(entry))
 
     def test_duplicate_artifact_names_are_rejected(self):
-        recreation = base_recreation()
-        recreation["artifacts"].append(
+        entry = base_entry()
+        entry["artifacts"].append(
             {
                 "name": "reference.jar",
                 "url": "https://example.com/other.jar",
@@ -157,90 +176,85 @@ class RecreationSchemaTest(unittest.TestCase):
                 "redistribution": {"allowed": False},
             }
         )
-        self.assertInvalid(self.mod_with(recreation), "unique")
+        self.assertInvalid(self.mod_with(entry), "unique")
 
     def test_an_install_file_must_name_an_artifact(self):
-        recreation = base_recreation()
-        recreation["install"]["files"] = ["missing.jar"]
-        self.assertInvalid(self.mod_with(recreation), "not the name of any artifact")
+        entry = base_entry()
+        entry["install"]["files"] = ["missing.jar"]
+        self.assertInvalid(self.mod_with(entry), "not the name of any artifact")
 
     def test_an_unknown_install_type_is_rejected(self):
-        recreation = base_recreation()
-        recreation["install"] = {"type": "magic", "files": ["reference.jar"]}
-        self.assertInvalid(self.mod_with(recreation), "is not one of")
+        entry = base_entry()
+        entry["install"] = {"type": "magic", "files": ["reference.jar"]}
+        self.assertInvalid(self.mod_with(entry), "is not one of")
 
     def test_a_mods_folder_install_needs_files(self):
-        recreation = base_recreation()
-        recreation["install"] = {"type": "mods_folder"}
-        self.assertInvalid(self.mod_with(recreation), "'files' is a required property")
+        entry = base_entry()
+        entry["install"] = {"type": "mods_folder"}
+        self.assertInvalid(self.mod_with(entry), "'files' is a required property")
 
     def test_a_launcher_profile_install_needs_config(self):
-        recreation = base_recreation()
-        recreation["install"] = {"type": "launcher_profile"}
-        self.assertInvalid(self.mod_with(recreation), "'config' is a required property")
+        entry = base_entry()
+        entry["install"] = {"type": "launcher_profile"}
+        self.assertInvalid(self.mod_with(entry), "'config' is a required property")
 
     def test_a_launcher_profile_install_with_config_is_valid(self):
-        recreation = base_recreation()
-        recreation["install"] = {"type": "launcher_profile", "config": {"name": "Reference"}}
-        self.assertValid(self.mod_with(recreation))
+        entry = base_entry()
+        entry["install"] = {"type": "launcher_profile", "config": {"name": "Reference"}}
+        self.assertValid(self.mod_with(entry))
 
     def test_a_malformed_sha256_is_rejected(self):
-        recreation = base_recreation()
-        recreation["artifacts"][0]["sha256"] = "not-a-hash"
-        self.assertInvalid(self.mod_with(recreation), "does not match")
-
-    def test_a_reference_needs_a_revision(self):
-        recreation = base_recreation()
-        del recreation["reference"]["revision"]
-        self.assertInvalid(self.mod_with(recreation), "'revision' is a required property")
+        entry = base_entry()
+        entry["artifacts"][0]["sha256"] = "not-a-hash"
+        self.assertInvalid(self.mod_with(entry), "does not match")
 
     def test_a_runtime_loader_must_be_a_loader_directory(self):
-        recreation = base_recreation()
-        recreation["runtime"]["loader"] = "no-such-loader"
-        self.assertInvalid(self.mod_with(recreation), "is not a directory under loaders/")
+        entry = base_entry()
+        entry["runtime"]["loader"] = "no-such-loader"
+        self.assertInvalid(self.mod_with(entry), "is not a directory under loaders/")
 
     def test_a_runtime_minecraft_must_match_its_loader(self):
-        recreation = base_recreation()
-        recreation["runtime"]["minecraft"] = "1.20.6"
-        self.assertInvalid(self.mod_with(recreation), "is for 'b1.7.3'")
+        entry = base_entry()
+        entry["runtime"]["minecraft"] = "1.20.6"
+        self.assertInvalid(self.mod_with(entry), "is for 'b1.7.3'")
 
     def test_every_known_loader_accepts_its_minecraft_version(self):
         for loader, minecraft in about_schema.LOADER_MINECRAFT.items():
-            recreation = base_recreation()
-            recreation["runtime"]["loader"] = loader
-            recreation["runtime"]["minecraft"] = minecraft
-            self.assertValid(self.mod_with(recreation))
+            entry = base_entry()
+            entry["runtime"]["loader"] = loader
+            entry["runtime"]["minecraft"] = minecraft
+            self.assertValid(self.mod_with(entry))
 
     def test_every_known_loader_rejects_another_minecraft_version(self):
         for loader in about_schema.LOADER_MINECRAFT:
-            recreation = base_recreation()
-            recreation["runtime"]["loader"] = loader
-            recreation["runtime"]["minecraft"] = "0.0.0"
-            self.assertInvalid(self.mod_with(recreation), "is for")
+            entry = base_entry()
+            entry["runtime"]["loader"] = loader
+            entry["runtime"]["minecraft"] = "0.0.0"
+            self.assertInvalid(self.mod_with(entry), "is for")
 
     def test_a_runtime_java_must_be_supported(self):
-        recreation = base_recreation()
-        recreation["runtime"]["java"] = "12"
-        self.assertInvalid(self.mod_with(recreation), "must be one of 8, 17, 21")
+        entry = base_entry()
+        entry["runtime"]["java"] = "12"
+        self.assertInvalid(self.mod_with(entry), "must be one of 8, 17, 21")
 
     def test_each_supported_java_version_is_valid(self):
         for java in ("8", "17", "21"):
-            recreation = base_recreation()
-            recreation["runtime"]["java"] = java
-            self.assertValid(self.mod_with(recreation))
+            entry = base_entry()
+            entry["runtime"]["java"] = java
+            self.assertValid(self.mod_with(entry))
 
     def test_a_capture_is_rejected(self):
         # The test drives the capture: its tick branches decide when, the camera it sets up decides
         # from where, and the screenshot call decides what. A capture block would be metadata
         # nothing reads.
-        recreation = base_recreation()
-        recreation["capture"] = {"width": 1280, "height": 720, "ticks": 20}
-        self.assertInvalid(self.mod_with(recreation), "Additional properties are not allowed")
+        entry = base_entry()
+        entry["capture"] = {"width": 1280, "height": 720, "ticks": 20}
+        self.assertInvalid(self.mod_with(entry), "Additional properties are not allowed")
 
     def test_an_unknown_recreation_property_is_rejected(self):
-        recreation = copy.deepcopy(base_recreation())
-        recreation["bogus"] = 1
-        self.assertInvalid(self.mod_with(recreation), "Additional properties are not allowed")
+        entry = base_entry()
+        entry["bogus"] = 1
+        self.assertInvalid(self.mod_with(entry), "Additional properties are not allowed")
 
 
 if __name__ == "__main__":

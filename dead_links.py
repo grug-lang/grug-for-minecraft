@@ -2,10 +2,10 @@
 """Dead source url detection for mod metadata.
 
 An about.json pins the urls a port is built from: the upstream repository, the license text, the
-recreation artifacts, and derived_from sources. Those rot silently, because a page that moved or was
-taken down changes nothing about the build until somebody tries to follow it. This walks every mod's
-about.json, collects every http(s) url together with the json path it came from, and reports the ones
-that no longer resolve.
+recreation artifacts on the first derived_from entry, and the lineage's sources. Those rot silently,
+because a page that moved or was taken down changes nothing about the build until somebody tries to
+follow it. This walks every mod's about.json, collects every http(s) url together with the json path
+it came from, and reports the ones that no longer resolve.
 
 Collecting rather than hardcoding matters: the url-bearing fields are spread across repository,
 licenses, and derived_from, and derived_from repeats the repository and license fields. Walking the
@@ -13,11 +13,11 @@ document for any http(s) string finds all of them today and any field added late
 needing to know the schema.
 
 The recreation artifacts are deliberately not walked. ``recreation.py verify-all`` already downloads
-every ``recreation.artifacts[].url`` on every CI run, and it proves more than a status code: it
-compares the bytes against a pinned sha256, so a 200 serving the wrong content fails there too.
-Checking them again here would re-request several multi-megabyte jars per mod to learn strictly less,
-and the per-host pacing would make that five sequential requests to one host for no added coverage.
-So the covered urls are skipped and counted, rather than silently ignored.
+every ``artifacts[].url`` of the first derived_from entry on every CI run, and it proves more than a
+status code: it compares the bytes against a pinned sha256, so a 200 serving the wrong content fails
+there too. Checking them again here would re-request several multi-megabyte jars per mod to learn
+strictly less, and the per-host pacing would make that five sequential requests to one host for no
+added coverage. So the covered urls are skipped and counted, rather than silently ignored.
 
 Four decisions, made here rather than left open:
 
@@ -64,7 +64,7 @@ RETRY_WITH_GET = frozenset({403, 404, 405, 410, 501})
 URL_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
 
 # A json path this module deliberately does not check, because recreation.py already does.
-RECREATION_ARTIFACT_URL = re.compile(r"^\.recreation\.artifacts\[\d+\]\.url$")
+RECREATION_ARTIFACT_URL = re.compile(r"^\.derived_from\[0\]\.artifacts\[\d+\]\.url$")
 
 
 class Finding(NamedTuple):

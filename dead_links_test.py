@@ -65,11 +65,11 @@ class CollectUrlsTest(unittest.TestCase):
         data = {
             "repository": {"url": "https://example.com/repo"},
             "licenses": [{"url": "https://example.com/license"}],
-            "recreation": {"artifacts": [{"url": "https://example.com/jar"}]},
             "derived_from": [
                 {
                     "repository": {"url": "https://example.com/upstream"},
                     "licenses": [{"url": "https://example.com/upstream-license"}],
+                    "artifacts": [{"url": "https://example.com/jar"}],
                     "sources": ["https://example.com/a", "https://example.com/b"],
                 }
             ],
@@ -80,7 +80,7 @@ class CollectUrlsTest(unittest.TestCase):
             {
                 ".repository.url": "https://example.com/repo",
                 ".licenses[0].url": "https://example.com/license",
-                ".recreation.artifacts[0].url": "https://example.com/jar",
+                ".derived_from[0].artifacts[0].url": "https://example.com/jar",
                 ".derived_from[0].repository.url": "https://example.com/upstream",
                 ".derived_from[0].licenses[0].url": "https://example.com/upstream-license",
                 ".derived_from[0].sources[0]": "https://example.com/a",
@@ -140,8 +140,13 @@ class ClassifyTest(unittest.TestCase):
 
 class CoveredByRecreationTest(unittest.TestCase):
     def test_recreation_artifact_urls_are_left_to_recreation_py(self):
-        self.assertTrue(dead_links.covered_by_recreation(".recreation.artifacts[0].url"))
-        self.assertTrue(dead_links.covered_by_recreation(".recreation.artifacts[12].url"))
+        self.assertTrue(dead_links.covered_by_recreation(".derived_from[0].artifacts[0].url"))
+        self.assertTrue(dead_links.covered_by_recreation(".derived_from[0].artifacts[12].url"))
+
+    def test_a_later_entries_artifact_url_is_checked_here(self):
+        # Only the first entry is the build this port recreates, and only it carries the recreation
+        # artifacts, so recreation.py does not prove a later entry's artifact url resolves.
+        self.assertFalse(dead_links.covered_by_recreation(".derived_from[1].artifacts[0].url"))
 
     def test_other_urls_are_checked_here(self):
         for path in (
@@ -154,8 +159,8 @@ class CoveredByRecreationTest(unittest.TestCase):
 
     def test_a_similarly_shaped_path_is_not_skipped(self):
         # Only the artifact url is covered, so an artifact-adjacent field is still checked.
-        self.assertFalse(dead_links.covered_by_recreation(".recreation.artifacts[0].homepage"))
-        self.assertFalse(dead_links.covered_by_recreation(".recreation.url"))
+        self.assertFalse(dead_links.covered_by_recreation(".derived_from[0].artifacts[0].homepage"))
+        self.assertFalse(dead_links.covered_by_recreation(".derived_from.url"))
 
 
 class AllUrlsTest(unittest.TestCase):
@@ -166,12 +171,14 @@ class AllUrlsTest(unittest.TestCase):
                 "amod",
                 {
                     "repository": {"url": "https://example.com/repo"},
-                    "recreation": {"artifacts": [{"url": "https://example.com/a.jar"}]},
+                    "derived_from": [{"artifacts": [{"url": "https://example.com/a.jar"}]}],
                 },
             )
             checked, covered = dead_links.all_urls(Path(directory))
             self.assertEqual([url for url, _ in checked], ["https://example.com/repo"])
-            self.assertEqual([triple[1] for triple in covered], [".recreation.artifacts[0].url"])
+            self.assertEqual(
+                [triple[1] for triple in covered], [".derived_from[0].artifacts[0].url"]
+            )
 
     def test_a_shared_url_is_requested_once_but_keeps_every_declaration(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -455,7 +462,7 @@ class RepositoryUrlsTest(unittest.TestCase):
         checked, covered = dead_links.all_urls(self.mods)
         self.assertTrue(covered, "buildcraft has recreation artifacts, so this should skip some")
         for about, path, url in covered:
-            self.assertIn(".recreation.artifacts[", path)
+            self.assertIn(".derived_from[0].artifacts[", path)
 
     def test_nothing_checked_is_already_an_artifact(self):
         checked, _ = dead_links.all_urls(self.mods)

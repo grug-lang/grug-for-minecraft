@@ -40,7 +40,7 @@ class GrugFidelityTest {
         Files.createDirectories(path);
         Files.writeString(
                 path.resolve("about.json"),
-                "{\"recreation\": {\"fidelity\": \"" + fidelity + "\"}}");
+                "{\"derived_from\": [{\"fidelity\": \"" + fidelity + "\"}]}");
     }
 
     @Test
@@ -65,14 +65,9 @@ class GrugFidelityTest {
     @Test
     void aModPromisingLessThanExactMayAllowATolerance() throws IOException {
         declare("behavioralmod", "behavioral");
-        declare("inspiredmod", "inspired");
         GrugModFidelity.load(mods.toFile());
 
         Grug.currentTestMod = "behavioralmod";
-        assertFalse(Grug.currentTestIsExact());
-        assertTrue(GrugModFidelity.allowsTolerance(1));
-
-        Grug.currentTestMod = "inspiredmod";
         assertFalse(Grug.currentTestIsExact());
         assertTrue(GrugModFidelity.allowsTolerance(1));
     }
@@ -103,7 +98,7 @@ class GrugFidelityTest {
         assertTrue(Grug.currentTestIsExact());
         assertFalse(GrugModFidelity.allowsTolerance(1));
 
-        Grug.testFidelityOverride = "inspired";
+        Grug.testFidelityOverride = "behavioral";
         assertFalse(Grug.currentTestIsExact());
         assertTrue(GrugModFidelity.allowsTolerance(1));
     }
@@ -116,11 +111,8 @@ class GrugFidelityTest {
         GrugModFidelity.load(mods.toFile());
         Grug.currentTestMod = "exactmod";
 
-        Grug.testFidelityOverride = "inspired";
-        assertTrue(Grug.currentTestIsExact());
-        assertFalse(GrugModFidelity.allowsTolerance(1));
-
         Grug.testFidelityOverride = "behavioral";
         assertTrue(Grug.currentTestIsExact());
+        assertFalse(GrugModFidelity.allowsTolerance(1));
     }
 }
