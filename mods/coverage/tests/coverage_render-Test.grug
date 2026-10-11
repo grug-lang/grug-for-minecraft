@@ -154,12 +154,10 @@ local _check() {
     # arm, which is the one thing this test exists to catch.
     # The reference directory holds one PNG per distinct rendering: the shape's own pixels are the
     # same set on every loader, and the flat background differs per version because each shades a
-    # face from its own light table. 1.20.6's accepted states on this branch are 4.png, the state
-    # pass 1 lands on, and 5.png, the state every pass after it lands on (this file was 6.png; the
-    # numbers are renumbered because the validator wants them contiguous). The rare cold rounding
-    # of the top-right corner is not accepted here, so a capture that lands on it, or on any other
-    # state, fails: the #263 experiments need a flip to fail rather than pass, which is what this
-    # detector is for. See #263, #262 and #264.
+    # face from its own light table. 1.20.6's accepted state on this branch is 4.png, the flat-lit
+    # capture from the branch's first CI run: with the interpolation gone the corner has no gradient
+    # to round, and whether a pass still produces a second state is what the repeats measure. See
+    # #263, #262 and #264.
     Test.screenshot().equals(r"screenshots/coverage_render", 450, 198, 850, 319)
 }
 
