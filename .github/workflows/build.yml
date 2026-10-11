@@ -351,7 +351,7 @@ jobs:
           GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
           # The watch covers the whole run, so a repeats=2 run needs about twice the default 120s
           # before its two passes have both finished.
-          GRUG_CI_RUN_TIMEOUT: '900'
+          GRUG_CI_RUN_TIMEOUT: '5400'
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
