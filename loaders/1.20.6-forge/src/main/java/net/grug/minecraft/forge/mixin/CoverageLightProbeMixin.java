@@ -17,7 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Temporary probe for #270 step 4: logs the block light of the cells the coverage_render wall's
- * front faces sample, once a second, so a repeats run's pass 1 can be compared with pass 2+.
+ * front faces sample, and the camera's and the player's positions, once a second, so a repeats
+ * run's pass 1 can be compared with pass 2+.
  *
  * <p>The fixture places a thirteen square wall of {@code grug:coverage_flat_lit} at the graphics
  * origin plus {@code z + 6}, and the origin is the camera plus three, so the cells just in front of
@@ -49,7 +50,11 @@ public abstract class CoverageLightProbeMixin {
         int cy = Mth.floor(camera.y);
         int cz = Mth.floor(camera.z);
 
-        StringBuilder line = new StringBuilder("[coverage-light] below-max on the wall's front plane:");
+        StringBuilder line = new StringBuilder("[coverage-light] camera=" + camera
+                + " player=" + (minecraft.player == null ? "none" : minecraft.player.position())
+                + " yaw=" + (minecraft.player == null ? 0.0f : minecraft.player.getYRot())
+                + " pitch=" + (minecraft.player == null ? 0.0f : minecraft.player.getXRot())
+                + " below-max on the wall's front plane:");
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int dx = -4; dx <= 10; dx++) {
             for (int dy = -7; dy <= 7; dy++) {
