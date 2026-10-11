@@ -11,6 +11,12 @@ pipe_table_pipe: Option[BlockEntity] = Option.new()
 # where the suite's timing, and so the coverage_render references, were captured (#262).
 pipe_placed_at: number = -1
 
+# The tick the chest first held the bread, or -1 before that. The item entity that carried the
+# bread is swept from the world a tick or two after the chest takes it, so the check runs two ticks
+# after the arrival, with the sweep already done (#272). A genuinely dropped item persists, so it is
+# still there on the delayed check and the dropped-item assertion still fails on it.
+pipe_bread_at: number = -1
+
 export run() {
     if Test.tick() == 0 {
         _setup_table()
@@ -26,8 +32,18 @@ export run() {
         _setup_pipe()
         pipe_placed_at = Test.tick()
         Test.not_done()
-    } else if not _bread_has_moved() or Test.tick() < pipe_placed_at + 25 {
-        # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
+    } else if not _bread_has_moved() {
+        Test.not_done()
+    } else if pipe_bread_at < 0 {
+        # The chest first holds the bread on this tick, and the item entity that carried it through
+        # the pipe is still in the world until the sweep that follows (#272), so record the arrival
+        # and let it happen before the check.
+        pipe_bread_at = Test.tick()
+        Test.not_done()
+    } else if Test.tick() < pipe_placed_at + 25 or Test.tick() < pipe_bread_at + 2 {
+        # Same floor as wooden_pipe-Test.grug, for the same reason (#262). The two ticks after the
+        # arrival are for that sweep: the carrying entity is gone by then, while a genuinely
+        # dropped item persists and the dropped-item assertion still fails on it (#272).
         Test.not_done()
     } else {
         _check()
