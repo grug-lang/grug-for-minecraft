@@ -2,7 +2,7 @@
 # test is judged by a fidelity that does not exist.
 export run() {
     if Test.tick() == 0 {
-        Test.expect_error("fidelity must be one of exact, behavioral, inspired")
+        Test.expect_error("fidelity must be one of exact, behavioral")
         Test.force_fidelity("pixel-perfect")
     }
 }

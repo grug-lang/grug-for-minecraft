@@ -38,71 +38,10 @@
                 "$ref": "#/definitions/license"
             }
         },
-        "recreation": {
-            "description": "How this mod recreates a reference: what it targets, how to install and run the reference, and where it deliberately differs.",
-            "type": "object",
-            "required": [
-                "fidelity",
-                "reference",
-                "runtime",
-                "install"
-            ],
-            "additionalProperties": false,
-            "properties": {
-                "fidelity": {
-                    "description": "exact reproduces the reference pixel for pixel, behavioral matches its observable behaviour without promising pixels, and inspired only takes design cues.",
-                    "enum": [
-                        "exact",
-                        "behavioral",
-                        "inspired"
-                    ]
-                },
-                "reference": {
-                    "type": "object",
-                    "required": [
-                        "name",
-                        "revision"
-                    ],
-                    "additionalProperties": false,
-                    "properties": {
-                        "name": {
-                            "description": "The name of the derived_from entry this recreation targets. Its repository comes from there instead of being repeated here.",
-                            "type": "string",
-                            "minLength": 1
-                        },
-                        "revision": {
-                            "description": "The pinned revision of the reference, e.g. a commit hash. Not a branch or tag.",
-                            "type": "string",
-                            "minLength": 1
-                        }
-                    }
-                },
-                "artifacts": {
-                    "description": "The reference builds to diff against, each staged under its name. Every sha256 is the authority, not the url: a mirror or a moved url is fine as long as the bytes hash the same.",
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "$ref": "#/definitions/artifact"
-                    }
-                },
-                "runtime": {
-                    "$ref": "#/definitions/runtime"
-                },
-                "install": {
-                    "$ref": "#/definitions/install"
-                },
-                "deviations": {
-                    "description": "Intentional differences from the reference. A non-empty list says the difference is deliberate, so a reader does not 'fix' it. An exact recreation has none.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/deviation"
-                    }
-                }
-            }
-        },
         "derived_from": {
             "type": "array",
             "items": {
+                "description": "One entry in the lineage. The first entry is the build this port recreates, and the only one that may carry the recreation fields; later entries are that build's own sources.",
                 "type": "object",
                 "required": [
                     "name",
@@ -116,6 +55,11 @@
                     },
                     "repository": {
                         "$ref": "#/definitions/repository"
+                    },
+                    "revision": {
+                        "description": "The pinned revision of the reference, e.g. a commit hash. Not a branch or tag.",
+                        "type": "string",
+                        "minLength": 1
                     },
                     "licenses": {
                         "type": "array",
@@ -136,8 +80,77 @@
                             "type": "string",
                             "format": "uri"
                         }
+                    },
+                    "fidelity": {
+                        "description": "exact reproduces the reference pixel for pixel, behavioral matches its observable behaviour without promising pixels.",
+                        "enum": [
+                            "exact",
+                            "behavioral"
+                        ]
+                    },
+                    "artifacts": {
+                        "description": "The reference builds to diff against, each staged under its name. Every sha256 is the authority, not the url: a mirror or a moved url is fine as long as the bytes hash the same.",
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "$ref": "#/definitions/artifact"
+                        }
+                    },
+                    "runtime": {
+                        "$ref": "#/definitions/runtime"
+                    },
+                    "install": {
+                        "$ref": "#/definitions/install"
+                    },
+                    "deviations": {
+                        "description": "Intentional differences from the reference. A non-empty list says the difference is deliberate, so a reader does not 'fix' it. An exact recreation has none.",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/deviation"
+                        }
                     }
-                }
+                },
+                "allOf": [
+                    {
+                        "if": {
+                            "anyOf": [
+                                {
+                                    "required": [
+                                        "fidelity"
+                                    ]
+                                },
+                                {
+                                    "required": [
+                                        "artifacts"
+                                    ]
+                                },
+                                {
+                                    "required": [
+                                        "runtime"
+                                    ]
+                                },
+                                {
+                                    "required": [
+                                        "install"
+                                    ]
+                                },
+                                {
+                                    "required": [
+                                        "deviations"
+                                    ]
+                                }
+                            ]
+                        },
+                        "then": {
+                            "required": [
+                                "fidelity",
+                                "artifacts",
+                                "runtime",
+                                "install"
+                            ]
+                        }
+                    }
+                ]
             }
         }
     },
@@ -252,7 +265,7 @@
                     "minLength": 1
                 },
                 "loader": {
-                    "description": "The loader directory, named as run-loader.sh takes it, for example b1.7.3-stationapi. Naming the directory rather than the loader alone is what lets a recreation block map to a run command mechanically.",
+                    "description": "The loader directory, named as run-loader.sh takes it, for example b1.7.3-stationapi. Naming the directory rather than the loader alone is what lets a recreation entry map to a run command mechanically.",
                     "type": "string",
                     "minLength": 1
                 },

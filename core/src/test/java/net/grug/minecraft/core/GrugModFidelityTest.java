@@ -41,29 +41,27 @@ class GrugModFidelityTest {
 
     @Test
     void readsEachModsDeclaredFidelity() throws IOException {
-        about("exactmod", "{\"recreation\": {\"fidelity\": \"exact\"}}");
-        about("behavioralmod", "{\"recreation\": {\"fidelity\": \"behavioral\"}}");
-        about("inspiredmod", "{\"recreation\": {\"fidelity\": \"inspired\"}}");
+        about("exactmod", "{\"derived_from\": [{\"fidelity\": \"exact\"}]}");
+        about("behavioralmod", "{\"derived_from\": [{\"fidelity\": \"behavioral\"}]}");
         load();
 
         assertEquals("exact", GrugModFidelity.of("exactmod"));
         assertEquals("behavioral", GrugModFidelity.of("behavioralmod"));
-        assertEquals("inspired", GrugModFidelity.of("inspiredmod"));
     }
 
     @Test
     void ignoresTheRestOfTheAboutJson() throws IOException {
         about(
                 "mymod",
-                "{\"name\": \"mymod\", \"recreation\": {\"fidelity\": \"exact\","
-                        + " \"deviations\": []}}");
+                "{\"name\": \"mymod\", \"derived_from\": [{\"fidelity\": \"exact\","
+                        + " \"deviations\": []}]}");
         load();
 
         assertEquals("exact", GrugModFidelity.of("mymod"));
     }
 
     @Test
-    void treatsAModWithNoRecreationBlockAsPromisingNothing() throws IOException {
+    void treatsAModWithNoLineageEntryAsPromisingNothing() throws IOException {
         about("plain", "{\"name\": \"plain\"}");
         load();
 
@@ -91,14 +89,18 @@ class GrugModFidelityTest {
         // from being the thing that stops the game starting.
         about("malformed", "{not json at all");
         about("notanobject", "[]");
-        about("recreationnotobject", "{\"recreation\": \"exact\"}");
-        about("nofidelity", "{\"recreation\": {}}");
-        about("fidelitynotprimitive", "{\"recreation\": {\"fidelity\": [\"exact\"]}}");
+        about("derivedfromnotarray", "{\"derived_from\": \"exact\"}");
+        about("emptyderivedfrom", "{\"derived_from\": []}");
+        about("entrynotobject", "{\"derived_from\": [\"exact\"]}");
+        about("nofidelity", "{\"derived_from\": [{}]}");
+        about("fidelitynotprimitive", "{\"derived_from\": [{\"fidelity\": [\"exact\"]}]}");
         load();
 
         assertNull(GrugModFidelity.of("malformed"));
         assertNull(GrugModFidelity.of("notanobject"));
-        assertNull(GrugModFidelity.of("recreationnotobject"));
+        assertNull(GrugModFidelity.of("derivedfromnotarray"));
+        assertNull(GrugModFidelity.of("emptyderivedfrom"));
+        assertNull(GrugModFidelity.of("entrynotobject"));
         assertNull(GrugModFidelity.of("nofidelity"));
         assertNull(GrugModFidelity.of("fidelitynotprimitive"));
     }
@@ -111,7 +113,7 @@ class GrugModFidelityTest {
 
     @Test
     void forgetsTheFidelitiesOfModsThatNoLongerDeclareOne() throws IOException {
-        about("mymod", "{\"recreation\": {\"fidelity\": \"exact\"}}");
+        about("mymod", "{\"derived_from\": [{\"fidelity\": \"exact\"}]}");
         load();
         about("mymod", "{}");
         load();
@@ -121,14 +123,12 @@ class GrugModFidelityTest {
 
     @Test
     void onlyExactIsExact() throws IOException {
-        about("exactmod", "{\"recreation\": {\"fidelity\": \"exact\"}}");
-        about("behavioralmod", "{\"recreation\": {\"fidelity\": \"behavioral\"}}");
-        about("inspiredmod", "{\"recreation\": {\"fidelity\": \"inspired\"}}");
+        about("exactmod", "{\"derived_from\": [{\"fidelity\": \"exact\"}]}");
+        about("behavioralmod", "{\"derived_from\": [{\"fidelity\": \"behavioral\"}]}");
         load();
 
         assertTrue(GrugModFidelity.isExact("exactmod"));
         assertFalse(GrugModFidelity.isExact("behavioralmod"));
-        assertFalse(GrugModFidelity.isExact("inspiredmod"));
     }
 
     @Test
@@ -140,7 +140,8 @@ class GrugModFidelityTest {
                 JsonParser.parseString(Files.readString(schema))
                         .getAsJsonObject()
                         .getAsJsonObject("properties")
-                        .getAsJsonObject("recreation")
+                        .getAsJsonObject("derived_from")
+                        .getAsJsonObject("items")
                         .getAsJsonObject("properties")
                         .getAsJsonObject("fidelity")
                         .getAsJsonArray("enum");
