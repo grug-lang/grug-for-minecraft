@@ -24,7 +24,10 @@ import java.util.function.LongSupplier;
 public class GrugTestRunner {
     /** How many ticks a single test may run for before we give up on it. */
     // TODO: Allow individual tests to override this budget.
-    public static final int DEFAULT_MAX_TEST_TICKS = 200; // 10 seconds at 20 ticks/sec
+    // Experiment scaffolding for #270 step 3's view distance branch: the 12 chunk world's settle
+    // wait exceeds the default on the CI runner, so the branch raises the budget and the run can
+    // finish. Revert with the branch.
+    public static final int DEFAULT_MAX_TEST_TICKS = 2400; // 120 seconds at 20 ticks/sec
 
     /**
      * The grug operations the runner needs, so a Java test can drive the runner's state machine
