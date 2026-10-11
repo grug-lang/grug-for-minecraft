@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugSide;
@@ -10,6 +11,7 @@ import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
+import net.grug.minecraft.forge.mixin.LightTextureAccess;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -20,6 +22,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -56,6 +59,7 @@ import org.slf4j.Logger;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
@@ -74,6 +78,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * enough, and the rest is margin for a loaded runner. See #259.
      */
     private static final int SETTLE_WAIT_CLIENT_TICKS = 100;
+
+    /** Temporary #294 instrumentation counter for capture dumps; not for committing. */
+    private static int dumpCounter = 0;
 
     /**
      * The adapter for whichever process this is, called from {@code GrugModLoader}, which runs on
@@ -1038,6 +1045,43 @@ public class ForgeAdapter implements ModLoaderAdapter {
      */
     private static BufferedImage capture(int x1, int y1, int x2, int y2) {
         RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
+        // Temporary #294 instrumentation, not for committing: with GRUG_DUMP_FRAMES set, save the
+        // whole frame, the lightmap texture and the capture's inputs next to the crop.
+        if (System.getenv("GRUG_DUMP_FRAMES") != null) {
+            Minecraft mc = Minecraft.getInstance();
+            LightTextureAccess access =
+                    (LightTextureAccess) (Object) mc.gameRenderer.lightTexture();
+            try {
+                access.grug$lightPixels().writeToFile(new File("lightmap-" + dumpCounter + ".png"));
+            } catch (IOException e) {
+                LOGGER.info("[coverage-dump] lightmap write failed: {}", e.toString());
+            }
+            float[] fogColor = RenderSystem.getShaderFogColor();
+            LOGGER.info(
+                    "[coverage-dump] rect {},{},{},{} dayTime={} skyDarken={} gamma={} flicker={}"
+                        + " fogStart={} fogEnd={} fogColor={},{},{} fogShape={} renderDistance={}",
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    mc.level == null ? -1 : mc.level.getDayTime(),
+                    mc.level == null ? -1 : mc.level.getSkyDarken(1.0F),
+                    mc.options.gamma().get(),
+                    access.grug$flicker(),
+                    RenderSystem.getShaderFogStart(),
+                    RenderSystem.getShaderFogEnd(),
+                    fogColor[0],
+                    fogColor[1],
+                    fogColor[2],
+                    RenderSystem.getShaderFogShape(),
+                    mc.options.renderDistance().get());
+            Screenshot.grab(
+                    new File("."),
+                    "fullframe-" + dumpCounter + "-" + x1 + "-" + y1 + "-" + x2 + "-" + y2,
+                    target,
+                    component -> {});
+            dumpCounter++;
+        }
         NativeImage image = Screenshot.takeScreenshot(target);
         try {
             int width = x2 - x1;
