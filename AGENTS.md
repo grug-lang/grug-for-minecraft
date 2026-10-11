@@ -330,7 +330,9 @@ the branch after a rebase: the test count changes. Take the baseline from
   Gradle cache. `PipeItemsWood` and `PipeLogicWood` are good examples of what that saved.
 - A rendering difference between two Minecraft versions is usually a vanilla difference, not a
   port bug. Beta 1.7.3 and 1.2.5 shade GUI items differently, which is why 1.2.5 has its own
-  golden. Check the vanilla code before "fixing" the port.
+  golden. Alpha 1.1.2's `Window` truncates its scaled GUI width (426 against 426.67), so its GUI
+  captures sit one pixel right of the other loaders': vanilla, not a port bug, so its reference
+  stays as captured. Check the vanilla code before "fixing" the port.
 - The reference run is manual: `GRUG_REFERENCE=1` plus a harness-only mods directory. It is not
   part of CI, because fidelity is currently behavioral rather than exact.
 

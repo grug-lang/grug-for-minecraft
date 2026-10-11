@@ -139,21 +139,16 @@ local _test_graphics_setup() {
 }
 
 local _test_graphics_check() {
-    # This is the GUI panel and nothing else, at 1280x720.
-    # Alpha doesn't lay its GUI out in window pixels. It centers the 176x166 panel inside a fixed
-    # 426x240 virtual space and then scales that space up to the window, so at 1280x720 the scale is
-    # 3x: the panel's top-left is at (376, 111) and it runs 176*3 by 166*3, to (904, 609). The
-    # obvious-looking ((1280-176)/2, (720-166)/2) = (552, 277) is in the virtual space, and crops the
-    # wrong part of the screen entirely.
+    # This is the GUI panel and nothing else, at 1280x720: the panel's top-left is at (376, 111)
+    # and its bottom-right at (904, 609). The obvious-looking ((1280-176)/2, (720-166)/2) =
+    # (552, 277) is not where the panel is, and a crop from there takes the wrong part of the
+    # screen entirely.
     # The crop is inset 10px from that panel on all four sides. The panel's outer edge is soft and
     # blends with the world behind it, and those blend pixels are the only ones in the panel that
     # aren't reproducible: captured over and over, they drift by one and move around, reaching 5px in
     # from the edge. Insetting well past that costs none of the layout, which is all far inside.
     # To re-derive these: press M to force 1280x720, open this GUI, and hover a corner of the panel
-    # to read the pixel off the chat readout. The reference is a directory holding one PNG per
-    # loader, named after the loader that produced it (b1.7.3-ornithe.png): the same UI looks
-    # different on each Minecraft version and platform, and the assertion passes if the capture
-    # matches any of them.
+    # to read the pixel off the chat readout.
     Test.screenshot().equals(r"screenshots/autocrafting_table_gui", 386, 121, 894, 599)
 
     # The screenshot only means something if it shows live block data, so check the inventory it was
