@@ -108,10 +108,10 @@ local _setup() {
     level.place_block(x, y - 1.88, z + 4, "grug:coverage_render")
     level.place_block(x + 1, y - 1.88, z + 4, "grug:coverage_render")
 
-    # A wall behind it, so the shape is compared against the wall's own settled light rather than
-    # against the room's stone. Built larger than the crop and centred on it, for the same reason the
-    # autocrafting table test insets its crop: a silhouette edge is where two nearly-equal shades
-    # round differently between runs. See #262 and #264.
+    # A stone wall behind it, so the shape is compared against the wall's own settled light. Built
+    # larger than the crop and centred on it, for the same reason the autocrafting table test insets
+    # its crop: a silhouette edge is where two nearly-equal shades round differently between runs.
+    # See #262 and #264.
     _wall(level, x - 6, y - 9, z + 6)
 
     be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
@@ -119,7 +119,7 @@ local _setup() {
     render_block.set(be_opt.unwrap())
 }
 
-# Thirteen blocks square of grug:coverage_flat at (x0, y0, z), which covers the crop with room to
+# Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
 # spare. Kept small on purpose: every block placed re-lights the columns around it for several ticks
 # afterwards, so a capture taken before that settles lands on a wall one brightness step away from
 # the reference. The level is passed in rather than reached for: grug only allows variable
@@ -129,7 +129,7 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     while wy < y0 + 13 {
         wx: number = x0
         while wx < x0 + 13 {
-            level.place_block(wx, wy, z, "grug:coverage_flat")
+            level.place_block(wx, wy, z, "minecraft:stone")
             wx = wx + 1
         }
         wy = wy + 1
@@ -146,12 +146,12 @@ local _check() {
     # That is what the reference in this directory is for.
     Test.assert(render_block.has(), "The custom-rendered block lost its block entity.")
 
-    # The rendered shape against the flat background: a run of three, each with arms reaching to
+    # The rendered shape against the stone wall: a run of three, each with arms reaching to
     # its neighbours and none on the outer ends.
     # Pixel-exact, and it has to stay that way: a tolerance would accept a shape that had lost an
     # arm, which is the one thing this test exists to catch.
     # The reference directory holds one PNG per loader: the shape's own pixels are the same set on
-    # every loader, and the flat background differs per version because each shades a face from its
+    # every loader, and the stone background differs per version because each shades a face from its
     # own light table. 1.20.6's reference is the state pass 1 usually lands on; its top-right corner
     # can round the other way, and a repeats run's second pass lands a step brighter along the same
     # contours, so either of those misses until #262 and #264 are fixed.
@@ -159,18 +159,18 @@ local _check() {
 }
 
 # Meshes the crop's section again from the settled light by changing a block state and putting it
-# back. The swapped block is outside the crop, and stone and grug:coverage_flat are both opaque and
-# unlit, so the swap changes no light and no compared pixel; what it does is dirty the wall's
-# sections and their neighbours, which is what makes the mesh read the light the wait above
-# settled. Without it the capture is a coin toss between the settled bake and one made while the
-# light was still propagating, and both are byte-identical when they happen. See #259.
+# back. The swapped block is outside the crop, and dirt and stone are both opaque and unlit, so the
+# swap changes no light and no compared pixel; what it does is dirty the wall's sections and their
+# neighbours, which is what makes the mesh read the light the wait above settled. Without it the
+# capture is a coin toss between the settled bake and one made while the light was still propagating,
+# and both are byte-identical when they happen. See #259.
 local _force_remesh() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
-    level.place_block(x - 6, y + 3, z + 6, "grug:coverage_flat")
-    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "grug:coverage_flat", "The remesh swap should have put the wall block back.")
+    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }
