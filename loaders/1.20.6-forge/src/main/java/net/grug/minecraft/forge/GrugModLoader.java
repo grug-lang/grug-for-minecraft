@@ -29,6 +29,7 @@ import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.client.tutorial.TutorialSteps;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.packs.PackLocationInfo;
 import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackSelectionConfig;
@@ -753,7 +754,7 @@ public class GrugModLoader {
                                 // Experiment branch for #270 step 3: the day time is pinned to
                                 // midnight every tick, so the sky light cannot be the input that
                                 // varies in the coverage_render flip. Revert with the branch.
-                                serverPlayer.level().setDayTime(18000L);
+                                ((ServerLevel) serverPlayer.level()).setDayTime(18000L);
                                 runner.tick(serverPlayer);
                                 if (runner.isFinished()) {
                                     boolean fromCI = grug$testRunnerFromCI;
