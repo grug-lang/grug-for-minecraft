@@ -6,6 +6,7 @@ import net.grug.minecraft.forge125.item.GrugItem;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugResourceIndex;
@@ -88,7 +89,7 @@ public final class GrugBlocks {
 
             String fullId = "grug:" + cleanName;
             GrugBlockData blockData = new GrugBlockData(fullId);
-            Grug.currentlyInitializingBlock = blockData;
+            GrugDeclarations.currentlyInitializingBlock = blockData;
 
             long tempEntityHandle = Grug.createEntity(blockFileId);
             long initFnId = Grug.getExportFnId("Block", "init");
@@ -101,9 +102,9 @@ public final class GrugBlocks {
                 Grug.destroyEntity(tempEntityHandle);
             }
 
-            Grug.declaredBlocks.put(fullId, blockData);
-            Grug.blockDataByFileId.put(blockFileId, blockData);
-            Grug.currentlyInitializingBlock = null;
+            GrugDeclarations.declaredBlocks.put(fullId, blockData);
+            GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
+            GrugDeclarations.currentlyInitializingBlock = null;
 
             int blockId = allocateBlockId();
             Material mat = stringToMaterial(blockData.material);
@@ -136,8 +137,8 @@ public final class GrugBlocks {
                 Grug.destroyEntity(tempEntityHandle);
             }
 
-            Grug.declaredItems.put(fullId, itemData);
-            Grug.itemDataByFileId.put(itemFileId, itemData);
+            GrugDeclarations.declaredItems.put(fullId, itemData);
+            GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);
 
             int itemId = allocateItemId();
             // Item shifts its id by 256 internally, so this lands at Item.itemsList[itemId].

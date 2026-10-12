@@ -1,10 +1,10 @@
 package net.grug.minecraft.forge125.block;
 
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
-import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugBox;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.Block;
 import net.minecraft.src.IBlockAccess;
@@ -102,7 +102,7 @@ public final class GrugBoxRenderer {
      * world, so it costs nothing here: this runs inside a chunk compile.
      */
     private static String describe(GrugBlock grugBlock, int x, int y, int z) {
-        GrugBlockData data = Grug.blockDataByFileId.get(grugBlock.blockFileId);
+        GrugBlockData data = GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId);
         String name = data != null ? data.id : "an unknown grug block";
         return name + " at " + x + ", " + y + ", " + z;
     }

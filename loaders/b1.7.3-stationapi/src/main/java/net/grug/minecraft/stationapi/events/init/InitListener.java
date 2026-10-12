@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
@@ -224,7 +225,7 @@ public class InitListener {
             long blockFileId = entry.getValue();
 
             GrugBlockData blockData = new GrugBlockData(blockId.toString());
-            Grug.currentlyInitializingBlock = blockData;
+            GrugDeclarations.currentlyInitializingBlock = blockData;
 
             long tempEntityHandle = Grug.createEntity(blockFileId);
             long initFnId = Grug.getExportFnId("Block", "init");
@@ -237,9 +238,9 @@ public class InitListener {
                 Grug.destroyEntity(tempEntityHandle);
             }
 
-            Grug.declaredBlocks.put(blockId.toString(), blockData);
-            Grug.blockDataByFileId.put(blockFileId, blockData);
-            Grug.currentlyInitializingBlock = null;
+            GrugDeclarations.declaredBlocks.put(blockId.toString(), blockData);
+            GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
+            GrugDeclarations.currentlyInitializingBlock = null;
 
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
@@ -268,8 +269,8 @@ public class InitListener {
                 Grug.destroyEntity(tempEntityHandle);
             }
 
-            Grug.declaredItems.put(itemId.toString(), itemData);
-            Grug.itemDataByFileId.put(itemFileId, itemData);
+            GrugDeclarations.declaredItems.put(itemId.toString(), itemData);
+            GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);
 
             new GrugItem(itemId, itemFileId).setTranslationKey(itemId.namespace, itemId.path);
         }

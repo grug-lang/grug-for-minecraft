@@ -3,6 +3,7 @@ package net.grug.minecraft.stationapi.block;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugEntityType;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
@@ -79,7 +80,7 @@ public class GrugBlock extends TemplateBlockWithEntity {
      */
     @GrugGenerated("block data lookup: a GrugBlock always has data")
     private GrugBlockData blockData() {
-        return Grug.blockDataByFileId.get(this.blockFileId);
+        return GrugDeclarations.blockDataByFileId.get(this.blockFileId);
     }
 
     @Override

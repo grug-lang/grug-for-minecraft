@@ -8,6 +8,7 @@ import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
@@ -510,7 +511,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
         if (block instanceof GrugBlock grugBlock) {
             net.grug.minecraft.grug.GrugBlockData data =
-                    Grug.blockDataByFileId.get(grugBlock.blockFileId);
+                    GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId);
             if (data != null) {
                 name = data.id;
             }
@@ -543,10 +544,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
         // 1. Try resolving custom Grug blocks
         for (Map.Entry<String, net.grug.minecraft.grug.GrugBlockData> entry :
-                Grug.declaredBlocks.entrySet()) {
+                GrugDeclarations.declaredBlocks.entrySet()) {
             if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
                 Long fileId =
-                        Grug.blockDataByFileId.entrySet().stream()
+                        GrugDeclarations.blockDataByFileId.entrySet().stream()
                                 .filter(e -> e.getValue().id.equals(entry.getKey()))
                                 .map(Map.Entry::getKey)
                                 .findFirst()
@@ -643,10 +644,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     private Object matchDeclared(String path) {
         // Match custom grug items first
         for (Map.Entry<String, net.grug.minecraft.grug.GrugItemData> entry :
-                Grug.declaredItems.entrySet()) {
+                GrugDeclarations.declaredItems.entrySet()) {
             if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
                 Long fileId =
-                        Grug.itemDataByFileId.entrySet().stream()
+                        GrugDeclarations.itemDataByFileId.entrySet().stream()
                                 .filter(e -> e.getValue().id.equals(entry.getKey()))
                                 .map(Map.Entry::getKey)
                                 .findFirst()
@@ -663,10 +664,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
         // Match custom grug blocks
         for (Map.Entry<String, net.grug.minecraft.grug.GrugBlockData> entry :
-                Grug.declaredBlocks.entrySet()) {
+                GrugDeclarations.declaredBlocks.entrySet()) {
             if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
                 Long fileId =
-                        Grug.blockDataByFileId.entrySet().stream()
+                        GrugDeclarations.blockDataByFileId.entrySet().stream()
                                 .filter(e -> e.getValue().id.equals(entry.getKey()))
                                 .map(Map.Entry::getKey)
                                 .findFirst()

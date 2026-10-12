@@ -731,8 +731,8 @@ public class HostFunctions {
             return;
         }
 
-        if (Grug.currentlyInitializingBlock != null) {
-            Grug.currentlyInitializingBlock.blockEntityString = entityString;
+        if (GrugDeclarations.currentlyInitializingBlock != null) {
+            GrugDeclarations.currentlyInitializingBlock.blockEntityString = entityString;
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "set_block_entity: Can only be called during a Block's init().");
@@ -756,7 +756,7 @@ public class HostFunctions {
     }
 
     public static void set_custom_render() {
-        if (Grug.currentlyInitializingBlock == null) {
+        if (GrugDeclarations.currentlyInitializingBlock == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "set_custom_render: Can only be called during a Block's init().");
@@ -765,20 +765,20 @@ public class HostFunctions {
 
         // Every loader implements the render hook, so the declaration is unconditional. This
         // line is measured: a block that declares custom rendering reaches it on every loader.
-        Grug.currentlyInitializingBlock.customRender = true;
+        GrugDeclarations.currentlyInitializingBlock.customRender = true;
     }
 
     public static void set_hardness(double value) {
-        if (Grug.currentlyInitializingBlock != null)
-            Grug.currentlyInitializingBlock.hardness = (float) value;
+        if (GrugDeclarations.currentlyInitializingBlock != null)
+            GrugDeclarations.currentlyInitializingBlock.hardness = (float) value;
         else
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "set_hardness: Can only be called during a Block's init().");
     }
 
     public static void set_inventory_size(double size) {
-        if (Grug.currentlyInitializingBlock != null)
-            Grug.currentlyInitializingBlock.inventorySize = (int) size;
+        if (GrugDeclarations.currentlyInitializingBlock != null)
+            GrugDeclarations.currentlyInitializingBlock.inventorySize = (int) size;
         else
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -818,8 +818,8 @@ public class HostFunctions {
     }
 
     public static void set_material(String materialName) {
-        if (Grug.currentlyInitializingBlock != null)
-            Grug.currentlyInitializingBlock.material = materialName;
+        if (GrugDeclarations.currentlyInitializingBlock != null)
+            GrugDeclarations.currentlyInitializingBlock.material = materialName;
         else
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "set_material: Can only be called during a Block's init().");

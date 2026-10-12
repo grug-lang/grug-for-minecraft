@@ -4,6 +4,7 @@ import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugEntityType;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.core.BlockPos;
@@ -58,7 +59,7 @@ public class GrugBlock extends Block implements EntityBlock {
      */
     @GrugGenerated("block data lookup: a GrugBlock always has data")
     private GrugBlockData blockData() {
-        return Grug.blockDataByFileId.get(this.blockFileId);
+        return GrugDeclarations.blockDataByFileId.get(this.blockFileId);
     }
 
     @Nullable
