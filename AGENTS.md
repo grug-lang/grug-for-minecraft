@@ -41,6 +41,12 @@ time, and never start a client while another Gradle build is launching a game.
 
 - Never use em-dashes in files, comments, commit messages or responses. Quoted source text that
   already contains one is the only exception.
+- Never hard-wrap prose that GitHub renders. An issue, a pull request, a comment, a response and a
+  commit message each get one line per paragraph and one line per bullet, and the renderer wraps
+  them. A sentence split across lines at a column is an editing artifact that makes the raw text
+  harder to read and to edit. Repository files keep their own wrapping.
+- Never repeat an issue's or a pull request's title as the first line of its body. GitHub renders
+  the title directly above the body, so a leading `#` heading that says the same thing is noise.
 - When explaining how code runs, walk through it in chronological order with numbered steps
   starting at 1. Use many small code blocks, one per moment, and keep the annotation next to the
   code it describes rather than describing a whole function up front. A step may hold more than
