@@ -16,6 +16,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsExtractor;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugRecipeTree;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.stationapi.StationApiAdapter;
@@ -168,7 +169,7 @@ public class InitListener {
 
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
-            Grug.fileIds.put(file.path(), file.fileId());
+            GrugModsWatcher.fileIds.put(file.path(), file.fileId());
 
             switch (entry.entityType()) {
                 case "Block" -> blockFiles.put(entry.cleanName(), file.fileId());

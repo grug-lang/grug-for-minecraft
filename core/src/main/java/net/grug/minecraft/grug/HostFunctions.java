@@ -92,7 +92,7 @@ public class HostFunctions {
      * same state rather than flipping past it, and the next startup puts the file back.
      */
     public static double Test_hot_reload_count(String relativePath) {
-        return Grug.reportedChangeCount(relativePath);
+        return GrugModsWatcher.reportedChangeCount(relativePath);
     }
 
     /**
@@ -103,7 +103,7 @@ public class HostFunctions {
      * report only means the loader was told.
      */
     public static double Test_reload_count(String relativePath) {
-        return Grug.loaderReloadCount(relativePath);
+        return GrugModsWatcher.loaderReloadCount(relativePath);
     }
 
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000

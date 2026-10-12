@@ -45,8 +45,9 @@ public final class GrugFileIndex {
 
     /**
      * Whether a mod-root subdirectory may hold grug scripts: {@code code} for the mod itself and
-     * {@code tests} for its tests. Shared with the hot-reload check in {@link Grug#update}, which
-     * has to accept the same set or an edited test would keep running its previous version.
+     * {@code tests} for its tests. Shared with the hot-reload check in {@link
+     * GrugModsWatcher#update}, which has to accept the same set or an edited test would keep
+     * running its previous version.
      */
     public static boolean holdsScripts(String directoryName) {
         return directoryName.equals("code") || directoryName.equals("tests");

@@ -19,6 +19,7 @@ import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -321,7 +322,7 @@ public class GrugModLoader {
 
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
-            Grug.fileIds.put(file.path(), file.fileId());
+            GrugModsWatcher.fileIds.put(file.path(), file.fileId());
 
             switch (entry.entityType()) {
                 case "Block" -> blockFiles.put(entry.cleanName(), file.fileId());
@@ -404,7 +405,7 @@ public class GrugModLoader {
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
             String[] updatedResources =
-                    Grug.update(
+                    GrugModsWatcher.update(
                             errorMsg -> {
                                 // A contained mod err from the hot-reload path: the file that
                                 // failed to compile is reported to the player, and the run carries
@@ -587,7 +588,8 @@ public class GrugModLoader {
         public static void onRenderTick(TickEvent.RenderTickEvent event) {
             if (event.phase != TickEvent.Phase.END) return;
             while (!GrugModLoader.appliedReloadBatches.isEmpty()) {
-                Grug.noteLoaderReloadFinished(GrugModLoader.appliedReloadBatches.pollFirst());
+                GrugModsWatcher.noteLoaderReloadFinished(
+                        GrugModLoader.appliedReloadBatches.pollFirst());
             }
         }
 
@@ -689,7 +691,7 @@ public class GrugModLoader {
                     // Trigger the reload and immediately clear the LoadingOverlay it creates. The
                     // overlay is what would complete the returned future, so the listener is the
                     // finish signal rather than that future.
-                    GrugModLoader.reloadBatches.addLast(Grug.takePendingReloadPaths());
+                    GrugModLoader.reloadBatches.addLast(GrugModsWatcher.takePendingReloadPaths());
                     mc.reloadResourcePacks();
                     mc.setOverlay(null);
                 }

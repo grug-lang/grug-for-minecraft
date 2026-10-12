@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.Block;
@@ -98,7 +99,7 @@ public class mod_Grug extends BaseMod {
         itemFiles.clear();
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
-            Grug.fileIds.put(file.path(), file.fileId());
+            GrugModsWatcher.fileIds.put(file.path(), file.fileId());
             String entityType = entry.entityType();
             if ("Block".equals(entityType)) {
                 blockFiles.put(entry.cleanName(), file.fileId());

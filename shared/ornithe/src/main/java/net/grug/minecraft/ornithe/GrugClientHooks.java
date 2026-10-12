@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModTreeDefect;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.options.KeyBinding;
@@ -250,7 +251,7 @@ public class GrugClientHooks {
             window.parkCursor();
         }
 
-        String[] updatedResources = Grug.update(this::sendRedMessage);
+        String[] updatedResources = GrugModsWatcher.update(this::sendRedMessage);
         boolean reloadClientResources = false;
 
         for (String resource : updatedResources) {
@@ -259,11 +260,11 @@ public class GrugClientHooks {
         }
 
         if (reloadClientResources) {
-            String[] reloaded = Grug.takePendingReloadPaths();
+            String[] reloaded = GrugModsWatcher.takePendingReloadPaths();
             minecraft.textureManager.reload();
             // textureManager.reload() reads and uploads every texture before it returns, so the
             // reload is finished here and the tests' reload_count can rise.
-            Grug.noteLoaderReloadFinished(reloaded);
+            GrugModsWatcher.noteLoaderReloadFinished(reloaded);
         }
 
         if (minecraft.player != null) {

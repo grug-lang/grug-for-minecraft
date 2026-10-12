@@ -27,7 +27,7 @@ class GrugStateGuardTest {
     @Test
     void updateReturnsNothingBeforeInit() {
         Grug.statePtr = 0;
-        assertArrayEquals(new String[0], Grug.update(message -> {}));
+        assertArrayEquals(new String[0], GrugModsWatcher.update(message -> {}));
     }
 
     @Test

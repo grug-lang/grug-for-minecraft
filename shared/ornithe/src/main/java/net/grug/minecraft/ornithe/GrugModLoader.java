@@ -9,6 +9,7 @@ import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsExtractor;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.ornithemc.osl.blocks.api.BlockEvents;
@@ -89,7 +90,7 @@ public class GrugModLoader implements ModInitializer {
 
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
-            Grug.fileIds.put(file.path(), file.fileId());
+            GrugModsWatcher.fileIds.put(file.path(), file.fileId());
 
             switch (entry.entityType()) {
                 case "Block" -> blockFiles.put(entry.cleanName(), file.fileId());
