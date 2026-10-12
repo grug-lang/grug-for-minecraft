@@ -36,14 +36,18 @@ export run() {
         origin: Vec3 = Test.setup_graphics_camera()
         _wall_in_front_of(origin)
         Test.not_done()
-    } else if Test.tick() < 40 {
-        # How long a placed block takes to reach the framebuffer: Alpha has to mesh the chunk around
-        # it and upload its texture before anything is drawn. The autocrafting table GUI test
-        # measures the same wait against the same camera, so 40 is a known-good figure here.
+    } else if not Test.world_settled() {
+        # How long a placed block takes to reach the framebuffer is a condition rather than a tick
+        # count: the wall dirties the renderer, and this stays false until the frame that drained
+        # those rebuilds has been drawn. Alpha has to mesh the chunk around the wall and upload its
+        # texture before anything of it is drawn, and the old fixed 40-tick wait raced a slower
+        # runner doing that. The autocrafting table GUI test measures the same wait against the same
+        # camera. See #257.
         Test.not_done()
     } else if not swapped {
-        # The shipped texture, read first so the swap has something to be compared against, and read
-        # only once the frame has settled so the two captures are the same number of ticks apart.
+        # The shipped texture, read once the frame has settled so the wall is really in it, which
+        # the comparison below needs: a capture of a frame from before the wall was drawn would
+        # differ from the reloaded one for the wrong reason.
         before.set(Test.screenshot().capture(620, 62, 700, 118))
 
         change_baseline = Test.hot_reload_count(path)

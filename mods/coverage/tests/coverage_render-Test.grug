@@ -27,7 +27,7 @@ export run() {
         # false until its light engine and its mesh rebuilds are done, and a world that never settles
         # runs into the test's own budget rather than capturing something that moved. Asking from the
         # first tick is also what exercises the answer's client-side "not yet" outcomes, which are
-        # gone by the time the floor below expires.
+        # gone by the time a fixed floor would have expired.
         settled_ticks = 0
         Test.not_done()
     } else if settled_ticks < 5 {
@@ -37,14 +37,6 @@ export run() {
         # forever. Five answers in a row is well past the tick an in-flight update takes to arrive.
         # See #259.
         settled_ticks = settled_ticks + 1
-        Test.not_done()
-    } else if Test.tick() < 60 {
-        # How long the placed shape takes to reach the framebuffer. Alpha has to mesh the chunk
-        # around the new blocks, upload the texture and compile the chunk before any of the geometry
-        # is drawn, and every block placed re-lights its column for a few ticks after that. Measured
-        # on the CI stack the first real frame lands between tick 16 and tick 30 depending on how
-        # loaded the machine is; 60 leaves a wide margin over both, and costs 3 seconds of a
-        # 200-tick budget.
         Test.not_done()
     } else if not remeshed {
         _force_remesh()
@@ -63,7 +55,9 @@ export run() {
         # until something dirties the section again: a light update only re-meshes the section it
         # changed, not the neighbours whose faces sample it, so the stale bake would never be
         # corrected on its own. The swap is what corrects it, and this is the wait for the fresh mesh
-        # to land. See #259.
+        # to land. It is also the wait that replaces the old 60-tick floor: the answer is false until
+        # the fixture's frame has been drawn, so the capture no longer races a slower runner. See
+        # #257.
         Test.not_done()
     } else {
         _check()

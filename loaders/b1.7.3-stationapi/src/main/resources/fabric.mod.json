@@ -24,7 +24,8 @@
     ]
   },
   "mixins": [
-    "grug.mixins.json"
+    "grug.mixins.json",
+    "grug.world_settle.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.14.22",

@@ -55,6 +55,7 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ModelEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.common.extensions.IForgeMenuType;
 import net.minecraftforge.event.AddPackFindersEvent;
 import net.minecraftforge.event.TickEvent;
@@ -591,6 +592,20 @@ public class GrugModLoader {
             while (!GrugModLoader.appliedReloadBatches.isEmpty()) {
                 GrugModsWatcher.noteLoaderReloadFinished(
                         GrugModLoader.appliedReloadBatches.pollFirst());
+            }
+        }
+
+        /**
+         * One completed frame, for {@link ForgeAdapter#onFrameRendered}.
+         *
+         * <p>{@code AFTER_LEVEL} fires once per frame, after the level's sections were uploaded and
+         * drawn, which is the moment a capture's frame rule waits for. It is deliberately not a
+         * client-tick event: a tick is not a frame, and the queues can empty between two frames.
+         */
+        @SubscribeEvent
+        public static void onRenderLevelStage(RenderLevelStageEvent event) {
+            if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+                GrugCore.getAdapter().onFrameRendered();
             }
         }
 

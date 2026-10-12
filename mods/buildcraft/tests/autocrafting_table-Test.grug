@@ -24,13 +24,14 @@ export run() {
 
         _test_graphics_setup()
         Test.not_done()
-    } else if Test.tick() < 40 {
-        # How long the opened GUI takes to reach the framebuffer. Measured on the CI stack: the
-        # frame is still the level-loading screen at tick 0, is blank by tick 10, and first holds the
-        # real GUI at tick 16: Alpha has to mesh the chunks around the new blocks and upload their
-        # textures before anything is drawn. 40 leaves a good margin over that, since how long it
-        # takes depends on how loaded the machine is, and costs 2 seconds of a 200-tick budget.
-        # Raise it rather than touch the crop rectangle if a capture ever comes out stale.
+    } else if not Test.world_settled() {
+        # How long the opened GUI takes to reach the framebuffer is a condition rather than a tick
+        # count. The setup places blocks, so the renderer has pending rebuilds until the frame that
+        # drained them has been drawn, and the screen is drawn in that same frame; a capture is
+        # therefore only taken once a frame holding both the world and the panel exists. The old
+        # fixed 40-tick wait was measured for this on the CI stack (the frame was still the
+        # level-loading screen at tick 0 and first held the real GUI at tick 16), and it raced a
+        # slower runner. See #257.
         Test.not_done()
     } else {
         _test_graphics_check()

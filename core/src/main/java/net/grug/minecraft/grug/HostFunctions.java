@@ -168,12 +168,14 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: whether the client has finished the light updates and chunk rebuilds that placing
-     * a fixture set off.
+     * Test only: whether the frame a capture would read is one the client still had work in.
      *
      * <p>The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can
      * run while a light update is still settling, so a capture taken too early can land a light
-     * step away from the reference. A screenshot test waits for this before capturing. See #253.
+     * step away from the reference. The loaders answer from their own frame hooks, because a tick
+     * is not a frame and the game draws fewer frames than it runs ticks: the frame a capture reads
+     * can be several ticks old, so a tick-based answer can pass while the frame it would read is
+     * not the settled scene. See #253 and #257.
      */
     public static boolean Test_world_settled() {
         return GrugCore.getAdapter().isWorldSettled();

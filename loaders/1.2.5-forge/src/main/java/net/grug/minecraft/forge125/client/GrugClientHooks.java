@@ -168,7 +168,12 @@ public class GrugClientHooks implements ITickHandler {
 
     @Override
     public void tickEnd(EnumSet<TickType> types, Object... data) {
-        // Everything runs at tick start, like the injected client tick hooks on the other loaders.
+        // Everything else runs at tick start, like the injected client tick hooks on the other
+        // loaders. The frame hook is the exception: the frame has just been drawn, so this is where
+        // the settle answer samples it. See ModLoaderAdapter#onFrameRendered.
+        if (types.contains(TickType.RENDER)) {
+            GrugCore.getAdapter().onFrameRendered();
+        }
     }
 
     @Override

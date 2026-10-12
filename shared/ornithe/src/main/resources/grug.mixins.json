@@ -6,7 +6,8 @@
     "client": [
         "GameGuiMixin",
         "MinecraftMixin",
-        "TitleScreenMixin"
+        "TitleScreenMixin",
+        "GameRendererMixin"
     ],
     "injectors": {
         "defaultRequire": 1

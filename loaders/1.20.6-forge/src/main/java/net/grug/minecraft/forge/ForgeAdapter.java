@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 
+import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -630,23 +631,49 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     /**
+     * The client's frames, and whether the last one had work in it, for {@link #clientSettled}.
+     *
+     * <p>Static because the frame hook is a Forge render event and there is one client per process;
+     * the event handler is the only caller of {@link #onFrameRendered}.
+     */
+    private static final GrugRenderSettle RENDER_SETTLE = new GrugRenderSettle();
+
+    /**
+     * One completed frame, called from the render event handler: the level has been uploaded and
+     * drawn, so whether it still had work in it is the answer a capture reading this frame needs.
+     *
+     * <p>The light engine is not sampled here: a frame is drawn after the client drained it, and
+     * the test's own wait and the capture's re-check ask it at the moment they run, which is where
+     * light work that arrives between two frames is caught.
+     */
+    @Override
+    public void onFrameRendered() {
+        RENDER_SETTLE.onFrame(!rendererIdle(Minecraft.getInstance()));
+    }
+
+    /**
      * Whether the client's own rendering state has nothing left that a frame's bake depends on: its
-     * light engine is idle, and its section renderer has neither queued nor in-flight compiles.
+     * light engine is idle, and the last frame it drew had neither queued nor in-flight compiles.
      *
      * <p>This is the half of the settle answer a screenshot wait can hold for on its own, because
      * it advances on the client tick while the wait runs on the server thread and blocks it: a wait
      * that included the server half would freeze the server light work it was waiting for, since
      * that engine only drains on the server tick. The server half is the test's own wait in {@link
      * #isWorldSettled}, one call per test tick, where the server is free to tick. See #259.
+     *
+     * <p>The frame rule is what the renderer's queues cannot say by themselves. A compile that
+     * finishes on a worker thread leaves the queues empty between two frames, and the frame that
+     * uploads and draws its output has not been drawn yet, so a capture taken then would read the
+     * frame from before the compile. See #257.
      */
     private static boolean clientSettled(Minecraft minecraft) {
         return !minecraft.level.getChunkSource().getLightEngine().hasLightWork()
-                && rendererIdle(minecraft);
+                && RENDER_SETTLE.settled();
     }
 
     /**
      * Whether the client's chunk renderer has nothing left that a capture would have to be taken
-     * after.
+     * after: no queued or finished compile, and none in flight.
      *
      * <p>{@code LevelRenderer.hasRenderedAllSections} is {@code
      * SectionRenderDispatcher.isQueueEmpty}, and that counts queued and finished compiles only: a
