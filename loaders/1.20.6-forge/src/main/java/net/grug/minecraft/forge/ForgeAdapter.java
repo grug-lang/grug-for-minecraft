@@ -659,13 +659,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * light work that arrives between two frames is caught.
      */
     @Override
-    public void forgetSettledFrames() {
-        RENDER_SETTLE.reset();
+    public void onFrameRendered() {
+        RENDER_SETTLE.onFrame(!rendererIdle(Minecraft.getInstance()));
     }
 
     @Override
-    public void onFrameRendered() {
-        RENDER_SETTLE.onFrame(!rendererIdle(Minecraft.getInstance()));
+    public void forgetSettledFrames() {
+        RENDER_SETTLE.reset();
     }
 
     /**
