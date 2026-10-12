@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -79,15 +80,15 @@ class GrugTestRunnerTest {
 
     @BeforeEach
     void resetGrugState() {
-        Grug.testNotDone = false;
-        Grug.testExpectedError = null;
-        Grug.currentTestTick = 0;
-        Grug.currentTestMod = null;
-        Grug.testFidelityOverride = null;
-        Grug.testOrigin = null;
+        GrugTestState.testNotDone = false;
+        GrugTestState.testExpectedError = null;
+        GrugTestState.currentTestTick = 0;
+        GrugTestState.currentTestMod = null;
+        GrugTestState.testFidelityOverride = null;
+        GrugTestState.testOrigin = null;
         Grug.printQueue.clear();
         Grug.runtimeErrorQueue.clear();
-        Grug.testRuntimeErrors.clear();
+        GrugTestState.testRuntimeErrors.clear();
     }
 
     private GrugTestRunner runner(GrugTestRunner.TestEntityOps ops, Map<String, Long> files) {
@@ -193,7 +194,7 @@ class GrugTestRunnerTest {
      * call returns without finishing.
      */
     private static void abortWithHostFunctionError(FakeOps ops, String expected, String message) {
-        Grug.testExpectedError = expected;
+        GrugTestState.testExpectedError = expected;
         reportRuntimeError(message);
         ops.completed = false;
     }
@@ -240,12 +241,12 @@ class GrugTestRunnerTest {
         // Nothing reads the record outside the expect_error path, so an error with no expectation
         // set would be retained for the rest of the session without ever being matched.
         Grug.recordTestRuntimeError("no test is expecting an error");
-        assertTrue(Grug.testRuntimeErrors.isEmpty());
+        assertTrue(GrugTestState.testRuntimeErrors.isEmpty());
 
-        Grug.testExpectedError = "boom";
+        GrugTestState.testExpectedError = "boom";
         Grug.recordTestRuntimeError("boom happened");
-        assertEquals(1, Grug.testRuntimeErrors.size());
-        assertEquals("boom happened", Grug.testRuntimeErrors.peek());
+        assertEquals(1, GrugTestState.testRuntimeErrors.size());
+        assertEquals("boom happened", GrugTestState.testRuntimeErrors.peek());
     }
 
     @Test
@@ -256,7 +257,7 @@ class GrugTestRunnerTest {
         ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
-        assertNull(Grug.testExpectedError);
+        assertNull(GrugTestState.testExpectedError);
     }
 
     @Test
@@ -268,10 +269,10 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.onCall =
                 () -> {
-                    Grug.testExpectedError = "boom";
-                    if (Grug.currentTestTick == 0) {
+                    GrugTestState.testExpectedError = "boom";
+                    if (GrugTestState.currentTestTick == 0) {
                         reportRuntimeError("boom happened");
-                        Grug.testNotDone = true;
+                        GrugTestState.testNotDone = true;
                     } else {
                         ops.completed = false;
                     }
@@ -344,7 +345,7 @@ class GrugTestRunnerTest {
     @Test
     void failsWhenATestNeverStopsAskingForTicks() {
         FakeOps ops = new FakeOps();
-        ops.onCall = () -> Grug.testNotDone = true;
+        ops.onCall = () -> GrugTestState.testNotDone = true;
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
         runToEnd(runner);
         assertTrue(runner.isFinished());
@@ -360,7 +361,7 @@ class GrugTestRunnerTest {
     @Test
     void failsWhenAnExpectedErrorNeverHappens() {
         FakeOps ops = new FakeOps();
-        ops.onCall = () -> Grug.testExpectedError = "boom";
+        ops.onCall = () -> GrugTestState.testExpectedError = "boom";
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
         runToEnd(runner);
         assertTrue(runner.isFinished());
@@ -375,7 +376,7 @@ class GrugTestRunnerTest {
         ops.onCall =
                 () -> {
                     calls[0]++;
-                    if (calls[0] < 3) Grug.testNotDone = true;
+                    if (calls[0] < 3) GrugTestState.testNotDone = true;
                 };
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
         runner.tick(null);
@@ -450,7 +451,7 @@ class GrugTestRunnerTest {
         // running test rather than whichever mod a screenshot happens to render.
         FakeOps ops = new FakeOps();
         final List<String> owningMods = new ArrayList<>();
-        ops.onCall = () -> owningMods.add(Grug.currentTestMod);
+        ops.onCall = () -> owningMods.add(GrugTestState.currentTestMod);
 
         Map<String, Long> files = new LinkedHashMap<>();
         files.put("secondmod/code/b-Test.grug", 2L);
@@ -467,28 +468,28 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.onCall =
                 () -> {
-                    Grug.testFidelityOverride = "exact";
+                    GrugTestState.testFidelityOverride = "exact";
                     ops.completed = false;
                 };
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
-        assertNull(Grug.testFidelityOverride);
+        assertNull(GrugTestState.testFidelityOverride);
     }
 
     @Test
     void clearsACapturedOriginBetweenTests() {
         // The origin is captured per test, so the next test has to start from the player's current
         // position rather than inherit the one the previous test first asked for.
-        Grug.testOrigin = new Vec3(1.0, 2.0, 3.0);
+        GrugTestState.testOrigin = new Vec3(1.0, 2.0, 3.0);
         FakeOps ops = new FakeOps();
         ops.onCall =
                 () -> {
-                    assertNull(Grug.testOrigin);
-                    Grug.testOrigin = new Vec3(4.0, 5.0, 6.0);
+                    assertNull(GrugTestState.testOrigin);
+                    GrugTestState.testOrigin = new Vec3(4.0, 5.0, 6.0);
                 };
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
-        assertNull(Grug.testOrigin);
+        assertNull(GrugTestState.testOrigin);
     }
 
     /**

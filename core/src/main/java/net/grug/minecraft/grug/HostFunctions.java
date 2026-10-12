@@ -110,7 +110,7 @@ public class HostFunctions {
     public static long Test_get_origin() {
         return Grug.addEntity(
                 GrugEntityType.Vec3,
-                Grug.captureTestOrigin(() -> GrugCore.getAdapter().getTestOrigin()));
+                GrugTestState.captureTestOrigin(() -> GrugCore.getAdapter().getTestOrigin()));
     }
 
     /**
@@ -192,17 +192,17 @@ public class HostFunctions {
 
     // TODO: Change to me.tick() once entities can have methods
     public static double Test_tick() {
-        return (double) Grug.currentTestTick;
+        return (double) GrugTestState.currentTestTick;
     }
 
     // TODO: Change to me.not_done() once entities can have methods
     public static void Test_not_done() {
-        Grug.testNotDone = true;
+        GrugTestState.testNotDone = true;
     }
 
     // TODO: Change to me.expect_error() once entities can have methods
     public static void Test_expect_error(String message) {
-        Grug.testExpectedError = message;
+        GrugTestState.testExpectedError = message;
     }
 
     /**
@@ -223,7 +223,7 @@ public class HostFunctions {
                             + ".");
             return;
         }
-        Grug.testFidelityOverride = fidelity;
+        GrugTestState.testFidelityOverride = fidelity;
     }
 
     // Classes
@@ -435,7 +435,7 @@ public class HostFunctions {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Screenshot.tolerance: "
-                            + Grug.currentTestMod
+                            + GrugTestState.currentTestMod
                             + " is being judged as an exact recreation, so its tests have to"
                             + " compare pixel for pixel and cannot allow a tolerance. Compare"
                             + " without a tolerance, or lower the fidelity in its about.json.");
