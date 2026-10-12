@@ -167,7 +167,10 @@ public class GrugClientHooks {
         instance = this;
     }
 
-    /** The one client's hooks, which the render mixins reach without a handle on the Minecraft. */
+    /**
+     * The one client's hooks, which the render mixins reach without a handle on the Minecraft. Set
+     * by the constructor, which the Minecraft mixin runs before any frame is drawn.
+     */
     private static GrugClientHooks instance;
 
     /**
@@ -175,7 +178,7 @@ public class GrugClientHooks {
      * must not depend on. See {@code GameGuiMixin}.
      */
     public static boolean isTestRunActive() {
-        return instance != null && instance.testRunner != null;
+        return instance.testRunner != null;
     }
 
     /** Registers the R and M keybinds; safe to call once from the mixin's static initializer. */

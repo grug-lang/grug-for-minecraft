@@ -206,7 +206,7 @@ public class GrugClientHooks {
 
     /** The static form of {@link #isTestRunActive()}, for {@code InGameHudMixin}. */
     public static boolean isRunActive() {
-        return instance != null && instance.isTestRunActive();
+        return instance.isTestRunActive();
     }
 
     /**
