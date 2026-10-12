@@ -58,6 +58,8 @@ EXCLUDED_CLASSES = {
     "BlockRenderManagerMixin",
     "GrugMixin",
     "GuiMixin",
+    "GameGuiMixin",
+    "InGameHudMixin",
     "LiquidBlockRendererMixin",
     "LightTextureMixin",
     "SectionBufferBuilderPoolMixin",
