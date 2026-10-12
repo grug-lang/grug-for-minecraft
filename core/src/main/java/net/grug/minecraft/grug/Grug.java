@@ -1,10 +1,6 @@
 package net.grug.minecraft.grug;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
 
 /**
  * The Java bridge to one native grug state.
@@ -14,7 +10,6 @@ import java.nio.file.Files;
  * #runWithStateLockReleased(Runnable)}.
  */
 public final class Grug {
-    private static boolean loaded = false;
     public static long statePtr = 0;
     public static final long INVALID_GRUG_FILE_ID = -1L;
     public static final long INVALID_GRUG_EXPORT_FN_ID = -1L;
@@ -22,46 +17,12 @@ public final class Grug {
     @GrugGenerated("utility class: never instantiated")
     private Grug() {}
 
-    public static synchronized void load() {
-        loaded = nativeLibraryLoaded();
-    }
-
-    /**
-     * Extracts and loads the native adapter, at most once.
-     *
-     * <p>Kept apart so the IO failure paths do not count against {@link #load}'s coverage.
-     */
-    @GrugGenerated("native library extraction: IO failures a healthy run cannot enter")
-    private static synchronized boolean nativeLibraryLoaded() {
-        if (loaded) return true;
-        try {
-            File tempFile = File.createTempFile("libadapter", ".so");
-            tempFile.deleteOnExit();
-            try (InputStream in = Grug.class.getResourceAsStream("/natives/libadapter.so");
-                    OutputStream out = Files.newOutputStream(tempFile.toPath())) {
-                if (in == null) {
-                    throw new IOException("libadapter.so not found on the classpath");
-                }
-                byte[] buffer = new byte[8192];
-                int read;
-                while ((read = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, read);
-                }
-            }
-            System.load(tempFile.getAbsolutePath());
-            GrugNative.initGrugAdapter();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to load libadapter.so", e);
-        }
-        return true;
-    }
-
     public static void init(File modApiJson, File modsDir) {
         GrugStateLock.lock();
         try {
             if (statePtr != 0) return;
 
-            load();
+            GrugNative.load();
             statePtr =
                     GrugNative.nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
         } finally {
