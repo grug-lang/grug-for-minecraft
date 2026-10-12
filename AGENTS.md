@@ -358,6 +358,11 @@ the branch after a rebase: the test count changes. Take the baseline from
   issue has a type.
 - Pull requests merge only with the maintainer's authorization. The repository merges by rebase,
   not squash.
+- Nothing is pushed to `main`. A ruleset rejects direct pushes and allows rebase as the only merge
+  method, so `main` advances only by rebase-merging a pull request, and the `push` trigger on
+  `main` fires when a merge lands rather than when someone pushes directly.
+- A pull request that changes only markdown files merges without waiting for CI to pass: nothing in
+  the build, the loaders or the tests reads a markdown file, so the fleet has nothing to verify.
 - Do not add repository documentation. This file is the exception, and findings still belong in
   issues and pull requests.
 - When the user has to look at images, copy them into one directory and give that path in the
