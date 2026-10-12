@@ -259,7 +259,11 @@ public class GrugClientHooks {
         }
 
         if (reloadClientResources) {
+            String[] reloaded = Grug.takePendingReloadPaths();
             minecraft.textureManager.reload();
+            // textureManager.reload() reads and uploads every texture before it returns, so the
+            // reload is finished here and the tests' reload_count can rise.
+            Grug.noteLoaderReloadFinished(reloaded);
         }
 
         if (minecraft.player != null) {

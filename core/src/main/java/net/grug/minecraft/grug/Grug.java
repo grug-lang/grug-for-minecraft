@@ -11,9 +11,11 @@ import java.nio.file.Files;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -241,6 +243,12 @@ public final class Grug {
             reloadTriggers.add(resource);
         }
 
+        // Every path this batch triggers a reload for, so the loader can take them as the batch
+        // its reload answers.
+        for (String trigger : reloadTriggers) {
+            noteReloadTriggered(trigger);
+        }
+
         return reloadTriggers.toArray(new String[0]);
     }
 
@@ -260,6 +268,60 @@ public final class Grug {
     /** How many changes to {@code path} the engine has reported so far, or 0 if none. */
     public static int reportedChangeCount(String path) {
         return reportedChangeCounts.getOrDefault(path.replace('\\', '/'), 0);
+    }
+
+    /**
+     * The paths {@link #update} has reported since the last take, and per-path counts of the
+     * reloads loaders have finished.
+     *
+     * <p>A reload answers a batch of reported paths and reloads whatever they name, so finishing
+     * one counts once for every path in the batch it was started for. The batch is taken when the
+     * reload starts rather than when it finishes, because reloads overlap on 1.20.6: an older
+     * reload's apply can land after a newer path was reported, and that path is only in the newer
+     * reload. {@link #reportedChangeCount} says the engine saw a write; this says a loader has
+     * answered it, which is what a test that checks a rendered frame has to wait for. The lock is
+     * here rather than in the loaders because 1.20.6 reports changes from its server thread and
+     * finishes reloads on its client thread.
+     */
+    private static final Object loaderReloadLock = new Object();
+
+    private static final Set<String> pendingReloadPaths = new LinkedHashSet<>();
+    private static final Map<String, Integer> loaderReloadCounts = new HashMap<>();
+
+    private static void noteReloadTriggered(String path) {
+        synchronized (loaderReloadLock) {
+            pendingReloadPaths.add(path.replace('\\', '/'));
+        }
+    }
+
+    /**
+     * Takes the paths reported since the last take, for the reload a loader is about to start. The
+     * loader credits exactly these when that reload finishes, so a path reported while a reload is
+     * already in flight is answered by a later reload instead of being credited to the one in
+     * flight.
+     */
+    public static String[] takePendingReloadPaths() {
+        synchronized (loaderReloadLock) {
+            String[] taken = pendingReloadPaths.toArray(new String[0]);
+            pendingReloadPaths.clear();
+            return taken;
+        }
+    }
+
+    /** Records that a loader has finished the reload that answered {@code paths}. */
+    public static void noteLoaderReloadFinished(String[] paths) {
+        synchronized (loaderReloadLock) {
+            for (String path : paths) {
+                loaderReloadCounts.put(path, loaderReloadCounts.getOrDefault(path, 0) + 1);
+            }
+        }
+    }
+
+    /** How many loader reloads a change to {@code path} has finished, or 0 if none. */
+    public static int loaderReloadCount(String path) {
+        synchronized (loaderReloadLock) {
+            return loaderReloadCounts.getOrDefault(path.replace('\\', '/'), 0);
+        }
     }
 
     /**

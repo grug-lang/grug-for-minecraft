@@ -95,6 +95,17 @@ public class HostFunctions {
         return Grug.reportedChangeCount(relativePath);
     }
 
+    /**
+     * How many times a loader has finished reloading after a change to {@code relativePath}.
+     *
+     * <p>{@link #Test_hot_reload_count} says the engine saw the change; this says the loader has
+     * answered it. A test that checks what the reload rendered waits on this, because the engine's
+     * report only means the loader was told.
+     */
+    public static double Test_reload_count(String relativePath) {
+        return Grug.loaderReloadCount(relativePath);
+    }
+
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
         return Grug.addEntity(

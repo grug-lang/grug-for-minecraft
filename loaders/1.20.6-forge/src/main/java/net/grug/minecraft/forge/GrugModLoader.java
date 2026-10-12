@@ -35,6 +35,7 @@ import net.minecraft.server.packs.PackSelectionConfig;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
+import net.minecraft.server.packs.resources.ReloadableResourceManager;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.MenuType;
@@ -72,7 +73,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -129,6 +132,33 @@ public class GrugModLoader {
             new ArrayList<>();
 
     public static volatile boolean reloadClientResources = false;
+
+    /**
+     * The batches of reported paths that reloads were started for, oldest first, and the batches
+     * whose apply stage has finished but whose frame has not been rendered yet.
+     *
+     * <p>{@link GrugReloadListener} takes the oldest batch when a reload starts and adds it to the
+     * applied queue once that reload's apply stage has run; the render tick's end then reports
+     * every applied batch to {@link Grug}, so a test that waits on reload_count captures a frame
+     * the reload is in. A batch belongs to the reload that was started for it, not to whichever
+     * reload happens to finish, because reloads overlap here. Both queues are only touched on the
+     * client thread.
+     */
+    private static final Deque<String[]> reloadBatches = new ArrayDeque<>();
+
+    private static final Deque<String[]> appliedReloadBatches = new ArrayDeque<>();
+
+    /**
+     * Called by {@link GrugReloadListener} as its reload starts; empty when no batch was queued.
+     */
+    static String[] pollReloadBatch() {
+        return reloadBatches.isEmpty() ? new String[0] : reloadBatches.pollFirst();
+    }
+
+    /** Called by {@link GrugReloadListener} once a reload's apply stage has finished. */
+    static void markReloadApplied(String[] batch) {
+        appliedReloadBatches.addLast(batch);
+    }
 
     public static final KeyMapping RUN_TESTS_KEY =
             new KeyMapping("key.grug.run_tests", GLFW.GLFW_KEY_R, "key.categories.grug");
@@ -467,6 +497,13 @@ public class GrugModLoader {
         private static volatile boolean grug$testRunFinished = false;
 
         /**
+         * Whether {@link GrugReloadListener} has been registered with the client's resource
+         * manager. Registered on the first client tick, once the manager exists, so every reload
+         * this loader starts from then on reports its finish to {@link Grug}.
+         */
+        private static boolean grug$reloadListenerRegistered = false;
+
+        /**
          * The 1.20.6 half of the shared run state machine: the GLFW side of resizing the window and
          * moving the cursor. 1.20.6 never managed GL dithering, so that half is inert here and a
          * run behaves exactly as it did before. The save/force/restore transitions themselves live
@@ -534,6 +571,22 @@ public class GrugModLoader {
             double[] y = new double[1];
             GLFW.glfwGetCursorPos(Minecraft.getInstance().getWindow().getWindow(), x, y);
             return new double[] {x[0], y[0]};
+        }
+
+        /**
+         * Reports each finished reload once the frame that shows it has been rendered.
+         *
+         * <p>The listener's apply stage uploads the atlases before the frame is drawn, so reporting
+         * there would let a test capture the previous frame, which still has the old resources in
+         * it. The render tick's end runs after the frame, so the frame a test reads next is the one
+         * the reload is in.
+         */
+        @SubscribeEvent
+        public static void onRenderTick(TickEvent.RenderTickEvent event) {
+            if (event.phase != TickEvent.Phase.END) return;
+            while (!GrugModLoader.appliedReloadBatches.isEmpty()) {
+                Grug.noteLoaderReloadFinished(GrugModLoader.appliedReloadBatches.pollFirst());
+            }
         }
 
         @SubscribeEvent
@@ -618,12 +671,23 @@ public class GrugModLoader {
                     WINDOW.parkCursor();
                 }
 
+                // Registered once the manager exists, which is before any hot reload, so every
+                // reload the flag below starts reports its finish through GrugReloadListener.
+                if (!grug$reloadListenerRegistered
+                        && mc.getResourceManager() instanceof ReloadableResourceManager manager) {
+                    grug$reloadListenerRegistered = true;
+                    manager.registerReloadListener(new GrugReloadListener());
+                }
+
                 // Intercept the flag from the server tick thread
                 // to trigger a client-side reload
                 if (GrugModLoader.reloadClientResources) {
                     GrugModLoader.reloadClientResources = false;
 
-                    // Trigger the reload and immediately clear the LoadingOverlay it creates
+                    // Trigger the reload and immediately clear the LoadingOverlay it creates. The
+                    // overlay is what would complete the returned future, so the listener is the
+                    // finish signal rather than that future.
+                    GrugModLoader.reloadBatches.addLast(Grug.takePendingReloadPaths());
                     mc.reloadResourcePacks();
                     mc.setOverlay(null);
                 }

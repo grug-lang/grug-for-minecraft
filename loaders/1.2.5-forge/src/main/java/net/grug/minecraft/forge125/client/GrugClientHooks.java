@@ -250,6 +250,7 @@ public class GrugClientHooks implements ITickHandler {
 
         String[] updatedResources = Grug.update(GrugClientHooks::logError);
         if (updatedResources.length > 0 && minecraft.renderEngine != null) {
+            String[] reloaded = Grug.takePendingReloadPaths();
             minecraft.renderEngine.refreshTextures();
             // refreshTextures re-stitches every atlas from the texture pack, and in doing so it
             // runs
@@ -263,6 +264,9 @@ public class GrugClientHooks implements ITickHandler {
             // on
             // the game's own per-tick upload.
             GrugTextures.reload();
+            // Both calls above finish their work before they return, so the reload is done here
+            // and the tests' reload_count can rise.
+            Grug.noteLoaderReloadFinished(reloaded);
         }
 
         if (minecraft.thePlayer != null) {
