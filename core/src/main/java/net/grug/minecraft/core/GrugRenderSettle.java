@@ -1,7 +1,7 @@
 package net.grug.minecraft.core;
 
 /**
- * Whether the frame a capture would read is one the client still had work in.
+ * Whether the frame a capture would read is one the client had no work left in.
  *
  * <p>A capture reads the frame the client drew last, so "the renderer has no pending rebuilds" is
  * not on its own enough: the renderer can go idle between two frames (on 1.20.6 a compile finishing
