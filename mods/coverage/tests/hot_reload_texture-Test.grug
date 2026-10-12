@@ -69,6 +69,12 @@ export run() {
         # finished instead of guessing a number of ticks. Loaders report the finish after the
         # tick's own run() call, so the capture below lands on a later tick than the finish.
         Test.not_done()
+    } else if not Test.world_settled() {
+        # The loader finishes its reload inside a game tick, and the next test call can come before
+        # a single frame has been drawn with the new texture, so a capture right after the count
+        # rose read the old frame. The loader forgets its settled frames when a reload finishes, so
+        # this holds until frames drawn after the reload have ended idle. See #324.
+        Test.not_done()
     } else {
         reloaded: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
         reloaded.differs_from(before.unwrap(), 90)

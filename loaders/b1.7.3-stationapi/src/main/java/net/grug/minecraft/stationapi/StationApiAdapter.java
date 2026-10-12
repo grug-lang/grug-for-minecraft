@@ -731,6 +731,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void forgetSettledFrames() {
+        renderSettle.reset();
+    }
+
+    @Override
     public void onFrameRendered() {
         renderSettle.onFrame(frameHadPendingWork());
     }
