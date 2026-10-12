@@ -33,11 +33,11 @@ class GrugResourceIndexTest {
     @BeforeEach
     @AfterEach
     void drainPendingFatal() {
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.clear();
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.clear();
         }
         try {
-            Grug.throwPendingFatal();
+            GrugErrors.throwPendingFatal();
         } catch (IllegalStateException expected) {
             // The fatal the test provoked, cleared so it cannot outlive it.
         }
@@ -234,11 +234,14 @@ class GrugResourceIndexTest {
 
         assertTrue(merged.contains("tile.grug.foo.name=Foo"), merged);
         assertFalse(merged.contains("bad"), merged);
-        synchronized (Grug.runtimeErrorQueue) {
-            assertEquals(1, Grug.runtimeErrorQueue.size(), Grug.runtimeErrorQueue.toString());
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            assertEquals(
+                    1,
+                    GrugErrors.runtimeErrorQueue.size(),
+                    GrugErrors.runtimeErrorQueue.toString());
             assertTrue(
-                    Grug.runtimeErrorQueue.peek().contains("block.grug.bad"),
-                    Grug.runtimeErrorQueue.peek());
+                    GrugErrors.runtimeErrorQueue.peek().contains("block.grug.bad"),
+                    GrugErrors.runtimeErrorQueue.peek());
         }
     }
 

@@ -211,8 +211,8 @@ public final class GrugScreenshots {
                             + capture.getHeight()
                             + "); review and commit it.";
             System.out.println("[GRUG CI] " + acceptedMessage);
-            synchronized (Grug.printQueue) {
-                Grug.printQueue.add(acceptedMessage);
+            synchronized (GrugErrors.printQueue) {
+                GrugErrors.printQueue.add(acceptedMessage);
             }
             return;
         }
@@ -499,8 +499,8 @@ public final class GrugScreenshots {
                         + capture.getHeight()
                         + "); re-run to verify it.";
         System.out.println("[GRUG CI] " + message);
-        synchronized (Grug.printQueue) {
-            Grug.printQueue.add(message);
+        synchronized (GrugErrors.printQueue) {
+            GrugErrors.printQueue.add(message);
         }
     }
 

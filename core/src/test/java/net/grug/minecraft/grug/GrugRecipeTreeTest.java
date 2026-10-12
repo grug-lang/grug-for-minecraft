@@ -33,11 +33,11 @@ class GrugRecipeTreeTest {
     @BeforeEach
     @AfterEach
     void drain() {
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.clear();
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.clear();
         }
         try {
-            Grug.throwPendingFatal();
+            GrugErrors.throwPendingFatal();
         } catch (IllegalStateException expected) {
             // The fatal the test provoked, cleared so it cannot outlive it.
         }
@@ -55,8 +55,8 @@ class GrugRecipeTreeTest {
 
     /** Every defect reported since the queue was last drained. */
     private static List<String> reported() {
-        synchronized (Grug.runtimeErrorQueue) {
-            return new ArrayList<>(Grug.runtimeErrorQueue);
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            return new ArrayList<>(GrugErrors.runtimeErrorQueue);
         }
     }
 

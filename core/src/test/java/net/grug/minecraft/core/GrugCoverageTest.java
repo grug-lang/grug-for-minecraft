@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugErrors;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -50,7 +50,7 @@ class GrugCoverageTest {
     @AfterEach
     void drainPendingFatal() {
         try {
-            Grug.throwPendingFatal();
+            GrugErrors.throwPendingFatal();
         } catch (IllegalStateException expected) {
             // The fatal the test provoked, cleared so it cannot outlive the test.
         }

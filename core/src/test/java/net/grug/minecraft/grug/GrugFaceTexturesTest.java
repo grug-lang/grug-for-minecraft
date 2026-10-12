@@ -26,14 +26,14 @@ class GrugFaceTexturesTest {
     @BeforeEach
     @AfterEach
     void drainQueue() {
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.clear();
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.clear();
         }
     }
 
     private static List<String> reported() {
-        synchronized (Grug.runtimeErrorQueue) {
-            return new ArrayList<>(Grug.runtimeErrorQueue);
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            return new ArrayList<>(GrugErrors.runtimeErrorQueue);
         }
     }
 

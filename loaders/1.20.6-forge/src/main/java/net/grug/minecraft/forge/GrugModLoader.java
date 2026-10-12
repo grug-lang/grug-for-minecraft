@@ -16,6 +16,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugEntities;
+import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
@@ -412,8 +413,8 @@ public class GrugModLoader {
                                 // on with the version it last had, exactly as the JNI layer lets a
                                 // script carry on after a host error.
                                 LOGGER.error(errorMsg);
-                                synchronized (Grug.runtimeErrorQueue) {
-                                    Grug.runtimeErrorQueue.add(errorMsg);
+                                synchronized (GrugErrors.runtimeErrorQueue) {
+                                    GrugErrors.runtimeErrorQueue.add(errorMsg);
                                 }
                             });
             for (String resource : updatedResources) {
@@ -698,15 +699,15 @@ public class GrugModLoader {
 
                 // Process standard message queues directly in the local player's chat
                 if (mc.player != null) {
-                    synchronized (Grug.runtimeErrorQueue) {
-                        while (!Grug.runtimeErrorQueue.isEmpty()) {
-                            sendRedMessage(mc.player, Grug.runtimeErrorQueue.poll());
+                    synchronized (GrugErrors.runtimeErrorQueue) {
+                        while (!GrugErrors.runtimeErrorQueue.isEmpty()) {
+                            sendRedMessage(mc.player, GrugErrors.runtimeErrorQueue.poll());
                         }
                     }
 
-                    synchronized (Grug.printQueue) {
-                        while (!Grug.printQueue.isEmpty()) {
-                            sendMessage(mc.player, Grug.printQueue.poll(), "");
+                    synchronized (GrugErrors.printQueue) {
+                        while (!GrugErrors.printQueue.isEmpty()) {
+                            sendMessage(mc.player, GrugErrors.printQueue.poll(), "");
                         }
                     }
                 }

@@ -20,8 +20,8 @@ class GrugModTreeDefectTest {
     @BeforeEach
     @AfterEach
     void drainQueue() {
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.clear();
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.clear();
         }
     }
 
@@ -46,10 +46,10 @@ class GrugModTreeDefectTest {
                 "Recipe 'a/b.json' is broken.", recordingAdapter(logged));
 
         assertEquals(List.of("Recipe 'a/b.json' is broken."), logged);
-        synchronized (Grug.runtimeErrorQueue) {
+        synchronized (GrugErrors.runtimeErrorQueue) {
             assertEquals(
                     List.of("Recipe 'a/b.json' is broken."),
-                    new ArrayList<>(Grug.runtimeErrorQueue));
+                    new ArrayList<>(GrugErrors.runtimeErrorQueue));
         }
     }
 
@@ -59,8 +59,8 @@ class GrugModTreeDefectTest {
         // before GrugCore has installed an adapter. That is no reason to swallow the report.
         GrugModTreeDefect.reportToRunAndPlayer("Something is wrong.", null);
 
-        synchronized (Grug.runtimeErrorQueue) {
-            assertTrue(Grug.runtimeErrorQueue.contains("Something is wrong."));
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            assertTrue(GrugErrors.runtimeErrorQueue.contains("Something is wrong."));
         }
     }
 
@@ -69,8 +69,8 @@ class GrugModTreeDefectTest {
         // The public entry point is what every loader calls, and it has to reach the same channels.
         GrugModTreeDefect.report("Something else is wrong.");
 
-        synchronized (Grug.runtimeErrorQueue) {
-            assertTrue(Grug.runtimeErrorQueue.contains("Something else is wrong."));
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            assertTrue(GrugErrors.runtimeErrorQueue.contains("Something else is wrong."));
         }
     }
 }

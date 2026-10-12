@@ -3,7 +3,7 @@ package net.grug.minecraft.ornithe;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
-import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsWatcher;
@@ -268,15 +268,15 @@ public class GrugClientHooks {
         }
 
         if (minecraft.player != null) {
-            synchronized (Grug.runtimeErrorQueue) {
-                while (!Grug.runtimeErrorQueue.isEmpty()) {
-                    sendRedMessage(Grug.runtimeErrorQueue.poll());
+            synchronized (GrugErrors.runtimeErrorQueue) {
+                while (!GrugErrors.runtimeErrorQueue.isEmpty()) {
+                    sendRedMessage(GrugErrors.runtimeErrorQueue.poll());
                 }
             }
 
-            synchronized (Grug.printQueue) {
-                while (!Grug.printQueue.isEmpty()) {
-                    sendMessage(Grug.printQueue.poll(), "");
+            synchronized (GrugErrors.printQueue) {
+                while (!GrugErrors.printQueue.isEmpty()) {
+                    sendMessage(GrugErrors.printQueue.poll(), "");
                 }
             }
         }

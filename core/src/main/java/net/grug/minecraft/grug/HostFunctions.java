@@ -699,14 +699,14 @@ public class HostFunctions {
     }
 
     public static <T> void print(T a) {
-        synchronized (Grug.printQueue) {
-            Grug.printQueue.add(HostFunctionHelpers.prettyFormat(a));
+        synchronized (GrugErrors.printQueue) {
+            GrugErrors.printQueue.add(HostFunctionHelpers.prettyFormat(a));
         }
     }
 
     public static <T, U> void print2(T a, U b) {
-        synchronized (Grug.printQueue) {
-            Grug.printQueue.add(
+        synchronized (GrugErrors.printQueue) {
+            GrugErrors.printQueue.add(
                     HostFunctionHelpers.prettyFormat(a)
                             + " "
                             + HostFunctionHelpers.prettyFormat(b));
@@ -714,8 +714,8 @@ public class HostFunctions {
     }
 
     public static <T, U, V> void print3(T a, U b, V c) {
-        synchronized (Grug.printQueue) {
-            Grug.printQueue.add(
+        synchronized (GrugErrors.printQueue) {
+            GrugErrors.printQueue.add(
                     HostFunctionHelpers.prettyFormat(a)
                             + " "
                             + HostFunctionHelpers.prettyFormat(b)

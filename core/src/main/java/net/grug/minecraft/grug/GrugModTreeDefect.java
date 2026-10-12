@@ -35,8 +35,8 @@ public final class GrugModTreeDefect {
         if (adapter != null) {
             adapter.logError(message);
         }
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.add(message);
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.add(message);
         }
         System.out.println("[GRUG CI] FAIL " + message);
     }
