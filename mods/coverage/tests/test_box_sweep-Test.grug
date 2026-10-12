@@ -1,9 +1,13 @@
 # The room build sweeps the item entities out of its box, so a fixture's drops cannot be picked up
 # and carried into a later capture. This spawns one inside the room and one in the last block the
-# area clearing reaches, forces a rebuild through Test.set_box_radius, and checks the sweep took
-# both. The second is the boundary: a block covers [x, x + 1), so an item resting in the last
-# cleared block sits past the block's own coordinate, and a sweep whose bound stops at that
+# area clearing reaches, checks both exist, forces a rebuild through Test.set_box_radius, and checks
+# the sweep took both. The second is the boundary: a block covers [x, x + 1), so an item resting in
+# the last cleared block sits past the block's own coordinate, and a sweep whose bound stops at that
 # coordinate leaves it behind. See #254.
+#
+# The sweep at the end of every test is not checked here: a test cannot observe the sweep that ends
+# it, and the next test's room build sweeps too, so a following test could not tell the two apart.
+# GrugTestRunnerTest covers it. See #323.
 export run() {
     if Test.tick() == 0 {
         level: Level = Test.get_client_level()
@@ -11,10 +15,7 @@ export run() {
 
         sword: Item = item(resource_location("minecraft:diamond_sword"))
         stack: ItemStack = item_stack(sword, 3)
-        # Two blocks and a half to the side of the player, inside the room but out of the player's pick-up
-        # reach. Directly above them, the sword falls onto the player within about six ticks and is
-        # picked up if the next room build is late, which it can be. See #321.
-        entity: ItemEntity = item_entity(level, origin.x() + 2.5, origin.y(), origin.z(), stack)
+        entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
         entity.entity().set_delta_movement(vec3_zero())
         entity.entity().spawn(level)
 
@@ -35,6 +36,17 @@ export run() {
         # and the sweep below was never checked.
         Test.not_done()
     } else if Test.tick() == 1 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        # Both items have to exist before the rebuild, or the assertions after it pass without the
+        # sweep having removed anything. The player picks up an item that has fallen into reach
+        # after about six ticks, which is why the rebuild comes this early.
+        before: Option[ItemEntity] = level.find_item_entity(origin.x(), origin.y(), origin.z(), 10)
+        Test.assert(before.has(), "The spawned item should exist before the room is rebuilt.")
+        px: number = floor(origin.x() - 3)
+        pz: number = floor(origin.z() - 3)
+        edge_before: Option[ItemEntity] = level.find_item_entity(px + 16.5, origin.y(), pz + 0.5, 2)
+        Test.assert(edge_before.has(), "The item in the last cleared block should exist before the room is rebuilt.")
         Test.set_box_radius(4)
         Test.not_done()
     } else {

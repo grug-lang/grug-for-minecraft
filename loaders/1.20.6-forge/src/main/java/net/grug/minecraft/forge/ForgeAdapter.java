@@ -351,6 +351,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("no player: the run has no tests to sweep after until someone has joined")
+    public void sweepTestItems() {
+        Player player = (Player) testPlayer();
+        if (player == null) return;
+        GrugTestBox.sweepItems(this, getLevel(), player.getX(), player.getY(), player.getZ());
+    }
+
+    @Override
     public void roundTripNbt(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
         Level level = be.getLevel();

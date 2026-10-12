@@ -811,6 +811,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("no player: the run has no tests to sweep after until someone has joined")
+    public void sweepTestItems() {
+        EntityPlayer player = (EntityPlayer) testPlayer();
+        if (player == null) return;
+        GrugTestBox.sweepItems(this, getLevel(), player.posX, player.posY - 1.62, player.posZ);
+    }
+
+    @Override
     public void roundTripNbt(Object blockEntityObj) {
         // TileEntity.writeToNBT looks the class up in the mapping ModLoader fills on registration.
         GrugBlocks.init();

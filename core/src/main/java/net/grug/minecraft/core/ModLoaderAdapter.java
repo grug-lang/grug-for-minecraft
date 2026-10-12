@@ -288,6 +288,13 @@ public interface ModLoaderAdapter {
      */
     void buildTestBox(int radius);
 
+    /**
+     * Sweeps the dropped items out of the test area around the player, which the runner calls in
+     * the tick every test ends so that nothing a test dropped outlives it. See {@link
+     * GrugTestBox#sweepItems}.
+     */
+    void sweepTestItems();
+
     void useBlockForTest(Object levelObj, double x, double y, double z);
 
     /**

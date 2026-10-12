@@ -8,10 +8,7 @@ export run() {
         # A sword, because newer versions clamp an item stack's damage to the item's max damage.
         sword: Item = item(resource_location("minecraft:diamond_sword"))
         stack: ItemStack = item_stack(sword, 3)
-        # Two blocks and a half to the side of the player, out of their pick-up reach: directly above
-        # them the sword falls onto the player within about six ticks, and a picked-up sword stays in
-        # the hotbar. See #321.
-        entity: ItemEntity = item_entity(level, origin.x() + 2.5, origin.y(), origin.z(), stack)
+        entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
         Test.assert(entity.damage() == 3, "The item entity should carry the stack's damage.")
         entity.entity().set_delta_movement(vec3_zero())
         entity.entity().spawn(level)

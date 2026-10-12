@@ -390,6 +390,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("no player: the run has no tests to sweep after until someone has joined")
+    public void sweepTestItems() {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
+        GrugTestBox.sweepItems(this, getLevel(), player.x, player.boundingBox.minY, player.z);
+    }
+
+    @Override
     public void roundTripNbt(Object blockEntityObj) {
         net.minecraft.block.entity.BlockEntity be =
                 (net.minecraft.block.entity.BlockEntity) blockEntityObj;
