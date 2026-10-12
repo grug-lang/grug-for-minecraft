@@ -1,8 +1,6 @@
 import java.io.File
-import java.net.URI
 
 plugins {
-    id("maven-publish")
     id("fabric-loom") version "1.16.3"
     id("babric-loom-extension") version "1.16.1"
 }
@@ -106,31 +104,5 @@ java {
 tasks.withType<Jar> {
     from("../../LICENSE") { // Updated path assuming root contains LICENSE
         rename { "${it}_${project.properties["archivesBaseName"]}" }
-    }
-}
-
-tasks.withType<GenerateModuleMetadata> {
-    enabled = false
-}
-
-publishing {
-    repositories {
-        mavenLocal()
-        if (project.hasProperty("my_maven_username")) {
-            maven {
-                url = URI("https://maven.example.com")
-                credentials {
-                    username = "${project.properties["my_maven_username"]}"
-                    password = "${project.properties["my_maven_password"]}"
-                }
-            }
-        }
-    }
-
-    publications {
-        register("mavenJava", MavenPublication::class) {
-            artifactId = project.properties["archives_base_name"] as String
-            from(components["java"])
-        }
     }
 }
