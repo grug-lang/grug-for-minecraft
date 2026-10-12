@@ -64,4 +64,25 @@ class GrugRenderSettleTest {
 
         assertTrue(settle.settled());
     }
+
+    @Test
+    void aResetForgetsEveryFrameBeforeIt() {
+        GrugRenderSettle settle = new GrugRenderSettle();
+        settle.onFrame(false);
+        settle.onFrame(false);
+
+        assertTrue(settle.settled());
+
+        settle.reset();
+
+        assertFalse(settle.settled());
+
+        settle.onFrame(false);
+
+        assertFalse(settle.settled());
+
+        settle.onFrame(false);
+
+        assertTrue(settle.settled());
+    }
 }

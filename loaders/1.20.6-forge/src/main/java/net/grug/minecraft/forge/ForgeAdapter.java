@@ -341,6 +341,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
     public void buildTestBox(int radius) {
+        // The room build is the first thing the runner does for a test, and it dirties the
+        // renderer, so any settle answer from before it describes frames this test must not
+        // capture. See GrugRenderSettle.reset.
+        RENDER_SETTLE.reset();
         Player player = (Player) testPlayer();
         if (player == null) return;
         GrugTestBox.build(this, getLevel(), player.getX(), player.getY(), player.getZ(), radius);
