@@ -286,7 +286,6 @@ the branch after a rebase: the test count changes. Take the baseline from
   `grug-tests`' grammar and the `mod_api.json` schema. Fetch the raw URL rather than a github.com
   one: it is the same text without the HTML around it.
 - A call's arguments must stay on one line.
-- No chained calls: `x.unwrap().damage()` is rejected. Bind `x.unwrap()` to a local first.
 - Variables are declared at member scope. Helpers are `local` functions and must be defined
   after the first place they are called.
 - Names must be lowercase. There are no member-scope `local` constants, and `+` works on numbers,
