@@ -49,7 +49,7 @@ public final class Grug {
                 }
             }
             System.load(tempFile.getAbsolutePath());
-            initGrugAdapter();
+            GrugNative.initGrugAdapter();
         } catch (IOException e) {
             throw new RuntimeException("Failed to load libadapter.so", e);
         }
@@ -62,7 +62,8 @@ public final class Grug {
             if (statePtr != 0) return;
 
             load();
-            statePtr = nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
+            statePtr =
+                    GrugNative.nativeInit(modApiJson.getAbsolutePath(), modsDir.getAbsolutePath());
         } finally {
             GrugStateLock.unlock();
         }
@@ -72,7 +73,7 @@ public final class Grug {
         GrugStateLock.lock();
         try {
             if (statePtr == 0) throw new IllegalStateException("grug_state is not initialized");
-            return nativeCompileAllFiles(statePtr);
+            return GrugNative.nativeCompileAllFiles(statePtr);
         } finally {
             GrugStateLock.unlock();
         }
@@ -81,7 +82,7 @@ public final class Grug {
     public static long createEntity(long fileId) {
         GrugStateLock.lock();
         try {
-            return nativeCreateEntity(statePtr, fileId);
+            return GrugNative.nativeCreateEntity(statePtr, fileId);
         } finally {
             GrugStateLock.unlock();
         }
@@ -90,7 +91,7 @@ public final class Grug {
     public static long getExportFnId(String entityType, String fnName) {
         GrugStateLock.lock();
         try {
-            return nativeGetExportFnId(statePtr, entityType, fnName);
+            return GrugNative.nativeGetExportFnId(statePtr, entityType, fnName);
         } finally {
             GrugStateLock.unlock();
         }
@@ -100,7 +101,7 @@ public final class Grug {
         boolean result;
         GrugStateLock.lock();
         try {
-            result = nativeCallExportFn(statePtr, entityHandle, exportFnId);
+            result = GrugNative.nativeCallExportFn(statePtr, entityHandle, exportFnId);
         } finally {
             GrugStateLock.unlock();
         }
@@ -123,7 +124,7 @@ public final class Grug {
     public static void destroyEntity(long entityHandle) {
         GrugStateLock.lock();
         try {
-            nativeDestroyEntity(statePtr, entityHandle);
+            GrugNative.nativeDestroyEntity(statePtr, entityHandle);
         } finally {
             GrugStateLock.unlock();
         }
@@ -143,36 +144,12 @@ public final class Grug {
         GrugStateLock.runReleased(blockingWait);
     }
 
-    private static native void initGrugAdapter();
-
-    private static native long nativeInit(String modApiPath, String modsDirPath);
-
-    private static native FileInfo[] nativeCompileAllFiles(long statePtr);
-
-    // Public rather than wrapped because the only caller, GrugModsWatcher, enters with the state
-    // lock already held, and there is no unlocked entry a wrapper could own.
-    public static native FileInfo[] nativeUpdate(long statePtr);
-
-    private static native long nativeCreateEntity(long statePtr, long fileId);
-
-    private static native long nativeGetExportFnId(long statePtr, String entityType, String fnName);
-
-    private static native boolean nativeCallExportFn(
-            long statePtr, long entityHandle, long exportFnId);
-
-    private static native void nativeDestroyEntity(long statePtr, long entityHandle);
-
-    // Public for the same reason as nativeUpdate.
-    public static native String[] nativeGetUpdatedResources(long statePtr);
-
     public static void hostFunctionErrorHappened(long statePtr, String message) {
         GrugStateLock.lock();
         try {
-            nativeHostFunctionErrorHappened(statePtr, message);
+            GrugNative.nativeHostFunctionErrorHappened(statePtr, message);
         } finally {
             GrugStateLock.unlock();
         }
     }
-
-    private static native void nativeHostFunctionErrorHappened(long statePtr, String message);
 }
