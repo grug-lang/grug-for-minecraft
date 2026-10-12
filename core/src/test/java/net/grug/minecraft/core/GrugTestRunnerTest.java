@@ -159,7 +159,13 @@ class GrugTestRunnerTest {
         files.put("mymod/code/b-Test.grug", 2L);
         ops.pathsAre(files);
         GrugTestRunner runner =
-                new GrugTestRunner(files, List.of(), ops, System::nanoTime, radius -> {}, 3);
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new SweepLog(new ArrayList<>()),
+                        3);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PrintStream old = System.out;
@@ -625,5 +631,80 @@ class GrugTestRunnerTest {
                                                 ops, Map.of("mymod/code/a-Test.grug", 1L), clock)));
 
         assertFalse(printed.contains("Test times"), printed);
+    }
+
+    /** A room builder that logs what the runner asks of it, in order. */
+    private static final class SweepLog implements GrugTestRunner.TestBoxBuilder {
+        final List<String> log;
+
+        SweepLog(List<String> log) {
+            this.log = log;
+        }
+
+        @Override
+        public void build(int radius) {
+            log.add("build");
+        }
+
+        @Override
+        public void sweepItems() {
+            log.add("sweep");
+        }
+    }
+
+    private static List<String> runWithSweepLog(FakeOps ops, Map<String, Long> files) {
+        List<String> log = new ArrayList<>();
+        ops.pathsAre(files);
+        GrugTestRunner runner =
+                new GrugTestRunner(files, List.of(), ops, System::nanoTime, new SweepLog(log), 1);
+        // Both outcomes print to stdout, which this test has no use for.
+        PrintStream old = System.out;
+        System.setOut(new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+        try {
+            for (int i = 0;
+                    i < GrugTestRunner.DEFAULT_MAX_TEST_TICKS + 5 && !runner.isFinished();
+                    i++) {
+                runner.tick(null);
+            }
+        } finally {
+            System.setOut(old);
+        }
+        return log;
+    }
+
+    @Test
+    void sweepsDroppedItemsInTheTickEveryPassingTestEnds() {
+        // The room build sweeps when the next test starts, which can be many ticks later. The end
+        // of each test sweeps too, so the last items it dropped cannot outlive it. See #323.
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        List<String> log = runWithSweepLog(new FakeOps(), files);
+        assertEquals(List.of("build", "sweep", "build", "sweep"), log);
+    }
+
+    @Test
+    void sweepsDroppedItemsWhenATestEndsWithItsExpectedError() {
+        FakeOps ops = new FakeOps();
+        ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
+        List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        assertEquals(List.of("build", "sweep"), log);
+    }
+
+    @Test
+    void sweepsDroppedItemsWhenATestFails() {
+        FakeOps ops = new FakeOps();
+        ops.completed = false;
+        List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        assertEquals(List.of("build", "sweep"), log);
+    }
+
+    @Test
+    void sweepsOnlyOnceAtTheEndOfATestThatAsksForMoreTicks() {
+        FakeOps ops = new FakeOps();
+        int[] calls = {0};
+        ops.onCall = () -> GrugTestState.testNotDone = ++calls[0] < 3;
+        List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        assertEquals(List.of("build", "sweep"), log);
     }
 }

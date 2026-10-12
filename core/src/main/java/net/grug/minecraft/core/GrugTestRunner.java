@@ -72,7 +72,20 @@ public class GrugTestRunner {
      */
     public interface TestBoxBuilder {
         void build(int radius);
+
+        /** Sweeps the dropped items out of the test area, in the tick a test ends. See #323. */
+        void sweepItems();
     }
+
+    /** The builder of a runner with no game: there is no room and no item to sweep. */
+    private static final TestBoxBuilder NO_BOX =
+            new TestBoxBuilder() {
+                @Override
+                public void build(int radius) {}
+
+                @Override
+                public void sweepItems() {}
+            };
 
     private final TestEntityOps ops;
     private final LongSupplier clock;
@@ -112,14 +125,24 @@ public class GrugTestRunner {
                         GrugCore.getAdapter().getGrugModsDirectory()),
                 NATIVE_OPS,
                 System::nanoTime,
-                radius -> GrugCore.getAdapter().buildTestBox(radius),
+                new TestBoxBuilder() {
+                    @Override
+                    public void build(int radius) {
+                        GrugCore.getAdapter().buildTestBox(radius);
+                    }
+
+                    @Override
+                    public void sweepItems() {
+                        GrugCore.getAdapter().sweepTestItems();
+                    }
+                },
                 repeatsFromEnv());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
     public GrugTestRunner(
             Map<String, Long> fileIds, List<String> referenceErrors, TestEntityOps ops) {
-        this(fileIds, referenceErrors, ops, System::nanoTime, radius -> {}, 1);
+        this(fileIds, referenceErrors, ops, System::nanoTime, NO_BOX, 1);
     }
 
     /**
@@ -132,7 +155,7 @@ public class GrugTestRunner {
             List<String> referenceErrors,
             TestEntityOps ops,
             LongSupplier clock) {
-        this(fileIds, referenceErrors, ops, clock, radius -> {}, 1);
+        this(fileIds, referenceErrors, ops, clock, NO_BOX, 1);
     }
 
     /**
@@ -536,6 +559,11 @@ public class GrugTestRunner {
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
         if (currentEntityHandle != 0) {
+            // In the tick the test ends, whether it passed, expected its error or failed, so the
+            // last items it dropped are gone before any gap can let the player pick them up. The
+            // room build sweeps again when the next test starts, because clearing the area drops
+            // items of its own. See #323.
+            boxBuilder.sweepItems();
             ops.destroyEntity(currentEntityHandle);
             currentEntityHandle = 0;
             currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;

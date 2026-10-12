@@ -151,12 +151,51 @@ public final class GrugTestBox {
         // The items go last, once the room is sealed again: whatever the block clearing freed and
         // whatever else is in the area. The player picks up anything that lands near them, and an
         // item in the hotbar shows in every capture that has one in frame. See #254.
-        // The upper bounds are one past the last cleared block: a block at areaMaxX covers
-        // [areaMaxX, areaMaxX + 1), so an item resting in that block has a position past its own
+        clearItems(adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
+    }
+
+    /**
+     * Sweeps the item entities out of the test area without touching a block, which is what the
+     * runner does in the tick a test ends. The room build's sweep runs only when the next test
+     * starts, and the gap before that is not bounded: around a resource reload it reached about six
+     * ticks, long enough for an item spawned above the player to fall into their pick-up box. Doing
+     * it at the end of the test means no gap can let the player pick up what the test dropped. See
+     * #321 and #323.
+     *
+     * <p>The bottom is the lowest the room's walls can reach, since a test can rebuild the room
+     * with a bigger radius and this does not know which one it asked for.
+     */
+    public static void sweepItems(
+            ModLoaderAdapter adapter, Object level, double feetX, double feetY, double feetZ) {
+        int px = (int) Math.floor(feetX);
+        int py = (int) Math.floor(feetY);
+        int pz = (int) Math.floor(feetZ);
+        clearItems(
+                adapter,
+                level,
+                px - AREA_RADIUS,
+                py - AREA_RADIUS - 1,
+                pz - AREA_RADIUS,
+                px + AREA_RADIUS,
+                py + AREA_TOP,
+                pz + AREA_RADIUS);
+    }
+
+    /** Removes the item entities from the area whose last cleared block is the max corner. */
+    private static void clearItems(
+            ModLoaderAdapter adapter,
+            Object level,
+            int minX,
+            int minY,
+            int minZ,
+            int maxX,
+            int maxY,
+            int maxZ) {
+        // The upper bounds are one past the last cleared block: a block at maxX covers
+        // [maxX, maxX + 1), so an item resting in that block has a position past its own
         // coordinate and the sweep would leave it behind. The lower bounds need no adjustment,
         // because a block's interior starts at its coordinate.
-        adapter.clearItemEntities(
-                level, areaMinX, wallBottomY, areaMinZ, areaMaxX + 1, areaTopY + 1, areaMaxZ + 1);
+        adapter.clearItemEntities(level, minX, minY, minZ, maxX + 1, maxY + 1, maxZ + 1);
     }
 
     /** Clears one block to air, unless it is already air. */

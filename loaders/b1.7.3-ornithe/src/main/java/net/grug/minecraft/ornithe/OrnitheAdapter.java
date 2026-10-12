@@ -608,6 +608,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("no player: the run has no tests to sweep after until someone has joined")
+    public void sweepTestItems() {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
+        GrugTestBox.sweepItems(this, getLevel(), player.x, player.y - 1.62, player.z);
+    }
+
+    @Override
     public void roundTripNbt(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
         NbtCompound nbt = new NbtCompound();
