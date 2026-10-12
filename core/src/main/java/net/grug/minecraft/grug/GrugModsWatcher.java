@@ -37,6 +37,19 @@ public final class GrugModsWatcher {
     /** The body of {@link #update}, which runs while this thread holds the state lock. */
     private static String[] updateLocked(Consumer<String> onError) {
         FileInfo[] updatedFiles = GrugNative.nativeUpdate(Grug.statePtr);
+        return applyReport(
+                updatedFiles, GrugNative.nativeGetUpdatedResources(Grug.statePtr), onError);
+    }
+
+    /**
+     * What {@link #update} does with one report from the engine: counts each reported path once,
+     * reloads the files that compiled, and returns the paths a loader has to reload for.
+     *
+     * <p>Package-private so a Java test can hand it a report and read the counts, because a grug
+     * test cannot: it cannot tell a count the engine raised twice from one this class raised twice.
+     */
+    static String[] applyReport(
+            FileInfo[] updatedFiles, String[] updatedResources, Consumer<String> onError) {
         List<String> reloadTriggers = new ArrayList<>();
 
         // Count every reported change, including files that failed to compile. A test that waits
@@ -46,8 +59,9 @@ public final class GrugModsWatcher {
             noteReportedChange(file.path());
         }
 
+        // The first loop has already counted these, so counting here would make a file that
+        // compiled count twice per reported change and a file that failed once.
         for (FileInfo file : validHotReloads(updatedFiles, onError)) {
-            noteReportedChange(file.path());
             fileIds.put(file.path(), file.fileId());
 
             // Maintain the dynamic entity linking map
@@ -69,7 +83,7 @@ public final class GrugModsWatcher {
             }
         }
 
-        for (String resource : GrugNative.nativeGetUpdatedResources(Grug.statePtr)) {
+        for (String resource : updatedResources) {
             noteReportedChange(resource);
             reloadTriggers.add(resource);
         }
