@@ -332,7 +332,7 @@
 					]
 				},
 				"world_settled": {
-					"description": "Whether the client has finished the light updates and chunk rebuilds that placing a fixture set off. The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light update is still settling, so a capture taken too early can land a light step away from the reference. A screenshot test waits for this before capturing, and loaders whose lighting and meshing are synchronous always report true. See #253.",
+					"description": "Whether the frame a capture would read is one the client still had work in: light it had not propagated, a chunk rebuild it did not get to, or a window that was not yet at the screenshot resolution. The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light update is still settling, so a capture taken too early can land a light step away from the reference. A screenshot test waits for this before capturing. It is sampled from each loader's own frame hook rather than from the game tick the call runs on, because the game draws fewer frames than it runs ticks and the frame a capture reads can be several ticks old. See #253 and #257.",
 					"return_type": {
 						"name": "bool"
 					}

@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125;
 
+import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -35,12 +36,16 @@ import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.NBTTagCompound;
+import net.minecraft.src.RenderGlobal;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
+import net.minecraft.src.WorldRenderer;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -835,9 +840,92 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public boolean isWorldSettled() {
-        // 1.2.5 does its light work inside the block write and its mesh work within the next frame
-        // or two, and its reference has never moved between runs, so there is nothing to wait for.
-        return true;
+        return renderSettle.settled();
+    }
+
+    @Override
+    public void onFrameRendered() {
+        renderSettle.onFrame(frameHadPendingWork(ModLoader.getMinecraftInstance()));
+    }
+
+    /**
+     * The client's frames, and whether the last one had work in it. See {@link
+     * #frameHadPendingWork}.
+     */
+    private final GrugRenderSettle renderSettle = new GrugRenderSettle();
+
+    /**
+     * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
+     * to, or a window that was not yet at the size a capture reads.
+     *
+     * <p>This runs from the render tick, after the frame was drawn, so the renderer's list is what
+     * that frame left behind: a chunk still in it and in view was not drawn, and the frame a
+     * capture would read is therefore not the settled scene. The window check is the other half: a
+     * run forces the window to the screenshot resolution, the game's display size only follows at
+     * the end of the frame, and a frame drawn before that is at the old size and lays its GUI out
+     * elsewhere. Both are sampled per frame rather than per game tick because the game draws fewer
+     * frames than it runs ticks, so a tick-based answer can pass while the frame a capture reads is
+     * still the older one. See #257.
+     */
+    private boolean frameHadPendingWork(Minecraft minecraft) {
+        if (minecraft.displayWidth != GrugScreenshots.WIDTH
+                || minecraft.displayHeight != GrugScreenshots.HEIGHT) {
+            return true;
+        }
+        RenderGlobal renderGlobal = minecraft.renderGlobal;
+        EntityPlayer player = minecraft.thePlayer;
+        if (renderGlobal == null || player == null) {
+            return true;
+        }
+        try {
+            List<?> pending = (List<?>) RENDERERS_TO_UPDATE.get(renderGlobal);
+            for (Object entry : pending) {
+                // Only the chunks the renderer is going to rebuild count as pending, and that is
+                // the ones it can see within the distance updateRenderers itself compiles within:
+                // a chunk outside the frustum, or further away than that distance, is kept in this
+                // list until the camera turns or moves, so a stationary run would otherwise never
+                // settle.
+                WorldRenderer chunk = (WorldRenderer) entry;
+                if (chunk.isInFrustum
+                        && chunk.distanceToEntitySquared(player) <= COMPILE_DISTANCE_SQUARED) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (IllegalAccessException e) {
+            throw Grug.fatal("Could not read RenderGlobal.worldRenderersToUpdate", e);
+        }
+    }
+
+    /**
+     * The squared distance {@code RenderGlobal.updateRenderers} compiles a chunk within, mirrored
+     * from its own check. A chunk further out is only rebuilt once the camera moves closer.
+     */
+    private static final float COMPILE_DISTANCE_SQUARED = 256.0F;
+
+    /**
+     * {@code RenderGlobal}'s pending chunk rebuilds, which its own {@code updateRenderers} drains
+     * inside the frame before the chunks are drawn.
+     *
+     * <p>The field is private and the class is the game's own, so reflection is the only way in
+     * from here: 1.2.5 has no Mixin, and the class comes from the pinned MCP snapshot rather than
+     * from a patch this repository keeps. The name looked up is the notch one the reobfuscated game
+     * actually carries, which the snapshot's {@code conf/client.srg} names as {@code l/k} and maps
+     * to {@code RenderGlobal/field_1446_m}, the name {@code conf/fields.csv} gives to {@code
+     * worldRenderersToUpdate}; the MCP name exists only while this class is compiled, which is why
+     * looking it up found nothing. The lookup happens once, and a missing field is a broken build
+     * rather than a condition to carry on from, which is why it is fatal.
+     */
+    private static final Field RENDERERS_TO_UPDATE = renderersToUpdateField();
+
+    private static Field renderersToUpdateField() {
+        try {
+            Field field = RenderGlobal.class.getDeclaredField("k");
+            field.setAccessible(true);
+            return field;
+        } catch (NoSuchFieldException e) {
+            throw Grug.fatal("RenderGlobal has no worldRenderersToUpdate field", e);
+        }
     }
 
     @Override

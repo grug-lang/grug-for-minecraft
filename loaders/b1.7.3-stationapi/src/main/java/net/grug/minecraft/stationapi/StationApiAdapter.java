@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -20,9 +21,12 @@ import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
 import net.grug.minecraft.stationapi.gui.StationGuiHelper;
+import net.grug.minecraft.stationapi.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.render.chunk.ChunkBuilder;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -711,11 +715,77 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean isWorldSettled() {
-        // Beta 1.7.3 does its light work inside the block write and its mesh work within the next
-        // frame or two, and its reference has never moved between runs, so there is nothing to wait
-        // for.
-        return true;
+        return renderSettle.settled();
     }
+
+    @Override
+    public void onFrameRendered() {
+        renderSettle.onFrame(frameHadPendingWork());
+    }
+
+    /**
+     * The client's frames, and whether the last one had work in it. See {@link
+     * #frameHadPendingWork}.
+     */
+    private final GrugRenderSettle renderSettle = new GrugRenderSettle();
+
+    /**
+     * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
+     * to, a window that was not yet at the size a capture reads, or a frame drawn before the world
+     * exists (a hotkey run's title screen).
+     *
+     * <p>This runs from the render path, after the frame was drawn, so the renderer's list is what
+     * that frame left behind: a chunk still in it and in view was not drawn, and a frame drawn
+     * before the run's window resize took effect lays its GUI out elsewhere. Both are sampled per
+     * frame rather than per game tick because the game draws fewer frames than it runs ticks, so a
+     * tick-based answer can pass while the frame a capture reads is still the older one. See #257.
+     *
+     * <p>Which of the cases a run reaches depends on the runner's load: a frame that ran out of
+     * time needs a runner loaded enough to starve it, and the resize case needs a frame drawn
+     * before the window manager caught up. The idle answer stays measured through the caller's
+     * outcome: the screenshot tests pass only when this settles on the frame their capture reads.
+     */
+    @GrugGenerated(
+            "settle: a frame that ran out of time or predates the resize, reached by load only")
+    private boolean frameHadPendingWork() {
+        @SuppressWarnings("deprecation")
+        Minecraft minecraft = (Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (minecraft.displayWidth != GrugScreenshots.WIDTH
+                || minecraft.displayHeight != GrugScreenshots.HEIGHT) {
+            return true;
+        }
+        World world = minecraft.world;
+        WorldRenderer worldRenderer = minecraft.worldRenderer;
+        PlayerEntity player = minecraft.player;
+        if (world == null || worldRenderer == null || player == null) {
+            return true;
+        }
+        // Beta drains at most 500 light updates per frame, so a world that has just had a room
+        // built in it can still have light queued at the end of a frame on a loaded runner. The
+        // frame's meshes were then baked from light that is still moving, which is the state this
+        // keeps a capture away from. The drain the game would do anyway is done here, so the answer
+        // is "the light has no work left" rather than "the light has not been given a chance".
+        if (world.doLightingUpdates()) {
+            return true;
+        }
+        for (Object entry : ((WorldRendererAccess) worldRenderer).grug$dirtyChunks()) {
+            // Only the chunks the renderer is going to rebuild count as pending, and that is the
+            // ones it can see within the distance compileChunks itself compiles within: a chunk
+            // outside the frustum, or further away than that distance, is kept in this list until
+            // the camera turns or moves, so a stationary run would otherwise never settle.
+            ChunkBuilder chunk = (ChunkBuilder) entry;
+            if (chunk.inFrustum && chunk.squaredDistanceTo(player) <= COMPILE_DISTANCE_SQUARED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The squared distance {@code WorldRenderer.compileChunks} compiles a chunk within, mirrored
+     * from its own check. A chunk further out is only rebuilt once the camera moves closer.
+     */
+    private static final float COMPILE_DISTANCE_SQUARED = 256.0F;
 
     @Override
     public boolean registersModRecipes() {

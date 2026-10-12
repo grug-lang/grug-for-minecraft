@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -19,9 +20,12 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.item.GrugItem;
+import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.render.world.RenderChunk;
+import net.minecraft.client.render.world.WorldRenderer;
 import net.minecraft.crafting.CraftingManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
@@ -807,11 +811,64 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean isWorldSettled() {
-        // Alpha 1.1.2 does its light work inside the block write and its mesh work within the next
-        // frame or two, and its reference has never moved between runs, so there is nothing to wait
-        // for.
-        return true;
+        return renderSettle.settled();
     }
+
+    @Override
+    public void onFrameRendered() {
+        renderSettle.onFrame(frameHadPendingWork());
+    }
+
+    /**
+     * The client's frames, and whether the last one had work in it. See {@link
+     * #frameHadPendingWork}.
+     */
+    private final GrugRenderSettle renderSettle = new GrugRenderSettle();
+
+    /**
+     * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
+     * to, or a frame drawn before the world exists (a hotkey run's title screen).
+     *
+     * <p>This runs from the render path, after the frame was drawn, so the renderer's list is what
+     * that frame left behind: a chunk still in it and in view was not drawn, and the frame a
+     * capture would read is therefore not the settled scene. It is sampled per frame rather than
+     * per game tick because the game draws fewer frames than it runs ticks, so a tick-based answer
+     * can pass while the frame a capture reads is still the older one. See #257.
+     *
+     * <p>Alpha compiles the chunks it can see within the frame, so the pending case is a frame that
+     * ran out of time on a loaded runner, and a CI run loads its world at the title screen before
+     * its first frame, so neither case fired in any of this loader's own runs. The idle answer
+     * stays measured through the caller's outcome: the screenshot tests pass only when this settles
+     * on the frame their capture reads.
+     */
+    @GrugGenerated("settle: a frame that ran out of time, or was drawn before the world exists")
+    private boolean frameHadPendingWork() {
+        Minecraft minecraft = MinecraftInstance.get();
+        World world = minecraft.world;
+        WorldRenderer worldRenderer = minecraft.worldRenderer;
+        PlayerEntity player = minecraft.player;
+        if (world == null || worldRenderer == null || player == null) {
+            return true;
+        }
+        for (Object entry : ((WorldRendererAccess) worldRenderer).grug$dirtyChunks()) {
+            // Only the chunks the renderer is going to rebuild count as pending, and that is the
+            // ones it can see within the distance compileChunks itself compiles within: a chunk
+            // outside the frustum, or further away than that distance, is kept in this list until
+            // the camera turns or moves, so a stationary run would otherwise never settle.
+            RenderChunk chunk = (RenderChunk) entry;
+            if (chunk.visible
+                    && chunk.squaredDistanceToCenter(player) <= COMPILE_DISTANCE_SQUARED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The squared distance {@code WorldRenderer.compileChunks} compiles a chunk within, mirrored
+     * from its own check. A chunk further out is only rebuilt once the camera moves closer.
+     */
+    private static final float COMPILE_DISTANCE_SQUARED = 1024.0F;
 
     @Override
     public boolean registersModRecipes() {
@@ -1033,6 +1090,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
 
         try {
+            GL11.glReadBuffer(GL11.GL_BACK);
             GL11.glReadPixels(x1, glY, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
         } catch (RuntimeException e) {
             // A Java exception escaping into the JNI layer gets described and cleared there, and

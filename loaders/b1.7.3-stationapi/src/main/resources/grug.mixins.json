@@ -12,7 +12,8 @@
     "InGameHudMixin",
     "MinecraftMixin",
     "ResourcePackManagerMixin",
-    "TitleScreenMixin"
+    "TitleScreenMixin",
+    "GameRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
