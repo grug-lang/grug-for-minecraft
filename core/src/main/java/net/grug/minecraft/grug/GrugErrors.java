@@ -6,9 +6,11 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 
 /**
- * The two errors grug raises against a game, and their two channels: the chat queue a loader
- * drains, and the record the expecting test matches against. It also holds the fatals the
- * invariants throw, which the next native boundary rethrows.
+ * What grug reports back to the player, and the channels it goes through: a runtime error goes to
+ * the chat queue a loader drains and, while a test expects one, to that test's record; a script's
+ * print output and the test runner's progress lines go to the print queue, which a loader drains
+ * into chat as well; and a fatal an invariant throws is held per thread until the next return from
+ * a native call rethrows it.
  *
  * <p>The engine reports a runtime error through {@link #onRuntimeError}, which the native adapter
  * in adapter.c resolves by this class's fully qualified name, so a rename or move of this class has

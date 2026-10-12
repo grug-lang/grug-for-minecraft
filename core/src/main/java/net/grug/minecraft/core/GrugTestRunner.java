@@ -531,8 +531,7 @@ public class GrugTestRunner {
         // override nor a Test.expect_error expectation can outlive the test that asked for it even
         // when that test failed partway through. A leftover expectation would keep
         // GrugErrors.onRuntimeError recording errors for a test that is no longer running. The
-        // captured
-        // origin is cleared for the same reason: the next test has to capture its own.
+        // captured origin is cleared for the same reason: the next test has to capture its own.
         GrugTestState.testFidelityOverride = null;
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;

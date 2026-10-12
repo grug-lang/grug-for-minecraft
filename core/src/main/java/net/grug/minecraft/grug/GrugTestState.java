@@ -19,8 +19,8 @@ public final class GrugTestState {
 
     // Set by GrugTestRunner immediately before each Test.run() call; read by Test.tick().
     public static int currentTestTick = 0;
-    // Set by Test.not_done(); reset to false by GrugTestRunner immediately before each Test.run()
-    // call.
+    // Set by Test.not_done(); reset to false by GrugTestRunner immediately before each
+    // Test.run() call.
     public static boolean testNotDone = false;
 
     // Set by Test.expect_error(); cleared by GrugTestRunner when a test starts and when it ends, so

@@ -40,9 +40,8 @@ public final class GrugModsWatcher {
         List<String> reloadTriggers = new ArrayList<>();
 
         // Count every reported change, including files that failed to compile. A test that waits
-        // for
-        // its own write to be noticed has to be able to observe the failure path too, and a broken
-        // file never reaches validHotReloads' loop body.
+        // for its own write to be noticed has to be able to observe the failure path too, and a
+        // broken file never reaches validHotReloads' loop body.
         for (FileInfo file : updatedFiles) {
             noteReportedChange(file.path());
         }
