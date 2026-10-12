@@ -64,8 +64,20 @@ struct grug_init_settings {
     const char* mods_dir_path;
     size_t mods_dir_path_len;
     struct grug_runtime_error_handler runtime_error_handler;
+    // Mirrors poll_interval in the pinned grug-rs's grug.h, between the handler and the backend.
+    // A mirror without it is eight bytes shorter than the struct grug_default_settings returns, so
+    // grug-rs reads the backend field as the interval and the backend itself from past this struct.
+    uint64_t poll_interval;
     struct grug_backend backend;
 };
+
+// How often grug-rs rescans the mods directory for changes on platforms without a native change
+// notification API (Linux and macOS; Windows uses ReadDirectoryChangesW). grug-rs defaults to one
+// second, which is the floor under every hot-reload test's wait: a test waits for the engine to
+// report its write, and the report only comes after the watcher's next scan. A tenth of a second
+// keeps that wait short, and the scan it repeats is a walk of the mods tree, a few hundred metadata
+// reads. See #190.
+#define GRUG_POLL_INTERVAL_MS 100
 
 extern void* grug_init(struct grug_init_settings settings, struct grug_error* out_error);
 extern struct grug_init_settings grug_default_settings(void);
@@ -134,6 +146,7 @@ Java_net_grug_minecraft_grug_Grug_nativeInit(JNIEnv *env, jclass clazz, jstring 
     settings.mod_api_path_len = strlen(c_modApiPath);
     settings.mods_dir_path = c_modsDirPath;
     settings.mods_dir_path_len = strlen(c_modsDirPath);
+    settings.poll_interval = GRUG_POLL_INTERVAL_MS;
     // grug's init settings declare this handler as an Option, and Rust encodes None using the null
     // niche of the first pointer field. So a NULL user_data here doesn't mean "no user data", it
     // makes Rust read the whole handler as None and silently drop handler_fn, after which no runtime
