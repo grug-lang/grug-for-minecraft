@@ -3,6 +3,7 @@ package net.grug.minecraft.core;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 
@@ -105,7 +106,7 @@ public class GrugTestRunner {
 
     public GrugTestRunner() {
         this(
-                Grug.fileIds,
+                GrugModsWatcher.fileIds,
                 GrugScreenshots.validateReferenceTrees(
                         GrugCore.getAdapter().getGrugModsDirectory()),
                 NATIVE_OPS,

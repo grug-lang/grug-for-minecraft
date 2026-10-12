@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModTreeDefect;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.stationapi.events.init.ClientInitListener;
 import net.grug.minecraft.stationapi.events.init.InitListener;
@@ -293,19 +294,19 @@ public class GrugClientHooks {
             hotReload = null;
             String[] reloaded = hotReloadBatch.toArray(new String[0]);
             hotReloadBatch.clear();
-            Grug.noteLoaderReloadFinished(reloaded);
+            GrugModsWatcher.noteLoaderReloadFinished(reloaded);
         }
 
         // Trigger resource reloading for ANY non-grug file change in the mods directory
         // (textures, blockstates, models, lang files, etc.)
-        String[] updatedResources = Grug.update(this::sendRedMessage);
+        String[] updatedResources = GrugModsWatcher.update(this::sendRedMessage);
         for (String resource : updatedResources) {
             InitListener.LOGGER.info("Reloading changed resource: {}", resource);
             InitListener.handlePossibleRecipeUpdate(resource);
         }
 
         if (updatedResources.length > 0) {
-            hotReloadBatch.addAll(Arrays.asList(Grug.takePendingReloadPaths()));
+            hotReloadBatch.addAll(Arrays.asList(GrugModsWatcher.takePendingReloadPaths()));
             // Bypass StationAPI's ReloadScreenManager entirely to avoid the blue overlay
             // and Escape bug.
             hotReload = reloadAssets();

@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugModTreeDefect;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GrugTorchFlicker;
 import net.minecraft.src.GuiIngameMenu;
@@ -248,9 +249,9 @@ public class GrugClientHooks implements ITickHandler {
             }
         }
 
-        String[] updatedResources = Grug.update(GrugClientHooks::logError);
+        String[] updatedResources = GrugModsWatcher.update(GrugClientHooks::logError);
         if (updatedResources.length > 0 && minecraft.renderEngine != null) {
-            String[] reloaded = Grug.takePendingReloadPaths();
+            String[] reloaded = GrugModsWatcher.takePendingReloadPaths();
             minecraft.renderEngine.refreshTextures();
             // refreshTextures re-stitches every atlas from the texture pack, and in doing so it
             // runs
@@ -266,7 +267,7 @@ public class GrugClientHooks implements ITickHandler {
             GrugTextures.reload();
             // Both calls above finish their work before they return, so the reload is done here
             // and the tests' reload_count can rise.
-            Grug.noteLoaderReloadFinished(reloaded);
+            GrugModsWatcher.noteLoaderReloadFinished(reloaded);
         }
 
         if (minecraft.thePlayer != null) {
