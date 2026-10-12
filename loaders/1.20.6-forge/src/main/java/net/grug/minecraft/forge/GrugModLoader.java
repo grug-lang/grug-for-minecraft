@@ -14,6 +14,7 @@ import net.grug.minecraft.forge.resource.GrugPackResources;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
@@ -339,7 +340,7 @@ public class GrugModLoader {
             long blockFileId = entry.getValue();
 
             GrugBlockData blockData = new GrugBlockData(MODID + ":" + cleanName);
-            Grug.currentlyInitializingBlock = blockData;
+            GrugDeclarations.currentlyInitializingBlock = blockData;
 
             long tempEntityHandle = Grug.createEntity(blockFileId);
             long initFnId = Grug.getExportFnId("Block", "init");
@@ -352,9 +353,9 @@ public class GrugModLoader {
                 Grug.destroyEntity(tempEntityHandle);
             }
 
-            Grug.declaredBlocks.put(blockData.id, blockData);
-            Grug.blockDataByFileId.put(blockFileId, blockData);
-            Grug.currentlyInitializingBlock = null;
+            GrugDeclarations.declaredBlocks.put(blockData.id, blockData);
+            GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
+            GrugDeclarations.currentlyInitializingBlock = null;
 
             var blockReg =
                     BLOCKS.register(
@@ -390,8 +391,8 @@ public class GrugModLoader {
                 Grug.destroyEntity(tempEntityHandle);
             }
 
-            Grug.declaredItems.put(itemData.id, itemData);
-            Grug.itemDataByFileId.put(itemFileId, itemData);
+            GrugDeclarations.declaredItems.put(itemData.id, itemData);
+            GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);
 
             var itemReg = ITEMS.register(cleanName, () -> new Item(new Item.Properties()));
             registeredGrugItems.add(itemReg);

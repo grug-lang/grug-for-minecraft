@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe.block;
 
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.ornithe.GrugModLoader;
@@ -59,7 +60,7 @@ public final class GrugBlocks {
 
             String fullId = "grug:" + cleanName;
             GrugBlockData blockData = new GrugBlockData(fullId);
-            Grug.currentlyInitializingBlock = blockData;
+            GrugDeclarations.currentlyInitializingBlock = blockData;
 
             long tempEntityHandle = Grug.createEntity(blockFileId);
             long initFnId = Grug.getExportFnId("Block", "init");
@@ -72,9 +73,9 @@ public final class GrugBlocks {
                 Grug.destroyEntity(tempEntityHandle);
             }
 
-            Grug.declaredBlocks.put(fullId, blockData);
-            Grug.blockDataByFileId.put(blockFileId, blockData);
-            Grug.currentlyInitializingBlock = null;
+            GrugDeclarations.declaredBlocks.put(fullId, blockData);
+            GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
+            GrugDeclarations.currentlyInitializingBlock = null;
 
             int blockId = nextBlockId++;
             Material mat = stringToMaterial(blockData.material);
@@ -117,8 +118,8 @@ public final class GrugBlocks {
                 Grug.destroyEntity(tempEntityHandle);
             }
 
-            Grug.declaredItems.put(fullId, itemData);
-            Grug.itemDataByFileId.put(itemFileId, itemData);
+            GrugDeclarations.declaredItems.put(fullId, itemData);
+            GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);
 
             int itemId = nextItemId++;
             GrugItem item = new GrugItem(itemId - 256, itemFileId);

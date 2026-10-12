@@ -35,13 +35,6 @@ public final class Grug {
     public static final Map<String, Long> fileIds = new HashMap<>();
 
     public static Object currentlyInitializingBlockEntity = null;
-    public static GrugBlockData currentlyInitializingBlock = null;
-
-    public static final Map<String, GrugBlockData> declaredBlocks = new HashMap<>();
-    public static final Map<Long, GrugBlockData> blockDataByFileId = new HashMap<>();
-
-    public static final Map<String, GrugItemData> declaredItems = new HashMap<>();
-    public static final Map<Long, GrugItemData> itemDataByFileId = new HashMap<>();
 
     /**
      * The default strong root for host entities. A block-entity member scope points {@link
@@ -165,7 +158,7 @@ public final class Grug {
                                     + " with file ID "
                                     + file.fileId());
 
-            GrugBlockData blockData = blockDataByFileId.get(file.fileId());
+            GrugBlockData blockData = GrugDeclarations.blockDataByFileId.get(file.fileId());
             if (blockData != null) {
                 reinitializeBlock(blockData, file.fileId(), file.path(), reloadTriggers);
             }
@@ -274,7 +267,7 @@ public final class Grug {
         blockData.blockEntityString = null;
         blockData.customRender = false;
 
-        currentlyInitializingBlock = blockData;
+        GrugDeclarations.currentlyInitializingBlock = blockData;
         long tempEntityHandle = createEntity(fileId);
         long initFnId = getExportFnId("Block", "init");
 
@@ -285,7 +278,7 @@ public final class Grug {
         if (tempEntityHandle != 0) {
             destroyEntity(tempEntityHandle);
         }
-        currentlyInitializingBlock = null;
+        GrugDeclarations.currentlyInitializingBlock = null;
 
         reloadTriggers.add(path);
     }

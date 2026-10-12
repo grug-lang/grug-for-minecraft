@@ -5,6 +5,7 @@ import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugEntityType;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.BlockContainer;
@@ -18,7 +19,7 @@ import net.minecraft.src.World;
  *
  * <p>Extends {@code BlockContainer} so 1.2.5's {@code World} gives it a {@link GrugBlockEntity} the
  * same way a furnace or chest gets one. Behaviour is delegated to the block script's exports, and
- * script data lives in {@link Grug#blockDataByFileId}.
+ * script data lives in {@link GrugDeclarations#blockDataByFileId}.
  */
 public class GrugBlock extends BlockContainer {
     public final long blockFileId;
@@ -83,7 +84,7 @@ public class GrugBlock extends BlockContainer {
      */
     @GrugGenerated("block data lookup: a GrugBlock always has data")
     private GrugBlockData blockData() {
-        return Grug.blockDataByFileId.get(this.blockFileId);
+        return GrugDeclarations.blockDataByFileId.get(this.blockFileId);
     }
 
     @Override

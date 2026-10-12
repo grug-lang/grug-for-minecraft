@@ -1,10 +1,10 @@
 package net.grug.minecraft.forge.block;
 
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
-import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugBox;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.client.renderer.FaceInfo;
 import net.minecraft.client.renderer.RenderType;
@@ -158,7 +158,7 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
     private static String describe(BlockState state, BlockPos pos) {
         GrugBlockData data =
                 state.getBlock() instanceof GrugBlock grugBlock
-                        ? Grug.blockDataByFileId.get(grugBlock.blockFileId)
+                        ? GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId)
                         : null;
         String name = data != null ? data.id : "an unknown grug block";
         return name + " at " + pos.getX() + ", " + pos.getY() + ", " + pos.getZ();

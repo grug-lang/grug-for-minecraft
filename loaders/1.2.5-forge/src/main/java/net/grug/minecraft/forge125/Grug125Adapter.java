@@ -16,6 +16,7 @@ import net.grug.minecraft.forge125.item.GrugItem;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugScreenshots;
@@ -402,10 +403,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @GrugGenerated("declared registry match: a no-match fallback cannot be forced per entry")
     private Object matchDeclared(String path) {
         // Match custom grug items first
-        for (Map.Entry<String, GrugItemData> entry : Grug.declaredItems.entrySet()) {
+        for (Map.Entry<String, GrugItemData> entry : GrugDeclarations.declaredItems.entrySet()) {
             if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
                 Long fileId =
-                        Grug.itemDataByFileId.entrySet().stream()
+                        GrugDeclarations.itemDataByFileId.entrySet().stream()
                                 .filter(e -> e.getValue().id.equals(entry.getKey()))
                                 .map(Map.Entry::getKey)
                                 .findFirst()
@@ -421,10 +422,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
         }
 
         // Match custom grug blocks
-        for (Map.Entry<String, GrugBlockData> entry : Grug.declaredBlocks.entrySet()) {
+        for (Map.Entry<String, GrugBlockData> entry : GrugDeclarations.declaredBlocks.entrySet()) {
             if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
                 Long fileId =
-                        Grug.blockDataByFileId.entrySet().stream()
+                        GrugDeclarations.blockDataByFileId.entrySet().stream()
                                 .filter(e -> e.getValue().id.equals(entry.getKey()))
                                 .map(Map.Entry::getKey)
                                 .findFirst()
@@ -645,10 +646,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
         Block targetBlock = null;
 
         // 1. Try resolving custom Grug blocks
-        for (Map.Entry<String, GrugBlockData> entry : Grug.declaredBlocks.entrySet()) {
+        for (Map.Entry<String, GrugBlockData> entry : GrugDeclarations.declaredBlocks.entrySet()) {
             if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
                 Long fileId =
-                        Grug.blockDataByFileId.entrySet().stream()
+                        GrugDeclarations.blockDataByFileId.entrySet().stream()
                                 .filter(e -> e.getValue().id.equals(entry.getKey()))
                                 .map(Map.Entry::getKey)
                                 .findFirst()
@@ -711,7 +712,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
         if (id > 0 && id < Block.blocksList.length) {
             Block block = Block.blocksList[id];
             if (block instanceof GrugBlock) {
-                GrugBlockData data = Grug.blockDataByFileId.get(((GrugBlock) block).blockFileId);
+                GrugBlockData data =
+                        GrugDeclarations.blockDataByFileId.get(((GrugBlock) block).blockFileId);
                 if (data != null) {
                     return data.id;
                 }
