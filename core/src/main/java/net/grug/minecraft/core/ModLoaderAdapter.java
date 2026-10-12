@@ -226,6 +226,16 @@ public interface ModLoaderAdapter {
     void onFrameRendered();
 
     /**
+     * Forgets every frame {@link #isWorldSettled} has counted, so the next answer can only be about
+     * frames drawn after this call.
+     *
+     * <p>A loader calls this through {@code GrugModsWatcher.noteLoaderReloadFinished}, because a
+     * reload that finishes inside a game tick changes what the next frame draws and says nothing
+     * about the frame already in the back buffer. See #324.
+     */
+    void forgetSettledFrames();
+
+    /**
      * Whether this loader registers the crafting recipes mods ship under {@code
      * data/<namespace>/recipes}.
      *

@@ -159,6 +159,12 @@ public final class GrugModsWatcher {
             for (String path : paths) {
                 loaderReloadCounts.put(path, loaderReloadCounts.getOrDefault(path, 0) + 1);
             }
+            // A reload finishes inside a game tick, and the game runs ticks back to back when it
+            // is behind, so the next test call can come before a single frame has been drawn with
+            // what the reload changed. Forgetting the settled frames makes world_settled false
+            // until two frames have been drawn after this point, which a capture waits on. See
+            // #324.
+            GrugCore.getAdapter().forgetSettledFrames();
         }
     }
 
