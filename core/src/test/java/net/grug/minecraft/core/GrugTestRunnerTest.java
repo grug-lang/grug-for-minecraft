@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 
@@ -86,8 +87,8 @@ class GrugTestRunnerTest {
         GrugTestState.currentTestMod = null;
         GrugTestState.testFidelityOverride = null;
         GrugTestState.testOrigin = null;
-        Grug.printQueue.clear();
-        Grug.runtimeErrorQueue.clear();
+        GrugErrors.printQueue.clear();
+        GrugErrors.runtimeErrorQueue.clear();
         GrugTestState.testRuntimeErrors.clear();
     }
 
@@ -110,17 +111,17 @@ class GrugTestRunnerTest {
                 new GrugTestRunner(
                         Map.of("mymod/code/a-Test.grug", 1L), List.of("bad tree"), new FakeOps());
         assertTrue(runner.isFinished());
-        assertTrue(Grug.runtimeErrorQueue.stream().anyMatch(m -> m.contains("bad tree")));
+        assertTrue(GrugErrors.runtimeErrorQueue.stream().anyMatch(m -> m.contains("bad tree")));
     }
 
     @Test
     void dropsStartupErrorsSoAnExpectingTestCannotMatchOne() {
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.add("Test file misplaced: 'mymod/code/a-Test.grug' ...");
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.add("Test file misplaced: 'mymod/code/a-Test.grug' ...");
         }
         runner(new FakeOps(), Map.of("mymod/tests/a-Test.grug", 1L));
-        synchronized (Grug.runtimeErrorQueue) {
-            assertEquals(0, Grug.runtimeErrorQueue.size());
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            assertEquals(0, GrugErrors.runtimeErrorQueue.size());
         }
     }
 
@@ -190,8 +191,8 @@ class GrugTestRunnerTest {
     /**
      * What one call of a script that asked for an error looks like: the script set the expectation,
      * the host function failed, and the engine handed the message to both the chat and the runner's
-     * own record through {@code Grug.onRuntimeError} before it stopped the script, so the export
-     * call returns without finishing.
+     * own record through {@code GrugErrors.onRuntimeError} before it stopped the script, so the
+     * export call returns without finishing.
      */
     private static void abortWithHostFunctionError(FakeOps ops, String expected, String message) {
         GrugTestState.testExpectedError = expected;
@@ -199,11 +200,11 @@ class GrugTestRunnerTest {
         ops.completed = false;
     }
 
-    /** What {@code Grug.onRuntimeError} does with a message the engine reports. */
+    /** What {@code GrugErrors.onRuntimeError} does with a message the engine reports. */
     private static void reportRuntimeError(String message) {
-        Grug.recordTestRuntimeError("Host function error: " + message);
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.add("Host function error: " + message);
+        GrugErrors.recordTestRuntimeError("Host function error: " + message);
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.add("Host function error: " + message);
         }
     }
 
@@ -227,31 +228,32 @@ class GrugTestRunnerTest {
         ops.onCall =
                 () -> {
                     abortWithHostFunctionError(ops, "boom", "boom happened");
-                    Grug.runtimeErrorQueue.clear();
+                    GrugErrors.runtimeErrorQueue.clear();
                 };
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
         // Assert a pass rather than the absence of one particular failure, so a different failure
         // of the same test cannot leave the case green.
-        assertTrue(Grug.runtimeErrorQueue.stream().noneMatch(m -> m.contains("FAIL")));
+        assertTrue(GrugErrors.runtimeErrorQueue.stream().noneMatch(m -> m.contains("FAIL")));
     }
 
     @Test
     void recordsARuntimeErrorOnlyWhileATestExpectsOne() {
         // Nothing reads the record outside the expect_error path, so an error with no expectation
         // set would be retained for the rest of the session without ever being matched.
-        Grug.recordTestRuntimeError("no test is expecting an error");
+        GrugErrors.recordTestRuntimeError("no test is expecting an error");
         assertTrue(GrugTestState.testRuntimeErrors.isEmpty());
 
         GrugTestState.testExpectedError = "boom";
-        Grug.recordTestRuntimeError("boom happened");
+        GrugErrors.recordTestRuntimeError("boom happened");
         assertEquals(1, GrugTestState.testRuntimeErrors.size());
         assertEquals("boom happened", GrugTestState.testRuntimeErrors.peek());
     }
 
     @Test
     void clearsAnExpectationWhenTheTestThatAskedForItEnds() {
-        // A lingering expectation would keep Grug.onRuntimeError recording errors for a test that
+        // A lingering expectation would keep GrugErrors.onRuntimeError recording errors for a test
+        // that
         // is no longer running.
         FakeOps ops = new FakeOps();
         ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
@@ -280,7 +282,7 @@ class GrugTestRunnerTest {
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
         assertTrue(
-                Grug.runtimeErrorQueue.stream()
+                GrugErrors.runtimeErrorQueue.stream()
                         .anyMatch(m -> m.contains("Expected an error containing 'boom'")));
     }
 
@@ -292,7 +294,7 @@ class GrugTestRunnerTest {
         runToEnd(runner);
         assertTrue(runner.isFinished());
         assertTrue(
-                Grug.runtimeErrorQueue.stream()
+                GrugErrors.runtimeErrorQueue.stream()
                         .anyMatch(m -> m.contains("Expected an error containing")));
     }
 
@@ -304,7 +306,7 @@ class GrugTestRunnerTest {
         runToEnd(runner);
         assertTrue(runner.isFinished());
         assertTrue(
-                Grug.runtimeErrorQueue.stream()
+                GrugErrors.runtimeErrorQueue.stream()
                         .anyMatch(m -> m.contains("reported a runtime error")));
     }
 
@@ -316,7 +318,7 @@ class GrugTestRunnerTest {
         runToEnd(runner);
         assertTrue(runner.isFinished());
         assertTrue(
-                Grug.runtimeErrorQueue.stream()
+                GrugErrors.runtimeErrorQueue.stream()
                         .anyMatch(m -> m.contains("Failed to create an entity")));
     }
 
@@ -328,7 +330,7 @@ class GrugTestRunnerTest {
         runToEnd(runner);
         assertTrue(runner.isFinished());
         assertTrue(
-                Grug.runtimeErrorQueue.stream()
+                GrugErrors.runtimeErrorQueue.stream()
                         .anyMatch(m -> m.contains("missing 'run' export function")));
     }
 
@@ -339,7 +341,7 @@ class GrugTestRunnerTest {
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
         runToEnd(runner);
         assertTrue(runner.isFinished());
-        assertTrue(Grug.runtimeErrorQueue.stream().anyMatch(m -> m.equals("kaboom")));
+        assertTrue(GrugErrors.runtimeErrorQueue.stream().anyMatch(m -> m.equals("kaboom")));
     }
 
     @Test
@@ -350,7 +352,7 @@ class GrugTestRunnerTest {
         runToEnd(runner);
         assertTrue(runner.isFinished());
         assertTrue(
-                Grug.runtimeErrorQueue.stream()
+                GrugErrors.runtimeErrorQueue.stream()
                         .anyMatch(
                                 m ->
                                         m.contains(
@@ -366,7 +368,8 @@ class GrugTestRunnerTest {
         runToEnd(runner);
         assertTrue(runner.isFinished());
         assertTrue(
-                Grug.runtimeErrorQueue.stream().anyMatch(m -> m.contains("completed without one")));
+                GrugErrors.runtimeErrorQueue.stream()
+                        .anyMatch(m -> m.contains("completed without one")));
     }
 
     @Test
@@ -420,7 +423,8 @@ class GrugTestRunnerTest {
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
         runToEnd(runner);
         assertTrue(runner.isFinished());
-        assertTrue(Grug.runtimeErrorQueue.stream().anyMatch(m -> m.equals("a plain failure")));
+        assertTrue(
+                GrugErrors.runtimeErrorQueue.stream().anyMatch(m -> m.equals("a plain failure")));
     }
 
     @Test
@@ -431,7 +435,8 @@ class GrugTestRunnerTest {
         runToEnd(runner);
         assertTrue(runner.isFinished());
         assertTrue(
-                Grug.runtimeErrorQueue.stream().anyMatch(m -> m.contains("IllegalStateException")));
+                GrugErrors.runtimeErrorQueue.stream()
+                        .anyMatch(m -> m.contains("IllegalStateException")));
     }
 
     @Test
@@ -442,7 +447,8 @@ class GrugTestRunnerTest {
         runToEnd(runner);
         assertTrue(runner.isFinished());
         assertTrue(
-                Grug.runtimeErrorQueue.stream().anyMatch(m -> m.contains("IllegalStateException")));
+                GrugErrors.runtimeErrorQueue.stream()
+                        .anyMatch(m -> m.contains("IllegalStateException")));
     }
 
     @Test

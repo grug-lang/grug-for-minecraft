@@ -1,14 +1,10 @@
 package net.grug.minecraft.grug;
 
-import net.grug.minecraft.core.GrugCore;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
-import java.util.ArrayDeque;
-import java.util.Queue;
 
 /**
  * The Java bridge to one native grug state.
@@ -22,9 +18,6 @@ public final class Grug {
     public static long statePtr = 0;
     public static final long INVALID_GRUG_FILE_ID = -1L;
     public static final long INVALID_GRUG_EXPORT_FN_ID = -1L;
-
-    public static final Queue<String> runtimeErrorQueue = new ArrayDeque<>();
-    public static final Queue<String> printQueue = new ArrayDeque<>();
 
     @GrugGenerated("utility class: never instantiated")
     private Grug() {}
@@ -85,33 +78,6 @@ public final class Grug {
         }
     }
 
-    public static void onRuntimeError(String reason) {
-        GrugCore.getAdapter().logError(reason);
-        synchronized (runtimeErrorQueue) {
-            runtimeErrorQueue.add(reason);
-        }
-        recordTestRuntimeError(reason);
-    }
-
-    /**
-     * Records a runtime error for the expecting test, which is who matches it. Only the runner
-     * reads {@link GrugTestState#testRuntimeErrors} and only while {@link
-     * GrugTestState#testExpectedError} is set, so an error raised with no test waiting for one is
-     * dropped rather than kept for the rest of the session. The engine calls this from inside the
-     * host function that failed, so a test's own Test.run() call has the record in place by the
-     * time it returns to the runner.
-     *
-     * <p>Visible for tests: they drive the record without the adapter onRuntimeError logs to.
-     */
-    public static void recordTestRuntimeError(String reason) {
-        if (GrugTestState.testExpectedError == null) {
-            return;
-        }
-        synchronized (GrugTestState.testRuntimeErrors) {
-            GrugTestState.testRuntimeErrors.add(reason);
-        }
-    }
-
     public static long createEntity(long fileId) {
         GrugStateLock.lock();
         try {
@@ -138,39 +104,20 @@ public final class Grug {
         } finally {
             GrugStateLock.unlock();
         }
-        throwPendingFatal();
+        GrugErrors.throwPendingFatal();
         return result;
     }
-
-    // The JNI layer prints and clears any exception thrown inside a game function, and the script
-    // then carries on. So fatal() remembers the first error per thread, and it is rethrown as soon
-    // as the native call returns to Java (see callExportFn and the generated ExportFns).
-    private static final ThreadLocal<RuntimeException> pendingFatal = new ThreadLocal<>();
 
     /**
      * For invariants that must never be broken. Use as {@code throw Grug.fatal("...")}. This
      * crashes the game, even when thrown inside a game function that a script called.
      */
     public static RuntimeException fatal(String message) {
-        return fatal(message, null);
+        return GrugErrors.fatal(message);
     }
 
     public static RuntimeException fatal(String message, Throwable cause) {
-        RuntimeException error =
-                new IllegalStateException("Broken grug invariant: " + message, cause);
-        if (pendingFatal.get() == null) {
-            pendingFatal.set(error);
-        }
-        return error;
-    }
-
-    @GrugGenerated("invariant: a pending fatal is rethrown by callExportFn when one was set")
-    public static void throwPendingFatal() {
-        RuntimeException error = pendingFatal.get();
-        if (error != null) {
-            pendingFatal.remove();
-            throw error;
-        }
+        return GrugErrors.fatal(message, cause);
     }
 
     public static void destroyEntity(long entityHandle) {

@@ -22,10 +22,11 @@ import java.util.concurrent.TimeUnit;
  * Passing that zero handle to the native side would pass a null entity pointer, which is why draw
  * checks it.
  *
- * <p>The report is read out of {@link Grug#runtimeErrorQueue} rather than through a loader adapter,
- * because that is the channel every loader drains into chat as a red message, so it is the one that
- * reaches the player. A report that only reached the log would leave a block rendering as nothing
- * without saying so. The queue is read under its own monitor, as every drain of it in the tree is.
+ * <p>The report is read out of {@link GrugErrors#runtimeErrorQueue} rather than through a loader
+ * adapter, because that is the channel every loader drains into chat as a red message, so it is the
+ * one that reaches the player. A report that only reached the log would leave a block rendering as
+ * nothing without saying so. The queue is read under its own monitor, as every drain of it in the
+ * tree is.
  */
 class GrugBlockGeometryTest {
 
@@ -43,8 +44,8 @@ class GrugBlockGeometryTest {
     @BeforeEach
     @AfterEach
     void drainQueue() {
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.clear();
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.clear();
         }
         // draw opens and closes the pass itself, so nothing should be left open. A failing
         // assertion in the middle of one would leave every later test in this class unable to
@@ -57,8 +58,8 @@ class GrugBlockGeometryTest {
     /** Takes what the run reported, which is the message the player would have been shown. */
     private List<String> drainReports() {
         reported.clear();
-        synchronized (Grug.runtimeErrorQueue) {
-            reported.addAll(Grug.runtimeErrorQueue);
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            reported.addAll(GrugErrors.runtimeErrorQueue);
         }
         return reported;
     }

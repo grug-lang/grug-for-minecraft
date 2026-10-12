@@ -133,14 +133,14 @@ class GrugFileIndexTest {
         // line,
         // which is what run-loader.sh fails the run on. The adapter is null under test, which the
         // reporting path tolerates.
-        synchronized (Grug.runtimeErrorQueue) {
-            assertEquals(1, Grug.runtimeErrorQueue.size());
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            assertEquals(1, GrugErrors.runtimeErrorQueue.size());
             assertEquals(
                     true,
-                    Grug.runtimeErrorQueue
+                    GrugErrors.runtimeErrorQueue
                             .peek()
                             .contains("'mymod/code/bar-Test.grug' must be placed inside"));
-            Grug.runtimeErrorQueue.clear();
+            GrugErrors.runtimeErrorQueue.clear();
         }
     }
 
@@ -151,8 +151,8 @@ class GrugFileIndexTest {
                     file("mymod/code/foo-Block.grug", "foo-Block", "Block", 1L),
                     file("mymod/tests/bar-Test.grug", "bar-Test", "Test", 2L)
                 });
-        synchronized (Grug.runtimeErrorQueue) {
-            assertEquals(0, Grug.runtimeErrorQueue.size());
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            assertEquals(0, GrugErrors.runtimeErrorQueue.size());
         }
     }
 

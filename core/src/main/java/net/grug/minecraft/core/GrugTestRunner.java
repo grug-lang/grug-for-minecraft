@@ -1,6 +1,7 @@
 package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
@@ -157,11 +158,11 @@ public class GrugTestRunner {
             this.tests = new ArrayList<>();
             this.totalCount = 0;
             this.finished = true;
-            synchronized (Grug.runtimeErrorQueue) {
-                Grug.runtimeErrorQueue.add("FAIL screenshot reference directories");
+            synchronized (GrugErrors.runtimeErrorQueue) {
+                GrugErrors.runtimeErrorQueue.add("FAIL screenshot reference directories");
                 System.out.println("[GRUG CI] FAIL screenshot reference directories");
                 for (String error : referenceErrors) {
-                    Grug.runtimeErrorQueue.add(error);
+                    GrugErrors.runtimeErrorQueue.add(error);
                     System.out.println("[GRUG CI] " + error);
                 }
             }
@@ -174,8 +175,8 @@ public class GrugTestRunner {
         // matches testRuntimeErrors instead, which only a test that set an expectation can write
         // to and which the runner clears before each Test.run() call, so a startup message cannot
         // answer a test.
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.clear();
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.clear();
         }
         for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
             if (entry.getKey().endsWith(GrugFileIndex.TEST_SUFFIX)) {
@@ -192,8 +193,8 @@ public class GrugTestRunner {
                 "Running " + totalCount + " " + (totalCount == 1 ? "test" : "tests") + "...";
         System.out.println("[GRUG CI] " + startMsg);
 
-        synchronized (Grug.printQueue) {
-            Grug.printQueue.add(startMsg);
+        synchronized (GrugErrors.printQueue) {
+            GrugErrors.printQueue.add(startMsg);
         }
     }
 
@@ -310,11 +311,11 @@ public class GrugTestRunner {
                 // and clearing the chat queue cannot affect the match above. The clear holds the
                 // queue's monitor, like every other access, because the client hook drains it
                 // under that monitor.
-                synchronized (Grug.runtimeErrorQueue) {
-                    Grug.runtimeErrorQueue.clear();
+                synchronized (GrugErrors.runtimeErrorQueue) {
+                    GrugErrors.runtimeErrorQueue.clear();
                 }
-                synchronized (Grug.printQueue) {
-                    Grug.printQueue.clear();
+                synchronized (GrugErrors.printQueue) {
+                    GrugErrors.printQueue.clear();
                 }
                 if (!actual.contains(GrugTestState.testExpectedError)) {
                     fail(
@@ -337,7 +338,7 @@ public class GrugTestRunner {
             // (Grug.hostFunctionErrorHappened, which is how the graphics functions refuse an
             // unsupported loader or an out-of-bounds crop) or the script itself errored. Either way
             // it did not run to completion, so it certainly did not pass. The reason has already
-            // been logged and queued for chat by Grug.onRuntimeError.
+            // been logged and queued for chat by GrugErrors.onRuntimeError.
             fail(
                     path,
                     "The test script reported a runtime error and stopped early. "
@@ -375,8 +376,8 @@ public class GrugTestRunner {
         }
         System.out.println("[GRUG CI] PASS " + path);
 
-        synchronized (Grug.printQueue) {
-            Grug.printQueue.add("\u00A7aPASS " + path);
+        synchronized (GrugErrors.printQueue) {
+            GrugErrors.printQueue.add("\u00A7aPASS " + path);
         }
         passedCount++;
         recordTestTime(path);
@@ -506,19 +507,19 @@ public class GrugTestRunner {
         // The client hook drains this queue under its monitor, so the pending messages are read
         // and cleared under the same monitor: a concurrent poll could otherwise invalidate the
         // iteration, and a message queued in the tick the test failed in would be lost.
-        synchronized (Grug.printQueue) {
-            for (String line : Grug.printQueue) {
+        synchronized (GrugErrors.printQueue) {
+            for (String line : GrugErrors.printQueue) {
                 System.out.println("[GRUG CI] pending: " + line);
             }
-            Grug.printQueue.clear();
+            GrugErrors.printQueue.clear();
         }
 
         System.out.println("[GRUG CI] FAIL " + path);
         System.out.println("[GRUG CI] " + msg);
 
-        synchronized (Grug.runtimeErrorQueue) {
-            Grug.runtimeErrorQueue.add("FAIL " + path);
-            Grug.runtimeErrorQueue.add(msg);
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            GrugErrors.runtimeErrorQueue.add("FAIL " + path);
+            GrugErrors.runtimeErrorQueue.add(msg);
         }
 
         destroyCurrentEntity();
@@ -529,7 +530,8 @@ public class GrugTestRunner {
         // Cleared here rather than when the next test starts, so neither a Test.force_fidelity
         // override nor a Test.expect_error expectation can outlive the test that asked for it even
         // when that test failed partway through. A leftover expectation would keep
-        // Grug.onRuntimeError recording errors for a test that is no longer running. The captured
+        // GrugErrors.onRuntimeError recording errors for a test that is no longer running. The
+        // captured
         // origin is cleared for the same reason: the next test has to capture its own.
         GrugTestState.testFidelityOverride = null;
         GrugTestState.testExpectedError = null;

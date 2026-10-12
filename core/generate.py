@@ -339,7 +339,7 @@ def generate_java_exports(exports: List[Dict[str, Any]]) -> str:
         lines.append("        } finally {")
         lines.append("            GrugStateLock.unlock();")
         lines.append("        }")
-        lines.append("        Grug.throwPendingFatal();")
+        lines.append("        GrugErrors.throwPendingFatal();")
         lines.append("        return result;")
         lines.append("    }")
         lines.append("")

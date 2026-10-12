@@ -126,7 +126,9 @@ Java_net_grug_minecraft_grug_Grug_initGrugAdapter(JNIEnv *env, jclass clazz) {
     jni_version = (*env)->GetVersion(env);
     (*env)->GetJavaVM(env, &jvm);
 
-    grug_class = (*env)->NewGlobalRef(env, clazz);
+    jclass local_errors = (*env)->FindClass(env, "net/grug/minecraft/grug/GrugErrors");
+    if (!local_errors) return;
+    grug_class = (*env)->NewGlobalRef(env, local_errors);
     jm_on_runtime_error = (*env)->GetStaticMethodID(env, grug_class, "onRuntimeError", "(Ljava/lang/String;)V");
 
     jclass local_gf = (*env)->FindClass(env, "net/grug/minecraft/grug/HostFunctions");
