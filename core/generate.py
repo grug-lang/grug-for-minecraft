@@ -378,7 +378,7 @@ def generate_c_exports(exports: List[Dict[str, Any]]) -> str:
         lines.append(f'    jstring j_entity_type = (*env)->NewStringUTF(env, "{entity_type}");')
         lines.append(f'    jstring j_fn_name = (*env)->NewStringUTF(env, "{fn_name}");')
         lines.append(
-            "    jlong fn_id = Java_net_grug_minecraft_grug_Grug_nativeGetExportFnId(env, clazz, statePtr, j_entity_type, j_fn_name);"
+            "    jlong fn_id = Java_net_grug_minecraft_grug_GrugNative_nativeGetExportFnId(env, clazz, statePtr, j_entity_type, j_fn_name);"
         )
         lines.append("    (*env)->DeleteLocalRef(env, j_entity_type);")
         lines.append("    (*env)->DeleteLocalRef(env, j_fn_name);")
@@ -494,7 +494,7 @@ def generate(mod_api: Dict[str, Any]) -> str:
         "",
         "extern uint64_t grug_get_on_fn_id(void* state, const char* entity_type, const char* on_fn_name);",
         "extern bool grug_call_export_fn(void* state, void* entity_handle, uint64_t on_fn_id, const union grug_value* args, size_t args_len);",
-        "extern jlong Java_net_grug_minecraft_grug_Grug_nativeGetExportFnId(JNIEnv *env, jclass clazz, jlong statePtr, jstring entityType, jstring fnName);",
+        "extern jlong Java_net_grug_minecraft_grug_GrugNative_nativeGetExportFnId(JNIEnv *env, jclass clazz, jlong statePtr, jstring entityType, jstring fnName);",
         "",
     ]
 

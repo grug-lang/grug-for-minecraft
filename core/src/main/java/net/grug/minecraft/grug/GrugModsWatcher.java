@@ -36,7 +36,7 @@ public final class GrugModsWatcher {
 
     /** The body of {@link #update}, which runs while this thread holds the state lock. */
     private static String[] updateLocked(Consumer<String> onError) {
-        FileInfo[] updatedFiles = Grug.nativeUpdate(Grug.statePtr);
+        FileInfo[] updatedFiles = GrugNative.nativeUpdate(Grug.statePtr);
         List<String> reloadTriggers = new ArrayList<>();
 
         // Count every reported change, including files that failed to compile. A test that waits
@@ -70,7 +70,7 @@ public final class GrugModsWatcher {
             }
         }
 
-        for (String resource : Grug.nativeGetUpdatedResources(Grug.statePtr)) {
+        for (String resource : GrugNative.nativeGetUpdatedResources(Grug.statePtr)) {
             noteReportedChange(resource);
             reloadTriggers.add(resource);
         }
