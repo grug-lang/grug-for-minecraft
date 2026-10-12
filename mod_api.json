@@ -247,6 +247,20 @@
 						"name": "number"
 					}
 				},
+				"reload_count": {
+					"description": "How many times a loader has finished reloading after a change to relative_path was reported, so a test that checks what the reload rendered waits for the loader instead of a guessed number of ticks.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"get_origin": {
 					"description": "Gets the origin coordinates for running isolated tests. The first call in a test captures the player's position plus 3 and every later call in the same test returns that same position, so a fixture and its check cannot disagree while the player settles.",
 					"return_type": {

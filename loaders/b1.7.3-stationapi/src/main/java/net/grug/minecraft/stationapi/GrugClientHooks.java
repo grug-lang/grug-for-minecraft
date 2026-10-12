@@ -27,6 +27,9 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Insets;
 import java.awt.Window;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * The Minecraft client's per-tick behavior, driven from the {@code MinecraftMixin} injection.
@@ -60,6 +63,21 @@ public class GrugClientHooks {
     private ResourceReload startupReload = null;
 
     private boolean startupReloadStarted = false;
+
+    /**
+     * The reload a mod file change started, or null when none is in flight.
+     *
+     * <p>This one runs off-thread, so the tests' {@code reload_count} cannot rise when it is
+     * started: the tick polls {@link ResourceReload#isComplete()} and reports the finish then.
+     */
+    private ResourceReload hotReload = null;
+
+    /**
+     * The paths the in-flight reload was started for. A reload that starts while one is already in
+     * flight replaces it and adds its batch here, because it reads the files after every change in
+     * both batches, and only the newest reload's completion is polled.
+     */
+    private final List<String> hotReloadBatch = new ArrayList<>();
 
     /**
      * How long to wait for the client to receive the world before failing the run. A placement into
@@ -270,6 +288,14 @@ public class GrugClientHooks {
             window.parkCursor();
         }
 
+        // The previous reload finished, so the paths it was started for are reloaded now.
+        if (hotReload != null && hotReload.isComplete()) {
+            hotReload = null;
+            String[] reloaded = hotReloadBatch.toArray(new String[0]);
+            hotReloadBatch.clear();
+            Grug.noteLoaderReloadFinished(reloaded);
+        }
+
         // Trigger resource reloading for ANY non-grug file change in the mods directory
         // (textures, blockstates, models, lang files, etc.)
         String[] updatedResources = Grug.update(this::sendRedMessage);
@@ -279,9 +305,10 @@ public class GrugClientHooks {
         }
 
         if (updatedResources.length > 0) {
+            hotReloadBatch.addAll(Arrays.asList(Grug.takePendingReloadPaths()));
             // Bypass StationAPI's ReloadScreenManager entirely to avoid the blue overlay
             // and Escape bug.
-            reloadAssets();
+            hotReload = reloadAssets();
         }
 
         if (minecraft.player != null) {

@@ -23,7 +23,7 @@
 swapped: bool = false
 reload_seen: bool = false
 change_baseline: number = -1
-reloaded_at: number = -1
+reload_baseline: number = -1
 path: string = "coverage/assets/grug/textures/block/coverage_block.png"
 before: Option[Screenshot] = Option.new()
 
@@ -47,6 +47,7 @@ export run() {
         before.set(Test.screenshot().capture(620, 62, 700, 118))
 
         change_baseline = Test.hot_reload_count(path)
+        reload_baseline = Test.reload_count(path)
         Test.set_mod_file_state(path, "swapped")
         swapped = true
         Test.not_done()
@@ -56,16 +57,13 @@ export run() {
         # one-second poll interval.
         if Test.hot_reload_count(path) > change_baseline {
             reload_seen = true
-            reloaded_at = Test.tick()
         }
         Test.not_done()
-    } else if Test.tick() < reloaded_at + 100 {
+    } else if Test.reload_count(path) <= reload_baseline {
         # The report only says the engine saw the file. The loader still has to answer it, and
-        # StationAPI's resource reload runs off-thread, so this waits for a rendered frame rather
-        # than for the report alone. A hundred ticks is five seconds, which is a guess and not a
-        # condition: there is no host function that reports when a loader finished reloading, so a
-        # slower run than expected is caught by the 90 percent ask above failing rather than by
-        # this waiting longer.
+        # StationAPI's resource reload runs off-thread, so this waits for the loader to say it
+        # finished instead of guessing a number of ticks. Loaders report the finish after the
+        # tick's own run() call, so the capture below lands on a later tick than the finish.
         Test.not_done()
     } else {
         reloaded: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
