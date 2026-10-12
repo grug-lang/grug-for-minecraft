@@ -13,6 +13,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Pins that {@link GrugModsWatcher} counts each change the engine reports exactly once.
@@ -25,6 +26,8 @@ import java.util.List;
  * the engine's. Here the report is handed in, so a count of two can only be this class's.
  */
 class GrugModsWatcherTest {
+    private static final String PREFIX = "watcher_test/";
+
     private Object savedAdapter;
     private final List<String> errors = new ArrayList<>();
 
@@ -46,6 +49,26 @@ class GrugModsWatcherTest {
         Field field = GrugCore.class.getDeclaredField("adapter");
         field.setAccessible(true);
         field.set(null, savedAdapter);
+    }
+
+    /**
+     * Removes what the fake reports left in the watcher's static state, so no later test in this
+     * JVM sees a file ID, a count or a pending reload for a path that does not exist.
+     */
+    @AfterEach
+    @SuppressWarnings("unchecked")
+    void forgetTheFakeReports() throws Exception {
+        GrugModsWatcher.fileIds.keySet().removeIf(path -> path.startsWith(PREFIX));
+
+        Field counts = GrugModsWatcher.class.getDeclaredField("reportedChangeCounts");
+        counts.setAccessible(true);
+        ((Map<String, Integer>) counts.get(null))
+                .keySet()
+                .removeIf(path -> path.startsWith(PREFIX));
+
+        // Only this test's resource report adds a pending reload path, since no fake file names a
+        // block, and nothing else in a unit test run reports one.
+        GrugModsWatcher.takePendingReloadPaths();
     }
 
     private static FileInfo file(String path, long fileId) {
