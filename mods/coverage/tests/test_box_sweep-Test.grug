@@ -4,7 +4,7 @@
 # the sweep took both. The second is the boundary: a block covers [x, x + 1), so an item resting in
 # the last cleared block sits past the block's own coordinate, and a sweep whose bound stops at that
 # coordinate leaves it behind. See #254.
-#
+
 # The sweep at the end of every test is not checked here: a test cannot observe the sweep that ends
 # it, and the next test's room build sweeps too, so a following test could not tell the two apart.
 # GrugTestRunnerTest covers it. See #323.
