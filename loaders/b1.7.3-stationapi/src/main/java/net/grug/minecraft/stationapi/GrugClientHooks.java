@@ -198,6 +198,15 @@ public class GrugClientHooks {
         this.minecraft = minecraft;
         this.access = access;
         this.title = title;
+        instance = this;
+    }
+
+    /** The one client's hooks, which the render mixin reaches without a handle on the Minecraft. */
+    private static GrugClientHooks instance;
+
+    /** The static form of {@link #isTestRunActive()}, for {@code InGameHudMixin}. */
+    public static boolean isRunActive() {
+        return instance != null && instance.isTestRunActive();
     }
 
     /**

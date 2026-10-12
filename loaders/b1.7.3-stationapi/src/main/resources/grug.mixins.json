@@ -9,6 +9,7 @@
   "server": [],
   "client": [
     "BlockRenderManagerMixin",
+    "InGameHudMixin",
     "MinecraftMixin",
     "ResourcePackManagerMixin",
     "TitleScreenMixin"
