@@ -352,6 +352,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
     public void buildTestBox(int radius) {
+        // The room build is the first thing the runner does for a test, and it dirties the
+        // renderer, so any settle answer from before it describes frames this test must not
+        // capture. See GrugRenderSettle.reset.
+        renderSettle.reset();
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
         // y is the eye reference in this version, so the feet come from the collision box. The room

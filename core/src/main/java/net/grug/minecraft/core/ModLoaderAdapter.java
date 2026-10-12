@@ -280,6 +280,11 @@ public interface ModLoaderAdapter {
      * do not move. An adapter whose player's y is the eye height subtracts it first; one whose
      * player's y is already the feet passes it through. Nothing is built when there is no player,
      * which is the dedicated server before anyone has joined.
+     *
+     * <p>An adapter whose settle answer counts frames also forgets them here, because the room
+     * build dirties the renderer and is the first thing a test does: an answer left over from the
+     * previous test would describe frames this one must not capture. See {@code
+     * GrugRenderSettle.reset}.
      */
     void buildTestBox(int radius);
 

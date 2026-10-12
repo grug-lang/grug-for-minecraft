@@ -52,4 +52,18 @@ public final class GrugRenderSettle {
     public synchronized boolean settled() {
         return frames - lastBusyFrame >= 2;
     }
+
+    /**
+     * Forgets every frame counted so far, so that the next answer can only be about frames drawn
+     * after this call.
+     *
+     * <p>The runner builds a test's room in the same tick as that test's first call, and a repeat
+     * runs the whole suite again in one client. Without this, a test that follows an idle one would
+     * read a settled answer left over from before its own setup, and capture the frame before its
+     * fixture was drawn.
+     */
+    public synchronized void reset() {
+        frames = 0;
+        lastBusyFrame = 0;
+    }
 }
