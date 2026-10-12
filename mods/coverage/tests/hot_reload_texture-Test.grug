@@ -54,7 +54,7 @@ export run() {
     } else if not reload_seen {
         # Waiting for the engine to report the write, rather than for a fixed number of ticks, is
         # what makes this independent of filesystem timestamp granularity and of the engine's
-        # one-second poll interval.
+        # poll interval.
         if Test.hot_reload_count(path) > change_baseline {
             reload_seen = true
         }
