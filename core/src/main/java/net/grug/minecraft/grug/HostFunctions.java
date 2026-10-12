@@ -168,7 +168,7 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: whether the frame a capture would read is one the client still had work in.
+     * Test only: whether the frame a capture would read is one the client had no work left in.
      *
      * <p>The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can
      * run while a light update is still settling, so a capture taken too early can land a light

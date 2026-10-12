@@ -206,8 +206,8 @@ public interface ModLoaderAdapter {
     boolean isWorldReady(Object playerObj);
 
     /**
-     * Whether the frame a capture would read is one the client still had work in. The mesh bakes a
-     * face's per-vertex light when its section is rebuilt, and a rebuild can run while a light
+     * Whether the frame a capture would read is one the client had no work left in. The mesh bakes
+     * a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light
      * update is still settling, so a capture taken too early can land a light step away from the
      * reference. A loader answers this from its own frame hook through {@link #onFrameRendered},
      * because a tick is not a frame and the game draws fewer frames than it runs ticks. See #253
