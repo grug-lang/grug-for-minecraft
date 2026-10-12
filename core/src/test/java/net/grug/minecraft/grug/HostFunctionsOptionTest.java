@@ -21,14 +21,14 @@ class HostFunctionsOptionTest {
 
     @AfterEach
     void clearState() {
-        Grug.entityData.clear();
-        Grug.fnEntities.clear();
+        GrugEntities.entityData.clear();
+        GrugEntities.fnEntities.clear();
     }
 
     @Test
     void anOptionKeepsTheEntityItPointsAtAlive() throws InterruptedException {
         long optionId = HostFunctions.Option_new();
-        Grug.entityData.put(INNER, new GrugObject(GrugEntityType.Item, "inner"));
+        GrugEntities.entityData.put(INNER, new GrugObject(GrugEntityType.Item, "inner"));
         HostFunctions.Option_set(optionId, INNER);
 
         assertFalse(collected(INNER), "the Option roots its value across a collection");
@@ -37,9 +37,9 @@ class HostFunctionsOptionTest {
     @Test
     void overwritingAnOptionReleasesTheOldEntity() throws InterruptedException {
         long optionId = HostFunctions.Option_new();
-        Grug.entityData.put(INNER, new GrugObject(GrugEntityType.Item, "old"));
+        GrugEntities.entityData.put(INNER, new GrugObject(GrugEntityType.Item, "old"));
         HostFunctions.Option_set(optionId, INNER);
-        Grug.entityData.put(OTHER, new GrugObject(GrugEntityType.Item, "new"));
+        GrugEntities.entityData.put(OTHER, new GrugObject(GrugEntityType.Item, "new"));
         HostFunctions.Option_set(optionId, OTHER);
 
         assertTrue(collected(INNER), "the overwritten value is released");
@@ -57,14 +57,14 @@ class HostFunctionsOptionTest {
         long optionId = HostFunctions.Option_new();
         HostFunctions.Option_set(optionId, UNKNOWN_ID);
 
-        assertTrue(Grug.entityData.get(UNKNOWN_ID) == null);
+        assertTrue(GrugEntities.entityData.get(UNKNOWN_ID) == null);
     }
 
     private static boolean collected(long id) throws InterruptedException {
-        for (int attempt = 0; attempt < 50 && Grug.entityData.get(id) != null; attempt++) {
+        for (int attempt = 0; attempt < 50 && GrugEntities.entityData.get(id) != null; attempt++) {
             System.gc();
             Thread.sleep(10);
         }
-        return Grug.entityData.get(id) == null;
+        return GrugEntities.entityData.get(id) == null;
     }
 }

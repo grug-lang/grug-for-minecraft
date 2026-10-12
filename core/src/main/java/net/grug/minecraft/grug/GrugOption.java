@@ -38,7 +38,7 @@ public final class GrugOption {
         if (!(newValue instanceof Long)) {
             return null;
         }
-        return Grug.entityData.get((Long) newValue);
+        return GrugEntities.entityData.get((Long) newValue);
     }
 
     @Override
@@ -57,7 +57,7 @@ public final class GrugOption {
         // This ensures Options work safely as keys in HashMaps later!
         if (value instanceof Long) {
             Long id = (Long) value;
-            GrugObject obj = Grug.entityData.get(id);
+            GrugObject obj = GrugEntities.entityData.get(id);
             if (obj != null) {
                 return java.util.Objects.hashCode(obj.object);
             }

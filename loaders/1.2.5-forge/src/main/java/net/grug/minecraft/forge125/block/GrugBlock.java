@@ -6,6 +6,7 @@ import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugEntityType;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.BlockContainer;
@@ -46,7 +47,7 @@ public class GrugBlock extends BlockContainer {
         // "grug:foo_block_entity" -> "foo_block_entity"
         String cleanName =
                 data.blockEntityString.substring(data.blockEntityString.lastIndexOf(':') + 1);
-        return Grug.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
+        return GrugEntities.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
     }
 
     public int getInventorySize() {
@@ -99,8 +100,8 @@ public class GrugBlock extends BlockContainer {
     public boolean blockActivated(World world, int x, int y, int z, EntityPlayer player) {
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
-            long worldId = Grug.addEntity(GrugEntityType.Level, world);
-            long playerId = Grug.addEntity(GrugEntityType.Player, player);
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
+            long playerId = GrugEntities.addEntity(GrugEntityType.Player, player);
             boolean handled = ExportFns.Block_use(blockHandle, worldId, x, y, z, playerId);
             Grug.destroyEntity(blockHandle);
             if (handled) {
@@ -114,7 +115,7 @@ public class GrugBlock extends BlockContainer {
     public void onBlockRemoval(World world, int x, int y, int z) {
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
-            long worldId = Grug.addEntity(GrugEntityType.Level, world);
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
             ExportFns.Block_on_break(blockHandle, worldId, x, y, z);
             Grug.destroyEntity(blockHandle);
         }

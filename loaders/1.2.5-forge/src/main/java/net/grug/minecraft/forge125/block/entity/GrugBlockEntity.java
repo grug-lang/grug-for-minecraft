@@ -3,6 +3,7 @@ package net.grug.minecraft.forge125.block.entity;
 import net.grug.minecraft.forge125.block.GrugBlock;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
 import net.minecraft.src.Block;
@@ -96,7 +97,7 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
      * block entity whose member scope only declares has nothing bound yet.
      */
     private void callExportFn(long fnId) {
-        Grug.callExportFnWithOwner(entityHandle, fnId, childEntities, this);
+        GrugEntities.callExportFnWithOwner(entityHandle, fnId, childEntities, this);
     }
 
     @GrugGenerated(
@@ -123,7 +124,7 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
         long fileId = ((GrugBlock) block).getEntityFileId();
         if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;
 
-        return Grug.createEntityWithOwner(fileId, childEntities, this);
+        return GrugEntities.createEntityWithOwner(fileId, childEntities, this);
     }
 
     @Override
@@ -135,7 +136,7 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
         }
 
         if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-            Grug.callExportFnWithOwner(entityHandle, tickFnId, new ArrayList<>(), null);
+            GrugEntities.callExportFnWithOwner(entityHandle, tickFnId, new ArrayList<>(), null);
         }
     }
 
