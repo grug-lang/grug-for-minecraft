@@ -291,6 +291,7 @@ public class GrugClientHooks implements ITickHandler {
         // make the same scene a light step brighter or darker than another run's capture of it.
         if (testRunner != null) {
             GrugTorchFlicker.pin(minecraft.entityRenderer);
+            GrugTorchFlicker.pinVignette(minecraft.ingameGUI);
         }
 
         // The title screen is a GUI and has no world yet, so the game tick never fires there; this

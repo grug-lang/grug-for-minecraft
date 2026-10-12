@@ -164,6 +164,18 @@ public class GrugClientHooks {
         this.minecraft = minecraft;
         this.access = access;
         this.title = title;
+        instance = this;
+    }
+
+    /** The one client's hooks, which the render mixins reach without a handle on the Minecraft. */
+    private static GrugClientHooks instance;
+
+    /**
+     * Whether a test run currently owns the client, for the render mixins that pin state a capture
+     * must not depend on. See {@code GameGuiMixin}.
+     */
+    public static boolean isTestRunActive() {
+        return instance != null && instance.testRunner != null;
     }
 
     /** Registers the R and M keybinds; safe to call once from the mixin's static initializer. */

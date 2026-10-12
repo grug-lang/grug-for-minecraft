@@ -22,4 +22,14 @@ public final class GrugTorchFlicker {
         renderer.torchFlickerX = 0.0F;
         renderer.torchFlickerY = 0.0F;
     }
+
+    /**
+     * Resets the vignette's strength, which {@code GuiIngame.renderVignette} walks one percent of
+     * the way toward {@code 1 - the light at the player's eyes} on every frame it draws and
+     * multiplies the whole frame by. Left alone it depends on how many frames the game has drawn
+     * before a capture. Call once per frame, before the frame that draws it. See #308.
+     */
+    public static void pinVignette(GuiIngame gui) {
+        gui.prevVignetteBrightness = 0.0F;
+    }
 }
