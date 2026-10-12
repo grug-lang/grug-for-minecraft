@@ -12,7 +12,7 @@ class HostFunctionHelpersTest {
 
     @AfterEach
     void restoreInitializingBlockEntity() {
-        Grug.currentlyInitializingBlockEntity = null;
+        GrugEntities.currentlyInitializingBlockEntity = null;
     }
 
     @Test
@@ -22,7 +22,7 @@ class HostFunctionHelpersTest {
 
     @Test
     void prettyFormatUnwrapsAnEntityId() {
-        long id = Grug.addEntity(GrugEntityType.Item, "diamond");
+        long id = GrugEntities.addEntity(GrugEntityType.Item, "diamond");
         assertEquals("diamond", HostFunctionHelpers.prettyFormat(id));
     }
 
@@ -33,14 +33,14 @@ class HostFunctionHelpersTest {
 
     @Test
     void prettyFormatReportsAnEntityWithANullObject() {
-        long id = Grug.addEntity(GrugEntityType.Item, null);
+        long id = GrugEntities.addEntity(GrugEntityType.Item, null);
         assertEquals("<id:" + id + " (invalid)>", HostFunctionHelpers.prettyFormat(id));
     }
 
     @Test
     void resolveBlockEntityReturnsTheStoredObject() {
         Object blockEntity = new Object();
-        long id = Grug.addEntity(GrugEntityType.BlockEntity, blockEntity);
+        long id = GrugEntities.addEntity(GrugEntityType.BlockEntity, blockEntity);
         assertSame(blockEntity, HostFunctionHelpers.resolveBlockEntity(id));
     }
 
@@ -52,10 +52,10 @@ class HostFunctionHelpersTest {
     @Test
     void resolveBlockEntityUsesTheBlockEntityBeingInitialized() {
         Object initializing = new Object();
-        Grug.currentlyInitializingBlockEntity = initializing;
+        GrugEntities.currentlyInitializingBlockEntity = initializing;
 
         long id = 444444L;
         assertSame(initializing, HostFunctionHelpers.resolveBlockEntity(id));
-        assertSame(initializing, Grug.entityData.get(id).object);
+        assertSame(initializing, GrugEntities.entityData.get(id).object);
     }
 }

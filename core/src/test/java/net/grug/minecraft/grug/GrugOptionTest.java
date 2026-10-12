@@ -66,7 +66,7 @@ class GrugOptionTest {
 
     @Test
     void hashCodeResolvesAnEntityIdToItsWrappedObject() {
-        long id = Grug.addEntity(GrugEntityType.Item, "wrapped");
+        long id = GrugEntities.addEntity(GrugEntityType.Item, "wrapped");
         assertEquals("wrapped".hashCode(), new GrugOption(id).hashCode());
     }
 

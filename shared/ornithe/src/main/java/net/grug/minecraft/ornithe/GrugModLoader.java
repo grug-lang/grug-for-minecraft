@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.ModContainer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsExtractor;
@@ -93,7 +94,7 @@ public class GrugModLoader implements ModInitializer {
             switch (entry.entityType()) {
                 case "Block" -> blockFiles.put(entry.cleanName(), file.fileId());
                 case "BlockEntity" ->
-                        Grug.entityFileIdsByName.put(entry.cleanName(), file.fileId());
+                        GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
                 case "Item" -> itemFiles.put(entry.cleanName(), file.fileId());
                 default -> {}
             }

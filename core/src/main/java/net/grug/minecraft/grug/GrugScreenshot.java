@@ -8,8 +8,8 @@ import java.util.Objects;
  * Screenshot.equals} runs, and optionally the rectangle {@code Screenshot.capture} read.
  *
  * <p>Like {@link GrugOption}, this is replaced in place of the object stored under the entity id
- * ({@code Screenshot.tolerance} goes through {@link Grug#addEntityWithId}), rather than a mutable
- * holder. It is a plain class rather than a record because core compiles to Java 8.
+ * ({@code Screenshot.tolerance} goes through {@link GrugEntities#addEntityWithId}), rather than a
+ * mutable holder. It is a plain class rather than a record because core compiles to Java 8.
  *
  * <p>The captured image is deliberately not part of {@link #equals} and {@link #hashCode}, which
  * compare the tolerance and nothing else. Identity here is "the comparison this entity describes",

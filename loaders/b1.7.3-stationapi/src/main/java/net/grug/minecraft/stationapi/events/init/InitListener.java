@@ -10,6 +10,7 @@ import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
@@ -172,7 +173,7 @@ public class InitListener {
             switch (entry.entityType()) {
                 case "Block" -> blockFiles.put(entry.cleanName(), file.fileId());
                 case "BlockEntity" ->
-                        Grug.entityFileIdsByName.put(entry.cleanName(), file.fileId());
+                        GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
                 case "Item" -> itemFiles.put(entry.cleanName(), file.fileId());
                 default -> {}
             }

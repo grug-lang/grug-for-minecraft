@@ -9,6 +9,7 @@ import net.grug.minecraft.forge125.block.GrugBoxRenderer;
 import net.grug.minecraft.forge125.client.GrugClientHooks;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
@@ -102,7 +103,7 @@ public class mod_Grug extends BaseMod {
             if ("Block".equals(entityType)) {
                 blockFiles.put(entry.cleanName(), file.fileId());
             } else if ("BlockEntity".equals(entityType)) {
-                Grug.entityFileIdsByName.put(entry.cleanName(), file.fileId());
+                GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
             } else if ("Item".equals(entityType)) {
                 itemFiles.put(entry.cleanName(), file.fileId());
             }

@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugEntityType;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
@@ -33,7 +34,7 @@ public class GrugBlock extends BlockWithBlockEntity {
 
         String cleanName =
                 data.blockEntityString.substring(data.blockEntityString.lastIndexOf(':') + 1);
-        return Grug.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
+        return GrugEntities.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
     }
 
     public int getInventorySize() {
@@ -71,8 +72,8 @@ public class GrugBlock extends BlockWithBlockEntity {
     public boolean use(World world, int x, int y, int z, PlayerEntity player) {
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
-            long worldId = Grug.addEntity(GrugEntityType.Level, world);
-            long playerId = Grug.addEntity(GrugEntityType.Player, player);
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
+            long playerId = GrugEntities.addEntity(GrugEntityType.Player, player);
             boolean handled = ExportFns.Block_use(blockHandle, worldId, x, y, z, playerId);
             Grug.destroyEntity(blockHandle);
             if (handled) {
@@ -95,7 +96,7 @@ public class GrugBlock extends BlockWithBlockEntity {
 
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
-            long worldId = Grug.addEntity(GrugEntityType.Level, world);
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
             ExportFns.Block_on_break(blockHandle, worldId, x, y, z);
             Grug.destroyEntity(blockHandle);
         }

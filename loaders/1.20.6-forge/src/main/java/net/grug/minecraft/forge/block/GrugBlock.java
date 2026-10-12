@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugEntityType;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.core.BlockPos;
@@ -36,7 +37,7 @@ public class GrugBlock extends Block implements EntityBlock {
 
         String cleanName =
                 data.blockEntityString.substring(data.blockEntityString.lastIndexOf(':') + 1);
-        return Grug.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
+        return GrugEntities.entityFileIdsByName.getOrDefault(cleanName, Grug.INVALID_GRUG_FILE_ID);
     }
 
     public int getInventorySize() {
@@ -87,7 +88,7 @@ public class GrugBlock extends Block implements EntityBlock {
         if (!state.is(newState.getBlock())) {
             long blockHandle = Grug.createEntity(this.blockFileId);
             if (blockHandle != 0) {
-                long worldId = Grug.addEntity(GrugEntityType.Level, level);
+                long worldId = GrugEntities.addEntity(GrugEntityType.Level, level);
                 ExportFns.Block_on_break(blockHandle, worldId, pos.getX(), pos.getY(), pos.getZ());
                 Grug.destroyEntity(blockHandle);
             }
@@ -115,8 +116,8 @@ public class GrugBlock extends Block implements EntityBlock {
             BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         long blockHandle = Grug.createEntity(this.blockFileId);
         if (blockHandle != 0) {
-            long worldId = Grug.addEntity(GrugEntityType.Level, level);
-            long playerId = Grug.addEntity(GrugEntityType.Player, player);
+            long worldId = GrugEntities.addEntity(GrugEntityType.Level, level);
+            long playerId = GrugEntities.addEntity(GrugEntityType.Player, player);
             boolean handled =
                     ExportFns.Block_use(
                             blockHandle, worldId, pos.getX(), pos.getY(), pos.getZ(), playerId);
