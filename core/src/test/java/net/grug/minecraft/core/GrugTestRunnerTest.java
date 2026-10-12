@@ -253,8 +253,7 @@ class GrugTestRunnerTest {
     @Test
     void clearsAnExpectationWhenTheTestThatAskedForItEnds() {
         // A lingering expectation would keep GrugErrors.onRuntimeError recording errors for a test
-        // that
-        // is no longer running.
+        // that is no longer running.
         FakeOps ops = new FakeOps();
         ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));

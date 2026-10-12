@@ -9,29 +9,31 @@ package net.grug.minecraft.grug;
  * <p>Callers hand over {@link Grug#statePtr} themselves and enter with the state lock held: the
  * lock-taking wrappers in {@link Grug}, the generated {@code ExportFns} and {@link
  * GrugModsWatcher#update} all take it where they run, and the lock is reentrant for the entries
- * that nest (see {@link GrugStateLock}).
+ * that nest (see {@link GrugStateLock}). That is why everything here is package-private: every
+ * caller that takes the lock lives in this package, so nothing outside it can enter the state
+ * without the lock.
  */
-public final class GrugNative {
+final class GrugNative {
     private GrugNative() {}
 
-    public static native void initGrugAdapter();
+    static native void initGrugAdapter();
 
-    public static native long nativeInit(String modApiPath, String modsDirPath);
+    static native long nativeInit(String modApiPath, String modsDirPath);
 
-    public static native FileInfo[] nativeCompileAllFiles(long statePtr);
+    static native FileInfo[] nativeCompileAllFiles(long statePtr);
 
-    public static native FileInfo[] nativeUpdate(long statePtr);
+    static native FileInfo[] nativeUpdate(long statePtr);
 
-    public static native long nativeCreateEntity(long statePtr, long fileId);
+    static native long nativeCreateEntity(long statePtr, long fileId);
 
-    public static native long nativeGetExportFnId(long statePtr, String entityType, String fnName);
+    static native long nativeGetExportFnId(long statePtr, String entityType, String fnName);
 
-    public static native boolean nativeCallExportFn(
+    static native boolean nativeCallExportFn(
             long statePtr, long entityHandle, long exportFnId);
 
-    public static native void nativeDestroyEntity(long statePtr, long entityHandle);
+    static native void nativeDestroyEntity(long statePtr, long entityHandle);
 
-    public static native String[] nativeGetUpdatedResources(long statePtr);
+    static native String[] nativeGetUpdatedResources(long statePtr);
 
-    public static native void nativeHostFunctionErrorHappened(long statePtr, String message);
+    static native void nativeHostFunctionErrorHappened(long statePtr, String message);
 }
