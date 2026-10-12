@@ -10,7 +10,7 @@ class GrugTestOriginTest {
 
     @AfterEach
     void clearTheCache() {
-        Grug.testOrigin = null;
+        GrugTestState.testOrigin = null;
     }
 
     @Test
@@ -18,7 +18,7 @@ class GrugTestOriginTest {
         Vec3 first = new Vec3(1.0, 2.0, 3.0);
         Vec3 second = new Vec3(4.0, 5.0, 6.0);
 
-        assertEquals(first, Grug.captureTestOrigin(() -> first));
-        assertEquals(first, Grug.captureTestOrigin(() -> second));
+        assertEquals(first, GrugTestState.captureTestOrigin(() -> first));
+        assertEquals(first, GrugTestState.captureTestOrigin(() -> second));
     }
 }

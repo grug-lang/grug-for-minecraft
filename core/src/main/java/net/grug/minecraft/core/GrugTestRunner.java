@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugTestState;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -266,15 +267,15 @@ public class GrugTestRunner {
 
         String path = tests.get(nextTestIndex).getKey();
 
-        Grug.currentTestTick = currentTick;
-        Grug.testNotDone = false;
-        Grug.currentTestMod = owningMod(path);
+        GrugTestState.currentTestTick = currentTick;
+        GrugTestState.testNotDone = false;
+        GrugTestState.currentTestMod = owningMod(path);
         // The engine clears its error flag at the start of every export function call and stops the
         // script at the first error, so the errors this call raises are the only ones that can
         // answer this call's expect_error. Anything an earlier tick left behind goes here rather
         // than standing in for an error this test never produced.
-        synchronized (Grug.testRuntimeErrors) {
-            Grug.testRuntimeErrors.clear();
+        synchronized (GrugTestState.testRuntimeErrors) {
+            GrugTestState.testRuntimeErrors.clear();
         }
 
         boolean completed;
@@ -293,15 +294,15 @@ public class GrugTestRunner {
         }
 
         if (!completed) {
-            if (Grug.testExpectedError != null) {
+            if (GrugTestState.testExpectedError != null) {
                 // The script aborted because a host function errored. Accept it only if the message
                 // matches what the test asked to see, so a test cannot pass on the wrong error. The
                 // message comes from the record the error was written to on this thread, not from
                 // the chat queue, so nothing that runs on another thread can take it first.
                 String actual;
-                synchronized (Grug.testRuntimeErrors) {
-                    actual = String.join("\n", Grug.testRuntimeErrors);
-                    Grug.testRuntimeErrors.clear();
+                synchronized (GrugTestState.testRuntimeErrors) {
+                    actual = String.join("\n", GrugTestState.testRuntimeErrors);
+                    GrugTestState.testRuntimeErrors.clear();
                 }
                 // The same message is also waiting for the chat, and a red message about an error
                 // this test asked for is noise, so it is not shown. That is all this drain is for,
@@ -314,11 +315,11 @@ public class GrugTestRunner {
                 synchronized (Grug.printQueue) {
                     Grug.printQueue.clear();
                 }
-                if (!actual.contains(Grug.testExpectedError)) {
+                if (!actual.contains(GrugTestState.testExpectedError)) {
                     fail(
                             path,
                             "Expected an error containing '"
-                                    + Grug.testExpectedError
+                                    + GrugTestState.testExpectedError
                                     + "', but got: "
                                     + actual);
                     return;
@@ -343,7 +344,7 @@ public class GrugTestRunner {
             return;
         }
 
-        if (Grug.testNotDone) {
+        if (GrugTestState.testNotDone) {
             // currentTick is this invocation's tick, so asking for one more means asking for
             // currentTick + 1. Refusing that once it reaches the cap is what bounds a test to
             // DEFAULT_MAX_TEST_TICKS run() calls, on ticks 0 through DEFAULT_MAX_TEST_TICKS - 1.
@@ -363,11 +364,11 @@ public class GrugTestRunner {
         }
 
         // The test stopped asking for ticks, so it's done.
-        if (Grug.testExpectedError != null) {
+        if (GrugTestState.testExpectedError != null) {
             fail(
                     path,
                     "Test expected an error containing '"
-                            + Grug.testExpectedError
+                            + GrugTestState.testExpectedError
                             + "', but it completed without one.");
             return;
         }
@@ -488,9 +489,9 @@ public class GrugTestRunner {
         // Also cleared in destroyCurrentEntity. Doing both ends means a run that was restarted or
         // aborted cannot inherit an expectation, an override or a captured origin from a previous
         // one.
-        Grug.testExpectedError = null;
-        Grug.testFidelityOverride = null;
-        Grug.testOrigin = null;
+        GrugTestState.testExpectedError = null;
+        GrugTestState.testFidelityOverride = null;
+        GrugTestState.testOrigin = null;
 
         // Before the test's first tick, so a fixture it places at tick 0 lands inside the room. A
         // test whose fixture reaches further than the default room calls Test.set_box_radius at the
@@ -529,9 +530,9 @@ public class GrugTestRunner {
         // when that test failed partway through. A leftover expectation would keep
         // Grug.onRuntimeError recording errors for a test that is no longer running. The captured
         // origin is cleared for the same reason: the next test has to capture its own.
-        Grug.testFidelityOverride = null;
-        Grug.testExpectedError = null;
-        Grug.testOrigin = null;
+        GrugTestState.testFidelityOverride = null;
+        GrugTestState.testExpectedError = null;
+        GrugTestState.testOrigin = null;
         if (currentEntityHandle != 0) {
             ops.destroyEntity(currentEntityHandle);
             currentEntityHandle = 0;

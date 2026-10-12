@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugTestState;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -25,8 +25,9 @@ import java.util.Map;
  * promises nothing about pixels, so it says nothing here.
  *
  * <p>Only the metadata lives here. Which mod owns the running test is test-runner state, so that
- * lives in {@link Grug} next to the rest of it, and this class asks {@link
- * Grug#currentTestIsExact()} when it needs an answer rather than reading the runner's state itself.
+ * lives in {@link GrugTestState} next to the rest of it, and this class asks {@link
+ * GrugTestState#currentTestIsExact()} when it needs an answer rather than reading the runner's
+ * state itself.
  */
 public final class GrugModFidelity {
 
@@ -81,7 +82,7 @@ public final class GrugModFidelity {
      * percentage for a mod that promises less than exact or makes no promise at all.
      */
     public static boolean allowsTolerance(double percent) {
-        return percent <= 0 || !Grug.currentTestIsExact();
+        return percent <= 0 || !GrugTestState.currentTestIsExact();
     }
 
     /**

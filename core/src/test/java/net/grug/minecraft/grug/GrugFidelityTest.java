@@ -24,15 +24,15 @@ class GrugFidelityTest {
 
     @BeforeEach
     void resetState() {
-        Grug.currentTestMod = null;
-        Grug.testFidelityOverride = null;
+        GrugTestState.currentTestMod = null;
+        GrugTestState.testFidelityOverride = null;
     }
 
     @AfterEach
     void clearFidelities() {
         GrugModFidelity.load(mods.toFile());
-        Grug.currentTestMod = null;
-        Grug.testFidelityOverride = null;
+        GrugTestState.currentTestMod = null;
+        GrugTestState.testFidelityOverride = null;
     }
 
     private void declare(String mod, String fidelity) throws IOException {
@@ -47,9 +47,9 @@ class GrugFidelityTest {
     void anExactModMayNotAllowATolerance() throws IOException {
         declare("exactmod", "exact");
         GrugModFidelity.load(mods.toFile());
-        Grug.currentTestMod = "exactmod";
+        GrugTestState.currentTestMod = "exactmod";
 
-        assertTrue(Grug.currentTestIsExact());
+        assertTrue(GrugTestState.currentTestIsExact());
         assertFalse(GrugModFidelity.allowsTolerance(1));
     }
 
@@ -57,7 +57,7 @@ class GrugFidelityTest {
     void anExactModMayStillComparePixelExactly() throws IOException {
         declare("exactmod", "exact");
         GrugModFidelity.load(mods.toFile());
-        Grug.currentTestMod = "exactmod";
+        GrugTestState.currentTestMod = "exactmod";
 
         assertTrue(GrugModFidelity.allowsTolerance(0));
     }
@@ -67,21 +67,21 @@ class GrugFidelityTest {
         declare("behavioralmod", "behavioral");
         GrugModFidelity.load(mods.toFile());
 
-        Grug.currentTestMod = "behavioralmod";
-        assertFalse(Grug.currentTestIsExact());
+        GrugTestState.currentTestMod = "behavioralmod";
+        assertFalse(GrugTestState.currentTestIsExact());
         assertTrue(GrugModFidelity.allowsTolerance(1));
     }
 
     @Test
     void aModDeclaringNoFidelityMayAllowATolerance() {
-        Grug.currentTestMod = "plainmod";
-        assertFalse(Grug.currentTestIsExact());
+        GrugTestState.currentTestMod = "plainmod";
+        assertFalse(GrugTestState.currentTestIsExact());
         assertTrue(GrugModFidelity.allowsTolerance(1));
     }
 
     @Test
     void withNoTestRunningThereIsNoModToHoldToAFidelity() {
-        assertFalse(Grug.currentTestIsExact());
+        assertFalse(GrugTestState.currentTestIsExact());
         assertTrue(GrugModFidelity.allowsTolerance(1));
     }
 
@@ -91,15 +91,15 @@ class GrugFidelityTest {
         // in as one to cover the rule.
         declare("behavioralmod", "behavioral");
         GrugModFidelity.load(mods.toFile());
-        Grug.currentTestMod = "behavioralmod";
+        GrugTestState.currentTestMod = "behavioralmod";
         assertTrue(GrugModFidelity.allowsTolerance(1));
 
-        Grug.testFidelityOverride = "exact";
-        assertTrue(Grug.currentTestIsExact());
+        GrugTestState.testFidelityOverride = "exact";
+        assertTrue(GrugTestState.currentTestIsExact());
         assertFalse(GrugModFidelity.allowsTolerance(1));
 
-        Grug.testFidelityOverride = "behavioral";
-        assertFalse(Grug.currentTestIsExact());
+        GrugTestState.testFidelityOverride = "behavioral";
+        assertFalse(GrugTestState.currentTestIsExact());
         assertTrue(GrugModFidelity.allowsTolerance(1));
     }
 
@@ -109,10 +109,10 @@ class GrugFidelityTest {
         // never relax it: an exact mod stays exact whatever its tests ask to be judged as.
         declare("exactmod", "exact");
         GrugModFidelity.load(mods.toFile());
-        Grug.currentTestMod = "exactmod";
+        GrugTestState.currentTestMod = "exactmod";
 
-        Grug.testFidelityOverride = "behavioral";
-        assertTrue(Grug.currentTestIsExact());
+        GrugTestState.testFidelityOverride = "behavioral";
+        assertTrue(GrugTestState.currentTestIsExact());
         assertFalse(GrugModFidelity.allowsTolerance(1));
     }
 }
