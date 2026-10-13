@@ -194,12 +194,13 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 Every version this repository builds against is pinned to an exact value. `.github/dependabot.yml`
 checks the GitHub Actions, Gradle and pip pins weekly, so most are proposed rather than remembered.
 Two stay manual: grug-rs, which is pinned for stability and is a behavioural change to the VM rather
-than a dependency bump, and the root Gradle wrapper, frozen at 8.14 while the standalone loaders follow
-Gradle 9 through Dependabot, a split that is a choice about which loaders tolerate which Gradle. The
-root wrapper is frozen because the SpongePowered Mixin plugin (0.7.38) is abandoned and does not support Gradle 9.x, and ForgeGradle 6.0.54 also
-does not support Gradle 9.x. ForgeGradle 7 requires Gradle 9.3.0+, so neither can be bumped until
-a maintained Mixin plugin that supports Gradle 9.x exists. Read a proposed major version (setup-java v4 to v5, say) before
-taking it, because it changes how a job behaves.
+than a dependency bump, and the root Gradle wrapper, frozen at 8.14 while the standalone loaders
+follow Gradle 9 through Dependabot, a split that is a choice about which loaders tolerate which
+Gradle. The root wrapper is frozen because the SpongePowered Mixin plugin (0.7.38) is abandoned and
+does not support Gradle 9.x, and ForgeGradle 6.0.54 also does not support Gradle 9.x. ForgeGradle 7
+requires Gradle 9.3.0+, so neither can be bumped until a maintained Mixin plugin that supports
+Gradle 9.x exists. Read a proposed major version (setup-java v4 to v5, say) before taking it,
+because it changes how a job behaves.
 
 The table below is where each pin lives and how to move it by hand, which is also what a bot's
 suggestion has to be checked against:
