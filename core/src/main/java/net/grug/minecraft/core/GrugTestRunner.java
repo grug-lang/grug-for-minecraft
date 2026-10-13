@@ -126,6 +126,19 @@ public class GrugTestRunner {
 
     private boolean finished = false;
 
+    /**
+     * A guard against a reload that will never finish, not a wait for one that will: the reloads
+     * measured here take about 3 seconds, so a loader still reporting one after this long has lost
+     * its finish (an apply stage that threw, or two reloads Minecraft folded into one), and holding
+     * the test back any longer would only turn that into a silent run timeout. See #328.
+     */
+    static final long RELOAD_DEADLINE_NANOS = 60_000_000_000L;
+
+    /**
+     * When the current wait for the loader's reload began, or -1 when the runner is not waiting.
+     */
+    private long reloadWaitStartNanos = -1;
+
     public GrugTestRunner() {
         this(
                 GrugModsWatcher.fileIds,
@@ -272,8 +285,10 @@ public class GrugTestRunner {
         if (currentEntityHandle == 0
                 && nextTestIndex < tests.size()
                 && boxBuilder.loaderReloading()) {
+            holdForReload();
             return;
         }
+        reloadWaitStartNanos = -1;
 
         if (currentEntityHandle == 0 && !startNextTest()) {
             // Nothing left to run.
@@ -500,6 +515,27 @@ public class GrugTestRunner {
     private static String owningMod(String path) {
         int slash = path.indexOf('/');
         return slash < 0 ? path : path.substring(0, slash);
+    }
+
+    /**
+     * Holds the next test back for the loader's reload, saying so once per wait, and fails the run
+     * if the reload outlasts {@link #RELOAD_DEADLINE_NANOS}.
+     */
+    private void holdForReload() {
+        String path = tests.get(nextTestIndex).getKey();
+        long now = clock.getAsLong();
+        if (reloadWaitStartNanos < 0) {
+            reloadWaitStartNanos = now;
+            System.out.println(
+                    "[GRUG CI] Waiting for the loader's resource reload to finish before starting "
+                            + path);
+        } else if (now - reloadWaitStartNanos > RELOAD_DEADLINE_NANOS) {
+            fail(
+                    path,
+                    "The loader's resource reload never finished: it was still reported after "
+                            + (RELOAD_DEADLINE_NANOS / 1_000_000_000L)
+                            + " seconds, so this test was not started.");
+        }
     }
 
     /** Starts the next pending test, or returns false if there are none left. */

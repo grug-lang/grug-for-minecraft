@@ -685,6 +685,47 @@ class GrugTestRunnerTest {
         assertTrue(started.contains("Executing test"), started);
     }
 
+    @Test
+    void failsTheRunWhenTheLoaderNeverFinishesItsReload() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+        ops.pathsAre(files);
+        long[] now = {0};
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        () -> now[0],
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public boolean loaderReloading() {
+                                return true;
+                            }
+                        },
+                        1);
+        String first = capture(() -> runner.tick(null));
+        assertTrue(first.contains("Waiting for the loader's resource reload"), first);
+        assertTrue(first.contains("mymod/code/a-Test.grug"), first);
+
+        now[0] = GrugTestRunner.RELOAD_DEADLINE_NANOS;
+        String again = capture(() -> runner.tick(null));
+        assertEquals("", again);
+        assertFalse(runner.isFinished());
+
+        now[0] = GrugTestRunner.RELOAD_DEADLINE_NANOS + 1;
+        String failed = capture(() -> runner.tick(null));
+        assertTrue(failed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"), failed);
+        assertTrue(failed.contains("never finished"), failed);
+        assertTrue(runner.isFinished());
+    }
+
     private static List<String> runWithSweepLog(FakeOps ops, Map<String, Long> files) {
         List<String> log = new ArrayList<>();
         ops.pathsAre(files);
