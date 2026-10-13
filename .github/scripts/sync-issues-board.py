@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adds every issue of the org's public, non-archived repositories to the Issues Board.
+"""Adds every issue (never a pull request) of the org's public, non-archived repositories to the Issues Board.
 
 Usage: sync-issues-board.py [--dry-run] [--existing-items FILE]
 
@@ -75,18 +75,6 @@ def issues(repo):
     return list(paginate(query, ["repository", "issues"], org=ORG, repo=repo))
 
 
-def pull_requests(repo):
-    query = """query($org: String!, $repo: String!, $cursor: String) {
-      repository(owner: $org, name: $repo) {
-        pullRequests(first: 100, after: $cursor) {
-          nodes { id number state url }
-          pageInfo { hasNextPage endCursor }
-        }
-      }
-    }"""
-    return list(paginate(query, ["repository", "pullRequests"], org=ORG, repo=repo))
-
-
 def board_items():
     query = """query($project: ID!, $cursor: String) {
       node(id: $project) {
@@ -151,14 +139,12 @@ def main(argv):
 
     missing = []
     for repo in repos:
-        found = issues(repo) + (pull_requests(repo) if include_prs else [])
-        for node in found:
+        for node in issues(repo):
             if node["id"] not in on_board:
                 missing.append(node)
     print(f"{len(missing)} items missing from the board")
 
     for node in missing:
-        # A merged pull request counts as closed, so only OPEN is Todo.
         status = STATUS_TODO if node["state"] == "OPEN" else STATUS_DONE
         label = "Todo" if status == STATUS_TODO else "Done"
         if dry_run:
