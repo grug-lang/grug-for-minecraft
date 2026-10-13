@@ -128,25 +128,21 @@
 				{
 					"what": "The wooden pipe renders as a cube instead of a centre with arms.",
 					"why": "The block-entity rendering hook draws a block's own geometry, but only on a1.1.2_01-ornithe so far, and the pipe does not use it yet.",
-					"status": "open",
 					"tracking_issue": 102
 				},
 				{
 					"what": "The wooden pipe moves items one slot at a time instead of via travelling item entities.",
 					"why": "The port starts with the observable chest-to-chest behaviour; the reference routes through a connection matrix.",
-					"status": "open",
 					"tracking_issue": 339
 				},
 				{
 					"what": "The wooden pipe chooses its extraction side automatically instead of storing it in the block's metadata.",
 					"why": "The port has no block metadata access or wrench yet; the reference stores the side in the pipe's metadata and cycles it with a wrench (PipeLogicWood.switchSource).",
-					"status": "open",
 					"tracking_issue": 131
 				},
 				{
 					"what": "Which slots of an inventory another block may use is a slot range the block entity declares, rather than the reference's side-aware ISpecialInventory.",
 					"why": "The reference asks the neighbour inventory itself, per side and per item (ISpecialInventory.addItem and extractItem). grug exports can only be called by the host and cannot return a value, so the rule is declared to the host instead and read back with is_slot_extractable.",
-					"status": "open",
 					"tracking_issue": 340
 				}
 			]

@@ -477,7 +477,6 @@
             "required": [
                 "what",
                 "why",
-                "status",
                 "tracking_issue"
             ],
             "additionalProperties": false,
@@ -490,16 +489,8 @@
                     "type": "string",
                     "minLength": 1
                 },
-                "status": {
-                    "enum": [
-                        "open",
-                        "accepted",
-                        "wontfix",
-                        "fixed"
-                    ]
-                },
                 "tracking_issue": {
-                    "description": "The number of the issue in this repository that tracks resolving or deciding this deviation, so about.json and the issue point at each other.",
+                    "description": "The number of the issue in this repository that tracks resolving or deciding this deviation, so about.json and the issue point at each other. The issue holds the deviation's state: a deviation is listed while it is a difference from the reference, and deleted once it is fixed.",
                     "type": "integer",
                     "minimum": 1
                 }
