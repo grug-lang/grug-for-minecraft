@@ -1,0 +1,32 @@
+name: Sync Issues Board
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-issues-board
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # PROJECT_BOARD_TOKEN is a fine-grained token, so it expires. An expired one makes the first
+      # GraphQL call fail with a 401, the script exits non-zero and the run goes red.
+      - name: Add missing issues to the board
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_BOARD_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "PROJECT_BOARD_TOKEN is not set" >&2
+            exit 1
+          fi
+          python3 .github/scripts/sync-issues-board.py
