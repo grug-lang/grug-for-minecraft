@@ -682,9 +682,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * finishes on a worker thread leaves the queues empty between two frames, and the frame that
      * uploads and draws its output has not been drawn yet, so a capture taken then would read the
      * frame from before the compile. See #257.
+     *
+     * <p>A client resource reload that is waiting to start or has not finished keeps this false:
+     * the render thread spends it stitching atlases instead of processing what the server sent, so
+     * frames drawn meanwhile end idle before the client has seen a test's own setup, and a settled
+     * answer built from them describes a world that is not there yet. See #328.
      */
     private static boolean clientSettled(Minecraft minecraft) {
-        return !minecraft.level.getChunkSource().getLightEngine().hasLightWork()
+        return !GrugModLoader.isReloading()
+                && !minecraft.level.getChunkSource().getLightEngine().hasLightWork()
                 && RENDER_SETTLE.settled();
     }
 

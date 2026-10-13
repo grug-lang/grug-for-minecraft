@@ -85,6 +85,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Mod(GrugModLoader.MODID)
 public class GrugModLoader {
@@ -152,6 +153,23 @@ public class GrugModLoader {
     private static final Deque<String[]> reloadBatches = new ArrayDeque<>();
 
     private static final Deque<String[]> appliedReloadBatches = new ArrayDeque<>();
+
+    /**
+     * Reloads the client has started and not yet reported finished. Raised where a reload is
+     * started and lowered where its finish is reported, so it covers the whole reload, including
+     * the render-tick wait between its apply stage and the report. Read from the test thread.
+     */
+    private static final AtomicInteger reloadsOutstanding = new AtomicInteger();
+
+    /**
+     * Whether a resource reload is waiting to start or has not finished, so a frame drawn now is
+     * not one a test can settle on: the render thread spends the reload stitching atlases instead
+     * of processing what the server sent, and frames drawn meanwhile end idle because the client
+     * has not yet seen the test's own setup. See #328.
+     */
+    public static boolean isReloading() {
+        return reloadClientResources || reloadsOutstanding.get() > 0;
+    }
 
     /**
      * Called by {@link GrugReloadListener} as its reload starts; empty when no batch was queued.
@@ -592,6 +610,7 @@ public class GrugModLoader {
             while (!GrugModLoader.appliedReloadBatches.isEmpty()) {
                 GrugModsWatcher.noteLoaderReloadFinished(
                         GrugModLoader.appliedReloadBatches.pollFirst());
+                GrugModLoader.reloadsOutstanding.decrementAndGet();
             }
         }
 
@@ -707,6 +726,7 @@ public class GrugModLoader {
                     // Trigger the reload and immediately clear the LoadingOverlay it creates. The
                     // overlay is what would complete the returned future, so the listener is the
                     // finish signal rather than that future.
+                    GrugModLoader.reloadsOutstanding.incrementAndGet();
                     GrugModLoader.reloadBatches.addLast(GrugModsWatcher.takePendingReloadPaths());
                     mc.reloadResourcePacks();
                     mc.setOverlay(null);
