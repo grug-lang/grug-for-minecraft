@@ -128,11 +128,7 @@ def main(argv):
     else:
         existing = board_items()
     on_board = {item["id"] for item in existing}
-    # Pull requests are synced only while the board already holds some, so the board keeps its shape.
-    include_prs = any(item["type"] == "PullRequest" for item in existing)
-    print(
-        f"board holds {len(existing)} items, pull requests {'included' if include_prs else 'left out'}"
-    )
+    print(f"board holds {len(existing)} items")
 
     repos = repositories()
     print(f"{len(repos)} public non-archived repositories: {', '.join(repos)}")
