@@ -664,6 +664,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isLoaderReloading() {
+        return GrugModLoader.isReloading();
+    }
+
+    @Override
     public void forgetSettledFrames() {
         RENDER_SETTLE.reset();
     }

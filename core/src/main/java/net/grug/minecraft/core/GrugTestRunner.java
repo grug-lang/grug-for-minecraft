@@ -75,6 +75,14 @@ public class GrugTestRunner {
 
         /** Sweeps the dropped items out of the test area, in the tick a test ends. See #323. */
         void sweepItems();
+
+        /**
+         * Whether the loader is still reloading resources, so the runner holds the next test back
+         * until it is done. See #328.
+         */
+        default boolean loaderReloading() {
+            return false;
+        }
     }
 
     /** The builder of a runner with no game: there is no room and no item to sweep. */
@@ -134,6 +142,11 @@ public class GrugTestRunner {
                     @Override
                     public void sweepItems() {
                         GrugCore.getAdapter().sweepTestItems();
+                    }
+
+                    @Override
+                    public boolean loaderReloading() {
+                        return GrugCore.getAdapter().isLoaderReloading();
                     }
                 },
                 repeatsFromEnv());
@@ -251,6 +264,16 @@ public class GrugTestRunner {
      */
     public void tick(Object player) {
         if (finished) return;
+
+        // A reload that a test late in a pass started is still running when the next pass starts,
+        // and it keeps the client from processing what the server sent for seconds. A test that
+        // begins inside it sets up a room the client has not seen and looks at a client that is
+        // behind, so no test starts until the loader says the reload is over. See #328.
+        if (currentEntityHandle == 0
+                && nextTestIndex < tests.size()
+                && boxBuilder.loaderReloading()) {
+            return;
+        }
 
         if (currentEntityHandle == 0 && !startNextTest()) {
             // Nothing left to run.

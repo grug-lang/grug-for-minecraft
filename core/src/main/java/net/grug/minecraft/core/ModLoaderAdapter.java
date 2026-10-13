@@ -305,6 +305,17 @@ public interface ModLoaderAdapter {
      */
     void sweepTestItems();
 
+    /**
+     * Whether the loader has a resource reload waiting to start or running, which the runner waits
+     * out before it starts a test. The reload keeps the client from processing what the server
+     * sends while it runs, so a test that starts inside one looks at a client that has not caught
+     * up with the test's own first tick. Only 1.20.6 reloads resources on the client at runtime
+     * without pausing the game, so every other loader keeps the default. See #328.
+     */
+    default boolean isLoaderReloading() {
+        return false;
+    }
+
     void useBlockForTest(Object levelObj, double x, double y, double z);
 
     /**
