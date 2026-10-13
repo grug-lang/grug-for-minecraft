@@ -652,6 +652,39 @@ class GrugTestRunnerTest {
         }
     }
 
+    @Test
+    void startsNoTestWhileTheLoaderIsReloading() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+        ops.pathsAre(files);
+        boolean[] reloading = {true};
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {}
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public boolean loaderReloading() {
+                                return reloading[0];
+                            }
+                        },
+                        1);
+        String held = capture(() -> runner.tick(null));
+        assertFalse(held.contains("Executing test"), held);
+
+        reloading[0] = false;
+        String started = capture(() -> runner.tick(null));
+        assertTrue(started.contains("Executing test"), started);
+    }
+
     private static List<String> runWithSweepLog(FakeOps ops, Map<String, Long> files) {
         List<String> log = new ArrayList<>();
         ops.pathsAre(files);
