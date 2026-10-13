@@ -2,7 +2,7 @@
 """Tests the hand-off between `core` and the four loaders that run a Gradle wrapper of their own.
 
 Those loaders cannot be projects of the root build, because the root build is on Gradle 8.14 and
-they are on 9.5.1, so `core` publishes itself and they resolve it. The change this guards took that
+they are on 9.8.0, so `core` publishes itself and they resolve it. The change this guards took that
 from the shared ~/.m2 to build/maven inside the checkout and stamped the version with the commit,
 and the failure it replaces was silent: a loader that resolves a core from another worktree compiles,
 runs, and fails later somewhere else, so a branch looks broken when it is not. The stamp also carries
@@ -17,7 +17,7 @@ mavenLocal passes every Gradle run in here and nothing else in CI would notice, 
 checkout and a shared slot looks correct to it.
 
 The runs use the root build's Gradle, because that is the wrapper a checkout already has. The
-loaders resolve on 9.5.1, and both were measured to re-read a local repository's modules on every
+loaders resolve on 9.8.0, and both were measured to re-read a local repository's modules on every
 build rather than serve them out of ~/.gradle, which is what the republish test is about.
 """
 

@@ -3,7 +3,7 @@ import java.util.Properties
 
 // The hand-off between `core` and the four loaders that run a Gradle wrapper of their own.
 //
-// The root build is on Gradle 8.14 and those loaders are on 9.5.1, which is why they cannot be one
+// The root build is on Gradle 8.14 and those loaders are on 9.8.0, which is why they cannot be one
 // composite build: `core` publishes itself and the loaders resolve it instead. Both halves read the
 // coordinate from here, so a loader cannot ask for a version `core` does not publish.
 //
