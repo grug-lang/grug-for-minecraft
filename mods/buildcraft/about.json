@@ -127,7 +127,7 @@
 			"deviations": [
 				{
 					"what": "The wooden pipe renders as a cube instead of a centre with arms.",
-					"why": "The block-entity rendering hook draws a block's own geometry, but only on a1.1.2_01-ornithe so far, and the pipe does not use it yet.",
+					"why": "The block-entity rendering hook (set_custom_render) draws a block's own geometry on all five loaders, but the pipe does not use it yet, so it still draws as its cube.",
 					"tracking_issue": 102
 				},
 				{
