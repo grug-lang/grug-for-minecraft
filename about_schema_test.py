@@ -146,13 +146,28 @@ class RecreationSchemaTest(unittest.TestCase):
     def test_an_exact_recreation_with_a_deviation_is_rejected(self):
         entry = base_entry()
         entry["fidelity"] = "exact"
-        entry["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
+        entry["deviations"] = [{"what": "x", "why": "y", "status": "accepted", "tracking_issue": 1}]
         self.assertInvalid(self.mod_with(entry), "exact recreation has no deviations")
 
     def test_a_behavioral_recreation_with_a_deviation_is_valid(self):
         entry = base_entry()
-        entry["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
+        entry["deviations"] = [{"what": "x", "why": "y", "status": "accepted", "tracking_issue": 1}]
         self.assertValid(self.mod_with(entry))
+
+    def test_a_deviation_without_a_tracking_issue_is_rejected(self):
+        entry = base_entry()
+        entry["deviations"] = [{"what": "x", "why": "y", "status": "accepted"}]
+        self.assertInvalid(self.mod_with(entry), "'tracking_issue' is a required property")
+
+    def test_a_deviation_whose_tracking_issue_is_not_an_integer_is_rejected(self):
+        entry = base_entry()
+        entry["deviations"] = [{"what": "x", "why": "y", "status": "open", "tracking_issue": "#1"}]
+        self.assertInvalid(self.mod_with(entry), "is not of type 'integer'")
+
+    def test_a_deviation_whose_tracking_issue_is_zero_is_rejected(self):
+        entry = base_entry()
+        entry["deviations"] = [{"what": "x", "why": "y", "status": "open", "tracking_issue": 0}]
+        self.assertInvalid(self.mod_with(entry), "less than the minimum of 1")
 
     def test_a_mirror_without_redistribution_rights_is_rejected(self):
         entry = base_entry()
