@@ -6,9 +6,12 @@ import net.grug.minecraft.forge125.item.GrugItem;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugBlockFaces;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugModTreeDefect;
+import net.grug.minecraft.grug.GrugModels;
 import net.grug.minecraft.grug.GrugResourceIndex;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
@@ -151,25 +154,64 @@ public final class GrugBlocks {
     }
 
     /**
-     * Gives {@code block} the terrain slot of the texture its mod ships, if it ships one.
+     * Gives {@code block} the terrain slots of the textures it draws with.
      *
-     * <p>grug has no host function for naming a block's texture, so a block names one by
-     * convention: the first of {@code assets/grug/textures/block/<name>.png} and its {@code _top},
-     * {@code _side} and {@code _front} variants that some mod ships, which is the same search the
-     * Ornithe loaders make for their flat fallback name. 1.2.5 draws every face of a block from one
-     * sprite, so the first one found is the block's texture.
+     * <p>The model comes first, as it does on every other loader: when the block's model names its
+     * faces' textures, each face gets the slot of the texture its model names, and the custom
+     * geometry is drawn from those per face. Only when the block has no such model does it fall
+     * back to the by-name convention, the first of {@code assets/grug/textures/block/<name>.png}
+     * and its {@code _top}, {@code _side} and {@code _front} variants that some mod ships, which is
+     * the same search the Ornithe loaders make for their flat fallback name. 1.2.5 draws a block
+     * with no face textures from one sprite, so the first one found is the block's texture.
      *
-     * <p>A block no mod ships a texture for is left alone rather than given a slot of its own: FML
-     * has 32 terrain slots for the whole pack, so a slot spent on a block with nothing to draw is
-     * one a mod that has a texture cannot have. It keeps the sprite {@code Block} gave it, which is
-     * what a 1.2.5 block registered without a texture renders from anyway.
+     * <p>A block with neither a model texture nor a by-name texture is left alone rather than given
+     * a slot of its own: FML has 32 terrain slots for the whole pack, so a slot spent on a block
+     * with nothing to draw is one a mod that has a texture cannot have. It keeps the sprite {@code
+     * Block} gave it, which is what a 1.2.5 block registered without a texture renders from anyway.
      */
     private static void assignBlockSprite(GrugBlock block, String cleanName) {
+        File modsDir = GrugCore.getAdapter().getGrugModsDirectory();
+        String[] faces = GrugBlockFaces.resolve(modsDir, cleanName);
+        if (faces != null) {
+            int[] faceSprites = new int[faces.length];
+            for (int face = 0; face < faces.length; face++) {
+                faceSprites[face] = modelFaceSprite(block, modsDir, cleanName, faces[face]);
+            }
+            block.faceSprites = faceSprites;
+            // Index 2 is the north face, the one the block's own sprite stands for elsewhere.
+            block.sprite = faceSprites[2];
+            return;
+        }
+
         String path = findTexture("block", cleanName);
         if (path == null) return;
 
-        int sprite = claimSprite(BLOCK_TEXTURES, TERRAIN_ATLAS, path);
-        block.sprite = sprite;
+        block.sprite = claimSprite(BLOCK_TEXTURES, TERRAIN_ATLAS, path);
+    }
+
+    /**
+     * The slot of the texture a block's model names for one face, or the block's own sprite when no
+     * mod ships that texture.
+     *
+     * <p>A model naming a texture no mod ships is a mod-tree defect: the upload would find no file
+     * for the slot, so the slot is not claimed at all. It is reported here, once per face that
+     * names it, and the face keeps the block's own sprite.
+     */
+    private static int modelFaceSprite(
+            GrugBlock block, File modsDir, String cleanName, String textureRef) {
+        String path = GrugModels.texturePath(textureRef);
+        if (GrugResourceIndex.findDirectResource(modsDir, path) == null) {
+            GrugModTreeDefect.report(
+                    "Block '"
+                            + cleanName
+                            + "' names the texture "
+                            + textureRef
+                            + ", which no mod ships at "
+                            + path
+                            + ".");
+            return block.sprite;
+        }
+        return claimSprite(BLOCK_TEXTURES, TERRAIN_ATLAS, path);
     }
 
     /**
