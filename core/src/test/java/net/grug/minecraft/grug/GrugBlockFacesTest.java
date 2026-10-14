@@ -149,6 +149,16 @@ class GrugBlockFacesTest {
     }
 
     @Test
+    void aParentThatIsAnObjectIsReported() throws IOException {
+        model("block", "{\"parent\": {\"name\": \"minecraft:block/cube_all\"}}");
+
+        assertNull(resolve("block"));
+        List<String> reported = reported();
+        assertEquals(1, reported.size(), reported.toString());
+        assertTrue(reported.get(0).contains("'parent' that is not a string"), reported.get(0));
+    }
+
+    @Test
     void aTexturesValueThatIsNotAnObjectIsIgnored() throws IOException {
         model("block", "{\"parent\": \"minecraft:block/cube_all\", \"textures\": 3}");
 
