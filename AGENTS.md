@@ -280,12 +280,15 @@ the branch after a rebase: the test count changes. Take the baseline from
 
 ## grug language rules that cost runs
 
-- The [grug README](https://raw.githubusercontent.com/grug-lang/grug/refs/heads/main/README.md) is
-  authoritative on what the language is and is not. Its advanced example shows virtually every
-  feature grug has, so a feature missing from that example does not exist. Its Links section names
-  the other implementations and `grug-tests`, the official suite, and its How? section links
-  `grug-tests`' grammar and the `mod_api.json` schema. Fetch the raw URL rather than a github.com
-  one: it is the same text without the HTML around it.
+- [grug-tests](https://github.com/grug-lang/grug-tests) is grug's spec, and is authoritative on
+  what is and is not valid grug. Its
+  [grammar](https://raw.githubusercontent.com/grug-lang/grug-tests/refs/heads/main/grug_grammar.lark)
+  lists every operator and construct, and the cases under `tests/ok` and `tests/err` settle the
+  edge cases, one directory per test. The
+  [grug README](https://raw.githubusercontent.com/grug-lang/grug/refs/heads/main/README.md) is the
+  overview: its advanced example shows the language's features, but not every operator, so check
+  the grammar before concluding something is missing, such as `%`, which grug does not have. Fetch
+  raw URLs rather than github.com ones: they are the same text without the HTML around it.
 - A call's arguments must stay on one line.
 - Variables are declared at member scope. Helpers are `local` functions and must be defined
   after the first place they are called.
