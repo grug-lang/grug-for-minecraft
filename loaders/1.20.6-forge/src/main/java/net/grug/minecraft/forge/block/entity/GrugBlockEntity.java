@@ -7,10 +7,17 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
+import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.Container;
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.SimpleContainer;
@@ -21,9 +28,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class GrugBlockEntity extends BlockEntity implements Container {
+public class GrugBlockEntity extends BlockEntity implements Container, GrugSavedNumbers.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
@@ -303,6 +312,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
+        readSavedNumbers(tag);
         if (tag.contains("GrugInvSize")) {
             stacks = NonNullList.withSize(tag.getInt("GrugInvSize"), ItemStack.EMPTY);
             sized = true;
@@ -321,6 +331,7 @@ public class GrugBlockEntity extends BlockEntity implements Container {
     @Override
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
+        writeSavedNumbers(tag);
         ensureSized();
         tag.putInt("GrugInvSize", stacks.size());
         ContainerHelper.saveAllItems(tag, stacks, registries);
@@ -329,5 +340,65 @@ public class GrugBlockEntity extends BlockEntity implements Container {
         if (!resultStack.isEmpty()) {
             tag.put("GrugResult", resultStack.save(registries));
         }
+    }
+
+    /** A saved number changed, so the chunk has to be saved with it. */
+    @Override
+    public void markSavedNumbersChanged() {
+        setChanged();
+    }
+
+    /**
+     * What the client's copy of this block entity is sent when its chunk is, and on every redraw:
+     * the same data the game saves, because the saved numbers in it are what the client's render
+     * function draws from.
+     */
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        return saveWithoutMetadata(registries);
+    }
+
+    /** The packet a redraw sends the client, carrying {@link #getUpdateTag}. */
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    /**
+     * The client's copy reads the data the server sent, then has its block meshed again, since the
+     * packet was sent because what the render function draws has changed. The block itself did not
+     * change, so nothing else would mesh it again.
+     */
+    @Override
+    public void onDataPacket(
+            Connection connection,
+            ClientboundBlockEntityDataPacket packet,
+            HolderLookup.Provider registries) {
+        super.onDataPacket(connection, packet, registries);
+        if (level != null && level.isClientSide()) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 0);
+        }
+    }
+
+    /** The saved numbers, as a list of name and value pairs, as the older loaders write them. */
+    private void writeSavedNumbers(CompoundTag tag) {
+        ListTag list = new ListTag();
+        for (Map.Entry<String, Double> entry : GrugSavedNumbers.snapshot(this).entrySet()) {
+            CompoundTag number = new CompoundTag();
+            number.putString("Name", entry.getKey());
+            number.putDouble("Value", entry.getValue());
+            list.add(number);
+        }
+        tag.put("GrugNumbers", list);
+    }
+
+    private void readSavedNumbers(CompoundTag tag) {
+        Map<String, Double> numbers = new HashMap<>();
+        ListTag list = tag.getList("GrugNumbers", Tag.TAG_COMPOUND);
+        for (int i = 0; i < list.size(); i++) {
+            CompoundTag number = list.getCompound(i);
+            numbers.put(number.getString("Name"), number.getDouble("Value"));
+        }
+        GrugSavedNumbers.replace(this, numbers);
     }
 }

@@ -81,4 +81,16 @@ public final class GrugTestState {
         }
         return GrugModFidelity.EXACT.equals(testFidelityOverride);
     }
+
+    /**
+     * Why {@code ticks} is not a number of ticks Test.tick_block_entity can run, or null when it is
+     * one. Only a whole number of 0 or more means anything, and anything else is reported rather
+     * than rounded, because a test asking for 2.5 ticks has a bug that rounding would hide.
+     */
+    public static String checkTickCount(double ticks) {
+        if (ticks >= 0 && ticks == Math.floor(ticks) && !Double.isInfinite(ticks)) {
+            return null;
+        }
+        return "The number of ticks has to be a whole number of 0 or more, and was " + ticks + ".";
+    }
 }

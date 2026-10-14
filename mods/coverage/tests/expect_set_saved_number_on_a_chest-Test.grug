@@ -1,0 +1,17 @@
+# set_saved_number saves a number into the block entity's saved data, which only a grug block entity
+# writes, so asking a vanilla chest must report an error rather than answer for it.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(chest_opt.has(), "The chest should have a block entity.")
+    chest: BlockEntity = chest_opt.unwrap()
+
+    Test.expect_error("Only a grug block entity saves numbers")
+    set_saved_number(chest, "energy", 1)
+}

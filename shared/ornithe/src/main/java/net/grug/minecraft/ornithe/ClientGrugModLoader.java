@@ -4,6 +4,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
+import net.grug.minecraft.ornithe.client.GrugModelRenderer;
 import net.grug.minecraft.ornithe.client.GrugStaticTexture;
 import net.grug.minecraft.ornithe.resource.GrugResourcePackProvider;
 import net.minecraft.client.Minecraft;
@@ -93,6 +94,9 @@ public class ClientGrugModLoader implements ClientModInitializer {
                                 upload(mc.textureManager, ITEMS, spriteId, is);
                             }
                         }
+
+                        // The textures draw_model faces bind themselves, outside the atlases.
+                        GrugModelRenderer.reload();
                     }
                 });
 

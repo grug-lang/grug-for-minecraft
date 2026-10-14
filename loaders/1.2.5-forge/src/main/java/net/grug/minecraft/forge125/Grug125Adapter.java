@@ -830,6 +830,19 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void tickBlockEntity(Object blockEntityObj) {
+        ((GrugBlockEntity) blockEntityObj).updateEntity();
+    }
+
+    @Override
+    public void redraw(Object blockEntityObj) {
+        TileEntity be = (TileEntity) blockEntityObj;
+        // The world tells its renderers that the block changed, which marks the chunk around it for
+        // compiling again, the same as a block being placed there.
+        be.worldObj.markBlockNeedsUpdate(be.xCoord, be.yCoord, be.zCoord);
+    }
+
+    @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
         TileEntity be = (TileEntity) blockEntityObj;
         return new BlockPos(be.xCoord, be.yCoord, be.zCoord);

@@ -70,9 +70,9 @@ class GrugBlockGeometryTest {
         // of
         // the guard a JVM test can reach, since a real handle needs the native side. Passing it on
         // would hand the native code a null entity pointer, so draw has to notice it is zero.
-        List<GrugBox> boxes = GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID, A_BLOCK);
+        GrugGeometry geometry = GrugBlockGeometry.draw(0, Grug.INVALID_GRUG_EXPORT_FN_ID, A_BLOCK);
 
-        assertTrue(boxes.isEmpty(), "There is nothing to draw, so no boxes come back.");
+        assertTrue(geometry.isEmpty(), "There is nothing to draw, so no geometry comes back.");
 
         List<String> reports = drainReports();
         assertEquals(1, reports.size(), "Exactly one report, naming what the author has to fix.");

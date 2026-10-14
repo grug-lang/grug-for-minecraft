@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.stationapi.client.GrugModelRenderer;
 import net.grug.minecraft.stationapi.events.init.ClientInitListener;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.minecraft.client.Minecraft;
@@ -315,6 +316,9 @@ public class GrugClientHooks {
         }
 
         if (updatedResources.length > 0) {
+            // The textures draw_model faces bind themselves live outside the atlas the asset reload
+            // rebuilds, so they are read again here.
+            GrugModelRenderer.reload();
             hotReloadBatch.addAll(Arrays.asList(GrugModsWatcher.takePendingReloadPaths()));
             // Bypass StationAPI's ReloadScreenManager entirely to avoid the blue overlay
             // and Escape bug.

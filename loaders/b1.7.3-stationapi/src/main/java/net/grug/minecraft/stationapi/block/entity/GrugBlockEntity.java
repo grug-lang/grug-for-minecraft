@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
+import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
@@ -16,9 +17,11 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class GrugBlockEntity extends BlockEntity implements Inventory {
+public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSavedNumbers.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
@@ -301,9 +304,16 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         super.markDirty();
     }
 
+    /** A saved number changed, so the chunk has to be saved with it. */
+    @Override
+    public void markSavedNumbersChanged() {
+        markDirty();
+    }
+
     @Override
     public void readNbt(NbtCompound nbt) {
         super.readNbt(nbt);
+        readSavedNumbers(nbt);
 
         // Recover the size from NBT before attempting to load items,
         // completely bypassing the world == null issue.
@@ -331,6 +341,7 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
     @Override
     public void writeNbt(NbtCompound nbt) {
         super.writeNbt(nbt);
+        writeSavedNumbers(nbt);
         ensureSized();
 
         // Save the size so readNbt doesn't need the world object.
@@ -351,5 +362,30 @@ public class GrugBlockEntity extends BlockEntity implements Inventory {
         if (resultStack != null) {
             nbt.put("GrugResult", resultStack.writeNbt(new NbtCompound()));
         }
+    }
+
+    /**
+     * The saved numbers, as a list of name and value pairs, the same layout the Ornithe loaders
+     * write.
+     */
+    private void writeSavedNumbers(NbtCompound nbt) {
+        NbtList list = new NbtList();
+        for (Map.Entry<String, Double> entry : GrugSavedNumbers.snapshot(this).entrySet()) {
+            NbtCompound number = new NbtCompound();
+            number.putString("Name", entry.getKey());
+            number.putDouble("Value", entry.getValue());
+            list.add(number);
+        }
+        nbt.put("GrugNumbers", list);
+    }
+
+    private void readSavedNumbers(NbtCompound nbt) {
+        Map<String, Double> numbers = new HashMap<>();
+        NbtList list = nbt.getList("GrugNumbers");
+        for (int i = 0; i < list.size(); i++) {
+            NbtCompound number = (NbtCompound) list.get(i);
+            numbers.put(number.getString("Name"), number.getDouble("Value"));
+        }
+        GrugSavedNumbers.replace(this, numbers);
     }
 }

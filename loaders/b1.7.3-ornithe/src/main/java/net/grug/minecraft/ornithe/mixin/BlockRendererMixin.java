@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe.mixin;
 
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
+import net.grug.minecraft.ornithe.client.GrugModelRenderer;
 import net.minecraft.block.Block;
 import net.minecraft.client.render.block.BlockRenderer;
 import net.minecraft.world.WorldView;
@@ -9,6 +10,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -42,6 +44,17 @@ public class BlockRendererMixin {
             // True, not false: the block did draw geometry, so the chunk is not empty. Returning
             // false would let the chunk compile skip the display list that now holds the shape.
             cir.setReturnValue(true);
+        }
+    }
+
+    /**
+     * Draws a custom-rendered grug block's item form from its item model, in the inventory, in the
+     * hand and on the ground, which all draw a block item through here.
+     */
+    @Inject(method = "renderAsItem", at = @At("HEAD"), cancellable = true)
+    private void grug$customItem(Block block, int metadata, float brightness, CallbackInfo ci) {
+        if (GrugModelRenderer.drawItemForm(block)) {
+            ci.cancel();
         }
     }
 }

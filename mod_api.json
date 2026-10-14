@@ -215,6 +215,23 @@
 						}
 					]
 				},
+				"tick_block_entity": {
+					"description": "Test only: runs a grug block entity's tick function the given number of times in a row, within the test's current tick, so a test can reach a state that takes the game minutes to build without waiting for them. The ticks have to be a whole number of 0 or more, and the block entity a grug one, or it is reported.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"set_mod_file_state": {
 					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it. The record of the original contents outlives the run, so a run that ends abruptly while a file is disturbed cannot leave that file unreadable for the next one.",
 					"parameters": [
@@ -1098,6 +1115,18 @@
 				}
 			]
 		},
+		"draw_model": {
+			"description": "Draws a block model JSON's elements as part of the geometry a block entity's render pass is building, each face with the texture the model names for it and at the texture coordinates its uv gives, the way the game draws that model from a blockstate. The model's parent chain is followed and its textures merged the way the game reads a model, so a model that only swaps one texture of its parent's is how one shape is drawn in several colours. Every loader draws from the same reading of the model, Alpha included, which has no model format of its own. Lit and face-culled the way the game lights every other block, with a face culled only when the model gives it a cullface. Only legal during a render pass, which only `render` opens. A model grug cannot draw as written is reported and not drawn: one that cannot be read or has no elements, a face whose texture key resolves to nothing, and an element or face rotated by anything other than 0 degrees, since drawing that unrotated would be a shape the model did not describe.",
+			"parameters": [
+				{
+					"name": "model",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".json"
+					}
+				}
+			]
+		},
 		"drop_inventory": {
 			"description": "Drops the inventory of a block entity into the world.",
 			"parameters": [
@@ -1370,6 +1399,26 @@
 				}
 			]
 		},
+		"get_saved_number": {
+			"description": "The number a block entity saved under a name with set_saved_number, or 0 when it never saved one, which is the default a fresh save answers too. Only a grug block entity saves numbers; asking any other block entity is reported.",
+			"return_type": {
+				"name": "number"
+			},
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "name",
+					"type": {
+						"name": "string"
+					}
+				}
+			]
+		},
 		"gui": {
 			"description": "Creates a new dynamic GUI layout using the specified background texture.",
 			"return_type": {
@@ -1572,6 +1621,17 @@
 				}
 			]
 		},
+		"redraw": {
+			"description": "Has the game build a block's geometry again, so a render function that draws from state the world does not know changed, such as a saved number, draws the new state. The game already rebuilds a block's geometry when a neighbouring block changes, so this is only for state the block entity keeps itself. A rebuild costs a chunk's worth of work, so call it when what render draws changes, not every tick. On a version whose client keeps its own copy of the block entity, this also sends that copy the block entity's saved numbers, since they are what the client's render function reads. Only a grug block entity has a render function; any other block entity is reported.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				}
+			]
+		},
 		"resource_location": {
 			"description": "Creates a new ResourceLocation.",
 			"return_type": {
@@ -1751,6 +1811,29 @@
 					"name": "material_name",
 					"type": {
 						"name": "string"
+					}
+				}
+			]
+		},
+		"set_saved_number": {
+			"description": "Saves a number under a name in a block entity's saved data, so it survives the block entity's chunk being unloaded and loaded again, which a member variable does not: the grug entity is created again then and its member scope starts over. Read it back with get_saved_number. Only a grug block entity saves numbers; any other block entity is reported, because a number that silently failed to persist would be lost with its chunk.",
+			"parameters": [
+				{
+					"name": "block_entity",
+					"type": {
+						"name": "BlockEntity"
+					}
+				},
+				{
+					"name": "name",
+					"type": {
+						"name": "string"
+					}
+				},
+				{
+					"name": "value",
+					"type": {
+						"name": "number"
 					}
 				}
 			]

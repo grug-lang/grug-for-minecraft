@@ -199,6 +199,7 @@ public class GrugClientHooks implements ITickHandler {
         // register into.
         if (minecraft.renderEngine != null) {
             GrugTextures.register(minecraft.renderEngine);
+            GrugItemRenderer.register();
         }
 
         if ("true".equals(System.getenv("GRUG_CI")) && !ciTestsRan && minecraft.thePlayer != null) {
@@ -270,7 +271,9 @@ public class GrugClientHooks implements ITickHandler {
             // on
             // the game's own per-tick upload.
             GrugTextures.reload();
-            // Both calls above finish their work before they return, so the reload is done here
+            // The textures draw_model faces bind themselves, outside the atlases.
+            GrugModelRenderer.reload(minecraft.renderEngine);
+            // The calls above finish their work before they return, so the reload is done here
             // and the tests' reload_count can rise.
             GrugModsWatcher.noteLoaderReloadFinished(reloaded);
         }

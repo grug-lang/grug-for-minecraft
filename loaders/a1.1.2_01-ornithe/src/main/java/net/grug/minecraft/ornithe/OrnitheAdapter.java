@@ -638,6 +638,19 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void tickBlockEntity(Object blockEntityObj) {
+        ((GrugBlockEntity) blockEntityObj).tick();
+    }
+
+    @Override
+    public void redraw(Object blockEntityObj) {
+        BlockEntity be = (BlockEntity) blockEntityObj;
+        // The world tells its renderers that the block changed, which marks the chunk around it for
+        // compiling again, the same as a block being placed there.
+        be.world.notifyBlockChanged(be.x, be.y, be.z);
+    }
+
+    @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
         return new BlockPos(be.x, be.y, be.z);

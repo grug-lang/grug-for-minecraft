@@ -8,7 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 /** Covers the bookkeeping around a block entity's render pass: recording, order and nesting. */
@@ -21,6 +25,64 @@ class GrugRenderPassTest {
         if (GrugRenderPass.isOpen()) {
             GrugRenderPass.close();
         }
+    }
+
+    @TempDir Path mods;
+
+    private String writeModel(String json) throws Exception {
+        Path file = mods.resolve("testmod/assets/grug/models/block/pass.json");
+        Files.createDirectories(file.getParent());
+        Files.write(file, json.getBytes(StandardCharsets.UTF_8));
+        GrugModels.clearCache();
+        return "testmod/assets/grug/models/block/pass.json";
+    }
+
+    @Test
+    void aModelOutsideAPassIsRefusedWithTheReasonTheCallerReports() throws Exception {
+        String path = writeModel("{}");
+
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), path)
+                        .contains("while a block entity's render() is drawing"));
+    }
+
+    @Test
+    void aModelsFacesAreRecordedBesideTheBoxes() throws Exception {
+        String path =
+                writeModel(
+                        "{\"textures\": {\"t\": \"grug:block/t\"}, \"elements\": [{\"from\": [0,"
+                                + " 0, 0], \"to\": [16, 16, 16], \"faces\": {\"up\": {\"texture\":"
+                                + " \"#t\"}}}]}");
+        GrugRenderPass.open();
+        GrugRenderPass.record(0, 0, 0, 1, 1, 1);
+
+        assertEquals(null, GrugRenderPass.recordModel(mods.toFile(), path));
+
+        GrugGeometry geometry = GrugRenderPass.close();
+        assertEquals(1, geometry.boxes().size());
+        assertEquals(1, geometry.quads().size());
+        assertFalse(geometry.isEmpty());
+    }
+
+    @Test
+    void aPassWithOnlyAModelIsNotEmpty() throws Exception {
+        String path =
+                writeModel(
+                        "{\"elements\": [{\"from\": [0, 0, 0], \"to\": [16, 16, 16], \"faces\":"
+                                + " {\"up\": {\"texture\": \"grug:block/t\"}}}]}");
+        GrugRenderPass.open();
+        GrugRenderPass.recordModel(mods.toFile(), path);
+
+        assertFalse(GrugRenderPass.close().isEmpty());
+    }
+
+    @Test
+    void aModelThatCannotBeDrawnRecordsNothingAndSaysWhy() throws Exception {
+        String path = writeModel("{}");
+        GrugRenderPass.open();
+
+        assertTrue(GrugRenderPass.recordModel(mods.toFile(), path).contains("no elements"));
+        assertTrue(GrugRenderPass.close().isEmpty());
     }
 
     @Test
@@ -135,21 +197,21 @@ class GrugRenderPassTest {
                 List.of(
                         new GrugBox(0, 0, 0, 1, 1, 1),
                         new GrugBox(0.5, 0.5, 0.5, 0.75, 0.75, 0.75)),
-                GrugRenderPass.close());
+                GrugRenderPass.close().boxes());
     }
 
     @Test
     void anEmptyPassReturnsNothing() {
         GrugRenderPass.open();
 
-        assertEquals(List.of(), GrugRenderPass.close());
+        assertEquals(List.of(), GrugRenderPass.close().boxes());
     }
 
     @Test
     void closingHandsTheBoxesOverRatherThanAliasingThePass() {
         GrugRenderPass.open();
         GrugRenderPass.record(0, 0, 0, 1, 1, 1);
-        List<GrugBox> first = GrugRenderPass.close();
+        List<GrugBox> first = GrugRenderPass.close().boxes();
 
         GrugRenderPass.open();
         GrugRenderPass.record(0.5, 0, 0, 1, 1, 1);

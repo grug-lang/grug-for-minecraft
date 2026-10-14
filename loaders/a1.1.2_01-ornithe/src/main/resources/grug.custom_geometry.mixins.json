@@ -4,7 +4,8 @@
   "package": "net.grug.minecraft.ornithe.mixin",
   "compatibilityLevel": "JAVA_17",
   "client": [
-    "BlockRendererMixin"
+    "BlockRendererMixin",
+    "ItemRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

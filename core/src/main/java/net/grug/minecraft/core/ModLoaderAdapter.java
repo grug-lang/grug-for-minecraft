@@ -256,6 +256,21 @@ public interface ModLoaderAdapter {
     void roundTripNbt(Object blockEntityObj);
 
     /**
+     * Runs a grug block entity's tick once, as the game would on its next tick, so a test can reach
+     * a state that takes thousands of ticks to build without waiting for them. Only legal on a grug
+     * block entity; {@code HostFunctions} checks that before calling.
+     */
+    void tickBlockEntity(Object blockEntityObj);
+
+    /**
+     * Has the game build a block's geometry again, so a render function that reads state the world
+     * does not know changed, such as a saved number, draws the new state. On a version whose client
+     * keeps its own copy of the block entity this also sends that copy the block entity's saved
+     * data, since that is what the client's render function reads.
+     */
+    void redraw(Object blockEntityObj);
+
+    /**
      * The position the test bands are measured from: {@link #testPlayer()} plus 3 on each loader,
      * because that is where the bands already sit in every test. Null when this side has no player,
      * which on a dedicated server means nobody has joined.

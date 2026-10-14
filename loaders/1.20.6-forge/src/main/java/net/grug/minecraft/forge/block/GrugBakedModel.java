@@ -6,6 +6,9 @@ import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugBox;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugGeometry;
+import net.grug.minecraft.grug.GrugQuad;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.FaceInfo;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -13,7 +16,9 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -124,14 +129,14 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
             RandomSource rand,
             ModelData data,
             @Nullable RenderType renderType) {
-        List<GrugBox> boxes;
+        GrugGeometry geometry;
         // Serialized with the other meshing workers: this is the first thread that can run a block
         // entity's init, and init moves process-global state around the call into the VM
         // (currentlyInitializingBlockEntity, fnEntities) that the state lock does not cover
         // between calls. The pass itself is already serialized by GrugBlockGeometry.draw; this
         // closes the window around it.
         synchronized (RENDER_LOCK) {
-            boxes =
+            geometry =
                     GrugBlockGeometry.draw(
                             blockEntity.getGrugEntityHandle(),
                             blockEntity.getRenderFnId(),
@@ -143,7 +148,7 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
             BlockPos neighbour = pos.relative(direction);
             boolean hidden = Block.shouldRenderFace(state, level, pos, direction, neighbour);
             Face face = face(state, direction, rand, data, renderType);
-            for (GrugBox box : boxes) {
+            for (GrugBox box : geometry.boxes()) {
                 // The game would hide the whole face of a full cube here. Hiding the box's face
                 // only when the box reaches this boundary is what keeps an inset arm visible
                 // against the neighbour, the same as Alpha's shape-per-box tesselation.
@@ -151,7 +156,66 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
                 quads.add(quad(box, direction, face));
             }
         }
+        for (GrugQuad modelQuad : geometry.quads()) {
+            // A model face is hidden only when the model gave it a cullface, as the game's own
+            // baked models are.
+            if (modelQuad.cullSide() >= 0) {
+                Direction cull = DIRECTIONS[modelQuad.cullSide()];
+                if (!Block.shouldRenderFace(state, level, pos, cull, pos.relative(cull))) {
+                    continue;
+                }
+            }
+            quads.add(modelQuad(modelQuad));
+        }
         return quads;
+    }
+
+    /** Directions in grug's side order: 0 down, 1 up, 2 north, 3 south, 4 west, 5 east. */
+    private static final Direction[] DIRECTIONS = {
+        Direction.DOWN,
+        Direction.UP,
+        Direction.NORTH,
+        Direction.SOUTH,
+        Direction.WEST,
+        Direction.EAST
+    };
+
+    /**
+     * One face draw_model recorded, as a quad from the block atlas.
+     *
+     * <p>The texture is a sprite of the block atlas, which stitches every texture under a
+     * namespace's {@code textures/block}, so the face's texture coordinates, which are fractions of
+     * the texture, are mapped into the sprite. The corners are already in the order the game's
+     * baker gives them, since core's GrugModels reads the model the way the baker does.
+     */
+    private static BakedQuad modelQuad(GrugQuad modelQuad) {
+        TextureAtlasSprite sprite =
+                Minecraft.getInstance()
+                        .getModelManager()
+                        .getAtlas(InventoryMenu.BLOCK_ATLAS)
+                        .getSprite(new ResourceLocation(modelQuad.texture()));
+        Direction direction = DIRECTIONS[modelQuad.side()];
+
+        QuadBakingVertexConsumer.Buffered baker = new QuadBakingVertexConsumer.Buffered();
+        baker.setDirection(direction);
+        baker.setSprite(sprite);
+        baker.setTintIndex(-1);
+        baker.setShade(true);
+        baker.setHasAmbientOcclusion(true);
+        for (int corner = 0; corner < 4; corner++) {
+            baker.vertex(
+                            (float) modelQuad.x(corner),
+                            (float) modelQuad.y(corner),
+                            (float) modelQuad.z(corner))
+                    .color(255, 255, 255, 255)
+                    .uv(
+                            sprite.getU((float) modelQuad.u(corner)),
+                            sprite.getV((float) modelQuad.v(corner)))
+                    .uv2(0, 0)
+                    .normal(direction.getStepX(), direction.getStepY(), direction.getStepZ())
+                    .endVertex();
+        }
+        return baker.getQuad();
     }
 
     /** The block and where it is, for a report to name. */
