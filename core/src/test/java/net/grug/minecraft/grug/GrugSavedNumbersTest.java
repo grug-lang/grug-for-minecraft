@@ -86,6 +86,8 @@ class GrugSavedNumbersTest {
     void onlyAWholeNonNegativeTickCountIsAccepted() {
         assertEquals(null, GrugTestState.checkTickCount(0));
         assertEquals(null, GrugTestState.checkTickCount(5020));
+        assertEquals(null, GrugTestState.checkTickCount(Integer.MAX_VALUE));
+        assertTrue(GrugTestState.checkTickCount(Integer.MAX_VALUE + 1.0).contains("2.147483648E9"));
         assertTrue(GrugTestState.checkTickCount(-1).contains("-1.0"));
         assertTrue(GrugTestState.checkTickCount(2.5).contains("2.5"));
         assertTrue(GrugTestState.checkTickCount(Double.NaN).contains("NaN"));
