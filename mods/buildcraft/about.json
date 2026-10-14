@@ -134,6 +134,16 @@
 					"what": "The redstone engine always faces up, instead of turning to face a power receptor when placed and rotating with a wrench.",
 					"why": "TileEngine saves its orientation in its NBT and RenderEngine draws the engine along it, but the port has no receptor to face and no wrench yet, and its model is drawn upright only.",
 					"tracking_issue": 368
+				},
+				{
+					"what": "The redstone engine's faces are lit from the block each face looks towards, with the game's per-side shade, instead of drawn with GL lighting off.",
+					"why": "RenderEngine disables GL lighting while it draws the engine, and the engine's block is not opaque, but a grug block is opaque, so its own position is dark and its faces borrow the neighbour's light. The exact brightness 2.2.14 draws with has not been worked out yet.",
+					"tracking_issue": 385
+				},
+				{
+					"what": "The redstone engine's item is drawn with the piston plate at rest, and its drawing was never measured against 2.2.14's inventory render.",
+					"why": "RenderEngine.inventoryRender draws the blue trunk with the plate at progress 0.25, and Alpha's GUI needed the model mirrored to show the faces the other block items show. Neither has been compared with a reference run.",
+					"tracking_issue": 386
 				}
 			]
 		}
