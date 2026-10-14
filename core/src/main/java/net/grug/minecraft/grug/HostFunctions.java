@@ -91,6 +91,7 @@ public class HostFunctions {
         }
         for (int tick = 0; tick < ticks; tick++) {
             GrugCore.getAdapter().tickBlockEntity(blockEntity);
+            GrugTestState.testClockOffset++;
         }
     }
 
@@ -366,6 +367,17 @@ public class HostFunctions {
     public static boolean Level_has_neighbor_signal(long levelId, double x, double y, double z) {
         return GrugCore.getAdapter()
                 .hasNeighborSignal(GrugEntities.entityData.get(levelId).object, x, y, z);
+    }
+
+    /**
+     * The world's time in ticks, plus the ticks {@code Test.tick_block_entity} has run in the
+     * running test. Those ticks happen within one game tick, where the world's time does not move,
+     * so the test advances the clock itself and a block entity that reads it sees every tick it is
+     * given as a tick of time passing. The offset is 0 outside a test.
+     */
+    public static double Level_get_time(long levelId) {
+        return GrugCore.getAdapter().getWorldTime(GrugEntities.entityData.get(levelId).object)
+                + GrugTestState.testClockOffset;
     }
 
     public static String Level_get_block(long levelId, double x, double y, double z) {

@@ -102,14 +102,21 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
 local _check_thresholds() {
     Test.assert(_energy() == 0, "A new engine should have no energy.")
 
-    # One energy for every 20 powered ticks, so 250 is still blue and the 5020th tick makes it green.
+    # One energy on every tick the world's time is a multiple of 20, so the first gain comes between 0
+    # and 19 ticks after the engine is powered, and every later one 20 ticks after the last. Lead is
+    # how many ticks pass before the world's time reaches a multiple of 20. The 251st gain makes the
+    # engine green, and it is the last of lead + 5001 ticks. Test.tick_block_entity advances the clock
+    # the engine reads, so the world's time at the moment it is powered fixes every count below.
     _power()
-    _run_and_expect(5019, 250, "5019 powered ticks should leave the engine blue, at 250 energy.")
-    _run_and_expect(1, 251, "The 5020th powered tick should make the engine green, at 251 energy.")
+    level: Level = Test.get_client_level()
+    start: number = level.get_time()
+    lead: number = floor((start + 19) / 20) * 20 - start
+    _run_and_expect(lead + 5000, 250, "The tick before the 251st gain should leave the engine blue, at 250 energy.")
+    _run_and_expect(1, 251, "The tick of the 251st gain should make the engine green, at 251 energy.")
     _run_and_expect(4999, 500, "The engine should still be green at 500 energy.")
-    _run_and_expect(1, 501, "The 10020th powered tick should make the engine yellow, at 501 energy.")
+    _run_and_expect(1, 501, "The 501st gain should make the engine yellow, at 501 energy.")
     _run_and_expect(4999, 750, "The engine should still be yellow at 750 energy.")
-    _run_and_expect(1, 751, "The 15020th powered tick should make the engine red, at 751 energy.")
+    _run_and_expect(1, 751, "The 751st gain should make the engine red, at 751 energy.")
 
     # The energy is saved data, so it has to survive the block entity being saved and loaded again.
     block_entity: BlockEntity = engine.unwrap()

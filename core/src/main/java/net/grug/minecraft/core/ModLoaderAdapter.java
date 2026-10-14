@@ -136,6 +136,9 @@ public interface ModLoaderAdapter {
 
     boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
 
+    /** The world's time in ticks, which {@code World.getWorldTime()} is in BuildCraft 2.2.14. */
+    long getWorldTime(Object levelObj);
+
     String getBlock(Object levelObj, double x, double y, double z);
 
     boolean isAir(Object levelObj, double x, double y, double z);
