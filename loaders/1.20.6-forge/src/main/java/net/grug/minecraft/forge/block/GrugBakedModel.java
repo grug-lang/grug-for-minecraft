@@ -90,6 +90,24 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
         return modelData.derive().with(POS, pos.immutable()).with(LEVEL, level).build();
     }
 
+    /**
+     * Whether the game lights this model's quads with smooth lighting.
+     *
+     * <p>{@code ModelBlockRenderer.tesselateBlock} picks the smooth path or the flat one from this
+     * answer for the whole model, and never reads the flag on each quad, so a flat block has to say
+     * no here. The wrapper would otherwise pass on the wrapped model's yes, and a block that
+     * declared set_flat_lighting would be lit with the smooth lighting's gradient across each face.
+     */
+    @Override
+    public boolean useAmbientOcclusion(BlockState state, @Nullable RenderType renderType) {
+        if (state != null
+                && state.getBlock() instanceof GrugBlock grugBlock
+                && grugBlock.drawsFlatLighting()) {
+            return false;
+        }
+        return super.useAmbientOcclusion(state, renderType);
+    }
+
     @Override
     public List<BakedQuad> getQuads(
             @Nullable BlockState state,
@@ -207,7 +225,7 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
         baker.setSprite(sprite);
         baker.setTintIndex(-1);
         baker.setShade(!flat);
-        baker.setHasAmbientOcclusion(!flat);
+        baker.setHasAmbientOcclusion(true);
         for (int corner = 0; corner < 4; corner++) {
             baker.vertex(
                             (float) modelQuad.x(corner),
@@ -263,8 +281,8 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
         baker.setShade(face.shade() && !flat);
         // The same flag a JSON-baked quad carries. Without it the renderer takes the flat-light
         // path for this quad even in its ambient-occlusion pass, which is the difference between
-        // smooth lighting and one shade value per face. A flat block wants the flat-light path.
-        baker.setHasAmbientOcclusion(!flat);
+        // smooth lighting and one shade value per face.
+        baker.setHasAmbientOcclusion(true);
 
         float[] uv = uvsByFace(box, direction);
         FaceInfo.VertexInfo[] corners = corners(direction);
