@@ -68,6 +68,33 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: runs a grug block entity's tick {@code ticks} times in a row, within the one game
+     * tick the test is in.
+     *
+     * <p>A machine whose state builds over minutes, such as an engine that gains one energy every
+     * 20 ticks, would otherwise make its test wait those minutes on every loader. Only a grug block
+     * entity has a tick to run, and only a whole, non-negative number of ticks means anything, so
+     * anything else is reported rather than rounded.
+     */
+    public static void Test_tick_block_entity(long blockEntityId, double ticks) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!GrugSavedNumbers.isHolder(blockEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.tick_block_entity: Only a grug block entity has a tick to run.");
+            return;
+        }
+        String problem = GrugTestState.checkTickCount(ticks);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.tick_block_entity: " + problem);
+            return;
+        }
+        for (int tick = 0; tick < ticks; tick++) {
+            GrugCore.getAdapter().tickBlockEntity(blockEntity);
+        }
+    }
+
+    /**
      * Puts a mod file into a named state, remembering its pristine text the first time so the
      * {@code "normal"} state restores it exactly.
      *
@@ -764,6 +791,59 @@ public class HostFunctions {
                         + " than the second, so draw_box(0, 0, 0, 1, 1, 1) and not draw_box(1, 0,"
                         + " 0, 0, 1, 1).");
         }
+    }
+
+    /**
+     * Draws a model JSON's elements into the open render pass, each face with the texture the model
+     * names for it. The model is read with {@link GrugModels}, which every loader draws from, and
+     * what can go wrong is decided there and in {@link GrugRenderPass}, where a Java test reaches
+     * it.
+     */
+    public static void draw_model(String modelPath) {
+        String problem =
+                GrugRenderPass.recordModel(GrugCore.getAdapter().getGrugModsDirectory(), modelPath);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_model: " + problem);
+        }
+    }
+
+    public static double get_saved_number(long blockEntityId, String name) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!GrugSavedNumbers.isHolder(blockEntity)) {
+            reportNotSaving("get_saved_number");
+            return 0;
+        }
+        return GrugSavedNumbers.get(blockEntity, name);
+    }
+
+    public static void set_saved_number(long blockEntityId, String name, double value) {
+        if (!GrugSavedNumbers.set(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), name, value)) {
+            reportNotSaving("set_saved_number");
+        }
+    }
+
+    /**
+     * A saved number on a block entity that does not save them. Only a grug block entity writes
+     * them into its NBT, so a number on a vanilla one would be lost with its chunk without a word.
+     */
+    private static void reportNotSaving(String hostFunction) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                hostFunction
+                        + ": Only a grug block entity saves numbers, and this block entity is not"
+                        + " one.");
+    }
+
+    public static void redraw(long blockEntityId) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!GrugSavedNumbers.isHolder(blockEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "redraw: Only a grug block entity has a render function to draw again.");
+            return;
+        }
+        GrugCore.getAdapter().redraw(blockEntity);
     }
 
     public static void set_custom_render() {

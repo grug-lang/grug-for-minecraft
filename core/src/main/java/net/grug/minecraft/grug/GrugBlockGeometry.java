@@ -1,7 +1,6 @@
 package net.grug.minecraft.grug;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -36,7 +35,7 @@ public final class GrugBlockGeometry {
      * Draws {@code entityHandle}'s render function and returns the boxes it drew.
      *
      * @param blockDescription what to call this block in a report, which is how its author finds it
-     * @return the boxes the render function drew, in the order it drew them
+     * @return the boxes and model faces the render function drew, in the order it drew them
      *     <p>Reports, rather than throws, when there is nothing to draw. A block that declared
      *     custom rendering can end up with nothing to draw for two separate reasons, and each names
      *     the call that would fix it. Both are reported, because a block that renders as nothing is
@@ -48,7 +47,7 @@ public final class GrugBlockGeometry {
      *     and grug aborts the game rather than failing the run. {@link GrugModTreeDefect} is the
      *     reporting channel that works from outside a call.
      */
-    public static List<GrugBox> draw(long entityHandle, long renderFnId, String blockDescription) {
+    public static GrugGeometry draw(long entityHandle, long renderFnId, String blockDescription) {
         // The whole pass runs under the state lock, because 1.20.6 rebuilds chunks on worker
         // threads and two concurrent passes would interleave open/record/close on the static
         // state, cross-contaminating one block's boxes into another's geometry. The lock is
@@ -65,7 +64,7 @@ public final class GrugBlockGeometry {
             // than the defect that actually happened. The fatal still propagates: this is about
             // which message the player reads, not about swallowing anything.
             boolean ranRender;
-            List<GrugBox> boxes;
+            GrugGeometry geometry;
             try {
                 // A block that declared custom rendering without a block entity script has no
                 // entity to run a render function on, and passing the zero handle on would hand the
@@ -75,14 +74,14 @@ public final class GrugBlockGeometry {
                     ranRender = callRender(entityHandle, renderFnId);
                 }
             } finally {
-                boxes = GrugRenderPass.close();
+                geometry = GrugRenderPass.close();
             }
 
             // Behind a method of its own, so that what is excluded is the choice between the
             // reports and not the pass bookkeeping around it, which every run reaches.
-            reportNoGeometry(entityHandle, ranRender, boxes, blockDescription);
+            reportNoGeometry(entityHandle, ranRender, geometry, blockDescription);
 
-            return boxes;
+            return geometry;
         } finally {
             GrugStateLock.unlock();
         }
@@ -139,7 +138,7 @@ public final class GrugBlockGeometry {
                     + " run, so only a game reaches it; the no-block-entity arm is what"
                     + " GrugBlockGeometryTest covers")
     private static void reportNoGeometry(
-            long entityHandle, boolean ranRender, List<GrugBox> boxes, String blockDescription) {
+            long entityHandle, boolean ranRender, GrugGeometry geometry, String blockDescription) {
         String report = null;
         if (!ranRender) {
             report =
@@ -149,7 +148,7 @@ public final class GrugBlockGeometry {
                             + " no render() to draw with and the block renders as nothing. Either"
                             + " add the block entity with set_block_entity, or drop the"
                             + " set_custom_render() call.";
-        } else if (boxes.isEmpty()) {
+        } else if (geometry.isEmpty()) {
             // This cannot say which of four things happened, because it cannot tell them apart:
             // render() may be absent, may never call draw_box, may have every box refused, or may
             // have stopped early on another host function's error. The last two have already been
@@ -161,12 +160,12 @@ public final class GrugBlockGeometry {
                     "set_custom_render: "
                             + blockDescription
                             + " declared custom rendering, but its block entity's render() drew no"
-                            + " geometry, so the block renders as nothing. If a draw_box or other"
-                            + " error was reported for it above, that says which of these it was"
-                            + " and that is the one to fix: every box was refused, or render()"
-                            + " stopped early. Otherwise add an export render() to the block"
-                            + " entity's script that calls draw_box, or drop the"
-                            + " set_custom_render() call.";
+                            + " geometry, so the block renders as nothing. If a draw_box,"
+                            + " draw_model or other error was reported for it above, that says"
+                            + " which of these it was and that is the one to fix: everything it"
+                            + " drew was refused, or render() stopped early. Otherwise add an"
+                            + " export render() to the block entity's script that calls draw_box or"
+                            + " draw_model, or drop the set_custom_render() call.";
         }
 
         // Once per block rather than once per chunk compile. The game redraws a broken block every

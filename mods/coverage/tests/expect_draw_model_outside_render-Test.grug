@@ -1,0 +1,6 @@
+# draw_model only means anything while a block entity's render() is drawing, the same as draw_box, so
+# calling it from a test must report an error rather than silently drawing nothing.
+export run() {
+    Test.expect_error("while a block entity's render() is drawing")
+    draw_model(r"assets/grug/models/block/coverage_model_cube.json")
+}

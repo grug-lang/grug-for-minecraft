@@ -5,13 +5,13 @@ import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugBox;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugGeometry;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
+import net.grug.minecraft.ornithe.client.GrugModelRenderer;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.render.block.BlockRenderer;
 import net.minecraft.world.WorldView;
-
-import java.util.List;
 
 /**
  * Draws the boxes a grug block entity's render pass recorded, through Alpha's own block
@@ -56,17 +56,23 @@ public final class GrugBoxRenderer {
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
         if (!(blockEntity instanceof GrugBlockEntity grugBlockEntity)) return false;
 
+        GrugGeometry geometry = drawGeometry(grugBlock, grugBlockEntity, x, y, z);
+
         // The shape has to be back to a full cube before this returns. Alpha keeps min/max on the
         // shared Block instance rather than per position, so leaving a box behind would reshape
         // every later block of the same type in this chunk compile, and the frame after it.
         try {
-            for (GrugBox box : drawGeometry(grugBlock, grugBlockEntity, x, y, z)) {
+            for (GrugBox box : geometry.boxes()) {
                 setShape(block, box);
                 renderer.tesselateBlock(block, x, y, z);
             }
         } finally {
             block.setShape(0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F);
         }
+
+        // After the boxes, with the shape back to a full cube, because a model face's cullface asks
+        // the block whether the neighbour hides a full face.
+        GrugModelRenderer.drawInWorld(world, block, x, y, z, geometry.quads());
 
         return true;
     }
@@ -82,7 +88,7 @@ public final class GrugBoxRenderer {
      * machine that renders as nothing has one of those among a hundred blocks in a chunk, and a
      * report that cannot say which is a report the author has to search for.
      */
-    private static List<GrugBox> drawGeometry(
+    private static GrugGeometry drawGeometry(
             GrugBlock grugBlock, GrugBlockEntity blockEntity, int x, int y, int z) {
         return GrugBlockGeometry.draw(
                 blockEntity.getGrugEntityHandle(),

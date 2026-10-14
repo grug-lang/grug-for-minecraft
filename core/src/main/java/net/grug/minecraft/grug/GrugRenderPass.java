@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.List;
  */
 public final class GrugRenderPass {
     private static final List<GrugBox> BOXES = new ArrayList<>();
+    private static final List<GrugQuad> QUADS = new ArrayList<>();
     private static boolean open = false;
 
     @GrugGenerated("utility class: never instantiated")
@@ -48,21 +50,40 @@ public final class GrugRenderPass {
             throw Grug.fatal("A block entity render pass is already open.");
         }
         BOXES.clear();
+        QUADS.clear();
         open = true;
     }
 
     /**
-     * Closes the pass and returns the boxes the render function recorded, in the order it drew
-     * them.
+     * Closes the pass and returns what the render function recorded, in the order it drew it.
      *
-     * <p>A copy, so the boxes a loader is about to draw cannot be changed by the next pass, and so
-     * that closing the pass does not hand out the live list.
+     * <p>Copies, so the geometry a loader is about to draw cannot be changed by the next pass, and
+     * so that closing the pass does not hand out the live lists.
      */
-    public static List<GrugBox> close() {
-        List<GrugBox> boxes = recorded();
+    public static GrugGeometry close() {
+        GrugGeometry geometry = new GrugGeometry(new ArrayList<>(BOXES), new ArrayList<>(QUADS));
         BOXES.clear();
+        QUADS.clear();
         open = false;
-        return boxes;
+        return geometry;
+    }
+
+    /**
+     * Reads the model at {@code modelPath} and records its faces.
+     *
+     * @return null when the faces were recorded, or what stopped them, which the caller reports:
+     *     there is no open pass, or the model cannot be drawn as written. Nothing is recorded then.
+     */
+    public static String recordModel(File modsDir, String modelPath) {
+        if (!open) {
+            return "It can only be called while a block entity's render() is drawing.";
+        }
+        try {
+            QUADS.addAll(GrugModels.load(modsDir, modelPath));
+            return null;
+        } catch (GrugModels.Defect defect) {
+            return defect.getMessage();
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi.mixin;
 
 import net.grug.minecraft.stationapi.block.GrugBoxRenderer;
+import net.grug.minecraft.stationapi.client.GrugModelRenderer;
 import net.minecraft.block.Block;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.world.BlockView;
@@ -9,6 +10,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -41,13 +43,27 @@ public class BlockRenderManagerMixin {
 
     @Shadow private BlockView blockView;
 
-    @Inject(method = "render", at = @At("HEAD"), cancellable = true)
+    @Inject(
+            method = "render(Lnet/minecraft/block/Block;III)Z",
+            at = @At("HEAD"),
+            cancellable = true)
     private void grug$customGeometry(
             Block block, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
         if (GrugBoxRenderer.render((BlockRenderManager) (Object) this, blockView, block, x, y, z)) {
             // True, not false: the block did draw geometry, so the chunk is not empty. Returning
             // false would let the chunk compile skip the display list that now holds the shape.
             cir.setReturnValue(true);
+        }
+    }
+
+    /**
+     * Draws a custom-rendered grug block's item form from its item model, in the inventory, in the
+     * hand and on the ground, which all draw a block item through here.
+     */
+    @Inject(method = "render(Lnet/minecraft/block/Block;IF)V", at = @At("HEAD"), cancellable = true)
+    private void grug$customItem(Block block, int metadata, float brightness, CallbackInfo ci) {
+        if (GrugModelRenderer.drawItemForm(block)) {
+            ci.cancel();
         }
     }
 }

@@ -6,6 +6,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
+import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.minecraft.src.Block;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.IInventory;
@@ -16,7 +17,9 @@ import net.minecraft.src.NBTTagList;
 import net.minecraft.src.TileEntity;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The tile entity behind every {@link GrugBlock}: a grug-scripted inventory and tick hook.
@@ -25,7 +28,7 @@ import java.util.List;
  * and a registered class mapping), so the real inventory size is not known until the block is in
  * the world. The backing array therefore starts empty and is sized lazily from the block.
  */
-public class GrugBlockEntity extends TileEntity implements IInventory {
+public class GrugBlockEntity extends TileEntity implements IInventory, GrugSavedNumbers.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
@@ -328,9 +331,16 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
     @Override
     public void closeChest() {}
 
+    /** A saved number changed, so the chunk has to be saved with it. */
+    @Override
+    public void markSavedNumbersChanged() {
+        onInventoryChanged();
+    }
+
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         super.readFromNBT(nbt);
+        readSavedNumbers(nbt);
 
         // Recover the size from NBT before loading items, so a load does not depend on the world
         // being present (it is not, during a test's NBT round trip).
@@ -360,6 +370,7 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
     @Override
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
+        writeSavedNumbers(nbt);
         ensureSized();
 
         // Save the size so readFromNBT does not need the world object.
@@ -382,5 +393,30 @@ public class GrugBlockEntity extends TileEntity implements IInventory {
             resultStack.writeToNBT(resultNbt);
             nbt.setTag("GrugResult", resultNbt);
         }
+    }
+
+    /**
+     * The saved numbers, as a list of name and value pairs, the same layout the other old loaders
+     * write.
+     */
+    private void writeSavedNumbers(NBTTagCompound nbt) {
+        NBTTagList list = new NBTTagList();
+        for (Map.Entry<String, Double> entry : GrugSavedNumbers.snapshot(this).entrySet()) {
+            NBTTagCompound number = new NBTTagCompound();
+            number.setString("Name", entry.getKey());
+            number.setDouble("Value", entry.getValue());
+            list.appendTag(number);
+        }
+        nbt.setTag("GrugNumbers", list);
+    }
+
+    private void readSavedNumbers(NBTTagCompound nbt) {
+        Map<String, Double> numbers = new HashMap<String, Double>();
+        NBTTagList list = nbt.getTagList("GrugNumbers");
+        for (int i = 0; i < list.tagCount(); i++) {
+            NBTTagCompound number = (NBTTagCompound) list.tagAt(i);
+            numbers.put(number.getString("Name"), number.getDouble("Value"));
+        }
+        GrugSavedNumbers.replace(this, numbers);
     }
 }

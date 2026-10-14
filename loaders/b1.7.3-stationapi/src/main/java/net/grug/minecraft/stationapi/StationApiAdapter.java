@@ -407,6 +407,20 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void tickBlockEntity(Object blockEntityObj) {
+        ((net.grug.minecraft.stationapi.block.entity.GrugBlockEntity) blockEntityObj).tick();
+    }
+
+    @Override
+    public void redraw(Object blockEntityObj) {
+        net.minecraft.block.entity.BlockEntity be =
+                (net.minecraft.block.entity.BlockEntity) blockEntityObj;
+        // The world tells its renderers that the block changed, which marks the chunk around it for
+        // compiling again, the same as a block being placed there.
+        be.world.blockUpdateEvent(be.x, be.y, be.z);
+    }
+
+    @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
         return new BlockPos(be.x, be.y, be.z);

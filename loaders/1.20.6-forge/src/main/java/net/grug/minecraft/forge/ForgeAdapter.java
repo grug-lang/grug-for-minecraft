@@ -367,6 +367,24 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void tickBlockEntity(Object blockEntityObj) {
+        ((GrugBlockEntity) blockEntityObj).tick();
+    }
+
+    @Override
+    public void redraw(Object blockEntityObj) {
+        BlockEntity be = (BlockEntity) blockEntityObj;
+        // On the server this sends the client the block entity's update packet, whose handler has
+        // the client mesh the block again; on a client it marks the block's section for meshing.
+        be.getLevel()
+                .sendBlockUpdated(
+                        be.getBlockPos(),
+                        be.getBlockState(),
+                        be.getBlockState(),
+                        net.minecraft.world.level.block.Block.UPDATE_CLIENTS);
+    }
+
+    @Override
     public BlockPos getBlockPosOfBlockEntity(Object blockEntityObj) {
         net.minecraft.core.BlockPos pos = ((BlockEntity) blockEntityObj).getBlockPos();
         return new BlockPos(pos.getX(), pos.getY(), pos.getZ());
