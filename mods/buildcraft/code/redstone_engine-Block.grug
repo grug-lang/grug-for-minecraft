@@ -5,4 +5,5 @@ export init() {
     set_material("wood")
     set_block_entity(e"redstone_engine_entity")
     set_custom_render()
+    set_flat_lighting()
 }

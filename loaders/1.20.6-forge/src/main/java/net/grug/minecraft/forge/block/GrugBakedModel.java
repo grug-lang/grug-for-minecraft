@@ -143,6 +143,11 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
                             describe(state, pos));
         }
 
+        // A flat block gets no shade per side and no smooth lighting, so its faces share one
+        // brightness instead of each borrowing a different neighbour's.
+        boolean flat =
+                state.getBlock() instanceof GrugBlock grugBlock && grugBlock.drawsFlatLighting();
+
         List<BakedQuad> quads = new ArrayList<>();
         for (Direction direction : Direction.values()) {
             BlockPos neighbour = pos.relative(direction);
@@ -153,7 +158,7 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
                 // only when the box reaches this boundary is what keeps an inset arm visible
                 // against the neighbour, the same as Alpha's shape-per-box tesselation.
                 if (hidden && reaches(box, direction)) continue;
-                quads.add(quad(box, direction, face));
+                quads.add(quad(box, direction, face, flat));
             }
         }
         for (GrugQuad modelQuad : geometry.quads()) {
@@ -165,7 +170,7 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
                     continue;
                 }
             }
-            quads.add(modelQuad(modelQuad));
+            quads.add(modelQuad(modelQuad, flat));
         }
         return quads;
     }
@@ -188,7 +193,7 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
      * the texture, are mapped into the sprite. The corners are already in the order the game's
      * baker gives them, since core's GrugModels reads the model the way the baker does.
      */
-    private static BakedQuad modelQuad(GrugQuad modelQuad) {
+    private static BakedQuad modelQuad(GrugQuad modelQuad, boolean flat) {
         TextureAtlasSprite sprite =
                 Minecraft.getInstance()
                         .getModelManager()
@@ -200,8 +205,8 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
         baker.setDirection(direction);
         baker.setSprite(sprite);
         baker.setTintIndex(-1);
-        baker.setShade(true);
-        baker.setHasAmbientOcclusion(true);
+        baker.setShade(!flat);
+        baker.setHasAmbientOcclusion(!flat);
         for (int corner = 0; corner < 4; corner++) {
             baker.vertex(
                             (float) modelQuad.x(corner),
@@ -249,16 +254,16 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
      * clipped to the box's portion of the block's face, not stretched across it. That is the same
      * mapping Alpha's and Beta's shape tesselation uses through the block's min/max.
      */
-    private static BakedQuad quad(GrugBox box, Direction direction, Face face) {
+    private static BakedQuad quad(GrugBox box, Direction direction, Face face, boolean flat) {
         QuadBakingVertexConsumer.Buffered baker = new QuadBakingVertexConsumer.Buffered();
         baker.setDirection(direction);
         baker.setSprite(face.sprite());
         baker.setTintIndex(face.tintIndex());
-        baker.setShade(face.shade());
+        baker.setShade(face.shade() && !flat);
         // The same flag a JSON-baked quad carries. Without it the renderer takes the flat-light
         // path for this quad even in its ambient-occlusion pass, which is the difference between
-        // smooth lighting and one shade value per face.
-        baker.setHasAmbientOcclusion(true);
+        // smooth lighting and one shade value per face. A flat block wants the flat-light path.
+        baker.setHasAmbientOcclusion(!flat);
 
         float[] uv = uvsByFace(box, direction);
         FaceInfo.VertexInfo[] corners = corners(direction);

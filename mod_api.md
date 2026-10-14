@@ -130,6 +130,7 @@ resource_location(resource_location_string: string) ResourceLocation
 set_block_entity(entity_string: entity)
 set_custom_render()
 set_extractable_slots(block_entity: BlockEntity, first: number, last: number)
+set_flat_lighting()
 set_hardness(value: number)
 set_insertable_slots(block_entity: BlockEntity, first: number, last: number)
 set_inventory_size(size: number)

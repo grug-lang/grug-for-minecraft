@@ -831,6 +831,19 @@ public class HostFunctions {
         GrugDeclarations.currentlyInitializingBlock.customRender = true;
     }
 
+    public static void set_flat_lighting() {
+        if (GrugDeclarations.currentlyInitializingBlock == null
+                || !GrugDeclarations.currentlyInitializingBlock.customRender) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "set_flat_lighting: Can only be called during a Block's init(), after"
+                        + " set_custom_render(), since only custom geometry can be drawn flat.");
+            return;
+        }
+
+        GrugDeclarations.currentlyInitializingBlock.flatLighting = true;
+    }
+
     public static void set_hardness(double value) {
         if (GrugDeclarations.currentlyInitializingBlock != null)
             GrugDeclarations.currentlyInitializingBlock.hardness = (float) value;

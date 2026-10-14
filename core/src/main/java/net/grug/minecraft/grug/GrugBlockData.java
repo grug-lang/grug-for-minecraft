@@ -14,6 +14,12 @@ public class GrugBlockData {
      */
     public boolean customRender = false;
 
+    /**
+     * Whether the custom geometry is drawn flat, declared by set_flat_lighting: no shade per side,
+     * and the light at the block's own position on every face.
+     */
+    public boolean flatLighting = false;
+
     public GrugBlockData(String id) {
         this.id = id;
     }

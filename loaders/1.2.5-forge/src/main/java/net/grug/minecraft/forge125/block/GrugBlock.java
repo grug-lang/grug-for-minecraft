@@ -38,6 +38,33 @@ public class GrugBlock extends BlockContainer {
         this.blockFileId = blockFileId;
         this.sprite = this.blockIndexInTexture;
         this.setHardness(strength);
+        // The game reads a block's opacity once, in the Block constructor, when the block's grug
+        // data is not reachable yet. A block that draws its own geometry is not a full cube.
+        if (drawsCustomGeometry()) {
+            opaqueCubeLookup[id] = false;
+            lightOpacity[id] = 0;
+        }
+    }
+
+    /**
+     * Whether the custom geometry is drawn flat, declared by set_flat_lighting: every face at the
+     * light of the block's own position, with no per-side shade.
+     */
+    public boolean drawsFlatLighting() {
+        return blockData().flatLighting;
+    }
+
+    /**
+     * A block that draws its own geometry is not a full cube, so it neither blocks light nor hides
+     * its neighbours' faces.
+     *
+     * <p>The Block constructor calls this before {@code blockFileId} is set, when there is no data
+     * to read yet, so a missing entry answers as an ordinary opaque cube.
+     */
+    @Override
+    public boolean isOpaqueCube() {
+        GrugBlockData data = GrugDeclarations.blockDataByFileId.get(this.blockFileId);
+        return data == null || !data.customRender;
     }
 
     public long getEntityFileId() {

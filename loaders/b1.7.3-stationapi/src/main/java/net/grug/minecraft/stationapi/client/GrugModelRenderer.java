@@ -13,6 +13,7 @@ import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.client.texture.TextureManager;
 import net.minecraft.world.BlockView;
 
@@ -82,6 +83,8 @@ public final class GrugModelRenderer {
             BlockView world, Block block, int x, int y, int z, List<GrugQuad> quads) {
         if (quads.isEmpty()) return;
 
+        boolean flat = block instanceof GrugBlock grugBlock && grugBlock.drawsFlatLighting();
+
         TextureManager textures =
                 ((Minecraft) FabricLoader.getInstance().getGameInstance()).textureManager;
         Tessellator tesselator = Tessellator.INSTANCE;
@@ -108,7 +111,10 @@ public final class GrugModelRenderer {
                                 quad.cullSide())) {
                     continue;
                 }
-                float light = block.getLuminance(world, nx, ny, nz) * SHADE[side];
+                float light =
+                        flat
+                                ? block.getLuminance(world, x, y, z)
+                                : block.getLuminance(world, nx, ny, nz) * SHADE[side];
                 tesselator.color(light, light, light);
                 for (int corner = 0; corner < 4; corner++) {
                     tesselator.vertex(
@@ -124,6 +130,39 @@ public final class GrugModelRenderer {
 
         GL11.glPopAttrib();
         tesselator.startQuads();
+    }
+
+    /**
+     * Draws the box the block's bounding box is set to with no per-side shade, every face at the
+     * light of the block's own position: the flat look BuildCraft's engine renderer has with GL
+     * lighting off.
+     *
+     * <p>A face is still left out when a neighbour hides it, as {@code renderBlock} does, but its
+     * brightness is never the neighbour's: the block is not opaque, so its own position holds real
+     * light.
+     */
+    public static void renderFlat(
+            BlockRenderManager renderer, BlockView world, Block block, int x, int y, int z) {
+        float light = block.getLuminance(world, x, y, z);
+        Tessellator.INSTANCE.color(light, light, light);
+        if (block.isSideVisible(world, x, y - 1, z, 0)) {
+            renderer.renderBottomFace(block, x, y, z, block.getTextureId(world, x, y, z, 0));
+        }
+        if (block.isSideVisible(world, x, y + 1, z, 1)) {
+            renderer.renderTopFace(block, x, y, z, block.getTextureId(world, x, y, z, 1));
+        }
+        if (block.isSideVisible(world, x, y, z - 1, 2)) {
+            renderer.renderEastFace(block, x, y, z, block.getTextureId(world, x, y, z, 2));
+        }
+        if (block.isSideVisible(world, x, y, z + 1, 3)) {
+            renderer.renderWestFace(block, x, y, z, block.getTextureId(world, x, y, z, 3));
+        }
+        if (block.isSideVisible(world, x - 1, y, z, 4)) {
+            renderer.renderNorthFace(block, x, y, z, block.getTextureId(world, x, y, z, 4));
+        }
+        if (block.isSideVisible(world, x + 1, y, z, 5)) {
+            renderer.renderSouthFace(block, x, y, z, block.getTextureId(world, x, y, z, 5));
+        }
     }
 
     /**

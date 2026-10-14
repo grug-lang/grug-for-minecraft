@@ -1654,7 +1654,7 @@
 			]
 		},
 		"set_custom_render": {
-			"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. Reports an error on a loader that cannot draw custom geometry at all."
+			"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all."
 		},
 		"set_extractable_slots": {
 			"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it.",
@@ -1678,6 +1678,9 @@
 					}
 				}
 			]
+		},
+		"set_flat_lighting": {
+			"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal during a Block's init(), after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat reports an error."
 		},
 		"set_hardness": {
 			"description": "Sets the mining hardness of the block.",

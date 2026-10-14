@@ -64,7 +64,11 @@ public final class GrugBoxRenderer {
         try {
             for (GrugBox box : geometry.boxes()) {
                 setShape(block, box);
-                renderer.tesselateBlock(block, x, y, z);
+                if (grugBlock.drawsFlatLighting()) {
+                    GrugModelRenderer.tesselateFlat(renderer, world, block, x, y, z);
+                } else {
+                    renderer.tesselateBlock(block, x, y, z);
+                }
             }
         } finally {
             block.setShape(0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F);
