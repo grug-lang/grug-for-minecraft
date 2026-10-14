@@ -84,13 +84,19 @@ public final class GrugTestState {
 
     /**
      * Why {@code ticks} is not a number of ticks Test.tick_block_entity can run, or null when it is
-     * one. Only a whole number of 0 or more means anything, and anything else is reported rather
-     * than rounded, because a test asking for 2.5 ticks has a bug that rounding would hide.
+     * one. Only a whole number from 0 to {@link Integer#MAX_VALUE} means anything, and anything
+     * else is reported rather than rounded, because a test asking for 2.5 ticks has a bug that
+     * rounding would hide. The upper bound is the {@code int} loop in {@code
+     * Test_tick_block_entity}, which a larger count could never finish.
      */
     public static String checkTickCount(double ticks) {
-        if (ticks >= 0 && ticks == Math.floor(ticks) && !Double.isInfinite(ticks)) {
+        if (ticks >= 0 && ticks <= Integer.MAX_VALUE && ticks == Math.floor(ticks)) {
             return null;
         }
-        return "The number of ticks has to be a whole number of 0 or more, and was " + ticks + ".";
+        return "The number of ticks has to be a whole number from 0 to "
+                + Integer.MAX_VALUE
+                + ", and was "
+                + ticks
+                + ".";
     }
 }
