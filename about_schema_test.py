@@ -4,9 +4,9 @@
 The recreation fields are what make a port diffable against the real mod it recreates, so a mistake
 in them is a mistake in every recreation mod. They live on the first derived_from entry, the build
 the port recreates; later entries are that build's own sources and may not carry them. The rules that
-matter most here are the four the schema delegates to about_schema.py: a mirror needs redistribution
-rights, an exact recreation needs artifacts to diff against, an exact recreation has no deviations,
-and only the first lineage entry may carry the recreation fields.
+matter most here are the three the schema delegates to about_schema.py: an exact recreation needs
+artifacts to diff against, an exact recreation has no deviations, and only the first lineage entry
+may carry the recreation fields.
 """
 
 import json
@@ -38,7 +38,6 @@ def base_entry() -> dict:
                 "url": "https://example.com/reference.jar",
                 "sha256": "a" * 64,
                 "size": 10,
-                "redistribution": {"allowed": False},
             }
         ],
         "runtime": {
@@ -169,17 +168,6 @@ class RecreationSchemaTest(unittest.TestCase):
         entry["deviations"] = [{"what": "x", "why": "y", "tracking_issue": 0}]
         self.assertInvalid(self.mod_with(entry), "less than the minimum of 1")
 
-    def test_a_mirror_without_redistribution_rights_is_rejected(self):
-        entry = base_entry()
-        entry["artifacts"][0]["mirrors"] = ["https://mirror.example.com/reference.jar"]
-        self.assertInvalid(self.mod_with(entry), "mirror")
-
-    def test_a_mirror_with_redistribution_rights_is_accepted(self):
-        entry = base_entry()
-        entry["artifacts"][0]["redistribution"] = {"allowed": True, "basis": "MIT"}
-        entry["artifacts"][0]["mirrors"] = ["https://mirror.example.com/reference.jar"]
-        self.assertValid(self.mod_with(entry))
-
     def test_duplicate_artifact_names_are_rejected(self):
         entry = base_entry()
         entry["artifacts"].append(
@@ -188,7 +176,6 @@ class RecreationSchemaTest(unittest.TestCase):
                 "url": "https://example.com/other.jar",
                 "sha256": "b" * 64,
                 "size": 20,
-                "redistribution": {"allowed": False},
             }
         )
         self.assertInvalid(self.mod_with(entry), "unique")
