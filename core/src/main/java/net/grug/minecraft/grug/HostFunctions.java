@@ -832,16 +832,24 @@ public class HostFunctions {
     }
 
     public static void set_flat_lighting() {
-        if (GrugDeclarations.currentlyInitializingBlock == null
-                || !GrugDeclarations.currentlyInitializingBlock.customRender) {
+        GrugBlockData block = GrugDeclarations.currentlyInitializingBlock;
+        if (block == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "set_flat_lighting: Can only be called during a Block's init(), after"
-                        + " set_custom_render(), since only custom geometry can be drawn flat.");
+                    "set_flat_lighting: Can only be called during a Block's init().");
+            return;
+        }
+        if (!block.customRender) {
+            // A bounded defect: the block still loads, drawing its model the way every block is
+            // lit, and the report names the block and what to call first.
+            GrugModTreeDefect.report(
+                    block.id
+                            + ": set_flat_lighting() needs set_custom_render() called before it,"
+                            + " since only custom geometry can be drawn flat.");
             return;
         }
 
-        GrugDeclarations.currentlyInitializingBlock.flatLighting = true;
+        block.flatLighting = true;
     }
 
     public static void set_hardness(double value) {
