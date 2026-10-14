@@ -1,417 +1,176 @@
 # grug-for-minecraft: agent notes
 
-Agent-facing notes for this repository. This is not user documentation and it is not a findings
-log: a finding belongs in the issue or pull request that acted on it. A line earns its place
-here only if leaving it out would cost a fresh agent a run, a wrong assumption, or a broken
-machine. Keep it short, prefer pointing at a file over restating it, and delete lines that
-stopped being true.
+Agent-facing notes, loaded into every request, so every line has a cost. A line earns its place
+only if leaving it out would cost a fresh agent a run, a wrong assumption, or a broken machine.
+Findings belong in issues and pull requests; point at a file rather than restating it, and delete
+lines that stopped being true. Detail moved out of this file lives in #369.
 
 ## Machine limits
 
-The development machine has about 15 GB of RAM. More than two Minecraft clients at once has
-hard-locked it and killed the desktop session. Run loaders serially, never more than two at a
-time, and never start a client while another Gradle build is launching a game.
+The machine has about 15 GB of RAM, and more than two Minecraft clients at once has hard-locked it.
+The limit is machine-wide, not per agent: check `pgrep -af java` before starting a client, wait
+rather than start a third, and never start one while another Gradle build is launching a game.
 
 ## Working alongside other agents
 
-- Work in your own git worktree, one per task, and run the session from there:
-  `git worktree add ~/agent-workspaces/grug-for-minecraft-<task> -b <branch>`. A shared checkout
-  means two agents see each other's edits, branches and test runs, and every confusing failure
-  becomes unattributable. Move the session into the worktree when the harness has a tool for that.
-- Push that branch and open its pull request in the same sitting, a draft if the work is not
-  finished: `git push -u origin <branch>`, then `gh pr create --draft`. Nothing verifies a branch
-  that has no pull request, because the workflows trigger on `pull_request` and there is no `push:`
-  trigger to fall back on. Keeping the pull request also outlives the branch: `refs/pull/<n>/head`
-  still resolves after the branch is deleted, so without one the branch is the only ref and the
-  cleanup below takes the commits with it.
-- When a task lands, remove its worktree and branch from the main checkout:
-  `git worktree remove --force <path>`, then `git cherry origin/main <branch>` (every line starts
-  with `-` once a rebase merge carries the commits; `git branch --merged` reports the opposite),
-  then `git branch -D <branch>` and `git worktree prune`.
-- Each worktree gets its own `loaders/*/run/`, so game runs and screenshot artifacts do not
-  collide through `run/saves`, `run/grug_mods` or the capture directory.
-- The two-client limit above is for the whole machine, not per agent. Check what is already
-  running (`pgrep -af java`) before starting a client, and wait rather than start a third.
-- The 1.2.5 loader clones a 170 MB MCP snapshot into `build/mcp125` in every worktree. Point a
-  new worktree at an existing checkout with `-Pgrug.mcpSnapshot=<path>` instead of cloning again.
-- The Gradle daemon and the `~/.gradle` caches are shared. Two builds can run at once, but they
-  can block on cache locks, so prefer to let another agent's build finish first.
+- One git worktree per task: `git worktree add ~/agent-workspaces/grug-for-minecraft-<task> -b
+  <branch>`, and work only there. Each worktree gets its own `loaders/*/run/`.
+- Push and open the pull request in the same sitting, a draft if unfinished. The workflows trigger
+  only on `pull_request`, so a branch without one is never verified, and `refs/pull/<n>/head`
+  keeps the commits after the branch is deleted.
+- When a task lands: `git worktree remove --force <path>`, `git cherry origin/main <branch>` (all
+  lines start with `-` after a rebase merge), `git branch -D <branch>`, `git worktree prune`.
+- The 1.2.5 loader clones a 170 MB MCP snapshot per worktree; pass `-Pgrug.mcpSnapshot=<path>` to
+  reuse an existing one. `~/.gradle` is shared, so concurrent builds can block on cache locks.
 
-## Writing and explaining
+## Writing
 
-- Never use em-dashes in files, comments, commit messages or responses. Quoted source text that
-  already contains one is the only exception.
-- Never hard-wrap prose that GitHub renders. An issue, a pull request, a comment, a response and a
-  commit message each get one line per paragraph and one line per bullet, and the renderer wraps
-  them. A sentence split across lines at a column is an editing artifact that makes the raw text
-  harder to read and to edit. Repository files keep their own wrapping.
-- Never repeat an issue's or a pull request's title as the first line of its body. GitHub renders
-  the title directly above the body, so a leading `#` heading that says the same thing is noise.
-- When explaining how code runs, walk through it in chronological order with numbered steps
-  starting at 1. Use many small code blocks, one per moment, and keep the annotation next to the
-  code it describes rather than describing a whole function up front. A step may hold more than
-  one block, and a short fragment can stay inline in a sentence.
-- Commit messages state what changed and why in full sentences; the reasoning goes in the body.
+- No em-dashes in files, comments, commit messages or responses, except in quoted source text.
+- GitHub prose (issues, pull requests, comments, commit messages) is never hard-wrapped: one line
+  per paragraph or bullet. Repository files keep their own wrapping.
+- Never repeat the title as the first line of an issue or pull request body.
+- Commit messages state what changed and why in full sentences.
 
 ## Errors are the only severity
 
-grug has two outcomes, ok and err, and no third. `LOGGER.warn`, and a `LOGGER.error` that logs and
-carries on, are that third severity: do not use them. If you are designing a warning, a deprecation
-notice, a soft failure, or a "just log it" path, stop. Decide which of the two it is, and make the
-code report it as that.
+grug has two outcomes, ok and err. `LOGGER.warn`, and a `LOGGER.error` that logs and carries on,
+are a third severity: do not use them. Decide which of the two a warning, deprecation or soft
+failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a defect report.
 
-`LOGGER.info` and `LOGGER.debug` are not a severity: they are the diagnostics an agent adds while
-writing a PR, permanently or temporarily, so use them where they help, such as a line when the
-player joins a world. They cannot report a defect; a defect is still a fatal or an err.
-
-How bad the defect looks does not decide this. What decides it is whether the violation leaves
-behaviour undefined, and which side of the sandbox the code is on.
-
-- **An invariant throws.** Something whose violation leaves behaviour undefined goes through
-  `throw Grug.fatal(...)`, which crashes the game on purpose even when a script called in, because
-  one crash is better than a thousand players silently depending on a broken invariant. `fatal`
-  exists precisely because the JNI layer would otherwise swallow the exception and let the script
-  carry on. If you catch something and carry on past an invariant, the catch is the bug.
-- **A bounded defect is reported, and still fails.** `Test.assert` uses
-  `Grug.hostFunctionErrorHappened`, not `fatal`, because "a failed assertion should fail just the
-  test, not take the whole game down". A mod-tree defect such as a test file outside `tests/` is the
-  same severity: reported, and it fails the run. The scope fails either way, only the game keeps
-  running.
-- **A grug mod err is always contained.** The JNI layer prints and clears anything thrown inside a
-  game function so the script carries on, which is the sandbox and is the product. Never design a
-  mod-side err to stop the game, and never read "the script kept going" as the bug.
-- Ok is silent. A file in the right shape produces no output at all, so a validator does not add
-  chatter to say that it is fine.
-- "It still works, but the author should know" is not an option. Either the behaviour is right, or
-  it is an err that fails.
+- **An invariant throws** `Grug.fatal(...)`, which crashes the game on purpose even inside a script
+  call, because the JNI layer would otherwise swallow the exception. Catching and carrying on past
+  an invariant is the bug.
+- **A bounded defect is reported and still fails its scope**: `Test.assert` uses
+  `Grug.hostFunctionErrorHappened`, and a test file outside `tests/` fails the run, while the game
+  keeps running.
+- **A grug mod err is always contained**: the JNI layer prints and clears it and the script carries
+  on. That is the sandbox, not a bug.
+- Ok is silent, and "it works but the author should know" is not an option.
 
 ## Where things live
 
 | path | what |
 | :--- | :--- |
-| `core/` | shared runtime: the grug language, host functions, the test runner, its window state machine (`GrugRunWindow`), `GrugScreenshots` |
-| `mod_api.json` | the host API mods may call. Not frozen, but growth for its own sake is discouraged |
+| `core/` | shared runtime: host functions, the test runner, `GrugRunWindow`, `GrugScreenshots` |
+| `mod_api.json` | the host API mods may call |
 | `mods/<mod>/code/*.grug` | the mod: `X-Block.grug`, `X_entity-BlockEntity.grug`, `X-Item.grug` |
-| `mods/<mod>/tests/*.grug` | tests: `X-Test.grug`, which is a `Test` entity like any other grug file |
-| `mods/<mod>/assets/` | assets shipped with the mod |
-| `mods/<mod>/data/` | data shipped with the mod |
+| `mods/<mod>/tests/*.grug` | tests: `X-Test.grug`; one outside `tests/` is an err that fails the run |
 | `mods/<mod>/about.json` | metadata, including the recreation fields on the first `derived_from` entry |
 | `mods/<mod>/screenshots/<name>/<loader>.png` | golden references, named after the loader that produced them |
-| `loaders/<loader>/` | one per Minecraft version and mod loader; `src/main/java` holds its adapter |
-| `test-saves/<name>.zip` and `loaders/<loader>/test-save.txt` | the world a loader's tests start from |
-| `.github/scripts/run-loader.sh` | the only supported way to run a loader |
+| `loaders/<loader>/` | one per Minecraft version and mod loader |
+| `test-saves/<name>.zip`, `loaders/<loader>/test-save.txt` | the world a loader's tests start from |
 | `recreation.py`, `about_schema.py`, `dead_links.py` | metadata validation, each with its own tests |
 
-The README calls `mod_api.json` frozen. That discourages API growth for its own sake, not real
-changes: removing or replacing entries, adding test-only helpers, and fixing tooling are all
-fine, so do not block those on the freeze. Every change to `mod_api.json` must be justified: once
-the pull request is ready to be reviewed or merged, explain in the session with the user why each
-`mod_api.json` change was made.
-
-Nothing outside this repository consumes the API yet, which is the other half of why. There is no mod
-in the wild for a removal to break, so delete a host function outright rather than deprecating it,
-and do not soften a removal into a warning. That is also why there is no changelog and should not be
-one yet: a project with no users has no audience for release notes, and the file would only age.
-Say it in the commit and the issue, which is where someone reading this repository looks. Revisit
-this paragraph when the first external mod exists.
-
-Any file named `*-Test.grug` under `mods/` joins every loader's suite, so tests live in
-`mods/<mod>/tests/`. One that does not is an err, not a warning: `GrugFileIndex` reports it to the
-player in chat and as a `[GRUG CI] FAIL` line, which fails the run. It matters because
-`GrugTestRunner` sorts tests by path, so a test in `code/` runs out of name order, and the tests
-share one world. `mods/coverage/` is the reference for what the language and API accept; read its
-`code/` and `tests/` before inventing syntax.
+- The README calls `mod_api.json` frozen. That discourages growth for its own sake, not removals,
+  replacements, test-only helpers or tooling fixes. Every change to it must be justified: once the
+  pull request is ready for review or merge, explain to the user why each change was made.
+- Nothing outside this repository uses the API yet, so delete a host function outright rather than
+  deprecating it, and keep no changelog. Revisit when the first external mod exists.
+- `mods/coverage/` is the reference for what the language and API accept; read it before
+  inventing syntax.
 
 ## Running a loader
 
 ```sh
-.github/scripts/run-loader.sh <loader> build|run|update-goldens
-```
-
-It stages the test save into `loaders/<loader>/run/saves`, sets `GRUG_CI=true`, and launches.
-For a headless run:
-
-```sh
 xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
-  .github/scripts/run-loader.sh 1.2.5-forge run
+  .github/scripts/run-loader.sh <loader> build|run|update-goldens
 ```
 
-- The whole suite can repeat in one game session, which catches a pass-count-dependent failure or a
-  flaky capture. Locally, set `GRUG_CI_REPEATS` and raise the watch deadline with it, since
-  `GRUG_CI_RUN_TIMEOUT` (120 by default) covers every pass:
+- `run-loader.sh` is the only supported way: it resets `run/saves`, sets `GRUG_CI=true`, and
+  publishes `grug-core` to `build/maven` first, which the four standalone loaders resolve.
+- Repeat the suite in one session with `GRUG_CI_REPEATS=<n>` plus a raised `GRUG_CI_RUN_TIMEOUT`
+  locally, or `gh workflow run build.yml --ref <branch> -f repeats=<n>` on CI. Dispatches of
+  `build.yml` on one branch cancel each other, so run one at a time.
+- The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile makes it
+  hang until the timeout instead (#366), so check grug syntax before pushing.
+- `update-goldens` replaces only that loader's own reference. A GUI capture may come from it, but a
+  world capture differs slightly between local runs and CI, so take it from the failing CI job:
+  `gh run download <run-id> --name loader-<loader>-screenshots`. Look at every PNG before
+  committing it.
+- Coverage stays at 100% on `core`. Cover a host function from a committed mod's own path first,
+  then a grug test in `mods/coverage/`, then a Java test, and `@GrugGenerated` only as a last
+  resort. "A grug test cannot reach this" is not "no test can reach this".
+- Print diagnostics before `ALL N TESTS PASSED`: `run-loader.sh` stops reading the log there.
 
-  ```sh
-  GRUG_CI_REPEATS=20 GRUG_CI_RUN_TIMEOUT=5400 xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
-    .github/scripts/run-loader.sh 1.2.5-forge run
-  ```
+## Versions are pinned
 
-  On CI, dispatch the workflow with `repeats` instead: `gh workflow run build.yml --ref <branch> -f
-  repeats=20`. The dispatch input wins, then the repository variable `GRUG_CI_REPEATS`, then 1; pull
-  request runs have no input, so they repeat only while that variable is unset. The workflow sets
-  `GRUG_CI_RUN_TIMEOUT` to 1800, which covers a `repeats=20` dispatch (1.2.5's twenty passes took
-  1068s, #291), so only a longer run needs it raised on the branch. Every pass compares against the
-  same references, so a repeats run fails at the first capture that matches none of them, and
-  `GrugTestRunner` logs `repeat N of M complete` between passes.
-- The real tasks live in `loaders/<loader>/build.gradle`; the four standalone loaders also have a
-  `root.gradle` that the root project's `runClient` execs, so both invocations reach them. A
-  plain `runClient` is for playing and leaves `run/saves` alone; only `run-loader.sh` resets it.
-- The four standalone loaders resolve `net.grug:grug-core` from the checkout's `build/maven`, which
-  `gradle/grug-core.gradle` names and `core` publishes into under a version stamped with the commit.
-  Both entry points above publish it first; a loader's own build run on its own asks for the
-  coordinate of the commit it is on and fails to resolve if that commit has not been published here,
-  or was pruned by a later publish, which keeps only the current commit's core.
-- The suite fails fast at the first `[GRUG CI] FAIL`. To verify tests that run after a known
-  failure, temporarily copy the capture from
-  `loaders/<loader>/run/grug-screenshot-artifacts/<mod>/screenshots/<name>/<loader>.png` over that
-  loader's reference, re-run, then restore the reference with `git checkout`.
-- `update-goldens` accepts an unmatched capture as `<loader>.png`, replacing that loader's own
-  previous reference when its rendering changed, and never touches another loader's file. A
-  rendering two loaders share is one file.
-- A locally accepted reference is not proof that CI accepts it. A GUI capture (the autocrafting
-  table panel) is the same locally and on the runners, but a world capture is not: the
-  `coverage_render` crop differs between a local run and CI by a one or two channel step band
-  across the wall, so a reference generated locally can fail every CI loader job. For a world
-  capture, take the failing job's artifact instead: `gh run download <run-id> --name
-  loader-<loader>-screenshots`, which holds the capture at
-  `coverage/screenshots/<name>/<loader>.png`. Review the PNG, and delete any local reference it
-  replaces.
-- Coverage must stay at 100% on `core`. Loader UI/GL classes are excluded by
-  `.github/scripts/combine-coverage.py`.
-- Coverage for a host function comes from a real game run first: a committed mod's own path if it
-  reaches the code, otherwise a grug test in `mods/coverage/`, because only those cross the JNI
-  boundary. A Java test is the fallback, for code a grug script cannot reach and for a property it
-  cannot assert, such as what a pass recorded. `@GrugGenerated` is the last resort after all three,
-  so try them in that order and let the reason record what each attempt proved.
-- An exclusion is invisible to the number it produces, since you wrote it: excluding before measuring
-  means the measurement confirms the design rather than testing it. The trap is reading "no test can
-  reach this" off "a grug test cannot reach this", which is what cost two commits on
-  `GrugRenderPass.record`: its refusal cannot be reached from a grug test, but `open()` is public and
-  touches only Java state, so two lines of unit test cover it.
-- `GrugTestRunner` prints every test's time, slowest first, just before `ALL N TESTS PASSED`. Print
-  there and not after it: `run-loader.sh` stops watching the log at that announcement, so anything
-  below it is never read.
-
-## Versions are pinned, and Dependabot proposes the bumps
-
-Every version this repository builds against is pinned to an exact value. `.github/dependabot.yml`
-checks the GitHub Actions, Gradle and pip pins weekly, so most are proposed rather than remembered.
-Two stay manual: grug-rs, which is pinned for stability and is a behavioural change to the VM rather
-than a dependency bump, and the root Gradle wrapper, frozen at 8.14 while the standalone loaders
-follow Gradle 9 through Dependabot, a split that is a choice about which loaders tolerate which
-Gradle. The root wrapper is frozen because the SpongePowered Mixin plugin (0.7.38) is abandoned and
-does not support Gradle 9.x, and ForgeGradle 6.0.54 also does not support Gradle 9.x. ForgeGradle 7
-requires Gradle 9.3.0+, so neither can be bumped until a maintained Mixin plugin that supports
-Gradle 9.x exists. Read a proposed major version (setup-java v4 to v5, say) before taking it,
-because it changes how a job behaves.
-
-The table below is where each pin lives and how to move it by hand, which is also what a bot's
-suggestion has to be checked against:
-
-| what | pinned where | how to bump |
-| :--- | :--- | :--- |
-| Gradle plugins | each `loaders/*/build.gradle` or `build.gradle.kts` | `id '...' version '...'` |
-| Gradle distributions | `distributionSha256Sum` in each `gradle-wrapper.properties` | `curl -sSL <url>.sha256` |
-| GitHub Actions | a commit SHA with the release as a comment in each workflow | `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` |
-| Python | `pip install <name>==<version>` in the workflow that needs it | PyPI |
-| grug-rs | `grugRsRevision` in `core/build.gradle.kts` | `git ls-remote` |
-| Minecraft, mappings, libraries | `gradle.properties` | already exact |
-
-Two of these were not, and cost time rather than safety. A dynamic plugin selector such as
-`[6.0.24,6.2)` or `0.7.+` is not a version: Gradle has to ask the repository what matches now on every
-configuration, and `1.20.6-forge` spent 28 of its 63 second Build step there (#191). Pinning it locally
-saved 0s to 2s, because a warm `~/.gradle` already has the answer, so only CI shows the difference.
-
-A `distributionSha256Sum` is checked only when the distribution is downloaded, so a wrong value fails
-on a fresh machine and never on a warm one. Each was verified against the downloaded zip before being
-committed, and enforcing it looks like this:
-
-```
-Expected checksum: '00000010d3c7d3e5da131b76bbf22b5a4c0786e9d892dae8c1658d4b484de3caa'
-  Actual checksum: '61ad310d3c7d3e5da131b76bbf22b5a4c0786e9d892dae8c1658d4b484de3caa'
-```
-
-To test that a new checksum is enforced rather than merely present, delete the extracted distribution
-or point `GRADLE_USER_HOME` at an empty directory first. Otherwise a warm machine passes either way.
-
-## Reading CI timings
-
-Measure before and after from the workflow's own job timings rather than estimating:
-
-```sh
-gh api "repos/grug-lang/grug-for-minecraft/actions/runs/<id>/jobs?per_page=100"
-```
-
-Each step has `started_at` and `completed_at`. Within a step, the gaps between `> Task` lines in
-`gh api .../actions/runs/<id>/logs > logs.zip` say where the time went; cargo's own `Finished
-\`release\` profile ... in Xs` line is the only trustworthy figure for a Rust build, because Gradle
-buffers a subprocess's output and flushes it when the task ends.
-
-Four traps, each of which cost a run here:
-
-- **`gh workflow run --ref <branch>` measures cold.** Caches written by a pull request live on
-  `refs/pull/<n>/merge` and a dispatch on the branch cannot read them. Push a commit to measure warm.
-- **A cache is written once per key per ref, and only when it is absent.** Two consequences, and both
-  have cost a run here. The first is that changing a cache's *list of paths* while leaving its key
-  alone does nothing at all: the stale entry restores successfully and the save is then skipped, so the
-  change silently has no effect. The symptom is a cache that *hits* when you expected a miss, not one
-  that restores unchanged. `build.yml` now hashes itself into all of its keys, which is what makes the
-  path list part of what the key describes.
-- **Caches are scoped to a ref, and a pull request's are not the base branch's.** The same key exists
-  as a separate entry on `refs/pull/<n>/merge` for each open pull request, and `main` cannot read any
-  of them. Verified: `pre-commit-Linux-b34053ba...` was present three times at once, on three different
-  pull request merge refs. So every open branch writes its own copy of the same gigabytes, and a cache
-  measured on a pull request is discarded when it merges.
-- **Each new pull request therefore starts cold, and that is where the cost is.** A pull request's caches
-  live on its merge ref, and each new pull request gets a new one, so it starts cold while every later
-  push to the same pull request hits, which is where the saving lands. `build.yml` also triggers on `push`
-  to `main`, which runs the fleet once per loader on every merge, against `main`'s own caches. A push that
-  touches neither `build.yml` nor a properties file moves no key and keeps every cache; one that does
-  touch either pays to repopulate.
-- **The repo cache store is 10GB and evicts, and the churn above is what fills it.** Every new
-  generation of a key costs another immutable entry, and four generations of a 424MB entry plus four of
-  a 93MB one existed on one pull request simultaneously. Eviction takes out the live ForgeGradle cache,
-  which presents as one loader suddenly being slow. Look for superseded generations first:
-  `gh api "repos/grug-lang/grug-for-minecraft/actions/caches?per_page=100"`, keeping the newest per key
-  per ref.
-- **The first run of a cache cannot tell you what it is worth.** Every change here needs two runs, and
-  a run whose first job repopulated everything is not a measurement of anything.
-
-`main` moves while a branch is open, so a baseline taken against an old `main` is not comparable to
-the branch after a rebase: the test count changes. Take the baseline from
-`gh workflow run build.yml --ref main` when the comparison matters.
+Every version is exact, and `.github/dependabot.yml` proposes Actions, Gradle and pip bumps weekly.
+grug-rs (`grugRsRevision` in `core/build.gradle.kts`) is bumped by hand, as a VM behaviour change.
+The root Gradle wrapper is frozen at 8.14 because the abandoned SpongePowered Mixin plugin and
+ForgeGradle 6 do not support Gradle 9. Read a proposed major version before taking it. Pin
+locations and bump commands, and why dynamic selectors and checksums were pinned, are in #369.
 
 ## grug language rules that cost runs
 
-- [grug-tests](https://github.com/grug-lang/grug-tests) is grug's spec, and is authoritative on
-  what is and is not valid grug. Its
+- [grug-tests](https://github.com/grug-lang/grug-tests) is grug's spec. Its
   [grammar](https://raw.githubusercontent.com/grug-lang/grug-tests/refs/heads/main/grug_grammar.lark)
-  lists every operator and construct, and the cases under `tests/` settle the edge cases: `ok` for
-  programs that compile and run, `err` for compile errors, `err_runtime` for runtime errors,
-  `err_spaces` for misplaced whitespace, and `mod_api_schema` and `mod_api_semantics` for what a
-  `mod_api.json` may declare. `tests/wip` is unfinished, so ignore it. The
+  lists every operator and construct (there is no `%`), and `tests/` settles edge cases: `ok`,
+  `err`, `err_runtime`, `err_spaces`, `mod_api_schema` and `mod_api_semantics`; ignore `wip`. The
   [grug README](https://raw.githubusercontent.com/grug-lang/grug/refs/heads/main/README.md) is the
-  overview: its advanced example shows the language's features, but not every operator, so check
-  the grammar before concluding something is missing, such as `%`, which grug does not have. Fetch
-  raw URLs rather than github.com ones: they are the same text without the HTML around it.
+  overview. Fetch raw URLs.
 - A call's arguments must stay on one line.
-- Variables are declared at member scope. Helpers are `local` functions and must be defined
-  after the first place they are called.
-- Names must be lowercase. There are no member-scope `local` constants, and `+` works on numbers,
-  not strings.
+- Variables are declared at member scope. Helpers are `local` functions defined after their first
+  call.
+- Names are lowercase. There are no member-scope `local` constants, and `+` does not join strings.
 - Resource and entity strings cannot be passed to or returned from helpers; inline the call.
-- `==` on an `Item` compares grug entity IDs, not the game object. Use `equals(a, b)`.
-- On Alpha, `item("minecraft:cobblestone")` falls through to the block of that name, so it comes
-  back as a `Block` and `set_item_in_slot` crashes. Prefer names that resolve to items everywhere.
-- `Option` has `.has()` and `.unwrap()`, and `unwrap()` on an empty option is a runtime error.
-  Host function errors carry a grug source position; read it before guessing.
+- `==` on an `Item` compares grug entity IDs; use `equals(a, b)`.
+- On Alpha, `item("minecraft:cobblestone")` resolves to the block, so `set_item_in_slot` crashes.
+  Prefer names that resolve to items everywhere.
+- `unwrap()` on an empty `Option` is a runtime error; probe with `.has()`. Host function errors
+  carry a grug source position, so read it before guessing.
 
 ## Writing tests
 
-- `run()` is called once per game tick. `Test.not_done()` keeps the test alive; returning without
-  it ends the test.
-- `Test.get_origin()` is the player's position plus 3. Fixtures are built in bands above it; the
-  room build clears the whole test area (the room's box plus the bands, 16 blocks around the player
-  and 56 above their feet) before every test, so fixtures are not left behind for a later test or a
-  later suite pass, and a test must not compensate for what an earlier one did.
-- The bands are measured from the player, so their absolute height depends on where the player
-  spawns, and both Alpha and Beta 1.7.3 cap the world at 128 blocks. `test-saves/b1.7.3.zip` puts
-  the player on a column whose surface is y=70, so the top band lands at y=124 there. A new band
-  goes below +50, not above it, or the highest one runs off the top of the world and `place_block`
-  reports it.
-- A loader has to name the level its test save contains. `startGame` creates the level when the name
-  does not resolve, so the wrong name is not a no-op: it generates a fresh world with a random
-  spawn, which is how the b1.7.3 runs got a different player height every time.
-- A fixed tick budget races the engine, and a setup at tick 0 can run before the client has
-  received the chunk it builds in. Prefer waiting for a condition, and use `Option.has()` for
-  probing, because `Test.assert` fails the test on the spot.
-- A new screenshot reference must be reviewed before it is committed, and where it comes from
-  depends on what it captures: a GUI capture can come from `update-goldens` here, while a world
-  capture has to come from a failing CI job's artifact. See the golden bullet under Running a
-  loader.
-- `tolerance()` in a test is a last resort for a rendering difference that cannot be fixed, never
-  a way to quiet a flaky capture. Every call must have a comment above it linking the issue that
-  tracks the difference and saying whether more research could remove the call. A capture that is
-  not reproducible from run to run is its own bug to fix, like #253.
+- `run()` is called once per tick; `Test.not_done()` keeps the test alive.
+- `Test.get_origin()` is the player's position plus 3. The test area is cleared before every test,
+  so never compensate for an earlier test. Alpha and Beta cap the world at 128 and the b1.7.3 save
+  puts the top band at y=124, so a new band goes below +50.
+- A loader must name the level in its test save exactly, or the game generates a new random world.
+- Wait for a condition rather than a fixed tick count, since a setup at tick 0 can run before the
+  chunk arrives.
+- `tolerance()` is a last resort for a rendering difference that cannot be fixed, never for a flaky
+  capture. Each call needs a comment linking its tracking issue.
 
 ## Fidelity and the reference
 
-- A port targets the build named by the first entry of `mods/<mod>/about.json`'s `derived_from`
-  array: that entry's `artifacts` are the reference files, its `runtime` is where they run, and its
-  `deviations` lists every deliberate difference. `about_schema.py` refuses `"fidelity": "exact"`
-  while any deviation is present, so the deviations array is the checklist for `exact` (BuildCraft's
-  is issue #75).
-- A mod may ship copies of vanilla Minecraft textures, such as `mods/buildcraft`'s
-  `textures/gui/crafting.png`, which is byte for byte the game's own `gui/crafting.png`. That is
-  deliberate, so do not flag it as a licensing problem or replace it with a lookup into the running
-  game. grug-for-minecraft is a preservation effort: a mod has to run on every supported version,
-  and many mods use vanilla textures from a later Minecraft version than the one being played, which
-  the running game does not have, such as a modern texture on Alpha. Loading them from the game
-  instead would mean asking the player to point grug at one Minecraft installation per version a
-  mod draws its textures from. That significantly hinders accessibility, since every extra step
-  stops some players from ever running the mod, which goes against the preservation effort.
-  "Do not flag it" is not "dismiss a report about it": an issue about them from Mojang or
-  Microsoft goes to the maintainer, and an agent never closes it.
-- Read the reference code before inventing a model. The pinned BuildCraft jars are on this
-  machine under `~/.technic/modpacks/tekkit/mods/`, and a decompiler (Vineflower) is in the
-  Gradle cache. `PipeItemsWood` and `PipeLogicWood` are good examples of what that saved.
-- A rendering difference between two Minecraft versions is usually a vanilla difference, not a
-  port bug. Beta 1.7.3 and 1.2.5 shade GUI items differently, which is why 1.2.5 has its own
-  golden. Alpha 1.1.2's `Window` truncates its scaled GUI width (426 against 426.67), so its GUI
-  captures sit one pixel right of the other loaders': vanilla, not a port bug, so its reference
-  stays as captured. Check the vanilla code before "fixing" the port.
-- The reference run is manual: `GRUG_REFERENCE=1` plus a harness-only mods directory. It is not
-  part of CI, because fidelity is currently behavioral rather than exact.
+- A port targets the first entry of `about.json`'s `derived_from`: its `artifacts` are the
+  reference files, its `runtime` is where they run, and `deviations` lists every difference, each
+  with a tracking issue. `about_schema.py` refuses `"fidelity": "exact"` while any deviation is
+  present (BuildCraft's checklist is #75).
+- Read the reference before inventing a model. BuildCraft 2.2.14 is already decompiled at
+  `~/agent-workspaces/buildcraft-2.2.14-src/src`, with the original class files and textures in
+  `classes/`; do not decompile it again. The jars are in `~/.technic/modpacks/tekkit/mods/` and
+  Vineflower is at
+  `~/.gradle/caches/forge_gradle/maven_downloader/org/vineflower/vineflower/1.10.1/vineflower-1.10.1.jar`.
+- Mods ship copies of vanilla textures on purpose, as a preservation effort: a mod runs on every
+  supported version, often with textures the running version lacks, and asking players to point
+  grug at extra Minecraft installations would stop some from ever running it. Do not flag them as a
+  licensing problem, but a report about them from Mojang or Microsoft goes to the maintainer, and
+  an agent never closes it.
+- A rendering difference between Minecraft versions is usually vanilla, not a port bug, such as
+  Alpha's GUI captures sitting one pixel right. Check the vanilla code before "fixing" the port.
+- The reference run is manual: `GRUG_REFERENCE=1` plus a harness-only mods directory.
 
 ## Instrumenting the game
 
-- 1.2.5's game is decompiled under `loaders/1.2.5-forge/build/mcp125`. A temporary print in that
-  tree works if the one file is recompiled with the JDK 8 `javac` into `bin/minecraft`; the
-  loader build repacks it. Revert it before committing, and remember the tree is a git checkout.
-- Other loaders' jars come from the Gradle caches. When the vanilla behaviour matters, decompile
-  the exact version rather than trusting memory of another one.
+- 1.2.5 is decompiled under `loaders/1.2.5-forge/build/mcp125`, a git checkout. A temporary print
+  works if that one file is recompiled with JDK 8 `javac` into `bin/minecraft`; revert it after.
+- For other versions, decompile the exact jar from the Gradle caches rather than trusting memory.
 
 ## Workflow
 
-- Create an issue before a pull request. Rewrite a thin issue rather than deleting it.
-- Give every issue a type and then an effort level. The type is `Bug`, `Feature` or `Task`, and the
-  effort is `High`, `Medium` or `Low`. Neither is a label, and `gh` has no flag for either, so both go
-  through the API: the type with `gh api repos/grug-lang/grug-for-minecraft/issues/<n> -X PATCH
-  -f type=Bug`, and the effort with `gh api repos/grug-lang/grug-for-minecraft/issues/<n>/issue-field-values
-  -X POST --input -` and a body of `{"issue_field_values":[{"field_id":36963465,"value":"Medium"}]}`,
-  where `36963465` is the org's Effort field. The type comes first because Effort is pinned to Bug,
-  Task and Feature but not to "Issues without a type", so it does not appear in the sidebar until the
-  issue has a type.
-- Pull requests merge only with the maintainer's authorization. The repository merges by rebase,
-  not squash.
-- Nothing is pushed to `main`. A ruleset rejects direct pushes and allows rebase as the only merge
-  method, so `main` advances only by rebase-merging a pull request, and the `push` trigger on
-  `main` fires when a merge lands rather than when someone pushes directly.
-- A pull request that changes only markdown files merges without waiting for CI to pass: nothing in
-  the build, the loaders or the tests reads a markdown file, so the fleet has nothing to verify.
-- Do not add repository documentation. This file is the exception, and findings still belong in
-  issues and pull requests.
-- When the user has to look at images, copy them into one directory and give that path in the
-  reply. The agent picks the directory, and a subdirectory of `/tmp` is fine; never assume a
-  personal directory such as a Downloads folder, and never leave the user to find the files.
-- When more than one path is plausible, save progress in a draft pull request whose description
-  carries every measurement and the open question.
-- Wait with a tool that watches, not with a hardcoded sleep. `sleep 30` and then look guesses how
-  long something takes, so it either burns a turn or reports a stale result. Let the tool block:
-  `gh run watch <id> --repo grug-lang/grug-for-minecraft --exit-status --interval 20` exits
-  non-zero when the run fails, and `gh pr view <n> --json state,mergeable,mergeStateStatus` settles
-  whether a merge is possible. Keep `sleep` for waiting on this machine, where nothing is polling,
-  such as a game starting.
-- `gh pr checks <n> --watch --fail-fast` looks like the same tool and is not, in two ways this
-  session paid for. It exits non-zero on a perfectly healthy run, because a pull request reports no
-  checks at all for the few seconds after a push and it treats that as an error instead of waiting.
-  And it watches the pull request, so a force-push leaves it reading the superseded run's result. Get
-  the run id from `gh api repos/grug-lang/grug-for-minecraft/actions/runs?branch=<branch>` and watch
-  that.
-- Check whether a push actually triggered CI before believing it did. A branch that does not merge
-  has no merge ref, so a `pull_request` workflow has nothing to check out and reports no run at all,
-  which reads like a delivery failure but is a conflict. `gh pr view <n> --json mergeable` says
-  which it is; `mergeable: CONFLICTING` means rebase, and `UNKNOWN` means GitHub is still
-  computing, so wait rather than concluding anything.
-- Run `pre-commit run --all-files` after staging a new file, or re-run it once the file is tracked:
-  it only sees files git already tracks, so an untracked file is skipped and the hook still reports
-  success, and CI then reformats it.
+- Create an issue before a pull request, then set its type (`Bug`, `Feature` or `Task`) and then its
+  effort (`High`, `Medium` or `Low`), in that order, since Effort only shows once a type is set:
+  `gh api repos/grug-lang/grug-for-minecraft/issues/<n> -X PATCH -f type=Task`, then
+  `gh api repos/grug-lang/grug-for-minecraft/issues/<n>/issue-field-values -X POST --input -` with
+  `{"issue_field_values":[{"field_id":36963465,"value":"Medium"}]}`.
+- Merge only with the maintainer's authorization, by rebase. Nothing is pushed to `main`. A pull
+  request that changes only markdown merges without waiting for CI.
+- Do not add repository documentation beyond this file.
+- When the user has to look at images, copy them into one directory you choose and give its path.
+- Wait with a tool that watches, never a fixed sleep: run `gh run watch <id> --repo
+  grug-lang/grug-for-minecraft --exit-status --interval 20` in the background so a long run costs
+  no turns. Get the id from `gh api 'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`;
+  `gh pr checks --watch` fails right after a push and reads stale runs after a force-push.
+- A push that shows no CI run usually means a conflict: check `gh pr view <n> --json mergeable`.
+- `pre-commit run --all-files` only sees tracked files, so re-run it after `git add` of a new file.
