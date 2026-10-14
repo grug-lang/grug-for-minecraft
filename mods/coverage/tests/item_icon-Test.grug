@@ -1,0 +1,49 @@
+# Captures the coverage item the way a player sees it: in a slot of an inventory GUI, which draws the item's
+# icon from its model's layer0 texture on every loader. Nothing else in the suite checks an item's icon, only
+# block textures, so this is the test that says the item renders its own icon. See #180.
+# The GUI is coverage_block's own 3x3 grid, opened through the block's use export the way a player opens it: the
+# panel is 176 by 166 at the 1280x720 scale of 3, so its top left is at (376, 111), and the grid's first slot
+# sits at (30, 17) inside it. Slot 0 is therefore drawn at (466, 162), and the crop covers its 16 by 16 pixels
+# scaled to 48 by 48. See redstone_engine_item-Test.grug.
+# How many runner ticks in a row the world has answered settled.
+settled_ticks: number = 0
+
+export run() {
+    if Test.tick() == 0 {
+        # An earlier test may have left a screen open, and it would cover the slot.
+        Test.close_screen()
+        _setup()
+        Test.not_done()
+    } else if not Test.world_settled() {
+        # The panel is only on screen once a frame holding it has been drawn, as in the other GUI tests.
+        settled_ticks = 0
+        Test.not_done()
+    } else if settled_ticks < 10 {
+        # On 1.20.6 the screen is opened by a packet from the server, and one settled answer can come
+        # before that packet arrives, so ten in a row is needed before capturing.
+        settled_ticks = settled_ticks + 1
+        Test.not_done()
+    } else {
+        Test.screenshot().equals(r"screenshots/item_icon", 466, 162, 514, 210)
+        Test.close_screen()
+        Test.restore_camera()
+    }
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.setup_graphics_camera()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_block")
+    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(block_opt.has(), "coverage_block has no block entity after being placed.")
+    block: BlockEntity = block_opt.unwrap()
+
+    icon: Item = item(resource_location("grug:coverage_item"))
+    set_item_in_slot(block, 0, icon, 1)
+
+    Test.use_block(level, x, y, z)
+}

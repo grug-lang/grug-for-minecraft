@@ -5,3 +5,15 @@ export init() {
     set_inventory_size(9)
     set_block_entity(e"coverage_block_entity")
 }
+
+# Opens the 3x3 crafting grid the item icon test captures, laid out the way the autocrafting table lays out its
+# grid. The GUI is opened by the server from this export, which is how a player opening the block gets it, so the
+# menu its slots belong to is the block entity's own.
+export use(world: Level, x: number, y: number, z: number, player: Player) {
+    gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    gui_layout.add_crafting_grid(0, 30, 17)
+
+    block_entity: BlockEntity = world.get_block_entity(x, y, z).unwrap()
+
+    gui_layout.open(player, block_entity)
+}
