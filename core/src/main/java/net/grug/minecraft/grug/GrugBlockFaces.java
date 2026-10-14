@@ -17,8 +17,9 @@ import java.util.Map;
  *
  * <p>This is the file-reading half of the rule. Which face key a built-in parent supplies, and what
  * a face's key resolves to, is {@link GrugFaceTextures}'s, so Java tests can cover those rules
- * without a model on disk. Every loader that draws a custom-rendered block from its model's
- * textures goes through here, so the same model gives the same faces on each of them.
+ * without a model on disk. The Ornithe loaders, StationAPI and 1.2.5 read the model files
+ * themselves and all go through here, so the same model gives the same faces on each of them.
+ * 1.20.6 takes its textures from the game's own model baking and never reads the files.
  */
 public final class GrugBlockFaces {
 
