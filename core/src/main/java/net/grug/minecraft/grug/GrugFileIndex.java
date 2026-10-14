@@ -76,16 +76,17 @@ public final class GrugFileIndex {
     }
 
     /**
-     * Classifies every compiled file, rejecting one that failed to compile or that sits outside a
-     * {@code code/} or {@code tests/} directory, and reporting any test file that is not under its
-     * mod's {@code tests/}.
+     * Classifies every compiled file, reporting one that failed to compile and skipping it,
+     * rejecting one that sits outside a {@code code/} or {@code tests/} directory, and reporting
+     * any test file that is not under its mod's {@code tests/}.
      */
     public static List<Entry> classify(FileInfo[] files) {
         List<Entry> result = new ArrayList<>();
         for (FileInfo file : files) {
             if (file.fileId() == Grug.INVALID_GRUG_FILE_ID) {
-                throw new IllegalStateException(
+                GrugModTreeDefect.report(
                         "Failed to compile " + file.path() + ":\n" + file.errorString());
+                continue;
             }
 
             String[] pathParts = file.path().replace('\\', '/').split("/");
