@@ -934,6 +934,18 @@ public class HostFunctions {
         return Math.floor(value);
     }
 
+    /**
+     * What is left of {@code value} after dividing by {@code divisor}, with the sign of {@code
+     * value}, which is Java's {@code %} on doubles and what BuildCraft's {@code % 20} reads.
+     */
+    public static double remainder(double value, double divisor) {
+        if (divisor == 0) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "remainder: The divisor cannot be 0.");
+            return 0;
+        }
+        return value % divisor;
+    }
+
     public static long vec3_zero() {
         return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
     }
