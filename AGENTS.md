@@ -333,6 +333,14 @@ the branch after a rebase: the test count changes. Take the baseline from
   `deviations` lists every deliberate difference. `about_schema.py` refuses `"fidelity": "exact"`
   while any deviation is present, so the deviations array is the checklist for `exact` (BuildCraft's
   is issue #75).
+- A mod may ship copies of vanilla Minecraft textures, such as `mods/buildcraft`'s
+  `textures/gui/crafting.png`, which is byte for byte the game's own `gui/crafting.png`. That is
+  deliberate, so do not flag it as a licensing problem or replace it with a lookup into the running
+  game. grug-for-minecraft is a preservation effort: a mod has to run on every supported version,
+  and many mods use vanilla textures from a later Minecraft version than the one being played, which
+  the running game does not have, such as a modern texture on Alpha. Loading them from the game
+  instead would mean asking the player to point grug at one Minecraft installation per version a
+  mod draws its textures from, which would defeat the point of the project.
 - Read the reference code before inventing a model. The pinned BuildCraft jars are on this
   machine under `~/.technic/modpacks/tekkit/mods/`, and a decompiler (Vineflower) is in the
   Gradle cache. `PipeItemsWood` and `PipeLogicWood` are good examples of what that saved.
