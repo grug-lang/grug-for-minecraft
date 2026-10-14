@@ -134,6 +134,11 @@
 					"what": "The redstone engine gains energy on every 20th tick it has been powered, rather than on the ticks the world's time is a multiple of 20.",
 					"why": "grug has no host function for the world's time, and Test.tick_block_entity runs an engine thousands of ticks within one game tick, where the world's time does not move, which is how the engine test checks every stage to the tick.",
 					"tracking_issue": 365
+				},
+				{
+					"what": "The redstone engine always faces up, instead of turning to face a power receptor when placed and rotating with a wrench.",
+					"why": "TileEngine saves its orientation in its NBT and RenderEngine draws the engine along it, but the port has no receptor to face and no wrench yet, and its model is drawn upright only.",
+					"tracking_issue": 368
 				}
 			]
 		}
