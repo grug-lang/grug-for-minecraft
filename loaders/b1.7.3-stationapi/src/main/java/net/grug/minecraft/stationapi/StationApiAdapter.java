@@ -664,6 +664,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public long getWorldTime(Object levelObj) {
+        return ((World) levelObj).getTime();
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.isPowered((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));

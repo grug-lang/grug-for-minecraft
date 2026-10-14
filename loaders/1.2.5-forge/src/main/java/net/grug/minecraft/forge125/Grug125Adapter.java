@@ -700,6 +700,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public long getWorldTime(Object levelObj) {
+        return ((World) levelObj).getWorldTime();
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.isBlockIndirectlyGettingPowered(

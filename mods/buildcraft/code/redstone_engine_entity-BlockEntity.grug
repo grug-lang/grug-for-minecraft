@@ -1,14 +1,9 @@
 # BuildCraft 2.2.14's wooden engine, EngineWood, as far as its energy goes. While a redstone signal
-# reaches the engine's block it gains one energy every 20 ticks, and while none does it loses one
-# every tick, down to 1. The energy decides the engine's stage, and the stage decides which colour of
-# trunk it draws: blue, green, yellow or red, as RenderEngine does.
+# reaches the engine's block it gains one energy on every tick the world's time is a multiple of 20,
+# and while none does it loses one every tick, down to 1. The energy decides the engine's stage, and
+# the stage decides which colour of trunk it draws: blue, green, yellow or red, as RenderEngine does.
 # The energy is a saved number rather than a member variable, because a member variable starts over
 # whenever the engine's chunk is loaded again, and the reference keeps its energy in the tile's NBT.
-
-# How many ticks the engine has spent powered since it last gained energy. The reference gains on the
-# ticks the world clock is a multiple of 20; this counts the engine's own powered ticks instead, which
-# about.json's deviations record.
-powered_ticks: number = 0
 
 # TODO: Change to me.level() and me.block_pos() once entities can have methods
 level: Level = get_block_entity_level(me)
@@ -38,10 +33,9 @@ export tick() {
     energy: number = before
 
     if level.has_neighbor_signal(x, y, z) {
-        # EngineWood.update.
-        powered_ticks = powered_ticks + 1
-        if powered_ticks == 20 {
-            powered_ticks = 0
+        # EngineWood.update: worldObj.getWorldTime() % 20 == 0, and grug has no %.
+        time: number = level.get_time()
+        if time == floor(time / 20) * 20 {
             energy = energy + 1
         }
     } else if energy > 1 {

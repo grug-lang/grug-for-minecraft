@@ -455,6 +455,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public long getWorldTime(Object levelObj) {
+        return ((World) levelObj).ticks;
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.hasNeighborSignal(

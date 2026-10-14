@@ -591,6 +591,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public long getWorldTime(Object levelObj) {
+        return ((Level) levelObj).getDayTime();
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         return world.hasNeighborSignal(
