@@ -8,6 +8,7 @@
         "GuiMixin",
         "LightTextureMixin",
         "LiquidBlockRendererMixin",
+        "ModelBlockRendererMixin",
         "SectionBufferBuilderPoolMixin"
     ],
     "injectors": {

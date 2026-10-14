@@ -143,8 +143,9 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
                             describe(state, pos));
         }
 
-        // A flat block gets no shade per side and no smooth lighting, so its faces share one
-        // brightness instead of each borrowing a different neighbour's.
+        // A flat block gets no shade per side and no smooth lighting, and ModelBlockRendererMixin
+        // lights its quads at the block's own position, so its faces share one brightness instead
+        // of each borrowing a different neighbour's.
         boolean flat =
                 state.getBlock() instanceof GrugBlock grugBlock && grugBlock.drawsFlatLighting();
 
