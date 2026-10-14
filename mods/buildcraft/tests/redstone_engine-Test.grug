@@ -110,7 +110,7 @@ local _check_thresholds() {
     _power()
     level: Level = Test.get_client_level()
     start: number = level.get_time()
-    lead: number = remainder(20 - remainder(start, 20), 20)
+    lead: number = Math.remainder(20 - Math.remainder(start, 20), 20)
     _run_and_expect(lead + 5000, 250, "The tick before the 251st gain should leave the engine blue, at 250 energy.")
     _run_and_expect(1, 251, "The tick of the 251st gain should make the engine green, at 251 energy.")
     _run_and_expect(4999, 500, "The engine should still be green at 500 energy.")

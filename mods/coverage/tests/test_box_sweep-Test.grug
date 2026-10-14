@@ -22,8 +22,8 @@ export run() {
         # The area reaches 16 blocks around the player and the origin is the player's position plus
         # 3, so the player's block plus 16 is the last cleared one. Its block is asserted clear
         # first, so a smaller area fails here instead of leaving an item outside the swept box.
-        px: number = floor(origin.x() - 3)
-        pz: number = floor(origin.z() - 3)
+        px: number = Math.floor(origin.x() - 3)
+        pz: number = Math.floor(origin.z() - 3)
         Test.assert(level.is_air(px + 16, origin.y(), pz), "The test area should reach 16 blocks from the player.")
         # A block under it, so the item rests at a known height for the probe below instead of
         # falling to whatever the terrain there happens to be.
@@ -43,8 +43,8 @@ export run() {
         # after about six ticks, which is why the rebuild comes this early.
         before: Option[ItemEntity] = level.find_item_entity(origin.x(), origin.y(), origin.z(), 10)
         Test.assert(before.has(), "The spawned item should exist before the room is rebuilt.")
-        px: number = floor(origin.x() - 3)
-        pz: number = floor(origin.z() - 3)
+        px: number = Math.floor(origin.x() - 3)
+        pz: number = Math.floor(origin.z() - 3)
         edge_before: Option[ItemEntity] = level.find_item_entity(px + 16.5, origin.y(), pz + 0.5, 2)
         Test.assert(edge_before.has(), "The item in the last cleared block should exist before the room is rebuilt.")
         Test.set_box_radius(4)
@@ -55,8 +55,8 @@ export run() {
         found: Option[ItemEntity] = level.find_item_entity(origin.x(), origin.y(), origin.z(), 10)
         Test.assert(not found.has(), "The room build's sweep should have removed the spawned item.")
 
-        px: number = floor(origin.x() - 3)
-        pz: number = floor(origin.z() - 3)
+        px: number = Math.floor(origin.x() - 3)
+        pz: number = Math.floor(origin.z() - 3)
         edge_found: Option[ItemEntity] = level.find_item_entity(px + 16.5, origin.y(), pz + 0.5, 2)
         Test.assert(not edge_found.has(), "The room build's sweep should have removed the item in the last cleared block.")
     }

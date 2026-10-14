@@ -930,7 +930,7 @@ public class HostFunctions {
      * The largest whole number at or below the given number, which is how a position becomes the
      * block coordinate it is in.
      */
-    public static double floor(double value) {
+    public static double Math_floor(double value) {
         return Math.floor(value);
     }
 
@@ -939,9 +939,10 @@ public class HostFunctions {
      * value}, which is Java's {@code %} on doubles, C's {@code fmod}, and what BuildCraft's {@code
      * % 20} reads.
      */
-    public static double remainder(double value, double divisor) {
+    public static double Math_remainder(double value, double divisor) {
         if (divisor == 0) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "remainder: The divisor cannot be 0.");
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Math.remainder: The divisor cannot be 0.");
             return 0;
         }
         return value % divisor;

@@ -79,6 +79,10 @@ Color.rgb(r: number, g: number, b: number) Color
 .is_air(x: number, y: number, z: number) bool
 .place_block(x: number, y: number, z: number, block_name: string)
 
+## Math
+Math.floor(value: number) number
+Math.remainder(value: number, divisor: number) number
+
 ## Option
 .has() bool
 .set(value: $Value)
@@ -105,7 +109,6 @@ draw_model(model: resource)
 drop_inventory(level: Level, x: number, y: number, z: number)
 equals(a: $Type, b: $Type) bool
 extract_item_from_inventory(block_entity: BlockEntity, item: Item, damage: number, amount: number) number
-floor(value: number) number
 get_block_entity_level(block_entity: BlockEntity) Level
 get_block_pos_of_block_entity(block_entity: BlockEntity) BlockPos
 get_crafting_result_damage(block_entity: BlockEntity) number
@@ -126,7 +129,6 @@ print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)
 redraw(block_entity: BlockEntity)
-remainder(value: number, divisor: number) number
 resource_location(resource_location_string: string) ResourceLocation
 set_block_entity(entity_string: entity)
 set_custom_render()
