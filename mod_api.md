@@ -24,7 +24,7 @@ export run()
 Test.assert(condition: bool, message: string)
 Test.close_screen()
 Test.expect_error(message: string)
-Test.force_fidelity(fidelity: string)
+Test.force_exact_port()
 Test.force_gc()
 Test.get_client_level() Level
 Test.get_origin() Vec3

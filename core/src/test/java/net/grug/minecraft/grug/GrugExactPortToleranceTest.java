@@ -40,7 +40,7 @@ class GrugExactPortToleranceTest {
         Files.createDirectories(path);
         Files.writeString(
                 path.resolve("about.json"),
-                "{\"derived_from\": [{\"artifacts\": [], \"deviations\": " + deviations + "}]}");
+                "{\"derived_from\": [{\"artifacts\": [{}], \"deviations\": " + deviations + "}]}");
     }
 
     @Test

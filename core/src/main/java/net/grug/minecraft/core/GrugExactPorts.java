@@ -97,9 +97,11 @@ public final class GrugExactPorts {
                 return false;
             }
             JsonObject entry = derivedFrom.get(0).getAsJsonObject();
-            // The artifacts are what make the entry a port: without them there is nothing to
-            // reproduce.
-            if (!entry.has("artifacts") || !entry.get("artifacts").isJsonArray()) {
+            // The artifacts are what make the entry a port: without any there is nothing to
+            // reproduce, which is also what the schema requires of a recreation entry.
+            if (!entry.has("artifacts")
+                    || !entry.get("artifacts").isJsonArray()
+                    || entry.getAsJsonArray("artifacts").isEmpty()) {
                 return false;
             }
             if (!entry.has("deviations")) {
