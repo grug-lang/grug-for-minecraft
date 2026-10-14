@@ -283,8 +283,10 @@ the branch after a rebase: the test count changes. Take the baseline from
 - [grug-tests](https://github.com/grug-lang/grug-tests) is grug's spec, and is authoritative on
   what is and is not valid grug. Its
   [grammar](https://raw.githubusercontent.com/grug-lang/grug-tests/refs/heads/main/grug_grammar.lark)
-  lists every operator and construct, and the cases under `tests/ok` and `tests/err` settle the
-  edge cases, one directory per test. The
+  lists every operator and construct, and the cases under `tests/` settle the edge cases: `ok` for
+  programs that compile and run, `err` for compile errors, `err_runtime` for runtime errors,
+  `err_spaces` for misplaced whitespace, and `mod_api_schema` and `mod_api_semantics` for what a
+  `mod_api.json` may declare. `tests/wip` is unfinished, so ignore it. The
   [grug README](https://raw.githubusercontent.com/grug-lang/grug/refs/heads/main/README.md) is the
   overview: its advanced example shows the language's features, but not every operator, so check
   the grammar before concluding something is missing, such as `%`, which grug does not have. Fetch
