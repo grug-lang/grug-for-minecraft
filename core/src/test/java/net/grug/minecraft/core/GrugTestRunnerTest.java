@@ -85,7 +85,6 @@ class GrugTestRunnerTest {
         GrugTestState.testExpectedError = null;
         GrugTestState.currentTestTick = 0;
         GrugTestState.currentTestMod = null;
-        GrugTestState.testForcedExactPort = false;
         GrugTestState.testOrigin = null;
         GrugErrors.printQueue.clear();
         GrugErrors.runtimeErrorQueue.clear();
@@ -470,22 +469,6 @@ class GrugTestRunnerTest {
         runToEnd(runner(ops, files));
 
         assertEquals(List.of("firstmod", "secondmod"), owningMods);
-    }
-
-    @Test
-    void clearsAForcedExactPortBetweenTests() {
-        // A forced exact port only ever judges the test that asked for it, so it must not survive
-        // into the
-        // next one even when that test failed partway through.
-        FakeOps ops = new FakeOps();
-        ops.onCall =
-                () -> {
-                    GrugTestState.testForcedExactPort = true;
-                    ops.completed = false;
-                };
-        runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
-
-        assertFalse(GrugTestState.testForcedExactPort);
     }
 
     @Test

@@ -574,7 +574,6 @@ public class GrugTestRunner {
         // aborted cannot inherit an expectation, an override or a captured origin from a previous
         // one.
         GrugTestState.testExpectedError = null;
-        GrugTestState.testForcedExactPort = false;
         GrugTestState.testOrigin = null;
         GrugTestState.testClockOffset = 0;
 
@@ -610,12 +609,11 @@ public class GrugTestRunner {
     }
 
     private void destroyCurrentEntity() {
-        // Cleared here rather than when the next test starts, so neither a Test.force_exact_port
-        // override nor a Test.expect_error expectation can outlive the test that asked for it even
-        // when that test failed partway through. A leftover expectation would keep
+        // Cleared here rather than when the next test starts, so a Test.expect_error expectation
+        // cannot outlive the test that asked for it even when that test failed partway through. A
+        // leftover expectation would keep
         // GrugErrors.onRuntimeError recording errors for a test that is no longer running. The
         // captured origin is cleared for the same reason: the next test has to capture its own.
-        GrugTestState.testForcedExactPort = false;
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
         GrugTestState.testClockOffset = 0;

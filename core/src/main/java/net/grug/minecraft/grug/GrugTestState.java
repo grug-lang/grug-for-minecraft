@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 /**
  * The state of the one test that is running, shared by the runner that drives it and the {@code
  * Test} host functions that run inside it: its tick, its not-done flag, the error it expects, the
- * errors it raised, its owning mod, its exact-port rule and its captured origin.
+ * errors it raised, its owning mod, whether it is an exact port and its captured origin.
  *
  * <p>grug runs one test at a time, so this is one at a time too: GrugTestRunner sets the fields
  * around each Test.run() call, and the Test host functions set and read them inside it.
@@ -47,11 +47,6 @@ public final class GrugTestState {
     // whichever mod a screenshot happens to render, is who answers for the promise.
     public static String currentTestMod = null;
 
-    // Set by Test.force_exact_port(); reset to false by GrugTestRunner immediately before each
-    // Test.run() call, so one test's override cannot go on deciding the next one's assertions. It
-    // can only tighten a test's rule: a mod that is an exact port stays one whatever it is set to.
-    public static boolean testForcedExactPort = false;
-
     // The origin Test.get_origin() captured first for the running test, so every later call in the
     // same test returns the same position while the player settles. GrugTestRunner clears it when a
     // test starts and when it ends, which is what keeps a setup and its check on one row. See #158.
@@ -74,16 +69,31 @@ public final class GrugTestState {
         return testOrigin;
     }
 
-    /**
-     * Whether the mod owning the running test is a port with no deviations, honouring a test-only
-     * override. The override can tighten the rule, which is how a mod that is not itself an exact
-     * port covers the rules for one, but it cannot loosen a mod that is.
-     */
+    /** Whether the mod owning the running test is a port with no deviations. */
     public static boolean currentTestIsExactPort() {
-        if (currentTestMod != null && GrugExactPorts.isExactPort(currentTestMod)) {
-            return true;
+        return currentTestMod != null && GrugExactPorts.isExactPort(currentTestMod);
+    }
+
+    /**
+     * Why {@code percent} is not a tolerance {@code Screenshot.tolerance} can set for the running
+     * test, or null when it is one.
+     *
+     * <p>Only a whole percentage from 0 to 100 means anything, because a fractional value has no
+     * meaning for a pixel count and the comparison's arithmetic assumes an integer. The range check
+     * comes first because a bad percentage is the author's mistake whichever mod they wrote it in.
+     * An exact port has to be compared pixel for pixel, so it may not allow any tolerance above 0.
+     */
+    public static String checkTolerance(double percent) {
+        if (percent < 0 || percent > 100 || percent != Math.floor(percent)) {
+            return "percent must be a whole number between 0 and 100, but got " + percent + ".";
         }
-        return testForcedExactPort;
+        if (!GrugExactPorts.allowsTolerance(percent)) {
+            return currentTestMod
+                    + " is an exact port, so its tests have to compare pixel for pixel and cannot"
+                    + " allow a tolerance. Compare without a tolerance, or list the difference as"
+                    + " a deviation in its about.json.";
+        }
+        return null;
     }
 
     /**
