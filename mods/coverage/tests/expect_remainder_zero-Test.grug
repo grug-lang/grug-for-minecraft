@@ -1,4 +1,4 @@
-# A divisor of 0 would give NaN, which is a result nobody asked for, so remainder reports it.
+# A divisor of 0 would give NaN, which is a result nobody asked for, so Math.remainder reports it.
 export run() {
     Test.expect_error("Math.remainder")
     Math.remainder(7, 0)
