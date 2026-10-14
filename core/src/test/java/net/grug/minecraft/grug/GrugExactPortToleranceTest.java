@@ -35,17 +35,21 @@ class GrugExactPortToleranceTest {
         GrugTestState.testForcedExactPort = false;
     }
 
+    /**
+     * Writes a port's about.json; a null {@code deviations} leaves the key out, as a finished one.
+     */
     private void declare(String mod, String deviations) throws IOException {
         Path path = mods.resolve(mod);
         Files.createDirectories(path);
+        String key = deviations == null ? "" : ", \"deviations\": " + deviations;
         Files.writeString(
                 path.resolve("about.json"),
-                "{\"derived_from\": [{\"artifacts\": [{}], \"deviations\": " + deviations + "}]}");
+                "{\"derived_from\": [{\"artifacts\": [{}]" + key + "}]}");
     }
 
     @Test
     void anExactPortMayNotAllowATolerance() throws IOException {
-        declare("exactmod", "[]");
+        declare("exactmod", null);
         GrugExactPorts.load(mods.toFile());
         GrugTestState.currentTestMod = "exactmod";
 
@@ -55,7 +59,7 @@ class GrugExactPortToleranceTest {
 
     @Test
     void anExactPortMayStillComparePixelExactly() throws IOException {
-        declare("exactmod", "[]");
+        declare("exactmod", null);
         GrugExactPorts.load(mods.toFile());
         GrugTestState.currentTestMod = "exactmod";
 

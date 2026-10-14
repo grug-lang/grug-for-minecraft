@@ -96,8 +96,9 @@
                         "$ref": "#/definitions/install"
                     },
                     "deviations": {
-                        "description": "Known differences from the reference, each a gap still to be closed with its own tracking issue. A port reproduces its reference exactly, so an empty or absent list is what says it is complete.",
+                        "description": "Known differences from the reference, each a gap still to be closed with its own tracking issue. A port reproduces its reference exactly, so a port with no deviations left has no `deviations` key at all, and an empty list is refused.",
                         "type": "array",
+                        "minItems": 1,
                         "items": {
                             "$ref": "#/definitions/deviation"
                         }

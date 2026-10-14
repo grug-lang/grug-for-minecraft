@@ -28,12 +28,10 @@ class GrugExactPortsTest {
 
     @Test
     void aPortWithNoDeviationsIsExact() throws IOException {
-        about("noarray", "{\"derived_from\": [{\"artifacts\": [{}]}]}");
-        about("emptyarray", "{\"derived_from\": [{\"artifacts\": [{}], \"deviations\": []}]}");
+        about("finished", "{\"derived_from\": [{\"artifacts\": [{}]}]}");
         load();
 
-        assertTrue(GrugExactPorts.isExactPort("noarray"));
-        assertTrue(GrugExactPorts.isExactPort("emptyarray"));
+        assertTrue(GrugExactPorts.isExactPort("finished"));
     }
 
     @Test
@@ -80,6 +78,8 @@ class GrugExactPortsTest {
         about("emptyderivedfrom", "{\"derived_from\": []}");
         about("entrynotobject", "{\"derived_from\": [\"exact\"]}");
         about("artifactsnotarray", "{\"derived_from\": [{\"artifacts\": 1}]}");
+        // The schema refuses an empty list, so a port that has the key is not finished.
+        about("emptydeviations", "{\"derived_from\": [{\"artifacts\": [{}], \"deviations\": []}]}");
         about("noartifacts", "{\"derived_from\": [{\"artifacts\": []}]}");
         about(
                 "deviationsnotarray",
@@ -94,6 +94,7 @@ class GrugExactPortsTest {
                     "emptyderivedfrom",
                     "entrynotobject",
                     "artifactsnotarray",
+                    "emptydeviations",
                     "noartifacts",
                     "deviationsnotarray"
                 }) {

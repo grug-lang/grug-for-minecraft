@@ -139,6 +139,12 @@ class RecreationSchemaTest(unittest.TestCase):
         entry["deviations"] = [{"what": "x", "why": "y", "tracking_issue": 1}]
         self.assertValid(self.mod_with(entry))
 
+    def test_a_finished_port_has_no_deviations_key(self):
+        # An empty list is refused rather than read as finished, so there is one way to say it.
+        entry = base_entry()
+        entry["deviations"] = []
+        self.assertInvalid(self.mod_with(entry), "should be non-empty")
+
     def test_a_deviation_without_a_tracking_issue_is_rejected(self):
         entry = base_entry()
         entry["deviations"] = [{"what": "x", "why": "y"}]
