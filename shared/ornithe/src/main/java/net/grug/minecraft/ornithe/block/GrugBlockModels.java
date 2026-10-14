@@ -9,8 +9,8 @@ import java.util.Arrays;
  * Resolves which texture each face of a grug block uses by reading its model JSON (the same file
  * the Forge and StationAPI loaders use) straight from the grug mods directory.
  *
- * <p>The reading itself is {@link GrugBlockFaces}, which every loader shares; this only supplies
- * the Ornithe mods directory and logs the faces it found.
+ * <p>The reading itself is {@link GrugBlockFaces}, which the other loaders that read the model
+ * files share; this only supplies the Ornithe mods directory and logs the faces it found.
  */
 public final class GrugBlockModels {
 
