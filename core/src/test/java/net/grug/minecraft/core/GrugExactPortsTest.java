@@ -28,8 +28,8 @@ class GrugExactPortsTest {
 
     @Test
     void aPortWithNoDeviationsIsExact() throws IOException {
-        about("noarray", "{\"derived_from\": [{\"artifacts\": []}]}");
-        about("emptyarray", "{\"derived_from\": [{\"artifacts\": [], \"deviations\": []}]}");
+        about("noarray", "{\"derived_from\": [{\"artifacts\": [{}]}]}");
+        about("emptyarray", "{\"derived_from\": [{\"artifacts\": [{}], \"deviations\": []}]}");
         load();
 
         assertTrue(GrugExactPorts.isExactPort("noarray"));
@@ -40,7 +40,7 @@ class GrugExactPortsTest {
     void aPortThatListsADeviationIsNotExactYet() throws IOException {
         about(
                 "unfinished",
-                "{\"derived_from\": [{\"artifacts\": [], \"deviations\": [{\"what\": \"x\"}]}]}");
+                "{\"derived_from\": [{\"artifacts\": [{}], \"deviations\": [{\"what\": \"x\"}]}]}");
         load();
 
         assertFalse(GrugExactPorts.isExactPort("unfinished"));
@@ -50,7 +50,7 @@ class GrugExactPortsTest {
     void ignoresTheRestOfTheAboutJson() throws IOException {
         about(
                 "mymod",
-                "{\"name\": \"mymod\", \"derived_from\": [{\"name\": \"x\", \"artifacts\": []},"
+                "{\"name\": \"mymod\", \"derived_from\": [{\"name\": \"x\", \"artifacts\": [{}]},"
                         + " {\"name\": \"y\"}]}");
         load();
 
@@ -80,9 +80,10 @@ class GrugExactPortsTest {
         about("emptyderivedfrom", "{\"derived_from\": []}");
         about("entrynotobject", "{\"derived_from\": [\"exact\"]}");
         about("artifactsnotarray", "{\"derived_from\": [{\"artifacts\": 1}]}");
+        about("noartifacts", "{\"derived_from\": [{\"artifacts\": []}]}");
         about(
                 "deviationsnotarray",
-                "{\"derived_from\": [{\"artifacts\": [], \"deviations\": \"none\"}]}");
+                "{\"derived_from\": [{\"artifacts\": [{}], \"deviations\": \"none\"}]}");
         load();
 
         for (String mod :
@@ -93,6 +94,7 @@ class GrugExactPortsTest {
                     "emptyderivedfrom",
                     "entrynotobject",
                     "artifactsnotarray",
+                    "noartifacts",
                     "deviationsnotarray"
                 }) {
             assertFalse(GrugExactPorts.isExactPort(mod), mod);
@@ -107,7 +109,7 @@ class GrugExactPortsTest {
 
     @Test
     void forgetsThePortsThatAreNoLongerExact() throws IOException {
-        about("mymod", "{\"derived_from\": [{\"artifacts\": []}]}");
+        about("mymod", "{\"derived_from\": [{\"artifacts\": [{}]}]}");
         load();
         about("mymod", "{}");
         load();
