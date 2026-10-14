@@ -1,11 +1,3 @@
-Copyright (c) 2011-2025, SpaceToad, DanyGames2014, ralf2oo2 and the BuildCraft Team
-http://www.mod-buildcraft.com
- 
-BuildCraft is distributed under the terms of the Minecraft Mod Public
-License 1.0, or MMPL. Please check the contents of the license located in
-http://www.mod-buildcraft.com/MMPL-1.0.txt
-A copy of this license is also provided below
- 
 Minecraft Mod Public License
 ============================
 
@@ -44,7 +36,7 @@ This mod is provided 'as is' with no warranties, implied or otherwise. The owner
 of this mod takes no responsibility for any damages incurred from the use of
 this mod. This mod alters fundamental parts of the Minecraft game, parts of
 Minecraft may not work with this mod installed. All damages caused from the use
-or misuse of this mod fall on the user.
+or misuse of this mad fall on the user.
 
 3. Play rights
 --------------
@@ -85,9 +77,9 @@ entire set of sources or modified sources at no costs.
 
 All distributions of this mod must remain licensed under the MMPL.
 
-All dependencies that this mod has on other mods or classes must be licensed
+All dependencies that this mod have on other mods or classes must be licensed
 under conditions comparable to this version of MMPL, with the exception of the
-Minecraft code and the mod loading framework (e.g. ModLoader, ModLoaderMP, Minecraft Forge/Forge Modloader or
+Minecraft code and the mod loading framework (e.g. ModLoader, ModLoaderMP or
 Bukkit).
 
 Modified version of binaries and sources, as well as files containing sections
