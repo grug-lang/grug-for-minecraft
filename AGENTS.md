@@ -340,7 +340,8 @@ the branch after a rebase: the test count changes. Take the baseline from
   and many mods use vanilla textures from a later Minecraft version than the one being played, which
   the running game does not have, such as a modern texture on Alpha. Loading them from the game
   instead would mean asking the player to point grug at one Minecraft installation per version a
-  mod draws its textures from, which would defeat the point of the project.
+  mod draws its textures from. That significantly hinders accessibility, since every extra step
+  stops some players from ever running the mod, which goes against the preservation effort.
 - Read the reference code before inventing a model. The pinned BuildCraft jars are on this
   machine under `~/.technic/modpacks/tekkit/mods/`, and a decompiler (Vineflower) is in the
   Gradle cache. `PipeItemsWood` and `PipeLogicWood` are good examples of what that saved.
