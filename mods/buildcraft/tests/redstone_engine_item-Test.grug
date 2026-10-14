@@ -1,0 +1,51 @@
+# Covers the redstone engine's item form, which BuildCraft 2.2.14 draws with the blue trunk whatever
+# energy an engine had: RenderEngine.inventoryRender always draws EnergyStage.Blue. The engine is put
+# in the middle slot of an autocrafting table's grid and the table's GUI opened, which is the
+# smallest way to get an item drawn in a slot on every loader.
+# It runs after redstone_engine-Test.grug, which closes the screen the autocrafting table tests left
+# open, and it leaves a GUI open again, so the wooden pipe tests after it run in the state they always
+# have. See #195.
+# How many runner ticks in a row the world has answered settled.
+settled_ticks: number = 0
+
+export run() {
+    if Test.tick() == 0 {
+        _setup()
+        Test.not_done()
+    } else if not Test.world_settled() {
+        # The same wait as autocrafting_table-Test.grug: the panel is only on screen once a frame
+        # holding it has been drawn.
+        settled_ticks = 0
+        Test.not_done()
+    } else if settled_ticks < 10 {
+        # On 1.20.6 the screen is opened by a packet from the server, and a world with nothing left
+        # to draw can answer settled before that packet has arrived, so one settled answer is not
+        # enough to capture on. Ten in a row is past the tick or two the packet takes.
+        settled_ticks = settled_ticks + 1
+        Test.not_done()
+    } else {
+        # The item in the middle slot of the crafting grid, at the panel's 1280x720 scale of 3: the
+        # slot's item is drawn at (48, 35) in the panel, whose top left is at (376, 111). See
+        # autocrafting_table-Test.grug for how the panel's position was found.
+        Test.screenshot().equals(r"screenshots/redstone_engine_item", 520, 216, 568, 264)
+        Test.restore_camera()
+    }
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.setup_graphics_camera()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:autocrafting_table")
+    table_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(table_opt.has(), "The autocrafting table should have a block entity.")
+    table: BlockEntity = table_opt.unwrap()
+
+    engine_item: Item = item(resource_location("grug:redstone_engine"))
+    set_item_in_slot(table, 4, engine_item, 1)
+
+    Test.use_block(level, x, y, z)
+}

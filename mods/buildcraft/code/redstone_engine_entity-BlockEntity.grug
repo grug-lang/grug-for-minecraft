@@ -1,6 +1,14 @@
-# The redstone engine is active while its block position is receiving a redstone signal. The active
-# state is derived from the world, so it is recomputed every tick rather than persisted.
-active: bool = false
+# BuildCraft 2.2.14's wooden engine, EngineWood, as far as its energy goes. While a redstone signal
+# reaches the engine's block it gains one energy every 20 ticks, and while none does it loses one
+# every tick, down to 1. The energy decides the engine's stage, and the stage decides which colour of
+# trunk it draws: blue, green, yellow or red, as RenderEngine does.
+# The energy is a saved number rather than a member variable, because a member variable starts over
+# whenever the engine's chunk is loaded again, and the reference keeps its energy in the tile's NBT.
+
+# How many ticks the engine has spent powered since it last gained energy. The reference gains on the
+# ticks the world clock is a multiple of 20; this counts the engine's own powered ticks instead, which
+# about.json's deviations record.
+powered_ticks: number = 0
 
 # TODO: Change to me.level() and me.block_pos() once entities can have methods
 level: Level = get_block_entity_level(me)
@@ -10,6 +18,61 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
+# The engine at rest: the base, the piston plate on it and the trunk through both, with the trunk in
+# its stage's colour. The models differ only in the trunk's texture.
+export render() {
+    stage: number = _stage(get_saved_number(me, "energy"))
+    if stage == 0 {
+        draw_model(r"assets/grug/models/block/redstone_engine.json")
+    } else if stage == 1 {
+        draw_model(r"assets/grug/models/block/redstone_engine_green.json")
+    } else if stage == 2 {
+        draw_model(r"assets/grug/models/block/redstone_engine_yellow.json")
+    } else {
+        draw_model(r"assets/grug/models/block/redstone_engine_red.json")
+    }
+}
+
 export tick() {
-    active = level.has_neighbor_signal(x, y, z)
+    before: number = get_saved_number(me, "energy")
+    energy: number = before
+
+    if level.has_neighbor_signal(x, y, z) {
+        # EngineWood.update.
+        powered_ticks = powered_ticks + 1
+        if powered_ticks == 20 {
+            powered_ticks = 0
+            energy = energy + 1
+        }
+    } else if energy > 1 {
+        # Engine.update.
+        energy = energy - 1
+    }
+
+    if energy == before {
+        return
+    }
+    set_saved_number(me, "energy", energy)
+
+    # Drawing the engine again costs a chunk's worth of work, so it is only asked for when the trunk
+    # it draws changes colour.
+    if _stage(energy) != _stage(before) {
+        redraw(me)
+    }
+}
+
+# Engine.computeEnergyStage for EngineWood's maxEnergy of 1000: 0 is blue up to 25% of it, 1 green up
+# to 50%, 2 yellow up to 75% and 3 red above that. The reference calls anything above 100% Explosion,
+# and RenderEngine draws that with the red trunk too.
+local _stage(energy: number) number {
+    if energy <= 250 {
+        return 0
+    }
+    if energy <= 500 {
+        return 1
+    }
+    if energy <= 750 {
+        return 2
+    }
+    return 3
 }
