@@ -103,8 +103,8 @@ dependencies {
     genTool 'com.google.code.gson:gson:2.14.0'
     genTool 'org.jetbrains:annotations:26.1.0'
 
-    fixInheritedTool 'org.ow2.asm:asm:9.10.1'
-    fixInheritedTool 'org.ow2.asm:asm-tree:9.10.1'
+    fixInheritedTool 'org.ow2.asm:asm:9.11'
+    fixInheritedTool 'org.ow2.asm:asm-tree:9.11'
 
     specialSourceTool 'net.md-5:SpecialSource:1.11.4:shaded'
 
