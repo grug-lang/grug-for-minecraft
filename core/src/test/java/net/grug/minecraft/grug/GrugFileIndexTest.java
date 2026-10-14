@@ -36,15 +36,25 @@ class GrugFileIndexTest {
     }
 
     @Test
-    void rejectsAFileThatFailedToCompile() {
+    void reportsAndSkipsAFileThatFailedToCompile() {
         FileInfo bad =
                 new FileInfo(
                         "mymod/code/foo-Block.grug", "", "", "Block", "foo-Block", -1L, "boom");
-        IllegalStateException e =
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> GrugFileIndex.classify(new FileInfo[] {bad}));
-        assertEquals(true, e.getMessage().contains("Failed to compile"));
+        FileInfo good = file("mymod/code/bar-Block.grug", "bar-Block", "Block", 1L);
+        List<GrugFileIndex.Entry> entries = GrugFileIndex.classify(new FileInfo[] {bad, good});
+        // The err reaches the run as a [GRUG CI] FAIL line, which is what run-loader.sh stops on,
+        // instead of a throw the loader swallows while the run hangs until its timeout (#366).
+        assertEquals(1, entries.size());
+        assertEquals("bar", entries.get(0).cleanName());
+        synchronized (GrugErrors.runtimeErrorQueue) {
+            assertEquals(1, GrugErrors.runtimeErrorQueue.size());
+            assertEquals(
+                    true,
+                    GrugErrors.runtimeErrorQueue
+                            .peek()
+                            .startsWith("Failed to compile mymod/code/foo-Block.grug:\nboom"));
+            GrugErrors.runtimeErrorQueue.clear();
+        }
     }
 
     @Test
