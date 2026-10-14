@@ -116,17 +116,6 @@ def recreation_errors(derived_from) -> list:
         if not isinstance(artifact, dict):
             continue
 
-        redistribution = artifact.get("redistribution")
-        allowed = isinstance(redistribution, dict) and redistribution.get("allowed") is True
-        if artifact.get("mirrors") and not allowed:
-            errors.append(
-                (
-                    f"{path}/artifacts/{index}/mirrors",
-                    "a mirror redistributes the artifact, so mirrors requires"
-                    f" {path}/artifacts/{index}/redistribution/allowed to be true.",
-                )
-            )
-
         name = artifact.get("name")
         if not isinstance(name, str):
             continue

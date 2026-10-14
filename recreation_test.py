@@ -23,7 +23,6 @@ def artifact(name: str, payload: bytes) -> dict:
         "url": f"https://example.com/{name}",
         "sha256": hashlib.sha256(payload).hexdigest(),
         "size": len(payload),
-        "redistribution": {"allowed": False},
     }
 
 
