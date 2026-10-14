@@ -1,7 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
-import net.grug.minecraft.core.GrugModFidelity;
+import net.grug.minecraft.core.GrugExactPorts;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
 import java.awt.image.BufferedImage;
@@ -237,24 +237,13 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: judges the rest of this test as though the mod owning it declared {@code
-     * fidelity}, which is how a mod that is not itself an exact recreation covers the
-     * exact-fidelity rules. It can only tighten the rule: a mod that declares exact is judged exact
-     * whatever this sets. Reset before every test, so it never reaches a test that did not ask for
-     * it.
+     * Test only: judges the rest of this test as though the mod owning it were a port with no
+     * deviations, which is how a mod that is not itself an exact port covers the rules for one. It
+     * can only tighten the rule: a mod that is an exact port is judged one whatever this does.
+     * Reset before every test, so it never reaches a test that did not ask for it.
      */
-    public static void Test_force_fidelity(String fidelity) {
-        if (!GrugModFidelity.FIDELITIES.contains(fidelity)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Test.force_fidelity: fidelity must be one of "
-                            + String.join(", ", GrugModFidelity.FIDELITIES)
-                            + ", but got "
-                            + fidelity
-                            + ".");
-            return;
-        }
-        GrugTestState.testFidelityOverride = fidelity;
+    public static void Test_force_exact_port() {
+        GrugTestState.testForcedExactPort = true;
     }
 
     // Classes
@@ -475,16 +464,16 @@ public class HostFunctions {
                             + ".");
             return 0;
         }
-        // An exact recreation has to be compared pixel for pixel. The range check comes first
+        // An exact port has to be compared pixel for pixel. The range check comes first
         // because a bad percentage is the author's mistake whichever mod they wrote it in.
-        if (!GrugModFidelity.allowsTolerance(percent)) {
+        if (!GrugExactPorts.allowsTolerance(percent)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Screenshot.tolerance: "
                             + GrugTestState.currentTestMod
-                            + " is being judged as an exact recreation, so its tests have to"
-                            + " compare pixel for pixel and cannot allow a tolerance. Compare"
-                            + " without a tolerance, or lower the fidelity in its about.json.");
+                            + " is an exact port, so its tests have to compare pixel for pixel"
+                            + " and cannot allow a tolerance. Compare without a tolerance, or"
+                            + " list the difference as a deviation in its about.json.");
             return 0;
         }
         // GrugScreenshot is immutable, so setting a tolerance replaces the object stored under the

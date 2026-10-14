@@ -85,7 +85,7 @@ class GrugTestRunnerTest {
         GrugTestState.testExpectedError = null;
         GrugTestState.currentTestTick = 0;
         GrugTestState.currentTestMod = null;
-        GrugTestState.testFidelityOverride = null;
+        GrugTestState.testForcedExactPort = false;
         GrugTestState.testOrigin = null;
         GrugErrors.printQueue.clear();
         GrugErrors.runtimeErrorQueue.clear();
@@ -473,18 +473,19 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void clearsAFidelityOverrideBetweenTests() {
-        // An override only ever judges the test that asked for it, so it must not survive into the
+    void clearsAForcedExactPortBetweenTests() {
+        // A forced exact port only ever judges the test that asked for it, so it must not survive
+        // into the
         // next one even when that test failed partway through.
         FakeOps ops = new FakeOps();
         ops.onCall =
                 () -> {
-                    GrugTestState.testFidelityOverride = "exact";
+                    GrugTestState.testForcedExactPort = true;
                     ops.completed = false;
                 };
         runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L)));
 
-        assertNull(GrugTestState.testFidelityOverride);
+        assertFalse(GrugTestState.testForcedExactPort);
     }
 
     @Test
