@@ -1628,7 +1628,7 @@
 			]
 		},
 		"remainder": {
-			"description": "What is left of the first number after dividing it by the second as many whole times as fit, with the sign of the first number: remainder(7, 3) is 1, remainder(-7, 3) is -1 and remainder(7.5, 2) is 1.5. That is what Java's and C's `%` give, so it is how a mod checks whether a tick count is a multiple of something: remainder(time, 20) == 0. It is not the IEEE remainder that rounds to the nearest whole number, so remainder(15, 20) is 15 and not -5. A divisor of 0 reports an error, since the answer would be nothing but NaN.",
+			"description": "What is left of the first number after dividing it by the second as many whole times as fit, with the sign of the first number: remainder(7, 3) is 1, remainder(-7, 3) is -1 and remainder(7.5, 2) is 1.5. That is what Java's `%` gives on numbers with a fraction, and what C's `fmod` gives, so it is how a mod checks whether a tick count is a multiple of something: remainder(time, 20) == 0. It is not the IEEE remainder that rounds to the nearest whole number, so remainder(15, 20) is 15 and not -5. A divisor of 0 reports an error, since the answer would be nothing but NaN.",
 			"return_type": {
 				"name": "number"
 			},

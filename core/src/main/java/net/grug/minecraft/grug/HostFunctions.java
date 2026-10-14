@@ -936,7 +936,8 @@ public class HostFunctions {
 
     /**
      * What is left of {@code value} after dividing by {@code divisor}, with the sign of {@code
-     * value}, which is Java's {@code %} on doubles and what BuildCraft's {@code % 20} reads.
+     * value}, which is Java's {@code %} on doubles, C's {@code fmod}, and what BuildCraft's {@code
+     * % 20} reads.
      */
     public static double remainder(double value, double divisor) {
         if (divisor == 0) {
