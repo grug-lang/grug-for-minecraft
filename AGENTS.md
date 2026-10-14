@@ -94,10 +94,10 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 
 ## Versions are pinned
 
-Every version is exact, and `.github/dependabot.yml` proposes Actions, Gradle and pip bumps weekly.
-grug-rs (`grugRsRevision` in `core/build.gradle.kts`) is bumped by hand, as a VM behaviour change.
+Every version is exact and bumped by hand, when there is a reason to. grug-rs (`grugRsRevision` in
+`core/build.gradle.kts`) is a VM behaviour change.
 The root Gradle wrapper is frozen at 8.14 because the abandoned SpongePowered Mixin plugin and
-ForgeGradle 6 do not support Gradle 9. Read a proposed major version before taking it. Pin
+ForgeGradle 6 do not support Gradle 9. Read a major version before taking it. Pin
 locations and bump commands, and why dynamic selectors and checksums were pinned, are in #369.
 
 ## grug language rules that cost runs
