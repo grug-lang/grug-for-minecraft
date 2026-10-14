@@ -33,7 +33,6 @@ export tick() {
     energy: number = before
 
     if level.has_neighbor_signal(x, y, z) {
-        # EngineWood.update: worldObj.getWorldTime() % 20 == 0.
         if remainder(level.get_time(), 20) == 0 {
             energy = energy + 1
         }
