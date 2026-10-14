@@ -19,10 +19,10 @@ import java.util.Set;
  * <p>A port reproduces its reference exactly, in behaviour and in graphics, so the first {@code
  * derived_from} entry of its {@code about.json} says everything there is to say: it carries the
  * recreation fields, and its {@code deviations} are the known gaps still to be closed. A port with
- * no deviations is complete, and a complete port is compared pixel for pixel. A promise nothing
- * enforces is a comment, so this is the set {@code Screenshot.tolerance} consults: a port with no
- * deviations may not widen a screenshot comparison to accept a pixel that differs. A port that
- * still lists deviations is not claiming to be finished, and a mod that is not a port makes no
+ * no {@code deviations} key is complete, and a complete port is compared pixel for pixel. A promise
+ * nothing enforces is a comment, so this is the set {@code Screenshot.tolerance} consults: a port
+ * with no deviations may not widen a screenshot comparison to accept a pixel that differs. A port
+ * that still lists deviations is not claiming to be finished, and a mod that is not a port makes no
  * claim at all.
  *
  * <p>Only the metadata lives here. Which mod owns the running test is test-runner state, so that
@@ -104,11 +104,9 @@ public final class GrugExactPorts {
                     || entry.getAsJsonArray("artifacts").isEmpty()) {
                 return false;
             }
-            if (!entry.has("deviations")) {
-                return true;
-            }
-            return entry.get("deviations").isJsonArray()
-                    && entry.getAsJsonArray("deviations").isEmpty();
+            // A finished port has no deviations key at all. The schema refuses an empty list, so
+            // any key that is present, whatever it holds, means the port is not finished.
+            return !entry.has("deviations");
         } catch (Exception e) {
             return false;
         }

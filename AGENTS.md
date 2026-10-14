@@ -137,8 +137,8 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
 - A port reproduces its reference exactly, in behaviour and in graphics, reference bugs included;
   there is no lesser standard. It targets the first entry of `about.json`'s `derived_from`: its
   `artifacts` are the reference files, its `runtime` is where they run, and `deviations` lists every
-  known gap still to be closed, each with a tracking issue. A port is done when `deviations` is
-  empty, and from then on `Screenshot.tolerance` refuses any percentage above 0 in its tests
+  known gap still to be closed, each with a tracking issue. A port is done when its `deviations` key is
+  removed (the schema refuses an empty list), and from then on `Screenshot.tolerance` refuses any percentage above 0 in its tests
   (BuildCraft's checklist is #75).
 - Read the reference before inventing a model. BuildCraft 2.2.14 is already decompiled at
   `~/agent-workspaces/buildcraft-2.2.14-src/src`, with the original class files and textures in
