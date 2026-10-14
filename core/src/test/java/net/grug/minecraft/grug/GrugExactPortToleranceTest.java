@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.core.GrugExactPorts;
@@ -25,14 +26,12 @@ class GrugExactPortToleranceTest {
     @BeforeEach
     void resetState() {
         GrugTestState.currentTestMod = null;
-        GrugTestState.testForcedExactPort = false;
     }
 
     @AfterEach
     void clearPorts() {
         GrugExactPorts.load(mods.toFile());
         GrugTestState.currentTestMod = null;
-        GrugTestState.testForcedExactPort = false;
     }
 
     /**
@@ -90,16 +89,30 @@ class GrugExactPortToleranceTest {
     }
 
     @Test
-    void forcingJudgesTheRunningTestAsAnExactPort() throws IOException {
-        // The coverage mod is not itself an exact port, so it has to be able to stand in as one to
-        // cover the rule.
-        declare("unfinishedmod", "[{\"what\": \"x\", \"why\": \"y\", \"tracking_issue\": 1}]");
+    void refusesAnyToleranceFromAnExactPortNamingTheMod() throws IOException {
+        declare("exactmod", null);
         GrugExactPorts.load(mods.toFile());
-        GrugTestState.currentTestMod = "unfinishedmod";
-        assertTrue(GrugExactPorts.allowsTolerance(1));
+        GrugTestState.currentTestMod = "exactmod";
 
-        GrugTestState.testForcedExactPort = true;
-        assertTrue(GrugTestState.currentTestIsExactPort());
-        assertFalse(GrugExactPorts.allowsTolerance(1));
+        assertTrue(GrugTestState.checkTolerance(1).startsWith("exactmod is an exact port"));
+        assertNull(GrugTestState.checkTolerance(0));
+    }
+
+    @Test
+    void acceptsAWholePercentageForAModThatMayAllowOne() {
+        GrugTestState.currentTestMod = "plainmod";
+        assertNull(GrugTestState.checkTolerance(1));
+        assertNull(GrugTestState.checkTolerance(100));
+    }
+
+    @Test
+    void rejectsAPercentageOutOfRangeOrFractionalBeforeLookingAtThePort() throws IOException {
+        declare("exactmod", null);
+        GrugExactPorts.load(mods.toFile());
+        GrugTestState.currentTestMod = "exactmod";
+
+        assertTrue(GrugTestState.checkTolerance(101).contains("whole number between 0 and 100"));
+        assertTrue(GrugTestState.checkTolerance(-1).contains("whole number between 0 and 100"));
+        assertTrue(GrugTestState.checkTolerance(1.5).contains("whole number between 0 and 100"));
     }
 }

@@ -405,9 +405,6 @@
 							}
 						}
 					]
-				},
-				"force_exact_port": {
-					"description": "Test only: judges the rest of this test as though the mod owning it were an exact port, so a mod that is not itself one can still cover the rules for one, such as the refusal of a screenshot tolerance. Reset before every test, so it never reaches a test that did not ask for it, and it only ever applies to the mod owning the test. It can only tighten the rule: a mod that is an exact port is judged one whatever a test does."
 				}
 			}
 		}

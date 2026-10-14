@@ -1,7 +1,6 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
-import net.grug.minecraft.core.GrugExactPorts;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
 import java.awt.image.BufferedImage;
@@ -236,16 +235,6 @@ public class HostFunctions {
         GrugTestState.testExpectedError = message;
     }
 
-    /**
-     * Test only: judges the rest of this test as though the mod owning it were a port with no
-     * deviations, which is how a mod that is not itself an exact port covers the rules for one. It
-     * can only tighten the rule: a mod that is an exact port is judged one whatever this does.
-     * Reset before every test, so it never reaches a test that did not ask for it.
-     */
-    public static void Test_force_exact_port() {
-        GrugTestState.testForcedExactPort = true;
-    }
-
     // Classes
 
     public static long BlockPos_above_n(long blockPosId, double n) {
@@ -453,27 +442,9 @@ public class HostFunctions {
     }
 
     public static long Screenshot_tolerance(long screenshotId, double percent) {
-        // A whole percentage only: a fractional value has no meaning for a pixel count, and the
-        // floor/ceiling arithmetic on the comparison side assumes an integer.
-        if (percent < 0 || percent > 100 || percent != Math.floor(percent)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Screenshot.tolerance: percent must be a whole number between 0 and 100, but"
-                            + " got "
-                            + percent
-                            + ".");
-            return 0;
-        }
-        // An exact port has to be compared pixel for pixel. The range check comes first
-        // because a bad percentage is the author's mistake whichever mod they wrote it in.
-        if (!GrugExactPorts.allowsTolerance(percent)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Screenshot.tolerance: "
-                            + GrugTestState.currentTestMod
-                            + " is an exact port, so its tests have to compare pixel for pixel"
-                            + " and cannot allow a tolerance. Compare without a tolerance, or"
-                            + " list the difference as a deviation in its about.json.");
+        String problem = GrugTestState.checkTolerance(percent);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.tolerance: " + problem);
             return 0;
         }
         // GrugScreenshot is immutable, so setting a tolerance replaces the object stored under the
