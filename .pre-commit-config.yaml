@@ -24,3 +24,12 @@ repos:
         args: [--aosp, --replace]
         files: \.java$
         require_serial: true
+
+      # Rewrites mod_api.md from mod_api.json, so a stale catalog fails the hook like an unformatted
+      # file does and is fixed by committing the result.
+      - id: mod-api-catalog
+        name: mod_api.md catalog
+        entry: python mod_api_catalog.py
+        language: python
+        files: ^(mod_api\.json|mod_api\.md|mod_api_catalog\.py)$
+        pass_filenames: false

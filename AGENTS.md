@@ -53,6 +53,7 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 | :--- | :--- |
 | `core/` | shared runtime: host functions, the test runner, `GrugRunWindow`, `GrugScreenshots` |
 | `mod_api.json` | the host API mods may call |
+| `mod_api.md` | generated names-only overview of `mod_api.json`: read it before writing grug or adding a host function, never edit it by hand |
 | `mods/<mod>/code/*.grug` | the mod: `X-Block.grug`, `X_entity-BlockEntity.grug`, `X-Item.grug` |
 | `mods/<mod>/tests/*.grug` | tests: `X-Test.grug`; one outside `tests/` is an err that fails the run |
 | `mods/<mod>/about.json` | metadata, including the recreation fields on the first `derived_from` entry |
