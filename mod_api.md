@@ -126,6 +126,7 @@ print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)
 redraw(block_entity: BlockEntity)
+remainder(value: number, divisor: number) number
 resource_location(resource_location_string: string) ResourceLocation
 set_block_entity(entity_string: entity)
 set_custom_render()
