@@ -1,6 +1,6 @@
 package net.grug.minecraft.grug;
 
-import net.grug.minecraft.core.GrugModFidelity;
+import net.grug.minecraft.core.GrugExactPorts;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 /**
  * The state of the one test that is running, shared by the runner that drives it and the {@code
  * Test} host functions that run inside it: its tick, its not-done flag, the error it expects, the
- * errors it raised, its owning mod, its fidelity rule and its captured origin.
+ * errors it raised, its owning mod, its exact-port rule and its captured origin.
  *
  * <p>grug runs one test at a time, so this is one at a time too: GrugTestRunner sets the fields
  * around each Test.run() call, and the Test host functions set and read them inside it.
@@ -47,10 +47,10 @@ public final class GrugTestState {
     // whichever mod a screenshot happens to render, is who answers for the promise.
     public static String currentTestMod = null;
 
-    // Set by Test.force_fidelity(); reset to null by GrugTestRunner immediately before each
+    // Set by Test.force_exact_port(); reset to false by GrugTestRunner immediately before each
     // Test.run() call, so one test's override cannot go on deciding the next one's assertions. It
-    // can only tighten a test's rule: a mod that declares exact stays exact whatever it is set to.
-    public static String testFidelityOverride = null;
+    // can only tighten a test's rule: a mod that is an exact port stays one whatever it is set to.
+    public static boolean testForcedExactPort = false;
 
     // The origin Test.get_origin() captured first for the running test, so every later call in the
     // same test returns the same position while the player settles. GrugTestRunner clears it when a
@@ -75,16 +75,15 @@ public final class GrugTestState {
     }
 
     /**
-     * Whether the mod owning the running test promises an exact recreation, honouring a test-only
-     * override. A declared exact is final: an override can tighten the rule to exact, which is how
-     * a mod that is not itself exact covers the exact-fidelity rules, but it cannot loosen a mod
-     * that declares exact.
+     * Whether the mod owning the running test is a port with no deviations, honouring a test-only
+     * override. The override can tighten the rule, which is how a mod that is not itself an exact
+     * port covers the rules for one, but it cannot loosen a mod that is.
      */
-    public static boolean currentTestIsExact() {
-        if (currentTestMod != null && GrugModFidelity.isExact(currentTestMod)) {
+    public static boolean currentTestIsExactPort() {
+        if (currentTestMod != null && GrugExactPorts.isExactPort(currentTestMod)) {
             return true;
         }
-        return GrugModFidelity.EXACT.equals(testFidelityOverride);
+        return testForcedExactPort;
     }
 
     /**

@@ -20,7 +20,7 @@ JAVA_VERSIONS = ("8", "17", "21")
 
 # The fields that belong to the build a port recreates. The first derived_from entry is that build
 # and the only one that may carry them; later entries are its own sources.
-RECREATION_FIELDS = ("fidelity", "artifacts", "runtime", "install", "deviations")
+RECREATION_FIELDS = ("artifacts", "runtime", "install", "deviations")
 
 
 def runtime_errors(
@@ -129,24 +129,6 @@ def recreation_errors(derived_from) -> list:
             )
         else:
             artifact_names[name] = index
-
-    if entry.get("fidelity") == "exact" and not artifacts:
-        errors.append(
-            (
-                f"{path}/artifacts",
-                "an exact recreation needs artifacts to diff against;"
-                f" add {path}/artifacts or lower {path}/fidelity.",
-            )
-        )
-
-    if entry.get("fidelity") == "exact" and entry.get("deviations"):
-        errors.append(
-            (
-                f"{path}/deviations",
-                "an exact recreation has no deviations; a deliberate difference means the"
-                " fidelity is behavioral, so remove the deviations or lower it.",
-            )
-        )
 
     install = entry.get("install")
     files = install.get("files") if isinstance(install, dict) else None

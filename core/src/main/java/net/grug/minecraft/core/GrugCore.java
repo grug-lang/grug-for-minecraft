@@ -53,9 +53,9 @@ public class GrugCore {
         }
 
         // Read alongside the licenses because it is the same kind of promise about a mod: an exact
-        // recreation is only meaningful if a test has to honour it, so the fidelity each mod claims
+        // port is only meaningful if a test has to honour it, so whether each mod is one
         // has to be known before any test runs.
-        GrugModFidelity.load(grugModsDir);
+        GrugExactPorts.load(grugModsDir);
 
         Grug.init(modApiJson, grugModsDir);
     }

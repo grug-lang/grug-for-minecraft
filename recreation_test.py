@@ -32,7 +32,6 @@ def lineage_entry(**overrides) -> dict:
         "repository": {"url": "https://example.com/reference"},
         "revision": "0" * 40,
         "licenses": [{"name": "MIT", "url": "https://example.com/reference-license"}],
-        "fidelity": "behavioral",
         "artifacts": [artifact("reference.jar", PAYLOAD)],
         "runtime": {
             "minecraft": "b1.7.3",

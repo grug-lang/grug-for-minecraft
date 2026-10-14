@@ -81,13 +81,6 @@
                             "format": "uri"
                         }
                     },
-                    "fidelity": {
-                        "description": "exact reproduces the reference pixel for pixel, behavioral matches its observable behaviour without promising pixels.",
-                        "enum": [
-                            "exact",
-                            "behavioral"
-                        ]
-                    },
                     "artifacts": {
                         "description": "The reference builds to diff against, each staged under its name. Every sha256 is the authority, not the url: a moved url is fine as long as the bytes hash the same.",
                         "type": "array",
@@ -103,7 +96,7 @@
                         "$ref": "#/definitions/install"
                     },
                     "deviations": {
-                        "description": "Intentional differences from the reference. A non-empty list says the difference is deliberate, so a reader does not 'fix' it. An exact recreation has none.",
+                        "description": "Known differences from the reference, each a gap still to be closed with its own tracking issue. A port reproduces its reference exactly, so an empty or absent list is what says it is complete.",
                         "type": "array",
                         "items": {
                             "$ref": "#/definitions/deviation"
@@ -114,11 +107,6 @@
                     {
                         "if": {
                             "anyOf": [
-                                {
-                                    "required": [
-                                        "fidelity"
-                                    ]
-                                },
                                 {
                                     "required": [
                                         "artifacts"
@@ -143,7 +131,6 @@
                         },
                         "then": {
                             "required": [
-                                "fidelity",
                                 "artifacts",
                                 "runtime",
                                 "install"

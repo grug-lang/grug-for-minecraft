@@ -3,9 +3,8 @@
 
 The recreation fields are what make a port diffable against the real mod it recreates, so a mistake
 in them is a mistake in every recreation mod. They live on the first derived_from entry, the build
-the port recreates; later entries are that build's own sources and may not carry them. The rules that
-matter most here are the three the schema delegates to about_schema.py: an exact recreation needs
-artifacts to diff against, an exact recreation has no deviations, and only the first lineage entry
+the port recreates; later entries are that build's own sources and may not carry them. The rule that
+matters most here is the one the schema delegates to about_schema.py: only the first lineage entry
 may carry the recreation fields.
 """
 
@@ -31,7 +30,6 @@ def base_entry() -> dict:
         "repository": {"url": "https://example.com/reference"},
         "revision": "0" * 40,
         "licenses": [{"name": "MIT", "url": "https://example.com/reference-license"}],
-        "fidelity": "behavioral",
         "artifacts": [
             {
                 "name": "reference.jar",
@@ -122,33 +120,21 @@ class RecreationSchemaTest(unittest.TestCase):
                 "name": "Original",
                 "repository": {"url": "https://example.com/original"},
                 "licenses": [{"name": "MIT", "url": "https://example.com/original-license"}],
-                "fidelity": "behavioral",
+                "artifacts": base_entry()["artifacts"],
             }
         )
         self.assertEqual(
-            ["/derived_from/1/fidelity"],
+            ["/derived_from/1/artifacts"],
             [path for path, _ in about_schema.recreation_errors(mod["derived_from"])],
         )
         self.assertInvalid(mod, "only the first derived_from entry")
 
-    def test_an_exact_recreation_needs_an_artifact(self):
+    def test_a_recreation_entry_needs_artifacts(self):
         entry = base_entry()
-        entry["fidelity"] = "exact"
         del entry["artifacts"]
-        self.assertInvalid(self.mod_with(entry), "exact recreation needs artifacts")
+        self.assertInvalid(self.mod_with(entry), "'artifacts' is a required property")
 
-    def test_an_exact_recreation_with_an_artifact_is_valid(self):
-        entry = base_entry()
-        entry["fidelity"] = "exact"
-        self.assertValid(self.mod_with(entry))
-
-    def test_an_exact_recreation_with_a_deviation_is_rejected(self):
-        entry = base_entry()
-        entry["fidelity"] = "exact"
-        entry["deviations"] = [{"what": "x", "why": "y", "tracking_issue": 1}]
-        self.assertInvalid(self.mod_with(entry), "exact recreation has no deviations")
-
-    def test_a_behavioral_recreation_with_a_deviation_is_valid(self):
+    def test_a_recreation_with_a_deviation_is_valid(self):
         entry = base_entry()
         entry["deviations"] = [{"what": "x", "why": "y", "tracking_issue": 1}]
         self.assertValid(self.mod_with(entry))
