@@ -152,6 +152,10 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   an agent never closes it.
 - A rendering difference between Minecraft versions is usually vanilla, not a port bug, such as
   Alpha's GUI captures sitting one pixel right. Check the vanilla code before "fixing" the port.
+- Only the reference's `runtime` is a strict graphical reference. BuildCraft and most mods never
+  shipped for Alpha or Beta, so outside GUI elements nothing there says how a port should render:
+  choose what players and modders would prefer, keep it the same across loaders where you can, and
+  say what you chose in the pull request.
 - The reference run is manual: `GRUG_REFERENCE=1` plus a harness-only mods directory.
 
 ## Instrumenting the game
