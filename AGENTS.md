@@ -104,7 +104,9 @@ behaviour undefined, and which side of the sandbox the code is on.
 
 The README calls `mod_api.json` frozen. That discourages API growth for its own sake, not real
 changes: removing or replacing entries, adding test-only helpers, and fixing tooling are all
-fine, so do not block those on the freeze.
+fine, so do not block those on the freeze. Every change to `mod_api.json` must be justified: once
+the pull request is ready to be reviewed or merged, explain in the session with the user why each
+`mod_api.json` change was made.
 
 Nothing outside this repository consumes the API yet, which is the other half of why. There is no mod
 in the wild for a removal to break, so delete a host function outright rather than deprecating it,
