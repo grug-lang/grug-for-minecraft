@@ -1,30 +1,208 @@
-# Covers the redstone engine block and its block entity.
-# The engine derives its active flag from the redstone signal at its position, and the redstone query
-# itself is covered by coverage/tests/redstone_signal-Test.grug. grug block entities do not expose
-# member state to tests yet, so the flag's observable effects (its rendering, and powering a wooden
-# pipe) are covered by the rendering work and the wooden pipe tests.
+# Covers the redstone engine's energy and the trunk colour it draws for it, after BuildCraft 2.2.14's
+# EngineWood: one energy for every 20 ticks a redstone signal reaches it, one lost every tick none
+# does, and a blue, green, yellow or red trunk for up to 25%, 50%, 75% and above 75% of its 1000.
+# The first tick checks the thresholds to the tick, through Test.tick_block_entity rather than by
+# waiting: the red stage is 15020 powered ticks away, which is over twelve minutes of game time per
+# loader. The rest of the test then photographs the engine in each of its four stages.
+engine: Option[BlockEntity] = Option.new()
+
+# Which stage the next capture is of: 0 blue, 1 green, 2 yellow and 3 red.
+stage: number = 0
+
+# The waits before each capture, as coverage_render-Test.grug explains them. See _ready.
+settled_ticks: number = 0
+remeshed: bool = false
+remesh_ticks: number = 0
+
+# Where the engine is. The torch that powers it goes right under it.
+ex: number = 0
+ey: number = 0
+ez: number = 0
+
 export run() {
+    if Test.tick() == 0 {
+        _setup()
+        Test.not_done()
+        return
+    }
+
+    if not _ready() {
+        Test.not_done()
+        return
+    }
+
+    # The crop is the engine against the stone wall behind it. It stops at the bottom of the engine's
+    # front, above its underside and the torch under it, because a redstone torch gives off particles
+    # at random and they drift up past the underside.
+    if stage == 0 {
+        Test.screenshot().equals(r"screenshots/redstone_engine_blue", 550, 150, 770, 305)
+        _power()
+        _run_engine(5020, 1)
+    } else if stage == 1 {
+        Test.screenshot().equals(r"screenshots/redstone_engine_green", 550, 150, 770, 305)
+        _run_engine(5000, 2)
+    } else if stage == 2 {
+        Test.screenshot().equals(r"screenshots/redstone_engine_yellow", 550, 150, 770, 305)
+        _run_engine(5000, 3)
+    } else {
+        Test.screenshot().equals(r"screenshots/redstone_engine_red", 550, 150, 770, 305)
+        Test.restore_camera()
+        return
+    }
+
+    stage = stage + 1
+    settled_ticks = 0
+    remeshed = false
+    remesh_ticks = 0
+    Test.not_done()
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+
+    # A GUI an earlier test opened would sit over the world in every capture. See
+    # coverage_render-Test.grug, whose camera, room and wall this test shares.
+    Test.close_screen()
+    Test.set_box_radius(6)
+
+    origin: Vec3 = Test.setup_graphics_camera()
+    ex = origin.x()
+    ey = origin.y() - 1.88
+    ez = origin.z() + 4
+
+    level.place_block(ex, ey, ez, "grug:redstone_engine")
+    engine_opt: Option[BlockEntity] = level.get_block_entity(ex, ey, ez)
+    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    engine.set(engine_opt.unwrap())
+
+    _wall(level, origin.x() - 6, origin.y() - 9, origin.z() + 6)
+
+    # The stone the torch stands on goes in now, so that powering the engine later places nothing
+    # but the torch itself.
+    level.place_block(ex, ey - 2, ez, "minecraft:stone")
+
+    _check_thresholds()
+}
+
+# Thirteen blocks square of stone two blocks behind the engine, as in coverage_render-Test.grug.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Every stage boundary to the tick, up and then down again. All of it happens within one call of
+# run(), so no game tick runs the engine in between and the counts are exact.
+local _check_thresholds() {
+    Test.assert(_energy() == 0, "A new engine should have no energy.")
+
+    # One energy for every 20 powered ticks, so 250 is still blue and the 5020th tick makes it green.
+    _power()
+    _run_and_expect(5019, 250, "5019 powered ticks should leave the engine blue, at 250 energy.")
+    _run_and_expect(1, 251, "The 5020th powered tick should make the engine green, at 251 energy.")
+    _run_and_expect(4999, 500, "The engine should still be green at 500 energy.")
+    _run_and_expect(1, 501, "The 10020th powered tick should make the engine yellow, at 501 energy.")
+    _run_and_expect(4999, 750, "The engine should still be yellow at 750 energy.")
+    _run_and_expect(1, 751, "The 15020th powered tick should make the engine red, at 751 energy.")
+
+    # The energy is saved data, so it has to survive the block entity being saved and loaded again.
+    block_entity: BlockEntity = engine.unwrap()
+    Test.round_trip_nbt(block_entity)
+    Test.assert(_energy() == 751, "The engine's energy should survive an NBT round trip.")
+
+    # Unpowered, one energy is lost every tick, down to 1.
+    _unpower()
+    _run_and_expect(1, 750, "One unpowered tick should make the engine yellow again, at 750 energy.")
+    _run_and_expect(250, 500, "250 more unpowered ticks should make it green again, at 500 energy.")
+    _run_and_expect(250, 250, "250 more unpowered ticks should make it blue again, at 250 energy.")
+    _run_and_expect(1000, 1, "An unpowered engine should stop losing energy at 1.")
+}
+
+local _energy() number {
+    block_entity: BlockEntity = engine.unwrap()
+    return get_saved_number(block_entity, "energy")
+}
+
+# A redstone torch powers the block above it on every loader, so the torch goes right under the
+# engine, standing on a stone block.
+local _power() {
+    level: Level = Test.get_client_level()
+    level.place_block(ex, ey - 1, ez, "minecraft:redstone_torch")
+    Test.assert(level.has_neighbor_signal(ex, ey, ez), "The torch under the engine should power it.")
+}
+
+local _run_and_expect(ticks: number, expected: number, message: string) {
+    block_entity: BlockEntity = engine.unwrap()
+    Test.tick_block_entity(block_entity, ticks)
+    Test.assert(_energy() == expected, message)
+}
+
+local _unpower() {
+    level: Level = Test.get_client_level()
+    level.place_block(ex, ey - 1, ez, "minecraft:air")
+    Test.assert(not level.has_neighbor_signal(ex, ey, ez), "The engine should be unpowered once the torch is gone.")
+}
+
+# Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
+# light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
+local _ready() bool {
+    if not Test.world_settled() {
+        settled_ticks = 0
+        return false
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        return false
+    }
+    if not remeshed {
+        _force_remesh()
+        remeshed = true
+        return false
+    }
+    if remesh_ticks < 5 {
+        remesh_ticks = remesh_ticks + 1
+        return false
+    }
+    return Test.world_settled()
+}
+
+# Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
+# the capture's mesh is built from the settled light. See coverage_render-Test.grug.
+local _force_remesh() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    y: number = origin.y() + 6
+    y: number = origin.y()
     z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
+    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}
 
-    level.place_block(x, y, z, "grug:redstone_engine")
+# Runs the engine for the given number of ticks and checks it reached the expected stage.
+local _run_engine(ticks: number, expected_stage: number) {
+    block_entity: BlockEntity = engine.unwrap()
+    Test.tick_block_entity(block_entity, ticks)
+    Test.assert(_stage(_energy()) == expected_stage, "The engine should have reached the next stage.")
+}
 
-    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
-
-    Test.round_trip_nbt(engine_opt.unwrap())
-
-    # A redstone torch powers the block above it but not the block it is attached to, so the torch
-    # goes below the engine, standing on a stone block.
-    level.place_block(x, y - 2, z, "minecraft:stone")
-    level.place_block(x, y - 1, z, "minecraft:redstone_torch")
-
-    Test.assert(level.has_neighbor_signal(x, y, z), "The engine should be powered by an adjacent torch.")
-
-    if Test.tick() < 3 {
-        Test.not_done()
+# The thresholds of Engine.computeEnergyStage for EngineWood's maxEnergy of 1000, which are the ones
+# the engine's own render() draws from.
+local _stage(energy: number) number {
+    if energy <= 250 {
+        return 0
     }
+    if energy <= 500 {
+        return 1
+    }
+    if energy <= 750 {
+        return 2
+    }
+    return 3
 }

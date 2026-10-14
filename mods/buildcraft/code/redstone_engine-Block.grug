@@ -1,5 +1,8 @@
+# The redstone engine draws its own geometry, because which trunk it draws depends on the energy its
+# block entity has built up. See redstone_engine_entity-BlockEntity.grug.
 export init() {
     set_hardness(2.5)
     set_material("wood")
     set_block_entity(e"redstone_engine_entity")
+    set_custom_render()
 }

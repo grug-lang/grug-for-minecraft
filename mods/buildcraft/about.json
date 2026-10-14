@@ -119,6 +119,21 @@
 					"what": "Which slots of an inventory another block may use is a slot range the block entity declares, rather than the reference's side-aware ISpecialInventory.",
 					"why": "The reference asks the neighbour inventory itself, per side and per item (ISpecialInventory.addItem and extractItem). grug exports can only be called by the host and cannot return a value, so the rule is declared to the host instead and read back with is_slot_extractable.",
 					"tracking_issue": 340
+				},
+				{
+					"what": "The redstone engine draws its piston plate at rest instead of moving it, and the chamber under it, at its stage's piston speed.",
+					"why": "The engine draws through render(), which builds chunk geometry once per redraw, and a stroke that moves every tick needs a redraw per tick or a per-frame rendering hook grug does not have. The stage still shows as the trunk's colour.",
+					"tracking_issue": 363
+				},
+				{
+					"what": "The redstone engine gives no energy to the pipe it powers and takes none from another engine, so its energy is never capped at 1000 and it never explodes.",
+					"why": "The port has no model of BuildCraft's pneumatic power: the wooden pipe runs from the engine's redstone signal instead of from extracted energy. A wood engine on redstone alone never caps or explodes in the reference either, since EngineWood.update adds to its energy directly rather than through addEnergy.",
+					"tracking_issue": 364
+				},
+				{
+					"what": "The redstone engine gains energy on every 20th tick it has been powered, rather than on the ticks the world's time is a multiple of 20.",
+					"why": "grug has no host function for the world's time, and Test.tick_block_entity runs an engine thousands of ticks within one game tick, where the world's time does not move, which is how the engine test checks every stage to the tick.",
+					"tracking_issue": 365
 				}
 			]
 		}
