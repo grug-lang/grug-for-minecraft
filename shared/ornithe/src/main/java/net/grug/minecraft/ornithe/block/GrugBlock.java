@@ -50,6 +50,14 @@ public class GrugBlock extends BlockWithBlockEntity {
     }
 
     /**
+     * Whether the custom geometry is drawn flat, declared by set_flat_lighting: every face at the
+     * light of the block's own position, with no per-side shade.
+     */
+    public boolean drawsFlatLighting() {
+        return blockData().flatLighting;
+    }
+
+    /**
      * The data for this block.
      *
      * <p>A {@code GrugBlock} is only ever built from a declared block, so the lookup always has an

@@ -191,6 +191,7 @@ public final class GrugModsWatcher {
         // geometry against whatever the new file exports.
         blockData.blockEntityString = null;
         blockData.customRender = false;
+        blockData.flatLighting = false;
 
         GrugDeclarations.currentlyInitializingBlock = blockData;
         long tempEntityHandle = Grug.createEntity(fileId);

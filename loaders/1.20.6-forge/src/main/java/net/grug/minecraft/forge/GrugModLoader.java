@@ -384,9 +384,11 @@ public class GrugModLoader {
                             cleanName,
                             () ->
                                     new GrugBlock(
-                                            BlockBehaviour.Properties.of()
-                                                    .mapColor(MapColor.STONE)
-                                                    .strength(blockData.hardness),
+                                            customRenderProperties(
+                                                    BlockBehaviour.Properties.of()
+                                                            .mapColor(MapColor.STONE)
+                                                            .strength(blockData.hardness),
+                                                    blockData),
                                             blockFileId));
             registeredGrugBlocks.add(blockReg);
 
@@ -945,5 +947,15 @@ public class GrugModLoader {
                 }
             }
         }
+    }
+
+    /**
+     * The properties of a block that draws its own geometry: it is not a full cube, so it does not
+     * occlude. The game reads this once, when the block is built, so a hot reload that changes it
+     * takes effect on the next start.
+     */
+    private static BlockBehaviour.Properties customRenderProperties(
+            BlockBehaviour.Properties properties, GrugBlockData blockData) {
+        return blockData.customRender ? properties.noOcclusion() : properties;
     }
 }

@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.GrugGeometry;
 import net.minecraft.src.Block;
 import net.minecraft.src.IBlockAccess;
 import net.minecraft.src.RenderBlocks;
+import net.minecraft.src.Tessellator;
 import net.minecraft.src.TileEntity;
 
 /**
@@ -68,7 +69,11 @@ public final class GrugBoxRenderer {
         try {
             for (GrugBox box : geometry.boxes()) {
                 setBounds(block, box);
-                renderer.renderStandardBlock(block, x, y, z);
+                if (grugBlock.drawsFlatLighting()) {
+                    renderFlat(renderer, world, block, x, y, z);
+                } else {
+                    renderer.renderStandardBlock(block, x, y, z);
+                }
             }
         } finally {
             block.setBlockBounds(0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F);
@@ -111,6 +116,39 @@ public final class GrugBoxRenderer {
         GrugBlockData data = GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId);
         String name = data != null ? data.id : "an unknown grug block";
         return name + " at " + x + ", " + y + ", " + z;
+    }
+
+    /**
+     * Draws the box the block's bounds are set to with no per-side shade, every face at the light
+     * of the block's own position, the way BuildCraft's engine renderer draws with GL lighting off.
+     *
+     * <p>A face is still left out when a neighbour hides it, as {@code renderStandardBlock} does,
+     * but the brightness is never the neighbour's: the block is not opaque, so its own position
+     * holds real light.
+     */
+    private static void renderFlat(
+            RenderBlocks renderer, IBlockAccess world, Block block, int x, int y, int z) {
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.setBrightness(block.getMixedBrightnessForBlock(world, x, y, z));
+        tessellator.setColorOpaque_F(1.0F, 1.0F, 1.0F);
+        if (block.shouldSideBeRendered(world, x, y - 1, z, 0)) {
+            renderer.renderBottomFace(block, x, y, z, block.getBlockTexture(world, x, y, z, 0));
+        }
+        if (block.shouldSideBeRendered(world, x, y + 1, z, 1)) {
+            renderer.renderTopFace(block, x, y, z, block.getBlockTexture(world, x, y, z, 1));
+        }
+        if (block.shouldSideBeRendered(world, x, y, z - 1, 2)) {
+            renderer.renderEastFace(block, x, y, z, block.getBlockTexture(world, x, y, z, 2));
+        }
+        if (block.shouldSideBeRendered(world, x, y, z + 1, 3)) {
+            renderer.renderWestFace(block, x, y, z, block.getBlockTexture(world, x, y, z, 3));
+        }
+        if (block.shouldSideBeRendered(world, x - 1, y, z, 4)) {
+            renderer.renderNorthFace(block, x, y, z, block.getBlockTexture(world, x, y, z, 4));
+        }
+        if (block.shouldSideBeRendered(world, x + 1, y, z, 5)) {
+            renderer.renderSouthFace(block, x, y, z, block.getBlockTexture(world, x, y, z, 5));
+        }
     }
 
     private static void setBounds(Block block, GrugBox box) {

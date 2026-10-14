@@ -24,6 +24,7 @@ import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.grug.minecraft.stationapi.item.GrugItem;
 import net.mine_diver.unsafeevents.listener.EventListener;
+import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.modificationstation.stationapi.api.StationAPI;
 import net.modificationstation.stationapi.api.event.block.entity.BlockEntityRegisterEvent;
@@ -246,6 +247,12 @@ public class InitListener {
 
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
+            if (block.drawsCustomGeometry()) {
+                // A block that draws its own geometry is not a full cube: it lets light through and
+                // does not hide its neighbours' faces.
+                block.setOpacity(0);
+                Block.BLOCKS_OPAQUE[block.id] = false;
+            }
             block.setTranslationKey(blockId.namespace, blockId.path);
             grugBlocks.add(block);
         }

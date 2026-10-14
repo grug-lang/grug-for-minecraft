@@ -65,7 +65,11 @@ public final class GrugBoxRenderer {
         try {
             for (GrugBox box : geometry.boxes()) {
                 setBoundingBox(block, box);
-                renderer.renderBlock(block, x, y, z);
+                if (grugBlock.drawsFlatLighting()) {
+                    GrugModelRenderer.renderFlat(renderer, world, block, x, y, z);
+                } else {
+                    renderer.renderBlock(block, x, y, z);
+                }
             }
         } finally {
             block.setBoundingBox(0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F);

@@ -47,7 +47,9 @@ import javax.imageio.ImageIO;
  *
  * <p>A face is lit the way the game lights a block face with its smooth lighting off: by the light
  * of the block the face looks towards, scaled by the game's per-side shade. The light at the
- * block's own position is not used, because a grug block is opaque and its own position is dark.
+ * block's own position is not used, because a grug block is opaque and its own position is dark. A
+ * block that declared set_flat_lighting is not opaque, so every face gets the light of its own
+ * position and no shade, the way BuildCraft's engine renderer draws with GL lighting off.
  *
  * <p>Excluded from coverage because the class carries {@link GrugGenerated}: it draws into the
  * game's renderer. What it draws is core's {@code GrugModels}, which is measured there.
@@ -83,6 +85,7 @@ public final class GrugModelRenderer {
     /** Draws {@code quads} for the block at x, y and z into the chunk being compiled. */
     public static void drawInWorld(
             IBlockAccess world, Block block, int x, int y, int z, List<GrugQuad> quads) {
+        boolean flat = block instanceof GrugBlock && ((GrugBlock) block).drawsFlatLighting();
         for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
             String name = register(group.getKey());
             if (name == null) continue;
@@ -102,13 +105,18 @@ public final class GrugModelRenderer {
                                 cull)) {
                     continue;
                 }
-                tessellator.setBrightness(
-                        block.getMixedBrightnessForBlock(
-                                world,
-                                x + OFFSET[side][0],
-                                y + OFFSET[side][1],
-                                z + OFFSET[side][2]));
-                tessellator.setColorOpaque_F(SHADE[side], SHADE[side], SHADE[side]);
+                if (flat) {
+                    tessellator.setBrightness(block.getMixedBrightnessForBlock(world, x, y, z));
+                    tessellator.setColorOpaque_F(1.0F, 1.0F, 1.0F);
+                } else {
+                    tessellator.setBrightness(
+                            block.getMixedBrightnessForBlock(
+                                    world,
+                                    x + OFFSET[side][0],
+                                    y + OFFSET[side][1],
+                                    z + OFFSET[side][2]));
+                    tessellator.setColorOpaque_F(SHADE[side], SHADE[side], SHADE[side]);
+                }
                 for (int corner = 0; corner < 4; corner++) {
                     tessellator.addVertexWithUV(
                             x + quad.x(corner),

@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.item.GrugItem;
+import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
 import net.minecraft.item.BlockItem;
@@ -76,6 +77,12 @@ public final class GrugBlocks {
             int blockId = nextBlockId++;
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
+            if (block.drawsCustomGeometry()) {
+                // A block that draws its own geometry is not a full cube: it lets light through and
+                // does not hide its neighbours' faces.
+                block.setOpacity(0);
+                Block.IS_SOLID_RENDER[blockId] = false;
+            }
 
             // Texture Registration
             String[] faceTextures = GrugBlockModels.resolveFaceTextures(cleanName);
