@@ -7,6 +7,7 @@ import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.stationapi.client.GrugModelRenderer;
 import net.grug.minecraft.stationapi.events.init.ClientInitListener;
@@ -466,6 +467,12 @@ public class GrugClientHooks {
         for (String line : lines) {
             // Print the full, unsplit line to the console
             InitListener.LOGGER.info(prefix + line);
+
+            // A CI run is not watched, and the readout is drawn into every capture that reaches
+            // down to it, so the log is all it gets. See #412.
+            if (GrugReference.isCiRun()) {
+                continue;
+            }
 
             // Break long lines into chunks of ~50 characters
             // so the color code is preserved for the player

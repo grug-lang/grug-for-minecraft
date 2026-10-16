@@ -932,6 +932,12 @@ public class GrugModLoader {
             for (String line : lines) {
                 LOGGER.info(prefix + line);
 
+                // A CI run is not watched, and the readout is drawn into every capture that reaches
+                // down to it, so the log is all it gets. See #412.
+                if (GrugReference.isCiRun()) {
+                    continue;
+                }
+
                 int maxLength = 50;
                 while (line.length() > maxLength) {
                     int splitIndex = line.lastIndexOf(' ', maxLength);
