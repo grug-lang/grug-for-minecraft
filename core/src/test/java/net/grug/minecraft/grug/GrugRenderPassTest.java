@@ -144,7 +144,7 @@ class GrugRenderPassTest {
                 GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 45)
                         .contains("multiples of 90 degrees"));
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), path, 1e9, 0, 0)
+                GrugRenderPass.recordModel(mods.toFile(), path, 9e7, 0, 0)
                         .contains("multiples of 90 degrees"));
         assertTrue(GrugRenderPass.close().isEmpty());
     }
