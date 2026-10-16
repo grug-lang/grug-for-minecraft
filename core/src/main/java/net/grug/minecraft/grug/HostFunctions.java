@@ -767,23 +767,12 @@ public class HostFunctions {
 
     /**
      * Draws a model JSON's elements into the open render pass, each face with the texture the model
-     * names for it. The model is read with {@link GrugModels}, which every loader draws from, and
-     * what can go wrong is decided there and in {@link GrugRenderPass}, where a Java test reaches
-     * it.
+     * names for it, turned about the block's centre by multiples of 90 degrees, which is how a
+     * model renderer faces one set of boxes six ways. The model is read with {@link GrugModels},
+     * which every loader draws from, and what can go wrong is decided there and in {@link
+     * GrugRenderPass}, where a Java test reaches it.
      */
-    public static void draw_model(String modelPath) {
-        String problem =
-                GrugRenderPass.recordModel(GrugCore.getAdapter().getGrugModsDirectory(), modelPath);
-        if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_model: " + problem);
-        }
-    }
-
-    /**
-     * {@link #draw_model}, with the model turned about the block's centre by multiples of 90
-     * degrees, which is how a model renderer faces one set of boxes six ways.
-     */
-    public static void draw_model_turned(
+    public static void draw_model(
             String modelPath, double xDegrees, double yDegrees, double zDegrees) {
         String problem =
                 GrugRenderPass.recordModel(
@@ -793,7 +782,7 @@ public class HostFunctions {
                         yDegrees,
                         zDegrees);
         if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_model_turned: " + problem);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_model: " + problem);
         }
     }
 

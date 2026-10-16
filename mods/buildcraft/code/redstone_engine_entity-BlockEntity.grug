@@ -23,13 +23,13 @@ export render() {
     x_degrees: number = _x_degrees(facing)
     z_degrees: number = _z_degrees(facing)
     if stage == 0 {
-        draw_model_turned(r"assets/grug/models/block/redstone_engine.json", x_degrees, 0, z_degrees)
+        draw_model(r"assets/grug/models/block/redstone_engine.json", x_degrees, 0, z_degrees)
     } else if stage == 1 {
-        draw_model_turned(r"assets/grug/models/block/redstone_engine_green.json", x_degrees, 0, z_degrees)
+        draw_model(r"assets/grug/models/block/redstone_engine_green.json", x_degrees, 0, z_degrees)
     } else if stage == 2 {
-        draw_model_turned(r"assets/grug/models/block/redstone_engine_yellow.json", x_degrees, 0, z_degrees)
+        draw_model(r"assets/grug/models/block/redstone_engine_yellow.json", x_degrees, 0, z_degrees)
     } else {
-        draw_model_turned(r"assets/grug/models/block/redstone_engine_red.json", x_degrees, 0, z_degrees)
+        draw_model(r"assets/grug/models/block/redstone_engine_red.json", x_degrees, 0, z_degrees)
     }
 }
 
@@ -148,7 +148,7 @@ local _facing() number {
     return get_saved_number(me, "orientation")
 }
 
-# RenderEngine's angle about x for each orientation, as the clockwise degrees draw_model_turned
+# RenderEngine's angle about x for each orientation, as the clockwise degrees draw_model
 # takes. The reference turns counter-clockwise, so its PI/2 for ZPos is 270 here and its -PI/2 for
 # ZNeg is 90.
 local _x_degrees(facing: number) number {

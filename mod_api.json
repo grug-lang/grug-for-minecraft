@@ -1150,19 +1150,7 @@
 			]
 		},
 		"draw_model": {
-			"description": "Draws a block model JSON's elements as part of the geometry a block entity's render pass is building, each face with the texture the model names for it and at the texture coordinates its uv gives, the way the game draws that model from a blockstate. The model's parent chain is followed and its textures merged the way the game reads a model, so a model that only swaps one texture of its parent's is how one shape is drawn in several colours. Every loader draws from the same reading of the model, Alpha included, which has no model format of its own. Lit and face-culled the way the game lights every other block, with a face culled only when the model gives it a cullface. Only legal during a render pass, which only `render` opens. A model grug cannot draw as written is reported and not drawn: one that cannot be read or has no elements, a face whose texture key resolves to nothing, and an element or face rotated by anything other than 0 degrees, since drawing that unrotated would be a shape the model did not describe.",
-			"parameters": [
-				{
-					"name": "model",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".json"
-					}
-				}
-			]
-		},
-		"draw_model_turned": {
-			"description": "draw_model, with the model turned about the block's centre by whole quarter turns, which is how a model renderer faces one set of boxes six ways instead of the model being written six times. The angles are in degrees and have to be multiples of 90, and a turn is clockwise seen from the positive end of its axis, as the x and y of a blockstate variant are: an x of 90 carries up to north, a y of 90 carries north to east and a z of 90 carries up to east. The turns apply z first, then y, then x, the order a model renderer applies its rotation angles in, so a model turned about z alone keeps facing the same way round. A face keeps its texture and its uv, so its texture turns with it. Only legal during a render pass, which only `render` opens. An angle that is not a multiple of 90 is reported and the model is not drawn, and so is every case draw_model reports.",
+			"description": "Draws a block model JSON's elements, turned about the block's centre by multiples of 90 degrees, as part of the geometry a block entity's render pass is building, each face with the texture the model names for it and at the texture coordinates its uv gives, the way the game draws that model from a blockstate. The model's parent chain is followed and its textures merged the way the game reads a model, so a model that only swaps one texture of its parent's is how one shape is drawn in several colours. Every loader draws from the same reading of the model, Alpha included, which has no model format of its own. Lit and face-culled the way the game lights every other block, with a face culled only when the model gives it a cullface. Only legal during a render pass, which only `render` opens. The angles are in degrees and have to be multiples of 90, and a turn is clockwise seen from the positive end of its axis, as the x and y of a blockstate variant are: an x of 90 carries up to north, a y of 90 carries north to east and a z of 90 carries up to east. The turns apply z first, then y, then x, the order a model renderer applies its rotation angles in, so a model turned about z alone keeps facing the same way round. A face keeps its texture and its uv, so its texture turns with it. Turning is how one set of boxes is faced six ways without the model being written six times; pass 0, 0, 0 to draw it as written. An angle that is not a multiple of 90 is reported and the model is not drawn. A model grug cannot draw as written is reported and not drawn: one that cannot be read or has no elements, a face whose texture key resolves to nothing, and an element or face rotated by anything other than 0 degrees, since drawing that unrotated would be a shape the model did not describe.",
 			"parameters": [
 				{
 					"name": "model",

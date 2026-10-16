@@ -42,7 +42,7 @@ class GrugRenderPassTest {
         String path = writeModel("{}");
 
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), path)
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0)
                         .contains("while a block entity's render() is drawing"));
     }
 
@@ -56,7 +56,7 @@ class GrugRenderPassTest {
         GrugRenderPass.open();
         GrugRenderPass.record(0, 0, 0, 1, 1, 1);
 
-        assertEquals(null, GrugRenderPass.recordModel(mods.toFile(), path));
+        assertEquals(null, GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0));
 
         GrugGeometry geometry = GrugRenderPass.close();
         assertEquals(1, geometry.boxes().size());
@@ -71,7 +71,7 @@ class GrugRenderPassTest {
                         "{\"elements\": [{\"from\": [0, 0, 0], \"to\": [16, 16, 16], \"faces\":"
                                 + " {\"up\": {\"texture\": \"grug:block/t\"}}}]}");
         GrugRenderPass.open();
-        GrugRenderPass.recordModel(mods.toFile(), path);
+        GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0);
 
         assertFalse(GrugRenderPass.close().isEmpty());
     }
@@ -81,7 +81,8 @@ class GrugRenderPassTest {
         String path = writeModel("{}");
         GrugRenderPass.open();
 
-        assertTrue(GrugRenderPass.recordModel(mods.toFile(), path).contains("no elements"));
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0).contains("no elements"));
         assertTrue(GrugRenderPass.close().isEmpty());
     }
 
