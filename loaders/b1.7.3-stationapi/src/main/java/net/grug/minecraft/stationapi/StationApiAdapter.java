@@ -796,14 +796,21 @@ public class StationApiAdapter implements ModLoaderAdapter {
         if (world == null || worldRenderer == null || player == null) {
             return true;
         }
-        // Beta drains at most 500 light updates per frame, so a world that has just had a room
-        // built in it can still have light queued at the end of a frame on a loaded runner. The
-        // frame's meshes were then baked from light that is still moving, which is the state this
-        // keeps a capture away from. The drain the game would do anyway is done here, so the answer
-        // is "the light has no work left" rather than "the light has not been given a chance".
-        if (world.doLightingUpdates()) {
-            return true;
-        }
+        // Beta drains at most 500 light updates per call, and a room built in the world queues
+        // tens of thousands, so one call per frame left the light busy for dozens of frames after
+        // every test's setup, and more with every repeat because the backlog was carried over. The
+        // frame's meshes are baked from light, so a capture has to wait for the light to be done,
+        // and "done" is the queue being empty: this drains it in full here, which makes the answer
+        // "the light has no work left" without a time budget or any other tuned value. See #417.
+        //
+        // This relies on doLightingUpdates() returning false only when the queue is
+        // empty. It also returns false without draining anything once it is nested 50 calls deep,
+        // and that cannot happen here because nothing the drain runs (LightUpdate.updateLight and
+        // World.updateLight) calls it again. If a light update ever starts to nest, this would
+        // stop short and report the light as settled while updates are still queued, so look here
+        // first if captures start to come out lit differently. The engine ends the loop itself if
+        // propagation outruns the drain, by clearing the queue once it passes a million updates.
+        while (world.doLightingUpdates()) {}
         for (Object entry : ((WorldRendererAccess) worldRenderer).grug$dirtyChunks()) {
             // Only the chunks the renderer is going to rebuild count as pending, and that is the
             // ones it can see within the distance compileChunks itself compiles within: a chunk
