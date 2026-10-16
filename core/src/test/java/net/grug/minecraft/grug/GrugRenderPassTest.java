@@ -127,6 +127,9 @@ class GrugRenderPassTest {
         // -90 is 270, and a full turn is no turn.
         assertEquals(turnedQuad(0, 0, 270, 0).side(), turnedQuad(0, 0, -90, 0).side());
         assertEquals(1, turnedQuad(0, 360, 0, 0).side());
+        // The other two sides an up face turns to: 180 about z is down, and 270 is west.
+        assertEquals(0, turnedQuad(0, 0, 180, 0).side());
+        assertEquals(4, turnedQuad(0, 0, 270, 0).side());
     }
 
     @Test
@@ -136,6 +139,9 @@ class GrugRenderPassTest {
 
         assertTrue(
                 GrugRenderPass.recordModel(mods.toFile(), path, 0, 45, 0)
+                        .contains("multiples of 90 degrees"));
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 45)
                         .contains("multiples of 90 degrees"));
         assertTrue(
                 GrugRenderPass.recordModel(mods.toFile(), path, 1e9, 0, 0)
