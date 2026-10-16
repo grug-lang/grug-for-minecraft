@@ -1,0 +1,6 @@
+{
+	"parent": "grug:block/redstone_engine_east",
+	"textures": {
+		"trunk": "grug:block/redstone_engine_trunk_yellow"
+	}
+}

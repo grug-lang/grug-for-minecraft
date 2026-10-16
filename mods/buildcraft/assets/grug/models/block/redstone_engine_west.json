@@ -1,0 +1,50 @@
+{
+	"format_version": "1.9.0",
+	"parent": "minecraft:block/block",
+	"textures": {
+		"base": "grug:block/redstone_engine_base",
+		"trunk": "grug:block/redstone_engine_trunk_blue",
+		"particle": "grug:block/redstone_engine_base"
+	},
+	"elements": [
+		{
+			"name": "base",
+			"from": [12, 0, 0],
+			"to": [16, 16, 16],
+			"faces": {
+				"down": {"uv": [8, 8, 12, 10], "texture": "#base", "rotation": 270},
+				"up": {"uv": [0, 8, 4, 10], "texture": "#base", "rotation": 270},
+				"north": {"uv": [4, 8, 8, 10], "texture": "#base", "rotation": 90},
+				"south": {"uv": [12, 8, 16, 10], "texture": "#base", "rotation": 270},
+				"west": {"uv": [8, 0, 12, 8], "texture": "#base", "rotation": 270},
+				"east": {"uv": [4, 0, 8, 8], "texture": "#base", "rotation": 270}
+			}
+		},
+		{
+			"name": "belt",
+			"from": [8, 0, 0],
+			"to": [12, 16, 16],
+			"faces": {
+				"down": {"uv": [4, 8, 8, 10], "texture": "#base", "rotation": 270},
+				"up": {"uv": [8, 8, 12, 10], "texture": "#base", "rotation": 270},
+				"north": {"uv": [12, 8, 16, 10], "texture": "#base", "rotation": 90},
+				"south": {"uv": [0, 8, 4, 10], "texture": "#base", "rotation": 270},
+				"west": {"uv": [8, 0, 12, 8], "texture": "#base", "rotation": 270},
+				"east": {"uv": [4, 0, 8, 8], "texture": "#base", "rotation": 270}
+			}
+		},
+		{
+			"name": "shaft",
+			"from": [0, 4, 4],
+			"to": [12, 12, 12],
+			"faces": {
+				"down": {"uv": [2, 4, 4, 10], "texture": "#trunk", "rotation": 270},
+				"up": {"uv": [6, 4, 8, 10], "texture": "#trunk", "rotation": 270},
+				"north": {"uv": [0, 4, 2, 10], "texture": "#trunk", "rotation": 90},
+				"south": {"uv": [4, 4, 6, 10], "texture": "#trunk", "rotation": 270},
+				"west": {"uv": [2, 0, 4, 4], "texture": "#trunk", "rotation": 270},
+				"east": {"uv": [4, 0, 6, 4], "texture": "#trunk", "rotation": 270}
+			}
+		}
+	]
+}

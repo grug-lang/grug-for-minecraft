@@ -1,0 +1,106 @@
+# Covers how the redstone engine is drawn in each of its six facings, which RenderEngine does by
+# turning its boxes about the block's centre by a quarter turn per orientation: nothing for YPos, z
+# by PI for YNeg, z by -PI/2 and PI/2 for XPos and XNeg, and x by PI/2 and -PI/2 for ZPos and ZNeg.
+# The six engines stand two blocks apart in a grid of three by two, with the facing numbers 0 to 5 running along the
+# rows, and one capture shows all of them. Each is given its facing directly, rather than by a
+# receptor next to it, which redstone_engine_facing-Test.grug covers.
+# How many runner ticks in a row the world has answered settled, and the waits before the capture, as
+# coverage_render-Test.grug explains them. See _ready.
+settled_ticks: number = 0
+remeshed: bool = false
+remesh_ticks: number = 0
+
+export run() {
+    if Test.tick() == 0 {
+        _setup()
+        Test.not_done()
+        return
+    }
+
+    if not _ready() {
+        Test.not_done()
+        return
+    }
+
+    Test.screenshot().equals(r"screenshots/redstone_engine_facings", 200, 100, 1080, 560)
+    Test.restore_camera()
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+
+    # A GUI an earlier test opened would sit over the world in every capture. See
+    # coverage_render-Test.grug, whose camera, room and wall this test shares.
+    Test.close_screen()
+    Test.set_box_radius(6)
+
+    origin: Vec3 = Test.setup_graphics_camera()
+    ex: number = origin.x() - 2
+    ey: number = origin.y() - 1.88
+    ez: number = origin.z() + 4
+
+    _wall(level, origin.x() - 6, origin.y() - 9, origin.z() + 6)
+
+    facing: number = 0
+    while facing < 6 {
+        column: number = Math.remainder(facing, 3)
+        row: number = (facing - column) / 3
+        level.place_block(ex + column * 2, ey - row * 2, ez, "grug:redstone_engine")
+        engine_opt: Option[BlockEntity] = level.get_block_entity(ex + column * 2, ey - row * 2, ez)
+        Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+        engine: BlockEntity = engine_opt.unwrap()
+        set_saved_number(engine, "orientation", facing)
+        set_saved_number(engine, "oriented", 1)
+        redraw(engine)
+        facing = facing + 1
+    }
+}
+
+# Thirteen blocks square of stone two blocks behind the engines, as in coverage_render-Test.grug.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
+# light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
+local _ready() bool {
+    if not Test.world_settled() {
+        settled_ticks = 0
+        return false
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        return false
+    }
+    if not remeshed {
+        _force_remesh()
+        remeshed = true
+        return false
+    }
+    if remesh_ticks < 5 {
+        remesh_ticks = remesh_ticks + 1
+        return false
+    }
+    return Test.world_settled()
+}
+
+# Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
+# the capture's mesh is built from the settled light. See coverage_render-Test.grug.
+local _force_remesh() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
+    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}

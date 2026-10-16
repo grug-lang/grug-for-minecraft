@@ -13,18 +13,69 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
-# The engine at rest: the base, the piston plate on it and the trunk through both, with the trunk in
-# its stage's colour. The models differ only in the trunk's texture.
+# The engine at rest: the base, the piston plate on it and the trunk through both, turned to face
+# the way the engine does, with the trunk in its stage's colour. The models differ only in the trunk's
+# texture and in how they are turned, and each of the 24 is written out, because a model's path has
+# to be a literal. mods/buildcraft/generate_engine_facings.py writes the ones that do not face up.
 export render() {
     stage: number = _stage(get_saved_number(me, "energy"))
+    facing: number = _facing()
     if stage == 0 {
-        draw_model(r"assets/grug/models/block/redstone_engine.json")
+        if facing == 0 {
+            draw_model(r"assets/grug/models/block/redstone_engine_down.json")
+        } else if facing == 1 {
+            draw_model(r"assets/grug/models/block/redstone_engine.json")
+        } else if facing == 2 {
+            draw_model(r"assets/grug/models/block/redstone_engine_north.json")
+        } else if facing == 3 {
+            draw_model(r"assets/grug/models/block/redstone_engine_south.json")
+        } else if facing == 4 {
+            draw_model(r"assets/grug/models/block/redstone_engine_west.json")
+        } else {
+            draw_model(r"assets/grug/models/block/redstone_engine_east.json")
+        }
     } else if stage == 1 {
-        draw_model(r"assets/grug/models/block/redstone_engine_green.json")
+        if facing == 0 {
+            draw_model(r"assets/grug/models/block/redstone_engine_green_down.json")
+        } else if facing == 1 {
+            draw_model(r"assets/grug/models/block/redstone_engine_green.json")
+        } else if facing == 2 {
+            draw_model(r"assets/grug/models/block/redstone_engine_green_north.json")
+        } else if facing == 3 {
+            draw_model(r"assets/grug/models/block/redstone_engine_green_south.json")
+        } else if facing == 4 {
+            draw_model(r"assets/grug/models/block/redstone_engine_green_west.json")
+        } else {
+            draw_model(r"assets/grug/models/block/redstone_engine_green_east.json")
+        }
     } else if stage == 2 {
-        draw_model(r"assets/grug/models/block/redstone_engine_yellow.json")
+        if facing == 0 {
+            draw_model(r"assets/grug/models/block/redstone_engine_yellow_down.json")
+        } else if facing == 1 {
+            draw_model(r"assets/grug/models/block/redstone_engine_yellow.json")
+        } else if facing == 2 {
+            draw_model(r"assets/grug/models/block/redstone_engine_yellow_north.json")
+        } else if facing == 3 {
+            draw_model(r"assets/grug/models/block/redstone_engine_yellow_south.json")
+        } else if facing == 4 {
+            draw_model(r"assets/grug/models/block/redstone_engine_yellow_west.json")
+        } else {
+            draw_model(r"assets/grug/models/block/redstone_engine_yellow_east.json")
+        }
     } else {
-        draw_model(r"assets/grug/models/block/redstone_engine_red.json")
+        if facing == 0 {
+            draw_model(r"assets/grug/models/block/redstone_engine_red_down.json")
+        } else if facing == 1 {
+            draw_model(r"assets/grug/models/block/redstone_engine_red.json")
+        } else if facing == 2 {
+            draw_model(r"assets/grug/models/block/redstone_engine_red_north.json")
+        } else if facing == 3 {
+            draw_model(r"assets/grug/models/block/redstone_engine_red_south.json")
+        } else if facing == 4 {
+            draw_model(r"assets/grug/models/block/redstone_engine_red_west.json")
+        } else {
+            draw_model(r"assets/grug/models/block/redstone_engine_red_east.json")
+        }
     }
 }
 
@@ -33,8 +84,14 @@ export tick() {
     # instead, because the moment a block entity is created differs by loader (#187), so this is the
     # one hook that is the same everywhere.
     if get_saved_number(me, "oriented") == 0 {
-        set_saved_number(me, "orientation", _pick_orientation())
+        picked: number = _pick_orientation()
+        set_saved_number(me, "orientation", picked)
         set_saved_number(me, "oriented", 1)
+
+        # It was drawn facing up until now, so only another facing needs drawing again.
+        if picked != 1 {
+            redraw(me)
+        }
     }
 
     before: number = get_saved_number(me, "energy")
@@ -126,4 +183,13 @@ local _neighbor_z(side: number) number {
         return z + 1
     }
     return z
+}
+
+# Until the engine has picked its facing on its first tick it faces up, as the reference's
+# orientation starts out.
+local _facing() number {
+    if get_saved_number(me, "oriented") == 0 {
+        return 1
+    }
+    return get_saved_number(me, "orientation")
 }
