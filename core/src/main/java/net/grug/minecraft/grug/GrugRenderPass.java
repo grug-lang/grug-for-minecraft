@@ -69,16 +69,6 @@ public final class GrugRenderPass {
     }
 
     /**
-     * Reads the model at {@code modelPath} and records its faces.
-     *
-     * @return null when the faces were recorded, or what stopped them, which the caller reports:
-     *     there is no open pass, or the model cannot be drawn as written. Nothing is recorded then.
-     */
-    public static String recordModel(File modsDir, String modelPath) {
-        return recordModel(modsDir, modelPath, 0, 0, 0);
-    }
-
-    /**
      * Reads the model at {@code modelPath} and records its faces turned about the block's centre,
      * about z first, then y, then x, clockwise seen from the positive end of each axis. See {@link
      * GrugQuad#turned}.
