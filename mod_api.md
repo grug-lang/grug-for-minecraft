@@ -36,6 +36,7 @@ Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
 Test.restore_camera()
 Test.round_trip_nbt(block_entity: BlockEntity)
+Test.screen_open() bool
 Test.screenshot() Screenshot
 Test.set_box_radius(radius: number)
 Test.set_mod_file_state(relative_path: string, state: string)

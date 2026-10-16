@@ -5,23 +5,20 @@
 # It runs after redstone_engine-Test.grug, which closes the screen the autocrafting table tests left
 # open, and it leaves a GUI open again, so the wooden pipe tests after it run in the state they always
 # have. See #195.
-# How many runner ticks in a row the world has answered settled.
-settled_ticks: number = 0
 
 export run() {
     if Test.tick() == 0 {
         _setup()
         Test.not_done()
+    } else if not Test.screen_open() {
+        # On 1.20.6 the screen is opened by a packet from the server, so it is not open yet when
+        # use_block returns, and a settled world does not say the packet has arrived: the world
+        # can answer settled from its first tick, which is how the capture was once taken of the
+        # world instead of the panel. See #418.
+        Test.not_done()
     } else if not Test.world_settled() {
         # The same wait as autocrafting_table-Test.grug: the panel is only on screen once a frame
         # holding it has been drawn.
-        settled_ticks = 0
-        Test.not_done()
-    } else if settled_ticks < 10 {
-        # On 1.20.6 the screen is opened by a packet from the server, and a world with nothing left
-        # to draw can answer settled before that packet has arrived, so one settled answer is not
-        # enough to capture on. Ten in a row is past the tick or two the packet takes.
-        settled_ticks = settled_ticks + 1
         Test.not_done()
     } else {
         # The item in the middle slot of the crafting grid, at the panel's 1280x720 scale of 3: the

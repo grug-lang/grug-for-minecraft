@@ -1040,6 +1040,13 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isScreenOpenForTest() {
+        // The empty screen close_screen displays is not an open screen as far as a test can tell.
+        net.minecraft.src.GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        return screen != null && !(screen instanceof GrugEmptyScreen);
+    }
+
+    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.use_block")) return;

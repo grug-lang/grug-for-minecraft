@@ -337,6 +337,12 @@
 				"close_screen": {
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
+				"screen_open": {
+					"description": "Whether the client has a screen open. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"set_box_radius": {
 					"description": "Rebuilds the sealed room the runner builds around the player before every test, with the given radius. The room is a hollow box of stone with a torch on every floor tile, so its light comes from torches rather than the sky, and a screenshot does not change with the time of day. The default room is small; a test whose fixture reaches further than that asks for a bigger one. See #253.",
 					"parameters": [

@@ -186,6 +186,15 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether the client has a screen open. On 1.20.6 a block's GUI is opened by a
+     * packet from the server, so it is not open yet when {@code Test.use_block} returns, and a
+     * settled world does not say it has arrived. See #418.
+     */
+    public static boolean Test_screen_open() {
+        return GrugCore.getAdapter().isScreenOpenForTest();
+    }
+
+    /**
      * Test only: rebuilds the sealed room the runner puts around the player, with a different
      * radius. The runner builds a small one before every test; a test whose fixture reaches further
      * than that calls this at the top of its setup. See #253.
