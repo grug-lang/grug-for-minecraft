@@ -130,6 +130,15 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
             return super.getQuads(state, side, rand, data, renderType);
         }
 
+        // A chunk compile works from a snapshot of the section, so it can still hold a block entity
+        // that has been removed since: the area was cleared, or the block replaced. Removing it
+        // destroys its grug entity, so it has no handle, and drawing it would report a block with
+        // no block entity, which is a defect in the mod and fails the run. It is not one, since the
+        // removal marked the section dirty and the next compile draws whatever is there now.
+        if (grugBlockEntity.isRemoved()) {
+            return List.of();
+        }
+
         // Everything is emitted from the null-direction pass, which the game renders without its
         // own face culling. The direction passes are empty so that culling cannot drop a box whose
         // face is inset, and so the pass runs once per compile instead of once per direction.
