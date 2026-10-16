@@ -29,6 +29,14 @@ export render() {
 }
 
 export tick() {
+    # BlockEngine.c picks the facing when the engine is placed. The port does it on the first tick
+    # instead, because the moment a block entity is created differs by loader (#187), so this is the
+    # one hook that is the same everywhere.
+    if get_saved_number(me, "oriented") == 0 {
+        set_saved_number(me, "orientation", _pick_orientation())
+        set_saved_number(me, "oriented", 1)
+    }
+
     before: number = get_saved_number(me, "energy")
     energy: number = before
 
@@ -67,4 +75,55 @@ local _stage(energy: number) number {
         return 2
     }
     return 3
+}
+
+# TileEngine.switchOrientation for a fresh engine, whose orientation is 1. The search starts after
+# the current orientation, wraps round and stops at the first side with a power receptor next to it,
+# so 2, 3, 4, 5, 0, 1 are visited. With no receptor it stays 1.
+local _pick_orientation() number {
+    i: number = 2
+    while i <= 7 {
+        side: number = Math.remainder(i, 6)
+        if _is_powered_tile(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) {
+            return side
+        }
+        i = i + 1
+    }
+    return 1
+}
+
+# TileEngine.isPoweredTile: an IPowerReceptor, which here is a wooden pipe or another engine.
+local _is_powered_tile(nx: number, ny: number, nz: number) bool {
+    block: string = level.get_block(nx, ny, nz)
+    return block == "grug:wooden_pipe" or block == "grug:redstone_engine"
+}
+
+local _neighbor_x(side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
 }
