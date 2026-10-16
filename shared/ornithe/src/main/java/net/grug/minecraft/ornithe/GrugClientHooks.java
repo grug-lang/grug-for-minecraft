@@ -7,6 +7,7 @@ import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.options.KeyBinding;
@@ -403,6 +404,12 @@ public class GrugClientHooks {
         String[] lines = text.split("\n");
         for (String line : lines) {
             GrugModLoader.LOGGER.info(prefix + line);
+
+            // A CI run is not watched, and the readout is drawn into every capture that reaches
+            // down to it, so the log is all it gets. See #412.
+            if (GrugReference.isCiRun()) {
+                continue;
+            }
 
             int maxLength = 50;
             while (line.length() > maxLength) {
