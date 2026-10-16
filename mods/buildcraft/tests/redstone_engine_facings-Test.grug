@@ -1,12 +1,13 @@
 # Covers how the redstone engine is drawn in each of its six facings, which RenderEngine does by
 # turning its boxes about the block's centre by a quarter turn per orientation: nothing for YPos, z
 # by PI for YNeg, z by -PI/2 and PI/2 for XPos and XNeg, and x by PI/2 and -PI/2 for ZPos and ZNeg.
-# The six engines stand in a grid of three by two, two blocks apart along a row and one block apart
-# between rows, with the facing numbers 0 to 5 running along the rows. The camera looks towards +z,
-# so +x is on the left of the capture and facing 0 is at the top right. One capture shows all of them,
-# and it stops above the chat readout that the test names fill on every loader but 1.2.5. Each engine
-# is given its facing directly, rather than by a receptor next to it, which
-# redstone_engine_facing-Test.grug covers.
+# The six engines stand in a row along x, farther from the camera than redstone_engine-Test.grug's
+# and above its eye line, with the facing numbers 0 to 5 running along it. The camera looks towards
+# +z, so +x is on the left of the capture and facing 0 is at the right. One capture shows all of them.
+# The capture stops high on the screen because the runner prints each test's name to the chat on
+# every loader but 1.2.5, and that readout grows to ten lines of 27 pixels once a repeat has run, so
+# anything below about y=250 holds text in a later repeat. Each engine is given its facing directly,
+# rather than by a receptor next to it, which redstone_engine_facing-Test.grug covers.
 # How many runner ticks in a row the world has answered settled, and the waits before the capture, as
 # coverage_render-Test.grug explains them. See _ready.
 settled_ticks: number = 0
@@ -34,7 +35,7 @@ export run() {
         return
     }
 
-    Test.screenshot().equals(r"screenshots/redstone_engine_facings", 300, 100, 980, 350)
+    Test.screenshot().equals(r"screenshots/redstone_engine_facings", 400, 100, 880, 230)
     Test.restore_camera()
 }
 
@@ -44,21 +45,19 @@ local _setup() {
     # A GUI an earlier test opened would sit over the world in every capture. See
     # coverage_render-Test.grug, whose camera, room and wall this test shares.
     Test.close_screen()
-    Test.set_box_radius(8)
+    Test.set_box_radius(10)
 
     origin: Vec3 = Test.setup_graphics_camera()
-    ex: number = origin.x() - 2
-    ey: number = origin.y() - 1.88
-    ez: number = origin.z() + 6
+    ex: number = origin.x() - 3
+    ey: number = origin.y() + 0.12
+    ez: number = origin.z() + 8
 
-    _wall(level, origin.x() - 8, origin.y() - 9, origin.z() + 8)
+    _wall(level, origin.x() - 8, origin.y() - 9, origin.z() + 10)
 
     facing: number = 0
     while facing < 6 {
-        column: number = Math.remainder(facing, 3)
-        row: number = (facing - column) / 3
-        level.place_block(ex + column * 2, ey + 1 - row, ez, "grug:redstone_engine")
-        engine_opt: Option[BlockEntity] = level.get_block_entity(ex + column * 2, ey + 1 - row, ez)
+        level.place_block(ex + facing, ey, ez, "grug:redstone_engine")
+        engine_opt: Option[BlockEntity] = level.get_block_entity(ex + facing, ey, ez)
         Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
         engine: BlockEntity = engine_opt.unwrap()
         set_saved_number(engine, "orientation", facing)
@@ -112,7 +111,7 @@ local _force_remesh() {
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
-    level.place_block(x - 6, y + 3, z + 8, "minecraft:dirt")
-    level.place_block(x - 6, y + 3, z + 8, "minecraft:stone")
-    Test.assert(level.get_block(x - 6, y + 3, z + 8) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+    level.place_block(x - 6, y + 3, z + 10, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 10, "minecraft:stone")
+    Test.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }
