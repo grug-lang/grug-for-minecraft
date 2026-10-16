@@ -75,15 +75,48 @@ public final class GrugRenderPass {
      *     there is no open pass, or the model cannot be drawn as written. Nothing is recorded then.
      */
     public static String recordModel(File modsDir, String modelPath) {
+        return recordModel(modsDir, modelPath, 0, 0, 0);
+    }
+
+    /**
+     * Reads the model at {@code modelPath} and records its faces turned about the block's centre,
+     * about z first, then y, then x, clockwise seen from the positive end of each axis. See {@link
+     * GrugQuad#turned}.
+     *
+     * @return null when the faces were recorded, or what stopped them, which the caller reports. An
+     *     angle that is not a multiple of 90 degrees is refused, since a face cannot be turned by
+     *     less than a quarter turn without leaving the block's grid.
+     */
+    public static String recordModel(
+            File modsDir, String modelPath, double xDegrees, double yDegrees, double zDegrees) {
         if (!open) {
             return "It can only be called while a block entity's render() is drawing.";
         }
+        if (!isQuarterTurns(xDegrees) || !isQuarterTurns(yDegrees) || !isQuarterTurns(zDegrees)) {
+            return "The angles have to be multiples of 90 degrees, but they were "
+                    + xDegrees
+                    + ", "
+                    + yDegrees
+                    + " and "
+                    + zDegrees
+                    + ".";
+        }
         try {
-            QUADS.addAll(GrugModels.load(modsDir, modelPath));
+            for (GrugQuad quad : GrugModels.load(modsDir, modelPath)) {
+                QUADS.add(
+                        quad.turned(
+                                (int) (xDegrees / 90),
+                                (int) (yDegrees / 90),
+                                (int) (zDegrees / 90)));
+            }
             return null;
         } catch (GrugModels.Defect defect) {
             return defect.getMessage();
         }
+    }
+
+    private static boolean isQuarterTurns(double degrees) {
+        return degrees % 90.0 == 0.0 && Math.abs(degrees) < 1e6;
     }
 
     /**

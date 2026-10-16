@@ -14,68 +14,22 @@ y: number = center.y()
 z: number = center.z()
 
 # The engine at rest: the base, the piston plate on it and the trunk through both, turned to face
-# the way the engine does, with the trunk in its stage's colour. The models differ only in the trunk's
-# texture and in how they are turned, and each of the 24 is written out, because a model's path has
-# to be a literal. mods/buildcraft/generate_engine_facings.py writes the ones that do not face up.
+# the way the engine does, with the trunk in its stage's colour. RenderEngine turns one set of boxes
+# by an angle per orientation, and the models differ only in the trunk's texture, so a model is
+# written per colour and turned here. See _x_degrees and _z_degrees.
 export render() {
     stage: number = _stage(get_saved_number(me, "energy"))
     facing: number = _facing()
+    x_degrees: number = _x_degrees(facing)
+    z_degrees: number = _z_degrees(facing)
     if stage == 0 {
-        if facing == 0 {
-            draw_model(r"assets/grug/models/block/redstone_engine_down.json")
-        } else if facing == 1 {
-            draw_model(r"assets/grug/models/block/redstone_engine.json")
-        } else if facing == 2 {
-            draw_model(r"assets/grug/models/block/redstone_engine_north.json")
-        } else if facing == 3 {
-            draw_model(r"assets/grug/models/block/redstone_engine_south.json")
-        } else if facing == 4 {
-            draw_model(r"assets/grug/models/block/redstone_engine_west.json")
-        } else {
-            draw_model(r"assets/grug/models/block/redstone_engine_east.json")
-        }
+        draw_model_turned(r"assets/grug/models/block/redstone_engine.json", x_degrees, 0, z_degrees)
     } else if stage == 1 {
-        if facing == 0 {
-            draw_model(r"assets/grug/models/block/redstone_engine_green_down.json")
-        } else if facing == 1 {
-            draw_model(r"assets/grug/models/block/redstone_engine_green.json")
-        } else if facing == 2 {
-            draw_model(r"assets/grug/models/block/redstone_engine_green_north.json")
-        } else if facing == 3 {
-            draw_model(r"assets/grug/models/block/redstone_engine_green_south.json")
-        } else if facing == 4 {
-            draw_model(r"assets/grug/models/block/redstone_engine_green_west.json")
-        } else {
-            draw_model(r"assets/grug/models/block/redstone_engine_green_east.json")
-        }
+        draw_model_turned(r"assets/grug/models/block/redstone_engine_green.json", x_degrees, 0, z_degrees)
     } else if stage == 2 {
-        if facing == 0 {
-            draw_model(r"assets/grug/models/block/redstone_engine_yellow_down.json")
-        } else if facing == 1 {
-            draw_model(r"assets/grug/models/block/redstone_engine_yellow.json")
-        } else if facing == 2 {
-            draw_model(r"assets/grug/models/block/redstone_engine_yellow_north.json")
-        } else if facing == 3 {
-            draw_model(r"assets/grug/models/block/redstone_engine_yellow_south.json")
-        } else if facing == 4 {
-            draw_model(r"assets/grug/models/block/redstone_engine_yellow_west.json")
-        } else {
-            draw_model(r"assets/grug/models/block/redstone_engine_yellow_east.json")
-        }
+        draw_model_turned(r"assets/grug/models/block/redstone_engine_yellow.json", x_degrees, 0, z_degrees)
     } else {
-        if facing == 0 {
-            draw_model(r"assets/grug/models/block/redstone_engine_red_down.json")
-        } else if facing == 1 {
-            draw_model(r"assets/grug/models/block/redstone_engine_red.json")
-        } else if facing == 2 {
-            draw_model(r"assets/grug/models/block/redstone_engine_red_north.json")
-        } else if facing == 3 {
-            draw_model(r"assets/grug/models/block/redstone_engine_red_south.json")
-        } else if facing == 4 {
-            draw_model(r"assets/grug/models/block/redstone_engine_red_west.json")
-        } else {
-            draw_model(r"assets/grug/models/block/redstone_engine_red_east.json")
-        }
+        draw_model_turned(r"assets/grug/models/block/redstone_engine_red.json", x_degrees, 0, z_degrees)
     }
 }
 
@@ -192,4 +146,33 @@ local _facing() number {
         return 1
     }
     return get_saved_number(me, "orientation")
+}
+
+# RenderEngine's angle about x for each orientation, as the clockwise degrees draw_model_turned
+# takes. The reference turns counter-clockwise, so its PI/2 for ZPos is 270 here and its -PI/2 for
+# ZNeg is 90.
+local _x_degrees(facing: number) number {
+    if facing == 2 {
+        return 90
+    }
+    if facing == 3 {
+        return 270
+    }
+    return 0
+}
+
+# RenderEngine's angle about z for each orientation: PI for YNeg, -PI/2 for XPos and PI/2 for XNeg,
+# in clockwise degrees. It turns about z rather than y for the sides, which keeps the engine's north
+# face facing north.
+local _z_degrees(facing: number) number {
+    if facing == 0 {
+        return 180
+    }
+    if facing == 4 {
+        return 270
+    }
+    if facing == 5 {
+        return 90
+    }
+    return 0
 }

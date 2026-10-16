@@ -1161,6 +1161,36 @@
 				}
 			]
 		},
+		"draw_model_turned": {
+			"description": "draw_model, with the model turned about the block's centre by whole quarter turns, which is how a model renderer faces one set of boxes six ways instead of the model being written six times. The angles are in degrees and have to be multiples of 90, and a turn is clockwise seen from the positive end of its axis, as the x and y of a blockstate variant are: an x of 90 carries up to north, a y of 90 carries north to east and a z of 90 carries up to east. The turns apply z first, then y, then x, the order a model renderer applies its rotation angles in, so a model turned about z alone keeps facing the same way round. A face keeps its texture and its uv, so its texture turns with it. Only legal during a render pass, which only `render` opens. An angle that is not a multiple of 90 is reported and the model is not drawn, and so is every case draw_model reports.",
+			"parameters": [
+				{
+					"name": "model",
+					"type": {
+						"name": "resource",
+						"resource_extension": ".json"
+					}
+				},
+				{
+					"name": "x",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
 		"drop_inventory": {
 			"description": "Drops the inventory of a block entity into the world.",
 			"parameters": [
