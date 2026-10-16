@@ -24,6 +24,12 @@ export run() {
 
         _test_graphics_setup()
         Test.not_done()
+    } else if not Test.screen_open() {
+        # On 1.20.6 the screen is opened by a packet from the server, so it is not open yet when
+        # use_block returns, and a settled world does not say the packet has arrived: the world
+        # can answer settled from its first tick, which is how the capture was once taken of the
+        # world instead of the panel. See #418.
+        Test.not_done()
     } else if not Test.world_settled() {
         # How long the opened GUI takes to reach the framebuffer is a condition rather than a tick
         # count. The setup places blocks, so the renderer has pending rebuilds until the frame that

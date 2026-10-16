@@ -300,6 +300,13 @@ public interface ModLoaderAdapter {
     void closeOpenScreenForTest();
 
     /**
+     * Whether the client has a screen open, for a test that must not capture before the panel it
+     * asked for has arrived. {@code Test.close_screen} leaves no screen open by this answer, even
+     * on a loader that displays a placeholder screen for it.
+     */
+    boolean isScreenOpenForTest();
+
+    /**
      * Builds the sealed room the runner puts around the player before every test, and again when a
      * test asks for a different radius through {@code Test.set_box_radius}. See {@link GrugTestBox}
      * for what the room is and why it exists.

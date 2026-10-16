@@ -866,6 +866,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isScreenOpenForTest() {
+        return Minecraft.getInstance().screen != null;
+    }
+
+    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.use_block")) return;

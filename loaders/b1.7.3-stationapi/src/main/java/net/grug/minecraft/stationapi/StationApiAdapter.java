@@ -908,6 +908,14 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isScreenOpenForTest() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        return mc.currentScreen != null;
+    }
+
+    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.use_block")) return;
