@@ -85,6 +85,81 @@ class GrugRenderPassTest {
         assertTrue(GrugRenderPass.close().isEmpty());
     }
 
+    /** A flat plate whose up face is at height 0.25 and carries a cullface, and nothing else. */
+    private String writePlate() throws Exception {
+        return writeModel(
+                "{\"textures\": {\"t\": \"grug:block/t\"}, \"elements\": [{\"from\": [0, 0, 0],"
+                        + " \"to\": [16, 4, 16], \"faces\": {\"up\": {\"texture\": \"#t\","
+                        + " \"cullface\": \"up\"}, \"north\": {\"texture\": \"#t\"}}}]}");
+    }
+
+    private GrugQuad turnedQuad(double x, double y, double z, int index) throws Exception {
+        GrugRenderPass.open();
+        assertEquals(null, GrugRenderPass.recordModel(mods.toFile(), writePlate(), x, y, z));
+        return GrugRenderPass.close().quads().get(index);
+    }
+
+    @Test
+    void aTurnedModelsFacesFollowTheTurnWithTheirSideAndCullSide() throws Exception {
+        // The up face is the first quad. Clockwise seen from the positive end of the axis, a turn
+        // about z carries up to east and a turn about x carries up to north.
+        GrugQuad east = turnedQuad(0, 0, 90, 0);
+        assertEquals(5, east.side());
+        assertEquals(5, east.cullSide());
+        for (int corner = 0; corner < 4; corner++) {
+            assertEquals(0.25, east.x(corner), 1e-9);
+        }
+        assertEquals(2, turnedQuad(90, 0, 0, 0).side());
+
+        // The north face is the second quad. A turn about y carries it to east, and a face with no
+        // cullface keeps having none.
+        GrugQuad north = turnedQuad(0, 90, 0, 1);
+        assertEquals(5, north.side());
+        assertEquals(-1, north.cullSide());
+    }
+
+    @Test
+    void theTurnsApplyAboutZFirstThenYThenXAndAnyMultipleOfNinetyWorks() throws Exception {
+        // Up goes to east about z, and a turn of 90 about y then carries east to south.
+        assertEquals(3, turnedQuad(0, 90, 90, 0).side());
+        // A full turn about z changes nothing, so up still goes to north about x.
+        assertEquals(2, turnedQuad(90, 0, 360, 0).side());
+        // -90 is 270, and a full turn is no turn.
+        assertEquals(turnedQuad(0, 0, 270, 0).side(), turnedQuad(0, 0, -90, 0).side());
+        assertEquals(1, turnedQuad(0, 360, 0, 0).side());
+    }
+
+    @Test
+    void anAngleThatIsNotAQuarterTurnRecordsNothingAndSaysWhy() throws Exception {
+        String path = writePlate();
+        GrugRenderPass.open();
+
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 45, 0)
+                        .contains("multiples of 90 degrees"));
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), path, 1e9, 0, 0)
+                        .contains("multiples of 90 degrees"));
+        assertTrue(GrugRenderPass.close().isEmpty());
+    }
+
+    @Test
+    void aTurnedModelOutsideAPassIsRefused() throws Exception {
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), writePlate(), 0, 0, 90)
+                        .contains("while a block entity's render() is drawing"));
+    }
+
+    @Test
+    void aTurnedModelThatCannotBeDrawnRecordsNothingAndSaysWhy() throws Exception {
+        String path = writeModel("{}");
+        GrugRenderPass.open();
+
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 90).contains("no elements"));
+        assertTrue(GrugRenderPass.close().isEmpty());
+    }
+
     @Test
     void aPassIsNotOpenUntilOneIsOpened() {
         assertFalse(GrugRenderPass.isOpen());

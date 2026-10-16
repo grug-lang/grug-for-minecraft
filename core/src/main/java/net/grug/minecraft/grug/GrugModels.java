@@ -29,8 +29,8 @@ import java.util.Set;
  * five.
  *
  * <p>What the model format has and this does not is refused rather than approximated: an element
- * rotated by anything but 0 degrees, and a face rotation that is not a quarter turn. Drawing one
- * unrotated would be a shape the author did not write.
+ * rotated by anything but 0 degrees, and a face rotation. Drawing one unrotated would be a shape
+ * the author did not write.
  */
 public final class GrugModels {
 
@@ -311,19 +311,13 @@ public final class GrugModels {
             JsonObject face,
             Map<String, String> textures)
             throws Defect {
-        int turns = 0;
         JsonElement faceRotation = face.get("rotation");
-        if (faceRotation != null) {
-            double degrees = number(name, faceRotation, "face rotation");
-            if (degrees % 90.0 != 0.0) {
-                throw new Defect(
-                        "The model "
-                                + name
-                                + " rotates a face's texture by "
-                                + degrees
-                                + " degrees, and draw_model only draws quarter turns.");
-            }
-            turns = (int) Math.floorMod((long) (degrees / 90.0), 4L);
+        if (faceRotation != null && number(name, faceRotation, "face rotation") != 0.0) {
+            throw new Defect(
+                    "The model "
+                            + name
+                            + " rotates a face's texture, and draw_model only draws unrotated"
+                            + " faces.");
         }
 
         String texture = texture(name, face, textures);
@@ -351,12 +345,10 @@ public final class GrugModels {
                 double[] bound = CORNERS[side][corner * 3 + axis] == 0 ? from : to;
                 positions[corner * 3 + axis] = bound[axis] / 16.0;
             }
-            // The baker's BlockFaceUV.getU and getV: a corner takes the texture coordinate of the
-            // corner a face rotation's quarter turns on. Of those, the first two take the first u
-            // and the last two the second, and the middle two take the second v.
-            int shifted = (corner + turns) % 4;
-            uvs[corner * 2] = (shifted < 2 ? uv[0] : uv[2]) / 16.0;
-            uvs[corner * 2 + 1] = (shifted == 1 || shifted == 2 ? uv[3] : uv[1]) / 16.0;
+            // The baker's BlockFaceUV.getU and getV for an unrotated face: the first two corners
+            // take the first u and the last two the second, and the middle two take the second v.
+            uvs[corner * 2] = (corner < 2 ? uv[0] : uv[2]) / 16.0;
+            uvs[corner * 2 + 1] = (corner == 1 || corner == 2 ? uv[3] : uv[1]) / 16.0;
         }
         return new GrugQuad(texture, side, cullSide, positions, uvs);
     }

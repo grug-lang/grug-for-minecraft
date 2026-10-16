@@ -17,6 +17,11 @@ package net.grug.minecraft.grug;
  * the model asked for the face to be drawn whatever is next to it.
  */
 public final class GrugQuad {
+    /** The direction each side points to, as x, y and z, indexed by side. */
+    private static final int[][] NORMALS = {
+        {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}
+    };
+
     private final String texture;
     private final int side;
     private final int cullSide;
@@ -59,6 +64,60 @@ public final class GrugQuad {
     /** The side whose neighbour may hide this face, or -1 when none may. */
     public int cullSide() {
         return cullSide;
+    }
+
+    /**
+     * This face turned about the block's centre by whole quarter turns, the way a model renderer
+     * turns its boxes: about z first, then y, then x. A positive turn is clockwise seen from the
+     * positive end of its axis, as the {@code x} and {@code y} of a blockstate variant are, so a
+     * turn of 1 about z carries up to east and a turn of 1 about x carries up to north. The corners
+     * keep their order and their texture coordinates, so the texture turns with the face, and the
+     * side and the cull side follow the face to where it now points.
+     */
+    public GrugQuad turned(int xTurns, int yTurns, int zTurns) {
+        GrugQuad result = this;
+        int[] turns = {xTurns, yTurns, zTurns};
+        for (int axis = 2; axis >= 0; axis--) {
+            for (int i = Math.floorMod(-turns[axis], 4); i > 0; i--) {
+                result = result.quarterTurn(axis);
+            }
+        }
+        return result;
+    }
+
+    /** One counter-clockwise quarter turn about the axis, 0 for x, 1 for y and 2 for z. */
+    private GrugQuad quarterTurn(int axis) {
+        int from = (axis + 1) % 3;
+        int to = (axis + 2) % 3;
+        double[] turned = positions.clone();
+        for (int corner = 0; corner < 4; corner++) {
+            double a = positions[corner * 3 + from] - 0.5;
+            double b = positions[corner * 3 + to] - 0.5;
+            turned[corner * 3 + from] = 0.5 - b;
+            turned[corner * 3 + to] = 0.5 + a;
+        }
+        return new GrugQuad(
+                texture, turnedSide(side, from, to), turnedSide(cullSide, from, to), turned, uvs);
+    }
+
+    /**
+     * Where a side points after a quarter turn that carries the axis {@code from} to {@code to}.
+     */
+    private static int turnedSide(int side, int from, int to) {
+        if (side < 0) {
+            return side;
+        }
+        int[] normal = NORMALS[side];
+        int[] turned = normal.clone();
+        turned[from] = -normal[to];
+        turned[to] = normal[from];
+        if (turned[1] != 0) {
+            return turned[1] < 0 ? 0 : 1;
+        }
+        if (turned[2] != 0) {
+            return turned[2] < 0 ? 2 : 3;
+        }
+        return turned[0] < 0 ? 4 : 5;
     }
 
     public double x(int corner) {

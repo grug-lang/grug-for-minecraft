@@ -779,6 +779,24 @@ public class HostFunctions {
         }
     }
 
+    /**
+     * {@link #draw_model}, with the model turned about the block's centre by multiples of 90
+     * degrees, which is how a model renderer faces one set of boxes six ways.
+     */
+    public static void draw_model_turned(
+            String modelPath, double xDegrees, double yDegrees, double zDegrees) {
+        String problem =
+                GrugRenderPass.recordModel(
+                        GrugCore.getAdapter().getGrugModsDirectory(),
+                        modelPath,
+                        xDegrees,
+                        yDegrees,
+                        zDegrees);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_model_turned: " + problem);
+        }
+    }
+
     public static double get_saved_number(long blockEntityId, String name) {
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!GrugSavedNumbers.isHolder(blockEntity)) {
