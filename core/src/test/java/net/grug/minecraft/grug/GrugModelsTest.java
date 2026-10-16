@@ -143,6 +143,26 @@ class GrugModelsTest {
     }
 
     @Test
+    void aFaceRotationShiftsWhichCornerTakesWhichTextureCoordinate() throws Exception {
+        String face =
+                "{\"from\": [0, 0, 0], \"to\": [16, 16, 16], \"faces\": {\"north\": {\"uv\": [0, 4,"
+                        + " 2, 10], \"texture\": \"#t\", \"rotation\": %d}}}";
+
+        double[] turned = uvs(load(oneElement("turn_90", String.format(face, 90))).get(0));
+        double[] half = uvs(load(oneElement("turn_180", String.format(face, 180))).get(0));
+        double[] back = uvs(load(oneElement("turn_270", String.format(face, 270))).get(0));
+        double[] negative = uvs(load(oneElement("turn_minus_90", String.format(face, -90))).get(0));
+
+        // Unrotated the corners are (u1, v1), (u1, v2), (u2, v2), (u2, v1), and each quarter turn
+        // moves every corner on to the next one's coordinate.
+        assertArrayEquals(
+                new double[] {0, 0.625, 2 / 16.0, 0.625, 2 / 16.0, 0.25, 0, 0.25}, turned);
+        assertArrayEquals(new double[] {2 / 16.0, 0.625, 2 / 16.0, 0.25, 0, 0.25, 0, 0.625}, half);
+        assertArrayEquals(new double[] {2 / 16.0, 0.25, 0, 0.25, 0, 0.625, 2 / 16.0, 0.625}, back);
+        assertArrayEquals(back, negative);
+    }
+
+    @Test
     void theNearestModelWithElementsDrawsAndTheChildsTexturesWin() throws Exception {
         model(
                 "parent",
@@ -358,8 +378,8 @@ class GrugModelsTest {
                                         "{"
                                                 + cube
                                                 + ", \"faces\": {\"up\": {\"texture\": \"#t\","
-                                                + " \"rotation\": 90}}}"))
-                        .contains("rotates a face"));
+                                                + " \"rotation\": 45}}}"))
+                        .contains("quarter turns"));
         assertTrue(
                 defect(
                                 oneElement(
