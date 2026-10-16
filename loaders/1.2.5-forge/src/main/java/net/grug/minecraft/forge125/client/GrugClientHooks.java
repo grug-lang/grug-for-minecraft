@@ -8,8 +8,11 @@ import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.GrugErrors;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.grug.GrugReference;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GrugTorchFlicker;
 import net.minecraft.src.GuiIngameMenu;
@@ -255,6 +258,8 @@ public class GrugClientHooks implements ITickHandler {
             }
         }
 
+        updateCursorReadout(minecraft);
+
         String[] updatedResources = GrugModsWatcher.update(GrugClientHooks::logError);
         if (updatedResources.length > 0 && minecraft.renderEngine != null) {
             String[] reloaded = GrugModsWatcher.takePendingReloadPaths();
@@ -286,7 +291,7 @@ public class GrugClientHooks implements ITickHandler {
             }
             synchronized (GrugErrors.printQueue) {
                 while (!GrugErrors.printQueue.isEmpty()) {
-                    mod_Grug.LOGGER.info(GrugErrors.printQueue.poll());
+                    sendMessage(GrugErrors.printQueue.poll(), "");
                 }
             }
         }
@@ -404,11 +409,97 @@ public class GrugClientHooks implements ITickHandler {
         return null;
     }
 
+    /** Last cursor position printed to chat, or Integer.MIN_VALUE when nothing has been printed. */
+    private int lastCursorX = Integer.MIN_VALUE;
+
+    private int lastCursorY = Integer.MIN_VALUE;
+
+    /**
+     * Reads the mouse position in the same top-left-origin convention Screenshot.equals() takes, so
+     * a coordinate read off chat can be pasted straight into a crop rectangle. Called every tick
+     * while M holds the window at the test resolution, but only prints when the position changed,
+     * so a stationary mouse doesn't fill chat.
+     *
+     * <p>LWJGL's Mouse counts Y from the bottom of the window, like GL does, whereas the crop
+     * rectangle counts from the top, so the Y is flipped against the display height.
+     */
+    @GrugGenerated("dev-only: cursor-coordinate readout")
+    private void updateCursorReadout(Minecraft minecraft) {
+        if (!window.resolutionForced() || testRunner != null) {
+            // Forget the last position while inactive, so the readout reappears the moment M is
+            // switched back on even if the cursor hasn't moved since it was last on.
+            lastCursorX = Integer.MIN_VALUE;
+            lastCursorY = Integer.MIN_VALUE;
+            return;
+        }
+
+        // Only meaningful at the test resolution, with a free cursor. While the mouse is grabbed
+        // for camera control Mouse.getX/Y accumulate movement deltas rather than pointing at a
+        // pixel, so printing them would just fill chat with drift. A screen being open is what
+        // ungrabs it.
+        if (minecraft.displayWidth != GrugScreenshots.WIDTH
+                || minecraft.displayHeight != GrugScreenshots.HEIGHT
+                || Mouse.isGrabbed()) {
+            lastCursorX = Integer.MIN_VALUE;
+            lastCursorY = Integer.MIN_VALUE;
+            return;
+        }
+
+        int screenX = Mouse.getX();
+        int screenY = minecraft.displayHeight - Mouse.getY();
+
+        if (screenX == lastCursorX && screenY == lastCursorY) {
+            return;
+        }
+
+        lastCursorX = screenX;
+        lastCursorY = screenY;
+        sendMessage("Cursor: " + screenX + ", " + screenY, "");
+    }
+
+    /** Logs a contained mod err and mirrors it to chat in red. */
     private static void logError(String text) {
         // A contained mod err from a runtime error handler, and the sandbox's own report of it: the
         // JNI layer clears whatever a script threw and the script carries on, so this is where a
         // failed script call surfaces.
         mod_Grug.LOGGER.severe(text);
+        sendChat(text, "\u00A7c");
+    }
+
+    /** Logs each line of a grug message and mirrors it to chat, once a player is in the world. */
+    private static void sendMessage(String text, String prefix) {
+        if (ModLoader.getMinecraftInstance().thePlayer == null || text == null) return;
+
+        for (String line : text.split("\n")) {
+            mod_Grug.LOGGER.info(prefix + line);
+        }
+        sendChat(text, prefix);
+    }
+
+    /** Mirrors a grug message into the in-game chat, wrapped at 50 characters per line. */
+    private static void sendChat(String text, String prefix) {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft.thePlayer == null || text == null) return;
+
+        // A CI run is not watched, and the readout is drawn into every capture that reaches
+        // down to it, so the log is all it gets. See #412.
+        if (GrugReference.isCiRun()) return;
+
+        for (String rawLine : text.split("\n")) {
+            String line = rawLine;
+            int maxLength = 50;
+            while (line.length() > maxLength) {
+                int splitIndex = line.lastIndexOf(' ', maxLength);
+                if (splitIndex == -1) {
+                    splitIndex = maxLength;
+                }
+                minecraft.ingameGUI.addChatMessage(prefix + line.substring(0, splitIndex));
+                line = line.substring(splitIndex).trim();
+            }
+            if (!line.isEmpty()) {
+                minecraft.ingameGUI.addChatMessage(prefix + line);
+            }
+        }
     }
 
     /**
