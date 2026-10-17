@@ -4,10 +4,10 @@
 # for a block it has not got yet, and the GUI never opens. See #425.
 # The race is not forced, so it is hit by repetition: each of the 20 uses is at a position the client has never
 # seen a block at, and the screen is closed between them so that each wait is for a screen that is new. The
-# positions are a 5 by 4 grid around the origin, which stays inside the player's reach. The autocrafting table
-# is used because its menu has a result slot, which is the part of the menu that needs the block to exist.
-# The last screen is left open and the test is named to run just before redstone_engine-Test.grug, which closes
-# it, so that the wooden pipe tests run in the state they always have. See redstone_engine_item-Test.grug.
+# positions are a 5 by 4 grid around the origin, which stays inside the player's reach. coverage_block is used
+# because its menu has a result slot, which is the part of the menu that needs the block to exist.
+# The last screen is closed too, since a screen left open would be taken for the first one opening by the next
+# repeat's first GUI test.
 # Which position the next use is at, and whether the current one is waiting for its screen.
 col: number = 0
 row: number = 0
@@ -38,13 +38,13 @@ export run() {
     }
 
     waiting = false
+    Test.close_screen()
     col = col + 1
     if col == 5 {
         col = 0
         row = row + 1
     }
     if row < 4 {
-        Test.close_screen()
         Test.not_done()
     }
 }
@@ -56,6 +56,6 @@ local _use() {
     y: number = origin.y()
     z: number = origin.z() + row - 2
 
-    level.place_block(x, y, z, "grug:autocrafting_table")
+    level.place_block(x, y, z, "grug:coverage_block")
     Test.use_block(level, x, y, z)
 }
