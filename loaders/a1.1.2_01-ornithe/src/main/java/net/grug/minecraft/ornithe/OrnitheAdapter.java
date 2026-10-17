@@ -489,6 +489,19 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 double dy = item.y - y;
                 double dz = item.z - z;
                 if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                    System.out.println(
+                            "[GRUG DIAG] counted item entity at "
+                                    + item.x
+                                    + ","
+                                    + item.y
+                                    + ","
+                                    + item.z
+                                    + " near "
+                                    + x
+                                    + ","
+                                    + y
+                                    + ","
+                                    + z);
                     count++;
                 }
             }
@@ -795,6 +808,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // returns a fresh list, so removing from the world's own list while walking it is safe.
         for (ItemEntity item :
                 world.getEntitiesOfType(ItemEntity.class, Box.of(x1, y1, z1, x2, y2, z2))) {
+            System.out.println(
+                    "[GRUG DIAG] swept item entity at " + item.x + "," + item.y + "," + item.z);
             // The world's entity list is what the queries and the world's own update walk, so
             // taking the entity out of it here is what makes a query in the same tick miss it.
             // Alpha has no immediate removal method; remove() is its dead flag.

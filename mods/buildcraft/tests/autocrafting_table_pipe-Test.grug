@@ -67,6 +67,11 @@ local _setup_table() {
     y: number = origin.y() + 5
     z: number = origin.z()
 
+    # DIAG: items already near the pipe's fixture after the box build, which tells a leftover from
+    # a drop this test makes.
+    print("DIAG pipe_test tick0")
+    print2(level.get_time(), level.count_item_entities(x, y, z, 5))
+
     level.place_block(x - 1, y, z, "grug:autocrafting_table")
     table_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
     Test.assert(table_opt.has(), "The autocrafting table should have a block entity.")
@@ -157,6 +162,10 @@ local _check() {
         Test.assert(count == 0, "The crafted wheat should be gone from the grid.")
         slot = slot + 1
     }
+
+    # DIAG: what the dropped-item check is about to see.
+    print("DIAG pipe_test check")
+    print2(level.get_time(), level.count_item_entities(x, y, z, 5))
 
     # Nothing was dropped on the way: the chest took it, and an item entity here would mean the pipe
     # gave up on the push.
