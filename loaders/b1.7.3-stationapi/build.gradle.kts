@@ -35,9 +35,18 @@ loom {
 }
 
 repositories {
-    maven {
-        name = "grugBuild"
-        url = grugCoreRepository.toURI()
+    // The only place net.grug is looked up: without this Gradle asks every other repository for
+    // grug-core too, and a rate limit from one of them (#433) fails a build that has the jar.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "grugBuild"
+                url = grugCoreRepository.toURI()
+            }
+        }
+        filter {
+            includeGroup("net.grug")
+        }
     }
 
     maven("https://maven.glass-launcher.net/snapshots/")
