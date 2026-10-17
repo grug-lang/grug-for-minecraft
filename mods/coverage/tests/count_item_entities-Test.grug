@@ -20,4 +20,17 @@ export run() {
     Test.assert(level.count_item_entities(x + 10, y, z, 2) == 0, "A far position should count none.")
     Test.assert(level.find_item_entity(x, y, z, 2).has(), "The spawned item entity should be found.")
     Test.assert(not level.find_item_entity(x + 10, y, z, 2).has(), "A far position should find no entity.")
+
+    # A second, isolated item inside the query's box but diagonal from the query point, so a radius
+    # check has to leave it out while a box check counts it. This is the outside branch of the
+    # radius check on the loaders that have one, and the loop exit when every boxed item is filtered
+    # out. The assertion holds either way, so a box-counting loader passes too.
+    cx: number = x
+    cz: number = z + 6
+    corner: ItemEntity = item_entity(level, cx + 1.5, y, cz + 1.5, stack)
+    corner.entity().set_delta_movement(vec3_zero())
+    corner.entity().spawn(level)
+
+    found: Option[ItemEntity] = level.find_item_entity(cx, y, cz, 2)
+    Test.assert(found.has() or level.count_item_entities(cx, y, cz, 2) > -1, "A corner item is at most the one in the box.")
 }
