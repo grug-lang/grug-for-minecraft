@@ -5,12 +5,14 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.Container;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 public class GrugMenu extends AbstractContainerMenu {
     private final Container blockContainer;
@@ -44,7 +46,10 @@ public class GrugMenu extends AbstractContainerMenu {
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
             // The result is not an inventory slot; the block entity owns a one-slot container for
             // it. Taking from that container is the same path take_crafting_result uses.
-            Container resultContainer = ((GrugBlockEntity) blockContainer).getResultContainer();
+            Container resultContainer =
+                    blockContainer instanceof GrugBlockEntity blockEntity
+                            ? blockEntity.getResultContainer()
+                            : new SimpleContainer(1);
             this.addSlot(
                     new Slot(resultContainer, 0, res.x(), res.y()) {
                         @Override
@@ -55,7 +60,9 @@ public class GrugMenu extends AbstractContainerMenu {
                         @Override
                         public void onTake(Player player, ItemStack stack) {
                             super.onTake(player, stack);
-                            ((GrugBlockEntity) blockContainer).notifyOutputTaken(stack.getCount());
+                            if (blockContainer instanceof GrugBlockEntity blockEntity) {
+                                blockEntity.notifyOutputTaken(stack.getCount());
+                            }
                         }
                     });
         }
@@ -77,6 +84,25 @@ public class GrugMenu extends AbstractContainerMenu {
                         new Slot(playerInventory, col, layout.hotbarX + col * 18, layout.hotbarY));
             }
         }
+    }
+
+    /**
+     * The container the client's copy of the menu reads its slots from.
+     *
+     * <p>The open packet can reach the client before the block update that places the block, when a
+     * block is placed and used in the same server tick. The client then has no block entity yet, so
+     * the menu is built on a placeholder container, as vanilla menus do, and the content packet
+     * fills the slots. See #425.
+     */
+    public static Container clientContainer(BlockEntity blockEntity, GrugGuiBuilder layout) {
+        if (blockEntity instanceof Container container) {
+            return container;
+        }
+        int size = 0;
+        for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
+            size = Math.max(size, grid.startSlot() + 9);
+        }
+        return new SimpleContainer(size);
     }
 
     public static void writeMenuData(FriendlyByteBuf buf, BlockPos pos, GrugGuiBuilder builder) {

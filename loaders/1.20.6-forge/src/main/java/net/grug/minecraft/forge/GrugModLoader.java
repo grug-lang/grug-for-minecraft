@@ -199,8 +199,9 @@ public class GrugModLoader {
                                         net.minecraft.core.BlockPos pos = data.readBlockPos();
                                         GrugGuiBuilder builder = GrugMenu.readBuilder(data);
                                         net.minecraft.world.Container container =
-                                                (net.minecraft.world.Container)
-                                                        inv.player.level().getBlockEntity(pos);
+                                                GrugMenu.clientContainer(
+                                                        inv.player.level().getBlockEntity(pos),
+                                                        builder);
                                         return new GrugMenu(
                                                 null, windowId, inv, container, builder);
                                     }));
