@@ -261,14 +261,12 @@ jobs:
       # "Fetching distribution" line from every loader's log is what this bought, and it is the whole
       # of what it bought.
       #
-      # One entry for all five, which is also its limit: only the first loader to finish writes it, so
-      # what lands in it is that loader's resolved subset and not the union, and once the key exists
-      # nobody writes it again, so a dependency added to a later loader afterwards is never cached.
-      # Measured, the parts that leaves out cost nothing visible, because the loader-specific gaps are
-      # not where the time goes: b1.7.3-stationapi's window between starting Gradle and "> Configure
-      # project" is 27s both with and without its scripts cached, and that window has no network
-      # activity in it at all, so what is in there is not resolution. Per-loader keys would close the
-      # coverage gap; that they would gain nothing more is reasoned from that window, not measured.
+      # One entry per loader. It used to be one entry for all five, and whichever loader finished first
+      # wrote it and nobody wrote it again, so what it held was that loader's resolved subset. A
+      # diagnostic on a throwaway branch (#433) listed the restored cache in all five jobs: 70 MB, 41
+      # groups, no net.java.jinput:jinput:2.0.10 and no com.google.guava:guava:33.2.1-jre, so
+      # 1.2.5-forge fetched them from Maven Central on every run and a 403 there failed its Build
+      # step although the cache had restored successfully.
       #
       # Keyed on every file that decides what is resolvable, so a version, repository or plugin bump
       # misses rather than restoring a graph that no longer matches the build. The standalone loaders'
@@ -280,7 +278,7 @@ jobs:
           path: |
             ~/.gradle/wrapper
             ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
       # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
