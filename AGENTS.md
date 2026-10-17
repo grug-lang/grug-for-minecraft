@@ -133,8 +133,9 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   capture. Each call needs a comment linking its tracking issue.
 - A fix for a defect that a failing or flaky run found ships with a test that fails without it, in
   the same pull request. Runs that pass afterwards are not evidence for a defect that failed one run
-  in three. A grug test in `mods/` covers every loader, including ones added later; a Java test only
-  exists in `core`, which no loader code reaches. If the failure is intermittent, repeat the trigger
+  in three. Prefer a grug test, as for coverage above: it runs on every loader, including ones
+  added later, whereas a Java test only exists in `core`, which no loader code reaches, so write one
+  only when no grug test can reach the defect. If the failure is intermittent, repeat the trigger
   inside one test (a fresh position each time) so one pass hits it, and show the test failing on
   `main` plus only the test.
 
