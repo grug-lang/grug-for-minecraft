@@ -59,9 +59,18 @@ def MCP_COMMIT = 'b598d55f8a1e0e9cbda27517cfaa6d4a3224b202'
 
 repositories {
     // grug-core is published into this repository by the root build before this one runs.
-    maven {
-        name = 'grugBuild'
-        url = grugCoreRepository.toURI()
+    // The only place net.grug is looked up: without this Gradle asks every other repository for
+    // grug-core too, and a rate limit from one of them (#433) fails a build that has the jar.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'grugBuild'
+                url = grugCoreRepository.toURI()
+            }
+        }
+        filter {
+            includeGroup 'net.grug'
+        }
     }
     mavenCentral()
     // launchwrapper 1.5 is not on Maven Central.
