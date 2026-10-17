@@ -180,6 +180,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         for (int i = 0; i < inv.getSize(); i++) {
             ItemStack stack = inv.getItem(i);
             if (stack != null) {
+                System.out.println("GRUG DIAG dropInventory at " + x + "," + y + "," + z + " stack=" + stack.getItem() + " n=" + stack.size);
+                new Throwable("GRUG DIAG dropInventory").printStackTrace(System.out);
                 world.addEntity(new ItemEntity(world, x, y, z, stack));
                 inv.setItem(i, null);
             }
@@ -489,6 +491,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 double dy = item.y - y;
                 double dz = item.z - z;
                 if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                    System.out.println("GRUG DIAG nearby item at " + item.x + "," + item.y + "," + item.z + " query=" + x + "," + y + "," + z + " stack=" + item.item.getItem() + " n=" + item.item.size);
                     count++;
                 }
             }
@@ -765,6 +768,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public Object createItemEntity(
             Object levelObj, double x, double y, double z, Object itemStackObj) {
+        System.out.println("GRUG DIAG createItemEntity at " + x + "," + y + "," + z);
+        new Throwable("GRUG DIAG createItemEntity").printStackTrace(System.out);
         return new ItemEntity((World) levelObj, x, y, z, (ItemStack) itemStackObj);
     }
 
