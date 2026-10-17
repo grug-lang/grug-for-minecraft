@@ -272,6 +272,10 @@ local _drop() {
         return
     }
 
+    # DIAG: the pipe gave up on the push, which is the asserted defect.
+    print("DIAG pipe_drop")
+    print3(level.get_time(), x, z)
+
     stack: ItemStack = item_stack(item_opt.unwrap(), get_item_damage_in_slot(me, 0))
     dropped: ItemEntity = item_entity(level, x, y + 0.5, z, stack)
     dropped.entity().set_delta_movement(vec3_zero())
