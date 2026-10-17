@@ -136,8 +136,8 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   in three. Prefer a grug test, as for coverage above: it runs on every loader, including ones
   added later, whereas a Java test only exists in `core`, which no loader code reaches, so write one
   only when no grug test can reach the defect. If the failure is intermittent, repeat the trigger
-  inside one test (a fresh position each time) so one pass hits it, and show the test failing on
-  `main` plus only the test.
+  many times inside one test, putting back each time the state the failure needs, so one pass hits
+  it, and show the test failing on `main` plus only the test.
 
 ## Ports and the reference
 
