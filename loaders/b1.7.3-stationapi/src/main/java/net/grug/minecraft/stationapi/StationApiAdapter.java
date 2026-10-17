@@ -481,14 +481,19 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // comparisons this used to make are twelve branch outcomes, and the suite's few items only
         // ever exercise one side of each, which the coverage gate then reports as missed. It
         // returns a fresh list, so removing from the world's own list while walking it is safe.
-        for (Object entity : world.getEntities(null, Box.create(x1, y1, z1, x2, y2, z2))) {
-            if (entity instanceof ItemEntity item) {
-                // The world's entity list is what the queries and the world's own update walk, so
-                // taking the entity out of it here is what makes a query in the same tick miss it.
-                // World.remove only marks the entity dead; markDead is the same dead flag.
-                item.markDead();
-                world.entities.remove(item);
-            }
+        for (Object entity :
+                world.collectEntitiesByClass(
+                        ItemEntity.class, Box.create(x1, y1, z1, x2, y2, z2))) {
+            ItemEntity item = (ItemEntity) entity;
+            // markDead() is the dead flag and the world's list is what count_item_entities and
+            // find_item_entity walk, but collectEntitiesByClass reads the chunk's own entity lists,
+            // so the chunk has to be told too. Without that the item stays in the chunk and a later
+            // query finds it again, which is how a dropped item survived the sweep (#427).
+            // 1.2.5-forge already removes from the chunk for the same reason.
+            item.markDead();
+            world.getChunkFromPos((int) Math.floor(item.x), (int) Math.floor(item.z))
+                    .removeEntity(item);
+            world.entities.remove(item);
         }
     }
 
@@ -496,14 +501,24 @@ public class StationApiAdapter implements ModLoaderAdapter {
     public Object findItemEntity(Object levelObj, double x, double y, double z, double radius) {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;
-        for (Object entity : world.entities) {
-            if (entity instanceof ItemEntity item) {
-                double dx = item.x - x;
-                double dy = item.y - y;
-                double dz = item.z - z;
-                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
-                    return item;
-                }
+        // The same game box query as count_item_entities and clear_item_entities, so all three
+        // agree on which item entities exist (#427).
+        for (Object entity :
+                world.collectEntitiesByClass(
+                        ItemEntity.class,
+                        Box.create(
+                                x - radius,
+                                y - radius,
+                                z - radius,
+                                x + radius,
+                                y + radius,
+                                z + radius))) {
+            ItemEntity item = (ItemEntity) entity;
+            double dx = item.x - x;
+            double dy = item.y - y;
+            double dz = item.z - z;
+            if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                return item;
             }
         }
         return null;
@@ -715,14 +730,24 @@ public class StationApiAdapter implements ModLoaderAdapter {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;
         int count = 0;
-        for (Object entity : world.entities) {
-            if (entity instanceof ItemEntity item) {
-                double dx = item.x - x;
-                double dy = item.y - y;
-                double dz = item.z - z;
-                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
-                    count++;
-                }
+        // The game's box query, the same one clear_item_entities removes from, so an item a chunk
+        // still holds is counted rather than hidden from the world's own list (#427).
+        for (Object entity :
+                world.collectEntitiesByClass(
+                        ItemEntity.class,
+                        Box.create(
+                                x - radius,
+                                y - radius,
+                                z - radius,
+                                x + radius,
+                                y + radius,
+                                z + radius))) {
+            ItemEntity item = (ItemEntity) entity;
+            double dx = item.x - x;
+            double dy = item.y - y;
+            double dz = item.z - z;
+            if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                count++;
             }
         }
         return count;

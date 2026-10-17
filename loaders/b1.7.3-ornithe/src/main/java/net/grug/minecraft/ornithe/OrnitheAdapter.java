@@ -469,14 +469,23 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;
         int count = 0;
-        for (Object entity : world.entities) {
-            if (entity instanceof ItemEntity item) {
-                double dx = item.x - x;
-                double dy = item.y - y;
-                double dz = item.z - z;
-                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
-                    count++;
-                }
+        // The game's box query, the same one clear_item_entities removes from, so an item a chunk
+        // still holds is counted rather than hidden from the world's own list (#427).
+        for (ItemEntity item :
+                world.getEntitiesOfType(
+                        ItemEntity.class,
+                        Box.of(
+                                x - radius,
+                                y - radius,
+                                z - radius,
+                                x + radius,
+                                y + radius,
+                                z + radius))) {
+            double dx = item.x - x;
+            double dy = item.y - y;
+            double dz = item.z - z;
+            if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                count++;
             }
         }
         return count;
@@ -756,12 +765,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // returns a fresh list, so removing from the world's own list while walking it is safe.
         for (ItemEntity item :
                 world.getEntitiesOfType(ItemEntity.class, Box.of(x1, y1, z1, x2, y2, z2))) {
-            // The world's entity list is what the queries and the world's own update walk, so
-            // taking the entity out of it here is what makes a query in the same tick miss it.
-            // The immediate removal method is not used: it exists in the named jar but does not
-            // resolve at runtime on this loader's toolchain, which fails the run with a
-            // NoSuchMethodError as soon as an item is in range. remove() is the dead flag.
+            // remove() is the dead flag and the world's list is what count_item_entities and
+            // find_item_entity walk, but the box query reads the chunk's own entity lists, so the
+            // chunk has to be told too. Without that the item stays in the chunk and a later box
+            // query finds it again, which is how a dropped item survived the sweep (#427).
+            // 1.2.5-forge
+            // already removes from the chunk for the same reason. World.removeEntityNow is still
+            // not
+            // used: it exists in the named jar but does not resolve at runtime on this loader's
+            // toolchain, a NoSuchMethodError as soon as an item is in range (5810ceb3).
             item.remove();
+            world.getChunk((int) Math.floor(item.x), (int) Math.floor(item.z)).removeEntity(item);
             world.entities.remove(item);
         }
     }
@@ -770,14 +784,23 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public Object findItemEntity(Object levelObj, double x, double y, double z, double radius) {
         World world = (World) levelObj;
         double radiusSquared = radius * radius;
-        for (Object entity : world.entities) {
-            if (entity instanceof ItemEntity item) {
-                double dx = item.x - x;
-                double dy = item.y - y;
-                double dz = item.z - z;
-                if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
-                    return item;
-                }
+        // The same game box query as count_item_entities and clear_item_entities, so all three
+        // agree on which item entities exist (#427).
+        for (ItemEntity item :
+                world.getEntitiesOfType(
+                        ItemEntity.class,
+                        Box.of(
+                                x - radius,
+                                y - radius,
+                                z - radius,
+                                x + radius,
+                                y + radius,
+                                z + radius))) {
+            double dx = item.x - x;
+            double dy = item.y - y;
+            double dz = item.z - z;
+            if (dx * dx + dy * dy + dz * dz <= radiusSquared) {
+                return item;
             }
         }
         return null;
