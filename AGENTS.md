@@ -84,7 +84,10 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   publishes `grug-core` to `build/maven` first, which the four standalone loaders resolve.
 - Repeat the suite in one session with `GRUG_CI_REPEATS=<n>` plus a raised `GRUG_CI_RUN_TIMEOUT`
   locally, or `gh workflow run build.yml --ref <branch> -f repeats=<n>` on CI. Dispatches of
-  `build.yml` on one branch cancel each other, so run one at a time.
+  `build.yml` on one branch cancel each other, so to run several at once, which a failure that
+  appears one run in three needs, push the same commit to throwaway branches and dispatch each
+  (the runners are GitHub's, so this costs your machine nothing). Delete them when done. Read a
+  job's log with `gh api --allow-escape-sequences repos/<repo>/actions/jobs/<id>/logs`.
 - The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile makes it
   hang until the timeout instead (#366), so check grug syntax before pushing.
 - `update-goldens` replaces only that loader's own reference. A GUI capture may come from it, but a
