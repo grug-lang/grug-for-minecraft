@@ -1,0 +1,61 @@
+# Covers using a block in the same tick it was placed, which is what every GUI test does and what a mod does
+# when it places a block and opens it for the player straight away. On 1.20.6 the server sends the packet that
+# opens the screen before the block update that places the block, so the client can be asked to open a menu
+# for a block it has not got yet, and the GUI never opens. See #425.
+# The race is not forced, so it is hit by repetition: each of the 20 uses is at a position the client has never
+# seen a block at, and the screen is closed between them so that each wait is for a screen that is new. The
+# positions are a 5 by 4 grid around the origin, which stays inside the player's reach. The autocrafting table
+# is used because its menu has a result slot, which is the part of the menu that needs the block to exist.
+# The last screen is left open and the test is named to run just before redstone_engine-Test.grug, which closes
+# it, so that the wooden pipe tests run in the state they always have. See redstone_engine_item-Test.grug.
+# Which position the next use is at, and whether the current one is waiting for its screen.
+col: number = 0
+row: number = 0
+waiting: bool = false
+waited: number = 0
+
+export run() {
+    if Test.tick() == 0 {
+        # An earlier test may have left a screen open, and it would be taken for the first one opening.
+        Test.close_screen()
+        Test.not_done()
+        return
+    }
+
+    if not waiting {
+        _use()
+        waiting = true
+        waited = 0
+        Test.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        Test.assert(waited < 100, "The GUI did not open after a block was placed and used in the same tick.")
+        Test.not_done()
+        return
+    }
+
+    waiting = false
+    col = col + 1
+    if col == 5 {
+        col = 0
+        row = row + 1
+    }
+    if row < 4 {
+        Test.close_screen()
+        Test.not_done()
+    }
+}
+
+local _use() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x() + col - 2
+    y: number = origin.y()
+    z: number = origin.z() + row - 2
+
+    level.place_block(x, y, z, "grug:autocrafting_table")
+    Test.use_block(level, x, y, z)
+}
