@@ -811,7 +811,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             // autocrafting_table_pipe-Test flaky (#427). 1.2.5-forge already removes from the
             // chunk for the same reason.
             item.remove();
-            world.getChunk((int) Math.floor(item.x), (int) Math.floor(item.z)).removeEntity(item);
             world.entities.remove(item);
         }
     }
