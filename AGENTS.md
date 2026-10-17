@@ -69,6 +69,9 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
   deprecating it, and keep no changelog. Revisit when the first external mod exists.
 - `mods/coverage/` is the reference for what the language and API accept; read it before
   inventing syntax.
+- A port's tests are about the port: whether it behaves and looks like its reference. A test of a
+  host function, a loader or the runner goes in `mods/coverage/` even when it needs a block with a
+  GUI and adds no coverage, using that mod's blocks and giving them what the test needs.
 
 ## Running a loader
 
@@ -133,11 +136,11 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   capture. Each call needs a comment linking its tracking issue.
 - A fix for a defect that a failing or flaky run found ships with a test that fails without it, in
   the same pull request. Runs that pass afterwards are not evidence for a defect that failed one run
-  in three. Prefer a grug test, as for coverage above: it runs on every loader, including ones
-  added later, whereas a Java test only exists in `core`, which no loader code reaches, so write one
-  only when no grug test can reach the defect. If the failure is intermittent, repeat the trigger
-  many times inside one test, putting back each time the state the failure needs, so one pass hits
-  it, and show the test failing on `main` plus only the test.
+  in three. Prefer a grug test in `mods/coverage/`, as for coverage above: it runs on every loader,
+  including ones added later, whereas a Java test only exists in `core`, which no loader code
+  reaches, so write one only when no grug test can reach the defect. If the failure is
+  intermittent, repeat the trigger many times inside one test, putting back each time the state the
+  failure needs, so one pass hits it, and show the test failing on `main` plus only the test.
 
 ## Ports and the reference
 
