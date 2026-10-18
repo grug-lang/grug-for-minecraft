@@ -130,13 +130,22 @@ public class GrugBlockEntity extends TileEntity implements IInventory, GrugSaved
         return GrugEntities.createEntityWithOwner(fileId, childEntities, this);
     }
 
+    /**
+     * Called by 1.2.5 as the last step of registering this tile with a chunk, both when the block
+     * is placed and when the chunk is loaded from disk, after the world and the coordinates are
+     * set. That is this loader's closest thing to 1.20.6's {@code onLoad}, so the grug entity is
+     * created here rather than on the first {@code updateEntity()}, which is a tick later and
+     * differs from every other loader.
+     */
+    @Override
+    public void validate() {
+        super.validate();
+        initGrug();
+    }
+
     @Override
     public void updateEntity() {
         super.updateEntity();
-
-        if (entityHandle == 0) {
-            initGrug();
-        }
 
         if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
             GrugEntities.callExportFnWithOwner(entityHandle, tickFnId, new ArrayList<>(), null);

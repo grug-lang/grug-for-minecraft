@@ -1,0 +1,10 @@
+# Resolving me in the member scope registers the block entity's me handle, which a later host call
+# needs. The autocrafting table does the same.
+level: Level = get_block_entity_level(me)
+
+# Saves a number so a test can observe, without waiting for a tick, that init() has run. A block
+# entity whose grug entity is only created on its first tick leaves this at the 0 default until
+# then. See #187.
+export init() {
+    set_saved_number(me, "inited", 1)
+}
