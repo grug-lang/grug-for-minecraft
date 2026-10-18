@@ -41,6 +41,12 @@ export run() {
         Test.not_done()
     } else {
         _test_graphics_check()
+        # This test is the one that opened the GUI, so it is the one that closes it: one client
+        # serves the whole run, and a screen left open sits over every later test's world. Closing
+        # the last screen is what lets the focus-loss pause fire, which every loader refuses or
+        # lifts while a run owns the client, so the world behind the closed screen keeps ticking.
+        # See #195.
+        Test.close_screen()
         Test.restore_camera()
     }
 }

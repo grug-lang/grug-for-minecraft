@@ -2,9 +2,8 @@
 # energy an engine had: RenderEngine.inventoryRender always draws EnergyStage.Blue. The engine is put
 # in the middle slot of an autocrafting table's grid and the table's GUI opened, which is the
 # smallest way to get an item drawn in a slot on every loader.
-# It runs after redstone_engine-Test.grug, which closes the screen the autocrafting table tests left
-# open, and it leaves a GUI open again, so the wooden pipe tests after it run in the state they always
-# have. See #195.
+# It runs after redstone_engine-Test.grug, which closes any screen an earlier test left open, and it
+# closes the GUI it opens for the same reason. See #195.
 
 export run() {
     if Test.tick() == 0 {
@@ -25,6 +24,7 @@ export run() {
         # slot's item is drawn at (48, 35) in the panel, whose top left is at (376, 111). See
         # autocrafting_table-Test.grug for how the panel's position was found.
         Test.screenshot().equals(r"screenshots/redstone_engine_item", 520, 216, 568, 264)
+        Test.close_screen()
         Test.restore_camera()
     }
 }
