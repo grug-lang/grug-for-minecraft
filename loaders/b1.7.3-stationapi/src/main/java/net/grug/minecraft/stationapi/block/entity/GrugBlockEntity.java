@@ -128,6 +128,15 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
         return GrugEntities.createEntityWithOwner(fileId, childEntities, this);
     }
 
+    /**
+     * Called when the game registers this block entity with a world and sets its position, which is
+     * the moment 1.20.6's {@code onLoad} names. The grug entity is created here rather than on the
+     * first {@code tick()} so a script's one-time setup runs at the same moment on every loader.
+     */
+    public void onRegistered() {
+        initGrug();
+    }
+
     @Override
     public void tick() {
         super.tick();
@@ -182,6 +191,9 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
         // Reset with the handle, so a tile that is re-inited after a hot reload resolves its render
         // function again rather than answering from a cache the destroyed entity left behind.
         renderFnIdResolved = false;
+        // And so a tile a chunk unload removed, which keeps the same Java object, is inited again
+        // by onRegistered() when the chunk comes back.
+        initStarted = false;
     }
 
     // Inventory
