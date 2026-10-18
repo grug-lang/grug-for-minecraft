@@ -196,9 +196,7 @@ public class GrugClientHooks {
      */
     private final GrugRunWindow window = new GrugRunWindow(display);
 
-    /**
-     * The smallest view distance this version allows, out of far, normal, short and tiny.
-     */
+    /** The smallest view distance this version allows, out of far, normal, short and tiny. */
     private static final int TINY_VIEW_DISTANCE = 3;
 
     /** The view distance a run found, put back when the run ends. -1 while no run owns one. */
