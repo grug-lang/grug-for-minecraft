@@ -907,11 +907,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (world == null || worldRenderer == null || player == null) {
             return true;
         }
-        // Alpha drains at most 1000 light updates per call, and a test's room build queues far more,
-        // so a frame can be baked from light that is still queued just like on Beta. Draining the
-        // queue in full here makes the answer "the light has no work left" without a time budget, as
-        // the two Beta loaders do. World.updateLight force-flushes once the queue passes 100,000, so
-        // the loop cannot spin forever even if propagation outruns the drain. See #417 and #424.
+        // Alpha drains at most 1000 light updates per call, and a test's room build queues far
+        // more, so a frame can be baked from light that is still queued just like on Beta.
+        // Draining the queue in full here makes the answer "the light has no work left" without a
+        // time budget, as the two Beta loaders do. World.updateLight force-flushes once the queue
+        // passes 100,000, so the loop cannot spin forever even if propagation outruns the drain.
+        // See #417 and #424.
         while (world.doLightUpdates()) {}
         for (Object entry : ((WorldRendererAccess) worldRenderer).grug$dirtyChunks()) {
             // Only the chunks the renderer is going to rebuild count as pending, and that is the
