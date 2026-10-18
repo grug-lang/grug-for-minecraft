@@ -34,7 +34,8 @@ public class GameRendererMixin {
         if (GrugClientHooks.isRunActive()) {
             GL11.glFogi(GL11.GL_FOG_MODE, GL11.GL_LINEAR);
             GL11.glFogf(GL11.GL_FOG_START, 1.0E9F);
-            GL11.glFogf(GL11.GL_FOG_END, 1.0E9F);
+            // The end must stay above the start, or the fixed-function division is 0/0.
+            GL11.glFogf(GL11.GL_FOG_END, 2.0E9F);
         }
     }
 }
