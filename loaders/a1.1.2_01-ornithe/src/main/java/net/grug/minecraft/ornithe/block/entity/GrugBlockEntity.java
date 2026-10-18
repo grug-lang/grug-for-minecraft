@@ -182,6 +182,8 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
      */
     public void onRegistered() {
         initGrug();
+        net.grug.minecraft.ornithe.GrugModLoader.LOGGER.error(
+                "GRUG187 registered handle=" + entityHandle + " at " + x + "," + y + "," + z);
     }
 
     @Override
@@ -235,6 +237,8 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
      * a later hot reload, and the script then reads members Java has already collected.
      */
     public void destroyGrugEntity() {
+        net.grug.minecraft.ornithe.GrugModLoader.LOGGER.error(
+                "GRUG187 destroy handle=" + entityHandle + " at " + x + "," + y + "," + z);
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;
