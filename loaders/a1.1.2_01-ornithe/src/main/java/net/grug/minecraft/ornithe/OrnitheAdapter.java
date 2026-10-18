@@ -404,11 +404,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         int posY = (int) Math.floor(y);
         int posZ = (int) Math.floor(z);
 
+        // setBlockQuietly routes through WorldChunk.setBlockAt, which already calls the placed
+        // block's onAdded, so a block entity is created and registered here without a second call.
+        // Calling onAdded again here created a second block entity for the same position, and the
+        // first one was orphaned: its grug entity lived on with no block entity to be freed by.
         world.setBlockQuietly(posX, posY, posZ, blockId);
-
-        if (targetBlock instanceof net.minecraft.block.BlockWithBlockEntity) {
-            targetBlock.onAdded(world, posX, posY, posZ);
-        }
 
         // A placement that reports false because the block was already there is not a failure,
         // so the block's presence is the check rather than the return value. Alpha's world is

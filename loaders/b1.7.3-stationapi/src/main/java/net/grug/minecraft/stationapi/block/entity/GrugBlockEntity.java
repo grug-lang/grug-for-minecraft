@@ -134,15 +134,17 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
      * first {@code tick()} so a script's one-time setup runs at the same moment on every loader.
      */
     public void onRegistered() {
-        org.apache.logging.log4j.LogManager.getLogger("GRUG187")
-                .error(
-                        "onRegistered before handle="
-                                + entityHandle
-                                + " initStarted="
-                                + initStarted);
         initGrug();
-        org.apache.logging.log4j.LogManager.getLogger("GRUG187")
-                .error("onRegistered after handle=" + entityHandle);
+        org.apache.logging.log4j.LogManager.getLogger("grug")
+                .error(
+                        "GRUG187 registered handle="
+                                + entityHandle
+                                + " at "
+                                + x
+                                + ","
+                                + y
+                                + ","
+                                + z);
     }
 
     @Override

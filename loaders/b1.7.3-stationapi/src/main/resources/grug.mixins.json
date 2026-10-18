@@ -4,6 +4,7 @@
   "package": "net.grug.minecraft.stationapi.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "BlockWithEntityMixin",
     "ChunkMixin",
     "GrugMixin"
   ],
