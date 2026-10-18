@@ -29,9 +29,9 @@ before: Option[Screenshot] = Option.new()
 
 export run() {
     if Test.tick() == 0 {
-        # An earlier test in the run opens the autocrafting table's GUI and never closes it, and a
-        # screen outlives the test that opened it, so without this the panel is still up and covers
-        # the middle of the frame.
+        # Every test that opens a GUI closes its own now, so nothing should be open here. This stays
+        # as a guard: a screen left open sits over the world for the rest of the run, and without
+        # this the panel would cover the middle of the frame. See #195.
         Test.close_screen()
         origin: Vec3 = Test.setup_graphics_camera()
         _wall_in_front_of(origin)
