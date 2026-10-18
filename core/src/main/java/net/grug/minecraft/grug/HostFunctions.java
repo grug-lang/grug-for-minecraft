@@ -175,23 +175,45 @@ public class HostFunctions {
     }
 
     /**
+     * Whether the client had a screen open the last time {@link #Test_screen_open()} asked, so that
+     * call can tell a screen that has just appeared from one that was already up.
+     */
+    private static boolean screenWasOpen = false;
+
+    /**
      * Test only: closes whatever screen the client has open.
      *
      * <p>One client serves the whole run, so a screen a test opened outlives it. A screenshot test
      * that follows one which opened a GUI needs this, or it captures that panel rather than the
      * world, and the golden it writes down silently becomes the panel.
+     *
+     * <p>The remembered state is cleared too, so the next screen to open is seen as a fresh one and
+     * {@link #Test_screen_open()} forgets the settled frames for it.
      */
     public static void Test_close_screen() {
         GrugCore.getAdapter().closeOpenScreenForTest();
+        screenWasOpen = false;
     }
 
     /**
      * Test only: whether the client has a screen open. On 1.20.6 a block's GUI is opened by a
      * packet from the server, so it is not open yet when {@code Test.use_block} returns, and a
      * settled world does not say it has arrived. See #418.
+     *
+     * <p>A screen that has just appeared forgets the frames counted so far. {@code screen_open}
+     * alone only says the screen object exists, and {@code world_settled} only says the last frames
+     * were idle, so the two together could still let a capture read a frame drawn before the screen
+     * opened once the world was already settled. Forgetting the frames here means a following
+     * {@code world_settled} wait can only be answered by frames drawn after the screen opened,
+     * which is the frame-hook guarantee the settled-frame wait is supposed to give. See #421.
      */
     public static boolean Test_screen_open() {
-        return GrugCore.getAdapter().isScreenOpenForTest();
+        boolean open = GrugCore.getAdapter().isScreenOpenForTest();
+        if (open && !screenWasOpen) {
+            GrugCore.getAdapter().forgetSettledFrames();
+        }
+        screenWasOpen = open;
+        return open;
     }
 
     /**
