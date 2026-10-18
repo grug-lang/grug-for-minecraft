@@ -134,7 +134,13 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
      * first {@code tick()} so a script's one-time setup runs at the same moment on every loader.
      */
     public void onRegistered() {
+        System.out.println(
+                "GRUG187 onRegistered before handle="
+                        + entityHandle
+                        + " initStarted="
+                        + initStarted);
         initGrug();
+        System.out.println("GRUG187 onRegistered after handle=" + entityHandle);
     }
 
     @Override
@@ -182,7 +188,15 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
     @Override
     public void markRemoved() {
         super.markRemoved();
+        destroyGrugEntity();
+    }
 
+    /**
+     * Destroys the grug entity and releases the host entities it rooted. Called from {@code
+     * markRemoved} and, so a chunk unload frees the entity and a reload inits it again, from the
+     * chunk's own unload. Idempotent, so a block removal that a chunk unload follows is safe.
+     */
+    public void destroyGrugEntity() {
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;

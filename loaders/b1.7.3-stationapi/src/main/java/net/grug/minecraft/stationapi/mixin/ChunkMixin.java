@@ -24,7 +24,9 @@ import java.util.Map;
  * disk, before that chunk is in the world, and the grug entity cannot be created then: it resolves
  * its own block through the world, which would load the chunk again. {@code loaded} is false during
  * that read and true once the chunk is in the world, so the placement path is the one that inits,
- * and the chunk path inits at the end of {@code load}, by which point the chunk is reachable.
+ * and the chunk path inits at the end of {@code load}, by which point the chunk is reachable. A
+ * chunk unload destroys the entity, so it does not outlive its block entity and is inited again on
+ * the next load.
  */
 @Mixin(Chunk.class)
 public abstract class ChunkMixin {
@@ -36,8 +38,11 @@ public abstract class ChunkMixin {
     @Inject(method = "setBlockEntity", at = @At("RETURN"))
     private void grug$initOnPlacement(
             int x, int y, int z, BlockEntity blockEntity, CallbackInfo ci) {
-        if (loaded && blockEntity instanceof GrugBlockEntity grugBlockEntity) {
-            grugBlockEntity.onRegistered();
+        if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+            System.out.println("GRUG187 setBlockEntity loaded=" + loaded);
+            if (loaded) {
+                grugBlockEntity.onRegistered();
+            }
         }
     }
 
@@ -45,7 +50,17 @@ public abstract class ChunkMixin {
     private void grug$initOnChunkLoad(CallbackInfo ci) {
         for (Object blockEntity : blockEntities.values()) {
             if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+                System.out.println("GRUG187 load");
                 grugBlockEntity.onRegistered();
+            }
+        }
+    }
+
+    @Inject(method = "unload", at = @At("RETURN"))
+    private void grug$destroyOnChunkUnload(CallbackInfo ci) {
+        for (Object blockEntity : blockEntities.values()) {
+            if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+                grugBlockEntity.destroyGrugEntity();
             }
         }
     }

@@ -24,6 +24,11 @@ import java.util.Map;
  * its own block through the world, which would load the chunk again. {@code loaded} is false during
  * that read and true once the chunk is in the world, so the placement path is the one that inits,
  * and the chunk path inits at the end of {@code load}, by which point the chunk is reachable.
+ *
+ * <p>A chunk unload destroys the entity, so it does not outlive the block entity it was created
+ * for: Alpha's unload does not remove its block entities, so without this a chunk that unloads
+ * leaves a grug entity pointing at a block entity the game has dropped, which the next hot reload
+ * reads members from and crashes on.
  */
 @Mixin(WorldChunk.class)
 public abstract class WorldChunkMixin {
@@ -45,6 +50,15 @@ public abstract class WorldChunkMixin {
         for (Object blockEntity : blockEntities.values()) {
             if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
                 grugBlockEntity.onRegistered();
+            }
+        }
+    }
+
+    @Inject(method = "unload", at = @At("RETURN"))
+    private void grug$destroyOnChunkUnload(CallbackInfo ci) {
+        for (Object blockEntity : blockEntities.values()) {
+            if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+                grugBlockEntity.destroyGrugEntity();
             }
         }
     }
