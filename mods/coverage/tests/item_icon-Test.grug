@@ -8,8 +8,6 @@
 
 export run() {
     if Test.tick() == 0 {
-        # An earlier test may have left a screen open, and it would cover the slot.
-        Test.close_screen()
         _setup()
         Test.not_done()
     } else if not Test.screen_open() {

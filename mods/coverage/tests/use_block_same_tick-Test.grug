@@ -15,13 +15,6 @@ waiting: bool = false
 waited: number = 0
 
 export run() {
-    if Test.tick() == 0 {
-        # An earlier test may have left a screen open, and it would be taken for the first one opening.
-        Test.close_screen()
-        Test.not_done()
-        return
-    }
-
     if not waiting {
         _use()
         waiting = true
