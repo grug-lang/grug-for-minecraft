@@ -70,9 +70,8 @@ local _setup() {
 
     # Every test that opens a GUI closes its own now, so nothing should be open here. This stays as
     # a guard: one client serves the whole run, so a screen a future test left open would sit over
-    # the world in every frame after, and the capture below would be of that panel. Closing the last
-    # screen is also what would let the focus-loss pause fire, which the loaders refuse or lift
-    # while a run owns the client. hot_reload_texture-Test keeps the same guard. See #195.
+    # the world in every frame after, and the capture below would be of that panel.
+    # hot_reload_texture-Test keeps the same guard. See #195.
     Test.close_screen()
 
     # The runner builds a sealed, torch-lit room around the player before every test, so the

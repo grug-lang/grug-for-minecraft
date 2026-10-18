@@ -44,15 +44,17 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     /**
      * Declines the focus-loss pause while a screenshot test run owns the client.
      *
-     * <p>A headless display is never the active window, so this version's frame update opens the
-     * in-game menu half a second into every run and pauses the world behind it. That costs more
-     * than the menu over a capture: a paused world stops ticking the block entities the tests
-     * placed, so every test after the one that closed its screen meets a frozen world. The pause
-     * cannot be undone from a tick either, because the tick that would close the menu does not run
-     * while the game is paused. The run owning the client is what makes refusing the pause correct
-     * rather than intrusive; the R hotkey leaves the game running and does not.
+     * <p>When the window is not the active one, this version's frame update opens the in-game menu
+     * half a second later and pauses the world behind it. That costs more than the menu over a
+     * capture: a paused world stops ticking the block entities the tests placed, so every test
+     * after the one that closed its screen meets a frozen world. The pause cannot be undone from a
+     * tick either, because the tick that would close the menu does not run while the game is
+     * paused. A run owning the client is what makes refusing the pause correct rather than
+     * intrusive; the R hotkey leaves the game running and does not.
      *
-     * <p>See #195.
+     * <p>CI's xvfb window reports itself active, so the pause is not reached there and the closes
+     * alone pass. This is the guard for a machine whose window is unfocused, and it is what
+     * b1.7.3-stationapi already does. See #195.
      */
     @Inject(method = "pauseGame", at = @At("HEAD"), cancellable = true)
     private void grug$declinePauseDuringRun(CallbackInfo ci) {
