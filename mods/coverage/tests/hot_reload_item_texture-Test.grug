@@ -1,0 +1,80 @@
+# Swaps the texture an item renders with, waits until the engine reports the change and the loaders have
+# reloaded their resources, and then checks that the icon drawn in a GUI slot changed. This is the item
+# counterpart of hot_reload_texture-Test.grug, which swaps a block's texture: the item's icon lives in the
+# item atlas rather than the terrain one, so it needs its own capture. See #180 and #409.
+# The comparison is a capture against a capture, as in the block test, so no reference image is needed. A
+# pixel counts as changed once a channel has moved by more than a part in sixteen, which leaves lighting out.
+# Only the icon's opaque pixels change colour, and about 65 percent of its 16 by 16 texels are opaque. The
+# ask is 50 percent, below the roughly 60 a full swap should give and far above the 0 two captures of an
+# unchanged frame give. A frame caught before the reload finished would fall short of it.
+# The GUI is the same one item_icon-Test.grug captures, opened through coverage_block's use export, so its
+# slot is at (466, 162) in the frame.
+# The "normal" state at the end puts the shipped texture back, and a run that dies before it gets there is
+# put back by the next startup, as with the block test.
+swapped: bool = false
+reload_seen: bool = false
+change_baseline: number = -1
+reload_baseline: number = -1
+path: string = "coverage/assets/grug/textures/item/coverage_item.png"
+before: Option[Screenshot] = Option.new()
+
+export run() {
+    if Test.tick() == 0 {
+        _setup()
+        Test.not_done()
+    } else if not Test.screen_open() {
+        # On 1.20.6 the screen is opened by a packet from the server, so it is not open when use_block
+        # returns. See #418, #421.
+        Test.not_done()
+    } else if not Test.world_settled() {
+        # The panel is only on screen once a frame holding it has been drawn, as in the other GUI tests.
+        Test.not_done()
+    } else if not swapped {
+        # The shipped icon, read once the panel is drawn, so the comparison below is between two frames of
+        # the same GUI.
+        before.set(Test.screenshot().capture(466, 162, 514, 210))
+
+        change_baseline = Test.hot_reload_count(path)
+        reload_baseline = Test.reload_count(path)
+        Test.set_mod_file_state(path, "swapped")
+        swapped = true
+        Test.not_done()
+    } else if not reload_seen {
+        # Waiting for the engine to report the write rather than a number of ticks, as the block test does.
+        if Test.hot_reload_count(path) > change_baseline {
+            reload_seen = true
+        }
+        Test.not_done()
+    } else if Test.reload_count(path) <= reload_baseline {
+        # The loader still has to answer the report, so this waits for it to say the reload finished.
+        Test.not_done()
+    } else if not Test.world_settled() {
+        # The next capture must come after frames drawn with the new texture, so this waits for the loader to
+        # forget its settled frames and see them drawn again. See #324.
+        Test.not_done()
+    } else {
+        reloaded: Screenshot = Test.screenshot().capture(466, 162, 514, 210)
+        reloaded.differs_from(before.unwrap(), 50)
+        Test.set_mod_file_state(path, "normal")
+        Test.close_screen()
+        Test.restore_camera()
+    }
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.setup_graphics_camera()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_block")
+    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(block_opt.has(), "coverage_block has no block entity after being placed.")
+    block: BlockEntity = block_opt.unwrap()
+
+    icon: Item = item(resource_location("grug:coverage_item"))
+    set_item_in_slot(block, 0, icon, 1)
+
+    Test.use_block(level, x, y, z)
+}
