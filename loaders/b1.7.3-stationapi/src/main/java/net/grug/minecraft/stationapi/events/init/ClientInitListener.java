@@ -12,6 +12,7 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.SimpleInventory;
 import net.modificationstation.stationapi.api.client.event.option.KeyBindingRegisterEvent;
 import net.modificationstation.stationapi.api.client.event.texture.TextureRegisterEvent;
 import net.modificationstation.stationapi.api.client.gui.screen.GuiHandler;
@@ -76,16 +77,35 @@ public class ClientInitListener {
                             BlockEntity realBe =
                                     player.world.getBlockEntity(
                                             message.ints[1], message.ints[2], message.ints[3]);
-                            if (!(realBe instanceof Inventory realInv)) {
-                                return null;
-                            }
 
                             GrugGuiBuilder builder =
                                     StationGuiHelper.readBuilderFromPacket(message);
 
+                            // The open packet can reach a client before the block update that
+                            // places the block, when a block is placed and used in the same server
+                            // tick, and a multiplayer client has a world of its own. The client
+                            // block entity is then missing, so the menu is built on a placeholder
+                            // inventory, as vanilla does, and the content packet fills the slots.
+                            // See #428.
+                            Inventory blockInventory =
+                                    realBe instanceof Inventory realInv
+                                            ? realInv
+                                            : new SimpleInventory(
+                                                    "Grug Inventory", placeholderSize(builder));
+
                             return new GrugScreen(
-                                    new GrugScreenHandler(player, realInv, builder), builder);
+                                    new GrugScreenHandler(player, blockInventory, builder),
+                                    builder);
                         },
                         GrugBlockEntity::new));
+    }
+
+    /** The slots a placeholder inventory has to hold for the layout's crafting grids. */
+    private static int placeholderSize(GrugGuiBuilder layout) {
+        int size = 0;
+        for (GrugGuiBuilder.CraftingGridDef grid : layout.craftingGrids) {
+            size = Math.max(size, grid.startSlot() + 9);
+        }
+        return size;
     }
 }
