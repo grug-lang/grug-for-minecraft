@@ -53,6 +53,9 @@ export run() {
         # forget its settled frames and see them drawn again. See #324.
         Test.not_done()
     } else {
+        # The reload must not have taken the panel down, or the capture below would be the world and
+        # the comparison would pass for the wrong reason.
+        Test.assert(Test.screen_open(), "The GUI closed during the item texture hot reload.")
         reloaded: Screenshot = Test.screenshot().capture(466, 162, 514, 210)
         reloaded.differs_from(before.unwrap(), 50)
         Test.set_mod_file_state(path, "normal")
