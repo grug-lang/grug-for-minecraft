@@ -4,6 +4,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
@@ -31,8 +32,13 @@ public class GrugScreenHandler extends ScreenHandler {
         // Crafting Results
         for (GrugGuiBuilder.CraftingResultDef res : layout.craftingResults) {
             // The result is not an inventory slot; the block entity owns a one-slot container for
-            // it. Taking from that container is the same path take_crafting_result uses.
-            Inventory resultInventory = ((GrugBlockEntity) blockInventory).getResultInventory();
+            // it. Taking from that container is the same path take_crafting_result uses. The client
+            // copy is built on a placeholder when the block entity has not arrived, so the result
+            // container is one too. See #428.
+            Inventory resultInventory =
+                    blockInventory instanceof GrugBlockEntity grugBlockEntity
+                            ? grugBlockEntity.getResultInventory()
+                            : new SimpleInventory("Crafting Result", 1);
             this.addSlot(
                     new Slot(resultInventory, 0, res.x(), res.y()) {
                         @Override
@@ -43,8 +49,9 @@ public class GrugScreenHandler extends ScreenHandler {
                         @Override
                         public void onTakeItem(ItemStack stack) {
                             super.onTakeItem(stack);
-                            ((GrugBlockEntity) blockInventory)
-                                    .notifyOutputTaken(stack != null ? stack.count : 0);
+                            if (blockInventory instanceof GrugBlockEntity grugBlockEntity) {
+                                grugBlockEntity.notifyOutputTaken(stack != null ? stack.count : 0);
+                            }
                         }
                     });
         }
