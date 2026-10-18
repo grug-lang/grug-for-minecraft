@@ -141,9 +141,14 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   the same pull request. Runs that pass afterwards are not evidence for a defect that failed one run
   in three. Prefer a grug test in `mods/coverage/`, as for coverage above: it runs on every loader,
   including ones added later, whereas a Java test only exists in `core`, which no loader code
-  reaches, so write one only when no grug test can reach the defect. If the failure is
-  intermittent, repeat the trigger many times inside one test, putting back each time the state the
-  failure needs, so one pass hits it, and show the test failing on `main` plus only the test.
+  reaches, so write one only when no grug test can reach the defect. Loaders copy one another's
+  adapter code, so a fix for one loader is not finished until every other loader's decompiled code
+  has been read for the same defect: the twin usually sits in each loader that copied the code, and
+  stays hidden wherever that loader's own query cannot see it, which is what lets it flake later.
+  Fix it in the same pull request, and say which loaders were checked and found clean. If the
+  failure is intermittent, repeat the trigger many times inside one test, putting back each time the
+  state the failure needs, so one pass hits it, and show the test failing on `main` plus only the
+  test.
 
 ## Ports and the reference
 
