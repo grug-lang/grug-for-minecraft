@@ -66,6 +66,7 @@ EXCLUDED_CLASSES = {
     "LightTextureMixin",
     "SectionBufferBuilderPoolMixin",
     "GameRendererMixin",
+    "FogRendererMixin",
     "ServerGrugModLoader",
     "GrugRecipeHelper",
     "GrugRecipeParser",
