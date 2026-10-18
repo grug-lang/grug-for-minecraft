@@ -129,9 +129,11 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
 ## Writing tests
 
 - `run()` is called once per tick; `Test.not_done()` keeps the test alive.
-- `Test.get_origin()` is the player's position plus 3. The test area is cleared before every test,
-  so never compensate for an earlier test. Alpha and Beta cap the world at 128 and the b1.7.3 save
-  puts the top band at y=124, so a new band goes below +50.
+- `Test.get_origin()` is the player's position plus 3. The runner clears the test area before every
+  test, so a test starts from a clean world and never compensates for an earlier test: it does not
+  reset state a previous test left, close a screen a previous test opened, or guard against a leak
+  at all. A test that opens a GUI is the one that closes it. Alpha and Beta cap the world at 128 and
+  the b1.7.3 save puts the top band at y=124, so a new band goes below +50.
 - A loader must name the level in its test save exactly, or the game generates a new random world.
 - Wait for a condition rather than a fixed tick count. A fixed number of ticks is right only when
   the thing waited for is itself a duration with no condition to observe, such as an item travelling
