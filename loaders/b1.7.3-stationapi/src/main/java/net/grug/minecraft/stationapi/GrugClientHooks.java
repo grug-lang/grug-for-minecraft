@@ -196,6 +196,46 @@ public class GrugClientHooks {
      */
     private final GrugRunWindow window = new GrugRunWindow(display);
 
+    /**
+     * The smallest view distance this version allows, out of far, normal, short and tiny.
+     */
+    private static final int TINY_VIEW_DISTANCE = 3;
+
+    /** The view distance a run found, put back when the run ends. -1 while no run owns one. */
+    private int savedViewDistance = -1;
+
+    /**
+     * Shrinks the view to the smallest the game allows before a run starts, remembering the old
+     * distance. A run's room is at most 17 blocks across, so a default view only streams in far
+     * chunks whose light and mesh rebuilds the runner then has to work through, which both slows
+     * the run down and, on Beta, makes the frame cost grow across repeats as the world streams in
+     * (#422). The run puts the old distance back when it ends. See #444.
+     */
+    @GrugGenerated("dev-only: the view is shrunk for a run")
+    private void shrinkViewForRun() {
+        if (savedViewDistance >= 0) {
+            return;
+        }
+        savedViewDistance = minecraft.options.viewDistance;
+        minecraft.options.viewDistance = TINY_VIEW_DISTANCE;
+        if (minecraft.worldRenderer != null) {
+            minecraft.worldRenderer.reload();
+        }
+    }
+
+    /** Puts the view distance back, and only if a run changed it. */
+    @GrugGenerated("dev-only: the view is shrunk for a run")
+    private void restoreViewAfterRun() {
+        if (savedViewDistance < 0) {
+            return;
+        }
+        minecraft.options.viewDistance = savedViewDistance;
+        savedViewDistance = -1;
+        if (minecraft.worldRenderer != null) {
+            minecraft.worldRenderer.reload();
+        }
+    }
+
     public GrugClientHooks(Minecraft minecraft, GrugClientAccess access, String title) {
         this.minecraft = minecraft;
         this.access = access;
@@ -253,6 +293,7 @@ public class GrugClientHooks {
                                 + " ms. Firing tests!");
                 ciTestsRan = true;
                 if (window.beginRun()) {
+                    shrinkViewForRun();
                     testRunner = new GrugTestRunner();
                     testRunnerFromCI = true;
                 }
@@ -276,6 +317,7 @@ public class GrugClientHooks {
                 testRunner = null;
                 testRunnerFromCI = false;
                 window.endRun();
+                restoreViewAfterRun();
                 // The hotkey path leaves the game running so another R press can start a fresh run.
                 if (fromCI) {
                     access.grug$shutdown();
@@ -286,6 +328,7 @@ public class GrugClientHooks {
         // The polls consume the presses they report, so this has to run every tick a press is meant
         // to count. The tick it reports a run press in is the one that starts the run.
         if (window.tick(keys)) {
+            shrinkViewForRun();
             testRunner = new GrugTestRunner();
             testRunnerFromCI = false;
         }

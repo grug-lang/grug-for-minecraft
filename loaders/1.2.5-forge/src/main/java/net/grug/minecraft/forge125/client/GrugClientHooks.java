@@ -158,6 +158,44 @@ public class GrugClientHooks implements ITickHandler {
      */
     private final GrugRunWindow window = new GrugRunWindow(DISPLAY);
 
+    /** The smallest render distance this version allows, out of far, normal, short and tiny. */
+    private static final int TINY_RENDER_DISTANCE = 3;
+
+    /** The render distance a run found, put back when the run ends. -1 while no run owns one. */
+    private static int savedRenderDistance = -1;
+
+    /**
+     * Shrinks the view to the smallest the game allows before a run starts, remembering the old
+     * distance. A run's room is at most 17 blocks across, so a default view only streams in far
+     * chunks whose light and mesh rebuilds the runner then has to work through, which both slows
+     * the run down and, on Beta, makes the frame cost grow across repeats as the world streams in
+     * (#422). The run puts the old distance back when it ends. See #444.
+     */
+    @GrugGenerated("dev-only: the view is shrunk for a run")
+    private static void shrinkViewForRun(Minecraft minecraft) {
+        if (savedRenderDistance >= 0) {
+            return;
+        }
+        savedRenderDistance = minecraft.gameSettings.renderDistance;
+        minecraft.gameSettings.renderDistance = TINY_RENDER_DISTANCE;
+        if (minecraft.renderGlobal != null) {
+            minecraft.renderGlobal.loadRenderers();
+        }
+    }
+
+    /** Puts the render distance back, and only if a run changed it. */
+    @GrugGenerated("dev-only: the view is shrunk for a run")
+    private static void restoreViewAfterRun(Minecraft minecraft) {
+        if (savedRenderDistance < 0) {
+            return;
+        }
+        minecraft.gameSettings.renderDistance = savedRenderDistance;
+        savedRenderDistance = -1;
+        if (minecraft.renderGlobal != null) {
+            minecraft.renderGlobal.loadRenderers();
+        }
+    }
+
     @Override
     public void tickStart(EnumSet<TickType> types, Object... data) {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
@@ -220,6 +258,7 @@ public class GrugClientHooks implements ITickHandler {
                                 + " ms. Firing tests!");
                 ciTestsRan = true;
                 if (window.beginRun()) {
+                    shrinkViewForRun(minecraft);
                     testRunner = new GrugTestRunner();
                     testRunnerFromCI = true;
                 }
@@ -242,6 +281,7 @@ public class GrugClientHooks implements ITickHandler {
                 testRunner = null;
                 testRunnerFromCI = false;
                 window.endRun();
+                restoreViewAfterRun(minecraft);
                 if (fromCI) {
                     minecraft.shutdownMinecraftApplet();
                 }
@@ -253,6 +293,7 @@ public class GrugClientHooks implements ITickHandler {
         // report, so this has to run every tick a press is meant to count.
         if (minecraft.thePlayer != null) {
             if (window.tick(KEYS)) {
+                shrinkViewForRun(minecraft);
                 testRunner = new GrugTestRunner();
                 testRunnerFromCI = false;
             }
