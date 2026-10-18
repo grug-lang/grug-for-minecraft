@@ -719,6 +719,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private static boolean clientSettled(Minecraft minecraft) {
         return !GrugModLoader.isReloading()
                 && !minecraft.level.getChunkSource().getLightEngine().hasLightWork()
+                // ClientLevel.pollLightUpdates drains a separate queue of runnables at a capped rate,
+                // so hasLightWork is exact for the light engine's own queues but says nothing about
+                // this one, which light packets from the integrated server fill. A capture taken
+                // while it is non-empty would read a frame lit with light that is still queued. See
+                // #424.
+                && minecraft.level.isLightUpdateQueueEmpty()
                 && RENDER_SETTLE.settled();
     }
 
