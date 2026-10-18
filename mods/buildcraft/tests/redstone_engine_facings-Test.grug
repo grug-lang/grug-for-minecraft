@@ -42,9 +42,6 @@ export run() {
 local _setup() {
     level: Level = Test.get_client_level()
 
-    # A GUI an earlier test opened would sit over the world in every capture. See
-    # coverage_render-Test.grug, whose camera, room and wall this test shares.
-    Test.close_screen()
     Test.set_box_radius(10)
 
     origin: Vec3 = Test.setup_graphics_camera()

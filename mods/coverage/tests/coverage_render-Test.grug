@@ -68,12 +68,6 @@ export run() {
 local _setup() {
     level: Level = Test.get_client_level()
 
-    # Every test that opens a GUI closes its own now, so nothing should be open here. This stays as
-    # a guard: one client serves the whole run, so a screen a future test left open would sit over
-    # the world in every frame after, and the capture below would be of that panel.
-    # hot_reload_texture-Test keeps the same guard. See #195.
-    Test.close_screen()
-
     # The runner builds a sealed, torch-lit room around the player before every test, so the
     # capture's light does not come from the sky: its brightness moves with the time of day, which
     # the suite reaches at a different tick on every run, and the canopy above the fixture shades it

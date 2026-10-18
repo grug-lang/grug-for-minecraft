@@ -29,10 +29,6 @@ before: Option[Screenshot] = Option.new()
 
 export run() {
     if Test.tick() == 0 {
-        # Every test that opens a GUI closes its own now, so nothing should be open here. This stays
-        # as a guard: a screen left open sits over the world for the rest of the run, and without
-        # this the panel would cover the middle of the frame. See #195.
-        Test.close_screen()
         origin: Vec3 = Test.setup_graphics_camera()
         _wall_in_front_of(origin)
         Test.not_done()
