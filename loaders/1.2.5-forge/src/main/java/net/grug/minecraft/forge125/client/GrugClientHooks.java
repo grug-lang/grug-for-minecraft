@@ -161,6 +161,14 @@ public class GrugClientHooks implements ITickHandler {
     /** The smallest render distance this version allows, out of far, normal, short and tiny. */
     private static final int TINY_RENDER_DISTANCE = 3;
 
+    /**
+     * The property the runtime's {@code setupFog} reads to push the distance fog out of the world.
+     * It is a property rather than a direct call because the game classes are loaded by
+     * launchwrapper's parent loader and cannot see this mod's classes; the runtime jar is patched
+     * with the read at build time. See {@code tools/DisableFog.java} and #444.
+     */
+    private static final String FOG_PROPERTY = "grug.disable.fog";
+
     /** The render distance a run found, put back when the run ends. -1 while no run owns one. */
     private static int savedRenderDistance = -1;
 
@@ -178,6 +186,7 @@ public class GrugClientHooks implements ITickHandler {
         }
         savedRenderDistance = minecraft.gameSettings.renderDistance;
         minecraft.gameSettings.renderDistance = TINY_RENDER_DISTANCE;
+        System.setProperty(FOG_PROPERTY, "1");
         if (minecraft.renderGlobal != null) {
             minecraft.renderGlobal.loadRenderers();
         }
@@ -191,6 +200,7 @@ public class GrugClientHooks implements ITickHandler {
         }
         minecraft.gameSettings.renderDistance = savedRenderDistance;
         savedRenderDistance = -1;
+        System.clearProperty(FOG_PROPERTY);
         if (minecraft.renderGlobal != null) {
             minecraft.renderGlobal.loadRenderers();
         }

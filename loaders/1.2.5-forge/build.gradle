@@ -37,11 +37,13 @@ def toolsDir = new File(projectDirFile, 'tools')
 def generatedResourcesDir = new File(buildDirFile, 'generated/resources')
 def genToolClasses = new File(buildDirFile, 'tools/vanilla-names')
 def fixToolClasses = new File(buildDirFile, 'tools/fixinherited')
+def fogToolClasses = new File(buildDirFile, 'tools/disable-fog')
 def reobfSrgFile = new File(buildDirFile, 'reobf.srg')
 def devJar = new File(buildDirFile, 'libs/grug-1.2.5-forge-dev.jar')
 def fixedJar = new File(buildDirFile, 'grug-1.2.5-forge-fixed.jar')
 def finalJar = new File(buildDirFile, 'grug-1.2.5-forge.jar')
 def runtimeDevJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-dev.jar')
+def runtimeFogJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-fog.jar')
 def runtimeJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime.jar')
 def nativesDir = new File(buildDirFile, 'natives')
 
@@ -82,6 +84,8 @@ configurations {
     genTool
     // ASM used by tools/FixInherited.java.
     fixInheritedTool
+    // ASM used by tools/DisableFog.java.
+    fogPatchTool
     // The shaded SpecialSource jar (reobfuscation). Shaded, so no transitive deps.
     specialSourceTool {
         transitive = false
@@ -114,6 +118,9 @@ dependencies {
 
     fixInheritedTool 'org.ow2.asm:asm:9.10.1'
     fixInheritedTool 'org.ow2.asm:asm-tree:9.10.1'
+
+    fogPatchTool 'org.ow2.asm:asm:9.10.1'
+    fogPatchTool 'org.ow2.asm:asm-tree:9.10.1'
 
     specialSourceTool 'net.md-5:SpecialSource:1.11.4:shaded'
 
@@ -232,6 +239,15 @@ tasks.register('compileFixInheritedTool', JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+tasks.register('compileDisableFogTool', JavaCompile) {
+    description = 'Compiles tools/DisableFog.java.'
+    source = fileTree(toolsDir) { include 'DisableFog.java' }
+    classpath = configurations.fogPatchTool
+    destinationDirectory.set(fogToolClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
 tasks.register('fixInheritedJar', JavaExec) {
     description = 'Rewrites inherited member references before reobfuscation.'
     dependsOn tasks.named('jar'), 'compileFixInheritedTool', 'reobfSrg'
@@ -277,16 +293,29 @@ tasks.register('runtimeDevJar', Jar) {
     }
 }
 
+tasks.register('patchRuntimeFog', JavaExec) {
+    description = 'Rewrites EntityRenderer.setupFog to honor the grug.disable.fog property.'
+    dependsOn 'runtimeDevJar', 'compileDisableFogTool'
+    inputs.file runtimeDevJar
+    outputs.file runtimeFogJar
+    classpath = files(fogToolClasses) + configurations.fogPatchTool
+    mainClass.set('DisableFog')
+    doFirst {
+        runtimeFogJar.parentFile.mkdirs()
+        args = [runtimeDevJar.absolutePath, runtimeFogJar.absolutePath]
+    }
+}
+
 tasks.register('obfuscateRuntime', Exec) {
     description = 'Reobfuscates the MCP dev classes into the pack-style runtime jar.'
-    dependsOn 'runtimeDevJar', 'reobfSrg'
-    inputs.file runtimeDevJar
+    dependsOn 'patchRuntimeFog', 'reobfSrg'
+    inputs.file runtimeFogJar
     inputs.file reobfSrgFile
     outputs.file runtimeJar
     doFirst {
         runtimeJar.parentFile.mkdirs()
         commandLine 'java', '-jar', configurations.specialSourceTool.singleFile.absolutePath,
-            '--in-jar', runtimeDevJar.absolutePath,
+            '--in-jar', runtimeFogJar.absolutePath,
             '--out-jar', runtimeJar.absolutePath,
             '--srg-in', reobfSrgFile.absolutePath
     }
