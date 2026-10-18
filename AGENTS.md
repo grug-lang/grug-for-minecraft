@@ -133,8 +133,10 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   so never compensate for an earlier test. Alpha and Beta cap the world at 128 and the b1.7.3 save
   puts the top band at y=124, so a new band goes below +50.
 - A loader must name the level in its test save exactly, or the game generates a new random world.
-- Wait for a condition rather than a fixed tick count, since a setup at tick 0 can run before the
-  chunk arrives.
+- Wait for a condition rather than a fixed tick count. A fixed number of ticks is right only when
+  the thing waited for is itself a duration with no condition to observe, such as an item travelling
+  along a pipe, which just takes time. A wait for a GUI to open, a chunk to arrive or a world to
+  settle has a condition, so wait on it even when the condition is awkward to name.
 - `tolerance()` is a last resort for a rendering difference that cannot be fixed, never for a flaky
   capture. Each call needs a comment linking its tracking issue.
 - A fix for a defect that a failing or flaky run found ships with a test that fails without it, in

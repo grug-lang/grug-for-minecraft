@@ -5,8 +5,6 @@
 # panel is 176 by 166 at the 1280x720 scale of 3, so its top left is at (376, 111), and the grid's first slot
 # sits at (30, 17) inside it. Slot 0 is therefore drawn at (466, 162), and the crop covers its 16 by 16 pixels
 # scaled to 48 by 48. See redstone_engine_item-Test.grug.
-# How many runner ticks in a row the world has answered settled.
-settled_ticks: number = 0
 
 export run() {
     if Test.tick() == 0 {
@@ -14,14 +12,14 @@ export run() {
         Test.close_screen()
         _setup()
         Test.not_done()
+    } else if not Test.screen_open() {
+        # On 1.20.6 the screen is opened by a packet from the server, so it is not open when use_block
+        # returns and a settled world does not say the packet arrived: the world can answer settled
+        # from its first tick. Wait for the screen itself rather than counting settled answers. #418,
+        # #421.
+        Test.not_done()
     } else if not Test.world_settled() {
         # The panel is only on screen once a frame holding it has been drawn, as in the other GUI tests.
-        settled_ticks = 0
-        Test.not_done()
-    } else if settled_ticks < 10 {
-        # On 1.20.6 the screen is opened by a packet from the server, and one settled answer can come
-        # before that packet arrives, so ten in a row is needed before capturing.
-        settled_ticks = settled_ticks + 1
         Test.not_done()
     } else {
         Test.screenshot().equals(r"screenshots/item_icon", 466, 162, 514, 210)
