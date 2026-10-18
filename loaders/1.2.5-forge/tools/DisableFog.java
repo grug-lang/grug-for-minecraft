@@ -1,9 +1,9 @@
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LdcInsnNode;
@@ -33,6 +33,11 @@ import java.util.zip.ZipOutputStream;
  * grug class: the game classes are loaded by launchwrapper's parent loader and cannot see the mod's
  * child loader, so a reference to one would not resolve at run time. The loader sets the property
  * when a run starts and clears it when the run ends.
+ *
+ * <p>The override is injected just before {@code setupFog} returns, not at its start, so the method
+ * still sets its fog colour, colour material and normal as it normally would and only the fog
+ * distances change. The other loaders' {@code setupFog} mixins inject at their return for the same
+ * reason: an early return would leave that GL state to whatever the previous call happened to set.
  *
  * <p>Usage: DisableFog &lt;in.jar&gt; &lt;out.jar&gt;
  */
@@ -84,7 +89,11 @@ public final class DisableFog {
         }
     }
 
-    /** Returns the class with the fog-disabling guard injected at the start of setupFog. */
+    /**
+     * Returns the class with the fog-disabling override injected just before {@code setupFog}
+     * returns, which is where the other loaders' {@code setupFog} mixins inject, so the original
+     * setup still runs and only the fog distances are overridden.
+     */
     private static byte[] patch(byte[] original) {
         ClassNode node = new ClassNode();
         // The frames are recomputed below, so the original ones are not read.
@@ -103,37 +112,20 @@ public final class DisableFog {
                     TARGET_CLASS + "." + TARGET_METHOD + TARGET_DESCRIPTOR + " not found");
         }
 
-        LabelNode run = new LabelNode();
-        InsnList guard = new InsnList();
-        guard.add(new LdcInsnNode(PROPERTY));
-        guard.add(
-                new MethodInsnNode(
-                        Opcodes.INVOKESTATIC,
-                        "java/lang/System",
-                        "getProperty",
-                        "(Ljava/lang/String;)Ljava/lang/String;",
-                        false));
-        guard.add(new JumpInsnNode(Opcodes.IFNULL, run));
-        guard.add(new LdcInsnNode(GL_FOG_MODE));
-        guard.add(new LdcInsnNode(GL_LINEAR));
-        guard.add(
-                new MethodInsnNode(
-                        Opcodes.INVOKESTATIC, "org/lwjgl/opengl/GL11", "glFogi", "(II)V", false));
-        guard.add(new LdcInsnNode(GL_FOG_START));
-        guard.add(new LdcInsnNode(1.0E9F));
-        guard.add(
-                new MethodInsnNode(
-                        Opcodes.INVOKESTATIC, "org/lwjgl/opengl/GL11", "glFogf", "(IF)V", false));
-        guard.add(new LdcInsnNode(GL_FOG_END));
-        // The end must stay above the start, or the fixed-function division is 0/0.
-        guard.add(new LdcInsnNode(2.0E9F));
-        guard.add(
-                new MethodInsnNode(
-                        Opcodes.INVOKESTATIC, "org/lwjgl/opengl/GL11", "glFogf", "(IF)V", false));
-        guard.add(new InsnNode(Opcodes.RETURN));
-        guard.add(run);
-
-        target.instructions.insert(guard);
+        int returns = 0;
+        for (AbstractInsnNode instruction = target.instructions.getFirst();
+                instruction != null;
+                instruction = instruction.getNext()) {
+            if (instruction.getOpcode() == Opcodes.RETURN) {
+                // A fresh list per return, because an instruction node cannot sit in two lists.
+                target.instructions.insertBefore(instruction, override());
+                returns++;
+            }
+        }
+        if (returns == 0) {
+            throw new IllegalStateException(
+                    TARGET_CLASS + "." + TARGET_METHOD + TARGET_DESCRIPTOR + " has no return");
+        }
 
         ClassWriter writer =
                 new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
@@ -145,6 +137,43 @@ public final class DisableFog {
                 };
         node.accept(writer);
         return writer.toByteArray();
+    }
+
+    /**
+     * The guarded override: when the property is set, the fixed-function fog is switched to linear
+     * and pushed far enough away to leave no tint. The branch falls through to the original return
+     * when it is not, so the rest of the original setup is untouched.
+     */
+    private static InsnList override() {
+        LabelNode skip = new LabelNode();
+        InsnList override = new InsnList();
+        override.add(new LdcInsnNode(PROPERTY));
+        override.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKESTATIC,
+                        "java/lang/System",
+                        "getProperty",
+                        "(Ljava/lang/String;)Ljava/lang/String;",
+                        false));
+        override.add(new JumpInsnNode(Opcodes.IFNULL, skip));
+        override.add(new LdcInsnNode(GL_FOG_MODE));
+        override.add(new LdcInsnNode(GL_LINEAR));
+        override.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKESTATIC, "org/lwjgl/opengl/GL11", "glFogi", "(II)V", false));
+        override.add(new LdcInsnNode(GL_FOG_START));
+        override.add(new LdcInsnNode(1.0E9F));
+        override.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKESTATIC, "org/lwjgl/opengl/GL11", "glFogf", "(IF)V", false));
+        override.add(new LdcInsnNode(GL_FOG_END));
+        // The end must stay above the start, or the fixed-function division is 0/0.
+        override.add(new LdcInsnNode(2.0E9F));
+        override.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKESTATIC, "org/lwjgl/opengl/GL11", "glFogf", "(IF)V", false));
+        override.add(skip);
+        return override;
     }
 
     private DisableFog() {}
