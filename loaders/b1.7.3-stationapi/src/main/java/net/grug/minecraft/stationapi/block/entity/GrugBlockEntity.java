@@ -135,16 +135,6 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
      */
     public void onRegistered() {
         initGrug();
-        org.apache.logging.log4j.LogManager.getLogger("grug")
-                .error(
-                        "GRUG187 registered handle="
-                                + entityHandle
-                                + " at "
-                                + x
-                                + ","
-                                + y
-                                + ","
-                                + z);
     }
 
     @Override

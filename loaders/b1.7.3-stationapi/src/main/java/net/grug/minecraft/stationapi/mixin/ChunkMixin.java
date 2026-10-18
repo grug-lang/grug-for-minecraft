@@ -12,6 +12,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Map;
 
+/**
+ * Creates a grug block entity's grug entity when the game registers it with a world and sets its
+ * position, and frees it again when the chunk unloads. This mirrors the Ornithe loader's
+ * WorldChunkMixin, whose own mappings name this class {@code WorldChunk}.
+ *
+ * <p>{@code setBlockEntity} also runs while a chunk is being read from disk, before that chunk is
+ * in the world, and the grug entity cannot be created then: it resolves its own block through the
+ * world, which would load the chunk again. {@code loaded} is false during that read and true once
+ * the chunk is in the world, so the placement path is the one that inits, and the chunk path inits
+ * at the end of {@code load}, by which point the chunk is reachable. Block placement also meets
+ * BlockWithEntityMixin, because this version's client reaches {@code onPlaced} for a block whose
+ * chunk has not reached this method yet.
+ */
 @Mixin(Chunk.class)
 public abstract class ChunkMixin {
 
@@ -22,12 +35,8 @@ public abstract class ChunkMixin {
     @Inject(method = "setBlockEntity", at = @At("RETURN"))
     private void grug$initOnPlacement(
             int x, int y, int z, BlockEntity blockEntity, CallbackInfo ci) {
-        if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
-            org.apache.logging.log4j.LogManager.getLogger("grug")
-                    .error("GRUG187 setBlockEntity loaded=" + loaded);
-            if (loaded) {
-                grugBlockEntity.onRegistered();
-            }
+        if (loaded && blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+            grugBlockEntity.onRegistered();
         }
     }
 
@@ -35,7 +44,6 @@ public abstract class ChunkMixin {
     private void grug$initOnChunkLoad(CallbackInfo ci) {
         for (Object blockEntity : blockEntities.values()) {
             if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
-                org.apache.logging.log4j.LogManager.getLogger("grug").error("GRUG187 load");
                 grugBlockEntity.onRegistered();
             }
         }
