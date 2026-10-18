@@ -125,7 +125,8 @@ public final class DisableFog {
                 new MethodInsnNode(
                         Opcodes.INVOKESTATIC, "org/lwjgl/opengl/GL11", "glFogf", "(IF)V", false));
         guard.add(new LdcInsnNode(GL_FOG_END));
-        guard.add(new LdcInsnNode(1.0E9F));
+        // The end must stay above the start, or the fixed-function division is 0/0.
+        guard.add(new LdcInsnNode(2.0E9F));
         guard.add(
                 new MethodInsnNode(
                         Opcodes.INVOKESTATIC, "org/lwjgl/opengl/GL11", "glFogf", "(IF)V", false));
