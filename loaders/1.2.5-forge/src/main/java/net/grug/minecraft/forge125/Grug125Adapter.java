@@ -1000,11 +1000,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
         graphicsCameraSaved = true;
 
         // Snap the player to the centre of their own block and level the view, so every loader
-        // frames
-        // a fixture identically. The snap stays within the player's own block, so it is a move
-        // within
-        // a chunk the client has already lit; a teleport into a chunk it has not lit crashes this
-        // generation of the game. The runner restores the saved position when the test ends.
+        // frames a fixture identically. The snap stays within the player's own block, so it is a
+        // move within a chunk the client has already lit; a teleport into a chunk it has not lit
+        // crashes this generation of the game. The runner restores the saved position when the
+        // test ends.
         player.setPositionAndRotation(
                 Math.floor(savedX) + 0.5, savedY, Math.floor(savedZ) + 0.5, 0.0F, 0.0F);
 
