@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -47,7 +48,8 @@ public abstract class WorldChunkMixin {
 
     @Inject(method = "load", at = @At("RETURN"))
     private void grug$initOnChunkLoad(CallbackInfo ci) {
-        for (Object blockEntity : blockEntities.values()) {
+        // A snapshot, because an init() that places a block in this chunk adds to the map.
+        for (Object blockEntity : new ArrayList<>(blockEntities.values())) {
             if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
                 grugBlockEntity.onRegistered();
             }
