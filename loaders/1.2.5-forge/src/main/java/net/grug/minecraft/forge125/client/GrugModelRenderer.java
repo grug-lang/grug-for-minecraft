@@ -154,8 +154,8 @@ public final class GrugModelRenderer {
      * Draws {@code quads} as an item, centred on the origin the way the game draws a block item.
      *
      * <p>A block that declared set_flat_lighting is drawn with OpenGL lighting off, every face at
-     * full texture brightness, the way BuildCraft 2.2.14's engine renderer draws with GL lighting
-     * disabled. Every other block is lit from each face's normal.
+     * texture brightness times the current GL colour, the way BuildCraft 2.2.14's engine renderer
+     * draws with GL lighting disabled. Every other block is lit from each face's normal.
      */
     public static void drawAsItem(List<GrugQuad> quads, boolean flat) {
         GL11.glPushAttrib(GL11.GL_TEXTURE_BIT | GL11.GL_ENABLE_BIT);
@@ -171,9 +171,10 @@ public final class GrugModelRenderer {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, TEXTURES.get(group.getKey()));
             for (GrugQuad quad : group.getValue()) {
                 tessellator.startDrawingQuads();
-                if (flat) {
-                    tessellator.setColorOpaque_F(1.0F, 1.0F, 1.0F);
-                } else {
+                // A flat face carries neither a normal nor a colour of its own, so with lighting
+                // off it takes the current GL colour as it is: white in the GUI, and the world's
+                // brightness where the game darkens a held or dropped item through glColor.
+                if (!flat) {
                     float[] normal = NORMAL[quad.side()];
                     tessellator.setNormal(normal[0], normal[1], normal[2]);
                 }
