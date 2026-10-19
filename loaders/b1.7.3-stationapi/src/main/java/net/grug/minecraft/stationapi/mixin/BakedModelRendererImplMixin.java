@@ -65,7 +65,7 @@ public class BakedModelRendererImplMixin {
     private static boolean grug$isFlat(ItemStack stack) {
         if (stack == null) return false;
         if (!(stack.getItem() instanceof BlockItem blockItem)) return false;
-        int id = blockItem.blockId;
+        int id = ((BlockItemAccessor) blockItem).grug$getBlockId();
         if (id < 0 || id >= Block.BLOCKS.length) return false;
         Block block = Block.BLOCKS[id];
         return block instanceof GrugBlock grugBlock && grugBlock.drawsFlatLighting();
