@@ -7,7 +7,6 @@
     "client": [
         "FogRendererMixin",
         "GuiMixin",
-        "ItemBlockRenderTypesMixin",
         "LightTextureMixin",
         "LiquidBlockRendererMixin",
         "ModelBlockRendererMixin",
