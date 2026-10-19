@@ -131,23 +131,18 @@ public class GrugBlockEntity extends TileEntity implements IInventory, GrugSaved
     }
 
     /**
-     * Called by 1.2.5 as the last step of registering this tile with a chunk, both when the block
-     * is placed and when the chunk is loaded from disk, after the world and the coordinates are
-     * set. That is this loader's closest thing to 1.20.6's {@code onLoad}, so the grug entity is
-     * created here rather than on the first {@code updateEntity()}, which is a tick later and
-     * differs from every other loader.
+     * Called by {@link GrugBlock#onBlockAdded} once the placed tile is in its chunk's map, which is
+     * this loader's closest thing to 1.20.6's {@code onLoad}, so the grug entity is created then
+     * rather than on the first {@code updateEntity()}, a tick later.
      *
-     * <p>A chunk read from disk validates its tiles before the chunk provider holds the chunk, and
-     * creating the entity then resolves this tile's block through the world, which loads the same
-     * chunk from disk again and recurses until the stack overflows. Such a tile is left to the
-     * first {@code updateEntity()}, which is when 1.2.5 starts ticking a chunk's tiles anyway.
+     * <p>{@code validate()} would be earlier still, but 1.2.5 calls it before it puts the tile in
+     * the map. An {@code init} that looks up its own position then finds no tile, and the lookup
+     * creates and validates another, which recurses until the stack overflows. A chunk read from
+     * disk validates its tiles before the chunk provider even holds the chunk, so such a tile is
+     * left to the first {@code updateEntity()}, which is when 1.2.5 starts ticking it anyway.
      */
-    @Override
-    public void validate() {
-        super.validate();
-        if (worldObj != null && worldObj.blockExists(xCoord, yCoord, zCoord)) {
-            initGrug();
-        }
+    public void onRegistered() {
+        initGrug();
     }
 
     @Override
