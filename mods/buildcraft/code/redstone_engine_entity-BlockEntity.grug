@@ -17,6 +17,12 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
+# TileEngine.progressPart: 0 while the piston rests, 1 while it moves out and 2 once it has handed
+# its energy over, until progress passes 1. The reference does not write it to the tile's NBT, so
+# it is a member variable that starts over at 0 whenever the engine's chunk is loaded again, while
+# the saved number "progress" keeps its value, and the next stroke carries on from that.
+progress_part: number = 0
+
 # The engine as RenderEngine draws it, turned to face the way the engine does, with the trunk in its
 # stage's colour. RenderEngine turns one set of boxes by an angle per orientation, and the models
 # differ only in the trunk's texture, so a model is written per colour and turned here. See
@@ -96,14 +102,15 @@ export tick() {
         energy = energy - 1
     }
 
-    if energy == before {
-        return
+    if energy != before {
+        set_saved_number(me, "energy", energy)
     }
-    set_saved_number(me, "energy", energy)
+
+    _stroke()
 
     # Drawing the engine again costs a chunk's worth of work, so it is only asked for when the trunk
-    # it draws changes colour.
-    if _stage(energy) != _stage(before) {
+    # it draws changes colour. The stroke can lower the energy too.
+    if _stage(get_saved_number(me, "energy")) != _stage(before) {
         redraw(me)
     }
 }
@@ -126,6 +133,89 @@ local _step(progress: number) number {
         return 7.99 - (progress - 0.5) * 2 * 7.99
     }
     return progress * 2 * 7.99
+}
+
+# The rest of TileEngine.n_ on the server, after Engine.update: the piston moves by the speed of
+# the current stage, hands one stroke's energy to the receptor it faces once it is past halfway, and
+# comes to rest again at 1. A resting piston starts a stroke when the engine has a redstone signal
+# and the receptor would take energy.
+local _stroke() {
+    energy: number = get_saved_number(me, "energy")
+
+    if progress_part != 0 {
+        progress: number = get_saved_number(me, "progress") + _piston_speed(energy)
+        set_saved_number(me, "progress", progress)
+
+        if progress > 0.5 and progress_part == 1 {
+            progress_part = 2
+            if _faces_receptor() {
+                extracted: number = _extract_energy(true)
+                if extracted > 0 {
+                    _hand_energy(extracted)
+                }
+            }
+        } else if progress >= 1 {
+            set_saved_number(me, "progress", 0)
+            progress_part = 0
+        }
+    } else if level.has_neighbor_signal(x, y, z) {
+        if _faces_receptor() and _extract_energy(false) > 0 {
+            progress_part = 1
+        }
+    }
+}
+
+# Engine.extractEnergy with a receptor minimum of 1 and a maximum of 1, the wood engine's
+# maxEnergyExtracted. The receptor's own minimum and maximum are not exposed to grug, because no
+# ported receptor has a minimum above 1. Only a real extraction takes the energy off the engine.
+local _extract_energy(do_extract: bool) number {
+    energy: number = get_saved_number(me, "energy")
+    if energy < 1 {
+        return 0
+    }
+    if do_extract {
+        set_saved_number(me, "energy", energy - 1)
+    }
+    return 1
+}
+
+# Engine.getPistonSpeed per stage: 0.01, 0.02, 0.04 and 0.08, and 0 for the Explosion stage, which is
+# everything above maxEnergy. The wood engine's own energy++ is uncapped, so it can get there. The
+# reference's progress is a Java float and grug numbers are doubles; the maintainer allowed adding
+# in doubles, which only moves a stroke's delivery and reset by a tick (#406).
+local _piston_speed(energy: number) number {
+    if energy > 1000 {
+        return 0
+    }
+    stage: number = _stage(energy)
+    if stage == 0 {
+        return 0.01
+    }
+    if stage == 1 {
+        return 0.02
+    }
+    if stage == 2 {
+        return 0.04
+    }
+    return 0.08
+}
+
+# The block in front of the engine, when it is a power receiver. TileEngine.isPoweredTile.
+local _faces_receptor() bool {
+    side: number = _facing()
+    receptor: Option[BlockEntity] = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
+    if not receptor.has() {
+        return false
+    }
+    return is_power_receiver(receptor.unwrap())
+}
+
+# PowerProvider.receiveEnergy on the receptor in front of the engine. Only called after
+# _faces_receptor.
+local _hand_energy(amount: number) {
+    side: number = _facing()
+    receptor: BlockEntity = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)).unwrap()
+    receive_energy(receptor, amount)
 }
 
 # Engine.computeEnergyStage for EngineWood's maxEnergy of 1000: 0 is blue up to 25% of it, 1 green up

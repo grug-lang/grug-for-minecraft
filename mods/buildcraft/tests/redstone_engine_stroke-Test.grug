@@ -1,0 +1,123 @@
+# Covers the redstone engine's piston stroke, as TileEngine.n_ runs it in BuildCraft 2.2.14. A
+# powered engine with energy starts a stroke on one tick (which adds nothing to progress), adds the
+# stage's piston speed to progress on every tick after it, hands 1 energy to the pipe it faces once
+# progress passes 0.5, and rests again when progress reaches 1, after which the next stroke starts on
+# the very next tick. The speeds are 0.01 for Blue, 0.02 for Green, 0.04 for Yellow and 0.08 for
+# Red, so a stroke delivers on the 51st, 26th, 14th and 8th tick and rests on the 101st, 51st, 26th
+# and 14th, counting the start tick as the first. Progress is added in doubles here, where the
+# reference adds floats, which is why Blue delivers a tick earlier than 2.2.14 (#406).
+
+# Only the engine is ticked, with Test.tick_block_entity, and everything happens inside one run()
+# call, so the game's own tick cannot run the pipe and take the energy it received. Level.get_time
+# moves one tick for every tick the test gives a block entity, and the engine gains 1 energy on a
+# tick whose time is a multiple of 20 while it has a signal, so _tick adds that to the energy the
+# test expects.
+export run() {
+    level: Level = Test.get_client_level()
+
+    # The engine with no energy starts a stroke if it gains 1, so it is ticked for 19 ticks that
+    # start just after a multiple of 20 and never reach the next one.
+    if Math.remainder(level.get_time(), 20) != 1 {
+        Test.not_done()
+        return
+    }
+
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 15
+    z: number = origin.z()
+
+    engine: BlockEntity = _place(level, x + 20, y, z, true)
+    pipe: BlockEntity = level.get_block_entity(x + 20, y + 1, z).unwrap()
+    set_saved_number(engine, "energy", 0)
+    Test.tick_block_entity(engine, 19)
+    Test.assert(get_energy_stored(pipe) == 0, "An engine with no energy should hand the pipe nothing.")
+    Test.assert(get_saved_number(engine, "progress") == 0, "An engine with no energy should not move its piston.")
+
+    _stroke(level, x, y, z, 100, 51, 101)
+    _stroke(level, x + 4, y, z, 400, 26, 51)
+    _stroke(level, x + 8, y, z, 600, 14, 26)
+    _stroke(level, x + 12, y, z, 900, 8, 14)
+
+    # Without a redstone signal the engine never starts a stroke.
+    engine = _place(level, x + 16, y, z, false)
+    pipe = level.get_block_entity(x + 16, y + 1, z).unwrap()
+    set_saved_number(engine, "energy", 100)
+    Test.tick_block_entity(engine, 120)
+    Test.assert(get_energy_stored(pipe) == 0, "An engine with no redstone signal should hand the pipe nothing.")
+    Test.assert(get_saved_number(engine, "progress") == 0, "An engine with no redstone signal should not move its piston.")
+}
+
+# Runs two strokes of an engine holding the given energy, with delivery_tick and rest_tick as the
+# tick numbers described above.
+local _stroke(level: Level, x: number, y: number, z: number, energy: number, delivery_tick: number, rest_tick: number) {
+    engine: BlockEntity = _place(level, x, y, z, true)
+    pipe: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
+    set_saved_number(engine, "energy", energy)
+
+    # The start tick.
+    expected: number = _tick(level, engine, 1, energy)
+    Test.assert(get_saved_number(engine, "progress") == 0, "The start tick should add nothing to progress.")
+    Test.assert(get_saved_number(engine, "energy") == expected, "Starting a stroke should not take energy.")
+
+    expected = _tick(level, engine, delivery_tick - 2, expected)
+    Test.assert(get_energy_stored(pipe) == 0, "The pipe should have nothing the tick before the delivery.")
+    Test.assert(get_saved_number(engine, "energy") == expected, "The engine should still hold all its energy the tick before the delivery.")
+    Test.assert(get_saved_number(engine, "progress") > 0, "The piston should be moving.")
+
+    expected = _tick(level, engine, 1, expected) - 1
+    Test.assert(get_energy_stored(pipe) == 1, "The pipe should hold 1 energy after the delivery tick.")
+    Test.assert(get_saved_number(engine, "energy") == expected, "The engine should have lost exactly 1 energy at the delivery.")
+
+    expected = _tick(level, engine, rest_tick - delivery_tick - 1, expected)
+    Test.assert(get_saved_number(engine, "progress") > 0.9, "Progress should be nearly 1 the tick before the piston rests.")
+
+    expected = _tick(level, engine, 1, expected)
+    Test.assert(get_saved_number(engine, "progress") == 0, "Progress should be 0 on the tick the piston rests.")
+    Test.assert(get_energy_stored(pipe) == 1, "The pipe should still hold 1 energy, as only one stroke has delivered.")
+
+    # The second stroke starts on the tick after the rest tick: it adds nothing there, and adds the
+    # speed on the tick after that.
+    expected = _tick(level, engine, 1, expected)
+    Test.assert(get_saved_number(engine, "progress") == 0, "The second stroke's start tick should add nothing to progress.")
+    expected = _tick(level, engine, 1, expected)
+    Test.assert(get_saved_number(engine, "progress") > 0, "The second stroke should be moving the tick after it started.")
+
+    expected = _tick(level, engine, delivery_tick - 2, expected)
+    Test.assert(get_energy_stored(pipe) == 2, "The second stroke should have delivered 1 more energy.")
+    Test.assert(get_saved_number(engine, "energy") == expected - 1, "The engine should have lost 1 more energy.")
+}
+
+# Ticks the engine one tick at a time and returns the energy it should hold, which is the energy it
+# held plus 1 for each tick whose time, as Level.get_time reports it just before the tick, is a
+# multiple of 20.
+local _tick(level: Level, engine: BlockEntity, ticks: number, expected: number) number {
+    i: number = 0
+    while i < ticks {
+        if Math.remainder(level.get_time(), 20) == 0 {
+            expected = expected + 1
+        }
+        Test.tick_block_entity(engine, 1)
+        i = i + 1
+    }
+    return expected
+}
+
+# Places a pipe at y + 1 and an engine at y with the redstone torch right under it (stone
+# under the torch), or none when powered is false, and returns the engine's block entity after
+# checking its signal. A torch powers the block above it, but not the block it is attached to.
+local _place(level: Level, x: number, y: number, z: number, powered: bool) BlockEntity {
+    if powered {
+        level.place_block(x, y - 2, z, "minecraft:stone")
+        level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+    }
+    level.place_block(x, y + 1, z, "grug:wooden_pipe")
+    level.place_block(x, y, z, "grug:redstone_engine")
+
+    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y + 1, z)
+    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    Test.assert(pipe_opt.has(), "The wooden pipe should have a block entity.")
+    Test.assert(level.has_neighbor_signal(x, y, z) == powered, "The engine's redstone signal should match what the test set up.")
+    return engine_opt.unwrap()
+}

@@ -37,14 +37,6 @@ export init() {
 }
 
 export tick() {
-    # TEMPORARY: stands in for the engine's strokes until #406 makes the engine hand energy to the
-    # pipe it faces, and #406 removes it. While an adjacent engine has a redstone signal the pipe
-    # gets 1 energy on every tick, which is what the pipe's old powered check amounted to: it pulls
-    # on every tick the engine is powered.
-    if _is_powered() {
-        receive_energy(me, 1)
-    }
-
     if get_item_count_in_slot(me, 0) == 0 {
         _try_pull()
     } else {
@@ -151,22 +143,6 @@ local _try_push() {
     }
 
     _drop()
-}
-
-# TEMPORARY, with the bridge in tick(): whether an adjacent engine has a redstone signal.
-local _is_powered() bool {
-    side: number = 0
-    while side < 6 {
-        nx: number = _neighbor_x(side)
-        ny: number = _neighbor_y(side)
-        nz: number = _neighbor_z(side)
-        is_engine: bool = level.get_block(nx, ny, nz) == "grug:redstone_engine"
-        if is_engine and level.has_neighbor_signal(nx, ny, nz) {
-            return true
-        }
-        side = side + 1
-    }
-    return false
 }
 
 local _pull_from(nx: number, ny: number, nz: number) bool {
