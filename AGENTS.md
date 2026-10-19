@@ -65,6 +65,9 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 - The README calls `mod_api.json` frozen. That discourages growth for its own sake, not removals,
   replacements, test-only helpers or tooling fixes. Every change to it must be justified: once the
   pull request is ready for review or merge, explain to the user why each change was made.
+- Compare every new or changed `mod_api.json` entry with its Forge and Fabric equivalents, and say
+  in the pull request how it compares. They are a reference to compare and contrast against, not a
+  design to copy.
 - A host function added for a port is free of the reference's bugs, even where the reference's own
   version of it was buggy: `mod_api.json` serves every mod, not only the one being ported. The port
   reproduces such a bug in its own grug code where it can, and records it as a deviation where it
