@@ -23,6 +23,10 @@ z: number = center.z()
 # the saved number "progress" keeps its value, and the next stroke carries on from that.
 progress_part: number = 0
 
+export init() {
+    set_power_receiver(me, 1000)
+}
+
 # The engine as RenderEngine draws it, turned to face the way the engine does, with the trunk in its
 # stage's colour. RenderEngine turns one set of boxes by an angle per orientation, and the models
 # differ only in the trunk's texture, so a model is written per colour and turned here. See
