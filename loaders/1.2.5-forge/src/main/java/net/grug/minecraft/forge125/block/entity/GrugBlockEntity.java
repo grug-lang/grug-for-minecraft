@@ -136,16 +136,27 @@ public class GrugBlockEntity extends TileEntity implements IInventory, GrugSaved
      * set. That is this loader's closest thing to 1.20.6's {@code onLoad}, so the grug entity is
      * created here rather than on the first {@code updateEntity()}, which is a tick later and
      * differs from every other loader.
+     *
+     * <p>A chunk read from disk validates its tiles before the chunk provider holds the chunk, and
+     * creating the entity then resolves this tile's block through the world, which loads the same
+     * chunk from disk again and recurses until the stack overflows. Such a tile is left to the
+     * first {@code updateEntity()}, which is when 1.2.5 starts ticking a chunk's tiles anyway.
      */
     @Override
     public void validate() {
         super.validate();
-        initGrug();
+        if (worldObj != null && worldObj.blockExists(xCoord, yCoord, zCoord)) {
+            initGrug();
+        }
     }
 
     @Override
     public void updateEntity() {
         super.updateEntity();
+
+        if (entityHandle == 0) {
+            initGrug();
+        }
 
         if (entityHandle != 0 && tickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
             GrugEntities.callExportFnWithOwner(entityHandle, tickFnId, new ArrayList<>(), null);
