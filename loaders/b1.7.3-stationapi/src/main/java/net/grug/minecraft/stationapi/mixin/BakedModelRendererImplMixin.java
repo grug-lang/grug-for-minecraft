@@ -42,10 +42,28 @@ public class BakedModelRendererImplMixin {
             float brightness,
             BakedModel model,
             CallbackInfo ci) {
+        if (!DIAG_DONE) {
+            DIAG_DONE = true;
+            boolean b = stack != null && stack.getItem() instanceof BlockItem;
+            int id = b ? ((BlockItemAccessor) stack.getItem()).grug$getBlockId() : -1;
+            System.out.println(
+                    "[GRUG-DIAG] stationapi renderItem item="
+                            + (stack == null ? null : stack.getItem())
+                            + " blockItem="
+                            + b
+                            + " id="
+                            + id
+                            + " flat="
+                            + grug$isFlat(stack)
+                            + " lighting="
+                            + GL11.glGetBoolean(GL11.GL_LIGHTING));
+        }
         if (grug$isFlat(stack)) {
             GL11.glDisable(GL11.GL_LIGHTING);
         }
     }
+
+    private static boolean DIAG_DONE = false;
 
     @Inject(
             method =
