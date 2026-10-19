@@ -808,8 +808,15 @@ class GrugTestRunnerTest {
     void restoresTheCameraWhenATestPasses() {
         // The test moved the camera by calling Test.setup_graphics_camera, so the runner has to put
         // it back for it rather than rely on the test remembering to. See #393 and #408.
-        capture(() -> runToEnd(runner(new FakeOps(), Map.of("mymod/code/a-Test.grug", 1L))));
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        runner(
+                                                new FakeOps(),
+                                                Map.of("mymod/code/a-Test.grug", 1L))));
 
+        assertTrue(printed.contains("[GRUG CI] PASS mymod/code/a-Test.grug"));
         assertEquals(List.of("restore"), cameraRestores);
     }
 
@@ -820,8 +827,9 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.completed = false;
 
-        capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
+        String printed = capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
 
+        assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"));
         assertEquals(List.of("restore"), cameraRestores);
     }
 
@@ -831,8 +839,10 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.throwOnCall = new IllegalStateException("boom");
 
-        capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
+        String printed = capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
 
+        assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"));
+        assertTrue(printed.contains("[GRUG CI] boom"));
         assertEquals(List.of("restore"), cameraRestores);
     }
 
@@ -842,8 +852,9 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
 
-        capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
+        String printed = capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
 
+        assertTrue(printed.contains("[GRUG CI] PASS mymod/code/a-Test.grug (expected error)"));
         assertEquals(List.of("restore"), cameraRestores);
     }
 }
