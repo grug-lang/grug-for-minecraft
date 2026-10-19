@@ -109,11 +109,13 @@ draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 draw_model(model: resource, x: number, y: number, z: number)
 drop_inventory(level: Level, x: number, y: number, z: number)
 equals(a: $Type, b: $Type) bool
+extract_energy(block_entity: BlockEntity, max: number) number
 extract_item_from_inventory(block_entity: BlockEntity, item: Item, damage: number, amount: number) number
 get_block_entity_level(block_entity: BlockEntity) Level
 get_block_pos_of_block_entity(block_entity: BlockEntity) BlockPos
 get_crafting_result_damage(block_entity: BlockEntity) number
 get_crafting_result_item(block_entity: BlockEntity) Option[Item]
+get_energy_stored(block_entity: BlockEntity) number
 get_inventory_size(block_entity: BlockEntity) number
 get_item_count_in_slot(block_entity: BlockEntity, slot: number) number
 get_item_damage_in_slot(block_entity: BlockEntity, slot: number) number
@@ -121,6 +123,7 @@ get_item_in_slot(block_entity: BlockEntity, slot: number) Option[Item]
 get_saved_number(block_entity: BlockEntity, name: string) number
 gui(texture_path: resource) GUI
 insert_item_into_inventory(block_entity: BlockEntity, item: Item, damage: number, amount: number) number
+is_power_receiver(block_entity: BlockEntity) bool
 is_slot_extractable(block_entity: BlockEntity, slot: number) bool
 is_slot_insertable(block_entity: BlockEntity, slot: number) bool
 item(resource_location: ResourceLocation) Item
@@ -129,6 +132,7 @@ item_stack(item: Item, damage: number) ItemStack
 print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)
+receive_energy(block_entity: BlockEntity, amount: number) number
 redraw(block_entity: BlockEntity)
 resource_location(resource_location_string: string) ResourceLocation
 set_block_entity(entity_string: entity)
@@ -142,6 +146,7 @@ set_item_count_in_slot(block_entity: BlockEntity, slot: number, count: number)
 set_item_damage_in_slot(block_entity: BlockEntity, slot: number, damage: number)
 set_item_in_slot(block_entity: BlockEntity, slot: number, item: Item, count: number)
 set_material(material_name: string)
+set_power_receiver(block_entity: BlockEntity, max_stored: number)
 set_saved_number(block_entity: BlockEntity, name: string, value: number)
 take_crafting_result(block_entity: BlockEntity, amount: number) number
 take_item_from_slot(block_entity: BlockEntity, slot: number, amount: number) number

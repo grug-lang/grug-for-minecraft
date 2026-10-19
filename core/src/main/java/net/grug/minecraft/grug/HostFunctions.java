@@ -836,6 +836,10 @@ public class HostFunctions {
     }
 
     public static double get_saved_number(long blockEntityId, String name) {
+        if (GrugSavedNumbers.isReserved(name)) {
+            reportReservedName("get_saved_number");
+            return 0;
+        }
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!GrugSavedNumbers.isHolder(blockEntity)) {
             reportNotSaving("get_saved_number");
@@ -845,10 +849,77 @@ public class HostFunctions {
     }
 
     public static void set_saved_number(long blockEntityId, String name, double value) {
+        if (GrugSavedNumbers.isReserved(name)) {
+            reportReservedName("set_saved_number");
+            return;
+        }
         if (!GrugSavedNumbers.set(
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId), name, value)) {
             reportNotSaving("set_saved_number");
         }
+    }
+
+    /** A saved number named with the prefix the game keeps for what it saves itself. */
+    private static void reportReservedName(String hostFunction) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                hostFunction
+                        + ": Names starting with \""
+                        + GrugSavedNumbers.RESERVED_PREFIX
+                        + "\" are reserved for what the game saves itself.");
+    }
+
+    public static void set_power_receiver(long blockEntityId, double maxStored) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkCanDeclare(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkEnergy("The most a receiver holds", maxStored);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "set_power_receiver: " + problem);
+            return;
+        }
+        GrugPower.declare(blockEntity, maxStored);
+    }
+
+    public static boolean is_power_receiver(long blockEntityId) {
+        return GrugPower.isReceiver(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+    }
+
+    public static double get_energy_stored(long blockEntityId) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkIsReceiver(blockEntity);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "get_energy_stored: " + problem);
+            return 0;
+        }
+        return GrugPower.stored(blockEntity);
+    }
+
+    public static double receive_energy(long blockEntityId, double amount) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkIsReceiver(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkEnergy("The amount", amount);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "receive_energy: " + problem);
+            return 0;
+        }
+        return GrugPower.receive(blockEntity, amount);
+    }
+
+    public static double extract_energy(long blockEntityId, double max) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkIsReceiver(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkEnergy("The most to take", max);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "extract_energy: " + problem);
+            return 0;
+        }
+        return GrugPower.extract(blockEntity, max);
     }
 
     /**

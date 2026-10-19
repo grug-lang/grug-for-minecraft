@@ -1,0 +1,13 @@
+# set_power_receiver only works for a grug block entity, so a vanilla chest must report an error rather than be made a receiver.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    Test.expect_error("Only a grug block entity can receive energy")
+    set_power_receiver(be, 10)
+}
