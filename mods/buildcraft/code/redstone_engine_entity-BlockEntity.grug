@@ -5,6 +5,10 @@
 # The energy is a saved number rather than a member variable, because a member variable starts over
 # whenever the engine's chunk is loaded again, and the reference keeps its energy in the tile's NBT.
 
+# The progress the engine was last drawn with. A member variable, since a chunk that is loaded again
+# draws the engine from its saved progress anyway.
+drawn_progress: number = 0
+
 # TODO: Change to me.level() and me.block_pos() once entities can have methods
 level: Level = get_block_entity_level(me)
 pos: BlockPos = get_block_pos_of_block_entity(me)
@@ -13,27 +17,59 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
-# The engine at rest: the base, the piston plate on it and the trunk through both, turned to face
-# the way the engine does, with the trunk in its stage's colour. RenderEngine turns one set of boxes
-# by an angle per orientation, and the models differ only in the trunk's texture, so a model is
-# written per colour and turned here. See _x_degrees and _z_degrees.
+# The engine as RenderEngine draws it, turned to face the way the engine does, with the trunk in its
+# stage's colour. RenderEngine turns one set of boxes by an angle per orientation, and the models
+# differ only in the trunk's texture, so a model is written per colour and turned here. See
+# _x_degrees and _z_degrees. The base and the trunk stay where they are. The plate slides along the
+# facing by the step its saved progress gives, and the chamber boxes stack from the base up to the
+# plate, which is what the reference draws while the engine works. The reference reads the same
+# progress on every frame of a tick, so the picture only changes once per tick, and a redraw per tick
+# of a stroke is as often as it needs to be drawn again. See _redraw_if_moved.
 export render() {
     stage: number = _stage(get_saved_number(me, "energy"))
     facing: number = _facing()
     x_degrees: number = _x_degrees(facing)
     z_degrees: number = _z_degrees(facing)
+    # The reference draws the base, then the plate, then the chamber boxes and the trunk last, and
+    # the order is kept because faces that share a plane, where one engine's trunk meets the next
+    # engine's plate, are won by whichever is drawn last.
+    draw_model(r"assets/grug/models/block/redstone_engine_base.json", x_degrees, 0, z_degrees, 0, 0, 0)
+
+    # The distance along the facing in blocks, and which way along each world axis the facing goes.
+    step: number = _step(get_saved_number(me, "progress"))
+    unit: number = step / 16
+    dir_x: number = _dir_x(facing)
+    dir_y: number = _dir_y(facing)
+    dir_z: number = _dir_z(facing)
+
+    draw_model(r"assets/grug/models/block/redstone_engine_plate.json", x_degrees, 0, z_degrees, dir_x * unit, dir_y * unit, dir_z * unit)
+
+    # A chamber box every two pixels from the base, for as long as it is not past the plate by more
+    # than two pixels, as the reference's loop does. At rest that is two boxes, and the second has its
+    # far face in the plate's far plane, so the reference z-fights those faces too and which one a
+    # pixel shows depends on the renderer's rounding. On 1.20.6 it shows as a sliver of the box's
+    # edge at the sideways engines in redstone_engine_facings.
+    pixels: number = 0
+    while pixels <= step + 2 {
+        offset: number = pixels / 16
+        draw_model(r"assets/grug/models/block/redstone_engine_chamber.json", x_degrees, 0, z_degrees, dir_x * offset, dir_y * offset, dir_z * offset)
+        pixels = pixels + 2
+    }
+
     if stage == 0 {
-        draw_model(r"assets/grug/models/block/redstone_engine.json", x_degrees, 0, z_degrees)
+        draw_model(r"assets/grug/models/block/redstone_engine_blue.json", x_degrees, 0, z_degrees, 0, 0, 0)
     } else if stage == 1 {
-        draw_model(r"assets/grug/models/block/redstone_engine_green.json", x_degrees, 0, z_degrees)
+        draw_model(r"assets/grug/models/block/redstone_engine_green.json", x_degrees, 0, z_degrees, 0, 0, 0)
     } else if stage == 2 {
-        draw_model(r"assets/grug/models/block/redstone_engine_yellow.json", x_degrees, 0, z_degrees)
+        draw_model(r"assets/grug/models/block/redstone_engine_yellow.json", x_degrees, 0, z_degrees, 0, 0, 0)
     } else {
-        draw_model(r"assets/grug/models/block/redstone_engine_red.json", x_degrees, 0, z_degrees)
+        draw_model(r"assets/grug/models/block/redstone_engine_red.json", x_degrees, 0, z_degrees, 0, 0, 0)
     }
 }
 
 export tick() {
+    _redraw_if_moved()
+
     # BlockEngine.c picks the facing when the engine is placed. The port does it on the first tick
     # instead, because the moment a block entity is created differs by loader (#187), so this is the
     # one hook that is the same everywhere.
@@ -70,6 +106,26 @@ export tick() {
     if _stage(energy) != _stage(before) {
         redraw(me)
     }
+}
+
+# Draws the engine again when its saved progress is not the one it was drawn with. This is the whole
+# cost of the animation: a stroke changes the progress every tick, so it is a redraw per tick, and an
+# engine at rest or at a stage's standstill (no stroke, progress unchanged) costs nothing.
+local _redraw_if_moved() {
+    progress: number = get_saved_number(me, "progress")
+    if progress != drawn_progress {
+        drawn_progress = progress
+        redraw(me)
+    }
+}
+
+# RenderEngine's step for a progress: the plate goes out and back in once per stroke, by up to 7.99
+# pixels, so it is at its farthest at a progress of 0.5.
+local _step(progress: number) number {
+    if progress > 0.5 {
+        return 7.99 - (progress - 0.5) * 2 * 7.99
+    }
+    return progress * 2 * 7.99
 }
 
 # Engine.computeEnergyStage for EngineWood's maxEnergy of 1000: 0 is blue up to 25% of it, 1 green up
@@ -173,6 +229,39 @@ local _z_degrees(facing: number) number {
     }
     if facing == 5 {
         return 90
+    }
+    return 0
+}
+
+# The direction each orientation slides the plate in, as RenderEngine's translate array: -1 along y
+# for YNeg, +1 for YPos, -1 and +1 along z for ZNeg and ZPos, and -1 and +1 along x for XNeg and
+# XPos. The reference translates in the world's axes, after the turn.
+local _dir_x(facing: number) number {
+    if facing == 4 {
+        return -1
+    }
+    if facing == 5 {
+        return 1
+    }
+    return 0
+}
+
+local _dir_y(facing: number) number {
+    if facing == 0 {
+        return -1
+    }
+    if facing == 1 {
+        return 1
+    }
+    return 0
+}
+
+local _dir_z(facing: number) number {
+    if facing == 2 {
+        return -1
+    }
+    if facing == 3 {
+        return 1
     }
     return 0
 }

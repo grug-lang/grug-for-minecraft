@@ -78,7 +78,14 @@ public final class GrugRenderPass {
      *     less than a quarter turn without leaving the block's grid.
      */
     public static String recordModel(
-            File modsDir, String modelPath, double xDegrees, double yDegrees, double zDegrees) {
+            File modsDir,
+            String modelPath,
+            double xDegrees,
+            double yDegrees,
+            double zDegrees,
+            double dx,
+            double dy,
+            double dz) {
         if (!open) {
             return "It can only be called while a block entity's render() is drawing.";
         }
@@ -91,13 +98,23 @@ public final class GrugRenderPass {
                     + zDegrees
                     + ".";
         }
+        if (!Double.isFinite(dx) || !Double.isFinite(dy) || !Double.isFinite(dz)) {
+            return "The offsets have to be finite numbers, but they were "
+                    + dx
+                    + ", "
+                    + dy
+                    + " and "
+                    + dz
+                    + ".";
+        }
         try {
             for (GrugQuad quad : GrugModels.load(modsDir, modelPath)) {
                 QUADS.add(
                         quad.turned(
-                                (int) (xDegrees / 90),
-                                (int) (yDegrees / 90),
-                                (int) (zDegrees / 90)));
+                                        (int) (xDegrees / 90),
+                                        (int) (yDegrees / 90),
+                                        (int) (zDegrees / 90))
+                                .moved(dx, dy, dz));
             }
             return null;
         } catch (GrugModels.Defect defect) {

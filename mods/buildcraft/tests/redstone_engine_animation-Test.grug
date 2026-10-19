@@ -1,0 +1,220 @@
+# Covers how the redstone engine draws its stroke, which RenderEngine does from the engine's progress:
+# the plate slides out along the facing by a step of up to 7.99 pixels, at its farthest at a progress
+# of 0.5, and a chamber box is stacked every two pixels under it. The progress is set directly
+# here, because what the engine does to it each tick is covered where it is advanced.
+# Each capture first lets the engines at rest settle and be meshed, then changes them, so the capture
+# shows the change only if the engine had itself drawn again.
+# The first capture shows six engines facing up at progress 0.1, 0.25, 0.4, 0.5, 0.75 and 0.9, with
+# +x on the left, so the plate goes out and comes back in from right to left. It is the engine's
+# own tick that has them drawn again, as it does for every tick of a stroke. The second capture shows
+# the six facings at progress 0.5, facing 0 at the right and 5 at the left, since the camera looks
+# towards +z.
+# The capture stops high on the screen because the runner prints each test's name to the chat on
+# every loader but 1.2.5, and that readout grows to ten lines of 27 pixels once a repeat has run, so
+# anything below about y=250 holds text in a later repeat.
+# Where the leftmost engine is, which is where the row starts, one block apart towards +x.
+ex: number = 0
+ey: number = 0
+ez: number = 0
+
+# Which capture is next: 0 is the row of progresses and 1 is the row of facings.
+capture: number = 0
+
+# Whether the capture's change has been made. A capture needs the scene settled before the change,
+# which is _ready, and settled again after it, which is _settled.
+changed: bool = false
+
+# The waits before each capture, as coverage_render-Test.grug explains them. See _ready.
+settled_ticks: number = 0
+remeshed: bool = false
+remesh_ticks: number = 0
+
+export run() {
+    if Test.tick() == 0 {
+        _setup()
+        Test.not_done()
+        return
+    }
+
+    # redstone_engine-Test.grug, which runs before this, leaves its torch lit to the end, and the red
+    # particles that torch gave off live for up to 40 ticks after it is cleared away. One of them in
+    # the crop is a few pixels that are never in the same place twice, so wait out the longest life
+    # with some to spare. The world has no way to say how many particles are left.
+    if Test.tick() < 60 {
+        Test.not_done()
+        return
+    }
+
+    # The scene is settled and meshed once, with every engine at rest and facing up, before anything
+    # changes. _force_remesh builds the whole section again from whatever the engines then say, so a
+    # change made before it would be drawn by it whether or not the engine asked for a redraw. After
+    # the change only the engine's own redraw can put it on screen, and only a settle is waited for.
+    if not changed {
+        if not _ready() {
+            Test.not_done()
+            return
+        }
+        if capture == 0 {
+            _show_progresses()
+        } else {
+            _show_facings()
+        }
+        changed = true
+        settled_ticks = 0
+        Test.not_done()
+        return
+    }
+
+    if not _settled() {
+        Test.not_done()
+        return
+    }
+
+    if capture == 0 {
+        Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
+        capture = 1
+        changed = false
+        Test.not_done()
+        return
+    }
+
+    Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+
+    Test.set_box_radius(10)
+
+    origin: Vec3 = Test.setup_graphics_camera()
+    ex = origin.x() - 3
+    ey = origin.y() + 0.12
+    ez = origin.z() + 8
+
+    _wall(level, origin.x() - 8, origin.y() - 9, origin.z() + 10)
+
+    i: number = 0
+    while i < 6 {
+        level.place_block(ex + i, ey, ez, "grug:redstone_engine")
+        i = i + 1
+    }
+}
+
+# Seventeen blocks square of stone two blocks behind the engines, as in coverage_render-Test.grug.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 17 {
+        wx: number = x0
+        while wx < x0 + 17 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Faces every engine up, with the progress for its place in the row, and has the engine's own tick
+# draw it again, which is what a stroke does every tick. The facing is given directly, as
+# redstone_engine_facings-Test.grug does, rather than by a receptor next to the engine.
+local _show_progresses() {
+    i: number = 0
+    while i < 6 {
+        engine: BlockEntity = _engine(i)
+        set_saved_number(engine, "orientation", 1)
+        set_saved_number(engine, "oriented", 1)
+        set_saved_number(engine, "progress", _progress(i))
+        Test.tick_block_entity(engine, 1)
+        i = i + 1
+    }
+}
+
+local _progress(i: number) number {
+    if i == 0 {
+        return 0.1
+    }
+    if i == 1 {
+        return 0.25
+    }
+    if i == 2 {
+        return 0.4
+    }
+    if i == 3 {
+        return 0.5
+    }
+    if i == 4 {
+        return 0.75
+    }
+    return 0.9
+}
+
+# The engine i blocks along the row.
+local _engine(i: number) BlockEntity {
+    level: Level = Test.get_client_level()
+    engine_opt: Option[BlockEntity] = level.get_block_entity(ex + i, ey, ez)
+    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    return engine_opt.unwrap()
+}
+
+# Turns the engine in each place to the facing of the same number, all at their farthest. The
+# facing changes the drawing without the progress changing, so it is drawn again directly.
+local _show_facings() {
+    i: number = 0
+    while i < 6 {
+        engine: BlockEntity = _engine(i)
+        set_saved_number(engine, "orientation", i)
+        set_saved_number(engine, "progress", 0.5)
+        redraw(engine)
+        i = i + 1
+    }
+}
+
+# Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
+# light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
+local _ready() bool {
+    if not Test.world_settled() {
+        settled_ticks = 0
+        return false
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        return false
+    }
+    if not remeshed {
+        _force_remesh()
+        remeshed = true
+        return false
+    }
+    if remesh_ticks < 5 {
+        remesh_ticks = remesh_ticks + 1
+        return false
+    }
+    return Test.world_settled()
+}
+
+# Whether the frame is settled for a capture after a change, without meshing anything again: the
+# change has to reach the screen through the engine's own redraw. Five settled ticks in a row, as in
+# _ready, then the frame itself.
+local _settled() bool {
+    if not Test.world_settled() {
+        settled_ticks = 0
+        return false
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        return false
+    }
+    return true
+}
+
+# Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
+# the capture's mesh is built from the settled light. See coverage_render-Test.grug.
+local _force_remesh() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 10, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 10, "minecraft:stone")
+    Test.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}
