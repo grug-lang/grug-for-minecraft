@@ -65,6 +65,10 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 - The README calls `mod_api.json` frozen. That discourages growth for its own sake, not removals,
   replacements, test-only helpers or tooling fixes. Every change to it must be justified: once the
   pull request is ready for review or merge, explain to the user why each change was made.
+- A host function added for a port is free of the reference's bugs, even where the reference's own
+  version of it was buggy: `mod_api.json` serves every mod, not only the one being ported. The port
+  reproduces such a bug in its own grug code where it can, and records it as a deviation where it
+  cannot.
 - Nothing outside this repository uses the API yet, so delete a host function outright rather than
   deprecating it, and keep no changelog. Revisit when the first external mod exists.
 - `mods/coverage/` is the reference for what the language and API accept; read it before
