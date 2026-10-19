@@ -12,6 +12,6 @@ export run() {
     infinity = infinity * infinity
     nan: number = infinity - infinity
 
-    Test.expect_error("explode: x, y, z and power must be finite")
+    Test.expect_error("explode: x must be finite")
     level.explode(nan, origin.y() + 20, origin.z(), 1)
 }

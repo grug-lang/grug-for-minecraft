@@ -370,22 +370,15 @@ public class HostFunctions {
     }
 
     public static void Level_explode(long levelId, double x, double y, double z, double power) {
-        // One sum answers for all four: NaN or an infinity in any argument makes the sum
-        // non-finite.
-        // A finite argument beyond 1e307 could make it overflow too, which is no coordinate a world
-        // has, so it is reported the same way.
-        if (!Double.isFinite(x + y + z + power)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "explode: x, y, z and power must be finite, got "
-                            + x
-                            + ", "
-                            + y
-                            + ", "
-                            + z
-                            + ", "
-                            + power);
-            return;
+        String[] names = {"x", "y", "z", "power"};
+        double[] values = {x, y, z, power};
+        for (int i = 0; i < values.length; i++) {
+            if (!Double.isFinite(values[i])) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "explode: " + names[i] + " must be finite, got " + values[i]);
+                return;
+            }
         }
         // The games take a float, and a finite double beyond its range would become an infinite
         // explosion in the cast.

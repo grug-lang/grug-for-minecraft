@@ -11,6 +11,6 @@ export run() {
     infinity = infinity * infinity
     infinity = infinity * infinity
 
-    Test.expect_error("explode: x, y, z and power must be finite")
+    Test.expect_error("explode: power must be finite")
     level.explode(origin.x(), origin.y() + 20, origin.z(), infinity)
 }
