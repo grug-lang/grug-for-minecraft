@@ -146,16 +146,22 @@ public final class GrugModelRenderer {
                         GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId).id);
         if (quads == null) return false;
 
-        drawAsItem(quads);
+        drawAsItem(quads, grugBlock.drawsFlatLighting());
         return true;
     }
 
     /**
-     * Draws {@code quads} as an item, centred on the origin the way the game draws a block item,
-     * with OpenGL lighting from each face's normal.
+     * Draws {@code quads} as an item, centred on the origin the way the game draws a block item.
+     *
+     * <p>A block that declared set_flat_lighting is drawn with OpenGL lighting off, every face at
+     * full texture brightness, the way BuildCraft 2.2.14's engine renderer draws with GL lighting
+     * disabled. Every other block is lit from each face's normal.
      */
-    public static void drawAsItem(List<GrugQuad> quads) {
-        GL11.glPushAttrib(GL11.GL_TEXTURE_BIT);
+    public static void drawAsItem(List<GrugQuad> quads, boolean flat) {
+        GL11.glPushAttrib(GL11.GL_TEXTURE_BIT | GL11.GL_ENABLE_BIT);
+        if (flat) {
+            GL11.glDisable(GL11.GL_LIGHTING);
+        }
         GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
         Tessellator tessellator = Tessellator.instance;
         for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
@@ -164,9 +170,13 @@ public final class GrugModelRenderer {
 
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, TEXTURES.get(group.getKey()));
             for (GrugQuad quad : group.getValue()) {
-                float[] normal = NORMAL[quad.side()];
                 tessellator.startDrawingQuads();
-                tessellator.setNormal(normal[0], normal[1], normal[2]);
+                if (flat) {
+                    tessellator.setColorOpaque_F(1.0F, 1.0F, 1.0F);
+                } else {
+                    float[] normal = NORMAL[quad.side()];
+                    tessellator.setNormal(normal[0], normal[1], normal[2]);
+                }
                 for (int corner = 0; corner < 4; corner++) {
                     tessellator.addVertexWithUV(
                             quad.x(corner),
