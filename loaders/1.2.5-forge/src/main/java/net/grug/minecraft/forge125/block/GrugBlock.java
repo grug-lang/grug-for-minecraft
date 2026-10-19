@@ -149,6 +149,19 @@ public class GrugBlock extends BlockContainer {
         super.onBlockRemoval(world, x, y, z);
     }
 
+    /**
+     * Creates the placed tile's grug entity once {@code super} has put the tile in its chunk's map,
+     * so an {@code init} that looks the tile up finds it. See {@link GrugBlockEntity#onRegistered}.
+     */
+    @Override
+    public void onBlockAdded(World world, int x, int y, int z) {
+        super.onBlockAdded(world, x, y, z);
+        TileEntity tile = world.getBlockTileEntity(x, y, z);
+        if (tile instanceof GrugBlockEntity) {
+            ((GrugBlockEntity) tile).onRegistered();
+        }
+    }
+
     @Override
     public TileEntity getBlockEntity() {
         return new GrugBlockEntity();
