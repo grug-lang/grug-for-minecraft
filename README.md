@@ -117,9 +117,10 @@ that version resolves, including the two this loader is built against, declare
 
 ### Accepting Screenshot References
 
-A screenshot test compares its capture against the PNGs in the mod's `screenshots/<name>/`
-directory, each named after the loader that produced it, so a rendering that none of them
-represents yet has to be accepted explicitly. Do that with the `update-goldens` phase instead of
+A screenshot test compares its capture against the PNGs in the reference directory it names,
+which is `screenshots/` or any directory nested under it in the mod, each PNG named after the
+loader that produced it, so a rendering that none of them represents yet has to be accepted
+explicitly. Do that with the `update-goldens` phase instead of
 copying a file out of the artifacts directory by hand:
 
 ```sh
