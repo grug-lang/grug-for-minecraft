@@ -30,7 +30,6 @@ progress_part: number = 0
 # which is every time its chunk is loaded, as the wooden pipe does.
 export init() {
     set_power_receiver(me, 1000)
-    extract_energy(me, 1000)
 }
 
 # The engine as RenderEngine draws it, turned to face the way the engine does, with the trunk in its
