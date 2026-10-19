@@ -1,9 +1,12 @@
 package net.grug.minecraft.forge.block;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.client.model.BakedModelWrapper;
@@ -40,15 +43,29 @@ public class GrugItemBakedModel extends BakedModelWrapper<BakedModel> {
         if (stack.getItem() instanceof BlockItem blockItem) {
             Block block = blockItem.getBlock();
             if (block instanceof GrugBlock grugBlock && grugBlock.drawsFlatLighting()) {
-                if (!DIAG_DONE) {
-                    DIAG_DONE = true;
-                    System.out.println("[GRUG-DIAG] 1206 getRenderTypes flat item " + stack);
-                }
                 return List.of(RenderType.cutout());
             }
         }
         return super.getRenderTypes(stack, fabulous);
     }
 
-    private static boolean DIAG_DONE = false;
+    /**
+     * Keeps this wrapper after the item transform, because the renderer goes on to ask the returned
+     * model for its render passes.
+     */
+    @Override
+    public BakedModel applyTransform(
+            ItemDisplayContext context, PoseStack poseStack, boolean leftHand) {
+        originalModel.applyTransform(context, poseStack, leftHand);
+        return this;
+    }
+
+    /**
+     * Answers with this wrapper rather than the model inside it. The wrapper of a wrapper would
+     * otherwise be skipped, and the inner model's render types would shade the item after all.
+     */
+    @Override
+    public List<BakedModel> getRenderPasses(ItemStack stack, boolean fabulous) {
+        return List.of(this);
+    }
 }
