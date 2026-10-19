@@ -5,7 +5,6 @@ import net.minecraft.block.Block;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.modificationstation.stationapi.api.client.render.model.BakedModel;
-import net.modificationstation.stationapi.api.client.render.model.json.ModelTransformation;
 import net.modificationstation.stationapi.impl.client.arsenic.renderer.render.BakedModelRendererImpl;
 
 import org.lwjgl.opengl.GL11;
@@ -15,13 +14,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Draws a block that declared set_flat_lighting with GL lighting off when its item is rendered.
+ * Draws a block that declared set_flat_lighting with GL lighting off when its item is drawn in the
+ * GUI.
  *
  * <p>StationAPI bakes an item model and draws it with the game's fixed-function lighting, so every
- * face is shaded by its normal. BuildCraft 2.2.14's engine renderer disables GL lighting and draws
- * every face at full texture brightness, so the engine item would otherwise read darker than its
- * reference. The item renderer is the one place every item draw goes through, in the GUI, in the
- * hand and on the ground.
+ * face is shaded by its normal, and it only turns that lighting off for a model whose GUI light
+ * says it is not side lit. BuildCraft 2.2.14's engine renderer disables GL lighting and draws every
+ * face at full texture brightness, so the engine item would otherwise read darker than its
+ * reference. This wraps the GUI draw itself, because the renderer batches its vertices and only
+ * issues the draw after the item renderer has returned.
  *
  * <p>The block is found from the block item's own block id, because a grug block extends a
  * StationAPI template block, whose item is a template block item rather than the block item form
@@ -34,47 +35,21 @@ public class BakedModelRendererImplMixin {
 
     @Inject(
             method =
-                    "renderItem(Lnet/minecraft/item/ItemStack;Lnet/modificationstation/stationapi/api/client/render/model/json/ModelTransformation$Mode;FLnet/modificationstation/stationapi/api/client/render/model/BakedModel;)V",
+                    "renderGuiItemModel(Lnet/minecraft/item/ItemStack;ILnet/modificationstation/stationapi/api/client/render/model/BakedModel;)V",
             at = @At("HEAD"))
     private void grug$flatItemHead(
-            ItemStack stack,
-            ModelTransformation.Mode mode,
-            float brightness,
-            BakedModel model,
-            CallbackInfo ci) {
-        if (!DIAG_DONE) {
-            DIAG_DONE = true;
-            boolean b = stack != null && stack.getItem() instanceof BlockItem;
-            int id = b ? ((BlockItemAccessor) stack.getItem()).grug$getBlockId() : -1;
-            System.out.println(
-                    "[GRUG-DIAG] stationapi renderItem item="
-                            + (stack == null ? null : stack.getItem())
-                            + " blockItem="
-                            + b
-                            + " id="
-                            + id
-                            + " flat="
-                            + grug$isFlat(stack)
-                            + " lighting="
-                            + GL11.glGetBoolean(GL11.GL_LIGHTING));
-        }
+            ItemStack stack, int x, int y, BakedModel model, CallbackInfo ci) {
         if (grug$isFlat(stack)) {
             GL11.glDisable(GL11.GL_LIGHTING);
         }
     }
 
-    private static boolean DIAG_DONE = false;
-
     @Inject(
             method =
-                    "renderItem(Lnet/minecraft/item/ItemStack;Lnet/modificationstation/stationapi/api/client/render/model/json/ModelTransformation$Mode;FLnet/modificationstation/stationapi/api/client/render/model/BakedModel;)V",
+                    "renderGuiItemModel(Lnet/minecraft/item/ItemStack;ILnet/modificationstation/stationapi/api/client/render/model/BakedModel;)V",
             at = @At("RETURN"))
     private void grug$flatItemReturn(
-            ItemStack stack,
-            ModelTransformation.Mode mode,
-            float brightness,
-            BakedModel model,
-            CallbackInfo ci) {
+            ItemStack stack, int x, int y, BakedModel model, CallbackInfo ci) {
         if (grug$isFlat(stack)) {
             GL11.glEnable(GL11.GL_LIGHTING);
         }
