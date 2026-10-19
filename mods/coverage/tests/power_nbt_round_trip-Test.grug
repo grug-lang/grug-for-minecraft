@@ -1,0 +1,19 @@
+# The energy a receiver holds is saved with its block entity, so it is still there after the block
+# entity is written out and read back, as it is when its chunk is unloaded and loaded again.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_power_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    receive_energy(be, 6)
+    set_saved_number(be, "energy", 3)
+
+    Test.round_trip_nbt(be)
+
+    Test.assert(get_energy_stored(be) == 6, "The energy should survive an NBT round trip.")
+    Test.assert(get_saved_number(be, "energy") == 3, "A saved number should survive it beside the energy.")
+}

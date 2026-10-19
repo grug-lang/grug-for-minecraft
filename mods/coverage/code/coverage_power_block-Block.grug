@@ -1,0 +1,5 @@
+export init() {
+    set_hardness(1)
+    set_material("stone")
+    set_block_entity(e"coverage_power_block_entity")
+}

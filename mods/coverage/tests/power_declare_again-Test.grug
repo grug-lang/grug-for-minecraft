@@ -1,0 +1,25 @@
+# Declaring again replaces the limit and keeps the energy, cut down to the new limit when that is
+# lower. That is what a script's init() does when its chunk is loaded again, so the energy saved
+# with the block entity has to still be there afterwards.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_power_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    receive_energy(be, 8)
+
+    set_power_receiver(be, 10)
+    Test.assert(get_energy_stored(be) == 8, "Declaring again with the same limit should keep the energy.")
+
+    set_power_receiver(be, 5)
+    Test.assert(get_energy_stored(be) == 5, "A lower limit should cut the energy down to it.")
+    Test.assert(receive_energy(be, 100) == 0, "The store is full at the lower limit.")
+
+    set_power_receiver(be, 20)
+    Test.assert(receive_energy(be, 100) == 15, "The new limit should be the one that applies.")
+    Test.assert(get_energy_stored(be) == 20, "The store should be full at the new limit.")
+}

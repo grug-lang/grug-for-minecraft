@@ -1,0 +1,7 @@
+# An energy receiver holding at most 10, for the tests of the energy host functions. Resolving me in
+# the member scope registers the block entity's me handle, which a later host call needs.
+level: Level = get_block_entity_level(me)
+
+export init() {
+    set_power_receiver(me, 10)
+}
