@@ -51,13 +51,15 @@ public class GrugItemBakedModel extends BakedModelWrapper<BakedModel> {
 
     /**
      * Keeps this wrapper after the item transform, because the renderer goes on to ask the returned
-     * model for its render passes.
+     * model for its render passes. A model that picks a different one per context, as Forge's
+     * separate_transforms loader does, has its pick wrapped instead, so that geometry is drawn and
+     * still drawn flat.
      */
     @Override
     public BakedModel applyTransform(
             ItemDisplayContext context, PoseStack poseStack, boolean leftHand) {
-        originalModel.applyTransform(context, poseStack, leftHand);
-        return this;
+        BakedModel transformed = originalModel.applyTransform(context, poseStack, leftHand);
+        return transformed == originalModel ? this : new GrugItemBakedModel(transformed);
     }
 
     /**
