@@ -134,7 +134,8 @@ class GrugPowerTest {
         assertEquals(7.0, GrugPower.stored(reloaded));
 
         GrugPower.declare(reloaded, 10);
-        assertEquals(7.0, GrugPower.stored(reloaded), "declaring after a load keeps what was saved");
+        assertEquals(
+                7.0, GrugPower.stored(reloaded), "declaring after a load keeps what was saved");
     }
 
     @Test
