@@ -575,7 +575,6 @@ public class GrugTestRunner {
         // one.
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
-        GrugTestState.testClockOffset = 0;
 
         // Before the test's first tick, so a fixture it places at tick 0 lands inside the room. A
         // test whose fixture reaches further than the default room calls Test.set_box_radius at the
@@ -616,7 +615,6 @@ public class GrugTestRunner {
         // captured origin is cleared for the same reason: the next test has to capture its own.
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
-        GrugTestState.testClockOffset = 0;
         if (currentEntityHandle != 0) {
             // In the tick the test ends, whether it passed, expected its error or failed, so the
             // last items it dropped are gone before any gap can let the player pick them up. The

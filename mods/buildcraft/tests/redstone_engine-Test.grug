@@ -1,13 +1,20 @@
 # Covers the redstone engine's energy and the trunk colour it draws for it, after BuildCraft 2.2.14's
 # EngineWood: one energy for every 20 ticks a redstone signal reaches it, one lost every tick none
 # does, and a blue, green, yellow or red trunk for up to 25%, 50%, 75% and above 75% of its 1000.
-# The first tick checks the thresholds to the tick, through Test.tick_block_entity rather than by
-# waiting: the red stage is 15020 powered ticks away, which is over twelve minutes of game time per
-# loader. The rest of the test then photographs the engine in each of its four stages.
+# The thresholds are checked by setting the engine's energy just below and at each stage boundary,
+# so the test needs no ticks for them. The gain of one energy per 20 game ticks is waited for in real
+# game ticks, which takes at most 40 of them. The rest of the test then photographs the engine in each
+# of its four stages, setting its energy into each stage first.
 engine: Option[BlockEntity] = Option.new()
 
 # Which stage the next capture is of: 0 blue, 1 green, 2 yellow and 3 red.
 stage: number = 0
+
+# Where the gain check is: 0 before the torch is placed, 1 waiting for a sample of the world's time,
+# 2 waiting for the next sample 20 ticks later, and 3 when the check is done. See _check_gain.
+gain_phase: number = 0
+energy_at_gain: number = 0
+time_at_gain: number = 0
 
 # The waits before each capture, as coverage_render-Test.grug explains them. See _ready.
 settled_ticks: number = 0
@@ -26,6 +33,12 @@ export run() {
         return
     }
 
+    if gain_phase != 3 {
+        _check_gain()
+        Test.not_done()
+        return
+    }
+
     if not _ready() {
         Test.not_done()
         return
@@ -37,13 +50,13 @@ export run() {
     if stage == 0 {
         Test.screenshot().equals(r"screenshots/redstone_engine_blue", 550, 150, 770, 305)
         _power()
-        _run_engine(5020, 1)
+        _draw_stage(251, 1)
     } else if stage == 1 {
         Test.screenshot().equals(r"screenshots/redstone_engine_green", 550, 150, 770, 305)
-        _run_engine(5000, 2)
+        _draw_stage(501, 2)
     } else if stage == 2 {
         Test.screenshot().equals(r"screenshots/redstone_engine_yellow", 550, 150, 770, 305)
-        _run_engine(5000, 3)
+        _draw_stage(751, 3)
     } else {
         Test.screenshot().equals(r"screenshots/redstone_engine_red", 550, 150, 770, 305)
         return
@@ -93,43 +106,95 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     }
 }
 
-# Every stage boundary to the tick, up and then down again. All of it happens within one call of
-# run(), so no game tick runs the engine in between and the counts are exact.
+# Each stage boundary, the energy just below it, at it and just above it. Nothing ticks the engine
+# within one call of run(), so the energy set here is the energy the stage is read from.
 local _check_thresholds() {
     Test.assert(_energy() == 0, "A new engine should have no energy.")
 
-    # One energy on every tick the world's time is a multiple of 20, so the first gain comes between 0
-    # and 19 ticks after the engine is powered, and every later one 20 ticks after the last. Lead is
-    # how many ticks pass before the world's time reaches a multiple of 20. The 251st gain makes the
-    # engine green, and it is the last of lead + 5001 ticks. Test.tick_block_entity advances the clock
-    # the engine reads, so the world's time at the moment it is powered fixes every count below.
-    _power()
-    level: Level = Test.get_client_level()
-    start: number = level.get_time()
-    lead: number = Math.remainder(20 - Math.remainder(start, 20), 20)
-    _run_and_expect(lead + 5000, 250, "The tick before the 251st gain should leave the engine blue, at 250 energy.")
-    _run_and_expect(1, 251, "The tick of the 251st gain should make the engine green, at 251 energy.")
-    _run_and_expect(4999, 500, "The engine should still be green at 500 energy.")
-    _run_and_expect(1, 501, "The 501st gain should make the engine yellow, at 501 energy.")
-    _run_and_expect(4999, 750, "The engine should still be yellow at 750 energy.")
-    _run_and_expect(1, 751, "The 751st gain should make the engine red, at 751 energy.")
+    _set_energy(249)
+    Test.assert(_stage(_energy()) == 0, "249 energy should still be blue.")
+    _set_energy(250)
+    Test.assert(_stage(_energy()) == 0, "250 energy should still be blue.")
+    _set_energy(251)
+    Test.assert(_stage(_energy()) == 1, "251 energy should be green.")
+
+    _set_energy(500)
+    Test.assert(_stage(_energy()) == 1, "500 energy should still be green.")
+    _set_energy(501)
+    Test.assert(_stage(_energy()) == 2, "501 energy should be yellow.")
+
+    _set_energy(750)
+    Test.assert(_stage(_energy()) == 2, "750 energy should still be yellow.")
+    _set_energy(751)
+    Test.assert(_stage(_energy()) == 3, "751 energy should be red.")
 
     # The energy is saved data, so it has to survive the block entity being saved and loaded again.
     block_entity: BlockEntity = engine.unwrap()
     Test.round_trip_nbt(block_entity)
     Test.assert(_energy() == 751, "The engine's energy should survive an NBT round trip.")
 
-    # Unpowered, one energy is lost every tick, down to 1.
+    _set_energy(0)
+}
+
+# One energy on every tick the world's time is a multiple of 20. The test samples the time, and the
+# energy with it, from the engine's own level, which is the level its tick reads. The samples are
+# taken mid-window, 5 to 15 ticks past a multiple of 20, because the test runs on the client thread
+# while the integrated server ticks on its own thread, so sampling exactly on a multiple of 20 races
+# the engine's tick. A powered engine gains one energy for each multiple of 20 the world's time
+# crosses between the two samples, so the gain must equal the number of multiples crossed, however
+# many ticks the server ran between two of the test's calls. The check starts when the torch is
+# placed. Then it leaves the engine unpowered at 0 energy for the first capture.
+local _check_gain() {
+    if gain_phase == 0 {
+        _power()
+        gain_phase = 1
+        return
+    }
+
+    level: Level = get_block_entity_level(engine.unwrap())
+    now: number = level.get_time()
+    phase: number = Math.remainder(now, 20)
+    if phase < 5 or phase > 15 {
+        return
+    }
+
+    if gain_phase == 1 {
+        energy_at_gain = _energy()
+        time_at_gain = now
+        gain_phase = 2
+        return
+    }
+
+    if now < time_at_gain + 20 {
+        return
+    }
+
+    gained: number = _energy() - energy_at_gain
+    crossed: number = Math.floor(now / 20) - Math.floor(time_at_gain / 20)
+    Test.assert(gained != 0, "A powered engine should gain energy when the world's time crosses a multiple of 20, but it gained none.")
+    Test.assert(gained == crossed, "A powered engine should gain one energy for each multiple of 20 the world's time crosses, but it gained a different number.")
     _unpower()
-    _run_and_expect(1, 750, "One unpowered tick should make the engine yellow again, at 750 energy.")
-    _run_and_expect(250, 500, "250 more unpowered ticks should make it green again, at 500 energy.")
-    _run_and_expect(250, 250, "250 more unpowered ticks should make it blue again, at 250 energy.")
-    _run_and_expect(1000, 1, "An unpowered engine should stop losing energy at 1.")
+    _set_energy(0)
+    gain_phase = 3
 }
 
 local _energy() number {
     block_entity: BlockEntity = engine.unwrap()
     return get_saved_number(block_entity, "energy")
+}
+
+local _set_energy(energy: number) {
+    block_entity: BlockEntity = engine.unwrap()
+    set_saved_number(block_entity, "energy", energy)
+}
+
+# Sets the energy the engine is drawn from, then has the game draw it again, since its trunk is only
+# rebuilt when it is asked to be. The energy has to give the stage the capture is of.
+local _draw_stage(energy: number, expected_stage: number) {
+    _set_energy(energy)
+    block_entity: BlockEntity = engine.unwrap()
+    redraw(block_entity)
+    Test.assert(_stage(_energy()) == expected_stage, "The engine should have reached the next stage.")
 }
 
 # A redstone torch powers the block above it on every loader, so the torch goes right under the
@@ -138,12 +203,6 @@ local _power() {
     level: Level = Test.get_client_level()
     level.place_block(ex, ey - 1, ez, "minecraft:redstone_torch")
     Test.assert(level.has_neighbor_signal(ex, ey, ez), "The torch under the engine should power it.")
-}
-
-local _run_and_expect(ticks: number, expected: number, message: string) {
-    block_entity: BlockEntity = engine.unwrap()
-    Test.tick_block_entity(block_entity, ticks)
-    Test.assert(_energy() == expected, message)
 }
 
 local _unpower() {
@@ -186,13 +245,6 @@ local _force_remesh() {
     level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
     Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
-}
-
-# Runs the engine for the given number of ticks and checks it reached the expected stage.
-local _run_engine(ticks: number, expected_stage: number) {
-    block_entity: BlockEntity = engine.unwrap()
-    Test.tick_block_entity(block_entity, ticks)
-    Test.assert(_stage(_energy()) == expected_stage, "The engine should have reached the next stage.")
 }
 
 # The thresholds of Engine.computeEnergyStage for EngineWood's maxEnergy of 1000, which are the ones

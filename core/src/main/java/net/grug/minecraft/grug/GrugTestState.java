@@ -52,11 +52,6 @@ public final class GrugTestState {
     // test starts and when it ends, which is what keeps a setup and its check on one row. See #158.
     public static Vec3 testOrigin = null;
 
-    // The ticks Test.tick_block_entity has run in the running test, which Level.get_time adds to
-    // the world's time because those ticks pass within one game tick. GrugTestRunner clears it when
-    // a test starts and when it ends, so one test's clock cannot leak into the next.
-    public static long testClockOffset = 0;
-
     /**
      * Returns the origin captured for the running test, asking {@code capture} only on the first
      * call. A later call reuses the captured value, so a test that builds a fixture from the origin
