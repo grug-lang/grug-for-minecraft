@@ -7,6 +7,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
+import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -32,7 +33,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GrugBlockEntity extends BlockEntity implements Container, GrugSavedNumbers.Holder {
+public class GrugBlockEntity extends BlockEntity
+        implements Container, GrugSavedNumbers.Holder, GrugPower.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
@@ -313,6 +315,7 @@ public class GrugBlockEntity extends BlockEntity implements Container, GrugSaved
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         readSavedNumbers(tag);
+        GrugPower.load(this, tag.getDouble("GrugEnergy"));
         if (tag.contains("GrugInvSize")) {
             stacks = NonNullList.withSize(tag.getInt("GrugInvSize"), ItemStack.EMPTY);
             sized = true;
@@ -332,6 +335,9 @@ public class GrugBlockEntity extends BlockEntity implements Container, GrugSaved
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         writeSavedNumbers(tag);
+        if (GrugPower.stored(this) > 0) {
+            tag.putDouble("GrugEnergy", GrugPower.stored(this));
+        }
         ensureSized();
         tag.putInt("GrugInvSize", stacks.size());
         ContainerHelper.saveAllItems(tag, stacks, registries);
@@ -345,6 +351,12 @@ public class GrugBlockEntity extends BlockEntity implements Container, GrugSaved
     /** A saved number changed, so the chunk has to be saved with it. */
     @Override
     public void markSavedNumbersChanged() {
+        setChanged();
+    }
+
+    /** The energy this block entity holds changed, so the chunk has to be saved with it. */
+    @Override
+    public void markEnergyChanged() {
         setChanged();
     }
 

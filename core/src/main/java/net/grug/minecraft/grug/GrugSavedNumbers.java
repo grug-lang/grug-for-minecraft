@@ -28,22 +28,8 @@ public final class GrugSavedNumbers {
 
     private static final Map<Object, Map<String, Double>> NUMBERS = new WeakHashMap<>();
 
-    /**
-     * The start of the names the game keeps for itself among a block entity's saved numbers.
-     * Anything the game saves with a block entity that is not a script's own number, such as the
-     * energy it receives, goes in the same list under a name starting with this, so every loader
-     * writes and reads it without knowing it is there. A script cannot reach those names, because
-     * one that could would be editing the game's state as if it were its own.
-     */
-    static final String RESERVED_PREFIX = "grug:";
-
     @GrugGenerated("utility class: never instantiated")
     private GrugSavedNumbers() {}
-
-    /** Whether a script's saved number may not use this name, because the game keeps it. */
-    public static boolean isReserved(String name) {
-        return name.startsWith(RESERVED_PREFIX);
-    }
 
     /**
      * A block entity that saves its numbers, which every loader's grug block entity is.

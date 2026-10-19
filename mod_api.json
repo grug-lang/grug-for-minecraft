@@ -1470,7 +1470,7 @@
 			]
 		},
 		"get_saved_number": {
-			"description": "The number a block entity saved under a name with set_saved_number, or 0 when it never saved one, which is the default a fresh save answers too. Only a grug block entity saves numbers; asking any other block entity is reported. Names starting with grug: are reserved for what the game saves itself, and asking for one is reported.",
+			"description": "The number a block entity saved under a name with set_saved_number, or 0 when it never saved one, which is the default a fresh save answers too. Only a grug block entity saves numbers; asking any other block entity is reported.",
 			"return_type": {
 				"name": "number"
 			},
@@ -1889,7 +1889,7 @@
 			]
 		},
 		"set_saved_number": {
-			"description": "Saves a number under a name in a block entity's saved data, so it survives the block entity's chunk being unloaded and loaded again, which a member variable does not: the grug entity is created again then and its member scope starts over. Read it back with get_saved_number. Only a grug block entity saves numbers; any other block entity is reported, because a number that silently failed to persist would be lost with its chunk. Names starting with grug: are reserved for what the game saves itself, and using one is reported.",
+			"description": "Saves a number under a name in a block entity's saved data, so it survives the block entity's chunk being unloaded and loaded again, which a member variable does not: the grug entity is created again then and its member scope starts over. Read it back with get_saved_number. Only a grug block entity saves numbers; any other block entity is reported, because a number that silently failed to persist would be lost with its chunk.",
 			"parameters": [
 				{
 					"name": "block_entity",
@@ -1981,7 +1981,7 @@
 			}
 		},
 		"set_power_receiver": {
-			"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. Call it from the block entity's init(), since the declaration is not saved and has to be made again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only a grug block entity can receive energy; any other block entity is reported.",
+			"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. Call it from the block entity's init(), since the declaration is not saved and has to be made again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, separately from its saved numbers, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only a grug block entity can receive energy; any other block entity is reported.",
 			"parameters": [
 				{
 					"name": "block_entity",

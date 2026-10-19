@@ -12,11 +12,15 @@ import java.util.WeakHashMap;
  * energy storage with the parts no caller needed left out: there is no simulation, no minimum and
  * no limit per delivery, because a sender that wants any of those can do it with what it can read.
  *
- * <p>The limit a block entity declared is kept here, keyed by the block entity itself the way
- * {@link GrugSlotAccess} keeps its rules, and is not saved: the script declares it again whenever
- * its grug entity is created. The energy in the store is saved, as a saved number the script cannot
- * reach (see {@link GrugSavedNumbers#isReserved}), so it is written into the block entity's NBT by
- * every loader's existing code and survives its chunk being unloaded and loaded again.
+ * <p>This has nothing to do with {@link GrugSavedNumbers}. The limit a block entity declared is not
+ * saved, because the script declares it again whenever its grug entity is created. The energy in
+ * the store is saved, under a key of its own in the block entity's NBT: each loader's grug block
+ * entity writes {@link #stored} when the game saves it, reads it back with {@link #load} when the
+ * game loads it, and marks itself changed when {@link Holder#markEnergyChanged} asks it to, which
+ * is what makes the game write its chunk.
+ *
+ * <p>Both maps are keyed by the block entity itself, the way {@link GrugSlotAccess} keeps its
+ * rules, and held weakly, so a block entity that is broken and collected takes its energy with it.
  *
  * <p>Energy is a whole number from 0 to {@link Integer#MAX_VALUE}, because it is counted in units
  * that cannot be split. Anything else is reported rather than rounded, as {@link
@@ -24,14 +28,27 @@ import java.util.WeakHashMap;
  */
 public final class GrugPower {
 
-    /** The saved number the stored energy lives in. */
-    static final String STORED = GrugSavedNumbers.RESERVED_PREFIX + "energy_stored";
-
     /** The most a receiver holds, per block entity that declared one. */
     private static final Map<Object, Double> LIMITS = new WeakHashMap<>();
 
+    /** The energy a receiver holds. A block entity absent from the map holds none. */
+    private static final Map<Object, Double> STORES = new WeakHashMap<>();
+
     @GrugGenerated("utility class: never instantiated")
     private GrugPower() {}
+
+    /**
+     * A block entity that can hold energy, which every loader's grug block entity is. An interface
+     * rather than a callback for the same reason as {@link GrugSavedNumbers.Holder}: a callback
+     * kept as a value of a weak map would hold its block entity strongly.
+     */
+    public interface Holder {
+        /**
+         * Marks the block entity changed, so the game saves its chunk. A chunk the game thinks is
+         * unchanged is not written, and the energy with it.
+         */
+        void markEnergyChanged();
+    }
 
     /**
      * Why {@code value} is not an amount of energy, or null when it is one. {@code what} names it
@@ -51,7 +68,7 @@ public final class GrugPower {
 
     /** Why this block entity cannot be a receiver, or null when it can. */
     public static String checkCanDeclare(Object blockEntity) {
-        if (!GrugSavedNumbers.isHolder(blockEntity)) {
+        if (!(blockEntity instanceof Holder)) {
             return "Only a grug block entity can receive energy, and this block entity is not one.";
         }
         return null;
@@ -77,9 +94,8 @@ public final class GrugPower {
         synchronized (LIMITS) {
             LIMITS.put(blockEntity, maxStored);
         }
-        double stored = stored(blockEntity);
-        if (stored > maxStored) {
-            GrugSavedNumbers.set(blockEntity, STORED, maxStored);
+        if (stored(blockEntity) > maxStored) {
+            store(blockEntity, maxStored);
         }
     }
 
@@ -92,7 +108,20 @@ public final class GrugPower {
 
     /** The energy the block entity holds, which is 0 for one that never received any. */
     public static double stored(Object blockEntity) {
-        return GrugSavedNumbers.get(blockEntity, STORED);
+        synchronized (STORES) {
+            Double stored = STORES.get(blockEntity);
+            return stored != null ? stored : 0.0;
+        }
+    }
+
+    /**
+     * Puts back the energy a block entity was saved with, which is what loading its NBT means. It
+     * is not a change, so it does not mark the block entity.
+     */
+    public static void load(Object blockEntity, double stored) {
+        synchronized (STORES) {
+            STORES.put(blockEntity, stored);
+        }
     }
 
     /**
@@ -109,7 +138,7 @@ public final class GrugPower {
         // Nothing moved is nothing to save: marking the block entity changed makes the game write
         // its chunk, and a store that is full or sent nothing would do that every tick.
         if (added > 0) {
-            GrugSavedNumbers.set(blockEntity, STORED, stored + added);
+            store(blockEntity, stored + added);
             return added;
         }
         return 0;
@@ -124,9 +153,15 @@ public final class GrugPower {
         double taken = Math.min(stored, max);
         // Not saved when nothing moved, for the same reason as in receive.
         if (taken > 0) {
-            GrugSavedNumbers.set(blockEntity, STORED, stored - taken);
+            store(blockEntity, stored - taken);
             return taken;
         }
         return 0;
+    }
+
+    /** Sets the store and has the block entity marked changed. */
+    private static void store(Object blockEntity, double stored) {
+        load(blockEntity, stored);
+        ((Holder) blockEntity).markEnergyChanged();
     }
 }

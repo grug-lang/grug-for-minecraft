@@ -836,10 +836,6 @@ public class HostFunctions {
     }
 
     public static double get_saved_number(long blockEntityId, String name) {
-        if (GrugSavedNumbers.isReserved(name)) {
-            reportReservedName("get_saved_number");
-            return 0;
-        }
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!GrugSavedNumbers.isHolder(blockEntity)) {
             reportNotSaving("get_saved_number");
@@ -849,24 +845,10 @@ public class HostFunctions {
     }
 
     public static void set_saved_number(long blockEntityId, String name, double value) {
-        if (GrugSavedNumbers.isReserved(name)) {
-            reportReservedName("set_saved_number");
-            return;
-        }
         if (!GrugSavedNumbers.set(
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId), name, value)) {
             reportNotSaving("set_saved_number");
         }
-    }
-
-    /** A saved number named with the prefix the game keeps for what it saves itself. */
-    private static void reportReservedName(String hostFunction) {
-        Grug.hostFunctionErrorHappened(
-                Grug.statePtr,
-                hostFunction
-                        + ": Names starting with \""
-                        + GrugSavedNumbers.RESERVED_PREFIX
-                        + "\" are reserved for what the game saves itself.");
     }
 
     public static void set_power_receiver(long blockEntityId, double maxStored) {

@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
+import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.minecraft.block.Block;
@@ -21,7 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSavedNumbers.Holder {
+public class GrugBlockEntity extends BlockEntity
+        implements Inventory, GrugSavedNumbers.Holder, GrugPower.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
@@ -330,10 +332,17 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
         markDirty();
     }
 
+    /** The energy this block entity holds changed, so the chunk has to be saved with it. */
+    @Override
+    public void markEnergyChanged() {
+        markDirty();
+    }
+
     @Override
     public void readNbt(NbtCompound nbt) {
         super.readNbt(nbt);
         readSavedNumbers(nbt);
+        GrugPower.load(this, nbt.getDouble("GrugEnergy"));
 
         // Recover the size from NBT before attempting to load items,
         // completely bypassing the world == null issue.
@@ -362,6 +371,9 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
     public void writeNbt(NbtCompound nbt) {
         super.writeNbt(nbt);
         writeSavedNumbers(nbt);
+        if (GrugPower.stored(this) > 0) {
+            nbt.putDouble("GrugEnergy", GrugPower.stored(this));
+        }
         ensureSized();
 
         // Save the size so readNbt doesn't need the world object.
