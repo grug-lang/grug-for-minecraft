@@ -57,7 +57,7 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 | `mods/<mod>/code/*.grug` | the mod: `X-Block.grug`, `X_entity-BlockEntity.grug`, `X-Item.grug` |
 | `mods/<mod>/tests/*.grug` | tests: `X-Test.grug`; one outside `tests/` is an err that fails the run |
 | `mods/<mod>/about.json` | metadata, including the recreation fields on the first `derived_from` entry |
-| `mods/<mod>/screenshots/<name>/<loader>.png` | golden references, named after the loader that produced them |
+| `mods/<mod>/screenshots/` | golden references: a directory at any depth, `screenshots/` itself included, holds either only subdirectories or only PNGs named after the loader that produced them (`GrugScreenshots.validateReferenceTrees`) |
 | `loaders/<loader>/` | one per Minecraft version and mod loader |
 | `test-saves/<name>.zip`, `loaders/<loader>/test-save.txt` | the world a loader's tests start from |
 | `recreation.py`, `about_schema.py`, `dead_links.py` | metadata validation, each with its own tests |
