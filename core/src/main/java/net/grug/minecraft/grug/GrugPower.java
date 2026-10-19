@@ -12,11 +12,11 @@ import java.util.WeakHashMap;
  * energy storage with the parts no caller needed left out: there is no simulation, no minimum and
  * no limit per delivery, because a sender that wants any of those can do it with what it can read.
  *
- * <p>The limit a block entity declared is kept here, keyed by the block entity itself the way {@link
- * GrugSlotAccess} keeps its rules, and is not saved: the script declares it again whenever its grug
- * entity is created. The energy in the store is saved, as a saved number the script cannot reach
- * (see {@link GrugSavedNumbers#isReserved}), so it is written into the block entity's NBT by every
- * loader's existing code and survives its chunk being unloaded and loaded again.
+ * <p>The limit a block entity declared is kept here, keyed by the block entity itself the way
+ * {@link GrugSlotAccess} keeps its rules, and is not saved: the script declares it again whenever
+ * its grug entity is created. The energy in the store is saved, as a saved number the script cannot
+ * reach (see {@link GrugSavedNumbers#isReserved}), so it is written into the block entity's NBT by
+ * every loader's existing code and survives its chunk being unloaded and loaded again.
  *
  * <p>Energy is a whole number from 0 to {@link Integer#MAX_VALUE}, because it is counted in units
  * that cannot be split. Anything else is reported rather than rounded, as {@link
