@@ -7,6 +7,7 @@ import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge.block.GrugBakedModel;
 import net.grug.minecraft.forge.block.GrugBlock;
+import net.grug.minecraft.forge.block.GrugItemBakedModel;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.forge.gui.GrugScreen;
@@ -31,6 +32,7 @@ import net.minecraft.client.renderer.block.BlockModelShaper;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.client.tutorial.TutorialSteps;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.packs.PackLocationInfo;
@@ -478,6 +480,10 @@ public class GrugModLoader {
          * its model. The original model stays inside the wrapper, which is where the sprite of each
          * face and the particle icon still come from.
          *
+         * <p>A flat block's item model is wrapped too, at the location the item renderer looks it
+         * up under, its registry name and the inventory variant, so its item form is drawn with a
+         * block sheet rather than the shaded entity sheet. See {@link GrugItemBakedModel}.
+         *
          * <p>This runs on a model-baking worker thread, so it touches only the registry and the
          * already compiled block data, which is what the event's own contract asks for.
          */
@@ -485,6 +491,17 @@ public class GrugModLoader {
         public static void onModifyBakingResult(ModelEvent.ModifyBakingResult event) {
             for (RegistryObject<GrugBlock> blockReg : registeredGrugBlocks) {
                 GrugBlock block = blockReg.get();
+
+                if (block.drawsFlatLighting()) {
+                    ModelResourceLocation itemLocation =
+                            new ModelResourceLocation(
+                                    BuiltInRegistries.ITEM.getKey(block.asItem()), "inventory");
+                    BakedModel itemModel = event.getModels().get(itemLocation);
+                    if (itemModel != null) {
+                        event.getModels().put(itemLocation, new GrugItemBakedModel(itemModel));
+                    }
+                }
+
                 if (!block.drawsCustomGeometry()) continue;
 
                 ModelResourceLocation location =

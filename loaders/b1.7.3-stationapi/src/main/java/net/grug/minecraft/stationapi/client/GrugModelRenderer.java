@@ -181,9 +181,19 @@ public final class GrugModelRenderer {
                         GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId).id);
         if (quads == null) return false;
 
+        if (!DIAG_DONE) {
+            DIAG_DONE = true;
+            System.out.println(
+                    "[GRUG-DIAG] stationapi drawItemForm "
+                            + GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId).id
+                            + " flat="
+                            + grugBlock.drawsFlatLighting());
+        }
         drawAsItem(quads, grugBlock.drawsFlatLighting());
         return true;
     }
+
+    private static boolean DIAG_DONE = false;
 
     /**
      * Draws {@code quads} as an item, centred on the origin the way the game draws a block item.
