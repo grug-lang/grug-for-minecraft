@@ -46,7 +46,6 @@ export run() {
         _run_engine(5000, 3)
     } else {
         Test.screenshot().equals(r"screenshots/redstone_engine_red", 550, 150, 770, 305)
-        Test.restore_camera()
         return
     }
 

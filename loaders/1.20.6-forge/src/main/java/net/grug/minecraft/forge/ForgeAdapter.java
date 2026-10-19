@@ -826,11 +826,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
         savedPitch = player.getXRot();
         graphicsCameraSaved = true;
 
-        // Level the view so the frame doesn't depend on which way the player was looking. Do not
-        // move them: the screenshot crops a rectangle with the GUI centred, so terrain behind it
-        // never matters, and moving risks loading unlit chunks.
+        // Snap the player to the centre of their own block and level the view, so every loader
+        // frames a fixture identically and the frame does not depend on which way the player was
+        // looking. The snap stays inside the player's own block, and therefore inside the chunk
+        // already loaded and lit around them, so unlike a far teleport it cannot drag the camera
+        // into an unlit chunk. The runner restores this position when the test ends.
         player.setYRot(0.0F);
         player.setXRot(0.0F);
+        player.setPos(Math.floor(savedX) + 0.5, savedY, Math.floor(savedZ) + 0.5);
 
         // The origin is the render camera's position plus 3, so a test that builds from it lands
         // the same distance above the camera on every loader. The camera here is the player's eye.
@@ -840,14 +843,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
-        if (refuseWithoutAClient("Test.restore_camera")) return;
-        if (!graphicsCameraSaved) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera"
-                            + " first.");
-            return;
-        }
+        // A no-op when the test never set the camera up, which is every test that is not a
+        // screenshot test and every test on a dedicated server, where setup refused. The runner
+        // calls this for every test that ends, so it must not report an error for those.
+        if (!graphicsCameraSaved) return;
         graphicsCameraSaved = false;
 
         onClientThread(this::restoreCameraOnClient);

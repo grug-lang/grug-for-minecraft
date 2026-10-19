@@ -331,9 +331,6 @@
 				"not_done": {
 					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Will eventually be replaced by `me.not_done()` once entities can have methods."
 				},
-				"restore_camera": {
-					"description": "Restores the player to the position saved by the most recent `setup_graphics_camera` call."
-				},
 				"close_screen": {
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
@@ -361,7 +358,7 @@
 					}
 				},
 				"setup_graphics_camera": {
-					"description": "Saves the player's current position and rotation, and levels their view for a pixel-perfect screenshot test. Returns an origin point near the player, for placing test blocks. The player is deliberately not moved far: Alpha crashes if a test teleports them into a chunk that isn't lit yet. Call restore_camera afterwards.",
+					"description": "Saves the player's current position and rotation, snaps them to the centre of their own block, and levels their view, so a fixture lands in the same place relative to every loader's camera. Returns an origin point near the player, for placing test blocks. The snap stays inside the player's own block, and so inside the chunk already lit, because moving into a chunk that isn't lit yet crashes Alpha. The runner restores the saved camera when the test ends.",
 					"return_type": {
 						"name": "Vec3"
 					}

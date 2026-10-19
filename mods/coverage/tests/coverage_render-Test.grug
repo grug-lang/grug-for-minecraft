@@ -61,7 +61,6 @@ export run() {
         Test.not_done()
     } else {
         _check()
-        Test.restore_camera()
     }
 }
 
@@ -84,10 +83,10 @@ local _setup() {
     y: number = origin.y()
     z: number = origin.z()
 
-    # The camera setup levels the view without moving the player. setup_graphics_camera returns the
-    # render camera's position plus 3, so y - 1.88 puts the run just above the camera, which is
-    # where the crop below expects it. yaw 0 looks towards +z, so +4 is in front of them rather
-    # than inside them.
+    # The camera setup snaps the player to the centre of their block and levels the view.
+    # setup_graphics_camera returns the render camera's position plus 3, so y - 1.88 puts the run
+    # just above the camera, which is where the crop below expects it. yaw 0 looks towards +z, so +4
+    # is in front of them rather than inside them.
     # A straight run along x, so the middle block draws arms on two opposite sides and none
     # elsewhere. Three rather than one, because a lone block draws only its core: a cube inset from
     # the faces, which says nothing about the arms the hook exists for. The outer two prove the arms

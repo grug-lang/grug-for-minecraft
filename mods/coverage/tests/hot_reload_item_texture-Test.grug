@@ -60,7 +60,6 @@ export run() {
         reloaded.differs_from(before.unwrap(), 50)
         Test.set_mod_file_state(path, "normal")
         Test.close_screen()
-        Test.restore_camera()
     }
 }
 

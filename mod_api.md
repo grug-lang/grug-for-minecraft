@@ -34,7 +34,6 @@ Test.not_done()
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
-Test.restore_camera()
 Test.round_trip_nbt(block_entity: BlockEntity)
 Test.screen_open() bool
 Test.screenshot() Screenshot

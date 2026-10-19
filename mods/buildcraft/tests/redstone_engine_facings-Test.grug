@@ -36,7 +36,6 @@ export run() {
     }
 
     Test.screenshot().equals(r"screenshots/redstone_engine_facings", 400, 100, 880, 230)
-    Test.restore_camera()
 }
 
 local _setup() {

@@ -22,7 +22,6 @@ export run() {
     } else {
         Test.screenshot().equals(r"screenshots/item_icon", 466, 162, 514, 210)
         Test.close_screen()
-        Test.restore_camera()
     }
 }
 

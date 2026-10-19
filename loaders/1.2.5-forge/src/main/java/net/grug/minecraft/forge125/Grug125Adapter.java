@@ -999,11 +999,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
         savedPitch = player.rotationPitch;
         graphicsCameraSaved = true;
 
-        // Level the view so the frame does not depend on which way the player was looking, but
-        // deliberately do NOT move them: teleporting into a chunk the client has not lit yet
-        // crashes this generation of the game. A screenshot test crops a rectangle with the GUI
-        // centred, so the terrain behind it never matters.
-        player.setPositionAndRotation(player.posX, player.posY, player.posZ, 0.0F, 0.0F);
+        // Snap the player to the centre of their own block and level the view, so every loader
+        // frames
+        // a fixture identically. The snap stays within the player's own block, so it is a move
+        // within
+        // a chunk the client has already lit; a teleport into a chunk it has not lit crashes this
+        // generation of the game. The runner restores the saved position when the test ends.
+        player.setPositionAndRotation(
+                Math.floor(savedX) + 0.5, savedY, Math.floor(savedZ) + 0.5, 0.0F, 0.0F);
 
         // The origin is the render camera's position plus 3, so a test that builds from it lands
         // the same distance above the camera on every loader. This version's render camera sits at
@@ -1014,14 +1017,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
-        if (refuseWithoutAClient("Test.restore_camera")) return;
-        if (!graphicsCameraSaved) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera"
-                            + " first.");
-            return;
-        }
+        // A no-op when the test never set the camera up, which is every test that is not a
+        // screenshot test and every test on a dedicated server, where setup refused. The runner
+        // calls this for every test that ends, so it must not report an error for those.
+        if (!graphicsCameraSaved) return;
         graphicsCameraSaved = false;
 
         EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;

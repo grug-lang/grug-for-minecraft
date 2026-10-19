@@ -11,11 +11,14 @@ import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -89,6 +92,41 @@ class GrugTestRunnerTest {
         GrugErrors.printQueue.clear();
         GrugErrors.runtimeErrorQueue.clear();
         GrugTestState.testRuntimeErrors.clear();
+    }
+
+    /** How many times the runner asked the installed adapter to restore the camera. */
+    private final List<String> cameraRestores = new ArrayList<>();
+
+    private Object savedAdapter;
+
+    /**
+     * Installs a fake adapter, as the other tests that reach {@code GrugCore.getAdapter()} do,
+     * because the runner restores the camera through it whenever a test ends. Every method but the
+     * restore returns null, which is all those other tests need.
+     */
+    @BeforeEach
+    void installAdapter() throws Exception {
+        Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        savedAdapter = field.get(null);
+        field.set(
+                null,
+                Proxy.newProxyInstance(
+                        getClass().getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            if (method.getName().equals("restoreCameraAfterGraphicsTest")) {
+                                cameraRestores.add("restore");
+                            }
+                            return null;
+                        }));
+    }
+
+    @AfterEach
+    void restoreAdapter() throws Exception {
+        Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        field.set(null, savedAdapter);
     }
 
     private GrugTestRunner runner(GrugTestRunner.TestEntityOps ops, Map<String, Long> files) {
@@ -764,5 +802,48 @@ class GrugTestRunnerTest {
         ops.onCall = () -> GrugTestState.testNotDone = ++calls[0] < 3;
         List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
         assertEquals(List.of("build", "sweep"), log);
+    }
+
+    @Test
+    void restoresTheCameraWhenATestPasses() {
+        // The test moved the camera by calling Test.setup_graphics_camera, so the runner has to put
+        // it back for it rather than rely on the test remembering to. See #393 and #408.
+        capture(() -> runToEnd(runner(new FakeOps(), Map.of("mymod/code/a-Test.grug", 1L))));
+
+        assertEquals(List.of("restore"), cameraRestores);
+    }
+
+    @Test
+    void restoresTheCameraWhenATestFails() {
+        // A failed assertion or a screenshot mismatch aborts the script, and the camera the test
+        // had already moved must not be left that way for the next test.
+        FakeOps ops = new FakeOps();
+        ops.completed = false;
+
+        capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
+
+        assertEquals(List.of("restore"), cameraRestores);
+    }
+
+    @Test
+    void restoresTheCameraWhenATestAbortsOnAnError() {
+        // An error thrown out of the run call ends the test just as abruptly as a failed assertion.
+        FakeOps ops = new FakeOps();
+        ops.throwOnCall = new IllegalStateException("boom");
+
+        capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
+
+        assertEquals(List.of("restore"), cameraRestores);
+    }
+
+    @Test
+    void restoresTheCameraWhenATestEndsWithItsExpectedError() {
+        // An expect_error test that sees its error is a pass, and it restores like any other.
+        FakeOps ops = new FakeOps();
+        ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
+
+        capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
+
+        assertEquals(List.of("restore"), cameraRestores);
     }
 }

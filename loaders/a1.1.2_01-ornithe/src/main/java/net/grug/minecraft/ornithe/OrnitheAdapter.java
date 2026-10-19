@@ -967,22 +967,22 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         savedPitch = player.pitch;
         graphicsCameraSaved = true;
 
-        // Level the view so the test's frame doesn't depend on which way the player happened to be
-        // looking, but deliberately do NOT move them somewhere far away.
+        // Snap the player to the centre of their own block and level the view, so every loader
+        // frames a fixture identically.
         //
-        // The obvious choice would be a fixed far-off coordinate like 10000,100,10000, so no
-        // terrain could bleed into the background. But that reliably crashes Alpha. Teleporting
-        // into a chunk the client hasn't lit yet makes World.doLightUpdates recurse through
-        // World.updateLight and LightUpdate.run until the stack overflows, which killed the test
-        // run roughly one time in four. Staying put keeps the build site inside chunks that are
-        // already loaded and lit.
+        // A fixed far-off coordinate like 10000,100,10000 would let no terrain bleed into the
+        // background, but it reliably crashes Alpha: teleporting into a chunk the client has not
+        // lit yet makes World.doLightUpdates recurse through World.updateLight and
+        // LightUpdate.run until the stack overflows, which killed the test run roughly one time in
+        // four. This snap is safe because it stays inside the player's own block, which is inside
+        // the chunk already loaded and lit around them.
         //
-        // Nothing is lost by it: a screenshot test crops a rectangle of the frame, and the GUI is
-        // always centred in the window, so the terrain behind it is never part of the comparison.
         // setPositionAndAngles takes the feet, not this version's eye-height player.y, so passing
-        // the feet is what keeps the player where they are. Passing the eye would raise them an eye
-        // height, which is what this call used to do.
-        player.setPositionAndAngles(player.x, player.y - 1.62, player.z, 0.0F, 0.0F);
+        // the feet keeps the player's height. Passing the eye would raise them an eye height,
+        // which is what this call used to do. The runner restores the saved position when the test
+        // ends.
+        player.setPositionAndAngles(
+                Math.floor(savedX) + 0.5, savedY - 1.62, Math.floor(savedZ) + 0.5, 0.0F, 0.0F);
 
         // The origin is the render camera's position plus 3, so a test that builds from it lands
         // the same distance above the camera on every loader. This version's render camera sits at
@@ -993,13 +993,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
-        if (!graphicsCameraSaved) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera"
-                            + " first.");
-            return;
-        }
+        // A no-op when the test never set the camera up, which is every test that is not a
+        // screenshot test and every test on a dedicated server, where setup refused. The runner
+        // calls this for every test that ends, so it must not report an error for those.
+        if (!graphicsCameraSaved) return;
         graphicsCameraSaved = false;
 
         PlayerEntity player = MinecraftInstance.get().player;
