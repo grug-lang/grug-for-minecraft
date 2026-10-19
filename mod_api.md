@@ -71,6 +71,7 @@ Color.rgb(r: number, g: number, b: number) Color
 
 ## Level
 .count_item_entities(x: number, y: number, z: number, radius: number) number
+.explode(x: number, y: number, z: number, power: number)
 .find_item_entity(x: number, y: number, z: number, radius: number) Option[ItemEntity]
 .get_block(x: number, y: number, z: number) string
 .get_block_entity(x: number, y: number, z: number) Option[BlockEntity]

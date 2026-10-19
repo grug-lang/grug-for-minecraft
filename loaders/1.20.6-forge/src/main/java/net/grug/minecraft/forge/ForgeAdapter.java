@@ -596,6 +596,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void explode(Object levelObj, double x, double y, double z, double power) {
+        ((Level) levelObj).explode(null, x, y, z, (float) power, Level.ExplosionInteraction.BLOCK);
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         return world.hasNeighborSignal(

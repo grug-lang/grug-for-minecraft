@@ -369,6 +369,32 @@ public class HostFunctions {
                 .placeBlock(GrugEntities.entityData.get(levelId).object, x, y, z, blockName);
     }
 
+    public static void Level_explode(long levelId, double x, double y, double z, double power) {
+        // One sum answers for all four: NaN or an infinity in any argument makes the sum
+        // non-finite.
+        // A finite argument beyond 1e307 could make it overflow too, which is no coordinate a world
+        // has, so it is reported the same way.
+        if (!Double.isFinite(x + y + z + power)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "explode: x, y, z and power must be finite, got "
+                            + x
+                            + ", "
+                            + y
+                            + ", "
+                            + z
+                            + ", "
+                            + power);
+            return;
+        }
+        if (power < 0) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "explode: power must not be negative, got " + power);
+            return;
+        }
+        GrugCore.getAdapter().explode(GrugEntities.entityData.get(levelId).object, x, y, z, power);
+    }
+
     public static boolean Level_has_neighbor_signal(long levelId, double x, double y, double z) {
         return GrugCore.getAdapter()
                 .hasNeighborSignal(GrugEntities.entityData.get(levelId).object, x, y, z);
