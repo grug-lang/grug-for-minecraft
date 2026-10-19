@@ -4,6 +4,6 @@ export run() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
 
-    Test.expect_error("explode: power must not be negative")
+    Test.expect_error("explode: power must be from 0 to")
     level.explode(origin.x(), origin.y() + 20, origin.z(), -1)
 }
