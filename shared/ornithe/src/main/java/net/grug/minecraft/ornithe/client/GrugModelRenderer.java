@@ -205,7 +205,7 @@ public final class GrugModelRenderer {
         if (showFarSide) {
             mirrorFrontToBack();
         }
-        drawAsItem(quads);
+        drawAsItem(quads, grugBlock.drawsFlatLighting());
         if (showFarSide) {
             GL11.glPopMatrix();
         }
@@ -235,10 +235,13 @@ public final class GrugModelRenderer {
     }
 
     /**
-     * Draws {@code quads} as an item, centred on the origin the way the game draws a block item,
-     * with OpenGL lighting from each face's normal.
+     * Draws {@code quads} as an item, centred on the origin the way the game draws a block item.
+     *
+     * <p>A block that declared set_flat_lighting is drawn with OpenGL lighting off, every face at
+     * full texture brightness, the way BuildCraft 2.2.14's engine renderer draws with GL lighting
+     * disabled. Every other block is lit from each face's normal.
      */
-    public static void drawAsItem(List<GrugQuad> quads) {
+    public static void drawAsItem(List<GrugQuad> quads, boolean flat) {
         TextureManager textures = MinecraftInstance.get().textureManager;
         Tesselator tesselator = Tesselator.INSTANCE;
 
@@ -249,6 +252,9 @@ public final class GrugModelRenderer {
         GL11.glPushAttrib(GL11.GL_TEXTURE_BIT | GL11.GL_ENABLE_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glDepthFunc(GL11.GL_LEQUAL);
+        if (flat) {
+            GL11.glDisable(GL11.GL_LIGHTING);
+        }
         GL11.glTranslatef(-0.5F, -0.5F, -0.5F);
         for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
             Integer texture = texture(textures, group.getKey());
@@ -256,9 +262,13 @@ public final class GrugModelRenderer {
 
             textures.bind(texture);
             for (GrugQuad quad : group.getValue()) {
-                float[] normal = NORMAL[quad.side()];
                 tesselator.begin();
-                tesselator.normal(normal[0], normal[1], normal[2]);
+                if (flat) {
+                    tesselator.color(1.0F, 1.0F, 1.0F);
+                } else {
+                    float[] normal = NORMAL[quad.side()];
+                    tesselator.normal(normal[0], normal[1], normal[2]);
+                }
                 for (int corner = 0; corner < 4; corner++) {
                     tesselator.vertex(
                             quad.x(corner),
