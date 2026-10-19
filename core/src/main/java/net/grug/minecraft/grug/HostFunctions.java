@@ -387,9 +387,12 @@ public class HostFunctions {
                             + power);
             return;
         }
-        if (power < 0) {
+        // The games take a float, and a finite double beyond its range would become an infinite
+        // explosion in the cast.
+        if (power < 0 || power > Float.MAX_VALUE) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "explode: power must not be negative, got " + power);
+                    Grug.statePtr,
+                    "explode: power must be from 0 to " + Float.MAX_VALUE + ", got " + power);
             return;
         }
         GrugCore.getAdapter().explode(GrugEntities.entityData.get(levelId).object, x, y, z, power);

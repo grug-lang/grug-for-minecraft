@@ -1,0 +1,14 @@
+# The game takes the power as a float, so a finite power beyond a float's range would become an
+# infinite explosion in the cast. explode reports it instead. Squaring 10000000000.0 twice gives
+# 1e40, which is finite as a double and beyond the largest float.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+
+    power: number = 10000000000.0
+    power = power * power
+    power = power * power
+
+    Test.expect_error("explode: power must be from 0 to")
+    level.explode(origin.x(), origin.y() + 20, origin.z(), power)
+}
