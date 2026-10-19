@@ -65,6 +65,9 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 - The README calls `mod_api.json` frozen. That discourages growth for its own sake, not removals,
   replacements, test-only helpers or tooling fixes. Every change to it must be justified: once the
   pull request is ready for review or merge, explain to the user why each change was made.
+- The goal is to port every Java mod to grug, so design an entry for the ports known to need it,
+  not only the one at hand: generalising it a little for a need later ports are known to have is
+  fine. An entry or parameter that no committed mod calls yet is not; record it in an issue instead.
 - Compare every new or changed `mod_api.json` entry with its Forge and Fabric equivalents, and say
   in the pull request how it compares. They are a reference to compare and contrast against, not a
   design to copy.
