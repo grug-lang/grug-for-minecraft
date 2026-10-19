@@ -8,18 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.HashMap;
-import java.util.Map;
-
-/** Covers the energy a grug block entity receives, and keeping it out of a script's own numbers. */
+/** Covers the energy a grug block entity receives. */
 class GrugPowerTest {
 
     /** Stands in for a loader's grug block entity, counting how often it was marked changed. */
-    private static final class Receiver implements GrugSavedNumbers.Holder {
+    private static final class Receiver implements GrugPower.Holder {
         int changes = 0;
 
         @Override
-        public void markSavedNumbersChanged() {
+        public void markEnergyChanged() {
             changes++;
         }
     }
@@ -121,28 +118,25 @@ class GrugPowerTest {
     }
 
     @Test
-    void theStoredEnergyIsInTheSavedNumbersALoaderWritesAndReads() {
-        Receiver receiver = receiverHolding(10);
-        GrugPower.receive(receiver, 7);
-
-        Map<String, Double> snapshot = GrugSavedNumbers.snapshot(receiver);
-        assertEquals(1, snapshot.size());
-        assertEquals(7.0, snapshot.values().iterator().next());
-
+    void loadingPutsBackTheSavedEnergyWithoutCountingAsAChange() {
         Receiver reloaded = new Receiver();
-        GrugSavedNumbers.replace(reloaded, new HashMap<>(snapshot));
+
+        GrugPower.load(reloaded, 7);
         assertEquals(7.0, GrugPower.stored(reloaded));
+        assertEquals(0, reloaded.changes, "loading what was saved is not a change to save");
 
         GrugPower.declare(reloaded, 10);
         assertEquals(
                 7.0, GrugPower.stored(reloaded), "declaring after a load keeps what was saved");
+        assertEquals(0, reloaded.changes);
     }
 
     @Test
-    void theNamesTheGameKeepsForItselfAreReserved() {
-        assertTrue(GrugSavedNumbers.isReserved(GrugPower.STORED));
-        assertTrue(GrugSavedNumbers.isReserved("grug:anything"));
-        assertFalse(GrugSavedNumbers.isReserved("energy"));
-        assertFalse(GrugSavedNumbers.isReserved("grug_energy"));
+    void energyIsNotASavedNumber() {
+        Receiver receiver = receiverHolding(10);
+        GrugPower.receive(receiver, 7);
+
+        assertTrue(GrugSavedNumbers.snapshot(receiver).isEmpty());
+        assertEquals(0.0, GrugSavedNumbers.get(receiver, "energy"));
     }
 }

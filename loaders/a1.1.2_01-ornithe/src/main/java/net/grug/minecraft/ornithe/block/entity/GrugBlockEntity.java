@@ -5,8 +5,10 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
+import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.grug.minecraft.ornithe.block.GrugBlock;
+import net.grug.minecraft.ornithe.block.GrugPowerNbt;
 import net.grug.minecraft.ornithe.block.GrugSavedNumbersNbt;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
@@ -19,7 +21,8 @@ import net.minecraft.nbt.NbtList;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSavedNumbers.Holder {
+public class GrugBlockEntity extends BlockEntity
+        implements Inventory, GrugSavedNumbers.Holder, GrugPower.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
@@ -368,10 +371,17 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
         markDirty();
     }
 
+    /** The energy this block entity holds changed, so the chunk has to be saved with it. */
+    @Override
+    public void markEnergyChanged() {
+        markDirty();
+    }
+
     @Override
     public void readNbt(NbtCompound nbt) {
         super.readNbt(nbt);
         GrugSavedNumbersNbt.read(this, nbt);
+        GrugPowerNbt.read(this, nbt);
 
         if (nbt.contains("GrugInvSize")) {
             stacks = new ItemStack[nbt.getInt("GrugInvSize")];
@@ -398,6 +408,7 @@ public class GrugBlockEntity extends BlockEntity implements Inventory, GrugSaved
     public void writeNbt(NbtCompound nbt) {
         super.writeNbt(nbt);
         GrugSavedNumbersNbt.write(this, nbt);
+        GrugPowerNbt.write(this, nbt);
         ensureSized();
 
         nbt.putInt("GrugInvSize", stacks.length);
