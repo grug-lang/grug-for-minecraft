@@ -311,10 +311,11 @@ local _drop() {
         return
     }
 
-    # item_stack makes a stack of one, so a stack the pipe carries drops as that many items.
-    stack: ItemStack = item_stack(item_opt.unwrap(), get_item_damage_in_slot(me, 0))
+    # item_stack makes a stack of one, so a stack the pipe carries drops as that many items. Each
+    # item entity takes ownership of its stack, so every one gets a stack of its own.
     remaining: number = get_item_count_in_slot(me, 0)
     while remaining > 0 {
+        stack: ItemStack = item_stack(item_opt.unwrap(), get_item_damage_in_slot(me, 0))
         dropped: ItemEntity = item_entity(level, x, y + 0.5, z, stack)
         dropped.entity().set_delta_movement(vec3_zero())
         dropped.entity().spawn(level)
