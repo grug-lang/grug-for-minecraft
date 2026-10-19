@@ -1,0 +1,16 @@
+# explode must report a power that is infinite, rather than hand the game an explosion with no end.
+# Squaring 10000000000.0 five times overflows a double to infinity.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+
+    infinity: number = 10000000000.0
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+
+    Test.expect_error("explode: x, y, z and power must be finite")
+    level.explode(origin.x(), origin.y() + 20, origin.z(), infinity)
+}

@@ -1,0 +1,24 @@
+# explode destroys the blocks around it and leaves the ones out of its reach. Glass is used because
+# it is weak enough for a power 3 explosion to break and drops no item entity, so nothing is left in
+# the test area for the next test. The explosion is at the middle of the air block between the two
+# near panes; the far pane is twelve blocks away, well outside a power 3 explosion's reach of about
+# five blocks.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x + 1, y, z, "minecraft:glass")
+    level.place_block(x - 1, y, z, "minecraft:glass")
+    level.place_block(x + 12, y, z, "minecraft:glass")
+
+    level.explode(x + 0.5, y + 0.5, z + 0.5, 3)
+
+    Test.assert(level.is_air(x + 1, y, z), "The glass next to the explosion should be destroyed.")
+    Test.assert(level.is_air(x - 1, y, z), "The glass on the other side should be destroyed.")
+    Test.assert(not level.is_air(x + 12, y, z), "The glass out of reach should survive.")
+
+    level.place_block(x + 12, y, z, "minecraft:air")
+}

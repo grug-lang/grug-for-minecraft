@@ -684,6 +684,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void explode(Object levelObj, double x, double y, double z, double power) {
+        ((World) levelObj).createExplosion(null, x, y, z, (float) power);
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.isPowered((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));

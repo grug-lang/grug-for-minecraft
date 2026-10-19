@@ -134,6 +134,12 @@ public interface ModLoaderAdapter {
 
     void placeBlock(Object levelObj, double x, double y, double z, String blockName);
 
+    /**
+     * Creates an explosion of the given power at the given coordinates, which are not floored. The
+     * caller has already rejected a non-finite coordinate and a negative power.
+     */
+    void explode(Object levelObj, double x, double y, double z, double power);
+
     boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
 
     /** The world's time in ticks, which {@code World.getWorldTime()} is in BuildCraft 2.2.14. */

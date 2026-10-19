@@ -1,0 +1,17 @@
+# explode must report a coordinate that is NaN, rather than hand the game an explosion nowhere.
+# Squaring 10000000000.0 five times overflows a double to infinity, and infinity minus infinity is NaN.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+
+    infinity: number = 10000000000.0
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    infinity = infinity * infinity
+    nan: number = infinity - infinity
+
+    Test.expect_error("explode: x, y, z and power must be finite")
+    level.explode(nan, origin.y() + 20, origin.z(), 1)
+}

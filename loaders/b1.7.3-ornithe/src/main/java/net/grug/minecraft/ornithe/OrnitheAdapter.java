@@ -436,6 +436,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void explode(Object levelObj, double x, double y, double z, double power) {
+        ((World) levelObj).explode(null, x, y, z, (float) power);
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.hasNeighborSignal(
