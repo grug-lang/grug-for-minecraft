@@ -71,9 +71,12 @@ public class HostFunctions {
      * tick the test is in.
      *
      * <p>A machine whose state builds over minutes, such as an engine that gains one energy every
-     * 20 ticks, would otherwise make its test wait those minutes on every loader. Only a grug block
-     * entity has a tick to run, and only a whole, non-negative number of ticks means anything, so
-     * anything else is reported rather than rounded.
+     * 20 ticks, would otherwise make its test wait those minutes on every loader. The extra ticks
+     * run within the current game tick and leave the clock {@code Level.get_time} reads alone, as
+     * machine accelerators such as ProjectE's Watch of Flowing Time do, which call a block entity's
+     * tick several times per game tick. Only a grug block entity has a tick to run, and only a
+     * whole, non-negative number of ticks means anything, so anything else is reported rather than
+     * rounded.
      */
     public static void Test_tick_block_entity(long blockEntityId, double ticks) {
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
@@ -90,7 +93,6 @@ public class HostFunctions {
         }
         for (int tick = 0; tick < ticks; tick++) {
             GrugCore.getAdapter().tickBlockEntity(blockEntity);
-            GrugTestState.testClockOffset++;
         }
     }
 
@@ -396,15 +398,8 @@ public class HostFunctions {
                 .hasNeighborSignal(GrugEntities.entityData.get(levelId).object, x, y, z);
     }
 
-    /**
-     * The world's time in ticks, plus the ticks {@code Test.tick_block_entity} has run in the
-     * running test. Those ticks happen within one game tick, where the world's time does not move,
-     * so the test advances the clock itself and a block entity that reads it sees every tick it is
-     * given as a tick of time passing. The offset is 0 outside a test.
-     */
     public static double Level_get_time(long levelId) {
-        return GrugCore.getAdapter().getWorldTime(GrugEntities.entityData.get(levelId).object)
-                + GrugTestState.testClockOffset;
+        return GrugCore.getAdapter().getWorldTime(GrugEntities.entityData.get(levelId).object);
     }
 
     public static String Level_get_block(long levelId, double x, double y, double z) {
