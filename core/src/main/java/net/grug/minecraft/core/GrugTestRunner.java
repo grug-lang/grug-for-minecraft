@@ -627,6 +627,12 @@ public class GrugTestRunner {
             currentEntityHandle = 0;
             currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
         }
+        // Every test ending passes through here, whether it passed, failed, or aborted on a host
+        // function error, so the camera a test moved is put back without the test having to ask.
+        // A test that never called Test.setup_graphics_camera never moved it and the adapter's
+        // restore is a no-op for it. A test that fails partway through no longer leaves the player
+        // moved for the next one. See #393 and #408.
+        GrugCore.getAdapter().restoreCameraAfterGraphicsTest();
     }
 
     /** True once the run has stopped for any reason: every test passed, or one failed. */

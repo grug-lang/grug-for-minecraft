@@ -900,11 +900,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
         savedPitch = player.pitch;
         graphicsCameraSaved = true;
 
-        // Level the view so the frame doesn't depend on which way the player was looking, but
-        // deliberately do NOT move them: teleporting into a chunk the client hasn't lit yet crashes
-        // this generation of the game. A screenshot test crops a rectangle with the GUI centred, so
-        // the terrain behind it never matters.
-        player.setPositionAndAngles(player.x, player.y, player.z, 0.0F, 0.0F);
+        // Snap the player to the centre of their own block and level the view, so every loader
+        // frames a fixture identically. The snap stays inside the player's own block, and therefore
+        // inside the chunk already loaded and lit around them; a teleport into a chunk the client
+        // has not lit yet crashes this generation of the game. The runner restores the saved
+        // position when the test ends.
+        player.setPositionAndAngles(
+                Math.floor(savedX) + 0.5, savedY, Math.floor(savedZ) + 0.5, 0.0F, 0.0F);
 
         return new Vec3(player.x, player.y + 3.0, player.z);
     }
@@ -912,14 +914,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void restoreCameraAfterGraphicsTest() {
-        if (refuseWithoutAClient("Test.restore_camera")) return;
-        if (!graphicsCameraSaved) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Test.restore_camera: No saved position; call Test.setup_graphics_camera"
-                            + " first.");
-            return;
-        }
+        // A no-op when the test never set the camera up, which is every test that is not a
+        // screenshot test and every test on a dedicated server, where setup refused. The runner
+        // calls this for every test that ends, so it must not report an error for those.
+        if (!graphicsCameraSaved) return;
         graphicsCameraSaved = false;
 
         @SuppressWarnings("deprecation")

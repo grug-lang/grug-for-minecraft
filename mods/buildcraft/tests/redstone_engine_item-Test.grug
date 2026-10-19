@@ -25,7 +25,6 @@ export run() {
         # autocrafting_table-Test.grug for how the panel's position was found.
         Test.screenshot().equals(r"screenshots/redstone_engine_item", 520, 216, 568, 264)
         Test.close_screen()
-        Test.restore_camera()
     }
 }
 

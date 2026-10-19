@@ -170,10 +170,6 @@ public class HostFunctions {
                 GrugEntityType.Vec3, GrugCore.getAdapter().setupGraphicsTestCamera());
     }
 
-    public static void Test_restore_camera() {
-        GrugCore.getAdapter().restoreCameraAfterGraphicsTest();
-    }
-
     /**
      * Whether the client had a screen open the last time {@link #Test_screen_open()} asked, so that
      * call can tell a screen that has just appeared from one that was already up.

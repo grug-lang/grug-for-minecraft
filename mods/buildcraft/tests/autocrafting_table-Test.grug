@@ -42,7 +42,6 @@ export run() {
     } else {
         _test_graphics_check()
         Test.close_screen()
-        Test.restore_camera()
     }
 }
 

@@ -75,7 +75,6 @@ export run() {
         reloaded: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
         reloaded.differs_from(before.unwrap(), 90)
         Test.set_mod_file_state(path, "normal")
-        Test.restore_camera()
     }
 }
 
