@@ -23,6 +23,16 @@ z: number = center.z()
 # the saved number "progress" keeps its value, and the next stroke carries on from that.
 progress_part: number = 0
 
+# TileEngine.initialize configures the engine's power provider: it holds at most the engine's
+# maxEnergy, 1000. Nothing in 2.2.14 calls PowerFramework.savePowerProvider for an engine, so what
+# the provider holds is lost when its chunk unloads. The energy host functions save what a receiver
+# holds, so the engine reproduces that by emptying its store whenever its grug entity is created,
+# which is every time its chunk is loaded, as the wooden pipe does.
+export init() {
+    set_power_receiver(me, 1000)
+    extract_energy(me, 1000)
+}
+
 # The engine as RenderEngine draws it, turned to face the way the engine does, with the trunk in its
 # stage's colour. RenderEngine turns one set of boxes by an angle per orientation, and the models
 # differ only in the trunk's texture, so a model is written per colour and turned here. See
@@ -91,7 +101,20 @@ export tick() {
     }
 
     before: number = get_saved_number(me, "energy")
-    energy: number = before
+
+    # TileBuildCraft.n_ updates the power provider first, which is before Engine.update. Its power
+    # loss comes after doWork has emptied the store, so it never has anything to take, and it is not
+    # modelled.
+    if get_energy_stored(me) >= 1 {
+        # TileEngine.doWork: the energy of a provider holding at most 50 goes in through addEnergy,
+        # cut to 95% as a float and truncated, so a lone stroke's 1 energy adds 0 and two strokes that
+        # arrive before the engine's tick add 1. The float cast gives Math.floor(n * 0.95) for every
+        # n the store can hold.
+        _add_energy(Math.floor(extract_energy(me, 50) * 0.95))
+    }
+
+    stored: number = get_saved_number(me, "energy")
+    energy: number = stored
 
     if level.has_neighbor_signal(x, y, z) {
         if Math.remainder(level.get_time(), 20) == 0 {
@@ -102,7 +125,7 @@ export tick() {
         energy = energy - 1
     }
 
-    if energy != before {
+    if energy != stored {
         set_saved_number(me, "energy", energy)
     }
 
@@ -133,6 +156,16 @@ local _step(progress: number) number {
         return 7.99 - (progress - 0.5) * 2 * 7.99
     }
     return progress * 2 * 7.99
+}
+
+# Engine.addEnergy. The reference explodes when the energy is above maxEnergy and then cuts it to
+# maxEnergy; the explosion is not ported yet (#364).
+local _add_energy(addition: number) {
+    energy: number = get_saved_number(me, "energy") + addition
+    if energy > 1000 {
+        energy = 1000
+    }
+    set_saved_number(me, "energy", energy)
 }
 
 # The rest of TileEngine.n_ on the server, after Engine.update: the piston moves by the speed of

@@ -125,8 +125,8 @@
 					"tracking_issue": 340
 				},
 				{
-					"what": "A redstone engine facing another engine hands it no energy, so the receiving engine never has its energy capped at 1000 by Engine.addEnergy and never explodes.",
-					"why": "An engine does not declare itself a power receiver yet, so is_power_receiver is false for it and a stroke facing it starts nothing: nothing adds to its energy through Engine.addEnergy, so there is no cap and no explosion. The receiving side and the explosion, which Level.explode now makes possible, are #407. A wood engine on redstone alone never caps or explodes in the reference, since EngineWood.update adds to its energy directly rather than through addEnergy.",
+					"what": "A redstone engine that Engine.addEnergy pushes above 1000 does not explode, as the reference's does, so an engine that has grown past 1000 on its own and then receives a stroke only has its energy cut to 1000.",
+					"why": "The explosion waits on a host function to cause one (#467). In the reference an engine facing another hands it a stroke's 1 energy, which its provider turns into 0 energy through (int)((float) 1 * 0.95F) but still runs Engine.addEnergy on, so the engine explodes on the first stroke after its own uncapped energy++ has taken it above 1000, which takes about 17 minutes on redstone with nothing in front of it to stroke at.",
 					"tracking_issue": 364
 				},
 				{
