@@ -24,7 +24,6 @@ export run() {
 
     level.place_block(x + 16, y + 1, z, "grug:wooden_pipe")
     Test.assert(_facing(level, x + 16, y, z) == 1, "A pipe at y + 1 should make the engine face 1.")
-
 }
 
 # Places an engine, runs its first tick and returns the orientation it picked.
