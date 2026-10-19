@@ -5,8 +5,9 @@ import net.minecraft.nbt.NbtCompound;
 
 /**
  * The energy a grug block entity holds in its NBT, under a key of its own, which both Ornithe
- * versions share. It is only written while there is some, so a block entity that never received any
- * saves nothing extra, and a missing key reads as none.
+ * versions share. It is always written, 0 when there is none, so it overwrites whatever an NBT
+ * compound handed to the writer held under the key, and a missing key, as an old save has, reads as
+ * none.
  */
 public final class GrugPowerNbt {
     private static final String KEY = "GrugEnergy";
@@ -14,10 +15,7 @@ public final class GrugPowerNbt {
     private GrugPowerNbt() {}
 
     public static void write(Object blockEntity, NbtCompound nbt) {
-        double stored = GrugPower.stored(blockEntity);
-        if (stored > 0) {
-            nbt.putDouble(KEY, stored);
-        }
+        nbt.putDouble(KEY, GrugPower.stored(blockEntity));
     }
 
     public static void read(Object blockEntity, NbtCompound nbt) {

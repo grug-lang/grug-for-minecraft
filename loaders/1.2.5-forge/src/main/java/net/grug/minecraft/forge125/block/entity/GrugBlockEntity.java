@@ -395,9 +395,7 @@ public class GrugBlockEntity extends TileEntity
     public void writeToNBT(NBTTagCompound nbt) {
         super.writeToNBT(nbt);
         writeSavedNumbers(nbt);
-        if (GrugPower.stored(this) > 0) {
-            nbt.setDouble("GrugEnergy", GrugPower.stored(this));
-        }
+        nbt.setDouble("GrugEnergy", GrugPower.stored(this));
         ensureSized();
 
         // Save the size so readFromNBT does not need the world object.
