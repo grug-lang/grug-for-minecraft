@@ -105,7 +105,7 @@ Option.new() Option[$Value]
 consume_crafting_ingredients(block_entity: BlockEntity, start_slot: number)
 count_item_in_inventory(block_entity: BlockEntity, item: Item, damage: number) number
 draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
-draw_model(model: resource, x: number, y: number, z: number)
+draw_model(model: resource, x: number, y: number, z: number, dx: number, dy: number, dz: number)
 drop_inventory(level: Level, x: number, y: number, z: number)
 equals(a: $Type, b: $Type) bool
 extract_item_from_inventory(block_entity: BlockEntity, item: Item, damage: number, amount: number) number

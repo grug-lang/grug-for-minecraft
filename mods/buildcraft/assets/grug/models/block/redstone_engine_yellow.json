@@ -1,5 +1,5 @@
 {
-	"parent": "grug:block/redstone_engine",
+	"parent": "grug:block/redstone_engine_trunk",
 	"textures": {
 		"trunk": "grug:block/redstone_engine_trunk_yellow"
 	}

@@ -800,14 +800,23 @@ public class HostFunctions {
      * GrugRenderPass}, where a Java test reaches it.
      */
     public static void draw_model(
-            String modelPath, double xDegrees, double yDegrees, double zDegrees) {
+            String modelPath,
+            double xDegrees,
+            double yDegrees,
+            double zDegrees,
+            double dx,
+            double dy,
+            double dz) {
         String problem =
                 GrugRenderPass.recordModel(
                         GrugCore.getAdapter().getGrugModsDirectory(),
                         modelPath,
                         xDegrees,
                         yDegrees,
-                        zDegrees);
+                        zDegrees,
+                        dx,
+                        dy,
+                        dz);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_model: " + problem);
         }

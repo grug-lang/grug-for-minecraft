@@ -85,6 +85,21 @@ public final class GrugQuad {
         return result;
     }
 
+    /**
+     * This face moved by the given number of blocks along the world's axes, which is where a part
+     * that slides along the way the model faces ends up whichever way the model was turned. The
+     * side, the cull side and the texture coordinates stay as they are.
+     */
+    public GrugQuad moved(double dx, double dy, double dz) {
+        double[] moved = positions.clone();
+        for (int corner = 0; corner < 4; corner++) {
+            moved[corner * 3] += dx;
+            moved[corner * 3 + 1] += dy;
+            moved[corner * 3 + 2] += dz;
+        }
+        return new GrugQuad(texture, side, cullSide, moved, uvs);
+    }
+
     /** One counter-clockwise quarter turn about the axis, 0 for x, 1 for y and 2 for z. */
     private GrugQuad quarterTurn(int axis) {
         int from = (axis + 1) % 3;

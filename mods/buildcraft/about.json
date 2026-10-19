@@ -120,8 +120,8 @@
 					"tracking_issue": 340
 				},
 				{
-					"what": "The redstone engine draws its piston plate at rest instead of moving it, and the chamber under it, at its stage's piston speed.",
-					"why": "The engine draws through render(), which builds chunk geometry once per redraw, and a stroke that moves every tick needs a redraw per tick or a per-frame rendering hook grug does not have. The stage still shows as the trunk's colour.",
+					"what": "The redstone engine never moves its piston plate in game, because nothing advances its saved progress yet.",
+					"why": "The engine draws the plate and the chamber under it from its saved progress, as RenderEngine does, and has itself drawn again on every tick the progress changes. What advances the progress is TileEngine's stroke, which needs the engine to give energy to a receptor it faces (#364), so the plate stays at rest until #406 drives it.",
 					"tracking_issue": 363
 				},
 				{

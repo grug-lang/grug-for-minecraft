@@ -1,0 +1,23 @@
+{
+	"format_version": "1.9.0",
+	"parent": "minecraft:block/block",
+	"textures": {
+		"base": "grug:block/redstone_engine_base",
+		"particle": "grug:block/redstone_engine_base"
+	},
+	"elements": [
+		{
+			"name": "plate",
+			"from": [0, 4, 0],
+			"to": [16, 8, 16],
+			"faces": {
+				"north": {"uv": [12, 8, 16, 10], "texture": "#base"},
+				"east": {"uv": [8, 8, 12, 10], "texture": "#base"},
+				"south": {"uv": [0, 8, 4, 10], "texture": "#base"},
+				"west": {"uv": [4, 8, 8, 10], "texture": "#base"},
+				"up": {"uv": [8, 0, 12, 8], "texture": "#base"},
+				"down": {"uv": [4, 0, 8, 8], "texture": "#base"}
+			}
+		}
+	]
+}

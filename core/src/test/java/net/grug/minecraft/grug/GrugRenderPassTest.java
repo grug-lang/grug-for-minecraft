@@ -42,7 +42,7 @@ class GrugRenderPassTest {
         String path = writeModel("{}");
 
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0)
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0, 0, 0, 0)
                         .contains("while a block entity's render() is drawing"));
     }
 
@@ -56,7 +56,7 @@ class GrugRenderPassTest {
         GrugRenderPass.open();
         GrugRenderPass.record(0, 0, 0, 1, 1, 1);
 
-        assertEquals(null, GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0));
+        assertEquals(null, GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0, 0, 0, 0));
 
         GrugGeometry geometry = GrugRenderPass.close();
         assertEquals(1, geometry.boxes().size());
@@ -71,7 +71,7 @@ class GrugRenderPassTest {
                         "{\"elements\": [{\"from\": [0, 0, 0], \"to\": [16, 16, 16], \"faces\":"
                                 + " {\"up\": {\"texture\": \"grug:block/t\"}}}]}");
         GrugRenderPass.open();
-        GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0);
+        GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0, 0, 0, 0);
 
         assertFalse(GrugRenderPass.close().isEmpty());
     }
@@ -82,7 +82,8 @@ class GrugRenderPassTest {
         GrugRenderPass.open();
 
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0).contains("no elements"));
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0, 0, 0, 0)
+                        .contains("no elements"));
         assertTrue(GrugRenderPass.close().isEmpty());
     }
 
@@ -96,7 +97,8 @@ class GrugRenderPassTest {
 
     private GrugQuad turnedQuad(double x, double y, double z, int index) throws Exception {
         GrugRenderPass.open();
-        assertEquals(null, GrugRenderPass.recordModel(mods.toFile(), writePlate(), x, y, z));
+        assertEquals(
+                null, GrugRenderPass.recordModel(mods.toFile(), writePlate(), x, y, z, 0, 0, 0));
         return GrugRenderPass.close().quads().get(index);
     }
 
@@ -134,18 +136,54 @@ class GrugRenderPassTest {
     }
 
     @Test
+    void aModelIsMovedAfterItIsTurnedAlongTheWorldAxes() throws Exception {
+        // The plate's up face is at height 0.25. Turned 90 about z it is the east face at x 0.25,
+        // and the move then goes along the world's y, not along the turned model's.
+        GrugRenderPass.open();
+        assertEquals(
+                null, GrugRenderPass.recordModel(mods.toFile(), writePlate(), 0, 0, 90, 0, 0.5, 0));
+        GrugQuad moved = GrugRenderPass.close().quads().get(0);
+
+        assertEquals(5, moved.side());
+        assertEquals(5, moved.cullSide());
+        for (int corner = 0; corner < 4; corner++) {
+            assertEquals(0.25, moved.x(corner), 1e-9);
+            assertTrue(moved.y(corner) >= 0.5 && moved.y(corner) <= 1.5);
+        }
+    }
+
+    @Test
+    void anOffsetThatIsNotFiniteRecordsNothingAndSaysWhy() throws Exception {
+        String path = writePlate();
+        GrugRenderPass.open();
+
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 0, Double.NaN, 0, 0)
+                        .contains("finite"));
+        assertTrue(
+                GrugRenderPass.recordModel(
+                                mods.toFile(), path, 0, 0, 0, 0, Double.POSITIVE_INFINITY, 0)
+                        .contains("finite"));
+        assertTrue(
+                GrugRenderPass.recordModel(
+                                mods.toFile(), path, 0, 0, 0, 0, 0, Double.NEGATIVE_INFINITY)
+                        .contains("finite"));
+        assertTrue(GrugRenderPass.close().isEmpty());
+    }
+
+    @Test
     void anAngleThatIsNotAQuarterTurnRecordsNothingAndSaysWhy() throws Exception {
         String path = writePlate();
         GrugRenderPass.open();
 
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), path, 0, 45, 0)
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 45, 0, 0, 0, 0)
                         .contains("multiples of 90 degrees"));
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 45)
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 45, 0, 0, 0)
                         .contains("multiples of 90 degrees"));
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), path, 9e7, 0, 0)
+                GrugRenderPass.recordModel(mods.toFile(), path, 9e7, 0, 0, 0, 0, 0)
                         .contains("multiples of 90 degrees"));
         assertTrue(GrugRenderPass.close().isEmpty());
     }
@@ -153,7 +191,7 @@ class GrugRenderPassTest {
     @Test
     void aTurnedModelOutsideAPassIsRefused() throws Exception {
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), writePlate(), 0, 0, 90)
+                GrugRenderPass.recordModel(mods.toFile(), writePlate(), 0, 0, 90, 0, 0, 0)
                         .contains("while a block entity's render() is drawing"));
     }
 
@@ -163,7 +201,8 @@ class GrugRenderPassTest {
         GrugRenderPass.open();
 
         assertTrue(
-                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 90).contains("no elements"));
+                GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 90, 0, 0, 0)
+                        .contains("no elements"));
         assertTrue(GrugRenderPass.close().isEmpty());
     }
 
