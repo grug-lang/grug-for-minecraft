@@ -161,6 +161,9 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   known gap still to be closed, each with a tracking issue. A port is done when its `deviations` key is
   removed (the schema refuses an empty list), and from then on `Screenshot.tolerance` refuses any percentage above 0 in its tests
   (BuildCraft's checklist is #75).
+- The one exception is precision: a reference's Java `float` becomes a grug `number`, a 64-bit
+  double, because the difference is not perceptible to players. Do not emulate float32 rounding,
+  and derive tick counts from float64 arithmetic.
 - Read the reference before inventing a model. BuildCraft 2.2.14 is already decompiled at
   `~/agent-workspaces/buildcraft-2.2.14-src/src`, with the original class files and textures in
   `classes/`; do not decompile it again. The jars are in `~/.technic/modpacks/tekkit/mods/` and
