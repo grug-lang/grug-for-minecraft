@@ -335,9 +335,7 @@ public class GrugBlockEntity extends BlockEntity
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         writeSavedNumbers(tag);
-        if (GrugPower.stored(this) > 0) {
-            tag.putDouble("GrugEnergy", GrugPower.stored(this));
-        }
+        tag.putDouble("GrugEnergy", GrugPower.stored(this));
         ensureSized();
         tag.putInt("GrugInvSize", stacks.size());
         ContainerHelper.saveAllItems(tag, stacks, registries);

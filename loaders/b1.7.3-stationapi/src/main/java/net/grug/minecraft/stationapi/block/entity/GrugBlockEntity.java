@@ -371,9 +371,7 @@ public class GrugBlockEntity extends BlockEntity
     public void writeNbt(NbtCompound nbt) {
         super.writeNbt(nbt);
         writeSavedNumbers(nbt);
-        if (GrugPower.stored(this) > 0) {
-            nbt.putDouble("GrugEnergy", GrugPower.stored(this));
-        }
+        nbt.putDouble("GrugEnergy", GrugPower.stored(this));
         ensureSized();
 
         // Save the size so readNbt doesn't need the world object.
