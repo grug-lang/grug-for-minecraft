@@ -8,8 +8,6 @@
   ],
   "server": [],
   "client": [
-    "BakedModelRendererImplMixin",
-    "BlockItemAccessor",
     "BlockRenderManagerMixin",
     "InGameHudMixin",
     "MinecraftMixin",

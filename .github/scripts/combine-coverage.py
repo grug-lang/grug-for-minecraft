@@ -56,8 +56,6 @@ EXCLUDED_CLASSES = {
     "CraftingManagerMixin",
     "BlockRendererMixin",
     "ItemRendererMixin",
-    "BakedModelRendererImplMixin",
-    "BlockItemAccessor",
     "BlockRenderManagerMixin",
     "GrugMixin",
     "GuiMixin",
