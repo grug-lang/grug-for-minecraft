@@ -110,13 +110,18 @@
 					"tracking_issue": 339
 				},
 				{
+					"what": "A wooden pipe drops a stack that no inventory accepts as one item entity per item, instead of as one entity holding the stack.",
+					"why": "item_stack in mod_api.json makes a stack of one and has no count, so the pipe spawns an entity for each item it carries.",
+					"tracking_issue": 473
+				},
+				{
 					"what": "The wooden pipe chooses its extraction side automatically instead of storing it in the block's metadata.",
 					"why": "The port has no block metadata access or wrench yet; the reference stores the side in the pipe's metadata and cycles it with a wrench (PipeLogicWood.switchSource).",
 					"tracking_issue": 131
 				},
 				{
-					"what": "Which slots of an inventory another block may use is a slot range the block entity declares, rather than the reference's side-aware ISpecialInventory.",
-					"why": "The reference asks the neighbour inventory itself, per side and per item (ISpecialInventory.addItem and extractItem). grug exports can only be called by the host and cannot return a value, so the rule is declared to the host instead and read back with is_slot_extractable.",
+					"what": "Which slots of an inventory another block may use is a slot range the block entity declares, rather than the reference's side-aware ISpecialInventory, and a machine's crafting result is pulled by a wooden pipe one item at a time, spending 1 energy for it, where ISpecialInventory.extractItem hands the pipe whatever the machine decides and spends no energy.",
+					"why": "The reference asks the neighbour inventory itself, per side and per item (ISpecialInventory.addItem and extractItem), and PipeItemsWood.checkExtract takes that answer as it is without using energy. grug exports can only be called by the host and cannot return a value, so the rule is declared to the host instead and read back with is_slot_extractable, and the pipe takes the crafting result through take_crafting_result, one item at a time, with the energy of a plain slot.",
 					"tracking_issue": 340
 				},
 				{
@@ -130,8 +135,8 @@
 					"tracking_issue": 364
 				},
 				{
-					"what": "The redstone engine always faces up, instead of turning to face a power receptor when placed and rotating with a wrench.",
-					"why": "TileEngine saves its orientation in its NBT and RenderEngine draws the engine along it, but the port has no receptor to face and no wrench yet, and its model is drawn upright only.",
+					"what": "The redstone engine cannot be rotated with a wrench to the next side that has a power receiver, as the reference's wrench does.",
+					"why": "The engine already picks its facing when it first ticks and is drawn along it, but rotating it needs the block to know which item the player holds (#403) and a wrench item, and the port has neither.",
 					"tracking_issue": 368
 				},
 				{
