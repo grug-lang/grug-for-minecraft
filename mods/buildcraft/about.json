@@ -125,13 +125,8 @@
 					"tracking_issue": 340
 				},
 				{
-					"what": "The redstone engine never moves its piston plate in game, because nothing advances its saved progress yet.",
-					"why": "The engine draws the plate and the chamber under it from its saved progress, as RenderEngine does, and has itself drawn again on every tick the progress changes. What advances the progress is TileEngine's stroke, which needs the engine to give energy to a receptor it faces (#364), so the plate stays at rest until #406 drives it.",
-					"tracking_issue": 363
-				},
-				{
-					"what": "The redstone engine gives no energy to the pipe it powers and takes none from another engine, so its energy is never capped at 1000 and it never explodes.",
-					"why": "The port has no model of BuildCraft's pneumatic power: the wooden pipe runs from the engine's redstone signal instead of from extracted energy. A wood engine on redstone alone never caps or explodes in the reference either, since EngineWood.update adds to its energy directly rather than through addEnergy.",
+					"what": "A redstone engine facing another engine hands it no energy, so the receiving engine never has its energy capped at 1000 by Engine.addEnergy and never explodes.",
+					"why": "An engine does not declare itself a power receiver yet, so is_power_receiver is false for it and a stroke facing it starts nothing: nothing adds to its energy through Engine.addEnergy, so there is no cap and no explosion. The receiving side and the explosion, which Level.explode now makes possible, are #407. A wood engine on redstone alone never caps or explodes in the reference, since EngineWood.update adds to its energy directly rather than through addEnergy.",
 					"tracking_issue": 364
 				},
 				{
