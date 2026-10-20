@@ -19,7 +19,7 @@ import java.util.List;
 
 class GrugForgeLayersTest {
     private static final List<GrugForgeLayers.Layer> LAYERS =
-            GrugForgeLayers.read(GrugForgeLayers.JAR, "/bootstrap/layers.json");
+            GrugForgeLayers.read(GrugForgeLayers.JAR, "bootstrap/layers.json");
 
     @AfterEach
     void restoreFakeGame() {
@@ -57,8 +57,8 @@ class GrugForgeLayersTest {
         IllegalStateException error =
                 assertThrows(
                         IllegalStateException.class,
-                        () -> GrugForgeLayers.read(GrugForgeLayers.JAR, "/bootstrap/absent.json"));
-        assertTrue(error.getMessage().contains("/bootstrap/absent.json is missing"));
+                        () -> GrugForgeLayers.read(GrugForgeLayers.JAR, "bootstrap/absent.json"));
+        assertTrue(error.getMessage().contains("bootstrap/absent.json is missing"));
     }
 
     @Test
@@ -73,9 +73,8 @@ class GrugForgeLayersTest {
                         };
         IllegalStateException error =
                 assertThrows(
-                        IllegalStateException.class,
-                        () -> GrugForgeLayers.read(failing, "/t.json"));
-        assertTrue(error.getMessage().contains("Failed to read /t.json"));
+                        IllegalStateException.class, () -> GrugForgeLayers.read(failing, "t.json"));
+        assertTrue(error.getMessage().contains("Failed to read t.json"));
     }
 
     @Test

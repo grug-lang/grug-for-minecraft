@@ -9,7 +9,9 @@ import net.grug.minecraft.grug.Grug;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
+import org.spongepowered.asm.service.MixinService;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,7 +33,16 @@ public class GrugMixinPlugin implements IMixinConfigPlugin {
     private String mixinPackage;
 
     public GrugMixinPlugin() {
-        this(GrugForgeLayers.load(), GrugForgeLayers.JAR);
+        this(GrugForgeLayers.load(), GrugMixinPlugin::mixinResource);
+    }
+
+    /**
+     * A resource as Mixin found this plugin's own config: core may sit in another module and layer
+     * than the layer's config, as in a development run, where core is a library of the boot layer
+     * and cannot see the mod's resources through its own class loader.
+     */
+    static InputStream mixinResource(String name) {
+        return MixinService.getService().getResourceAsStream(name);
     }
 
     GrugMixinPlugin(GrugForgeLayers layers, GrugForgeLayers.Resources jar) {
@@ -67,7 +78,7 @@ public class GrugMixinPlugin implements IMixinConfigPlugin {
         if (layer == null) {
             return Collections.emptyList();
         }
-        JsonObject config = GrugForgeLayers.readJson(jar, "/" + layer.mixins);
+        JsonObject config = GrugForgeLayers.readJson(jar, layer.mixins);
         if (!config.get("package").getAsString().equals(mixinPackage)) {
             // This plugin belongs to another layer's config, which this game does not start.
             return Collections.emptyList();

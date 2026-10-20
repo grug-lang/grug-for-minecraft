@@ -30,22 +30,20 @@ java.targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
     mavenCentral()
-    // Mixin, which GrugMixinPlugin is compiled against; the game brings its own at run time.
-    maven("https://repo.spongepowered.org/repository/maven-public/") {
-        content { includeGroup("org.spongepowered") }
-    }
 }
 
-// Compile-time stand-ins for the loaders' @Mod annotations, which GrugForgeMod carries. Compiled
-// against and never packaged: the loader brings its own, and the other loader's is simply absent.
+// Compile-time stand-ins for the loaders' @Mod annotations, which GrugForgeMod carries, and for the
+// two Mixin interfaces GrugMixinPlugin implements. Never packaged: the game brings the real ones.
+// Mixin's own jar is kept off every class path, since it registers an annotation processor that
+// javac would then discover in tests that compile code.
 val stubs: SourceSet = sourceSets.create("stubs")
 
 dependencies {
+    // The game provides ASM wherever GrugMixinPlugin is loaded, so it is not packaged either.
+    "stubsCompileOnly"("org.ow2.asm:asm-tree:9.7.1")
     compileOnly(stubs.output)
-    // The game provides Mixin and ASM wherever GrugMixinPlugin is loaded, so neither is packaged.
-    compileOnly("org.spongepowered:mixin:0.8.5") { isTransitive = false }
     compileOnly("org.ow2.asm:asm-tree:9.7.1")
-    testImplementation("org.spongepowered:mixin:0.8.5") { isTransitive = false }
+    testImplementation(stubs.output)
     testImplementation("org.ow2.asm:asm-tree:9.7.1")
 
     compileOnly("org.projectlombok:lombok:1.18.48")
