@@ -66,6 +66,11 @@ install_profile() {
   curl --fail --silent --show-error --location "$url" -o "${MAIN_DIR}/versions/${id}/${id}.json"
 }
 
+# Mojang's profiles for Alpha and Beta boot through launchwrapper, which brings ASM 4. Fabric Loader
+# refuses to start beside a second ASM, and the instance components Ornithe and Babric install for a
+# player drop both libraries, so their launches here do too.
+LEGACY_LIBRARIES=(--exclude-lib 'net.minecraft:launchwrapper:*' --exclude-lib 'org.ow2.asm:asm-all:*')
+
 mkdir -p "${GAME_DIR}/mods" "$MAIN_DIR"
 cp "$JAR" "${GAME_DIR}/mods/"
 
@@ -82,7 +87,7 @@ case "$LOADER" in
       "https://maven.glass-launcher.net/releases/net/modificationstation/StationAPI/${stationapi}/StationAPI-${stationapi}.jar" \
       -o "${GAME_DIR}/mods/StationAPI-${stationapi}.jar"
     portablemc --version >/dev/null
-    start "babric::$(property loader_version)"
+    start "${LEGACY_LIBRARIES[@]}" "babric::$(property loader_version)"
     ;;
 
   a1.1.2_01-ornithe | b1.7.3-ornithe)
@@ -106,7 +111,7 @@ EOF
     profile="fabric-loader-${loader}-${game}-ornithe-gen2"
     install_profile "$profile" "https://meta.ornithemc.net/v3/versions/gen2/fabric-loader/${game}/${loader}/profile/json"
     portablemc --version >/dev/null
-    start "$profile"
+    start "${LEGACY_LIBRARIES[@]}" "$profile"
     ;;
 
   1.2.5-forge)
