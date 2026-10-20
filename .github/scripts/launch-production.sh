@@ -71,6 +71,13 @@ install_profile() {
 # player drop both libraries, so their launches here do too.
 LEGACY_LIBRARIES=(--exclude-lib 'net.minecraft:launchwrapper:*' --exclude-lib 'org.ow2.asm:asm-all:*')
 
+# Mojang's profiles also ask for Java 8 there, and grug's Alpha and Beta loaders need Java 17, as
+# StationAPI does. A player of them picks a newer Java in their launcher, and so does this, with the
+# Java the build runs on.
+LEGACY_JAVA="${JAVA_HOME:+${JAVA_HOME}/bin/java}"
+LEGACY_JAVA="${LEGACY_JAVA:-$(command -v java)}"
+LEGACY_LIBRARIES+=(--jvm "$LEGACY_JAVA")
+
 mkdir -p "${GAME_DIR}/mods" "$MAIN_DIR"
 cp "$JAR" "${GAME_DIR}/mods/"
 
