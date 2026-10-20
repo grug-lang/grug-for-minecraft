@@ -170,13 +170,15 @@ public final class GrugForgeLayers {
     }
 
     /**
-     * Constructs the running layer's entrypoint, which registers everything grug adds to the game,
-     * or does nothing when the game starts no layer.
+     * Constructs the running layer's entrypoint, which registers everything grug adds to the game.
+     * On a game that starts no layer it reports that through the loader, which shows it as this
+     * mod's loading error (#493).
      */
     public void start(ClassLoader classLoader) {
         Layer layer = running();
         if (layer == null) {
-            return;
+            throw GrugUnsupportedGame.error(
+                    game == null ? "this game" : "Minecraft " + game.minecraft + " on this loader");
         }
         try {
             Class.forName(layer.entrypoint, true, classLoader)
