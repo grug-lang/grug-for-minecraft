@@ -50,11 +50,13 @@ public final class GrugBoxRenderer {
      */
     public static boolean render(
             BlockRenderer renderer, WorldView world, Block block, int x, int y, int z) {
-        if (!(block instanceof GrugBlock grugBlock)) return false;
+        if (!(block instanceof GrugBlock)) return false;
+        GrugBlock grugBlock = (GrugBlock) block;
         if (!grugBlock.drawsCustomGeometry()) return false;
 
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
-        if (!(blockEntity instanceof GrugBlockEntity grugBlockEntity)) return false;
+        if (!(blockEntity instanceof GrugBlockEntity)) return false;
+        GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
 
         GrugGeometry geometry = drawGeometry(grugBlock, grugBlockEntity, x, y, z);
 

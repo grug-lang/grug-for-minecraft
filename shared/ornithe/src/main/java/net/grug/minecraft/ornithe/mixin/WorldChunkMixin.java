@@ -41,7 +41,8 @@ public abstract class WorldChunkMixin {
     @Inject(method = "setBlockEntityAt", at = @At("RETURN"))
     private void grug$initOnPlacement(
             int x, int y, int z, BlockEntity blockEntity, CallbackInfo ci) {
-        if (loaded && blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+        if (loaded && blockEntity instanceof GrugBlockEntity) {
+            GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
             grugBlockEntity.onRegistered();
         }
     }
@@ -50,7 +51,8 @@ public abstract class WorldChunkMixin {
     private void grug$initOnChunkLoad(CallbackInfo ci) {
         // A snapshot, because an init() that places a block in this chunk adds to the map.
         for (Object blockEntity : new ArrayList<>(blockEntities.values())) {
-            if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+            if (blockEntity instanceof GrugBlockEntity) {
+                GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
                 grugBlockEntity.onRegistered();
             }
         }
@@ -59,7 +61,8 @@ public abstract class WorldChunkMixin {
     @Inject(method = "unload", at = @At("RETURN"))
     private void grug$destroyOnChunkUnload(CallbackInfo ci) {
         for (Object blockEntity : blockEntities.values()) {
-            if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+            if (blockEntity instanceof GrugBlockEntity) {
+                GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
                 grugBlockEntity.destroyGrugEntity();
             }
         }

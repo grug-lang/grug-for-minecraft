@@ -43,9 +43,11 @@ public class GrugRecipeHelper {
         int[] ids = new int[inputs.length];
         for (int i = 0; i < inputs.length; i++) {
             Object input = inputs[i];
-            if (input instanceof Item item) {
+            if (input instanceof Item) {
+                Item item = (Item) input;
                 ids[i] = item.id;
-            } else if (input instanceof Block block) {
+            } else if (input instanceof Block) {
+                Block block = (Block) input;
                 ids[i] = block.id;
             } else {
                 throw Grug.fatal(

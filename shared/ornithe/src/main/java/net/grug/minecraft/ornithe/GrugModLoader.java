@@ -53,11 +53,17 @@ public class GrugModLoader implements ModInitializer {
             GrugModsWatcher.fileIds.put(file.path(), file.fileId());
 
             switch (entry.entityType()) {
-                case "Block" -> blockFiles.put(entry.cleanName(), file.fileId());
-                case "BlockEntity" ->
-                        GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
-                case "Item" -> itemFiles.put(entry.cleanName(), file.fileId());
-                default -> {}
+                case "Block":
+                    blockFiles.put(entry.cleanName(), file.fileId());
+                    break;
+                case "BlockEntity":
+                    GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
+                    break;
+                case "Item":
+                    itemFiles.put(entry.cleanName(), file.fileId());
+                    break;
+                default:
+                    break;
             }
         }
 

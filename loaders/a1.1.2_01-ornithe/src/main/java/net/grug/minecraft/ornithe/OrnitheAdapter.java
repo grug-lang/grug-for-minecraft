@@ -252,7 +252,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public Object getResultStack(Object blockEntityObj) {
-        if (!(blockEntityObj instanceof GrugBlockEntity gbe)) return null;
+        if (!(blockEntityObj instanceof GrugBlockEntity)) return null;
+        GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
         return gbe.getResultStack();
     }
 
@@ -268,7 +269,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public double takeCraftingResult(Object blockEntityObj, double amount) {
-        if (blockEntityObj instanceof GrugBlockEntity gbe) {
+        if (blockEntityObj instanceof GrugBlockEntity) {
+            GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
             ItemStack removed = gbe.takeResultStack((int) amount);
             if (removed != null) {
                 gbe.notifyOutputTaken(removed.size);
@@ -333,7 +335,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot) {
-        if (!(blockEntityObj instanceof GrugBlockEntity gbe)) {
+        if (!(blockEntityObj instanceof GrugBlockEntity)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "update_recipe_output: "
@@ -341,6 +343,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                             + " has no crafting result container.");
             return;
         }
+        GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
         Inventory inv = (Inventory) blockEntityObj;
         // Alpha recipes match on item ids only, with -1 for an empty cell
         int[] ids = new int[9];
@@ -532,7 +535,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         String name = "minecraft:unknown";
         Block block = (id >= 0 && id < Block.BY_ID.length) ? Block.BY_ID[id] : null;
 
-        if (block instanceof GrugBlock grugBlock) {
+        if (block instanceof GrugBlock) {
+            GrugBlock grugBlock = (GrugBlock) block;
             net.grug.minecraft.grug.GrugBlockData data =
                     GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId);
             if (data != null) {
@@ -578,8 +582,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
                 if (fileId != null) {
                     for (Block block : Block.BY_ID) {
-                        if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb
-                                && gb.blockFileId == fileId) {
+                        if (block instanceof GrugBlock
+                                && ((GrugBlock) block).blockFileId == fileId) {
                             targetBlock = block;
                             break;
                         }
@@ -702,7 +706,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                                 .orElse(null);
                 if (fileId != null) {
                     for (Item item : Item.BY_ID) {
-                        if (item instanceof GrugItem gi && gi.itemFileId == fileId) {
+                        if (item instanceof GrugItem && ((GrugItem) item).itemFileId == fileId) {
                             return item;
                         }
                     }
@@ -722,8 +726,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                                 .orElse(null);
                 if (fileId != null) {
                     for (Block block : Block.BY_ID) {
-                        if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb
-                                && gb.blockFileId == fileId) {
+                        if (block instanceof GrugBlock
+                                && ((GrugBlock) block).blockFileId == fileId) {
                             return Item.BY_ID[block.id];
                         }
                     }
@@ -785,7 +789,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public Object createItemStack(Object itemObj, double damage) {
         ItemStack stack;
-        if (itemObj instanceof Item item) {
+        if (itemObj instanceof Item) {
+            Item item = (Item) itemObj;
             stack = new ItemStack(item);
         } else {
             stack = new ItemStack((Block) itemObj);
@@ -1229,7 +1234,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         int blockId = world.getBlock(blockX, blockY, blockZ);
         Block block = (blockId >= 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
 
-        if (block instanceof GrugBlock grugBlock) {
+        if (block instanceof GrugBlock) {
+            GrugBlock grugBlock = (GrugBlock) block;
             // Go through the block's own use() so the test drives the same code path a real
             // right-click does, instead of a copy of the block's GUI layout.
             grugBlock.use(world, blockX, blockY, blockZ, player);

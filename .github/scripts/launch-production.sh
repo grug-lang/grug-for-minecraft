@@ -70,12 +70,12 @@ install_profile() {
 # too.
 LEGACY_LIBRARIES=(--exclude-lib 'net.minecraft:launchwrapper:*' --exclude-lib 'org.ow2.asm:asm-all:*')
 
-# Mojang's profiles also ask for Java 8 there, and grug's Alpha and Beta loaders need Java 17, as
-# StationAPI does. A player of them picks a newer Java in their launcher, and so does this, with the
-# Java the build runs on.
-LEGACY_JAVA="${JAVA_HOME:+${JAVA_HOME}/bin/java}"
-LEGACY_JAVA="${LEGACY_JAVA:-$(command -v java)}"
-LEGACY_LIBRARIES+=(--jvm "$LEGACY_JAVA")
+# Those profiles ask for Java 8 ("javaVersion": jre-legacy, major version 8), the oldest Java a
+# player of the Ornithe layers may run, so the Ornithe launches take Mojang's runtime of that name.
+# StationAPI needs Java 17, so a player of it picks a newer Java in their launcher, and that launch
+# uses the Java the build runs on.
+STATIONAPI_JAVA="${JAVA_HOME:+${JAVA_HOME}/bin/java}"
+STATIONAPI_JAVA="${STATIONAPI_JAVA:-$(command -v java)}"
 
 mkdir -p "${GAME_DIR}/mods" "$MAIN_DIR"
 cp "$JAR" "${GAME_DIR}/mods/"
@@ -107,7 +107,7 @@ case "$LOADER" in
         || curl --fail --silent --show-error --location "${lwjgl_maven}/${file}" -o "${lwjgl_dir}/${file##*/}"
     done
     portablemc --version >/dev/null
-    start "${LEGACY_LIBRARIES[@]}" --exclude-lib 'org.lwjgl.lwjgl:*:*' \
+    start "${LEGACY_LIBRARIES[@]}" --jvm "$STATIONAPI_JAVA" --exclude-lib 'org.lwjgl.lwjgl:*:*' \
       --include-class "${lwjgl_dir}/lwjgl-${lwjgl}.jar" \
       --include-class "${lwjgl_dir}/lwjgl_util-${lwjgl}.jar" \
       --include-natives "${lwjgl_dir}/lwjgl-platform-${lwjgl}-natives-linux.jar" \
@@ -148,7 +148,7 @@ def loader_profile(version):
 rewrite(profile, loader_profile)
 EOF
     portablemc --version >/dev/null
-    start "${LEGACY_LIBRARIES[@]}" --exclude-lib 'org.ow2.asm:*:7.0' "$profile"
+    start "${LEGACY_LIBRARIES[@]}" --jvm-policy mojang --exclude-lib 'org.ow2.asm:*:7.0' "$profile"
     ;;
 
   1.2.5-forge)

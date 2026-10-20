@@ -93,6 +93,12 @@ tasks.withType(ProcessResources) {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    // A player of this layer may run Java 8. For the vanilla launcher, Ornithe's installer writes
+    // Ornithe's own game profile, which asks for Java 8 ("javaVersion": jre-legacy, major version
+    // 8), and a loader profile that inherits from it without naming a Java of its own. Its Prism
+    // instances accept Java 8 through 25. Java 8 bytecode loads on every one of them, and Java 17
+    // bytecode would not load on Java 8. `--release` also pins the API to Java 8.
+    options.release = 8
 }
 
 // The jar a player installs, which nests core's release jar: gson comes relocated inside it, because
