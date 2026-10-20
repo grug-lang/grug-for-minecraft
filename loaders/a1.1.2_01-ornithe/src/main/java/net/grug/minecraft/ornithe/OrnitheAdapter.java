@@ -552,7 +552,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                         && Block.class.isAssignableFrom(field.getType())) {
                     try {
                         if (field.get(null) == block) {
-                            name = canonicalName(field.getName().toLowerCase(Locale.ROOT));
+                            name =
+                                    canonicalName(
+                                            GrugVanillaNames.of(field).toLowerCase(Locale.ROOT));
                             break;
                         }
                     } catch (Exception ignored) {
@@ -600,8 +602,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             for (Field field : Block.class.getFields()) {
                 if (Modifier.isStatic(field.getModifiers())
                         && Block.class.isAssignableFrom(field.getType())) {
-                    if (field.getName().equalsIgnoreCase(vanillaPath)
-                            || field.getName()
+                    if (GrugVanillaNames.of(field).equalsIgnoreCase(vanillaPath)
+                            || GrugVanillaNames.of(field)
                                     .replace("_", "")
                                     .equalsIgnoreCase(vanillaPath.replace("_", ""))) {
                         try {
@@ -744,8 +746,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         for (Field field : Item.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers())
                     && Item.class.isAssignableFrom(field.getType())) {
-                if (field.getName().equalsIgnoreCase(path)
-                        || field.getName()
+                if (GrugVanillaNames.of(field).equalsIgnoreCase(path)
+                        || GrugVanillaNames.of(field)
                                 .replace("_", "")
                                 .equalsIgnoreCase(path.replace("_", ""))) {
                     try {
@@ -766,8 +768,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         for (Field field : Block.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers())
                     && Block.class.isAssignableFrom(field.getType())) {
-                if (field.getName().equalsIgnoreCase(vanillaPath)
-                        || field.getName()
+                if (GrugVanillaNames.of(field).equalsIgnoreCase(vanillaPath)
+                        || GrugVanillaNames.of(field)
                                 .replace("_", "")
                                 .equalsIgnoreCase(vanillaPath.replace("_", ""))) {
                     try {
