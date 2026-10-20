@@ -589,12 +589,12 @@ jobs:
           retention-days: 7
 
   # Boots one game per mechanism a mod loader reads the jar by, among the games grug has no layer for,
-  # with the universal jar as its only mod, and requires its first screen with grug inactive: the
-  # jar has to load and do nothing on every game it does not support. A game that gains a loader
-  # leaves this job for production, and universal_jar.py then asks for another game of its
-  # mechanism. See #493.
+  # with the universal jar as its only mod. Where grug's code runs, the game has to stop with grug's
+  # own error through its loader's error path; elsewhere it has to reach its first screen with grug
+  # inactive. A game that gains a loader leaves this job for production, and universal_jar.py then
+  # asks for another game of its mechanism. See #493.
   smoke:
-    name: ${{ matrix.game }} boots inert
+    name: ${{ matrix.game }} without a layer
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
