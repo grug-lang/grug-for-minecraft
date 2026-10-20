@@ -125,11 +125,6 @@
 					"tracking_issue": 340
 				},
 				{
-					"what": "A redstone engine that Engine.addEnergy pushes above 1000 does not explode, as the reference's does, so an engine that has grown past 1000 on its own and then receives a stroke only has its energy cut to 1000.",
-					"why": "The explosion waits on a host function to cause one (#467). In the reference an engine facing another hands it a stroke's 1 energy, which its provider turns into 0 energy through (int)((float) 1 * 0.95F) but still runs Engine.addEnergy on, so the engine explodes on the first stroke after its own uncapped energy++ has taken it above 1000, which takes about 17 minutes on redstone with nothing in front of it to stroke at.",
-					"tracking_issue": 364
-				},
-				{
 					"what": "The redstone engine cannot be rotated with a wrench to the next side that has a power receiver, as the reference's wrench does.",
 					"why": "The engine already picks its facing when it first ticks and is drawn along it, but rotating it needs the block to know which item the player holds (#403) and a wrench item, and the port has neither.",
 					"tracking_issue": 368
