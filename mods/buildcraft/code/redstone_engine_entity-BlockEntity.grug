@@ -111,6 +111,11 @@ export tick() {
         # arrive before the engine's tick add 1. The float cast gives Math.floor(n * 0.95) for every
         # n the store can hold.
         _add_energy(Math.floor(extract_energy(me, 50) * 0.95))
+
+        # The explosion can have destroyed this engine, and then there is nothing left to tick.
+        if not _exists() {
+            return
+        }
     }
 
     stored: number = get_saved_number(me, "energy")
@@ -158,14 +163,26 @@ local _step(progress: number) number {
     return progress * 2 * 7.99
 }
 
-# Engine.addEnergy. The reference explodes when the energy is above maxEnergy and then cuts it to
-# maxEnergy; the explosion is not ported yet (#364).
+# Engine.addEnergy. The reference adds the energy, explodes with explosionRange(), 1 for the wood
+# engine, when that leaves it above maxEnergy, and then cuts it to maxEnergy. The explosion is at the
+# block's corner, where the reference passes the tile's integer coordinates, and not at its centre.
 local _add_energy(addition: number) {
     energy: number = get_saved_number(me, "energy") + addition
     if energy > 1000 {
+        level.explode(x - 0.5, y - 0.5, z - 0.5, 1)
         energy = 1000
+
+        # An engine the explosion destroyed has no energy left to cut.
+        if not _exists() {
+            return
+        }
     }
     set_saved_number(me, "energy", energy)
+}
+
+# Whether this engine's block is still in the world.
+local _exists() bool {
+    return level.get_block(x, y, z) == "grug:redstone_engine"
 }
 
 # The rest of TileEngine.n_ on the server, after Engine.update: the piston moves by the speed of
