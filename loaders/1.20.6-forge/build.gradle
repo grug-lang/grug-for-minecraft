@@ -107,6 +107,11 @@ sourceSets.each {
 tasks.register('layerJar', Jar) {
     from(zipTree(tasks.named('jar').flatMap { it.archiveFile })) {
         exclude 'META-INF/MANIFEST.MF'
+        // The root holds one mods.toml for every Forge version, which universal_jar.py writes
+        // without version ranges, and core's GrugForgeMod is the jar's only @Mod (#493). This
+        // layer's own are for its development run.
+        exclude 'META-INF/mods.toml'
+        exclude 'net/grug/minecraft/forge/GrugForgeDevMod.class'
     }
     // A development run passes the mixin config on the command line; an installed game only finds
     // it through the manifest, which the universal jar takes from this layer.

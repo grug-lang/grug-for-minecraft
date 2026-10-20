@@ -5,9 +5,13 @@ The universal jar is the one file a player drops into the mods folder of any sup
 layout (#488):
 
 - The root holds core's release jar once (core, gson relocated, the native, mod_api.json and the
-  bundled mods), plus the layers whose mod loader reads the jar's root: 1.20.6 Forge reads
-  META-INF/mods.toml, and 1.2.5's ModLoader loads mod_ classes. Their packages are distinct, so
-  they sit side by side.
+  bundled mods), plus the layers whose mod loader reads the jar's root: the Forge layers, which
+  core's GrugForgeMod starts, and 1.2.5's, whose mod_ class FML 1.2.5 loads. Their packages are
+  distinct, so they sit side by side.
+- Every game the jar has no layer for loads it and does nothing (#493). The root's mods.toml and
+  neoforge.mods.toml, written here, declare no version range, so no Forge or NeoForge stops on
+  them, and name core's Java 8 GrugForgeMod as the jar's only @Mod; the manifest's ModType makes
+  FML 1.7.10 to 1.12.2 skip the jar. GAMES models each mechanism a mod loader reads the jar by.
 - The Fabric-family layers are nested jars under META-INF/jars/, listed by one outer
   fabric.mod.json, because a jar holds only one fabric.mod.json and both Ornithe layers keep a
   helper in a vanilla package (net.minecraft.crafting.GrugRecipeHelper). Each nested layer depends
@@ -18,10 +22,12 @@ layout (#488):
 
     universal_jar.py assemble --core <core release jar> --version <v> --out <jar> <layer jar>...
     universal_jar.py check <jar>
+    universal_jar.py smoke-matrix
 
 Each layer jar is the layerJar output of a loader, named grug-<loader>.jar. `check` reads the
 assembled jar and this checkout's loaders/ and mods/ directories, prints every broken invariant,
 and exits 1 if there is one. It is what CI runs on the jar every production launch then uses.
+`smoke-matrix` prints the games CI boots with the jar as their only mod, one per mechanism.
 """
 
 import argparse
@@ -46,7 +52,35 @@ CORE_PACKAGE = "net/grug/minecraft/"
 # Files every jar has a copy of its own, which a loader reads from that jar and never through the
 # class path, so the root and a nested layer may both hold one.
 PER_JAR_FILES = frozenset({MANIFEST, "fabric.mod.json"})
-FORGE_MOD_ANNOTATION = b"Lnet/minecraftforge/fml/common/Mod;"
+JAVA_8 = 52  # the class file major version
+
+# The Forge family's root metadata, which assemble writes for every version at once (#493).
+MODS_TOML = "META-INF/mods.toml"
+NEOFORGE_MODS_TOML = "META-INF/neoforge.mods.toml"
+GRUG_MOD_ID = "grug"
+# Core's Java 8 @Mod class, the only one in the jar. It starts the Forge layer that core's table
+# (grug_forge_layers.json) names for the running Minecraft version, and nothing on any other game.
+BOOTSTRAP_MOD = "net/grug/minecraft/bootstrap/GrugForgeMod.class"
+FORGE_LAYERS_TABLE = "grug_forge_layers.json"
+MIXIN_PLUGIN = "net.grug.minecraft.bootstrap.GrugMixinPlugin"
+FORGE_MOD = b"Lnet/minecraftforge/fml/common/Mod;"
+NEOFORGE_MOD = b"Lnet/neoforged/fml/common/Mod;"
+# Every annotation a Forge-family loader acts on in a class it scans, as a mod class or an event bus
+# subscriber it loads. A Forge of any version that can read the class acts on it.
+FML_ANNOTATIONS = (
+    b"Lnet/minecraftforge/fml/common/Mod",
+    b"Lnet/neoforged/fml/common/Mod",
+    b"Lnet/neoforged/fml/common/EventBusSubscriber;",
+    b"Lcpw/mods/fml/common/Mod",
+)
+FORGE_SUBSCRIBERS = (
+    b"Lnet/minecraftforge/fml/common/Mod$EventBusSubscriber;",
+    b"Lnet/neoforged/fml/common/EventBusSubscriber;",
+    b"Lnet/neoforged/fml/common/Mod$EventBusSubscriber;",
+)
+# FML 1.7.10 to 1.12.2 skip a jar whose manifest's ModType does not name FML before reading any of
+# its classes (CoreModManager). Their class scan would otherwise build GrugForgeMod as a mod.
+MOD_TYPE = "grug"
 
 
 @dataclass(frozen=True)
@@ -118,6 +152,34 @@ def write_manifest(attributes):
     return b"\r\n".join(lines) + b"\r\n\r\n"
 
 
+def class_version(data):
+    """A class file's major version, which decides whether a loader's ASM can read it."""
+    return int.from_bytes(data[6:8], "big")
+
+
+def root_mods_toml(version):
+    """mods.toml and neoforge.mods.toml for every Forge and NeoForge at once. A loaderVersion range
+    or any dependency would stop the launch of every game outside it, even an optional dependency,
+    which Forge range-checks whenever the mod is present. Core's GrugForgeMod picks the layer."""
+    description = (
+        "The grug mod loader for Minecraft. Holds one layer per supported game, "
+        "and does nothing on a game it has none for."
+    )
+    return (
+        'modLoader = "javafml"\n'
+        'loaderVersion = "[0,)"\n'
+        'license = "MIT"\n'
+        'issueTrackerURL = "https://github.com/grug-lang/grug-for-minecraft/issues"\n'
+        "\n"
+        "[[mods]]\n"
+        f'modId = "{GRUG_MOD_ID}"\n'
+        f'version = "{version}"\n'
+        'displayName = "grug mod loader"\n'
+        'authors = "MyNameIsTrez"\n'
+        f'description = "{description}"\n'
+    ).encode()
+
+
 def files_of(archive):
     return {info.filename: archive.read(info) for info in archive.infolist() if not info.is_dir()}
 
@@ -156,7 +218,7 @@ def assemble(core, layers, version, out):
             if name != MANIFEST:
                 add(name, data, Path(core).name)
 
-    attributes = {"Manifest-Version": "1.0"}
+    attributes = {"Manifest-Version": "1.0", "ModType": MOD_TYPE}
     nested = {}
     seen = set()
     for path in layers:
@@ -190,6 +252,8 @@ def assemble(core, layers, version, out):
         (json.dumps(outer_fabric_mod_json(version, nested), indent=2) + "\n").encode(),
         Path(__file__).name,
     )
+    add(MODS_TOML, root_mods_toml(version), Path(__file__).name)
+    add(NEOFORGE_MODS_TOML, root_mods_toml(version), Path(__file__).name)
 
     # Every directory a file sits in, so a class loader can find a directory as a resource the way
     # it could in each layer jar. The manifest goes first, where JarInputStream looks for it.
@@ -383,8 +447,10 @@ def check_mixin_config(config, owner, files, problems):
         problems.append(f"{config} in {owner} does not parse: {error!r}")
         return
     package = data.get("package", "").replace(".", "/")
+    # A Forge layer's config lists its mixins under "grug", for GrugMixinPlugin to hand out.
+    grug = data.get("grug", {})
     for side in ("mixins", "client", "server"):
-        for mixin in data.get(side, []):
+        for mixin in data.get(side, []) + grug.get(side, []):
             path = f"{package}/{mixin.replace('.', '/')}.class"
             if path not in files:
                 problems.append(f"{config} in {owner} names mixin {path}, which is missing")
@@ -396,27 +462,125 @@ def check_mixin_config(config, owner, files, problems):
             problems.append(f"{config} in {owner} names {key} {path}, which is missing")
 
 
+def manifest_mixin_configs(root):
+    configs = read_manifest(root.files.get(MANIFEST, b"")).get("MixinConfigs", "")
+    return [c for c in (c.strip() for c in configs.split(",")) if c]
+
+
+def gradle_property(path, key):
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        name, _, value = line.partition("=")
+        if name.strip() == key:
+            return value.strip()
+    return None
+
+
+def check_forge_family(jar, repo):
+    """The root metadata every Forge and NeoForge reads, and the table core's GrugForgeMod and
+    GrugMixinPlugin start a Forge layer from (#493)."""
+    problems = []
+    root = jar.root
+    for name in (MODS_TOML, NEOFORGE_MODS_TOML):
+        try:
+            toml = tomllib.loads(root.files[name].decode())
+        except (KeyError, ValueError) as error:
+            problems.append(f"{name} does not parse: {error!r}")
+            continue
+        mods = [mod.get("modId") for mod in toml.get("mods", [])]
+        if mods != [GRUG_MOD_ID]:
+            problems.append(f"{name} declares the mods {mods}, rather than only {GRUG_MOD_ID}")
+        if toml.get("dependencies"):
+            problems.append(
+                f"{name} declares dependencies, whose ranges stop the launch of every game "
+                "outside them, even an optional one's"
+            )
+        if toml.get("loaderVersion") != "[0,)":
+            problems.append(
+                f"{name} asks for javafml {toml.get('loaderVersion')!r}, rather than every "
+                'version, "[0,)"'
+            )
+
+    for descriptor in (FORGE_MOD, NEOFORGE_MOD):
+        owners = [n for n in root.classes() if descriptor in root.files[n]]
+        if owners != [BOOTSTRAP_MOD]:
+            problems.append(
+                f"{descriptor.decode()} is on {owners}, rather than only on {BOOTSTRAP_MOD}"
+            )
+    for name in root.classes():
+        if name != BOOTSTRAP_MOD and any(a in root.files[name] for a in FML_ANNOTATIONS):
+            problems.append(
+                f"{name} carries an FML annotation, which every Forge that can read it acts on, "
+                "whatever version the class targets"
+            )
+    if BOOTSTRAP_MOD in root.files and class_version(root.files[BOOTSTRAP_MOD]) > JAVA_8:
+        problems.append(
+            f"{BOOTSTRAP_MOD} is newer than Java 8, which Forge 1.13 to 1.16 cannot read"
+        )
+
+    mod_types = read_manifest(root.files.get(MANIFEST, b"")).get("ModType", "FML").split(",")
+    if "FML" in mod_types:
+        problems.append(
+            "the manifest's ModType does not exclude FML, so FML 1.7.10 to 1.12.2 read every class"
+        )
+
+    try:
+        table = json.loads(root.files[FORGE_LAYERS_TABLE])
+    except (KeyError, ValueError) as error:
+        return problems + [f"{FORGE_LAYERS_TABLE} does not parse: {error!r}"]
+    forge = {loader for loader, layer in LAYERS.items() if layer.kind == "forge"}
+    for loader in sorted((root_layers(jar) & forge) - set(table)):
+        problems.append(
+            f"{loader} has no entry in {FORGE_LAYERS_TABLE}, so GrugForgeMod never starts it"
+        )
+    configs = manifest_mixin_configs(root)
+    for loader, entry in sorted(table.items()):
+        if loader not in forge:
+            problems.append(f"{FORGE_LAYERS_TABLE} names {loader}, which is no Forge layer")
+            continue
+        wanted = gradle_property(
+            repo / "loaders" / loader / "gradle.properties", "minecraft_version"
+        )
+        if entry.get("minecraft") != wanted:
+            problems.append(
+                f"{FORGE_LAYERS_TABLE} starts {loader} on Minecraft {entry.get('minecraft')}, "
+                f"but its gradle.properties targets {wanted}"
+            )
+        entrypoint = entry.get("entrypoint", "").replace(".", "/") + ".class"
+        if entrypoint not in root.files:
+            problems.append(
+                f"{FORGE_LAYERS_TABLE} starts {loader} at {entrypoint}, which is missing"
+            )
+        mixins = entry.get("mixins")
+        if mixins not in configs:
+            problems.append(
+                f"{loader}'s mixin config {mixins} is not in the manifest's MixinConfigs"
+            )
+        if mixins not in root.files:
+            continue  # check_mixin_config already reports a config the manifest names
+        try:
+            config = json.loads(root.files[mixins])
+        except ValueError:
+            continue  # and one that does not parse
+        if config.get("plugin") != MIXIN_PLUGIN:
+            problems.append(f"{mixins} is not handed out by {MIXIN_PLUGIN}")
+        for side in ("mixins", "client", "server"):
+            if config.get(side):
+                problems.append(
+                    f"{mixins} lists {side} mixins itself, which every game that reads the "
+                    "manifest parses; list them under grug"
+                )
+    return problems
+
+
 def check_metadata(jar):
     problems = []
     root = jar.root
-    if root_layers(jar) & {loader for loader, layer in LAYERS.items() if layer.kind == "forge"}:
-        try:
-            mods_toml = tomllib.loads(root.files["META-INF/mods.toml"].decode())
-        except (KeyError, ValueError) as error:
-            problems.append(f"META-INF/mods.toml does not parse: {error!r}")
-            mods_toml = {}
-        for mod in mods_toml.get("mods", []):
-            mod_id = mod.get("modId", "").encode()
-            if not any(
-                FORGE_MOD_ANNOTATION in root.files[name] and mod_id in root.files[name]
-                for name in root.classes()
-            ):
-                problems.append(f"no class at the root carries @Mod for modId {mod_id.decode()}")
-        if not mods_toml.get("mods"):
-            problems.append("META-INF/mods.toml declares no mod")
-        configs = read_manifest(root.files.get(MANIFEST, b"")).get("MixinConfigs", "")
-        for config in filter(None, (c.strip() for c in configs.split(","))):
-            check_mixin_config(config, "the manifest", root.files, problems)
+    for config in manifest_mixin_configs(root):
+        check_mixin_config(config, "the manifest", root.files, problems)
 
     modloader = [loader for loader, layer in LAYERS.items() if layer.kind == "modloader"]
     if root_layers(jar) & set(modloader):
@@ -536,14 +700,34 @@ def maven_range_matches(spec, version):
 @dataclass(frozen=True)
 class Game:
     name: str
-    # The mod loader that reads the jar: "fabric", "forge" (mods.toml) or "modloader".
+    # How its mod loader reads a jar in mods/, one of MECHANISMS.
     kind: str
     minecraft: str
     # The other mods present, by id, with their versions. Fabric's builtin fabricloader is one.
     mods: dict
     # The layer this game should activate, or None for a game grug does not support.
     expect: str | None
+    # The newest class file major version the loader's class scan reads (its ASM's), for the
+    # mechanisms that scan classes.
+    asm: int = 0
+    # The launch recipe of .github/scripts/smoke-launch.sh that boots this game on CI with the jar
+    # as its only mod, for the games the smoke jobs cover.
+    smoke: str | None = None
 
+
+# How each mod loader reads a jar in mods/, as read from its own code (#493).
+MECHANISMS = {
+    "fabric": "Fabric Loader: the outer fabric.mod.json, then each nested jar whose depends hold",
+    "forge": "Forge 1.13 on and NeoForge 1.20.1: mods.toml, then the classes its ASM reads",
+    "neoforge-modstoml": "NeoForge 20.2 to 20.4: mods.toml with NeoForge's @Mod",
+    "neoforge": "NeoForge 20.5 on: only neoforge.mods.toml, warning about any other mod jar",
+    "fml-asm5": "FML 1.7.10 to 1.12.2: the manifest's ModType, then every class through ASM 5",
+    "fml-asm4": "FML 1.3.2 to 1.6.4: every class through ASM 4, until one it cannot read",
+    "fml125": "FML 1.2.5: mod_ classes anywhere in the jar",
+    "modloader": "Risugami's ModLoader: mod_ classes at the jar's root",
+}
+# Mechanisms no smoke job can cover, because no game of theirs lacks a layer.
+SMOKE_EXEMPT = {"fml125": "FML 1.2.5 only exists for Minecraft 1.2.5, which 1.2.5-forge supports"}
 
 # The OSL modules the Ornithe layers use, as the OSL 0.20.3 bundle a player installs provides them.
 OSL = {
@@ -559,16 +743,26 @@ ORNITHE = {"fabricloader": "0.19.5", **OSL}
 BABRIC = {"fabricloader": "0.17.3"}
 STATIONAPI = {**BABRIC, "stationapi": "2.0.0-alpha.6.2"}
 
+# The class file major version each scanner reads up to, from the ASM its installer ships: ASM 4
+# reads Java 7 (51), ASM 5 Java 8 (52), ASM 6.2 Java 11 (55), ASM 9.5 Java 21 (65), and ASM 9.6 on
+# Java 22 (66) and newer.
 GAMES = [
     Game("Ornithe a1.1.2_01 with OSL", "fabric", "1.0.0-alpha.1.2.1", ORNITHE, "a1.1.2_01-ornithe"),
     Game("Ornithe b1.7.3 with OSL", "fabric", "1.0.0-beta.7.3", ORNITHE, "b1.7.3-ornithe"),
     Game(
         "Babric b1.7.3 with StationAPI", "fabric", "1.0.0-beta.7.3", STATIONAPI, "b1.7.3-stationapi"
     ),
-    Game("Forge 1.20.6", "forge", "1.20.6", {"forge": "50.1.0"}, "1.20.6-forge"),
-    Game("Forge 1.2.5", "modloader", "1.2.5", {}, "1.2.5-forge"),
+    Game("Forge 1.20.6", "forge", "1.20.6", {"forge": "50.1.0"}, "1.20.6-forge", asm=69),
+    Game("Forge 1.2.5", "fml125", "1.2.5", {}, "1.2.5-forge"),
     # Games grug does not support, where the jar has to load and do nothing.
-    Game("Babric b1.7.3 without StationAPI", "fabric", "1.0.0-beta.7.3", BABRIC, None),
+    Game(
+        "Babric b1.7.3 without StationAPI",
+        "fabric",
+        "1.0.0-beta.7.3",
+        BABRIC,
+        None,
+        smoke="babric-b1.7.3",
+    ),
     # Babric on a loader new enough for OSL, so only OSL's absence keeps the Ornithe layer out.
     Game(
         "Babric b1.7.3 on Fabric Loader 0.19.5",
@@ -598,41 +792,137 @@ GAMES = [
         None,
     ),
     Game("Fabric 1.21.1", "fabric", "1.21.1", {"fabricloader": "0.16.14"}, None),
-    Game("Forge 1.20.4", "forge", "1.20.4", {"forge": "49.2.0"}, None),
-    Game("Forge 1.21.1", "forge", "1.21.1", {"forge": "52.1.0"}, None),
-    Game("ModLoader b1.7.3", "modloader", "1.0.0-beta.7.3", {}, None),
+    Game("Forge 1.13.2", "forge", "1.13.2", {"forge": "25.0.223"}, None, asm=55),
+    # The oldest Forge with Mixin, on Java 8.
+    Game(
+        "Forge 1.16.5", "forge", "1.16.5", {"forge": "36.2.34"}, None, asm=66, smoke="forge-1.16.5"
+    ),
+    Game("Forge 1.20.1", "forge", "1.20.1", {"forge": "47.4.10"}, None, asm=69),
+    Game("NeoForge 1.20.1", "forge", "1.20.1", {"forge": "47.1.106"}, None, asm=65),
+    Game("Forge 1.20.4", "forge", "1.20.4", {"forge": "49.2.0"}, None, asm=69),
+    Game(
+        "Forge 1.21.1", "forge", "1.21.1", {"forge": "52.1.0"}, None, asm=69, smoke="forge-1.21.1"
+    ),
+    Game(
+        "NeoForge 20.4",
+        "neoforge-modstoml",
+        "1.20.4",
+        {"neoforge": "20.4.253"},
+        None,
+        asm=69,
+        smoke="neoforge-20.4",
+    ),
+    Game(
+        "NeoForge 21.1",
+        "neoforge",
+        "1.21.1",
+        {"neoforge": "21.1.264"},
+        None,
+        asm=69,
+        smoke="neoforge-21.1",
+    ),
+    Game(
+        "Forge 1.12.2",
+        "fml-asm5",
+        "1.12.2",
+        {"forge": "14.23.5.2859"},
+        None,
+        asm=52,
+        smoke="forge-1.12.2",
+    ),
+    Game("Forge 1.7.10", "fml-asm5", "1.7.10", {"forge": "10.13.4.1614"}, None, asm=52),
+    Game(
+        "Forge 1.6.4",
+        "fml-asm4",
+        "1.6.4",
+        {"forge": "9.11.1.1345"},
+        None,
+        asm=51,
+        smoke="forge-1.6.4",
+    ),
+    Game("Forge 1.4.7", "fml-asm4", "1.4.7", {"forge": "6.6.2.534"}, None, asm=51),
+    Game("ModLoader b1.7.3", "modloader", "1.0.0-beta.7.3", {}, None, smoke="modloader-b1.7.3"),
+    Game("ModLoader 1.2.5 without Forge", "modloader", "1.2.5", {}, None),
 ]
 
 # Games where the jar is known not to behave as GAMES expects, each with the issue that tracks it.
 # The check requires the outcome to stay exactly as recorded, so a fix fails it until its entry is
 # removed, and a new gap cannot hide behind an old one.
-KNOWN_GAPS = {
-    # mods.toml requires Minecraft [1.20.6,1.21), so Forge stops any other version's launch.
-    "Forge 1.20.4": ("breaks the launch", 493),
-    "Forge 1.21.1": ("breaks the launch", 493),
-    # ModLoader has no metadata to gate a mod by version, so mod_Grug loads on any of them.
-    "ModLoader b1.7.3": ("activates 1.2.5-forge", 493),
-}
+KNOWN_GAPS = {}
+
+
+def forge_family(jar, game, toml_name, annotation, starts_layers):
+    """What a Forge or NeoForge does with the jar once it has found toml_name at its root."""
+    root = jar.root
+    mods_toml = tomllib.loads(root.files[toml_name].decode())
+    present = {"minecraft": game.minecraft, **game.mods}
+    for dependencies in mods_toml.get("dependencies", {}).values():
+        for dependency in dependencies:
+            mandatory = dependency.get(
+                "mandatory", dependency.get("type", "required") == "required"
+            )
+            version = present.get(dependency["modId"])
+            if version is None:
+                if mandatory:
+                    return "breaks the launch"
+            # Forge 1.16.5 on also range-checks an optional dependency that is present.
+            elif not maven_range_matches(dependency.get("versionRange", "[0,)"), version):
+                return "breaks the launch"
+
+    readable = [n for n in root.classes() if class_version(root.files[n]) <= game.asm]
+    for mod in mods_toml.get("mods", []):
+        mod_id = mod["modId"].encode()
+        classes = [n for n in readable if annotation in root.files[n] and mod_id in root.files[n]]
+        if len(classes) != 1:  # none, or two mod classes for one id
+            return "breaks the launch"
+    subscribers = [n for n in readable if any(s in root.files[n] for s in FORGE_SUBSCRIBERS)]
+    if subscribers:
+        return "loads " + ", ".join(subscribers)
+    if not starts_layers:
+        return []
+    # GrugForgeLayers reads the game from FMLLoader.versionInfo(), which Forge has from 1.17 on.
+    if compare_semver(game.minecraft, "1.17") < 0:
+        return []
+    table = json.loads(root.files[FORGE_LAYERS_TABLE])
+    return sorted(loader for loader, entry in table.items() if entry["minecraft"] == game.minecraft)
 
 
 def activate(jar, game):
-    """The layers a game activates, or "breaks the launch" when its loader would stop."""
+    """The layers a game activates, or a description of what it does instead when that is not
+    loading and doing nothing: "breaks the launch", or which of the jar's classes it loads."""
+    root = jar.root
     if game.kind == "modloader":
-        return sorted(loader for loader in root_layers(jar) if LAYERS[loader].kind == "modloader")
-    if game.kind == "forge":
-        forge = sorted(loader for loader in root_layers(jar) if LAYERS[loader].kind == "forge")
-        if not forge:
+        mod_classes = [n for n in root.classes() if re.fullmatch(r"mod_[^/]*\.class", n)]
+        return "loads " + ", ".join(mod_classes) if mod_classes else []
+    if game.kind == "fml125":
+        mod_classes = [n for n in root.classes() if re.fullmatch(r"(.+/|)mod_[^\s$]+\.class", n)]
+        stray = [n for n in mod_classes if root_class_owner(n) in (None, "core")]
+        if stray:
+            return "loads " + ", ".join(stray)
+        return sorted({root_class_owner(n) for n in mod_classes})
+    if game.kind == "fml-asm5":
+        mod_types = read_manifest(root.files.get(MANIFEST, b"")).get("ModType", "FML")
+        return [] if "FML" not in mod_types.split(",") else "reads every class"
+    if game.kind == "fml-asm4":
+        # The first class it cannot read makes it ignore the jar, and it reads them in jar order.
+        first = next(iter(root.classes()), None)
+        if first is None or class_version(root.files[first]) > game.asm:
             return []
-        mods_toml = tomllib.loads(jar.root.files["META-INF/mods.toml"].decode())
-        present = {"minecraft": game.minecraft, **game.mods}
-        for dependencies in mods_toml.get("dependencies", {}).values():
-            for dependency in dependencies:
-                if not dependency.get("mandatory", dependency.get("type") == "required"):
-                    continue
-                version = present.get(dependency["modId"])
-                if version is None or not maven_range_matches(dependency["versionRange"], version):
-                    return "breaks the launch"
-        return forge
+        return f"reads {first}"
+    if game.kind == "forge":
+        if MODS_TOML not in root.files:
+            return "breaks the launch"
+        return forge_family(jar, game, MODS_TOML, FORGE_MOD, starts_layers=True)
+    if game.kind == "neoforge-modstoml":
+        if MODS_TOML not in root.files:
+            return "breaks the launch"
+        return forge_family(jar, game, MODS_TOML, NEOFORGE_MOD, starts_layers=False)
+    if game.kind == "neoforge":
+        if NEOFORGE_MODS_TOML in root.files:
+            return forge_family(jar, game, NEOFORGE_MODS_TOML, NEOFORGE_MOD, starts_layers=False)
+        if MODS_TOML in root.files or "fabric.mod.json" in root.files:
+            return "shows a warning screen"
+        return []
 
     present = {"minecraft": game.minecraft, **game.mods}
 
@@ -651,7 +941,7 @@ def activate(jar, game):
                 return False
         return True
 
-    outer = json.loads(jar.root.files["fabric.mod.json"])
+    outer = json.loads(root.files["fabric.mod.json"])
     if not satisfied(outer):  # the outer mod is in mods/, so an unmet dependency is an error
         return "breaks the launch"
     return sorted(
@@ -667,8 +957,34 @@ def describe(outcome):
     return "activates " + " and ".join(outcome) if outcome else "activates no layer"
 
 
-def check_dispatcher(jar, games=GAMES, known_gaps=KNOWN_GAPS):
+def check_smoke_games(games=GAMES):
+    """The smoke jobs boot one game per mechanism that the jar does not support (#493). A game that
+    gains a layer leaves them for the production jobs, and its mechanism needs another game."""
     problems = []
+    for game in games:
+        if game.kind not in MECHANISMS:
+            problems.append(f"{game.name} uses the mechanism {game.kind}, which MECHANISMS lacks")
+        if game.smoke and game.expect:
+            problems.append(
+                f"{game.name} is a smoke game, but the jar supports it; its production job covers "
+                f"it, so move the smoke recipe {game.smoke} to a {game.kind} game without a layer"
+            )
+    covered = {game.kind for game in games if game.smoke and not game.expect}
+    for kind in sorted(set(MECHANISMS) - set(SMOKE_EXEMPT) - covered):
+        problems.append(f"no smoke game covers the {kind} mechanism ({MECHANISMS[kind]})")
+    recipes = [game.smoke for game in games if game.smoke]
+    for recipe in sorted({r for r in recipes if recipes.count(r) > 1}):
+        problems.append(f"the smoke recipe {recipe} is on more than one game")
+    return problems
+
+
+def smoke_matrix(games=GAMES):
+    """The smoke jobs' GitHub Actions matrix, one entry per smoke game."""
+    return [{"game": game.name, "recipe": game.smoke} for game in games if game.smoke]
+
+
+def check_dispatcher(jar, games=GAMES, known_gaps=KNOWN_GAPS):
+    problems = check_smoke_games(games)
     for game in games:
         try:
             outcome = activate(jar, game)
@@ -701,6 +1017,7 @@ def check(path, repo=REPO_ROOT):
         lambda j: check_layers(j, loaders),
         lambda j: check_payload(j, mods),
         check_metadata,
+        lambda j: check_forge_family(j, repo),
         check_dispatcher,
     ):
         problems += run(jar)
@@ -720,7 +1037,12 @@ def main(argv=None):
     checking.add_argument(
         "--repo", default=REPO_ROOT, type=Path, help="the checkout to compare with"
     )
+    commands.add_parser("smoke-matrix", help="print the smoke jobs' matrix as JSON")
     args = parser.parse_args(argv)
+
+    if args.command == "smoke-matrix":
+        print(json.dumps(smoke_matrix()))
+        return 0
 
     if args.command == "assemble":
         try:

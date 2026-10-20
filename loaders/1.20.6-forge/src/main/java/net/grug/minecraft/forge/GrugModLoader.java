@@ -64,7 +64,6 @@ import net.minecraftforge.event.AddPackFindersEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
@@ -86,7 +85,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@Mod(GrugModLoader.MODID)
+/**
+ * The 1.20.6 Forge layer. Not a {@code @Mod} itself: the universal jar's one {@code @Mod} is core's
+ * {@code GrugForgeMod}, which constructs this class only on Minecraft 1.20.6 (#493). Every Forge
+ * from 1.20.1 on can read this Java 21 class, so an annotation here would make them load it on any
+ * version.
+ */
 public class GrugModLoader {
     public static final String MODID = "grug";
     public static final Logger LOGGER = LogUtils.getLogger();
@@ -255,6 +259,13 @@ public class GrugModLoader {
         modEventBus.addListener(this::onAddPackFinders);
 
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(this);
+
+        // Registered here rather than through an event bus subscriber annotation, which Forge would
+        // act on in any version that scans this class, not only the one this layer targets.
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            modEventBus.register(ClientModEvents.class);
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(ClientForgeEvents.class);
+        }
     }
 
     public static File getActiveGrugModsDir() {
@@ -413,10 +424,7 @@ public class GrugModLoader {
         }
     }
 
-    @Mod.EventBusSubscriber(
-            modid = MODID,
-            bus = Mod.EventBusSubscriber.Bus.MOD,
-            value = Dist.CLIENT)
+    /** Mod bus events of the client, registered by the constructor. */
     public static class ClientModEvents {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
@@ -478,10 +486,7 @@ public class GrugModLoader {
         }
     }
 
-    @Mod.EventBusSubscriber(
-            modid = MODID,
-            bus = Mod.EventBusSubscriber.Bus.FORGE,
-            value = Dist.CLIENT)
+    /** Forge bus events of the client, registered by the constructor. */
     public static class ClientForgeEvents {
 
         private static boolean grug$titleSet = false;

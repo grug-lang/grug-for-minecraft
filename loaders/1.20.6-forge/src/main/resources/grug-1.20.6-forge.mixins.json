@@ -2,16 +2,18 @@
     "required": true,
     "minVersion": "0.8",
     "package": "net.grug.minecraft.forge.mixin",
-    "compatibilityLevel": "JAVA_17",
-    "client": [
-        "FogRendererMixin",
-        "GuiMixin",
-        "LightTextureMixin",
-        "LiquidBlockRendererMixin",
-        "ModelBlockRendererMixin",
-        "SectionBufferBuilderPoolMixin"
-    ],
+    "plugin": "net.grug.minecraft.bootstrap.GrugMixinPlugin",
     "injectors": {
         "defaultRequire": 1
+    },
+    "grug": {
+        "client": [
+            "FogRendererMixin",
+            "GuiMixin",
+            "LightTextureMixin",
+            "LiquidBlockRendererMixin",
+            "ModelBlockRendererMixin",
+            "SectionBufferBuilderPoolMixin"
+        ]
     }
 }
