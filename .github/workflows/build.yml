@@ -204,7 +204,7 @@ jobs:
     name: ${{ matrix.dir }}
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -386,6 +386,18 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # The same suite again, in a game installed the way a player installs one, with the jar a player
+      # would download as its only grug: no repository mods, no GRUG_MODS_DIR and no development
+      # classpath. It runs after the coverage uploads, so the development run's coverage data is
+      # already safe whatever happens here. See #487.
+      - name: Run tests in an installed game (${{ matrix.dir }})
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" production
+        env:
+          GRUG_JAVA8: ${{ steps.java8.outputs.path }}
+          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
+          # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
+          GRUG_CI_RUN_TIMEOUT: '900'
+
       - name: Upload logs and crash reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -396,6 +408,10 @@ jobs:
             loaders/${{ matrix.dir }}/run/crash-reports
             loaders/${{ matrix.dir }}/run/ci-run-loader.log
             loaders/${{ matrix.dir }}/run/hs_err_pid*.log
+            loaders/${{ matrix.dir }}/build/ci-production.log
+            loaders/${{ matrix.dir }}/build/production-game/logs
+            loaders/${{ matrix.dir }}/build/production-game/crash-reports
+            loaders/${{ matrix.dir }}/build/production-game/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -407,7 +423,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: loader-${{ matrix.dir }}-screenshots
-          path: loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
+          path: |
+            loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
+            loaders/${{ matrix.dir }}/build/production-game/grug-screenshot-artifacts
           if-no-files-found: ignore
           retention-days: 7
 

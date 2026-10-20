@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# scripts/ci/run-loader.sh <loader-dir-name> <build|run>
+# scripts/ci/run-loader.sh <loader-dir-name> <build|run|update-goldens|production>
+#
+# production runs the same tests in an installed game instead of the development run: it builds the
+# loader's productionJar and hands it to launch-production.sh, which installs the game and mod loader
+# the way a player's launcher does and runs it with that jar alone.
 
 set -uo pipefail
 
-if [ "$#" -ne 2 ] || { [ "$2" != build ] && [ "$2" != run ] && [ "$2" != update-goldens ]; }; then
-  echo "Usage: $0 <loader-dir-name> <build|run|update-goldens>" >&2
+if [ "$#" -ne 2 ] || { [ "$2" != build ] && [ "$2" != run ] && [ "$2" != update-goldens ] && [ "$2" != production ]; }; then
+  echo "Usage: $0 <loader-dir-name> <build|run|update-goldens|production>" >&2
   exit 2
 fi
 LOADER="$1"
@@ -40,6 +44,16 @@ fi
 
 mkdir -p "${LOADER_DIR}/run"
 LOG_FILE="${REPO_ROOT}/${LOADER_DIR}/run/ci-run-loader.log"
+
+# The game directory: the loader's run/ for a development run, and for a production run a fresh one
+# under build/ that holds nothing but what an installed game would.
+GAME_DIR="${REPO_ROOT}/${LOADER_DIR}/run"
+if [ "$PHASE" = production ]; then
+  GAME_DIR="${REPO_ROOT}/${LOADER_DIR}/build/production-game"
+  LOG_FILE="${REPO_ROOT}/${LOADER_DIR}/build/ci-production.log"
+  rm -rf "$GAME_DIR"
+  mkdir -p "$GAME_DIR"
+fi
 
 # Exporting as an environment variable ensures it safely passes to the forked Minecraft JVM
 export GRUG_CI=true
@@ -80,6 +94,17 @@ if [ "$PHASE" = build ]; then
   exit
 fi
 
+# Every loader's productionJar task writes the jar a player installs to the same path.
+PRODUCTION_JAR="${REPO_ROOT}/${LOADER_DIR}/build/production/grug-${LOADER}.jar"
+if [ "$PHASE" = production ]; then
+  echo "==> Building the production jar of $LOADER"
+  ./gradlew "${task_prefix}productionJar" "${gradle_args[@]}" || exit 1
+  if [ ! -f "$PRODUCTION_JAR" ]; then
+    echo "==> ERROR: productionJar did not write $PRODUCTION_JAR." >&2
+    exit 1
+  fi
+fi
+
 EXPECTED_TESTS=$(find "${REPO_ROOT}/mods" -name "*-Test.grug" | wc -l | tr -d ' ')
 SUCCESS_MSG="[GRUG CI] ALL ${EXPECTED_TESTS} TESTS PASSED"
 BOOT_MSG="[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL"
@@ -101,10 +126,10 @@ if [ "$PHASE" != build ]; then
   # Replace the run's saves with a pristine copy every launch. The game autosaves into run/, so
   # reusing the directory lets the world and the player's health/position drift between runs; a
   # mutated world is what made the screenshot test flaky.
-  echo "==> Replacing ${LOADER_DIR}/run/saves with a fresh copy of test-saves/${SAVE_ZIP}"
-  rm -rf "${REPO_ROOT}/${LOADER_DIR}/run/saves"
-  mkdir -p "${REPO_ROOT}/${LOADER_DIR}/run/saves/"
-  unzip -q -o "${REPO_ROOT}/test-saves/${SAVE_ZIP}" -d "${REPO_ROOT}/${LOADER_DIR}/run/saves/"
+  echo "==> Replacing ${GAME_DIR#"${REPO_ROOT}/"}/saves with a fresh copy of test-saves/${SAVE_ZIP}"
+  rm -rf "${GAME_DIR}/saves"
+  mkdir -p "${GAME_DIR}/saves/"
+  unzip -q -o "${REPO_ROOT}/test-saves/${SAVE_ZIP}" -d "${GAME_DIR}/saves/"
 fi
 
 # Forge's early load window is cosmetic and can only hurt a headless CI run: it creates its GL window
@@ -115,7 +140,7 @@ fi
 # write it here before the game reads it. earlyWindowControl=false makes Forge use its DummyProvider,
 # which just means there is no loading screen.
 if [ "$PHASE" != build ] && grep -q "net.minecraftforge.gradle" "${LOADER_DIR}/build.gradle" 2>/dev/null; then
-  FML_CONFIG="${REPO_ROOT}/${LOADER_DIR}/run/config/fml.toml"
+  FML_CONFIG="${GAME_DIR}/config/fml.toml"
   mkdir -p "$(dirname "$FML_CONFIG")"
   if [ -f "$FML_CONFIG" ] && grep -q "^earlyWindowControl" "$FML_CONFIG"; then
     sed -i 's/^earlyWindowControl.*/earlyWindowControl = false/' "$FML_CONFIG"
@@ -158,7 +183,11 @@ tail -f "$LOG_FILE" &
 tail_pid=$!
 
 # setsid gives the launch its own process group so cleanup can kill Gradle and the game together.
-setsid ./gradlew "${task_prefix}runClient" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
+if [ "$PHASE" = production ]; then
+  setsid "${REPO_ROOT}/.github/scripts/launch-production.sh" "$LOADER" "$GAME_DIR" "$PRODUCTION_JAR" >"$LOG_FILE" 2>&1 &
+else
+  setsid ./gradlew "${task_prefix}runClient" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
+fi
 gradle_pid=$!
 
 status=timeout

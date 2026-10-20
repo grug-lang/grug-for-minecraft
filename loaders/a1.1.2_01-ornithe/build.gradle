@@ -77,6 +77,10 @@ dependencies {
     mappings ploceus.featherMappings(project.feather_build)
 
     ploceus.dependOsl(project.osl_version)
+    // OSL is a set of mods the game needs at runtime, so the jar a player installs nests every module
+    // this version uses, and nobody has to install OSL beside it. Fabric Loader keeps the newer copy
+    // when a player has OSL installed as well.
+    ploceus.dependOsl('include', project.osl_version)
 }
 
 tasks.withType(ProcessResources) {
