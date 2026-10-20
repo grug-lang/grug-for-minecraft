@@ -995,10 +995,25 @@ def describe(outcome):
     return "activates " + " and ".join(outcome) if outcome else "activates no layer"
 
 
-def check_smoke_games(games=GAMES):
+SMOKE_SCRIPT = REPO_ROOT / ".github" / "scripts" / "smoke-launch.sh"
+
+
+def smoke_recipes(script):
+    """The recipes smoke-launch.sh can launch: the case labels of its launch function."""
+    body = re.search(r"^launch\(\) \{\n(.*?)^\}", script.read_text(), re.M | re.S)
+    return set(re.findall(r"^    ([a-z0-9.-]+)\)", body.group(1), re.M)) if body else set()
+
+
+def check_smoke_games(games=GAMES, script=SMOKE_SCRIPT):
     """The smoke jobs boot one game per mechanism that the jar does not support (#493). A game that
     gains a layer leaves them for the production jobs, and its mechanism needs another game."""
     problems = []
+    recipes = smoke_recipes(script)
+    named = {game.smoke for game in games if game.smoke}
+    for recipe in sorted(named - recipes):
+        problems.append(f"GAMES names the smoke recipe {recipe}, which {script.name} lacks")
+    for recipe in sorted(recipes - named):
+        problems.append(f"{script.name} has the recipe {recipe}, which no game in GAMES names")
     for game in games:
         if game.kind not in MECHANISMS:
             problems.append(f"{game.name} uses the mechanism {game.kind}, which MECHANISMS lacks")

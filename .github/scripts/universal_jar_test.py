@@ -848,6 +848,20 @@ class SmokeTest(unittest.TestCase):
     def game(self, name, kind="forge", expect=None, smoke=None):
         return universal_jar.Game(name, kind, "1.0", {}, expect, smoke=smoke)
 
+    def script(self, *recipes):
+        """A miniature smoke-launch.sh whose launch function has these recipes."""
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        cases = "".join(f"    {recipe}) start {recipe} ;;\n" for recipe in recipes)
+        path = Path(directory.name) / "smoke-launch.sh"
+        path.write_text(f'launch() {{\n  case "$1" in\n{cases}  esac\n}}\n')
+        return path
+
+    def check(self, games):
+        return universal_jar.check_smoke_games(
+            games, self.script(*{g.smoke for g in games if g.smoke})
+        )
+
     def covered(self):
         return [
             self.game(kind, kind, smoke=kind)
@@ -857,11 +871,11 @@ class SmokeTest(unittest.TestCase):
 
     def test_the_shipped_games_cover_every_mechanism(self):
         self.assertEqual(universal_jar.check_smoke_games(), [])
-        self.assertEqual(universal_jar.check_smoke_games(self.covered()), [])
+        self.assertEqual(self.check(self.covered()), [])
 
     def test_a_smoke_game_that_gained_a_layer(self):
         games = self.covered() + [self.game("Forge 1.21.1", expect="1.21.1-forge", smoke="f")]
-        problems = universal_jar.check_smoke_games(games)
+        problems = self.check(games)
         self.assertTrue(
             any("Forge 1.21.1 is a smoke game, but the jar supports it" in p for p in problems)
         )
@@ -869,7 +883,7 @@ class SmokeTest(unittest.TestCase):
     def test_a_mechanism_left_without_a_smoke_game(self):
         games = [g for g in self.covered() if g.kind != "neoforge"]
         self.assertEqual(
-            universal_jar.check_smoke_games(games),
+            self.check(games),
             [
                 f"no smoke game covers the neoforge mechanism ({universal_jar.MECHANISMS['neoforge']})"
             ],
@@ -877,9 +891,20 @@ class SmokeTest(unittest.TestCase):
 
     def test_a_recipe_on_two_games_and_an_unknown_mechanism(self):
         games = self.covered() + [self.game("A", smoke="forge"), self.game("B", kind="rift")]
-        problems = universal_jar.check_smoke_games(games)
+        problems = self.check(games)
         self.assertIn("the smoke recipe forge is on more than one game", problems)
         self.assertIn("B uses the mechanism rift, which MECHANISMS lacks", problems)
+
+    def test_a_recipe_the_script_lacks_and_one_no_game_names(self):
+        games = self.covered()
+        script = self.script(*[g.smoke for g in games[1:]], "forge-1.21.4")
+        problems = universal_jar.check_smoke_games(games, script)
+        self.assertIn(
+            f"GAMES names the smoke recipe {games[0].smoke}, which smoke-launch.sh lacks", problems
+        )
+        self.assertIn(
+            "smoke-launch.sh has the recipe forge-1.21.4, which no game in GAMES names", problems
+        )
 
     def test_the_matrix(self):
         matrix = universal_jar.smoke_matrix()
