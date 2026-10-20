@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version to release, for example v0.1.0; the release creates this tag at the dispatched commit'
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+# Two releases never run at once, and a running one is never cancelled halfway through publishing.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Attaches the universal jar that build.yml already assembled and tested on this commit. It never
+  # builds the jar again: a rebuild would ship bytes that no production or smoke job launched.
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EVENT: ${{ github.event_name }}
+      INPUT_TAG: ${{ inputs.tag }}
+      REF_NAME: ${{ github.ref_name }}
+      SHA: ${{ github.sha }}
+    steps:
+      # A tag push names its own version. A dispatch names one in its input, which has to look like a
+      # version and must not collide with a tag or a release that already exists.
+      - name: Resolve the tag
+        id: tag
+        run: |
+          if [ "$EVENT" = push ]; then
+            tag="$REF_NAME"
+          else
+            tag="$INPUT_TAG"
+          fi
+          if ! [[ "$tag" =~ ^v[0-9] ]]; then
+            echo "==> ERROR: the tag '$tag' must match ^v[0-9], for example v0.1.0"
+            exit 1
+          fi
+          if [ "$EVENT" != push ]; then
+            if gh api "repos/${{ github.repository }}/git/ref/tags/$tag" >/dev/null 2>&1; then
+              echo "==> ERROR: the tag '$tag' already exists"
+              exit 1
+            fi
+            if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+              echo "==> ERROR: a release for '$tag' already exists"
+              exit 1
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history, so the next step can tell whether the commit is on main.
+          fetch-depth: 0
+
+      - name: Require the commit to be on main
+        run: |
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "==> ERROR: commit $SHA is not on main; release only from a commit that main contains"
+            exit 1
+          fi
+
+      # The newest push-to-main run of build.yml on this exact commit decides. Its success means every
+      # production and smoke job passed on the jar that same run assembled.
+      - name: Find the commit's successful Build run
+        id: build
+        run: |
+          run=$(gh api "repos/${{ github.repository }}/actions/workflows/build.yml/runs?head_sha=$SHA&event=push&branch=main" \
+            --jq '.workflow_runs | sort_by(.created_at) | last // empty | [.id, .conclusion] | @tsv')
+          if [ -z "$run" ]; then
+            echo "==> ERROR: no Build run on main exists for commit $SHA"
+            exit 1
+          fi
+          id=$(cut -f1 <<<"$run")
+          conclusion=$(cut -f2 <<<"$run")
+          if [ "$conclusion" != success ]; then
+            echo "==> ERROR: the newest Build run ($id) for commit $SHA concluded '$conclusion', not 'success'"
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      # Artifacts expire. An expired one cannot be recovered, only produced again by a rerun.
+      - name: Download the tested universal jar
+        env:
+          RUN_ID: ${{ steps.build.outputs.id }}
+        run: |
+          if ! gh run download "$RUN_ID" --repo "${{ github.repository }}" --name grug-universal --dir universal; then
+            echo "==> ERROR: the grug-universal artifact of Build run $RUN_ID is missing or has expired; rerun it with 'gh run rerun $RUN_ID' to produce a fresh one, then release again"
+            exit 1
+          fi
+
+      - name: Check the universal jar's invariants
+        run: python3 .github/scripts/universal_jar.py check universal/grug.jar
+
+      - name: Publish the release
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          jar="grug-${TAG#v}.jar"
+          mv universal/grug.jar "$jar"
+          args=()
+          # A tag push already created the tag, so insist that it is the one we release.
+          if [ "$EVENT" = push ]; then
+            args+=(--verify-tag)
+          fi
+          gh release create "$TAG" "$jar" --repo "${{ github.repository }}" --target "$SHA" --title "$TAG" --generate-notes "${args[@]}"
