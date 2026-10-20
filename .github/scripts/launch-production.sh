@@ -64,9 +64,10 @@ install_profile() {
   curl --fail --silent --show-error --location "$url" -o "${MAIN_DIR}/versions/${id}/${id}.json"
 }
 
-# Mojang's profiles for Alpha and Beta boot through launchwrapper, which brings ASM 4. Fabric Loader
-# refuses to start beside a second ASM, and the instance components Ornithe and Babric install for a
-# player drop both libraries, so their launches here do too.
+# The game profiles for Alpha and Beta, Mojang's and Ornithe's alike, boot through launchwrapper,
+# which brings an old ASM. Fabric Loader refuses to start beside a second ASM, and the instance
+# components Ornithe and Babric install for a player drop both libraries, so their launches here do
+# too.
 LEGACY_LIBRARIES=(--exclude-lib 'net.minecraft:launchwrapper:*' --exclude-lib 'org.ow2.asm:asm-all:*')
 
 # Mojang's profiles also ask for Java 8 there, and grug's Alpha and Beta loaders need Java 17, as
@@ -92,32 +93,62 @@ case "$LOADER" in
     curl --fail --silent --show-error --location \
       "https://maven.glass-launcher.net/releases/net/modificationstation/StationAPI/${stationapi}/StationAPI-${stationapi}.jar" \
       -o "${GAME_DIR}/mods/StationAPI-${stationapi}.jar"
+    # Babric's own profile carries LWJGL 2.9.4-babric.1, whose Linux natives link against a libjawt
+    # symbol version only Java 8 has, while StationAPI needs Java 17. Babric's recommended install,
+    # its Prism instance (github.com/babric/prism-instance), swaps in Legacy Fabric's LWJGL build,
+    # which loads on any Java, so this launch does too.
+    lwjgl="2.9.4+legacyfabric.17"
+    lwjgl_dir="${CACHE_DIR}/lwjgl-${lwjgl}"
+    lwjgl_maven="https://maven.legacyfabric.net/org/lwjgl/lwjgl"
+    mkdir -p "$lwjgl_dir"
+    for file in "lwjgl/${lwjgl}/lwjgl-${lwjgl}.jar" "lwjgl_util/${lwjgl}/lwjgl_util-${lwjgl}.jar" \
+      "lwjgl-platform/${lwjgl}/lwjgl-platform-${lwjgl}-natives-linux.jar"; do
+      [ -f "${lwjgl_dir}/${file##*/}" ] \
+        || curl --fail --silent --show-error --location "${lwjgl_maven}/${file}" -o "${lwjgl_dir}/${file##*/}"
+    done
     portablemc --version >/dev/null
-    start "${LEGACY_LIBRARIES[@]}" "babric::$(property loader_version)"
+    start "${LEGACY_LIBRARIES[@]}" --exclude-lib 'org.lwjgl.lwjgl:*:*' \
+      --include-class "${lwjgl_dir}/lwjgl-${lwjgl}.jar" \
+      --include-class "${lwjgl_dir}/lwjgl_util-${lwjgl}.jar" \
+      --include-natives "${lwjgl_dir}/lwjgl-platform-${lwjgl}-natives-linux.jar" \
+      "babric::$(property loader_version)"
     ;;
 
   a1.1.2_01-ornithe | b1.7.3-ornithe)
-    # What Ornithe's installer writes: its loader profile, which inherits from a copy of Mojang's
-    # own version under a "-vanilla" name.
+    # What Ornithe's installer (github.com/OrnitheMC/ornithe-installer-rs, src/actions/client.rs)
+    # writes: the game's profile from Ornithe's own manifest, which swaps Mojang's LWJGL for one that
+    # loads on any Java, under a "-gen2" name; and Ornithe's loader profile, inheriting from it, with
+    # the libraries Ornithe adds to every instance (log4j, gson and others) appended.
     game="$(property minecraft_version)"
     loader="$(property loader_version)"
-    manifest="https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
-    vanilla_url=$(curl --fail --silent --show-error "$manifest" \
+    vanilla="${game}-gen2"
+    vanilla_url=$(curl --fail --silent --show-error "https://ornithemc.net/mc-versions/gen2/version_manifest.json" \
       | python3 -c "import json, sys; print(next(v['url'] for v in json.load(sys.stdin)['versions'] if v['id'] == sys.argv[1]))" "$game")
-    install_profile "${game}-vanilla" "$vanilla_url"
-    python3 - "${MAIN_DIR}/versions/${game}-vanilla/${game}-vanilla.json" "${game}-vanilla" <<'EOF'
-import json, sys
-path, new_id = sys.argv[1], sys.argv[2]
-with open(path) as f:
-    version = json.load(f)
-version["id"] = new_id
-with open(path, "w") as f:
-    json.dump(version, f)
-EOF
+    install_profile "$vanilla" "$vanilla_url"
     profile="fabric-loader-${loader}-${game}-ornithe-gen2"
     install_profile "$profile" "https://meta.ornithemc.net/v3/versions/gen2/fabric-loader/${game}/${loader}/profile/json"
+    curl --fail --silent --show-error "https://meta.ornithemc.net/v3/versions/gen2/libraries/${game}" \
+      -o "${MAIN_DIR}/versions/${profile}/libraries.json"
+    python3 - "${MAIN_DIR}/versions" "$vanilla" "$profile" <<'EOF'
+import json, os, sys
+versions, vanilla, profile = sys.argv[1:]
+def rewrite(name, change):
+    path = os.path.join(versions, name, name + ".json")
+    with open(path) as f:
+        version = json.load(f)
+    change(version)
+    with open(path, "w") as f:
+        json.dump(version, f)
+rewrite(vanilla, lambda version: version.update(id=vanilla))
+with open(os.path.join(versions, profile, "libraries.json")) as f:
+    upgrades = json.load(f)
+def loader_profile(version):
+    version["inheritsFrom"] = vanilla
+    version["libraries"] += upgrades
+rewrite(profile, loader_profile)
+EOF
     portablemc --version >/dev/null
-    start "${LEGACY_LIBRARIES[@]}" "$profile"
+    start "${LEGACY_LIBRARIES[@]}" --exclude-lib 'org.ow2.asm:*:7.0' "$profile"
     ;;
 
   1.2.5-forge)
