@@ -152,7 +152,9 @@ if [ "$PHASE" != build ] && grep -q "net.minecraftforge.gradle" "${LOADER_DIR}/b
 fi
 
 timeout_secs="${GRUG_CI_RUN_TIMEOUT:-120}"
-crash_re='Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to'
+# Fabric Loader runs the Alpha and Beta init entrypoints on the applet's AWT thread, so a mod that
+# fails there leaves the game thread waiting rather than crashing it.
+crash_re='Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to|Could not execute entrypoint stage'
 # A Rust panic in grug-rs, which aborts the process rather than failing a test. Every Rust panic
 # location ends in .rs:<line>:<col>, so match that rather than the bare words. See
 # report-native-abort.sh for why that is worth its own status.
