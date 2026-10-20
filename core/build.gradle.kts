@@ -5,6 +5,7 @@ plugins {
     id("java-library")
     id("maven-publish")
     id("jacoco")
+    id("com.gradleup.shadow") version "8.3.9"
 }
 
 group = providers.gradleProperty("maven_group").get()
@@ -35,7 +36,6 @@ dependencies {
     compileOnly("org.projectlombok:lombok:1.18.48")
     annotationProcessor("org.projectlombok:lombok:1.18.48")
     implementation("org.jetbrains:annotations:26.1.0")
-    implementation("com.google.guava:guava:33.7.2-jre")
     implementation("com.google.code.gson:gson:2.14.0")
 
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
@@ -267,19 +267,64 @@ tasks.named<JavaCompile>("compileJava") {
     options.release.set(8)
 }
 
+// The list of bundled mod files GrugModsExtractor copies on a first run. It reads them by resource
+// name rather than walking the jar, because a jar nested inside another one is not a directory it
+// can walk on every loader.
+val bundledModsIndexDir = layout.buildDirectory.dir("generated/bundled-mods-index")
+
+val generateBundledModsIndex = tasks.register("generateBundledModsIndex") {
+    val modsDir = rootProject.file("mods")
+    inputs.dir(modsDir)
+    outputs.dir(bundledModsIndexDir)
+
+    doLast {
+        val paths = modsDir.walkTopDown()
+            .filter { it.isFile }
+            .map { it.relativeTo(modsDir).invariantSeparatorsPath }
+            .sorted()
+            .toList()
+        val index = bundledModsIndexDir.get().file("grug_bundled_mods.txt").asFile
+        index.parentFile.mkdirs()
+        index.writeText(paths.joinToString("\n", postfix = "\n"))
+    }
+}
+
 tasks.named<ProcessResources>("processResources") {
     dependsOn(buildGrugAdapter)
-    
+
     from(rootProject.file("mods")) {
         into("mods")
     }
+    from(generateBundledModsIndex)
     from(rootProject.file("mod_api.json"))
+}
+
+// The core a player's game runs: gson inside it, relocated. Alpha, Beta and 1.2.5 ship no gson, so it
+// has to come with grug, and it has to be relocated because 1.20.6 Forge already has gson as a module
+// of its own, and a mod jar that holds the same package fails to load there. The development runs
+// keep the plain jar, so JaCoCo still matches their coverage against core's compiled classes.
+tasks.shadowJar {
+    archiveClassifier.set("release")
+    configurations = listOf(project.configurations.runtimeClasspath.get())
+    dependencies {
+        exclude(dependency("org.jetbrains:annotations"))
+        exclude(dependency("com.google.errorprone:error_prone_annotations"))
+    }
+    relocate("com.google.gson", "net.grug.minecraft.shadow.gson")
+    // A module descriptor would make 1.20.6 Forge load the jar as a named module of its own.
+    exclude(
+        "module-info.class",
+        "META-INF/versions/*/module-info.class",
+        "META-INF/maven/**",
+        "META-INF/proguard/**",
+    )
 }
 
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
             from(components["java"])
+            artifact(tasks.shadowJar)
 
             artifactId = "grug-core"
         }

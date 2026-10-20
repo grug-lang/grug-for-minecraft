@@ -68,7 +68,8 @@ repositories {
 
 dependencies {
     implementation("net.grug:grug-core:$grugCoreVersion")
-    include("net.grug:grug-core:$grugCoreVersion")
+    // The release jar, with gson relocated inside it. See productionJar.
+    include("net.grug:grug-core:$grugCoreVersion:release")
 
     minecraft("com.mojang:minecraft:b1.7.3")
     mappings("net.glasslauncher:biny:${project.properties["yarn_mappings"]}:v2")
@@ -114,4 +115,13 @@ tasks.withType<Jar> {
     from("../../LICENSE") { // Updated path assuming root contains LICENSE
         rename { "${it}_${project.properties["archivesBaseName"]}" }
     }
+}
+
+// The jar a player installs, which nests core's release jar with gson relocated inside it, so grug
+// never shares gson with StationAPI or any other mod. Copied to build/production/ so every loader's
+// production jar is found at the same path.
+tasks.register<Copy>("productionJar") {
+    from(tasks.named("remapJar"))
+    into(layout.buildDirectory.dir("production"))
+    rename { "grug-${project.projectDir.name}.jar" }
 }

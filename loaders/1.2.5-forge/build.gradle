@@ -94,6 +94,10 @@ configurations {
     runtimeLibs
     // LWJGL 2 / JInput Linux natives for -Djava.library.path.
     natives
+    // Core's release jar, with gson relocated inside it, for productionJar.
+    coreRelease {
+        transitive = false
+    }
 }
 
 dependencies {
@@ -136,6 +140,8 @@ dependencies {
     runtimeLibs 'org.jetbrains:annotations:26.1.0'
 
     natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.3:natives-linux'
+
+    coreRelease "net.grug:grug-core:$grugCoreVersion:release"
     natives 'net.java.jinput:jinput:2.0.10:natives-all'
 }
 
@@ -274,6 +280,21 @@ tasks.register('reobfJar', Exec) {
             '--out-jar', finalJar.absolutePath,
             '--srg-in', reobfSrgFile.absolutePath
     }
+}
+
+// The jar a player installs. ModLoader loads a mod from mods/ with no dependency mechanism, so core,
+// the native, mod_api.json and the bundled mods are flattened into it from core's release jar, which
+// also carries gson, relocated: 1.2.5 ships none. Core holds no Minecraft references, so it is merged
+// in after reobfuscation rather than run through it.
+tasks.register('productionJar', Zip) {
+    dependsOn 'reobfJar'
+    from(zipTree(finalJar))
+    from({ zipTree(configurations.coreRelease.singleFile) }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    archiveFileName = "grug-${projectDirFile.name}.jar"
+    destinationDirectory = new File(buildDirFile, 'production')
 }
 
 tasks.named('assemble') {

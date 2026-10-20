@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
+import net.grug.minecraft.grug.GrugModsDirectory;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
@@ -20,10 +21,6 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderBlocks;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -68,23 +65,11 @@ public class mod_Grug extends BaseMod {
     public void load() {
         LOGGER.info("Successfully loaded grug (Forge 1.2.5)!");
 
+        // ModLoader has no development environment: a dev run points GRUG_MODS_DIR at the
+        // repository's mods instead, which runClient does.
         File gameDir = ModLoader.getMinecraftInstance().mcDataDir;
-        File runGrugDir = new File(gameDir, "grug_mods");
-        if (!runGrugDir.exists()) {
-            runGrugDir.mkdirs();
-        }
-
-        File modApiJson = new File(runGrugDir, "mod_api.json");
-        activeGrugDir = getActiveGrugModsDir(runGrugDir);
-
-        try (InputStream in = mod_Grug.class.getResourceAsStream("/mod_api.json")) {
-            if (in == null) {
-                throw Grug.fatal("/mod_api.json is missing from the grug jar");
-            }
-            Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            throw Grug.fatal("Failed to copy mod_api.json", e);
-        }
+        activeGrugDir = GrugModsDirectory.prepare(gameDir, false);
+        File modApiJson = GrugModsDirectory.modApiJson(gameDir);
 
         GrugCore.initialize(new Grug125Adapter(), modApiJson, activeGrugDir);
 
@@ -174,18 +159,7 @@ public class mod_Grug extends BaseMod {
      * The directory grug loads mods from. A reference run points this elsewhere so the port is not
      * loaded alongside the mod it recreates; a dev run points at the repository's {@code mods/}.
      */
-    public static File getActiveGrugModsDir(File runGrugDir) {
-        String override = System.getProperty("grug.mods.dir");
-        if (override == null) {
-            override = System.getenv("GRUG_MODS_DIR");
-        }
-        if (override != null && !override.isEmpty()) {
-            File dir = new File(override);
-            if (!dir.isDirectory()) {
-                throw Grug.fatal("Broken grug invariant: GRUG_MODS_DIR is not a directory: " + dir);
-            }
-            return dir;
-        }
-        return runGrugDir;
+    public static File getActiveGrugModsDir() {
+        return GrugModsDirectory.resolve(ModLoader.getMinecraftInstance().mcDataDir, false);
     }
 }
