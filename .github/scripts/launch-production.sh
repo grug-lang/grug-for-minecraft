@@ -103,8 +103,12 @@ case "$LOADER" in
     mkdir -p "$lwjgl_dir"
     for file in "lwjgl/${lwjgl}/lwjgl-${lwjgl}.jar" "lwjgl_util/${lwjgl}/lwjgl_util-${lwjgl}.jar" \
       "lwjgl-platform/${lwjgl}/lwjgl-platform-${lwjgl}-natives-linux.jar"; do
-      [ -f "${lwjgl_dir}/${file##*/}" ] \
-        || curl --fail --silent --show-error --location "${lwjgl_maven}/${file}" -o "${lwjgl_dir}/${file##*/}"
+      jar="${lwjgl_dir}/${file##*/}"
+      # The cache outlives the run, so a download cut off halfway must not land under the jar's name.
+      if [ ! -f "$jar" ]; then
+        curl --fail --silent --show-error --location "${lwjgl_maven}/${file}" -o "${jar}.part"
+        mv "${jar}.part" "$jar"
+      fi
     done
     portablemc --version >/dev/null
     start "${LEGACY_LIBRARIES[@]}" --jvm "$STATIONAPI_JAVA" --exclude-lib 'org.lwjgl.lwjgl:*:*' \
