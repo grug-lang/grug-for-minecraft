@@ -2,14 +2,18 @@
 # .github/scripts/smoke-launch.sh <recipe> <jar> <work-dir>
 #
 # Boots a game grug has no layer for with <jar> as its only mod, installed the way a player's
-# launcher installs it, and requires it to reach the title screen with grug inactive (#493). Each
-# recipe is named by a game in universal_jar.py's GAMES, which picks one game per mechanism a mod
-# loader reads the jar by, and is listed by `universal_jar.py smoke-matrix`.
+# launcher installs it, and requires what #493 promises there. Each recipe is named by a game in
+# universal_jar.py's GAMES, which picks one game per mechanism a mod loader reads the jar by, and is
+# listed by `universal_jar.py smoke-matrix`.
 #
-# grug's own boot marker cannot be the signal, since grug must not start, so each recipe waits on a
-# line its game or loader logs once loading is over. From then on the log has to go quiet with the
-# game still running, and the run fails on a crash, a crash report, a loader complaint about the
-# jar, or any sign that grug started. The screen is captured at the end for a person to look at.
+# Where grug's code runs (Forge, NeoForge and the Fabric family), the game has to stop with grug's
+# own error, "grug has no layer for ...", through its loader's error path: not with another error
+# first, and without grug starting. Where it does not (legacy FML and ModLoader), the game has to
+# load to its first screen with grug inactive: grug's boot marker cannot be the signal there, so
+# the recipe waits on a line its game or loader logs once loading is over, then for the log to go
+# quiet with the game still running, and fails on a crash, a crash report, a loader complaint about
+# the jar, or any sign that grug started. Either way the screen is captured at the end for a person
+# to look at.
 #
 # <work-dir> receives game/ (the game directory), launch.log and title.png.
 
@@ -105,35 +109,29 @@ WORK="$(cd "$WORK" && pwd)"
 GAME_DIR="${WORK}/game"
 LOG="${WORK}/launch.log"
 
-# READY is the line that says loading is over, read from READY_FILE (the launch log unless the
-# loader keeps a log of its own). COMPLAINTS are its loader's words for a jar it refuses, skips or
-# warns about, which must not appear.
+# EXPECT is error or inert. For an inert game, READY is the line that says loading is over, read
+# from READY_FILE (the launch log unless the loader keeps a log of its own), and COMPLAINTS are its
+# loader's words for a jar it refuses, skips or warns about, which must not appear.
 READY_FILE="$LOG"
+COMPLAINTS=''
 case "$RECIPE" in
-  forge-1.21.1 | neoforge-20.4 | neoforge-21.1)
-    READY='Created: [0-9x]+ minecraft:textures/atlas/gui\.png-atlas'
-    COMPLAINTS='Skipping jar|Mods loaded with [0-9]+ warning|Missing or unsupported|missingclasses|Failed to create mod instance|Error during pre-loading phase'
-    ;;
-  forge-1.16.5)
-    READY='Created: [0-9x]+ minecraft:textures/atlas/mob_effects\.png-atlas'
-    COMPLAINTS='Missing or unsupported|missingclasses|Failed to create mod instance|Error during pre-loading phase'
+  forge-1.21.1 | forge-1.16.5 | neoforge-20.4 | neoforge-21.1 | babric-b1.7.3)
+    EXPECT=error
     ;;
   forge-1.12.2)
+    EXPECT=inert
     READY='Forge Mod Loader has successfully loaded'
     # ModType keeps FML from reading the jar's classes at all.
     COMPLAINTS='failed to read properly|There was a problem reading the entry'
     ;;
   forge-1.6.4)
-    READY='Forge Mod Loader has successfully loaded'
+    EXPECT=inert
     # Its ASM 4 cannot read the jar's first class, so FML ignores the jar with a warning: the
     # designed outcome, which a crash or a crash report would contradict.
-    COMPLAINTS=''
-    ;;
-  babric-b1.7.3)
-    READY='Loading [0-9]+ mods'
-    COMPLAINTS='Incompatible mods found|ModResolutionException|-- grug [0-9]'
+    READY='Forge Mod Loader has successfully loaded'
     ;;
   modloader-b1.7.3)
+    EXPECT=inert
     READY_FILE="${GAME_DIR}/ModLoader.txt"
     READY='Done\.'
     COMPLAINTS='Mod Loaded|Failed to load mod'
@@ -143,6 +141,8 @@ case "$RECIPE" in
     exit 2
     ;;
 esac
+# grug's error, from core's GrugUnsupportedGame.
+GRUG_ERROR='grug has no layer for'
 # A crash on any version: the report every version writes, and the ways a thread dies before one.
 CRASHES='---- Minecraft Crash Report ----|Exception in thread "main"|Exception in thread "Minecraft main thread"|Could not execute entrypoint stage|Broken grug invariant'
 # grug's own log lines; GrugModsDirectory also creates grug_mods/ in the game directory once a layer
@@ -161,15 +161,20 @@ trap stop_game EXIT
 
 # Problems in the logs and the game directory, printed one per line.
 problems() {
-  grep -E -m1 "$CRASHES" "$LOG" | sed 's/^/crashed: /' || true
+  # A game that stops with grug's error crashes and writes a crash report on purpose, and the
+  # crash's first lines can reach the log before the line with grug's message, so for it only an
+  # exit without that message is a failure, which the wait below reports.
+  if [ "$EXPECT" = inert ]; then
+    grep -E -m1 "$CRASHES" "$LOG" | sed 's/^/crashed: /' || true
+    if compgen -G "${GAME_DIR}/crash-reports/*" >/dev/null; then
+      echo "crashed: $(ls "${GAME_DIR}/crash-reports")"
+    fi
+  fi
   if [ -n "$COMPLAINTS" ]; then
     grep -E -m3 "$COMPLAINTS" "$LOG" "$READY_FILE" 2>/dev/null | sed 's/^/the loader complained: /' || true
   fi
   grep -E -m3 "$GRUG_STARTED" "$LOG" | sed 's/^/grug started: /' || true
   if [ -d "${GAME_DIR}/grug_mods" ]; then echo "grug started: it created grug_mods/"; fi
-  if compgen -G "${GAME_DIR}/crash-reports/*" >/dev/null; then
-    echo "crashed: $(ls "${GAME_DIR}/crash-reports")"
-  fi
 }
 
 fail() {
@@ -178,8 +183,40 @@ fail() {
   exit 1
 }
 
-# Waits for loading to end. A cold cache downloads the game, its libraries and its assets first.
 deadline=$((SECONDS + ${GRUG_SMOKE_TIMEOUT:-900}))
+
+# Waits until the log has been quiet for $1 seconds, failing on a problem, and, for an inert game, if
+# the game exits. A cold cache downloads the game, its libraries and its assets first.
+settle() {
+  local quiet_since=$SECONDS size=-1 current settle_deadline=$((SECONDS + 180))
+  while [ $((SECONDS - quiet_since)) -lt "$1" ]; do
+    current=$(stat -c %s "$LOG")
+    if [ "$current" != "$size" ]; then size=$current quiet_since=$SECONDS; fi
+    if [ -n "$(problems)" ]; then fail "$(problems)"; fi
+    if ! kill -0 "$GAME_PID" 2>/dev/null; then
+      if [ "$EXPECT" = inert ]; then fail "the game exited after loading ended"; fi
+      return
+    fi
+    if [ "$SECONDS" -ge "$settle_deadline" ]; then fail "the log never went quiet"; fi
+    sleep 1
+  done
+}
+
+if [ "$EXPECT" = error ]; then
+  until grep -q -F "$GRUG_ERROR" "$LOG"; do
+    if [ -n "$(problems)" ]; then fail "$(problems)"; fi
+    if ! kill -0 "$GAME_PID" 2>/dev/null; then fail "the game exited without grug's error"; fi
+    if [ "$SECONDS" -ge "$deadline" ]; then fail "grug's error did not appear within the timeout"; fi
+    sleep 2
+  done
+  echo "==> ${RECIPE}: stopped with grug's error: $(grep -m1 -o "${GRUG_ERROR}.*" "$LOG" | head -c 300)"
+  # Gives the loader time to put its error screen or window up before the capture.
+  settle 5
+  import -window root "${WORK}/title.png"
+  echo "==> ${RECIPE}: see ${WORK}/title.png"
+  exit 0
+fi
+
 until grep -E -q "$READY" "$READY_FILE" 2>/dev/null; do
   if [ -n "$(problems)" ]; then fail "$(problems)"; fi
   if ! kill -0 "$GAME_PID" 2>/dev/null; then fail "the game exited before loading ended"; fi
@@ -188,18 +225,9 @@ until grep -E -q "$READY" "$READY_FILE" 2>/dev/null; do
 done
 echo "==> ${RECIPE}: loading ended ($(grep -E -m1 -o "$READY" "$READY_FILE"))"
 
-# Waits for the game to settle on its first screen: the log quiet for 15 seconds. A loader that
-# rejects the jar does so around this point, with an error screen, a crash report or a warning.
-quiet_since=$SECONDS size=-1
-settle_deadline=$((SECONDS + 180))
-while [ $((SECONDS - quiet_since)) -lt 15 ]; do
-  current=$(stat -c %s "$LOG")
-  if [ "$current" != "$size" ]; then size=$current quiet_since=$SECONDS; fi
-  if [ -n "$(problems)" ]; then fail "$(problems)"; fi
-  if ! kill -0 "$GAME_PID" 2>/dev/null; then fail "the game exited after loading ended"; fi
-  if [ "$SECONDS" -ge "$settle_deadline" ]; then fail "the log never went quiet"; fi
-  sleep 1
-done
+# Waits for the game to settle on its first screen. A loader that rejects the jar does so around this
+# point, with an error screen, a crash report or a warning.
+settle 15
 
 import -window root "${WORK}/title.png"
 echo "==> ${RECIPE}: reached its first screen with grug inactive; see ${WORK}/title.png"
