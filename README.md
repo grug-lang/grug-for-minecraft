@@ -31,8 +31,8 @@ An in-game mod portal will let players browse, install, and update mods without 
 
 Download the one jar, `grug-<version>.jar`, from the latest release on the
 [Releases page](https://github.com/grug-lang/grug-for-minecraft/releases) and put it in the game's
-`mods/` folder. It is the same file for every game; on a game grug does not support, it loads and
-does nothing.
+`mods/` folder. It is the same file for every game version and mod loader, and on one that grug
+does not support yet, it loads and does nothing.
 
 | Game | Mod loader | Also needs |
 | :--- | :--- | :--- |
