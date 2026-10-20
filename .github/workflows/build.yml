@@ -485,7 +485,8 @@ jobs:
           name: grug-universal
           path: universal/grug.jar
           if-no-files-found: error
-          retention-days: 7
+          # release.yml attaches this artifact to a release, so it has to outlive the week the others keep.
+          retention-days: 90
 
   # The suite again, in a game installed the way a player installs one, with the universal jar as its
   # only grug: no repository mods, no GRUG_MODS_DIR and no development classpath. Every loader runs

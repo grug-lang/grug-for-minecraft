@@ -29,7 +29,25 @@ An in-game mod portal will let players browse, install, and update mods without 
 
 ## For Players
 
-In the future, `grug-for-minecraft` will ship ready-to-use releases that work out-of-the-box on Windows, macOS, and Linux.
+Download the one jar, `grug-<version>.jar`, from the latest release on the
+[Releases page](https://github.com/grug-lang/grug-for-minecraft/releases) and put it in the game's
+`mods/` folder. It is the same file for every game; on a game grug does not support, it loads and
+does nothing.
+
+| Game | Mod loader | Also needs |
+| :--- | :--- | :--- |
+| Minecraft Alpha 1.1.2_01 | Ornithe | OSL (the Ornithe Standard Libraries), installed beside it, as Ornithe's installer says |
+| Minecraft Beta 1.7.3 | Ornithe | OSL |
+| Minecraft Beta 1.7.3 | Babric | StationAPI |
+| Minecraft 1.2.5 | Forge | nothing |
+| Minecraft 1.20.6 | Forge | nothing |
+
+On first launch grug creates a `grug_mods/` folder in the game directory and extracts the bundled
+example mods into it.
+
+Only Linux is supported for now. Windows is tracked in
+https://github.com/grug-lang/grug-for-minecraft/issues/491 and macOS in
+https://github.com/grug-lang/grug-for-minecraft/issues/492.
 
 ### Test Keys
 
