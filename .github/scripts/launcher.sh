@@ -14,17 +14,22 @@ MAIN_DIR="${CACHE_DIR}/main"
 PORTABLEMC_VERSION="5.0.6"
 VENV="${CACHE_DIR}/portablemc-${PORTABLEMC_VERSION}"
 
-portablemc() {
+install_portablemc() {
   if [ ! -x "${VENV}/bin/portablemc" ]; then
     python3 -m venv "$VENV"
     "${VENV}/bin/pip" install --quiet "portablemc==${PORTABLEMC_VERSION}"
   fi
+}
+
+portablemc() {
+  install_portablemc
   "${VENV}/bin/portablemc" --main-dir "$MAIN_DIR" "$@"
 }
 
-# Starts an installed version in GAME_DIR, replacing this shell so the watcher's process group is the
-# game's.
+# Starts a version in GAME_DIR, installing it first if needed, and replaces this shell so the
+# watcher's process group is the game's.
 start() {
+  install_portablemc
   exec "${VENV}/bin/portablemc" --main-dir "$MAIN_DIR" start --mc-dir "$GAME_DIR" -u Player "$@"
 }
 

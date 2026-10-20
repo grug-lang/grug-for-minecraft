@@ -25,8 +25,20 @@ LOADER_DIR="${REPO_ROOT}/loaders/${LOADER}"
 # shellcheck source-path=SCRIPTDIR source=launcher.sh
 source "${REPO_ROOT}/.github/scripts/launcher.sh"
 
-# The Alpha and Beta game profiles ask for Java 8 ("javaVersion": jre-legacy, major version 8), the oldest Java a
-# player of the Ornithe layers may run, so the Ornithe launches take Mojang's runtime of that name.
+# A property from the loader's gradle.properties, which is where its versions are pinned.
+property() {
+  local value
+  value=$(sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "${LOADER_DIR}/gradle.properties" | tr -d '\r' | head -n1)
+  if [ -z "$value" ]; then
+    echo "==> ERROR: ${LOADER_DIR}/gradle.properties declares no $1." >&2
+    exit 1
+  fi
+  printf '%s' "$value"
+}
+
+# The Alpha and Beta game profiles ask for Java 8 ("javaVersion": jre-legacy, major version 8), the
+# oldest Java a player of the Ornithe layers may run, so the Ornithe launches take Mojang's runtime
+# of that name.
 # StationAPI needs Java 17, so a player of it picks a newer Java in their launcher, and that launch
 # uses the Java the build runs on.
 STATIONAPI_JAVA="${JAVA_HOME:+${JAVA_HOME}/bin/java}"
