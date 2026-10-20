@@ -90,8 +90,13 @@ configurations {
     specialSourceTool {
         transitive = false
     }
-    // Pack-style runtime libraries for launching the game.
-    runtimeLibs
+    // The libraries a 1.2.5 instance itself puts on the classpath, which is all runProduction has.
+    gameLibs
+    // Pack-style runtime libraries for launching the game: the game's own, plus what runClient
+    // provides the loader jar with instead of it carrying them.
+    runtimeLibs {
+        extendsFrom gameLibs
+    }
     // LWJGL 2 / JInput Linux natives for -Djava.library.path.
     natives
     // Core's release jar, with gson relocated inside it, for productionJar.
@@ -128,12 +133,12 @@ dependencies {
 
     specialSourceTool 'net.md-5:SpecialSource:1.11.4:shaded'
 
-    runtimeLibs 'net.minecraft:launchwrapper:1.5'
-    runtimeLibs 'org.ow2.asm:asm-all:5.2'
-    runtimeLibs 'net.sf.jopt-simple:jopt-simple:5.0.4'
-    runtimeLibs 'net.java.jinput:jinput:2.0.10'
-    runtimeLibs 'org.lwjgl.lwjgl:lwjgl:2.9.3'
-    runtimeLibs 'org.lwjgl.lwjgl:lwjgl_util:2.9.3'
+    gameLibs 'net.minecraft:launchwrapper:1.5'
+    gameLibs 'org.ow2.asm:asm-all:5.2'
+    gameLibs 'net.sf.jopt-simple:jopt-simple:5.0.4'
+    gameLibs 'net.java.jinput:jinput:2.0.10'
+    gameLibs 'org.lwjgl.lwjgl:lwjgl:2.9.3'
+    gameLibs 'org.lwjgl.lwjgl:lwjgl_util:2.9.3'
     runtimeLibs "net.grug:grug-core:$grugCoreVersion"
     runtimeLibs 'com.google.guava:guava:33.2.1-jre'
     runtimeLibs 'com.google.code.gson:gson:2.14.0'
@@ -407,6 +412,38 @@ def findJava8 = {
     return null
 }
 
+// The java command that boots the pack-style runtime in gameDir with the given libraries.
+def launchCommand = { Iterable<File> libraries, File gameDir, File assets ->
+    def java8 = findJava8()
+    if (java8 == null) {
+        throw new GradleException(
+            'Java 8 is required to launch 1.2.5. Install it or set GRUG_JAVA8 / -Pgrug.java8.')
+    }
+
+    def classpath = []
+    classpath.addAll(libraries.collect { it.absolutePath })
+    classpath << mcpResources.absolutePath
+    classpath << runtimeJar.absolutePath
+    classpath << mcpMinecraftJar.absolutePath
+
+    def command = []
+    // CI wraps the whole job in xvfb-run, which sets DISPLAY; only add one for a bare local run.
+    if (!System.getenv('DISPLAY')) {
+        command += ['xvfb-run', '-a', '-s',
+            '-screen 0 1280x720x24 +extension RANDR +extension GLX']
+    }
+    command += [java8,
+        "-Djava.library.path=${nativesDir.absolutePath}",
+        '-Djava.util.Arrays.useLegacyMergeSort=true',
+        '-cp', classpath.join(File.pathSeparator),
+        'net.minecraft.launchwrapper.Launch',
+        '--username', 'Player',
+        '--session', '0',
+        '--gameDir', gameDir.absolutePath,
+        '--assetsDir', assets.absolutePath]
+    return command
+}
+
 tasks.register('runClient', Exec) {
     description = 'Launches the reobfuscated loader in a pack-style 1.2.5 runtime on Java 8.'
     dependsOn 'prepareRunDir', 'obfuscateRuntime', 'extractNatives'
@@ -415,38 +452,29 @@ tasks.register('runClient', Exec) {
     // plain runClient just launches the game to play.
     environment 'GRUG_MODS_DIR', modsDir.absolutePath
     doFirst {
-        def java8 = findJava8()
-        if (java8 == null) {
-            throw new GradleException(
-                'Java 8 is required to launch 1.2.5. Install it or set GRUG_JAVA8 / -Pgrug.java8.')
-        }
-
-        def classpath = []
-        classpath.addAll(configurations.runtimeLibs.files.collect { it.absolutePath })
-        classpath << mcpResources.absolutePath
-        classpath << runtimeJar.absolutePath
-        classpath << mcpMinecraftJar.absolutePath
-
         def assetsDir = System.getenv('GRUG_ASSETS_DIR')
         def assets = (assetsDir != null && !assetsDir.isEmpty())
             ? new File(assetsDir)
             : new File(runDir, 'assets')
+        commandLine launchCommand(configurations.runtimeLibs.files, runDir, assets)
+    }
+}
 
-        def command = []
-        // CI wraps the whole job in xvfb-run, which sets DISPLAY; only add one for a bare local run.
-        if (!System.getenv('DISPLAY')) {
-            command += ['xvfb-run', '-a', '-s',
-                '-screen 0 1280x720x24 +extension RANDR +extension GLX']
+// Boots the production jar the way an installed game would: only the game's own libraries on the
+// classpath, the jar alone in <game dir>/mods, and no GRUG_MODS_DIR, so grug has to find, extract
+// and load its bundled mods from inside the jar. launch-production.sh prepares the game directory.
+tasks.register('runProduction', Exec) {
+    description = 'Launches productionJar alone in a pack-style 1.2.5 instance on Java 8.'
+    dependsOn 'productionJar', 'obfuscateRuntime', 'extractNatives'
+    doFirst {
+        def gameDirProperty = findProperty('grug.productionGameDir')
+        if (!gameDirProperty) {
+            throw new GradleException('runProduction needs -Pgrug.productionGameDir=<game dir>.')
         }
-        command += [java8,
-            "-Djava.library.path=${nativesDir.absolutePath}",
-            '-Djava.util.Arrays.useLegacyMergeSort=true',
-            '-cp', classpath.join(File.pathSeparator),
-            'net.minecraft.launchwrapper.Launch',
-            '--username', 'Player',
-            '--session', '0',
-            '--gameDir', runDir.absolutePath,
-            '--assetsDir', assets.absolutePath]
-        commandLine command
+        def gameDir = file(gameDirProperty)
+        def assets = new File(gameDir, 'assets')
+        assets.mkdirs()
+        workingDir = gameDir
+        commandLine launchCommand(configurations.gameLibs.files, gameDir, assets)
     }
 }
