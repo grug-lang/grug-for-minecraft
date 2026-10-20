@@ -8,13 +8,12 @@ import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.item.GrugItem;
+import net.grug.minecraft.ornithe.mixin.BlockEntityAccess;
 import net.minecraft.block.Block;
-import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.material.Material;
 import net.ornithemc.osl.blocks.api.BlockRegistry;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 
-import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,14 +38,7 @@ public final class GrugBlocks {
         GrugModLoader.LOGGER.info(
                 "Registering dynamic grug blocks and items in Ornithe (Alpha 1.1.2_01)...");
 
-        try {
-            Method registerMethod =
-                    BlockEntity.class.getDeclaredMethod("register", Class.class, String.class);
-            registerMethod.setAccessible(true);
-            registerMethod.invoke(null, GrugBlockEntity.class, "grug:generic_block_entity");
-        } catch (Exception e) {
-            throw Grug.fatal("Failed to register GrugBlockEntity via reflection", e);
-        }
+        BlockEntityAccess.grug$register(GrugBlockEntity.class, "grug:generic_block_entity");
 
         // Register Dynamic Blocks
         //
