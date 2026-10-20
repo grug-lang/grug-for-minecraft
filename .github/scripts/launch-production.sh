@@ -22,55 +22,10 @@ JAR="$3"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOADER_DIR="${REPO_ROOT}/loaders/${LOADER}"
 
-# The launcher's own state: the game versions, libraries, assets and JVMs it downloads. Shared by
-# every loader and kept between runs, the way one launcher serves all of a player's instances.
-CACHE_DIR="${GRUG_PRODUCTION_CACHE:-${HOME}/.cache/grug-production}"
-MAIN_DIR="${CACHE_DIR}/main"
+# shellcheck source-path=SCRIPTDIR source=launcher.sh
+source "${REPO_ROOT}/.github/scripts/launcher.sh"
 
-# portablemc installs Forge, Babric and any launcher profile like the vanilla launcher does. Pinned
-# like every other version in this repository.
-PORTABLEMC_VERSION="5.0.6"
-VENV="${CACHE_DIR}/portablemc-${PORTABLEMC_VERSION}"
-
-# A property from the loader's gradle.properties, which is where its versions are pinned.
-property() {
-  local value
-  value=$(sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "${LOADER_DIR}/gradle.properties" | tr -d '\r' | head -n1)
-  if [ -z "$value" ]; then
-    echo "==> ERROR: ${LOADER_DIR}/gradle.properties declares no $1." >&2
-    exit 1
-  fi
-  printf '%s' "$value"
-}
-
-portablemc() {
-  if [ ! -x "${VENV}/bin/portablemc" ]; then
-    python3 -m venv "$VENV"
-    "${VENV}/bin/pip" install --quiet "portablemc==${PORTABLEMC_VERSION}"
-  fi
-  "${VENV}/bin/portablemc" --main-dir "$MAIN_DIR" "$@"
-}
-
-# Starts an installed version in GAME_DIR, replacing this shell so the watcher's process group is the
-# game's.
-start() {
-  exec "${VENV}/bin/portablemc" --main-dir "$MAIN_DIR" start --mc-dir "$GAME_DIR" -u Player "$@"
-}
-
-# Writes a launcher profile under versions/, as an installer would.
-install_profile() {
-  local id="$1" url="$2"
-  mkdir -p "${MAIN_DIR}/versions/${id}"
-  curl --fail --silent --show-error --location "$url" -o "${MAIN_DIR}/versions/${id}/${id}.json"
-}
-
-# The game profiles for Alpha and Beta, Mojang's and Ornithe's alike, boot through launchwrapper,
-# which brings an old ASM. Fabric Loader refuses to start beside a second ASM, and the instance
-# components Ornithe and Babric install for a player drop both libraries, so their launches here do
-# too.
-LEGACY_LIBRARIES=(--exclude-lib 'net.minecraft:launchwrapper:*' --exclude-lib 'org.ow2.asm:asm-all:*')
-
-# Those profiles ask for Java 8 ("javaVersion": jre-legacy, major version 8), the oldest Java a
+# The Alpha and Beta game profiles ask for Java 8 ("javaVersion": jre-legacy, major version 8), the oldest Java a
 # player of the Ornithe layers may run, so the Ornithe launches take Mojang's runtime of that name.
 # StationAPI needs Java 17, so a player of it picks a newer Java in their launcher, and that launch
 # uses the Java the build runs on.
@@ -93,28 +48,9 @@ case "$LOADER" in
     curl --fail --silent --show-error --location \
       "https://maven.glass-launcher.net/releases/net/modificationstation/StationAPI/${stationapi}/StationAPI-${stationapi}.jar" \
       -o "${GAME_DIR}/mods/StationAPI-${stationapi}.jar"
-    # Babric's own profile carries LWJGL 2.9.4-babric.1, whose Linux natives link against a libjawt
-    # symbol version only Java 8 has, while StationAPI needs Java 17. Babric's recommended install,
-    # its Prism instance (github.com/babric/prism-instance), swaps in Legacy Fabric's LWJGL build,
-    # which loads on any Java, so this launch does too.
-    lwjgl="2.9.4+legacyfabric.17"
-    lwjgl_dir="${CACHE_DIR}/lwjgl-${lwjgl}"
-    lwjgl_maven="https://maven.legacyfabric.net/org/lwjgl/lwjgl"
-    mkdir -p "$lwjgl_dir"
-    for file in "lwjgl/${lwjgl}/lwjgl-${lwjgl}.jar" "lwjgl_util/${lwjgl}/lwjgl_util-${lwjgl}.jar" \
-      "lwjgl-platform/${lwjgl}/lwjgl-platform-${lwjgl}-natives-linux.jar"; do
-      jar="${lwjgl_dir}/${file##*/}"
-      # The cache outlives the run, so a download cut off halfway must not land under the jar's name.
-      if [ ! -f "$jar" ]; then
-        curl --fail --silent --show-error --location "${lwjgl_maven}/${file}" -o "${jar}.part"
-        mv "${jar}.part" "$jar"
-      fi
-    done
+    babric_lwjgl
     portablemc --version >/dev/null
-    start "${LEGACY_LIBRARIES[@]}" --jvm "$STATIONAPI_JAVA" --exclude-lib 'org.lwjgl.lwjgl:*:*' \
-      --include-class "${lwjgl_dir}/lwjgl-${lwjgl}.jar" \
-      --include-class "${lwjgl_dir}/lwjgl_util-${lwjgl}.jar" \
-      --include-natives "${lwjgl_dir}/lwjgl-platform-${lwjgl}-natives-linux.jar" \
+    start "${LEGACY_LIBRARIES[@]}" --jvm "$STATIONAPI_JAVA" "${BABRIC_LWJGL[@]}" \
       "babric::$(property loader_version)"
     ;;
 

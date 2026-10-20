@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
+      smoke: ${{ steps.smoke.outputs.matrix }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,6 +37,12 @@ jobs:
           loaders = sorted(p.name for p in pathlib.Path("loaders").iterdir() if p.is_dir())
           print("matrix=" + json.dumps(loaders))
           EOF
+
+      # One unsupported game per mechanism a mod loader reads the jar by, from universal_jar.py's
+      # GAMES, which requires every mechanism to keep one (#493).
+      - name: Discover smoke games
+        id: smoke
+        run: echo "matrix=$(python3 .github/scripts/universal_jar.py smoke-matrix)" >> "$GITHUB_OUTPUT"
 
   # grug-rs builds once per run and the loader jobs link the very same libgruggers.a. It depends on
   # nothing in this repository except the revision core/build.gradle.kts pins, so before this job each
@@ -579,6 +586,64 @@ jobs:
           name: production-${{ matrix.dir }}-screenshots
           path: loaders/${{ matrix.dir }}/build/production-game/grug-screenshot-artifacts
           if-no-files-found: ignore
+          retention-days: 7
+
+  # Boots one game per mechanism a mod loader reads the jar by, among the games grug has no layer for,
+  # with the universal jar as its only mod, and requires its first screen with grug inactive: the
+  # jar has to load and do nothing on every game it does not support. A game that gains a loader
+  # leaves this job for production, and universal_jar.py then asks for another game of its
+  # mechanism. See #493.
+  smoke:
+    name: ${{ matrix.game }} boots inert
+    needs: [discover, universal]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.discover.outputs.smoke) }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Babric runs on the Java the runner has, as a player of it picks; every other game takes the
+      # runtime Mojang's profile names, as the vanilla launcher does.
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # The display stack of the production job, and ImageMagick for the screen capture.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth x11-xserver-utils imagemagick \
+            libgl1 libgl1-mesa-dri libglx-mesa0 \
+            libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+
+      - name: Download the universal jar
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-universal
+          path: universal
+
+      - name: Boot ${{ matrix.game }} with the universal jar as its only mod
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/smoke-launch.sh "${{ matrix.recipe }}" universal/grug.jar smoke
+
+      - name: Upload the logs and the screen
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: smoke-${{ matrix.recipe }}
+          path: |
+            smoke/launch.log
+            smoke/title.png
+            smoke/game/logs/
+            smoke/game/crash-reports/
+            smoke/game/ModLoader.txt
+          if-no-files-found: warn
           retention-days: 7
 
   # Combines the exec data collected by the core and loader jobs and fails the build unless the
