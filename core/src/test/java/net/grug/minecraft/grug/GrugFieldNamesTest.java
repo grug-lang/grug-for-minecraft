@@ -100,6 +100,30 @@ class GrugFieldNamesTest {
     }
 
     @Test
+    void anEmptyTableIsFatal() {
+        IllegalStateException error =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> GrugFieldNames.read(TABLE, table(""), "intermediary"));
+
+        assertTrue(error.getMessage().contains(TABLE + " is empty"), error.getMessage());
+    }
+
+    @Test
+    void aLineWithoutANameInEachNamespaceIsFatal() {
+        IllegalStateException error =
+                assertThrows(
+                        IllegalStateException.class,
+                        () ->
+                                GrugFieldNames.read(
+                                        TABLE,
+                                        table("intermediary named\nf_70868303\n"),
+                                        "intermediary"));
+
+        assertTrue(error.getMessage().contains("\"f_70868303\""), error.getMessage());
+    }
+
+    @Test
     void aTableThatCannotBeReadIsFatal() {
         IOException cause = new IOException("disk gone");
         InputStream broken =

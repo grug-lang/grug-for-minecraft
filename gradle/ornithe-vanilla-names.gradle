@@ -14,6 +14,9 @@ def generateVanillaNames = tasks.register('generateVanillaNames') {
 
     doLast {
         def lines = mappings.readLines()
+        if (!lines[0].startsWith('tiny\t2\t')) {
+            throw new GradleException("${mappings} is not in the Tiny v2 format this reads.")
+        }
         def namespaces = lines[0].split('\t').drop(3).toList()
         def intermediary = namespaces.indexOf('intermediary')
         def named = namespaces.indexOf('named')
