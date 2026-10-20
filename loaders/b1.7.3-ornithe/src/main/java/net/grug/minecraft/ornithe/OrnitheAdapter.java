@@ -588,8 +588,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             for (Field field : Block.class.getFields()) {
                 if (Modifier.isStatic(field.getModifiers())
                         && Block.class.isAssignableFrom(field.getType())) {
-                    if (GrugVanillaNames.of(field).equalsIgnoreCase(vanillaPath)
-                            || GrugVanillaNames.of(field)
+                    String fieldName = GrugVanillaNames.of(field);
+                    if (fieldName.equalsIgnoreCase(vanillaPath)
+                            || fieldName
                                     .replace("_", "")
                                     .equalsIgnoreCase(vanillaPath.replace("_", ""))) {
                         try {
@@ -704,10 +705,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         for (Field field : Item.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers())
                     && Item.class.isAssignableFrom(field.getType())) {
-                if (GrugVanillaNames.of(field).equalsIgnoreCase(path)
-                        || GrugVanillaNames.of(field)
-                                .replace("_", "")
-                                .equalsIgnoreCase(path.replace("_", ""))) {
+                String fieldName = GrugVanillaNames.of(field);
+                if (fieldName.equalsIgnoreCase(path)
+                        || fieldName.replace("_", "").equalsIgnoreCase(path.replace("_", ""))) {
                     try {
                         return field.get(null);
                     } catch (Exception ignored) {
@@ -726,8 +726,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         for (Field field : Block.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers())
                     && Block.class.isAssignableFrom(field.getType())) {
-                if (GrugVanillaNames.of(field).equalsIgnoreCase(vanillaPath)
-                        || GrugVanillaNames.of(field)
+                String fieldName = GrugVanillaNames.of(field);
+                if (fieldName.equalsIgnoreCase(vanillaPath)
+                        || fieldName
                                 .replace("_", "")
                                 .equalsIgnoreCase(vanillaPath.replace("_", ""))) {
                     try {

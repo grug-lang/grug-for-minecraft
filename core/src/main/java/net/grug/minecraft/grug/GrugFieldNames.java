@@ -44,7 +44,11 @@ public final class GrugFieldNames {
         }
         try (BufferedReader reader =
                 new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-            List<String> namespaces = Arrays.asList(reader.readLine().split(" "));
+            String header = reader.readLine();
+            if (header == null) {
+                throw Grug.fatal(table + " is empty");
+            }
+            List<String> namespaces = Arrays.asList(header.split(" "));
             int key = namespaces.indexOf(runtime);
             int value = namespaces.indexOf(MAPPED);
             if (key < 0 || value < 0) {
@@ -59,6 +63,14 @@ public final class GrugFieldNames {
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] names = line.split(" ");
+                if (names.length != namespaces.size()) {
+                    throw Grug.fatal(
+                            table
+                                    + " has the line \""
+                                    + line
+                                    + "\", which does not name a field in each of "
+                                    + namespaces);
+                }
                 mappedByRuntime.put(names[key], names[value]);
             }
             return new GrugFieldNames(table, mappedByRuntime);

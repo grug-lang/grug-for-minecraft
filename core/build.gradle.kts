@@ -278,8 +278,9 @@ val generateBundledModsIndex = tasks.register("generateBundledModsIndex") {
     outputs.dir(bundledModsIndexDir)
 
     doLast {
-        val paths = modsDir.walkTopDown()
-            .filter { it.isFile }
+        // fileTree applies Gradle's default excludes, as processResources does when it copies the
+        // mods, so the index lists exactly the files the jar holds.
+        val paths = fileTree(modsDir).files
             .map { it.relativeTo(modsDir).invariantSeparatorsPath }
             .sorted()
             .toList()
