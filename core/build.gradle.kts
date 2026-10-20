@@ -323,8 +323,8 @@ tasks.shadowJar {
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
+            // The Shadow plugin adds the release jar to this component as a variant of its own.
             from(components["java"])
-            artifact(tasks.shadowJar)
 
             artifactId = "grug-core"
         }
