@@ -31,18 +31,22 @@ import java.util.Map;
  */
 public final class GrugForgeLayers {
     /** The table, at the root of the universal jar and of core's own jar. */
-    static final String TABLE = "/grug_forge_layers.json";
+    static final String TABLE = "grug_forge_layers.json";
 
     /** Forge's loader class, which reports the game it launched from Forge 1.17 on. */
     static final String FML_LOADER = "net.minecraftforge.fml.loading.FMLLoader";
 
-    /** Opens a resource of the grug jar by its absolute name, or answers null for a missing one. */
+    /** Opens a resource of the grug jar by its name, or answers null for a missing one. */
     interface Resources {
         InputStream open(String name);
     }
 
-    /** The grug jar's own resources, through the class loader that loaded this class. */
-    static final Resources JAR = GrugForgeLayers.class::getResourceAsStream;
+    /**
+     * The grug jar's resources, through the class loader rather than this class: in a development
+     * run core is a module of its own beside the layer's, and a class only finds resources of its
+     * own module, while its loader finds a root resource in any module it defines.
+     */
+    static final Resources JAR = GrugForgeLayers.class.getClassLoader()::getResourceAsStream;
 
     /** One Forge-family layer: the game it targets, the class that starts it, its mixin config. */
     public static final class Layer {

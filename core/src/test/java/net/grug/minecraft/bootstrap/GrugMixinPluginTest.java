@@ -14,7 +14,7 @@ import java.util.List;
 
 class GrugMixinPluginTest {
     private static final List<GrugForgeLayers.Layer> LAYERS =
-            GrugForgeLayers.read(GrugForgeLayers.JAR, "/bootstrap/layers.json");
+            GrugForgeLayers.read(GrugForgeLayers.JAR, "bootstrap/layers.json");
 
     private static GrugMixinPlugin plugin(String minecraft, boolean client, String mixinPackage) {
         GrugForgeLayers.Game game =
@@ -91,6 +91,13 @@ class GrugMixinPluginTest {
         plugin.acceptTargets(new HashSet<>(), new HashSet<>());
         plugin.preApply("Target", null, "Mixin", null);
         plugin.postApply("Target", null, "Mixin", null);
+    }
+
+    @Test
+    void readsConfigsThroughMixinsOwnResourceLookup() {
+        // The stand-in service finds nothing, while the class path holds the test configs, which
+        // shows the lookup goes through Mixin rather than through a class loader.
+        assertNull(GrugMixinPlugin.mixinResource("bootstrap/fake.mixins.json"));
     }
 
     @Test
