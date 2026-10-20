@@ -29,8 +29,8 @@ export run() {
     y: number = origin.y() + 15
     z: number = origin.z()
 
-    engine: BlockEntity = _place(level, x + 20, y, z, true)
-    pipe: BlockEntity = level.get_block_entity(x + 20, y + 1, z).unwrap()
+    engine: BlockEntity = _place(level, x - 4, y, z, true)
+    pipe: BlockEntity = level.get_block_entity(x - 4, y + 1, z).unwrap()
     set_saved_number(engine, "energy", 0)
     Test.tick_block_entity(engine, 19)
     Test.assert(get_energy_stored(pipe) == 0, "An engine with no energy should hand the pipe nothing.")
