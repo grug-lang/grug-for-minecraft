@@ -99,7 +99,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public File getGrugModsDirectory() {
-        return mod_Grug.getActiveGrugModsDir(new File(gameDir(), "grug_mods"));
+        return mod_Grug.getActiveGrugModsDir();
     }
 
     @Override

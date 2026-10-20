@@ -65,7 +65,8 @@ repositories {
 
 dependencies {
     implementation "net.grug:grug-core:$grugCoreVersion"
-    include "net.grug:grug-core:$grugCoreVersion"
+    // The release jar, with gson relocated inside it. See productionJar.
+    include "net.grug:grug-core:$grugCoreVersion:release"
 
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -91,4 +92,13 @@ tasks.withType(ProcessResources) {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+// The jar a player installs, which nests core's release jar: gson comes relocated inside it, because
+// this version of the game ships none. Copied to build/production/ so every loader's production jar
+// is found at the same path.
+tasks.register('productionJar', Copy) {
+    from remapJar
+    into layout.buildDirectory.dir('production')
+    rename { "grug-${project.projectDir.name}.jar" }
 }

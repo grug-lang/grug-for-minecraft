@@ -98,3 +98,26 @@ sourceSets.each {
     it.output.resourcesDir = dir
     it.java.destinationDirectory = dir
 }
+
+// The jar a player installs. Forge resolves no dependencies of a mod jar it is not told about, so
+// core, the native, mod_api.json and the bundled mods are flattened into it from core's release jar,
+// whose gson is relocated: this version of the game already has gson as a module, and a mod jar
+// holding the same package fails to load. Copied to build/production/ under the loader's name, so
+// every loader's production jar is found at the same path.
+def coreReleaseJar = project(':core').tasks.named('shadowJar')
+
+tasks.register('productionJar', Jar) {
+    dependsOn coreReleaseJar
+    from(zipTree(tasks.named('jar').flatMap { it.archiveFile })) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+    from({ zipTree(coreReleaseJar.get().archiveFile) }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+    // A development run passes the mixin config on the command line; an installed game only finds
+    // it through the manifest.
+    manifest.attributes('MixinConfigs': 'grug.mixins.json')
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    archiveFileName = "grug-${project.projectDir.name}.jar"
+    destinationDirectory = layout.buildDirectory.dir('production')
+}

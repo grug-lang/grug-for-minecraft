@@ -21,6 +21,7 @@ import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
+import net.grug.minecraft.grug.GrugModsDirectory;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
@@ -76,10 +77,6 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -260,25 +257,9 @@ public class GrugModLoader {
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(this);
     }
 
-    @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     public static File getActiveGrugModsDir() {
-        File gameDir = FMLLoader.getGamePath().toFile();
-
-        File override = GrugReference.modsDirOverride();
-        if (override != null) {
-            if (!override.isDirectory()) {
-                throw Grug.fatal("GRUG_MODS_DIR is not a directory: " + override);
-            }
-            return override;
-        }
-
-        if (!FMLEnvironment.production) {
-            File devGrugDir = new File(gameDir, "../../../mods");
-            if (devGrugDir.exists() && devGrugDir.isDirectory()) {
-                return devGrugDir;
-            }
-        }
-        return new File(gameDir, "grug_mods");
+        return GrugModsDirectory.resolve(
+                FMLLoader.getGamePath().toFile(), !FMLEnvironment.production);
     }
 
     private void onAddPackFinders(AddPackFindersEvent event) {
@@ -317,24 +298,8 @@ public class GrugModLoader {
 
     private void initializeGrug() {
         File gameDir = FMLLoader.getGamePath().toFile();
-        File runGrugDir = new File(gameDir, "grug_mods");
-
-        if (!runGrugDir.exists()) {
-            runGrugDir.mkdirs();
-        }
-
-        File modApiJson = new File(runGrugDir, "mod_api.json");
-
-        try (InputStream in = GrugCore.class.getResourceAsStream("/mod_api.json")) {
-            if (in == null) {
-                throw Grug.fatal("/mod_api.json is missing from the GrugCore jar");
-            }
-            Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            throw Grug.fatal("Failed to copy mod_api.json", e);
-        }
-
-        File activeGrugDir = getActiveGrugModsDir();
+        File activeGrugDir = GrugModsDirectory.prepare(gameDir, !FMLEnvironment.production);
+        File modApiJson = GrugModsDirectory.modApiJson(gameDir);
 
         // mods.toml declares this mod BOTH, so this class runs on a client and on a dedicated
         // server, and the adapter that answers for the level and player handles differs between

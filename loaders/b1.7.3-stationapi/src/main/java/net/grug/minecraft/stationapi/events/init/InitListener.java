@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
@@ -12,13 +11,11 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
-import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugModTreeDefect;
-import net.grug.minecraft.grug.GrugModsExtractor;
+import net.grug.minecraft.grug.GrugModsDirectory;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugRecipeTree;
-import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.stationapi.StationApiAdapter;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
@@ -50,16 +47,13 @@ import java.io.InputStreamReader;
 import java.lang.invoke.MethodHandles;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 public class InitListener {
@@ -108,54 +102,20 @@ public class InitListener {
         LOGGER.info(NAMESPACE.toString());
     }
 
-    @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
     public static File getActiveGrugModsDir() {
-        File gameDir = FabricLoader.getInstance().getGameDir().toFile();
-
-        File override = GrugReference.modsDirOverride();
-        if (override != null) {
-            if (!override.isDirectory()) {
-                throw Grug.fatal("GRUG_MODS_DIR is not a directory: " + override);
-            }
-            return override;
-        }
-
-        if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-            File devGrugDir = new File(gameDir, "../../../mods");
-            if (devGrugDir.exists() && devGrugDir.isDirectory()) {
-                return devGrugDir;
-            }
-        }
-        return new File(gameDir, "grug_mods");
+        return GrugModsDirectory.resolve(
+                FabricLoader.getInstance().getGameDir().toFile(),
+                FabricLoader.getInstance().isDevelopmentEnvironment());
     }
 
     @SuppressWarnings("deprecation")
     @EventListener
     private static void preInit(PreInitEvent event) throws IOException {
         File gameDir = FabricLoader.getInstance().getGameDir().toFile();
-        File runGrugDir = new File(gameDir, "grug_mods");
-
-        if (!runGrugDir.exists()) runGrugDir.mkdirs();
-
-        File modApiJson = new File(runGrugDir, "mod_api.json");
-
-        File activeGrugDir = getActiveGrugModsDir();
-
-        if (!activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
-            LOGGER.info(
-                    "Dev mode detected: Pointing grug-rs directly to "
-                            + activeGrugDir.getCanonicalPath());
-        }
-
-        try (InputStream in = InitListener.class.getResourceAsStream("/mod_api.json")) {
-            if (in == null) throw Grug.fatal("/mod_api.json is missing from the grug jar");
-            Files.copy(in, modApiJson.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        }
-
-        // Only extract if we are actually using the standard run folder
-        if (activeGrugDir.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
-            extractDefaultGrugMods(runGrugDir.toPath());
-        }
+        File activeGrugDir =
+                GrugModsDirectory.prepare(
+                        gameDir, FabricLoader.getInstance().isDevelopmentEnvironment());
+        File modApiJson = GrugModsDirectory.modApiJson(gameDir);
 
         // One adapter for both processes for now. The dedicated-server one has to be its own class
         // behind a lazily resolved branch: Fabric Loader will not define a class the game marked
@@ -486,27 +446,5 @@ public class InitListener {
     /** The recipe's own path in the mods tree, which is how a recipe is keyed and reported. */
     private static String normalized(String path) {
         return path.replace('\\', '/');
-    }
-
-    @GrugGenerated("non-dev-mode: only reached when not running from a dev mods directory")
-    private static void extractDefaultGrugMods(Path targetGrugDir) {
-        Path markerFile = targetGrugDir.resolve(".examples_generated.txt");
-
-        Optional<ModContainer> modContainer =
-                FabricLoader.getInstance().getModContainer(NAMESPACE.toString());
-        if (modContainer.isEmpty()) return;
-
-        Optional<Path> defaultModsPath = modContainer.get().findPath("mods");
-        if (defaultModsPath.isEmpty()) return;
-
-        // A file that cannot be copied aborts the extraction rather than being collected. The
-        // marker is written only once the walk finishes, so carrying on would leave a mods
-        // directory that is missing files while claiming to be complete, and no later run would
-        // look for them again.
-        try {
-            GrugModsExtractor.extract(defaultModsPath.get(), targetGrugDir, markerFile);
-        } catch (IOException e) {
-            throw Grug.fatal("Failed to extract the default grug mods", e);
-        }
     }
 }
