@@ -81,10 +81,9 @@ public final class GrugModsExtractor {
             BufferedReader reader =
                     new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
+            // The build writes one path per line and no blank ones.
             while ((line = reader.readLine()) != null) {
-                if (!line.isEmpty()) {
-                    paths.add(line);
-                }
+                paths.add(line);
             }
         }
         return paths;

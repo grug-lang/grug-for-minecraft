@@ -58,6 +58,7 @@ EXCLUDED_CLASSES = {
     "ItemRendererMixin",
     "BlockRenderManagerMixin",
     "WorldChunkMixin",
+    "BlockEntityAccess",
     "BlockWithEntityMixin",
     "ChunkMixin",
     "GrugMixin",

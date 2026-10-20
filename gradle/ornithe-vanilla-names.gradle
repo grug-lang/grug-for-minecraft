@@ -1,8 +1,8 @@
 // Alpha and Beta have no block or item registry, so the Ornithe loaders name a vanilla block or item
 // after the static field of Block or Item that holds it. Those are mapped names, which exist only in
 // a development run: an installed game names the same fields by their intermediary names. This
-// writes grug_vanilla_names.txt, one "<intermediary> <named>" line per field of the two classes, so
-// GrugVanillaNames can recover the mapped name in an installed game.
+// writes grug_vanilla_names.txt, a line naming the namespaces and then one "<intermediary> <named>"
+// line per field of the two classes, which GrugVanillaNames reads in either kind of run.
 
 def vanillaNamesDir = layout.buildDirectory.dir('generated/grug-vanilla-names')
 
@@ -39,7 +39,7 @@ def generateVanillaNames = tasks.register('generateVanillaNames') {
 
         def file = vanillaNamesDir.get().file('grug_vanilla_names.txt').asFile
         file.parentFile.mkdirs()
-        file.text = names.sort().join('\n') + '\n'
+        file.text = (['intermediary named'] + names.sort()).join('\n') + '\n'
     }
 }
 
