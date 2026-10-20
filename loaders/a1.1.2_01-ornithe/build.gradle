@@ -10,6 +10,9 @@ apply from: '../../gradle/jacoco-loader.gradle'
 // from gradle/grug-core.gradle, which core publishes under too.
 apply from: '../../gradle/grug-core.gradle'
 
+// Recovers the mapped names of vanilla blocks and items in an installed game.
+apply from: '../../gradle/ornithe-vanilla-names.gradle'
+
 base {
     archivesName = project.properties["archives_base_name"]
 }

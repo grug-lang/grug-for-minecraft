@@ -1,0 +1,48 @@
+// Alpha and Beta have no block or item registry, so the Ornithe loaders name a vanilla block or item
+// after the static field of Block or Item that holds it. Those are mapped names, which exist only in
+// a development run: an installed game names the same fields by their intermediary names. This
+// writes grug_vanilla_names.txt, one "<intermediary> <named>" line per field of the two classes, so
+// GrugVanillaNames can recover the mapped name in an installed game.
+
+def vanillaNamesDir = layout.buildDirectory.dir('generated/grug-vanilla-names')
+
+def generateVanillaNames = tasks.register('generateVanillaNames') {
+    // The loom extension is Loom's LoomGradleExtension, whose class this applied script cannot import.
+    def mappings = project.loom.mappingConfiguration.tinyMappings.toFile()
+    inputs.file(mappings)
+    outputs.dir(vanillaNamesDir)
+
+    doLast {
+        def lines = mappings.readLines()
+        def namespaces = lines[0].split('\t').drop(3).toList()
+        def intermediary = namespaces.indexOf('intermediary')
+        def named = namespaces.indexOf('named')
+        if (intermediary < 0 || named < 0) {
+            throw new GradleException("${mappings} has no intermediary and named namespaces.")
+        }
+
+        def classes = ['net/minecraft/block/Block', 'net/minecraft/item/Item']
+        def names = []
+        def inClass = false
+        lines.drop(1).each { line ->
+            def columns = line.split('\t', -1)
+            if (columns[0] == 'c') {
+                inClass = columns[1 + named] in classes
+            } else if (inClass && columns.length > 2 && columns[0] == '' && columns[1] == 'f') {
+                // A field line: tab, "f", the descriptor, then one name per namespace.
+                names << "${columns[3 + intermediary]} ${columns[3 + named]}"
+            }
+        }
+        if (names.isEmpty()) {
+            throw new GradleException("${mappings} maps no fields of ${classes.join(' or ')}.")
+        }
+
+        def file = vanillaNamesDir.get().file('grug_vanilla_names.txt').asFile
+        file.parentFile.mkdirs()
+        file.text = names.sort().join('\n') + '\n'
+    }
+}
+
+tasks.named('processResources') {
+    from(generateVanillaNames)
+}
