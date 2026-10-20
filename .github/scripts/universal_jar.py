@@ -8,10 +8,14 @@ layout (#488):
   bundled mods), plus the layers whose mod loader reads the jar's root: the Forge layers, which
   core's GrugForgeMod starts, and 1.2.5's, whose mod_ class FML 1.2.5 loads. Their packages are
   distinct, so they sit side by side.
-- Every game the jar has no layer for loads it and does nothing (#493). The root's mods.toml and
-  neoforge.mods.toml, written here, declare no version range, so no Forge or NeoForge stops on
-  them, and name core's Java 8 GrugForgeMod as the jar's only @Mod; the manifest's ModType makes
-  FML 1.7.10 to 1.12.2 skip the jar. GAMES models each mechanism a mod loader reads the jar by.
+- On a game the jar has no layer for, grug reports that as an error, through the loader's own
+  error path, wherever grug's code runs: core's GrugForgeMod on Forge and NeoForge, and the outer
+  fabric.mod.json's GrugFabricPreLaunch on the Fabric family, both naming the games in
+  grug_supported_games.txt (#493). The root's mods.toml and neoforge.mods.toml, written here,
+  declare no version range, so no loader stops on them before grug can say why, and name
+  GrugForgeMod as the jar's only @Mod. Legacy FML and ModLoader run no class of grug's, so there
+  the jar does nothing; the manifest's ModType makes FML 1.7.10 to 1.12.2 skip it. GAMES models
+  each mechanism a mod loader reads the jar by.
 - The Fabric-family layers are nested jars under META-INF/jars/, listed by one outer
   fabric.mod.json, because a jar holds only one fabric.mod.json and both Ornithe layers keep a
   helper in a vanilla package (net.minecraft.crafting.GrugRecipeHelper). Each nested layer depends
@@ -63,6 +67,11 @@ GRUG_MOD_ID = "grug"
 BOOTSTRAP_MOD = "net/grug/minecraft/bootstrap/GrugForgeMod.class"
 FORGE_LAYERS_TABLE = "grug_forge_layers.json"
 MIXIN_PLUGIN = "net.grug.minecraft.bootstrap.GrugMixinPlugin"
+# The outer fabric.mod.json's one entrypoint, which reports a Fabric-family game none of the nested
+# layers activated on, as GrugForgeMod reports a Forge-family game without a layer.
+FABRIC_PRELAUNCH = "net.grug.minecraft.bootstrap.GrugFabricPreLaunch"
+# The games the jar has a layer for, which both report in their error.
+SUPPORTED_GAMES = "grug_supported_games.txt"
 FORGE_MOD = b"Lnet/minecraftforge/fml/common/Mod;"
 NEOFORGE_MOD = b"Lnet/neoforged/fml/common/Mod;"
 # Every annotation a Forge-family loader acts on in a class it scans, as a mod class or an event bus
@@ -163,7 +172,7 @@ def root_mods_toml(version):
     which Forge range-checks whenever the mod is present. Core's GrugForgeMod picks the layer."""
     description = (
         "The grug mod loader for Minecraft. Holds one layer per supported game, "
-        "and does nothing on a game it has none for."
+        "and reports an error on a game it has none for."
     )
     return (
         'modLoader = "javafml"\n'
@@ -180,6 +189,10 @@ def root_mods_toml(version):
     ).encode()
 
 
+def supported_games():
+    return "".join(f"{game.name}\n" for game in GAMES if game.expect).encode()
+
+
 def files_of(archive):
     return {info.filename: archive.read(info) for info in archive.infolist() if not info.is_dir()}
 
@@ -191,7 +204,8 @@ def outer_fabric_mod_json(version, nested):
         "version": version,
         "name": "grug",
         "description": "The grug mod loader for Minecraft. Holds one layer per supported game; "
-        "Fabric Loader activates the one this game supports.",
+        "Fabric Loader activates the one this game supports, and grug reports a game it has none "
+        "for.",
         "license": "MIT",
         "contact": {
             "homepage": "https://github.com/grug-lang/grug",
@@ -199,6 +213,7 @@ def outer_fabric_mod_json(version, nested):
             "issues": "https://github.com/grug-lang/grug-for-minecraft/issues",
         },
         "environment": "*",
+        "entrypoints": {"preLaunch": [FABRIC_PRELAUNCH]},
         "jars": [{"file": NESTED_DIR + f"grug-{loader}.jar"} for loader in sorted(nested)],
     }
 
@@ -253,6 +268,7 @@ def assemble(core, layers, version, out):
         Path(__file__).name,
     )
     add(MODS_TOML, root_mods_toml(version), Path(__file__).name)
+    add(SUPPORTED_GAMES, supported_games(), Path(__file__).name)
     add(NEOFORGE_MODS_TOML, root_mods_toml(version), Path(__file__).name)
 
     # Every directory a file sits in, so a class loader can find a directory as a resource the way
@@ -581,6 +597,11 @@ def check_metadata(jar):
     root = jar.root
     for config in manifest_mixin_configs(root):
         check_mixin_config(config, "the manifest", root.files, problems)
+    if root.files.get(SUPPORTED_GAMES) != supported_games():
+        problems.append(
+            f"{SUPPORTED_GAMES} does not list exactly the games in GAMES the jar has a layer for, "
+            "which grug's error on any other game names"
+        )
 
     modloader = [loader for loader, layer in LAYERS.items() if layer.kind == "modloader"]
     if root_layers(jar) & set(modloader):
@@ -594,9 +615,18 @@ def check_metadata(jar):
     if outer is not None:
         if outer.get("schemaVersion") != 1 or outer.get("id") != OUTER_MOD_ID:
             problems.append(f"the outer fabric.mod.json is not schema 1 with id {OUTER_MOD_ID}")
-        for key in ("entrypoints", "mixins", "depends"):
+        for key in ("mixins", "depends"):
             if outer.get(key):
-                problems.append(f"the outer fabric.mod.json declares {key}; it has to load inert")
+                problems.append(
+                    f"the outer fabric.mod.json declares {key}, which apply on every Fabric game"
+                )
+        if outer.get("entrypoints") != {"preLaunch": [FABRIC_PRELAUNCH]}:
+            problems.append(
+                f"the outer fabric.mod.json's entrypoints are not exactly {FABRIC_PRELAUNCH} at "
+                "preLaunch, which reports a game no layer activates on"
+            )
+        elif FABRIC_PRELAUNCH.replace(".", "/") + ".class" not in root.files:
+            problems.append(f"the outer fabric.mod.json's entrypoint {FABRIC_PRELAUNCH} is missing")
         listed = {entry["file"] for entry in outer.get("jars", [])}
         actual = {NESTED_DIR + Path(n.name).name for n in jar.nested.values()}
         problems += [
@@ -726,6 +756,10 @@ MECHANISMS = {
     "fml125": "FML 1.2.5: mod_ classes anywhere in the jar",
     "modloader": "Risugami's ModLoader: mod_ classes at the jar's root",
 }
+# Where grug runs code on a game without a layer, and so reports it as an error, as a mod on the
+# wrong version does (#493). On the others no class of grug's ever runs, and the jar does nothing.
+REPORTING = {"fabric", "forge", "neoforge-modstoml", "neoforge"}
+REPORTS = "stops with grug's error"
 # Mechanisms no smoke job can cover, because no game of theirs lacks a layer.
 SMOKE_EXEMPT = {"fml125": "FML 1.2.5 only exists for Minecraft 1.2.5, which 1.2.5-forge supports"}
 
@@ -878,13 +912,13 @@ def forge_family(jar, game, toml_name, annotation, starts_layers):
     subscribers = [n for n in readable if any(s in root.files[n] for s in FORGE_SUBSCRIBERS)]
     if subscribers:
         return "loads " + ", ".join(subscribers)
-    if not starts_layers:
-        return []
-    # GrugForgeLayers reads the game from FMLLoader.versionInfo(), which Forge has from 1.17 on.
-    if compare_semver(game.minecraft, "1.17") < 0:
-        return []
+    # GrugForgeLayers reads the game from FMLLoader.versionInfo(), which only Forge has, from 1.17
+    # on; on any other game GrugForgeMod starts no layer and reports that.
+    if not starts_layers or compare_semver(game.minecraft, "1.17") < 0:
+        return REPORTS
     table = json.loads(root.files[FORGE_LAYERS_TABLE])
-    return sorted(loader for loader, entry in table.items() if entry["minecraft"] == game.minecraft)
+    layers = [loader for loader, entry in table.items() if entry["minecraft"] == game.minecraft]
+    return sorted(layers) or REPORTS
 
 
 def activate(jar, game):
@@ -944,11 +978,15 @@ def activate(jar, game):
     outer = json.loads(root.files["fabric.mod.json"])
     if not satisfied(outer):  # the outer mod is in mods/, so an unmet dependency is an error
         return "breaks the launch"
-    return sorted(
+    layers = sorted(
         loader
         for loader, nested in jar.nested.items()
         if satisfied(json.loads(nested.files["fabric.mod.json"]))
     )
+    # GrugFabricPreLaunch reports a game where no layer, all of which are the mod grug, loaded.
+    if not layers and FABRIC_PRELAUNCH in outer.get("entrypoints", {}).get("preLaunch", []):
+        return REPORTS
+    return layers
 
 
 def describe(outcome):
@@ -991,7 +1029,9 @@ def check_dispatcher(jar, games=GAMES, known_gaps=KNOWN_GAPS):
         except (KeyError, ValueError) as error:
             problems.append(f"{game.name}: cannot evaluate the jar's metadata: {error!r}")
             continue
-        expected = describe([game.expect] if game.expect else [])
+        expected = describe(
+            [game.expect] if game.expect else REPORTS if game.kind in REPORTING else []
+        )
         actual = describe(outcome)
         if game.name in known_gaps:
             gap, issue = known_gaps[game.name]
@@ -1000,9 +1040,8 @@ def check_dispatcher(jar, games=GAMES, known_gaps=KNOWN_GAPS):
                     f"{game.name} now {actual} rather than {gap}; update KNOWN_GAPS (#{issue})"
                 )
         elif actual != expected:
-            problems.append(
-                f"{game.name} {actual}, but should {expected.replace('activates', 'activate')}"
-            )
+            should = expected.replace("activates", "activate").replace("stops", "stop")
+            problems.append(f"{game.name} {actual}, but should {should}")
     return problems
 
 

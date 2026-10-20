@@ -3,7 +3,7 @@ package net.grug.minecraft.bootstrap;
 /**
  * The only {@code @Mod} class in the universal jar, which every Forge and NeoForge that reads the
  * jar's mods.toml constructs: it starts the Forge layer for the running Minecraft version, and on
- * every other game it does nothing.
+ * every other game it fails loading with grug's error, naming the games grug runs on (#493).
  *
  * <p>It carries Forge's annotation, which Forge 1.13 on and NeoForge 1.20.1 look for, and
  * NeoForge's, which NeoForge 20.2 on look for. A loader that finds a mod in mods.toml without its

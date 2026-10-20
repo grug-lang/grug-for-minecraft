@@ -131,11 +131,27 @@ class GrugForgeLayersTest {
 
     @Test
     void startsOnlyTheRunningLayer() {
-        ClassLoader loader = getClass().getClassLoader();
-        on("1.20.4").start(loader);
-        assertEquals(0, FakeLayerEntry.constructed);
-        on("1.20.6").start(loader);
+        on("1.20.6").start(getClass().getClassLoader());
         assertEquals(1, FakeLayerEntry.constructed);
+    }
+
+    @Test
+    void reportsAGameWithoutALayer() {
+        IllegalStateException error =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> on("1.20.4").start(getClass().getClassLoader()));
+        assertEquals(
+                "grug has no layer for Minecraft 1.20.4 on this loader, so it does nothing here."
+                    + " The grug jar runs on: Forge 1.20.6, Ornithe b1.7.3 with OSL. Remove it from"
+                    + " this game's mods folder.",
+                error.getMessage());
+        assertEquals(0, FakeLayerEntry.constructed);
+        IllegalStateException unnamed =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> new GrugForgeLayers(LAYERS, null).start(getClass().getClassLoader()));
+        assertTrue(unnamed.getMessage().startsWith("grug has no layer for this game,"));
     }
 
     @Test
@@ -178,9 +194,10 @@ class GrugForgeLayersTest {
     }
 
     @Test
-    void theModDoesNothingOnAGameWithoutALayer() {
+    void theModReportsAGameWithoutALayer() {
         // A unit test runs on no Forge, which is a game the jar does not support.
-        new GrugForgeMod();
+        IllegalStateException error = assertThrows(IllegalStateException.class, GrugForgeMod::new);
+        assertTrue(error.getMessage().startsWith("grug has no layer for this game,"));
         assertEquals(0, FakeLayerEntry.constructed);
     }
 

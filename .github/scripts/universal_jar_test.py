@@ -135,6 +135,7 @@ CORE = {
     "net/grug/minecraft/grug/Grug.class": klass(),
     "net/grug/minecraft/bootstrap/GrugForgeMod.class": BOOTSTRAP_MOD,
     "net/grug/minecraft/bootstrap/GrugMixinPlugin.class": klass(),
+    "net/grug/minecraft/bootstrap/GrugFabricPreLaunch.class": klass(),
     "net/grug/minecraft/shadow/gson/Gson.class": klass(),
     "grug_forge_layers.json": json.dumps(FORGE_LAYERS).encode(),
     "natives/libadapter.so": b"\x7fELF",
@@ -357,7 +358,7 @@ class CheckTest(unittest.TestCase):
         problems = fixture.problems(skip=("b1.7.3-stationapi",))
         self.assertProblem(problems, "loaders/b1.7.3-stationapi has no layer in the jar")
         self.assertProblem(
-            problems, "Babric b1.7.3 with StationAPI activates no layer, but should activate"
+            problems, "Babric b1.7.3 with StationAPI stops with grug's error, but should activate"
         )
 
     def test_a_missing_root_layer(self):
@@ -538,7 +539,7 @@ class DispatcherTest(unittest.TestCase):
         gaps = {"Forge 1.21.1": ("breaks the launch", 493)}
         self.assertProblem(
             check_dispatcher(jar, known_gaps=gaps),
-            "Forge 1.21.1 now activates no layer rather than breaks the launch; "
+            "Forge 1.21.1 now stops with grug's error rather than breaks the launch; "
             "update KNOWN_GAPS (#493)",
         )
 
@@ -587,13 +588,15 @@ class ForgeFamilyTest(unittest.TestCase):
         )
         problems = Fixture(self).problems_after({"META-INF/mods.toml": self.range_toml(dependency)})
         self.assertProblem(problems, "META-INF/mods.toml declares dependencies")
-        self.assertProblem(problems, "Forge 1.21.1 breaks the launch, but should activate no layer")
+        self.assertProblem(
+            problems, "Forge 1.21.1 breaks the launch, but should stop with grug's error"
+        )
 
     def test_a_mandatory_dependency_that_is_missing(self):
         dependency = b'[[dependencies.grug]]\nmodId = "forge"\ntype = "required"\n'
         problems = Fixture(self).problems_after({"META-INF/mods.toml": self.range_toml(dependency)})
         self.assertProblem(
-            problems, "NeoForge 20.4 breaks the launch, but should activate no layer"
+            problems, "NeoForge 20.4 breaks the launch, but should stop with grug's error"
         )
         self.assertNotIn("Forge 1.21.1 breaks the launch", " ".join(problems))
 
@@ -611,7 +614,9 @@ class ForgeFamilyTest(unittest.TestCase):
     def test_neoforge_without_its_own_metadata_shows_a_warning_screen(self):
         problems = Fixture(self).problems_after({"META-INF/neoforge.mods.toml": None})
         self.assertProblem(problems, "META-INF/neoforge.mods.toml does not parse")
-        self.assertProblem(problems, "NeoForge 21.1 shows a warning screen, but should activate")
+        self.assertProblem(
+            problems, "NeoForge 21.1 shows a warning screen, but should stop with grug's error"
+        )
 
     def test_a_jar_neoforge_does_not_recognise_at_all(self):
         jar = Universal.read(Fixture(self).assemble())
@@ -632,7 +637,9 @@ class ForgeFamilyTest(unittest.TestCase):
         self.assertProblem(problems, "Lnet/minecraftforge/fml/common/Mod; is on [")
         self.assertProblem(problems, "GrugModLoader.class carries an FML annotation")
         # Two mod classes for one id on every Forge that can read Java 21, and one on the rest.
-        self.assertProblem(problems, "Forge 1.21.1 breaks the launch, but should activate")
+        self.assertProblem(
+            problems, "Forge 1.21.1 breaks the launch, but should stop with grug's error"
+        )
         self.assertNotIn("Forge 1.13.2 breaks", " ".join(problems))
 
     def test_an_event_bus_subscriber_in_a_layer(self):
@@ -650,8 +657,12 @@ class ForgeFamilyTest(unittest.TestCase):
         fixture.core["net/grug/minecraft/bootstrap/GrugForgeMod.class"] = klass()
         problems = fixture.problems()
         self.assertProblem(problems, "Lnet/neoforged/fml/common/Mod; is on [], rather than only")
-        self.assertProblem(problems, "Forge 1.16.5 breaks the launch, but should activate")
-        self.assertProblem(problems, "NeoForge 21.1 breaks the launch, but should activate")
+        self.assertProblem(
+            problems, "Forge 1.16.5 breaks the launch, but should stop with grug's error"
+        )
+        self.assertProblem(
+            problems, "NeoForge 21.1 breaks the launch, but should stop with grug's error"
+        )
 
     def test_a_bootstrap_newer_than_java_8(self):
         fixture = Fixture(self)
@@ -660,7 +671,9 @@ class ForgeFamilyTest(unittest.TestCase):
         )
         problems = fixture.problems()
         self.assertProblem(problems, "GrugForgeMod.class is newer than Java 8")
-        self.assertProblem(problems, "Forge 1.13.2 breaks the launch, but should activate")
+        self.assertProblem(
+            problems, "Forge 1.13.2 breaks the launch, but should stop with grug's error"
+        )
 
     def test_a_manifest_without_mod_type(self):
         problems = Fixture(self).problems_after(
@@ -696,7 +709,9 @@ class ForgeFamilyTest(unittest.TestCase):
         fixture.core["grug_forge_layers.json"] = b"{}"
         problems = fixture.problems()
         self.assertProblem(problems, "1.20.6-forge has no entry in grug_forge_layers.json")
-        self.assertProblem(problems, "Forge 1.20.6 activates no layer, but should activate 1.20.6")
+        self.assertProblem(
+            problems, "Forge 1.20.6 stops with grug's error, but should activate 1.20.6"
+        )
 
     def test_a_missing_table(self):
         fixture = Fixture(self)
@@ -773,6 +788,58 @@ class ForgeFamilyTest(unittest.TestCase):
     def test_class_versions(self):
         self.assertEqual(universal_jar.class_version(klass(JAVA_21)), 65)
         self.assertEqual(universal_jar.class_version(b""), 0)
+
+
+class UnsupportedGameTest(unittest.TestCase):
+    """grug's error on a game the jar has no layer for (#493)."""
+
+    def assertProblem(self, problems, text):
+        self.assertTrue(any(text in p for p in problems), f"no problem names {text!r}: {problems}")
+
+    def test_lists_the_supported_games(self):
+        jar = Universal.read(Fixture(self).assemble())
+        self.assertEqual(
+            jar.root.files["grug_supported_games.txt"].decode().splitlines(),
+            [game.name for game in universal_jar.GAMES if game.expect],
+        )
+
+    def test_a_list_that_differs_from_games(self):
+        problems = Fixture(self).problems_after({"grug_supported_games.txt": b"Forge 1.20.6\n"})
+        self.assertProblem(problems, "grug_supported_games.txt does not list exactly the games")
+
+    def outer(self, change):
+        fixture = Fixture(self)
+        jar = Universal.read(fixture.assemble())
+        outer = json.loads(jar.root.files["fabric.mod.json"])
+        change(outer)
+        return fixture.problems_after({"fabric.mod.json": json.dumps(outer).encode()})
+
+    def test_an_outer_mod_without_the_entrypoint_is_silent(self):
+        problems = self.outer(lambda outer: outer.pop("entrypoints"))
+        self.assertProblem(problems, "the outer fabric.mod.json's entrypoints are not exactly")
+        self.assertProblem(
+            problems,
+            "Babric b1.7.3 without StationAPI activates no layer, but should stop with grug's error",
+        )
+
+    def test_an_outer_mod_with_a_second_entrypoint(self):
+        problems = self.outer(lambda outer: outer["entrypoints"].update(main=["net.grug.X"]))
+        self.assertProblem(problems, "the outer fabric.mod.json's entrypoints are not exactly")
+
+    def test_a_missing_entrypoint_class(self):
+        fixture = Fixture(self)
+        del fixture.core["net/grug/minecraft/bootstrap/GrugFabricPreLaunch.class"]
+        self.assertProblem(
+            fixture.problems(),
+            "the outer fabric.mod.json's entrypoint net.grug.minecraft.bootstrap.GrugFabricPreLaunch"
+            " is missing",
+        )
+
+    def test_a_reporting_game_and_a_silent_one(self):
+        jar = Universal.read(Fixture(self).assemble())
+        games = {g.name: g for g in universal_jar.GAMES}
+        self.assertEqual(universal_jar.activate(jar, games["Forge 1.21.1"]), universal_jar.REPORTS)
+        self.assertEqual(universal_jar.activate(jar, games["Forge 1.12.2"]), [])
 
 
 class SmokeTest(unittest.TestCase):
