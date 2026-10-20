@@ -25,8 +25,8 @@ export run() {
     level.place_block(x + 16, y + 1, z, "grug:wooden_pipe")
     Test.assert(_facing(level, x + 16, y, z) == 1, "A pipe at y + 1 should make the engine face 1.")
 
-    level.place_block(x + 20, y, z + 1, "grug:redstone_engine")
-    Test.assert(_facing(level, x + 20, y, z) == 3, "An engine at z + 1 should make the engine face 3.")
+    level.place_block(x - 4, y, z + 1, "grug:redstone_engine")
+    Test.assert(_facing(level, x - 4, y, z) == 3, "An engine at z + 1 should make the engine face 3.")
 }
 
 # Places an engine, runs its first tick and returns the orientation it picked.
