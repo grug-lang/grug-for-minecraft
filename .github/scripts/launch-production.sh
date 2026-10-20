@@ -54,9 +54,7 @@ portablemc() {
 # Starts an installed version in GAME_DIR, replacing this shell so the watcher's process group is the
 # game's.
 start() {
-  # A player's launcher picks a JVM the version accepts; this is the same choice.
-  exec "${VENV}/bin/portablemc" --main-dir "$MAIN_DIR" start --mc-dir "$GAME_DIR" \
-    --jvm-policy system-then-mojang -u Player "$@"
+  exec "${VENV}/bin/portablemc" --main-dir "$MAIN_DIR" start --mc-dir "$GAME_DIR" -u Player "$@"
 }
 
 # Writes a launcher profile under versions/, as an installer would.
@@ -84,7 +82,8 @@ cp "$JAR" "${GAME_DIR}/mods/"
 case "$LOADER" in
   1.20.6-forge)
     portablemc --version >/dev/null
-    start "forge::$(property minecraft_version)-$(property forge_version)"
+    # A player's launcher picks a JVM the version accepts; this is the same choice.
+    start --jvm-policy system-then-mojang "forge::$(property minecraft_version)-$(property forge_version)"
     ;;
 
   b1.7.3-stationapi)
