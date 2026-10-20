@@ -67,9 +67,10 @@ repositories {
 }
 
 dependencies {
+    // Only to compile and run in development: in the universal jar, this layer finds core at the
+    // jar's root, which holds it once for every layer, with gson relocated so grug never shares gson
+    // with StationAPI or any other mod.
     implementation("net.grug:grug-core:$grugCoreVersion")
-    // The release jar, with gson relocated inside it. See productionJar.
-    include("net.grug:grug-core:$grugCoreVersion:release")
 
     minecraft("com.mojang:minecraft:b1.7.3")
     mappings("net.glasslauncher:biny:${project.properties["yarn_mappings"]}:v2")
@@ -117,11 +118,10 @@ tasks.withType<Jar> {
     }
 }
 
-// The jar a player installs, which nests core's release jar with gson relocated inside it, so grug
-// never shares gson with StationAPI or any other mod. Copied to build/production/ so every loader's
-// production jar is found at the same path.
-tasks.register<Copy>("productionJar") {
+// This loader's layer of the universal jar, which nests it under META-INF/jars/. Copied to
+// build/layer/ so every loader's layer is found at the same path.
+tasks.register<Copy>("layerJar") {
     from(tasks.named("remapJar"))
-    into(layout.buildDirectory.dir("production"))
+    into(layout.buildDirectory.dir("layer"))
     rename { "grug-${project.projectDir.name}.jar" }
 }

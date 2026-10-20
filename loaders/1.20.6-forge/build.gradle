@@ -70,8 +70,10 @@ dependencies {
 }
 
 mixin {
-    add sourceSets.main, 'grug.refmap.json'
-    config 'grug.mixins.json'
+    // Named after the loader rather than plain grug.mixins.json: this layer sits at the universal
+    // jar's root, where a Fabric layer's mixin config of the same name would resolve to this one.
+    add sourceSets.main, 'grug-1.20.6-forge.refmap.json'
+    config 'grug-1.20.6-forge.mixins.json'
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -99,25 +101,16 @@ sourceSets.each {
     it.java.destinationDirectory = dir
 }
 
-// The jar a player installs. Forge resolves no dependencies of a mod jar it is not told about, so
-// core, the native, mod_api.json and the bundled mods are flattened into it from core's release jar,
-// whose gson is relocated: this version of the game already has gson as a module, and a mod jar
-// holding the same package fails to load. Copied to build/production/ under the loader's name, so
-// every loader's production jar is found at the same path.
-def coreReleaseJar = project(':core').tasks.named('shadowJar')
-
-tasks.register('productionJar', Jar) {
-    dependsOn coreReleaseJar
+// This loader's layer of the universal jar, which sits at its root beside core: Forge reads
+// META-INF/mods.toml from a jar's root and resolves no dependencies of a mod jar it is not told
+// about. Copied to build/layer/ so every loader's layer is found at the same path.
+tasks.register('layerJar', Jar) {
     from(zipTree(tasks.named('jar').flatMap { it.archiveFile })) {
         exclude 'META-INF/MANIFEST.MF'
     }
-    from({ zipTree(coreReleaseJar.get().archiveFile) }) {
-        exclude 'META-INF/MANIFEST.MF'
-    }
     // A development run passes the mixin config on the command line; an installed game only finds
-    // it through the manifest.
-    manifest.attributes('MixinConfigs': 'grug.mixins.json')
-    duplicatesStrategy = DuplicatesStrategy.FAIL
+    // it through the manifest, which the universal jar takes from this layer.
+    manifest.attributes('MixinConfigs': 'grug-1.20.6-forge.mixins.json')
     archiveFileName = "grug-${project.projectDir.name}.jar"
-    destinationDirectory = layout.buildDirectory.dir('production')
+    destinationDirectory = layout.buildDirectory.dir('layer')
 }

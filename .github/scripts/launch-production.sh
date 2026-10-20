@@ -3,7 +3,7 @@
 #
 # Installs the game and mod loader that <loader-dir-name> targets the way a player's launcher does,
 # puts <jar> alone in <game-dir>/mods (beside the API mods that loader needs a player to have, such
-# as StationAPI), and runs the game in the foreground. run-loader.sh's production phase prepares the
+# as StationAPI or OSL), and runs the game in the foreground. run-loader.sh's production phase prepares the
 # test save, sets GRUG_CI and watches the log, exactly as it does for a development run.
 #
 # Nothing from the development tree reaches the game: no GRUG_MODS_DIR, no classpath entries, no
@@ -151,6 +151,13 @@ def loader_profile(version):
     version["libraries"] += upgrades
 rewrite(profile, loader_profile)
 EOF
+    # OSL, which a player of any OSL mod installs beside it (Ornithe's installer says so once it is
+    # done), from Modrinth like they would. The Ornithe layers depend on it rather than nesting it.
+    osl="$(property osl_version)"
+    osl_url=$(curl --fail --silent --show-error --user-agent "grug-lang/grug-for-minecraft CI" \
+      "https://api.modrinth.com/v2/project/osl/version" \
+      | python3 -c "import json, sys; print(next(f['url'] for v in json.load(sys.stdin) if v['version_number'] == sys.argv[1] for f in v['files'] if f['primary']))" "$osl")
+    curl --fail --silent --show-error --location "$osl_url" -o "${GAME_DIR}/mods/osl-${osl}.jar"
     portablemc --version >/dev/null
     start "${LEGACY_LIBRARIES[@]}" --jvm-policy mojang --exclude-lib 'org.ow2.asm:*:7.0' "$profile"
     ;;
