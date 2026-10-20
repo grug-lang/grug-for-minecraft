@@ -239,7 +239,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public Object getResultStack(Object blockEntityObj) {
-        if (!(blockEntityObj instanceof GrugBlockEntity gbe)) return null;
+        if (!(blockEntityObj instanceof GrugBlockEntity)) return null;
+        GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
         return gbe.getResultStack();
     }
 
@@ -255,7 +256,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public double takeCraftingResult(Object blockEntityObj, double amount) {
-        if (blockEntityObj instanceof GrugBlockEntity gbe) {
+        if (blockEntityObj instanceof GrugBlockEntity) {
+            GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
             ItemStack removed = gbe.takeResultStack((int) amount);
             if (removed != null) {
                 gbe.notifyOutputTaken(removed.size);
@@ -320,7 +322,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void updateRecipeOutput(Object blockEntityObj, double startSlot) {
-        if (!(blockEntityObj instanceof GrugBlockEntity gbe)) {
+        if (!(blockEntityObj instanceof GrugBlockEntity)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "update_recipe_output: "
@@ -328,6 +330,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                             + " has no crafting result container.");
             return;
         }
+        GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;
         Inventory inv = (Inventory) blockEntityObj;
         DummyCraftingInventory matrix = new DummyCraftingInventory(inv, (int) startSlot);
         ItemStack result = CraftingManager.getInstance().getResult(matrix);
@@ -518,7 +521,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         String name = "minecraft:unknown";
         Block block = (id >= 0 && id < Block.BY_ID.length) ? Block.BY_ID[id] : null;
 
-        if (block instanceof GrugBlock grugBlock) {
+        if (block instanceof GrugBlock) {
+            GrugBlock grugBlock = (GrugBlock) block;
             net.grug.minecraft.grug.GrugBlockData data =
                     GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId);
             if (data != null) {
@@ -564,8 +568,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
                 if (fileId != null) {
                     for (Block block : Block.BY_ID) {
-                        if (block instanceof net.grug.minecraft.ornithe.block.GrugBlock gb
-                                && gb.blockFileId == fileId) {
+                        if (block instanceof GrugBlock
+                                && ((GrugBlock) block).blockFileId == fileId) {
                             targetBlock = block;
                             break;
                         }
@@ -813,7 +817,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @GrugGenerated("item stack: the block form is not reachable from a grug item")
     private static ItemStack itemStack(Object itemObj) {
-        if (itemObj instanceof Item item) {
+        if (itemObj instanceof Item) {
+            Item item = (Item) itemObj;
             return new ItemStack(item);
         }
         return new ItemStack((Block) itemObj);
@@ -1023,7 +1028,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         int blockId = world.getBlock(blockX, blockY, blockZ);
         Block block = (blockId >= 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
 
-        if (block instanceof GrugBlock grugBlock) {
+        if (block instanceof GrugBlock) {
+            GrugBlock grugBlock = (GrugBlock) block;
             // Go through the block's own use() so the test drives the same code path a real
             // right-click does, instead of a copy of the block's GUI layout.
             grugBlock.use(world, blockX, blockY, blockZ, player);

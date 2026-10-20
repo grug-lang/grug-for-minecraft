@@ -157,7 +157,8 @@ public class GrugBlockEntity extends BlockEntity
         if (world == null) return false;
 
         Block block = Block.BY_ID[world.getBlock(x, y, z)];
-        if (!(block instanceof GrugBlock grugBlock)) return false;
+        if (!(block instanceof GrugBlock)) return false;
+        GrugBlock grugBlock = (GrugBlock) block;
 
         stacks = new ItemStack[grugBlock.getInventorySize()];
         return true;
@@ -170,7 +171,8 @@ public class GrugBlockEntity extends BlockEntity
         if (world == null) return 0;
 
         Block block = Block.BY_ID[world.getBlock(x, y, z)];
-        if (!(block instanceof GrugBlock grugBlock)) return 0;
+        if (!(block instanceof GrugBlock)) return 0;
+        GrugBlock grugBlock = (GrugBlock) block;
 
         long fileId = grugBlock.getEntityFileId();
         if (fileId == Grug.INVALID_GRUG_FILE_ID) return 0;

@@ -151,29 +151,58 @@ public final class GrugBlocks {
 
     private static Material stringToMaterial(String materialName) {
         if (materialName == null) return Material.STONE;
-        return switch (materialName.toLowerCase()) {
-            case "air" -> Material.AIR;
-            case "organic", "dirt", "grass" -> Material.GRASS;
-            case "wood" -> Material.WOOD;
-            case "stone" -> Material.STONE;
-            case "metal", "iron" -> Material.IRON;
-            case "water" -> Material.WATER;
-            case "lava" -> Material.LAVA;
-            case "leaves" -> Material.LEAVES;
-            case "plant" -> Material.PLANT;
-            case "sponge" -> Material.SPONGE;
-            case "cloth", "wool" -> Material.WOOL;
-            case "fire" -> Material.FIRE;
-            case "sand" -> Material.SAND;
-            case "decoration" -> Material.DECORATION;
-            case "glass" -> Material.GLASS;
-            case "tnt" -> Material.TNT;
-            case "coral", "unused" -> Material.CORAL;
-            case "ice" -> Material.ICE;
-            case "snow", "snow_layer", "snow_block" -> Material.SNOW;
-            case "cactus" -> Material.CACTUS;
-            case "clay" -> Material.CLAY;
-            default -> Material.STONE;
-        };
+        switch (materialName.toLowerCase()) {
+            case "air":
+                return Material.AIR;
+            case "organic":
+            case "dirt":
+            case "grass":
+                return Material.GRASS;
+            case "wood":
+                return Material.WOOD;
+            case "stone":
+                return Material.STONE;
+            case "metal":
+            case "iron":
+                return Material.IRON;
+            case "water":
+                return Material.WATER;
+            case "lava":
+                return Material.LAVA;
+            case "leaves":
+                return Material.LEAVES;
+            case "plant":
+                return Material.PLANT;
+            case "sponge":
+                return Material.SPONGE;
+            case "cloth":
+            case "wool":
+                return Material.WOOL;
+            case "fire":
+                return Material.FIRE;
+            case "sand":
+                return Material.SAND;
+            case "decoration":
+                return Material.DECORATION;
+            case "glass":
+                return Material.GLASS;
+            case "tnt":
+                return Material.TNT;
+            case "coral":
+            case "unused":
+                return Material.CORAL;
+            case "ice":
+                return Material.ICE;
+            case "snow":
+            case "snow_layer":
+            case "snow_block":
+                return Material.SNOW;
+            case "cactus":
+                return Material.CACTUS;
+            case "clay":
+                return Material.CLAY;
+            default:
+                return Material.STONE;
+        }
     }
 }

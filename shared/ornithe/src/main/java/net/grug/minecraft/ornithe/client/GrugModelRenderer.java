@@ -90,7 +90,7 @@ public final class GrugModelRenderer {
             WorldView world, Block block, int x, int y, int z, List<GrugQuad> quads) {
         if (quads.isEmpty()) return;
 
-        boolean flat = block instanceof GrugBlock grugBlock && grugBlock.drawsFlatLighting();
+        boolean flat = block instanceof GrugBlock && ((GrugBlock) block).drawsFlatLighting();
 
         TextureManager textures = MinecraftInstance.get().textureManager;
         Tesselator tesselator = Tesselator.INSTANCE;

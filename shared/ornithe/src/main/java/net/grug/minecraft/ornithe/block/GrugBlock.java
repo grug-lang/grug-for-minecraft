@@ -98,7 +98,8 @@ public class GrugBlock extends BlockWithBlockEntity {
         // re-inits it against members Java has already collected. b1.7.3 also does this in
         // markRemoved; the call is idempotent.
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
-        if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+        if (blockEntity instanceof GrugBlockEntity) {
+            GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
             grugBlockEntity.destroyGrugEntity();
         }
 
@@ -114,7 +115,8 @@ public class GrugBlock extends BlockWithBlockEntity {
     @Override
     public void neighborChanged(World world, int x, int y, int z, int side) {
         BlockEntity blockEntity = world.getBlockEntity(x, y, z);
-        if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+        if (blockEntity instanceof GrugBlockEntity) {
+            GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
             grugBlockEntity.notifyNeighborChanged();
         }
         super.neighborChanged(world, x, y, z, side);

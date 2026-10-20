@@ -33,7 +33,8 @@ public class CraftingManagerMixin {
     private void grug$shapelessRecipes(int[] grid, CallbackInfoReturnable<ItemStack> cir) {
         if (cir.getReturnValue() != null) return;
         Object matched = GrugShapelessRecipes.match(grid);
-        if (matched instanceof ItemStack result) {
+        if (matched instanceof ItemStack) {
+            ItemStack result = (ItemStack) matched;
             cir.setReturnValue(result.copy());
         }
     }

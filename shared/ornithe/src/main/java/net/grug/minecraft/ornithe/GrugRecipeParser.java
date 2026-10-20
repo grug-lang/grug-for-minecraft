@@ -33,7 +33,29 @@ public final class GrugRecipeParser {
      * A parsed recipe ready to hand to {@code CraftingManager.registerShaped} or its shapeless
      * twin.
      */
-    public record ParsedRecipe(ItemStack output, Object[] inputs, GrugRecipeTree.Kind kind) {}
+    public static final class ParsedRecipe {
+        private final ItemStack output;
+        private final Object[] inputs;
+        private final GrugRecipeTree.Kind kind;
+
+        ParsedRecipe(ItemStack output, Object[] inputs, GrugRecipeTree.Kind kind) {
+            this.output = output;
+            this.inputs = inputs;
+            this.kind = kind;
+        }
+
+        public ItemStack output() {
+            return output;
+        }
+
+        public Object[] inputs() {
+            return inputs;
+        }
+
+        public GrugRecipeTree.Kind kind() {
+            return kind;
+        }
+    }
 
     /**
      * Parses every recipe in the mods tree that this loader can register.
