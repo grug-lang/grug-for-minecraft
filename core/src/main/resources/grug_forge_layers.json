@@ -1,0 +1,7 @@
+{
+  "1.20.6-forge": {
+    "minecraft": "1.20.6",
+    "entrypoint": "net.grug.minecraft.forge.GrugModLoader",
+    "mixins": "grug-1.20.6-forge.mixins.json"
+  }
+}

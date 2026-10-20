@@ -30,9 +30,24 @@ java.targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
     mavenCentral()
+    // Mixin, which GrugMixinPlugin is compiled against; the game brings its own at run time.
+    maven("https://repo.spongepowered.org/repository/maven-public/") {
+        content { includeGroup("org.spongepowered") }
+    }
 }
 
+// Compile-time stand-ins for the loaders' @Mod annotations, which GrugForgeMod carries. Compiled
+// against and never packaged: the loader brings its own, and the other loader's is simply absent.
+val stubs: SourceSet = sourceSets.create("stubs")
+
 dependencies {
+    compileOnly(stubs.output)
+    // The game provides Mixin and ASM wherever GrugMixinPlugin is loaded, so neither is packaged.
+    compileOnly("org.spongepowered:mixin:0.8.5") { isTransitive = false }
+    compileOnly("org.ow2.asm:asm-tree:9.7.1")
+    testImplementation("org.spongepowered:mixin:0.8.5") { isTransitive = false }
+    testImplementation("org.ow2.asm:asm-tree:9.7.1")
+
     compileOnly("org.projectlombok:lombok:1.18.48")
     annotationProcessor("org.projectlombok:lombok:1.18.48")
     implementation("org.jetbrains:annotations:26.1.0")

@@ -1,0 +1,8 @@
+{
+  "package": "net.grug.fake.mixin",
+  "grug": {
+    "mixins": ["CommonMixin"],
+    "client": ["ClientMixin"],
+    "server": ["ServerMixin"]
+  }
+}

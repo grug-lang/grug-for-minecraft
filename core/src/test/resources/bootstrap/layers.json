@@ -1,0 +1,12 @@
+{
+  "fake-forge": {
+    "minecraft": "1.20.6",
+    "entrypoint": "net.grug.minecraft.bootstrap.FakeLayerEntry",
+    "mixins": "bootstrap/fake.mixins.json"
+  },
+  "other-forge": {
+    "minecraft": "1.21.1",
+    "entrypoint": "net.grug.minecraft.bootstrap.FailingLayerEntry",
+    "mixins": "bootstrap/other.mixins.json"
+  }
+}
