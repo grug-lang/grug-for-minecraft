@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # scripts/ci/run-loader.sh <loader-dir-name> <build|run|update-goldens|production>
 #
-# production runs the same tests in an installed game instead of the development run: it builds the
-# loader's productionJar and hands it to launch-production.sh, which installs the game and mod loader
-# the way a player's launcher does and runs it with that jar alone.
+# production runs the same tests in an installed game instead of the development run: it hands the
+# universal jar named by GRUG_UNIVERSAL_JAR (which .github/scripts/universal_jar.py assembles from
+# every loader's layerJar) to launch-production.sh, which installs the game and mod loader the way a
+# player's launcher does and runs it with that jar alone.
 
 set -uo pipefail
 
@@ -77,32 +78,36 @@ if [ "$PHASE" = update-goldens ]; then
   export GRUG_UPDATE_GOLDENS=1
 fi
 
+# The universal jar a production run launches, resolved before the cd below. It is assembled from
+# all five loaders, which no single loader's build produces, so it is handed in rather than built.
+if [ "$PHASE" = production ]; then
+  if [ -z "${GRUG_UNIVERSAL_JAR:-}" ] || [ ! -f "$GRUG_UNIVERSAL_JAR" ]; then
+    echo "==> ERROR: production launches the universal jar; set GRUG_UNIVERSAL_JAR to one assembled by .github/scripts/universal_jar.py." >&2
+    exit 2
+  fi
+  UNIVERSAL_JAR="$(cd "$(dirname "$GRUG_UNIVERSAL_JAR")" && pwd)/$(basename "$GRUG_UNIVERSAL_JAR")"
+fi
+
 # Standalone loaders have their own Gradle wrapper and consume core from the repository the root
-# build publishes it into, so that publish has to happen before the loader's own build runs.
+# build publishes it into, so that publish has to happen before the loader's own build runs. A
+# production run builds no loader: the universal jar already holds core.
 if [ -f "${LOADER_DIR}/root.gradle" ]; then
-  echo "==> Publishing core into build/maven"
-  ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository "${gradle_args[@]}" || exit 1
+  if [ "$PHASE" != production ]; then
+    echo "==> Publishing core into build/maven"
+    ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository "${gradle_args[@]}" || exit 1
+  fi
   cd "$LOADER_DIR"
   task_prefix=""
 else
   task_prefix=":loaders:${LOADER}:"
 fi
 
+# The build also writes the loader's layer of the universal jar to build/layer/grug-<loader>.jar,
+# which CI hands to universal_jar.py.
 if [ "$PHASE" = build ]; then
-  echo "==> Building $LOADER (compile only, no game launch)"
-  ./gradlew "${task_prefix}build" -x test "${gradle_args[@]}"
+  echo "==> Building $LOADER and its layer of the universal jar (no game launch)"
+  ./gradlew "${task_prefix}build" "${task_prefix}layerJar" -x test "${gradle_args[@]}"
   exit
-fi
-
-# Every loader's productionJar task writes the jar a player installs to the same path.
-PRODUCTION_JAR="${REPO_ROOT}/${LOADER_DIR}/build/production/grug-${LOADER}.jar"
-if [ "$PHASE" = production ]; then
-  echo "==> Building the production jar of $LOADER"
-  ./gradlew "${task_prefix}productionJar" "${gradle_args[@]}" || exit 1
-  if [ ! -f "$PRODUCTION_JAR" ]; then
-    echo "==> ERROR: productionJar did not write $PRODUCTION_JAR." >&2
-    exit 1
-  fi
 fi
 
 EXPECTED_TESTS=$(find "${REPO_ROOT}/mods" -name "*-Test.grug" | wc -l | tr -d ' ')
@@ -187,7 +192,7 @@ tail_pid=$!
 
 # setsid gives the launch its own process group so cleanup can kill Gradle and the game together.
 if [ "$PHASE" = production ]; then
-  setsid "${REPO_ROOT}/.github/scripts/launch-production.sh" "$LOADER" "$GAME_DIR" "$PRODUCTION_JAR" >"$LOG_FILE" 2>&1 &
+  setsid "${REPO_ROOT}/.github/scripts/launch-production.sh" "$LOADER" "$GAME_DIR" "$UNIVERSAL_JAR" >"$LOG_FILE" 2>&1 &
 else
   setsid ./gradlew "${task_prefix}runClient" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
 fi

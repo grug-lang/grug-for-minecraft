@@ -67,9 +67,9 @@ repositories {
 }
 
 dependencies {
+    // Only to compile and run in development: in the universal jar, this layer finds core at the
+    // jar's root, which holds it once for every layer.
     implementation "net.grug:grug-core:$grugCoreVersion"
-    // The release jar, with gson relocated inside it. See productionJar.
-    include "net.grug:grug-core:$grugCoreVersion:release"
 
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -82,11 +82,11 @@ dependencies {
     serverNests ploceus.nests(project.server_nests_build, 'server')
     mappings ploceus.featherMappings(project.feather_build)
 
+    // Not nested: an Ornithe player installs OSL beside their mods, as every OSL mod on Modrinth asks,
+    // and fabric.mod.json depends on the modules grug uses. That dependency is also what keeps this
+    // layer off a Babric b1.7.3 game, which reports the same Minecraft version but names its classes
+    // by another intermediary: OSL is built against Ornithe's, so no Babric instance has it.
     ploceus.dependOsl(project.osl_version)
-    // OSL is a set of mods the game needs at runtime, so the jar a player installs nests every module
-    // this version uses, and nobody has to install OSL beside it. Fabric Loader keeps the newer copy
-    // when a player has OSL installed as well.
-    ploceus.dependOsl('include', project.osl_version, net.ornithemc.ploceus.api.GameSide.MERGED)
 }
 
 tasks.withType(ProcessResources) {
@@ -107,11 +107,10 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 8
 }
 
-// The jar a player installs, which nests core's release jar: gson comes relocated inside it, because
-// this version of the game ships none. Copied to build/production/ so every loader's production jar
-// is found at the same path.
-tasks.register('productionJar', Copy) {
+// This loader's layer of the universal jar, which nests it under META-INF/jars/. Copied to
+// build/layer/ so every loader's layer is found at the same path.
+tasks.register('layerJar', Copy) {
     from remapJar
-    into layout.buildDirectory.dir('production')
+    into layout.buildDirectory.dir('layer')
     rename { "grug-${project.projectDir.name}.jar" }
 }

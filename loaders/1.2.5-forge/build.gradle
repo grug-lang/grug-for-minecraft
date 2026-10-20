@@ -99,10 +99,6 @@ configurations {
     }
     // LWJGL 2 / JInput Linux natives for -Djava.library.path.
     natives
-    // Core's release jar, with gson relocated inside it, for productionJar.
-    coreRelease {
-        transitive = false
-    }
 }
 
 dependencies {
@@ -146,7 +142,6 @@ dependencies {
 
     natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.3:natives-linux'
 
-    coreRelease "net.grug:grug-core:$grugCoreVersion:release"
     natives 'net.java.jinput:jinput:2.0.10:natives-all'
 }
 
@@ -287,19 +282,14 @@ tasks.register('reobfJar', Exec) {
     }
 }
 
-// The jar a player installs. ModLoader loads a mod from mods/ with no dependency mechanism, so core,
-// the native, mod_api.json and the bundled mods are flattened into it from core's release jar, which
-// also carries gson, relocated: 1.2.5 ships none. Core holds no Minecraft references, so it is merged
-// in after reobfuscation rather than run through it.
-tasks.register('productionJar', Zip) {
+// This loader's layer of the universal jar, which sits at its root: ModLoader loads mod_ classes
+// from the root of a jar in mods/ and has no dependency mechanism, and the universal jar's root
+// already holds core, gson (relocated, since 1.2.5 ships none), the native, mod_api.json and the
+// bundled mods. Copied to build/layer/ so every loader's layer is found at the same path.
+tasks.register('layerJar', Copy) {
     dependsOn 'reobfJar'
-    from(zipTree(finalJar))
-    from({ zipTree(configurations.coreRelease.singleFile) }) {
-        exclude 'META-INF/MANIFEST.MF'
-    }
-    duplicatesStrategy = DuplicatesStrategy.FAIL
-    archiveFileName = "grug-${projectDirFile.name}.jar"
-    destinationDirectory = new File(buildDirFile, 'production')
+    from finalJar
+    into new File(buildDirFile, 'layer')
 }
 
 tasks.named('assemble') {
@@ -460,12 +450,12 @@ tasks.register('runClient', Exec) {
     }
 }
 
-// Boots the production jar the way an installed game would: only the game's own libraries on the
+// Boots the universal jar the way an installed game would: only the game's own libraries on the
 // classpath, the jar alone in <game dir>/mods, and no GRUG_MODS_DIR, so grug has to find, extract
-// and load its bundled mods from inside the jar. launch-production.sh prepares the game directory.
+// and load its bundled mods from inside the jar. launch-production.sh puts the jar in place.
 tasks.register('runProduction', Exec) {
-    description = 'Launches productionJar alone in a pack-style 1.2.5 instance on Java 8.'
-    dependsOn 'productionJar', 'obfuscateRuntime', 'extractNatives'
+    description = 'Launches the universal jar alone in a pack-style 1.2.5 instance on Java 8.'
+    dependsOn 'obfuscateRuntime', 'extractNatives'
     doFirst {
         def gameDirProperty = findProperty('grug.productionGameDir')
         if (!gameDirProperty) {

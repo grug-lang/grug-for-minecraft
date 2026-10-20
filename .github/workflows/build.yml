@@ -163,6 +163,24 @@ jobs:
       # against a miniature repository and real Gradle.
       - name: Test the core hand-off
         run: python3 .github/scripts/grug_core_handoff_test.py
+
+      # Every invariant check the universal job runs on the real jar, each shown to catch the defect
+      # it is for on a miniature jar, so a check that stopped looking fails here.
+      - name: Test the universal jar's assembly and checks
+        run: python3 .github/scripts/universal_jar_test.py
+
+      # Core's release jar, with gson relocated, which the universal job puts at the root of the
+      # universal jar once for every loader.
+      - name: Build core's release jar
+        run: ./gradlew :core:shadowJar -Dgrug.activeLoader=a1.1.2_01-ornithe -Pgrug.prebuiltGrugRs="${{ github.workspace }}/.grug-ci/libgruggers.a"
+
+      - name: Upload core's release jar
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: core-release
+          path: core/build/libs/*-release.jar
+          if-no-files-found: error
+          retention-days: 7
       # The coverage job used to ask Gradle for this path, which cost it a cold Gradle start (~35s)
       # for one string. This job has already resolved core's dependencies and has a Gradle home with
       # them in, so it resolves the jar instead, and the version stays the jacoco plugin's own with no
@@ -337,6 +355,16 @@ jobs:
         env:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
 
+      # This loader's layer of the universal jar, which the build step wrote and the universal job
+      # assembles with the other four.
+      - name: Upload the layer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: layer-${{ matrix.dir }}
+          path: loaders/${{ matrix.dir }}/build/layer/grug-${{ matrix.dir }}.jar
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Run tests (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" run
         env:
@@ -386,18 +414,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # The same suite again, in a game installed the way a player installs one, with the jar a player
-      # would download as its only grug: no repository mods, no GRUG_MODS_DIR and no development
-      # classpath. It runs after the coverage uploads, so the development run's coverage data is
-      # already safe whatever happens here. See #487.
-      - name: Run tests in an installed game (${{ matrix.dir }})
-        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" production
-        env:
-          GRUG_JAVA8: ${{ steps.java8.outputs.path }}
-          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
-          # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
-          GRUG_CI_RUN_TIMEOUT: '900'
-
       - name: Upload logs and crash reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -408,10 +424,6 @@ jobs:
             loaders/${{ matrix.dir }}/run/crash-reports
             loaders/${{ matrix.dir }}/run/ci-run-loader.log
             loaders/${{ matrix.dir }}/run/hs_err_pid*.log
-            loaders/${{ matrix.dir }}/build/ci-production.log
-            loaders/${{ matrix.dir }}/build/production-game/logs
-            loaders/${{ matrix.dir }}/build/production-game/crash-reports
-            loaders/${{ matrix.dir }}/build/production-game/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -423,9 +435,149 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: loader-${{ matrix.dir }}-screenshots
+          path: loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Assembles the universal jar from core's release jar and every loader's layer, the jar a player
+  # downloads, and fails unless it holds every invariant universal_jar.py checks: no duplicate
+  # paths, every class in its loader's package, one layer per loaders/* directory, the native,
+  # mod_api.json and each bundled mod exactly once, metadata whose entrypoints and mixins exist,
+  # and exactly one layer activating on each supported game and none on the others. See #488.
+  universal:
+    name: universal jar
+    needs: [core, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the layers and core's release jar
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: '{layer-*,core-release}'
+          path: universal/parts
+          merge-multiple: true
+
+      # The outer mod reports core's version, which carries the commit, so a jar names the commit it
+      # was built from.
+      - name: Assemble the universal jar
+        run: |
+          core=$(ls universal/parts/core-*-release.jar)
+          version=$(basename "$core" | sed -E 's/^core-(.+)-release\.jar$/\1/')
+          python3 .github/scripts/universal_jar.py assemble --core "$core" --version "$version" \
+            --out universal/grug.jar universal/parts/grug-*.jar
+
+      - name: Check the universal jar's invariants
+        run: python3 .github/scripts/universal_jar.py check universal/grug.jar
+
+      - name: Upload the universal jar
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: grug-universal
+          path: universal/grug.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  # The suite again, in a game installed the way a player installs one, with the universal jar as its
+  # only grug: no repository mods, no GRUG_MODS_DIR and no development classpath. Every loader runs
+  # the very same jar, which is the smoke test that the assembled jar works and not only its layers.
+  # See #487 and #488.
+  production:
+    name: ${{ matrix.dir }} installed
+    needs: [discover, universal]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        id: java21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # 1.2.5's installed game boots on Java 8 through the loader's own Gradle wrapper, as in the build
+      # job; JAVA_HOME goes back to 21 for that wrapper.
+      - name: Set up JDK 8 (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        id: java8
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Restore JDK 21 for Gradle (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
+
+      # Only 1.2.5's launch runs Gradle, to obfuscate its runtime out of the MCP snapshot; the other
+      # four are installed by a launcher. Restored from the build job's caches, never saved here.
+      - name: Restore the Gradle distributions and dependencies (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
           path: |
-            loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
-            loaders/${{ matrix.dir }}/build/production-game/grug-screenshot-artifacts
+            ~/.gradle/wrapper
+            ~/.gradle/caches/modules-2
+          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+
+      - name: Restore the 1.2.5 MCP snapshot (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: loaders/1.2.5-forge/build/mcp125
+          key: grug-mcp125-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
+
+      # The same display stack as the build job, for the same reasons.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth x11-xserver-utils \
+            libgl1 libgl1-mesa-dri libglx-mesa0 \
+            libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+
+      - name: Download the universal jar
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-universal
+          path: universal
+
+      - name: Run tests in an installed game (${{ matrix.dir }})
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" production
+        env:
+          GRUG_JAVA8: ${{ steps.java8.outputs.path }}
+          GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
+          # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
+          GRUG_CI_RUN_TIMEOUT: '900'
+
+      - name: Upload logs and crash reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-${{ matrix.dir }}-logs
+          path: |
+            loaders/${{ matrix.dir }}/build/ci-production.log
+            loaders/${{ matrix.dir }}/build/production-game/logs
+            loaders/${{ matrix.dir }}/build/production-game/crash-reports
+            loaders/${{ matrix.dir }}/build/production-game/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload unmatched screenshot captures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-${{ matrix.dir }}-screenshots
+          path: loaders/${{ matrix.dir }}/build/production-game/grug-screenshot-artifacts
           if-no-files-found: ignore
           retention-days: 7
 
