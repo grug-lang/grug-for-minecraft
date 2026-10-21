@@ -124,16 +124,19 @@ jobs:
       - name: Set up the MSVC toolchain
         uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
 
+      # PowerShell rather than bash: Git for Windows puts its own link.exe, a coreutils command, ahead
+      # of MSVC's linker in a bash step's PATH, and rustc then runs the wrong one.
       - name: Build the adapter
-        shell: bash
-        run: ./gradlew :core:buildGrugAdapter -Dgrug.activeLoader=a1.1.2_01-ornithe
+        shell: pwsh
+        run: ./gradlew.bat :core:buildGrugAdapter "-Dgrug.activeLoader=a1.1.2_01-ornithe"
 
       # A DLL that links is not one the JVM can bind: the JNI entry points have to be exported by name.
       - name: Check the DLL exports the JNI entry points
-        shell: bash
+        shell: pwsh
         run: |
-          dumpbin //exports core/build/generated/resources/natives/adapter.dll | tee exports.txt
-          grep -q Java_net_grug_minecraft_grug_GrugNative_nativeInit exports.txt
+          $exports = dumpbin /exports core/build/generated/resources/natives/adapter.dll
+          $exports
+          if (-not ($exports | Select-String "Java_net_grug_minecraft_grug_GrugNative_nativeInit")) { exit 1 }
 
   core:
     name: core tests
