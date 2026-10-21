@@ -524,8 +524,10 @@ jobs:
 
       # The runner has no GPU, and the OpenGL Windows itself provides cannot give LWJGL 2 an
       # accelerated pixel format ("Pixel format not accelerated"). Mesa's llvmpipe renders in
-      # software: its opengl32.dll next to java.exe is found before the system's, which is how an
-      # application picks a different OpenGL on Windows. Pinned like every other version here.
+      # software. LWJGL asks GDI for its pixel format, which goes to the driver registered with
+      # Windows rather than to a DLL beside java.exe, so Mesa's own system-wide deploy script (its
+      # unattended mode, choice 1) registers it as the OpenGL driver. Pinned like every other
+      # version here.
       - name: Install software OpenGL
         shell: pwsh
         env:
@@ -536,9 +538,11 @@ jobs:
           Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z" -OutFile $archive
           if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:MESA_SHA256.ToUpper()) { throw "mesa3d archive does not match its pinned checksum" }
           7z x $archive "-o$env:RUNNER_TEMP\mesa" -y | Out-Null
-          Get-ChildItem "$env:RUNNER_TEMP\mesa" | Format-Table Name
-          Copy-Item "$env:RUNNER_TEMP\mesa\x64\*.dll" "$env:JAVA_HOME\bin"
-          Get-ChildItem "$env:JAVA_HOME\bin\opengl32.dll"
+          Push-Location "$env:RUNNER_TEMP\mesa"
+          cmd /c "systemwidedeploy.cmd 1"
+          Pop-Location
+          Get-ChildItem "$env:windir\System32\mesadrv.dll"
+          reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL"
 
       # Booting to the title screen is the bar here, not the suite: the screenshot goldens were made
       # on Linux, and a game that boots on Windows runs the same shared code the Linux jobs test.
