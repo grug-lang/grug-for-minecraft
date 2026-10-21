@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi.mixin;
 
+import net.grug.minecraft.stationapi.gui.GrugModsButton;
 import net.minecraft.client.SingleplayerInteractionManager;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.TitleScreen;
@@ -27,6 +28,12 @@ public class TitleScreenMixin extends Screen {
     private static final String SAVE_LEVEL = "New World";
 
     @Unique private boolean grug$autoLoaded = false;
+
+    @Inject(method = "init", at = @At("RETURN"))
+    @SuppressWarnings("unchecked")
+    private void grug$addModsButton(CallbackInfo ci) {
+        this.buttons.add(new GrugModsButton(this));
+    }
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$autoLoadWorld(CallbackInfo ci) {

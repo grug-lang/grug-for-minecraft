@@ -137,6 +137,7 @@ def layers():
             "META-INF/MANIFEST.MF": b"Manifest-Version: 1.0\r\n\r\n",
             "net/grug/minecraft/forge125/mod_Grug.class": string_field_class("VERSION", VERSION),
             "GrugTorchFlicker.class": klass(),
+            "GrugTitleButton.class": klass(),
             "vanilla_names.txt": b"",
         },
         "a1.1.2_01-ornithe": {
@@ -754,9 +755,9 @@ class ForgeFamilyTest(unittest.TestCase):
 
     def test_a_first_class_old_fml_can_read(self):
         fixture = Fixture(self)
-        fixture.layers["1.2.5-forge"]["GrugTorchFlicker.class"] = klass(JAVA_7)
+        fixture.layers["1.2.5-forge"]["GrugTitleButton.class"] = klass(JAVA_7)
         self.assertProblem(
-            fixture.problems(), "Forge 1.6.4 reads GrugTorchFlicker.class, but should activate"
+            fixture.problems(), "Forge 1.6.4 reads GrugTitleButton.class, but should activate"
         )
 
     def test_a_jar_without_classes_old_fml_reads_nothing_of(self):

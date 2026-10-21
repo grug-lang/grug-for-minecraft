@@ -83,6 +83,11 @@ EXCLUDED_CLASSES = {
     "GrugCraftingInventory",
     "GrugStaticTexture",
     "DummyCraftingInventory",
+    # The mod manager's screen and the title screen button that opens it (#335): GUI glue over each
+    # loader's own screen API. What it shows and does lives in core's GrugModsScreenModel.
+    "GrugModsScreen",
+    "GrugModsButton",
+    "GrugTitleButton",
     # Loader startup and registration only runs inside a real game bootstrap, which a headless CI
     # cannot drive. The logic they carry beyond wiring (file classification, the LICENSE gate,
     # recipe parsing, the adapters) lives in measured classes instead.

@@ -8,10 +8,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 /**
- * Copies the example mods bundled in the jar into a game's mods directory the first time it runs.
+ * Installs the mods bundled in the jar into a game's mods directory, one mod at a time.
  *
  * <p>The mods are read as classpath resources through the index the build writes next to them,
  * rather than by walking a directory of the jar. A jar that a mod loader nests inside another one
@@ -39,22 +43,32 @@ public final class GrugModsExtractor {
         return GrugModsExtractor.class::getResourceAsStream;
     }
 
-    /**
-     * Copies every bundled file into {@code target}, skipping files that already exist, then writes
-     * the marker so a later run is a no-op.
-     *
-     * <p>A missing index, or a listed file that is missing or cannot be copied, aborts the
-     * extraction rather than being skipped. The marker is written once every file is in place, so
-     * carrying on would leave a mods directory that is missing files while claiming to be complete,
-     * and no later run would look for them again.
-     */
-    public static void extract(Resources resources, Path target, Path marker) throws IOException {
-        if (Files.exists(marker)) return;
-
+    /** The bundled mods in the order of the index, each with the files it holds. */
+    public static Map<String, List<String>> bundled(Resources resources) throws IOException {
+        Map<String, List<String>> mods = new LinkedHashMap<>();
         for (String relative : index(resources)) {
-            Path destination = target.resolve(relative);
-            if (Files.exists(destination)) continue;
+            String mod = relative.substring(0, relative.indexOf('/'));
+            mods.computeIfAbsent(mod, name -> new ArrayList<>()).add(relative);
+        }
+        return mods;
+    }
 
+    /**
+     * Copies one bundled mod into {@code target}, which then holds a directory of the mod's name.
+     *
+     * <p>The mod is copied beside its final place and renamed once every file is in, so a missing
+     * or uncopyable file aborts the install without leaving a half-installed mod that the next run
+     * would take for a complete one.
+     */
+    public static void install(Resources resources, String mod, Path target) throws IOException {
+        List<String> files = bundled(resources).get(mod);
+        if (files == null) {
+            throw new IOException(mod + " is not a mod bundled in the grug jar");
+        }
+        Path staging = target.resolve("." + mod + ".installing");
+        deleteTree(staging);
+        for (String relative : files) {
+            Path destination = staging.resolve(relative.substring(mod.length() + 1));
             try (InputStream in = resources.open(MODS_ROOT + relative)) {
                 if (in == null) {
                     throw new IOException("the index lists it, but the jar does not contain it");
@@ -62,14 +76,20 @@ public final class GrugModsExtractor {
                 Files.createDirectories(destination.getParent());
                 Files.copy(in, destination);
             } catch (IOException e) {
-                throw new IOException("Failed to extract default grug mod file: " + relative, e);
+                throw new IOException("Failed to install file of bundled grug mod: " + relative, e);
             }
         }
+        Files.move(staging, target.resolve(mod));
+    }
 
-        Files.write(
-                marker,
-                "The default examples have already been generated.\n"
-                        .getBytes(StandardCharsets.UTF_8));
+    /** Removes a directory tree if there is one. */
+    static void deleteTree(Path root) throws IOException {
+        if (!Files.exists(root)) return;
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path path : (Iterable<Path>) paths.sorted(Comparator.reverseOrder())::iterator) {
+                Files.delete(path);
+            }
+        }
     }
 
     private static List<String> index(Resources resources) throws IOException {

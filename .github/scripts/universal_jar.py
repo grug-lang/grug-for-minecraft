@@ -114,7 +114,11 @@ LAYERS = {
     "1.20.6-forge": Layer("forge", "net/grug/minecraft/forge/"),
     # Reobfuscation moves this helper from net.minecraft.src into the default package, where the
     # obfuscated vanilla classes it reaches live.
-    "1.2.5-forge": Layer("modloader", "net/grug/minecraft/forge125/", ("GrugTorchFlicker.class",)),
+    "1.2.5-forge": Layer(
+        "modloader",
+        "net/grug/minecraft/forge125/",
+        ("GrugTorchFlicker.class", "GrugTitleButton.class"),
+    ),
     "a1.1.2_01-ornithe": Layer(
         "fabric", "net/grug/minecraft/ornithe/", ("net/minecraft/crafting/GrugRecipeHelper.class",)
     ),

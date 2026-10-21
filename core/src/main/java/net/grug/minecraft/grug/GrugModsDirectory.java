@@ -84,13 +84,10 @@ public final class GrugModsDirectory {
             // A run pointed at another directory, a reference run's or the repository's, loads
             // exactly what is there, so the examples only ever land in the game's own directory.
             if (active.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
-                GrugModsExtractor.extract(
-                        jar,
-                        runGrugDir.toPath(),
-                        runGrugDir.toPath().resolve(".examples_generated.txt"));
+                new GrugModManager(gameDir, jar, mod -> null).apply();
             }
         } catch (IOException e) {
-            throw Grug.fatal("Failed to extract the default grug mods", e);
+            throw Grug.fatal("Failed to resolve the grug mods directory", e);
         }
         return active;
     }

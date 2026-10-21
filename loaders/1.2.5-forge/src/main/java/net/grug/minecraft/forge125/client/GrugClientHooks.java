@@ -14,6 +14,7 @@ import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
+import net.minecraft.src.GrugTitleButton;
 import net.minecraft.src.GrugTorchFlicker;
 import net.minecraft.src.GuiIngameMenu;
 import net.minecraft.src.GuiMainMenu;
@@ -356,6 +357,14 @@ public class GrugClientHooks implements ITickHandler {
         if (testRunner != null) {
             GrugTorchFlicker.pin(minecraft.entityRenderer);
             GrugTorchFlicker.pinVignette(minecraft.ingameGUI);
+        }
+
+        // The main menu has no hook to add a button through, and rebuilds its control list when the
+        // window is resized, so the button is put back whenever the list lacks it (#335).
+        if (minecraft.currentScreen instanceof GuiMainMenu
+                && !GrugTitleButton.has(minecraft.currentScreen, GrugModsButton.class)) {
+            GrugTitleButton.add(
+                    minecraft.currentScreen, new GrugModsButton(minecraft.currentScreen));
         }
 
         // The title screen is a GUI and has no world yet, so the game tick never fires there; this
