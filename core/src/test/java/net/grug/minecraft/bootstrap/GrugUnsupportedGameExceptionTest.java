@@ -10,20 +10,25 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
-class GrugUnsupportedGameTest {
+class GrugUnsupportedGameExceptionTest {
     @Test
     void namesEveryGameTheJarRunsOnAndSkipsBlankLines() {
         GrugForgeLayers.Resources jar = name -> new ByteArrayInputStream("A\n\nB\n".getBytes());
-        assertEquals(Arrays.asList("A", "B"), GrugUnsupportedGame.supported(jar));
+        assertEquals(Arrays.asList("A", "B"), GrugUnsupportedGameException.supported(jar));
+        GrugUnsupportedGameException error = GrugUnsupportedGameException.of("X", jar);
         assertEquals(
-                "grug has no layer for X, so it does nothing here. The grug jar runs on: A, B."
-                        + " Remove it from this game's mods folder.",
-                GrugUnsupportedGame.error("X", jar).getMessage());
+                "grug does not run on X: remove it from the mods folder. It runs on: A, B.",
+                error.getMessage());
+        // What the loaders show, with no class name in front of the message.
+        assertEquals(error.getMessage(), error.toString());
     }
 
     @Test
     void readsTheListTheJarHolds() {
-        assertTrue(GrugUnsupportedGame.error("X").getMessage().contains("runs on: Forge 1.20.6"));
+        assertTrue(
+                GrugUnsupportedGameException.of("X")
+                        .getMessage()
+                        .contains("runs on: Forge 1.20.6"));
     }
 
     @Test
@@ -31,7 +36,7 @@ class GrugUnsupportedGameTest {
         IllegalStateException error =
                 assertThrows(
                         IllegalStateException.class,
-                        () -> GrugUnsupportedGame.supported(name -> null));
+                        () -> GrugUnsupportedGameException.supported(name -> null));
         assertTrue(error.getMessage().contains("grug_supported_games.txt is missing"));
     }
 
@@ -47,7 +52,8 @@ class GrugUnsupportedGameTest {
                         };
         IllegalStateException error =
                 assertThrows(
-                        IllegalStateException.class, () -> GrugUnsupportedGame.supported(failing));
+                        IllegalStateException.class,
+                        () -> GrugUnsupportedGameException.supported(failing));
         assertTrue(error.getMessage().contains("Failed to read grug_supported_games.txt"));
     }
 }

@@ -25,7 +25,7 @@ public class GrugFabricPreLaunch implements PreLaunchEntrypoint {
     @Override
     public void onPreLaunch() {
         if (!modLoaded.test(GrugForgeMod.MOD_ID)) {
-            throw GrugUnsupportedGame.error("this game");
+            throw GrugUnsupportedGameException.of("this game");
         }
     }
 }

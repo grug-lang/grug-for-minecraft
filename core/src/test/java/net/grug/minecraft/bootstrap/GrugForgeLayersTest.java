@@ -137,21 +137,20 @@ class GrugForgeLayersTest {
 
     @Test
     void reportsAGameWithoutALayer() {
-        IllegalStateException error =
+        GrugUnsupportedGameException error =
                 assertThrows(
-                        IllegalStateException.class,
+                        GrugUnsupportedGameException.class,
                         () -> on("1.20.4").start(getClass().getClassLoader()));
         assertEquals(
-                "grug has no layer for Minecraft 1.20.4 on this loader, so it does nothing here."
-                    + " The grug jar runs on: Forge 1.20.6, Ornithe b1.7.3 with OSL. Remove it from"
-                    + " this game's mods folder.",
+                "grug does not run on Minecraft 1.20.4 with this mod loader: remove it from the"
+                    + " mods folder. It runs on: Forge 1.20.6, Ornithe b1.7.3 with OSL.",
                 error.getMessage());
         assertEquals(0, FakeLayerEntry.constructed);
-        IllegalStateException unnamed =
+        GrugUnsupportedGameException unnamed =
                 assertThrows(
-                        IllegalStateException.class,
+                        GrugUnsupportedGameException.class,
                         () -> new GrugForgeLayers(LAYERS, null).start(getClass().getClassLoader()));
-        assertTrue(unnamed.getMessage().startsWith("grug has no layer for this game,"));
+        assertTrue(unnamed.getMessage().startsWith("grug does not run on this game:"));
     }
 
     @Test
@@ -196,8 +195,9 @@ class GrugForgeLayersTest {
     @Test
     void theModReportsAGameWithoutALayer() {
         // A unit test runs on no Forge, which is a game the jar does not support.
-        IllegalStateException error = assertThrows(IllegalStateException.class, GrugForgeMod::new);
-        assertTrue(error.getMessage().startsWith("grug has no layer for this game,"));
+        GrugUnsupportedGameException error =
+                assertThrows(GrugUnsupportedGameException.class, GrugForgeMod::new);
+        assertTrue(error.getMessage().startsWith("grug does not run on this game:"));
         assertEquals(0, FakeLayerEntry.constructed);
     }
 

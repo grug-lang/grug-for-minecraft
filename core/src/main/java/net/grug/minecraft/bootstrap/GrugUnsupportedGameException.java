@@ -13,26 +13,32 @@ import java.util.List;
 /**
  * The error grug reports on a game the universal jar has no layer for (#493): the same kind of
  * error a mod installed on the wrong version reports, through its mod loader's own error path, so
- * the player learns at once that grug does nothing there and which games it runs on.
+ * the player learns at once that grug does not run there, what to do, and which games it runs on.
+ *
+ * <p>Loaders show it by {@link #toString}, which is only the message: a class name would push it
+ * off screens that show little of it, such as Forge 1.16.5's, which draws two lines. The message
+ * puts what to do first for the same reason.
  */
-public final class GrugUnsupportedGame {
+public final class GrugUnsupportedGameException extends RuntimeException {
     /** The games the jar has a layer for, one per line, which universal_jar.py writes. */
     static final String LIST = "grug_supported_games.txt";
 
-    private GrugUnsupportedGame() {}
-
-    /** The error for a game, as the loader that reports it can name it. */
-    public static RuntimeException error(String game) {
-        return error(game, GrugForgeLayers.JAR);
+    GrugUnsupportedGameException(String message) {
+        super(message);
     }
 
-    static RuntimeException error(String game, GrugForgeLayers.Resources jar) {
-        return new IllegalStateException(
-                "grug has no layer for "
+    /** The error for a game, as the loader that reports it can name it. */
+    public static GrugUnsupportedGameException of(String game) {
+        return of(game, GrugForgeLayers.JAR);
+    }
+
+    static GrugUnsupportedGameException of(String game, GrugForgeLayers.Resources jar) {
+        return new GrugUnsupportedGameException(
+                "grug does not run on "
                         + game
-                        + ", so it does nothing here. The grug jar runs on: "
+                        + ": remove it from the mods folder. It runs on: "
                         + String.join(", ", supported(jar))
-                        + ". Remove it from this game's mods folder.");
+                        + ".");
     }
 
     static List<String> supported(GrugForgeLayers.Resources jar) {
@@ -52,5 +58,10 @@ public final class GrugUnsupportedGame {
         } catch (IOException e) {
             throw Grug.fatal("Failed to read " + LIST, e);
         }
+    }
+
+    @Override
+    public String toString() {
+        return getMessage();
     }
 }
