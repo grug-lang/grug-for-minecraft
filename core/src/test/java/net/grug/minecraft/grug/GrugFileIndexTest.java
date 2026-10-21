@@ -25,6 +25,7 @@ class GrugFileIndexTest {
         assertEquals("foo", entries.get(0).cleanName());
         assertEquals("Block", entries.get(0).entityType());
         assertEquals(7, entries.get(0).file().fileId());
+        assertEquals("mymod", entries.get(0).mod());
     }
 
     @Test

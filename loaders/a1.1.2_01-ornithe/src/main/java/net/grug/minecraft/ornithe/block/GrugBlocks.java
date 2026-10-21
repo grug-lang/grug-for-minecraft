@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.block;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
@@ -16,6 +17,7 @@ import net.minecraft.item.Item;
 import net.ornithemc.osl.blocks.api.BlockRegistry;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -58,6 +60,7 @@ public final class GrugBlocks {
         GrugIdPool blockIds =
                 GrugIdPool.of(
                         "block", id -> Block.BY_ID[id] != null, START_BLOCK_ID, LAST_BLOCK_ID);
+        blockIds.requireRoom(GrugModLoader.blockCountsByMod, modsDirectory());
         for (Map.Entry<String, Long> entry : GrugModLoader.blockFiles.entrySet()) {
             String cleanName = entry.getKey();
             long blockFileId = entry.getValue();
@@ -113,6 +116,7 @@ public final class GrugBlocks {
         GrugIdPool itemIds =
                 GrugIdPool.of(
                         "item", id -> Item.BY_ID[id] != null, START_ITEM_ID, Item.BY_ID.length - 1);
+        itemIds.requireRoom(GrugModLoader.itemCountsByMod, modsDirectory());
         for (Map.Entry<String, Long> entry : GrugModLoader.itemFiles.entrySet()) {
             String cleanName = entry.getKey();
             long itemFileId = entry.getValue();
@@ -142,6 +146,10 @@ public final class GrugBlocks {
             ITEM_SPRITES.put(cleanName, itemSprite);
             item.setSprite(itemSprite);
         }
+    }
+
+    private static File modsDirectory() {
+        return GrugCore.getAdapter().getGrugModsDirectory();
     }
 
     private static int allocateBlockSprite(String textureRef) {

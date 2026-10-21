@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -8,8 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 /** Covers the search for the ids another mod has not taken. */
@@ -80,5 +84,62 @@ class GrugIdPoolTest {
 
         assertTrue(
                 error.getMessage().contains("No free item id for a grug item"), error.getMessage());
+    }
+
+    private static Map<String, Integer> needs() {
+        Map<String, Integer> needs = new LinkedHashMap<>();
+        needs.put("buildcraft", 3);
+        needs.put("coverage", 32);
+        needs.put("examplemod", 1);
+        return needs;
+    }
+
+    @Test
+    void modsThatFitNeedNoError() {
+        Set<Integer> taken = taken(130, 131);
+        GrugIdPool pool = GrugIdPool.of("block", taken::contains, 125, 170);
+
+        assertDoesNotThrow(() -> pool.requireRoom(needs(), new File("grug_mods")));
+    }
+
+    @Test
+    void modsThatDoNotFitGetAnErrorWithEveryModMostFirstAndHowToTurnOneOff() {
+        Set<Integer> taken = taken(130, 131);
+        GrugIdPool pool = GrugIdPool.of("block", taken::contains, 125, 160);
+        pool.take();
+
+        IllegalStateException error =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> pool.requireRoom(needs(), new File("grug_mods")));
+
+        String message = error.getMessage();
+        assertTrue(
+                message.contains(
+                        "Not enough free block ids for grug's blocks: they need 36 and 33 are"
+                                + " free among the ids 125 to 160, so 3 ids are short."),
+                message);
+        assertTrue(message.contains("\n  coverage: 32\n  buildcraft: 3\n  examplemod: 1"), message);
+        assertTrue(message.contains("at least 3 block ids together"), message);
+        assertTrue(
+                message.contains(
+                        "move the mod's directory out of grug_mods, for example "
+                                + new File("grug_mods", "coverage")),
+                message);
+    }
+
+    @Test
+    void modsWithTheSameNeedAreListedByName() {
+        GrugIdPool pool = GrugIdPool.of("item", id -> true, 400, 410);
+        Map<String, Integer> needs = new LinkedHashMap<>();
+        needs.put("zeta", 2);
+        needs.put("alpha", 2);
+
+        IllegalStateException error =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> pool.requireRoom(needs, new File("grug_mods")));
+
+        assertTrue(error.getMessage().contains("\n  alpha: 2\n  zeta: 2"), error.getMessage());
     }
 }

@@ -33,6 +33,11 @@ public final class GrugFileIndex {
             return cleanName;
         }
 
+        /** The mod the file belongs to: the first segment of its path. */
+        public String mod() {
+            return file.path().replace('\\', '/').split("/")[0];
+        }
+
         public String entityType() {
             return file.entityType();
         }
