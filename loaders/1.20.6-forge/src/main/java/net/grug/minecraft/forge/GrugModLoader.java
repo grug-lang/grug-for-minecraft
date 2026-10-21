@@ -265,6 +265,8 @@ public class GrugModLoader {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modEventBus.register(ClientModEvents.class);
             net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(ClientForgeEvents.class);
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(
+                    net.grug.minecraft.forge.gui.GrugTitleButton.class);
         }
     }
 

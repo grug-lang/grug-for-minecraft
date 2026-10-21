@@ -51,9 +51,16 @@ mkdir -p "${GAME_DIR}/mods" "$MAIN_DIR"
 cp "$JAR" "${GAME_DIR}/mods/"
 
 # The jar leaves the coverage fixtures out (#509), so the suite finds them where a player puts a mod
-# they downloaded: in grug_mods/. The first run extracts the bundled mods beside them.
+# they downloaded: in grug_mods/. The bundled mods ship turned off (#335), so the suite turns on the
+# ones it tests the way a player does, by their state in the game directory, and the first run
+# installs them from the jar.
 mkdir -p "${GAME_DIR}/grug_mods"
 cp -r "${REPO_ROOT}/mods/coverage" "${GAME_DIR}/grug_mods/"
+python3 - "${REPO_ROOT}/mods" "${GAME_DIR}/grug_mods_state.json" <<'PY'
+import json, pathlib, sys
+mods = sorted(p.name for p in pathlib.Path(sys.argv[1]).iterdir() if p.is_dir() and p.name != "coverage")
+pathlib.Path(sys.argv[2]).write_text(json.dumps({"mods": {name: True for name in mods}}) + "\n")
+PY
 
 # A mod's primary file for one version and mod loader, from Modrinth as a player downloads it. The
 # mod loader matters: JEI publishes its Forge, NeoForge and Fabric builds under one version number,

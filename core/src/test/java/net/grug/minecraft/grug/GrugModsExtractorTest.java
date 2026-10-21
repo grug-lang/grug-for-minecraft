@@ -13,19 +13,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-/** Covers the first-run extraction of the bundled example mods. */
+/** Covers installing a mod bundled in the jar. */
 class GrugModsExtractorTest {
 
     @TempDir Path tmp;
 
-    /** A jar holding a.txt and sub/b.txt under mods/, with the index the build writes. */
+    /** A jar holding the mods a and b under mods/, with the index the build writes. */
     private static Map<String, String> jar() {
         Map<String, String> jar = new HashMap<>();
-        jar.put(GrugModsExtractor.INDEX, "a.txt\nsub/b.txt\n");
-        jar.put("/mods/a.txt", "a");
-        jar.put("/mods/sub/b.txt", "b");
+        jar.put(GrugModsExtractor.INDEX, "a/x.txt\na/sub/y.txt\nb/z.txt\n");
+        jar.put("/mods/a/x.txt", "x");
+        jar.put("/mods/a/sub/y.txt", "y");
+        jar.put("/mods/b/z.txt", "z");
         return jar;
     }
 
@@ -43,95 +45,83 @@ class GrugModsExtractorTest {
     }
 
     @Test
-    void copiesFilesAndWritesTheMarker() throws IOException {
+    void groupsTheIndexByMod() throws IOException {
+        assertEquals(
+                Map.of("a", List.of("a/x.txt", "a/sub/y.txt"), "b", List.of("b/z.txt")),
+                GrugModsExtractor.bundled(resources(jar())));
+    }
+
+    @Test
+    void installsOneModAndNoOther() throws IOException {
         Path target = target();
-        Path marker = target.resolve(".examples_generated.txt");
 
-        GrugModsExtractor.extract(resources(jar()), target, marker);
+        GrugModsExtractor.install(resources(jar()), "a", target);
 
-        assertEquals("a", Files.readString(target.resolve("a.txt")));
-        assertEquals("b", Files.readString(target.resolve("sub/b.txt")));
-        assertTrue(Files.exists(marker));
+        assertEquals("x", Files.readString(target.resolve("a/x.txt")));
+        assertEquals("y", Files.readString(target.resolve("a/sub/y.txt")));
+        assertTrue(Files.notExists(target.resolve("b")));
+        assertTrue(Files.notExists(target.resolve(".a.installing")));
     }
 
     @Test
     void readsTheModsBundledOnTheClasspath() throws IOException {
-        // The build writes the index into core's own resources, so this extracts the real mods.
+        // The build writes the index into core's own resources, so this installs a real mod.
         Path target = target();
 
-        GrugModsExtractor.extract(
-                GrugModsExtractor.classpath(), target, target.resolve(".examples_generated.txt"));
+        GrugModsExtractor.install(GrugModsExtractor.classpath(), "examplemod", target);
 
         assertTrue(Files.isRegularFile(target.resolve("examplemod/LICENSE")));
+        assertTrue(
+                GrugModsExtractor.bundled(GrugModsExtractor.classpath()).containsKey("buildcraft"));
     }
 
     @Test
-    void isANoOpWhenTheMarkerExists() throws IOException {
-        Path target = target();
-        Path marker = target.resolve(".examples_generated.txt");
-        Files.writeString(marker, "already extracted");
+    void refusesAModTheJarDoesNotBundle() {
+        IOException error =
+                assertThrows(
+                        IOException.class,
+                        () -> GrugModsExtractor.install(resources(jar()), "c", tmp));
 
-        GrugModsExtractor.extract(resources(jar()), target, marker);
-
-        assertTrue(Files.notExists(target.resolve("a.txt")));
+        assertTrue(error.getMessage().contains("not a mod bundled"), error.getMessage());
     }
 
     @Test
-    void keepsFilesThatAlreadyExist() throws IOException {
-        Path target = target();
-        Files.writeString(target.resolve("a.txt"), "existing");
-
-        GrugModsExtractor.extract(resources(jar()), target, target.resolve("marker.txt"));
-
-        assertEquals("existing", Files.readString(target.resolve("a.txt")));
-    }
-
-    @Test
-    void failsWhenTheIndexIsMissing() throws IOException {
+    void failsWhenTheIndexIsMissing() {
         Map<String, String> jar = jar();
         jar.remove(GrugModsExtractor.INDEX);
-        Path marker = tmp.resolve("marker.txt");
 
         IOException error =
                 assertThrows(
                         IOException.class,
-                        () -> GrugModsExtractor.extract(resources(jar), target(), marker));
+                        () -> GrugModsExtractor.install(resources(jar), "a", tmp));
 
         assertTrue(error.getMessage().contains("is missing from the grug jar"), error.getMessage());
-        assertTrue(Files.notExists(marker));
     }
 
     @Test
-    void failsWhenAnIndexedFileIsMissing() throws IOException {
+    void leavesNoHalfInstalledModWhenAFileIsMissing() throws IOException {
         Map<String, String> jar = jar();
-        jar.remove("/mods/sub/b.txt");
-        Path marker = tmp.resolve("marker.txt");
+        jar.remove("/mods/a/sub/y.txt");
+        Path target = target();
 
         IOException error =
                 assertThrows(
                         IOException.class,
-                        () -> GrugModsExtractor.extract(resources(jar), target(), marker));
+                        () -> GrugModsExtractor.install(resources(jar), "a", target));
 
-        assertTrue(error.getMessage().contains("sub/b.txt"), error.getMessage());
-        assertTrue(Files.notExists(marker));
+        assertTrue(error.getMessage().contains("sub/y.txt"), error.getMessage());
+        assertTrue(Files.notExists(target.resolve("a")), "a half-copied mod must not look whole");
     }
 
     @Test
-    void failsRatherThanLeavingTheMarkerOverAPartialCopy() throws IOException {
-        // The marker says the examples are in place, so a run that carried on past a file it could
-        // not copy would leave a mods directory that is missing files no later run would look for.
-        Path target = tmp.resolve("target-is-a-file");
-        Files.writeString(target, "not a directory");
-        Path marker = tmp.resolve("marker.txt");
+    void clearsAnInstallThatAnEarlierRunLeftHalfDone() throws IOException {
+        Path target = target();
+        Files.createDirectories(target.resolve(".a.installing/stale"));
+        Files.writeString(target.resolve(".a.installing/stale/old.txt"), "old");
 
-        IOException error =
-                assertThrows(
-                        IOException.class,
-                        () -> GrugModsExtractor.extract(resources(jar()), target, marker));
+        GrugModsExtractor.install(resources(jar()), "a", target);
 
-        assertTrue(
-                error.getMessage().contains("Failed to extract default grug mod file"),
-                error.getMessage());
-        assertTrue(Files.notExists(marker), "the marker must not claim the copy finished");
+        assertTrue(Files.notExists(target.resolve("a/stale")));
+        assertTrue(Files.isRegularFile(target.resolve("a/x.txt")));
     }
 }

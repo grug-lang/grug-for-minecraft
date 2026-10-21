@@ -43,8 +43,9 @@ remove the jar from that game's `mods/` folder.
 | Minecraft 1.2.5 | Forge | nothing |
 | Minecraft 1.20.6 | Forge | nothing |
 
-On first launch grug creates a `grug_mods/` folder in the game directory and extracts the bundled
-example mods into it.
+On first launch grug creates a `grug_mods/` folder in the game directory and installs the tutorial
+mod, `examplemod`, into it. The other bundled mods stay in the jar until you turn them on from the
+**Grug Mods** button on the title screen, and take effect after a restart.
 
 Only Linux is supported for now. Windows is tracked in
 https://github.com/grug-lang/grug-for-minecraft/issues/491 and macOS in

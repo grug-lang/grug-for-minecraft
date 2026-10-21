@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -84,7 +85,7 @@ class GrugModsDirectoryTest {
     }
 
     @Test
-    void anInstalledGameGetsTheBundledModsAndModApiJson() throws IOException {
+    void anInstalledGameGetsOnlyTheTutorialAndModApiJson() throws IOException {
         File game = gameDir();
 
         File active = GrugModsDirectory.prepare(game, false);
@@ -93,6 +94,7 @@ class GrugModsDirectoryTest {
         assertTrue(GrugModsDirectory.modApiJson(game).isFile());
         assertTrue(new File(active, "examplemod/LICENSE").isFile());
         assertTrue(new File(active, ".examples_generated.txt").isFile());
+        assertFalse(new File(active, "buildcraft").exists());
     }
 
     @Test
@@ -145,7 +147,7 @@ class GrugModsDirectoryTest {
     }
 
     @Test
-    void anExtractionThatFailsIsFatal() throws IOException {
+    void anInstallThatFailsIsFatal() throws IOException {
         File game = gameDir();
         Files.createDirectories(game.toPath().resolve("grug_mods"));
         Files.writeString(game.toPath().resolve("grug_mods/examplemod"), "a file, not a directory");
@@ -154,8 +156,6 @@ class GrugModsDirectoryTest {
                 assertThrows(
                         IllegalStateException.class, () -> GrugModsDirectory.prepare(game, false));
 
-        assertTrue(
-                error.getMessage().contains("Failed to extract the default grug mods"),
-                error.getMessage());
+        assertTrue(error.getMessage().contains("Failed to apply"), error.getMessage());
     }
 }
