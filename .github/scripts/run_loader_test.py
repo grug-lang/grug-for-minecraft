@@ -179,6 +179,23 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotIn("grug VM", result.stderr)
         self.assertEqual(result.summary, "")
 
+    def test_boot_only_succeeds_at_the_title_screen_without_the_tests(self):
+        boot = "[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL\n"
+
+        result = self.run_script(boot, 1, {"GRUG_CI_BOOT_ONLY": "1"})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Without the setting the same log is a game that exited before the tests passed.
+        self.assertNotEqual(self.run_script(boot, 1).returncode, 0)
+
+    def test_boot_only_still_fails_a_crash_before_the_title_screen(self):
+        crash = "Broken grug invariant: no native\n"
+
+        result = self.run_script(crash, 1, {"GRUG_CI_BOOT_ONLY": "1"})
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("crashed BEFORE reaching the title screen", result.stderr)
+
     def test_a_failing_test_is_reported_with_its_own_output(self):
         result = self.run_script(FAILING_LOG, 1)
 
