@@ -39,9 +39,18 @@ public final class GrugModsScreenModel {
         refresh();
     }
 
-    /** Takes the manager's list, and remembers what each mod it has not listed before was. */
+    /**
+     * Takes the manager's list, and remembers what each mod it has not listed before was. The mod
+     * that needs the most ids comes first, then by name, so a player short of ids sees the mods
+     * worth turning off at the top, and the order does not move as they are turned off.
+     */
     private void refresh() {
-        entries = manager.list();
+        entries = new ArrayList<>(manager.list());
+        entries.sort(
+                (a, b) -> {
+                    int byNeed = Integer.compare(totalNeeds(b.name()), totalNeeds(a.name()));
+                    return byNeed != 0 ? byNeed : a.name().compareTo(b.name());
+                });
         for (GrugModManager.Entry entry : entries) {
             atOpen.putIfAbsent(entry.name(), entry.on());
         }
@@ -131,6 +140,15 @@ public final class GrugModsScreenModel {
                             + (cost.isEmpty() ? "" : " (" + cost + ")"));
         }
         return labels;
+    }
+
+    /** How many ids of every kind that is short a mod needs together. */
+    private static int totalNeeds(String mod) {
+        int total = 0;
+        for (GrugIdShortage shortage : GrugIdShortage.all()) {
+            total += shortage.needs(mod);
+        }
+        return total;
     }
 
     /** What a mod needs of the kinds of ids that are short, like "32 blocks, 1 item". */

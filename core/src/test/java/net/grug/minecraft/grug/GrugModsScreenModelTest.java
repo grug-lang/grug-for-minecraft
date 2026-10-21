@@ -447,29 +447,31 @@ class GrugModsScreenModelTest {
     void aGameShortOfIdsShowsWhatEachModNeedsAndWhenEnoughIsOff() throws IOException {
         GrugIdShortage.clear();
         try {
-            GrugModsScreenModel model = model(3);
-            assertFalse(model.shortOfIds());
-            assertTrue(model.idLines().isEmpty());
-            assertTrue(model.idsFit());
+            GrugModsScreenModel fine = model(3);
+            assertFalse(fine.shortOfIds());
+            assertTrue(fine.idLines().isEmpty());
+            assertTrue(fine.idsFit());
 
             GrugIdPool blocks = GrugIdPool.of("block", id -> false, 125, 129);
             blocks.take();
-            assertFalse(blocks.hasRoomFor(needs("a", 3, "c", 4)));
+            assertFalse(blocks.hasRoomFor(needs("a", 3, "c", 5)));
             GrugIdPool items = GrugIdPool.of("item", id -> false, 400, 401);
             assertFalse(items.hasRoomFor(needs("a", 1, "b", 2)));
 
+            // The screen is opened after the loader found the ids short, which is when it sorts.
+            GrugModsScreenModel model = model(3);
             assertTrue(model.shortOfIds());
             assertEquals(
-                    List.of("a: ON (3 blocks, 1 item)", "b: OFF (2 items)", "c: ON (4 blocks)"),
+                    List.of("c: ON (5 blocks)", "a: ON (3 blocks, 1 item)", "b: OFF (2 items)"),
                     model.labels());
             assertEquals(
                     List.of(
-                            "Block ids: 3 short (7 needed, 4 free). Turn off mods to free them.",
+                            "Block ids: 4 short (8 needed, 4 free). Turn off mods to free them.",
                             "Item ids: 1 short (3 needed, 2 free). Turn off mods to free them."),
                     model.idLines());
             assertFalse(model.idsFit());
 
-            model.click(2); // c frees 4 blocks, which covers the 3 short
+            model.click(0); // c, the one that needs the most, frees 5 blocks: 4 are short
             assertEquals(
                     List.of(
                             "Block ids: enough once the game restarts.",
@@ -477,7 +479,8 @@ class GrugModsScreenModelTest {
                     model.idLines());
             assertFalse(model.idsFit());
 
-            model.click(0); // a frees 1 item
+            assertEquals("c: OFF (5 blocks)", model.labels().get(0)); // the order did not move
+            model.click(1); // a frees 1 item
             assertTrue(model.idsFit());
         } finally {
             GrugIdShortage.clear();
