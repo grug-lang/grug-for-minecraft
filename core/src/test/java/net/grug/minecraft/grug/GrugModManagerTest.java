@@ -191,7 +191,10 @@ class GrugModManagerTest {
 
     @Test
     void stateThatIsNotTheExpectedShapeIsFatal() throws IOException {
-        for (String bad : new String[] {"[]", "{}", "{\"mods\": {\"a\": \"yes\"}}", "{"}) {
+        for (String bad :
+                new String[] {
+                    "[]", "{}", "{\"mods\": {\"a\": \"yes\"}}", "{\"mods\": {\"a\": []}}", "{"
+                }) {
             state(bad);
             IllegalStateException error =
                     assertThrows(IllegalStateException.class, manager()::list, bad);

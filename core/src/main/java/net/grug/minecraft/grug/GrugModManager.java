@@ -107,7 +107,12 @@ public final class GrugModManager {
 
     /** The manager of a game directory, over the mods bundled in the jar that loaded grug. */
     public static GrugModManager of(File gameDir) {
-        return new GrugModManager(gameDir, GrugModsExtractor.classpath(), mod -> null);
+        return of(gameDir, GrugModsExtractor.classpath());
+    }
+
+    /** The manager of a game directory, over the mods bundled in the given jar. */
+    static GrugModManager of(File gameDir, GrugModsExtractor.Resources jar) {
+        return new GrugModManager(gameDir, jar, mod -> null);
     }
 
     private File modsDir() {
