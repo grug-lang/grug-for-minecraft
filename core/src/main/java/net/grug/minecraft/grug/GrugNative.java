@@ -30,6 +30,32 @@ final class GrugNative {
         loaded = nativeLibraryLoaded();
     }
 
+    /** The natives the jar holds, as the file name each platform loads. */
+    private static final String LINUX_NATIVE = "libadapter.so";
+
+    private static final String WINDOWS_NATIVE = "adapter.dll";
+
+    /**
+     * Names the native the given platform loads, which is also its name under {@code /natives/} in
+     * the jar. Only x86_64 natives are built, so any other architecture, like any other OS, is a
+     * fatal that names the platform and what the jar does hold.
+     */
+    static String nativeFileName(String osName, String osArch) {
+        boolean x86_64 = osArch.equals("amd64") || osArch.equals("x86_64");
+        if (x86_64 && osName.startsWith("Windows")) return WINDOWS_NATIVE;
+        if (x86_64 && osName.equals("Linux")) return LINUX_NATIVE;
+        throw Grug.fatal(
+                "grug has no native for "
+                        + osName
+                        + " on "
+                        + osArch
+                        + ", only "
+                        + LINUX_NATIVE
+                        + " (Linux x86_64) and "
+                        + WINDOWS_NATIVE
+                        + " (Windows x86_64)");
+    }
+
     /**
      * Extracts and loads the native adapter, at most once.
      *
@@ -38,13 +64,15 @@ final class GrugNative {
     @GrugGenerated("native library extraction: IO failures a healthy run cannot enter")
     private static synchronized boolean nativeLibraryLoaded() {
         if (loaded) return true;
+        String name = nativeFileName(System.getProperty("os.name"), System.getProperty("os.arch"));
         try {
-            File tempFile = File.createTempFile("libadapter", ".so");
+            int dot = name.lastIndexOf('.');
+            File tempFile = File.createTempFile(name.substring(0, dot), name.substring(dot));
             tempFile.deleteOnExit();
-            try (InputStream in = GrugNative.class.getResourceAsStream("/natives/libadapter.so");
+            try (InputStream in = GrugNative.class.getResourceAsStream("/natives/" + name);
                     OutputStream out = Files.newOutputStream(tempFile.toPath())) {
                 if (in == null) {
-                    throw new IOException("libadapter.so not found on the classpath");
+                    throw new IOException(name + " not found on the classpath");
                 }
                 byte[] buffer = new byte[8192];
                 int read;
@@ -55,7 +83,7 @@ final class GrugNative {
             System.load(tempFile.getAbsolutePath());
             initGrugAdapter();
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load libadapter.so", e);
+            throw new RuntimeException("Failed to load " + name, e);
         }
         return true;
     }
