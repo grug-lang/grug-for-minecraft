@@ -70,6 +70,19 @@ jobs:
             exit 1
           fi
 
+      # One repository version covers the release: the root gradle.properties's mod_version, which
+      # every layer and the jar's own metadata report. The tag has to name it, so bumping the version
+      # is a commit on main that its release then names (#499).
+      - name: Require the tag to name the repository version
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          version=$(git show "$SHA:gradle.properties" | sed -n 's/^mod_version=//p' | tr -d '\r')
+          if [ "$TAG" != "v${version}" ]; then
+            echo "==> ERROR: the tag '$TAG' does not name the repository version '${version}' of commit $SHA; tag it v${version}, or change mod_version in gradle.properties on main first"
+            exit 1
+          fi
+
       # The newest push-to-main run of build.yml on this exact commit decides. Its success means every
       # production and smoke job passed on the jar that same run assembled.
       - name: Find the commit's successful Build run

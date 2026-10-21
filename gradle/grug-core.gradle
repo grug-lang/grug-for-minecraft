@@ -124,6 +124,10 @@ if (dirtyProcess.waitFor() != 0) {
     )
 }
 
+// The repository version, which every loader reports as its own and a release's tag has to name
+// (#499), so the one version a player sees is the same wherever grug shows it.
+ext.grugVersion = baseVersion
+
 // toString(), so the loaders whose builds are written in Kotlin get a String rather than the GString
 // this interpolation produces in a Groovy script.
 ext.grugCoreVersion = dirtyOutput.isEmpty()
