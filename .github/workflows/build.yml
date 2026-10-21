@@ -589,6 +589,83 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The suite again in an installed 1.20.6 Forge, with JEI beside the universal jar: grug next to a
+  # non-grug mod that reads and renders every registered item, grug's included, and draws over the
+  # screens grug's tests open. Both have to work: the suite passes, JEI starts and logs no error.
+  # The production jobs keep grug as the game's only mod. See #501.
+  coexistence:
+    name: 1.20.6-forge installed beside JEI
+    needs: [universal]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # The same display stack as the build job, for the same reasons.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth x11-xserver-utils \
+            libgl1 libgl1-mesa-dri libglx-mesa0 \
+            libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+
+      - name: Download the universal jar
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-universal
+          path: universal
+
+      - name: Run tests in an installed game beside JEI
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh 1.20.6-forge production
+        env:
+          GRUG_BESIDE: jei
+          GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
+          GRUG_CI_RUN_TIMEOUT: '900'
+
+      # JEI builds its ingredient list from every registered item before it logs this line, so an item
+      # of grug's that JEI cannot read shows up here as an error or as JEI never starting.
+      - name: Require JEI to have started without an error
+        run: |
+          log=loaders/1.20.6-forge/build/production-game/logs/latest.log
+          if ! grep -q 'Starting JEI GUI' "$log"; then
+            echo "==> ERROR: JEI never logged 'Starting JEI GUI' in $log"
+            exit 1
+          fi
+          if grep -E '/(ERROR|FATAL)\] \[mezz\.jei' "$log"; then
+            echo "==> ERROR: JEI logged the errors above"
+            exit 1
+          fi
+
+      - name: Upload logs and crash reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coexistence-1.20.6-forge-logs
+          path: |
+            loaders/1.20.6-forge/build/ci-production.log
+            loaders/1.20.6-forge/build/production-game/logs
+            loaders/1.20.6-forge/build/production-game/crash-reports
+            loaders/1.20.6-forge/build/production-game/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload unmatched screenshot captures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coexistence-1.20.6-forge-screenshots
+          path: loaders/1.20.6-forge/build/production-game/grug-screenshot-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Boots one game per mechanism a mod loader reads the jar by, among the games grug has no layer for,
   # with the universal jar as its only mod. Where grug's code runs, the game has to stop with grug's
   # own error through its loader's error path; elsewhere it has to reach its first screen with grug
