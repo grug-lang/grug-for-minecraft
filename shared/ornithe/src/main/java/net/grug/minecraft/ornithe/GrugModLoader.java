@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class GrugModLoader implements ModInitializer {
 
@@ -26,6 +27,11 @@ public class GrugModLoader implements ModInitializer {
 
     public static final Map<String, Long> blockFiles = new HashMap<>();
     public static final Map<String, Long> itemFiles = new HashMap<>();
+
+    /** How many block and item ids each grug mod needs, by the name of its directory. */
+    public static final Map<String, Integer> blockCountsByMod = new TreeMap<>();
+
+    public static final Map<String, Integer> itemCountsByMod = new TreeMap<>();
 
     @Override
     public void init() {
@@ -47,6 +53,8 @@ public class GrugModLoader implements ModInitializer {
 
         blockFiles.clear();
         itemFiles.clear();
+        blockCountsByMod.clear();
+        itemCountsByMod.clear();
 
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
@@ -55,12 +63,14 @@ public class GrugModLoader implements ModInitializer {
             switch (entry.entityType()) {
                 case "Block":
                     blockFiles.put(entry.cleanName(), file.fileId());
+                    blockCountsByMod.merge(entry.mod(), 1, Integer::sum);
                     break;
                 case "BlockEntity":
                     GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
                     break;
                 case "Item":
                     itemFiles.put(entry.cleanName(), file.fileId());
+                    itemCountsByMod.merge(entry.mod(), 1, Integer::sum);
                     break;
                 default:
                     break;
