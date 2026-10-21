@@ -495,4 +495,24 @@ class GrugModsScreenModelTest {
         for (int i = 0; i < second; i++) needs.put(secondMod + i, secondMod);
         return needs;
     }
+
+    @Test
+    void aModIsRankedByTheFirstKindOfIdThatIsShortAndTheKindsAreNeverAdded() throws IOException {
+        GrugIdShortage.clear();
+        try {
+            // b needs 2 blocks, a and c need 1 each, and only a needs items, a hundred of them:
+            // blocks decide first, and items only between a and c.
+            java.util.Map<String, String> blocks = needs("a", 1, "b", 2);
+            blocks.put("c0", "c");
+            assertFalse(GrugIdPool.of("block", id -> true, 1, 1).hasRoomFor(blocks));
+            assertFalse(
+                    GrugIdPool.of("item", id -> true, 1, 1).hasRoomFor(needs("a", 100, "x", 0)));
+
+            assertEquals(
+                    List.of("b: OFF (2 blocks)", "a: ON (1 block, 100 items)", "c: ON (1 block)"),
+                    model(3).labels());
+        } finally {
+            GrugIdShortage.clear();
+        }
+    }
 }
