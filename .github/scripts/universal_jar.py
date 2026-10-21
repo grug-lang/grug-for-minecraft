@@ -13,9 +13,9 @@ layout (#488):
   fabric.mod.json's GrugFabricPreLaunch on the Fabric family, both naming the games in
   grug_supported_games.txt (#493). The root's mods.toml and neoforge.mods.toml, written here,
   declare no version range, so no loader stops on them before grug can say why, and name
-  GrugForgeMod as the jar's only @Mod. Legacy FML and ModLoader run no class of grug's, so there
-  the jar does nothing; the manifest's ModType makes FML 1.7.10 to 1.12.2 skip it. GAMES models
-  each mechanism a mod loader reads the jar by.
+  GrugForgeMod as the jar's only @Mod. GrugForgeMod also carries the @Mod of FML 1.7.10 to 1.12.2
+  (#498), which construct it the same way. FML 1.3 to 1.6 and ModLoader run no class of grug's, so
+  there the jar does nothing. GAMES models each mechanism a mod loader reads the jar by.
 - The Fabric-family layers are nested jars under META-INF/jars/, listed by one outer
   fabric.mod.json, because a jar holds only one fabric.mod.json and both Ornithe layers keep a
   helper in a vanilla package (net.minecraft.crafting.GrugRecipeHelper). Each nested layer depends
@@ -75,6 +75,8 @@ FABRIC_PRELAUNCH = "net.grug.minecraft.bootstrap.GrugFabricPreLaunch"
 # The games the jar has a layer for, which both report in their error.
 SUPPORTED_GAMES = "grug_supported_games.txt"
 FORGE_MOD = b"Lnet/minecraftforge/fml/common/Mod;"
+# FML 1.7.10's @Mod, which 1.8 to 1.12.2 moved to FORGE_MOD's package.
+FML_1_7_MOD = b"Lcpw/mods/fml/common/Mod;"
 NEOFORGE_MOD = b"Lnet/neoforged/fml/common/Mod;"
 # Every annotation a Forge-family loader acts on in a class it scans, as a mod class or an event bus
 # subscriber it loads. A Forge of any version that can read the class acts on it.
@@ -89,9 +91,6 @@ FORGE_SUBSCRIBERS = (
     b"Lnet/neoforged/fml/common/EventBusSubscriber;",
     b"Lnet/neoforged/fml/common/Mod$EventBusSubscriber;",
 )
-# FML 1.7.10 to 1.12.2 skip a jar whose manifest's ModType does not name FML before reading any of
-# its classes (CoreModManager). Their class scan would otherwise build GrugForgeMod as a mod.
-MOD_TYPE = "grug"
 
 
 @dataclass(frozen=True)
@@ -289,7 +288,7 @@ def assemble(core, layers, version, out):
             if name != MANIFEST:
                 add(name, data, Path(core).name)
 
-    attributes = {"Manifest-Version": "1.0", "ModType": MOD_TYPE}
+    attributes = {"Manifest-Version": "1.0"}
     nested = {}
     seen = set()
     for path in layers:
@@ -628,7 +627,7 @@ def check_forge_family(jar, repo):
                 'version, "[0,)"'
             )
 
-    for descriptor in (FORGE_MOD, NEOFORGE_MOD):
+    for descriptor in (FORGE_MOD, NEOFORGE_MOD, FML_1_7_MOD):
         owners = [n for n in root.classes() if descriptor in root.files[n]]
         if owners != [BOOTSTRAP_MOD]:
             problems.append(
@@ -645,10 +644,18 @@ def check_forge_family(jar, repo):
             f"{BOOTSTRAP_MOD} is newer than Java 8, which Forge 1.13 to 1.16 cannot read"
         )
 
-    mod_types = read_manifest(root.files.get(MANIFEST, b"")).get("ModType", "FML").split(",")
-    if "FML" in mod_types:
+    # FML 1.7.10 to 1.12.2 give up on a jar at the first class their ASM cannot read, keeping the
+    # mods found before it, so GrugForgeMod has to come first (#498).
+    unreadable = next((n for n in root.classes() if class_version(root.files[n]) > JAVA_8), None)
+    order = root.classes()
+    if (
+        unreadable
+        and BOOTSTRAP_MOD in order
+        and order.index(unreadable) < order.index(BOOTSTRAP_MOD)
+    ):
         problems.append(
-            "the manifest's ModType does not exclude FML, so FML 1.7.10 to 1.12.2 read every class"
+            f"{unreadable} comes before {BOOTSTRAP_MOD}, so FML 1.7.10 to 1.12.2 give up on the "
+            "jar before they find the mod"
         )
 
     try:
@@ -859,14 +866,14 @@ MECHANISMS = {
     "forge": "Forge 1.13 on and NeoForge 1.20.1: mods.toml, then the classes its ASM reads",
     "neoforge-modstoml": "NeoForge 20.2 to 20.4: mods.toml with NeoForge's @Mod",
     "neoforge": "NeoForge 20.5 on: only neoforge.mods.toml, warning about any other mod jar",
-    "fml-asm5": "FML 1.7.10 to 1.12.2: the manifest's ModType, then every class through ASM 5",
+    "fml-asm5": "FML 1.7.10 to 1.12.2: every class through ASM 5, until one it cannot read",
     "fml-asm4": "FML 1.3.2 to 1.6.4: every class through ASM 4, until one it cannot read",
     "fml125": "FML 1.2.5: mod_ classes anywhere in the jar",
     "modloader": "Risugami's ModLoader: mod_ classes at the jar's root",
 }
 # Where grug runs code on a game without a layer, and so reports it as an error, as a mod on the
 # wrong version does (#493). On the others no class of grug's ever runs, and the jar does nothing.
-REPORTING = {"fabric", "forge", "neoforge-modstoml", "neoforge"}
+REPORTING = {"fabric", "forge", "neoforge-modstoml", "neoforge", "fml-asm5"}
 REPORTS = "stops with grug's error"
 # Mechanisms no smoke job can cover, because no game of theirs lacks a layer.
 SMOKE_EXEMPT = {"fml125": "FML 1.2.5 only exists for Minecraft 1.2.5, which 1.2.5-forge supports"}
@@ -972,7 +979,15 @@ GAMES = [
         asm=52,
         smoke="forge-1.12.2",
     ),
-    Game("Forge 1.7.10", "fml-asm5", "1.7.10", {"forge": "10.13.4.1614"}, None, asm=52),
+    Game(
+        "Forge 1.7.10",
+        "fml-asm5",
+        "1.7.10",
+        {"forge": "10.13.4.1614"},
+        None,
+        asm=52,
+        smoke="forge-1.7.10",
+    ),
     Game(
         "Forge 1.6.4",
         "fml-asm4",
@@ -1043,8 +1058,14 @@ def activate(jar, game):
             return "loads " + ", ".join(stray)
         return sorted({root_class_owner(n) for n in mod_classes})
     if game.kind == "fml-asm5":
-        mod_types = read_manifest(root.files.get(MANIFEST, b"")).get("ModType", "FML")
-        return [] if "FML" not in mod_types.split(",") else "reads every class"
+        # It scans the classes in jar order and stops at the first one its ASM cannot read, keeping
+        # the mod classes found before it; a mod class whose constructor throws stops the launch.
+        for name in root.classes():
+            if class_version(root.files[name]) > game.asm:
+                break
+            if (FML_1_7_MOD if game.minecraft == "1.7.10" else FORGE_MOD) in root.files[name]:
+                return REPORTS
+        return []
     if game.kind == "fml-asm4":
         # The first class it cannot read makes it ignore the jar, and it reads them in jar order.
         first = next(iter(root.classes()), None)
