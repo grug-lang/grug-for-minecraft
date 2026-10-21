@@ -1,6 +1,9 @@
 package net.grug.minecraft.grug;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,8 +21,11 @@ public final class GrugModsScreenModel {
     private final Map<String, Boolean> atOpen = new HashMap<>();
     private int page;
     private GrugModManager.Entry asking;
+    private final List<String> confirming = new ArrayList<>();
     private String error;
     private GrugModManager.Install installing;
+    private boolean updating;
+    private final Deque<String> queued = new ArrayDeque<>();
     private boolean catalogueWasLoading;
 
     /**
@@ -58,9 +64,15 @@ public final class GrugModsScreenModel {
             error =
                     installing.error() == null
                             ? null
-                            : "Could not install " + installing.name() + ": " + installing.error();
+                            : "Could not "
+                                    + (updating ? "update " : "install ")
+                                    + installing.name()
+                                    + ": "
+                                    + installing.error();
             installing = null;
+            if (error != null) queued.clear();
             refresh();
+            if (!queued.isEmpty()) installing = manager.startUpdate(queued.poll());
             changed = true;
         }
         return changed;
@@ -79,7 +91,7 @@ public final class GrugModsScreenModel {
     /** What the screen is waiting for, or null: the catalogue, or the download that is running. */
     public String status() {
         if (installing != null) {
-            return "Downloading "
+            return (updating ? "Updating " : "Downloading ")
                     + installing.name()
                     + ": "
                     + formatSize(installing.done())
@@ -144,9 +156,64 @@ public final class GrugModsScreenModel {
         if (hasNext()) page++;
     }
 
+    /** Whether each mod of this page has an update to download, which its update button shows. */
+    public List<Boolean> updates() {
+        List<Boolean> updates = new ArrayList<>();
+        for (GrugModManager.Entry entry : pageEntries()) {
+            updates.add(entry.updatable());
+        }
+        return updates;
+    }
+
+    private int updatableCount() {
+        int count = 0;
+        for (GrugModManager.Entry entry : entries) {
+            if (entry.updatable()) count++;
+        }
+        return count;
+    }
+
+    /** The label of the button that updates every mod, or null when no mod has an update. */
+    public String updateAllLabel() {
+        int count = updatableCount();
+        return count == 0 ? null : "Update all (" + count + ")";
+    }
+
+    /** The update button of the {@code row}th mod on this page was clicked. */
+    public void clickUpdate(int row) {
+        if (blocked()) return;
+        GrugModManager.Entry entry = pageEntries().get(row);
+        startUpdates(Collections.singletonList(entry));
+    }
+
+    /** The button that updates every mod was clicked: the downloads run one after another. */
+    public void clickUpdateAll() {
+        if (blocked()) return;
+        List<GrugModManager.Entry> all = new ArrayList<>();
+        for (GrugModManager.Entry entry : entries) {
+            if (entry.updatable()) all.add(entry);
+        }
+        startUpdates(all);
+    }
+
+    /** Asks first when an update replaces files the player changed, since it keeps no copy. */
+    private void startUpdates(List<GrugModManager.Entry> updates) {
+        error = null;
+        for (GrugModManager.Entry entry : updates) {
+            queued.add(entry.name());
+            if (entry.edited()) confirming.add(entry.name());
+        }
+        if (confirming.isEmpty()) startQueued();
+    }
+
+    private void startQueued() {
+        updating = true;
+        if (!queued.isEmpty()) installing = manager.startUpdate(queued.poll());
+    }
+
     /** The button of the {@code row}th mod on this page was clicked. */
     public void click(int row) {
-        if (asking != null || installing != null) return; // a popup or a download blocks the rest
+        if (blocked()) return; // a popup or a download blocks the rest
         GrugModManager.Entry entry = pageEntries().get(row);
         if (!entry.on() && entry.prompt() != null) {
             asking = entry;
@@ -158,6 +225,7 @@ public final class GrugModsScreenModel {
     private void toggle(GrugModManager.Entry entry) {
         error = null;
         if (needsDownload(entry)) {
+            updating = false;
             installing = manager.startInstall(entry.name());
             return;
         }
@@ -175,11 +243,21 @@ public final class GrugModsScreenModel {
 
     /** The text of the popup that blocks the screen, or null when there is none. */
     public String popup() {
+        if (!confirming.isEmpty()) {
+            return String.join(", ", confirming)
+                    + (confirming.size() == 1 ? " has" : " have")
+                    + " files you changed, which the update replaces. Update anyway?";
+        }
         return asking == null ? null : asking.name() + ": " + asking.prompt();
     }
 
     /** The player accepted the popup, which turns the mod on. */
     public void accept() {
+        if (!confirming.isEmpty()) {
+            confirming.clear();
+            startQueued();
+            return;
+        }
         if (asking == null) return;
         GrugModManager.Entry entry = asking;
         asking = null;
@@ -188,13 +266,19 @@ public final class GrugModsScreenModel {
 
     /** The player declined the popup, which leaves the mod off. */
     public void decline() {
+        confirming.clear();
+        queued.clear();
         asking = null;
+    }
+
+    private boolean blocked() {
+        return asking != null || !confirming.isEmpty() || installing != null;
     }
 
     /** Whether the screen has changed what is on, which only takes effect at the next start. */
     public boolean restartNeeded() {
         for (GrugModManager.Entry entry : entries) {
-            if (atOpen.get(entry.name()) != entry.on()) return true;
+            if (entry.updatePending() || atOpen.get(entry.name()) != entry.on()) return true;
         }
         return false;
     }

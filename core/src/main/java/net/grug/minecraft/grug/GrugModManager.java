@@ -5,8 +5,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,8 +19,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Which grug mods of an installed game are on, and the moves that make the game match (#335).
@@ -33,6 +38,14 @@ import java.util.function.Function;
  *
  * <p>A mod the state does not mention is as it is on disk: on when installed, off when only
  * bundled. A game that has never run grug installs {@code examplemod} and turns it on.
+ *
+ * <p>The state also records, per mod, where an install came from and the SHA-256 of what it
+ * installed: the zip's hash in the index for a mod of the catalogue, a hash of the files for a mod
+ * bundled in the jar. A mod whose source now holds other bytes is offered as an update (#512). The
+ * player starts an update with a button, as no mod updates by itself: it downloads and checks the
+ * new copy into {@code grug_mods_updates/}, and the next start replaces the installed directory
+ * with it. The state also holds a hash of the files the manager put in place, so the screen can ask
+ * before an update replaces a mod whose files the player changed.
  */
 public final class GrugModManager {
     /** The host's state, in the game directory beside {@code grug_mods/}. */
@@ -40,6 +53,9 @@ public final class GrugModManager {
 
     /** Where a mod that is turned off waits, in the game directory. */
     public static final String OFF_DIRECTORY = "grug_mods_off";
+
+    /** Where an update waits, verified, for the next start to put it in place. */
+    public static final String UPDATES_DIRECTORY = "grug_mods_updates";
 
     /** The one bundled mod a game that has never run grug turns on: the tutorial. */
     public static final String TUTORIAL = "examplemod";
@@ -58,6 +74,9 @@ public final class GrugModManager {
         private final long downloadSize;
         private final boolean on;
         private final String prompt;
+        private final boolean updatable;
+        private final boolean updatePending;
+        private final boolean edited;
 
         Entry(
                 String name,
@@ -65,13 +84,19 @@ public final class GrugModManager {
                 boolean installed,
                 long downloadSize,
                 boolean on,
-                String prompt) {
+                String prompt,
+                boolean updatable,
+                boolean updatePending,
+                boolean edited) {
             this.name = name;
             this.bundled = bundled;
             this.installed = installed;
             this.downloadSize = downloadSize;
             this.on = on;
             this.prompt = prompt;
+            this.updatable = updatable;
+            this.updatePending = updatePending;
+            this.edited = edited;
         }
 
         public String name() {
@@ -113,6 +138,27 @@ public final class GrugModManager {
          */
         public String prompt() {
             return prompt;
+        }
+
+        /**
+         * Whether the place the mod was installed from now holds another copy of it, which {@link
+         * #startUpdate} downloads.
+         */
+        public boolean updatable() {
+            return updatable;
+        }
+
+        /**
+         * Whether the files of the installed mod are no longer the ones the manager put in place,
+         * which an update replaces. Only known for a mod that has an update.
+         */
+        public boolean edited() {
+            return edited;
+        }
+
+        /** Whether an update is downloaded and waits for the next start. */
+        public boolean updatePending() {
+            return updatePending;
         }
     }
 
@@ -182,6 +228,10 @@ public final class GrugModManager {
 
     private File offDir() {
         return new File(gameDir, OFF_DIRECTORY);
+    }
+
+    private File updatesDir() {
+        return new File(gameDir, UPDATES_DIRECTORY);
     }
 
     private File stateFile() {
@@ -283,7 +333,7 @@ public final class GrugModManager {
                         Files.createDirectories(modsDir().toPath());
                         catalogue.install(
                                 name, item, modsDir().toPath(), bytes -> install.done = bytes);
-                        setOn(name, true);
+                        record(name, new Source(Source.RELEASE, item.sha256));
                     } catch (IOException | IllegalStateException e) {
                         // The state file that cannot be written is a fatal of grug's, which
                         // would otherwise end the worker with the download looking like it worked.
@@ -297,7 +347,7 @@ public final class GrugModManager {
 
     /** Every mod the game knows of, by name: installed, turned off, bundled or downloadable. */
     public List<Entry> list() {
-        Map<String, Boolean> state = readState();
+        Map<String, ModState> state = readState();
         TreeSet<String> names = new TreeSet<>(state.keySet());
         names.addAll(directories(modsDir()));
         names.addAll(directories(offDir()));
@@ -310,15 +360,18 @@ public final class GrugModManager {
         for (String name : names) {
             boolean running = new File(modsDir(), name).isDirectory();
             boolean installed = running || new File(offDir(), name).isDirectory();
-            Boolean wanted = state.get(name);
+            ModState wanted = state.get(name);
             entries.add(
                     new Entry(
                             name,
                             bundled.containsKey(name),
                             installed,
                             remote.containsKey(name) ? remote.get(name).size() : 0,
-                            wanted != null ? wanted : running,
-                            prompts.apply(name)));
+                            wanted != null ? wanted.on : running,
+                            prompts.apply(name),
+                            wanted != null && newerSource(name, wanted, bundled) != null,
+                            wanted != null && wanted.update != null,
+                            wanted != null && edited(name, wanted, bundled, running)));
         }
         return Collections.unmodifiableList(entries);
     }
@@ -328,8 +381,148 @@ public final class GrugModManager {
         if (!validName(name)) {
             throw Grug.fatal(name + " is not a mod name");
         }
-        Map<String, Boolean> state = readState();
-        state.put(name, on);
+        Map<String, ModState> state = readState();
+        state.computeIfAbsent(name, key -> new ModState()).on = on;
+        writeState(state);
+    }
+
+    /**
+     * Records that a mod was installed from {@code source}, and that the player wants it on. A
+     * mod's installed copy is what the record names, so an update is whatever differs from it.
+     */
+    private synchronized void record(String name, Source source) {
+        Map<String, ModState> state = readState();
+        ModState mod = state.computeIfAbsent(name, key -> new ModState());
+        mod.on = true;
+        mod.installed = source;
+        mod.files = directoryDigest(new File(modsDir(), name));
+        mod.update = null;
+        writeState(state);
+    }
+
+    /**
+     * The copy of an installed mod that its source holds now, or null when it is the installed one
+     * or the manager cannot tell: a mod installed before the record existed, a mod whose source
+     * lacks it now, an update that is already downloaded.
+     */
+    private Source newerSource(String name, ModState mod, Map<String, List<String>> bundled) {
+        if (mod.installed == null || mod.update != null) return null;
+        String current = null;
+        if (mod.installed.kind.equals(Source.JAR)) {
+            List<String> files = bundled.get(name);
+            if (files != null) current = jarDigest(name, files);
+        } else {
+            GrugCatalogue.Item item = remote.get(name);
+            if (item != null) current = item.sha256;
+        }
+        return current == null || current.equals(mod.installed.sha256)
+                ? null
+                : new Source(mod.installed.kind, current);
+    }
+
+    private boolean edited(
+            String name, ModState mod, Map<String, List<String>> bundled, boolean running) {
+        if (mod.files == null || newerSource(name, mod, bundled) == null) return false;
+        File directory = new File(running ? modsDir() : offDir(), name);
+        return !mod.files.equals(directoryDigest(directory));
+    }
+
+    /** A hash of the paths and bytes of the files of a directory. */
+    static String directoryDigest(File directory) {
+        StringBuilder listing = new StringBuilder();
+        try (Stream<Path> paths = Files.walk(directory.toPath())) {
+            List<Path> files =
+                    paths.filter(Files::isRegularFile).sorted().collect(Collectors.toList());
+            for (Path file : files) {
+                listing.append(directory.toPath().relativize(file).toString().replace('\\', '/'))
+                        .append('\n')
+                        .append(GrugCatalogue.digest("SHA-256", Files.readAllBytes(file)))
+                        .append('\n');
+            }
+        } catch (IOException e) {
+            throw Grug.fatal("Failed to read " + directory, e);
+        }
+        return GrugCatalogue.digest("SHA-256", listing.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private final Map<String, String> jarDigests = new ConcurrentHashMap<>();
+
+    /**
+     * A hash of the files of a bundled mod: the jar of a release holds other bytes when it moves.
+     */
+    private String jarDigest(String name, List<String> files) {
+        return jarDigests.computeIfAbsent(
+                name,
+                key -> {
+                    StringBuilder listing = new StringBuilder();
+                    try {
+                        for (String relative : files) {
+                            try (InputStream in =
+                                    jar.open(GrugModsExtractor.MODS_ROOT + relative)) {
+                                if (in == null) {
+                                    throw new IOException(relative + " is listed but missing");
+                                }
+                                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                                byte[] chunk = new byte[8192];
+                                for (int n = in.read(chunk); n >= 0; n = in.read(chunk)) {
+                                    bytes.write(chunk, 0, n);
+                                }
+                                listing.append(relative)
+                                        .append('\n')
+                                        .append(
+                                                GrugCatalogue.digest(
+                                                        "SHA-256", bytes.toByteArray()))
+                                        .append('\n');
+                            }
+                        }
+                    } catch (IOException e) {
+                        throw Grug.fatal("Failed to read the mods bundled in the grug jar", e);
+                    }
+                    return GrugCatalogue.digest(
+                            "SHA-256", listing.toString().getBytes(StandardCharsets.UTF_8));
+                });
+    }
+
+    /**
+     * Starts downloading the newer copy of an installed mod into {@code grug_mods_updates/}, and
+     * returns at once. Nothing the game runs changes: the next start replaces the installed
+     * directory, so a failed download leaves the installed mod as it was.
+     */
+    public Install startUpdate(String name) {
+        ModState mod = readState().get(name);
+        Source newer = mod == null ? null : newerSource(name, mod, bundled());
+        GrugCatalogue.Item item = remote.get(name);
+        boolean download = newer != null && newer.kind.equals(Source.RELEASE);
+        Install install = new Install(name, download ? item.size() : 0);
+        if (newer == null) {
+            install.error = name + " has no update";
+            install.finished = true;
+            return install;
+        }
+        executor.execute(
+                () -> {
+                    try {
+                        Path updates = updatesDir().toPath();
+                        Files.createDirectories(updates);
+                        GrugModsExtractor.deleteTree(updates.resolve(name));
+                        if (download) {
+                            catalogue.install(name, item, updates, bytes -> install.done = bytes);
+                        } else {
+                            GrugModsExtractor.install(jar, name, updates);
+                        }
+                        stage(name, newer);
+                    } catch (IOException | IllegalStateException e) {
+                        install.error = e.getMessage();
+                    } finally {
+                        install.finished = true;
+                    }
+                });
+        return install;
+    }
+
+    private synchronized void stage(String name, Source newer) {
+        Map<String, ModState> state = readState();
+        state.get(name).update = newer;
         writeState(state);
     }
 
@@ -339,25 +532,35 @@ public final class GrugModManager {
      * VM reads the directory.
      */
     public void apply() {
-        Map<String, Boolean> state = readState();
+        Map<String, ModState> state = readState();
         File marker = new File(modsDir(), MARKER);
         if (!stateFile().exists() && !marker.exists()) {
-            state.put(TUTORIAL, true);
+            state.computeIfAbsent(TUTORIAL, key -> new ModState()).on = true;
             writeState(state);
         }
         Map<String, List<String>> bundled = bundled();
+        boolean changed = false;
         try {
             Files.createDirectories(modsDir().toPath());
-            for (Map.Entry<String, Boolean> wanted : state.entrySet()) {
+            for (Map.Entry<String, ModState> wanted : state.entrySet()) {
                 String name = wanted.getKey();
                 File running = new File(modsDir(), name);
                 File off = new File(offDir(), name);
-                if (wanted.getValue()) {
+                if (wanted.getValue().update != null) {
+                    replaceWithUpdate(
+                            name, wanted.getValue(), running.isDirectory() ? running : off);
+                    changed = true;
+                }
+                if (wanted.getValue().on) {
                     if (running.isDirectory()) continue;
                     if (off.isDirectory()) {
                         move(off, running);
                     } else if (bundled.containsKey(name)) {
                         GrugModsExtractor.install(jar, name, modsDir().toPath());
+                        wanted.getValue().installed =
+                                new Source(Source.JAR, jarDigest(name, bundled.get(name)));
+                        wanted.getValue().files = directoryDigest(running);
+                        changed = true;
                     }
                 } else if (running.isDirectory()) {
                     if (off.exists()) {
@@ -368,6 +571,7 @@ public final class GrugModManager {
                     move(running, off);
                 }
             }
+            if (changed) writeState(state);
             if (!marker.exists()) {
                 Files.write(
                         marker.toPath(),
@@ -376,6 +580,23 @@ public final class GrugModManager {
         } catch (IOException e) {
             throw Grug.fatal("Failed to apply " + stateFile(), e);
         }
+    }
+
+    /**
+     * Puts the downloaded update in the place of the installed copy. An update whose files or
+     * installed copy are gone is dropped.
+     */
+    private void replaceWithUpdate(String name, ModState mod, File installed) throws IOException {
+        File staged = new File(updatesDir(), name);
+        if (staged.isDirectory() && installed.isDirectory()) {
+            GrugModsExtractor.deleteTree(installed.toPath());
+            move(staged, installed);
+            mod.installed = mod.update;
+            mod.files = directoryDigest(installed);
+        } else {
+            GrugModsExtractor.deleteTree(staged.toPath());
+        }
+        mod.update = null;
     }
 
     private static void move(File from, File to) throws IOException {
@@ -403,8 +624,47 @@ public final class GrugModManager {
         return names;
     }
 
-    private Map<String, Boolean> readState() {
-        Map<String, Boolean> state = new TreeMap<>();
+    /** What the host remembers of one mod. */
+    private static final class ModState {
+        boolean on;
+        Source installed;
+        Source update;
+        String files;
+    }
+
+    /** Where a copy of a mod came from, and the SHA-256 that identifies it there. */
+    private static final class Source {
+        static final String JAR = "jar";
+        static final String RELEASE = "release";
+
+        final String kind;
+        final String sha256;
+
+        Source(String kind, String sha256) {
+            this.kind = kind;
+            this.sha256 = sha256;
+        }
+
+        static Source read(JsonElement element) {
+            JsonObject object = element.getAsJsonObject();
+            String kind = object.get("source").getAsString();
+            String sha256 = object.get("sha256").getAsString();
+            if (!kind.equals(JAR) && !kind.equals(RELEASE)) {
+                throw new JsonParseException(kind + " is not a source");
+            }
+            return new Source(kind, sha256);
+        }
+
+        JsonObject write() {
+            JsonObject object = new JsonObject();
+            object.addProperty("source", kind);
+            object.addProperty("sha256", sha256);
+            return object;
+        }
+    }
+
+    private Map<String, ModState> readState() {
+        Map<String, ModState> state = new TreeMap<>();
         if (!stateFile().isFile()) return state;
         JsonObject mods;
         try {
@@ -419,13 +679,24 @@ public final class GrugModManager {
                     throw new JsonParseException(mod.getKey() + " is not a mod name");
                 }
                 JsonElement value = mod.getValue();
-                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isBoolean()) {
-                    throw new JsonParseException(mod.getKey() + " is not true or false");
-                }
-                state.put(mod.getKey(), value.getAsBoolean());
+                ModState parsed = new ModState();
+                JsonObject object = value.getAsJsonObject();
+                parsed.on = object.get("on").getAsBoolean();
+                if (object.has("installed"))
+                    parsed.installed = Source.read(object.get("installed"));
+                if (object.has("update")) parsed.update = Source.read(object.get("update"));
+                if (object.has("files")) parsed.files = object.get("files").getAsString();
+                state.put(mod.getKey(), parsed);
             }
-        } catch (IOException | JsonParseException | IllegalStateException e) {
-            throw Grug.fatal(stateFile() + " is not {\"mods\": {\"<name>\": true or false}}", e);
+        } catch (IOException
+                | JsonParseException
+                | IllegalStateException
+                | NullPointerException
+                | ClassCastException
+                | UnsupportedOperationException e) {
+            throw Grug.fatal(
+                    stateFile() + " is not {\"mods\": {\"<name>\": {\"on\": true or false, ...}}}",
+                    e);
         }
         return state;
     }
@@ -444,10 +715,17 @@ public final class GrugModManager {
                 && name.indexOf('\0') < 0;
     }
 
-    private void writeState(Map<String, Boolean> state) {
+    private void writeState(Map<String, ModState> state) {
         JsonObject mods = new JsonObject();
-        for (Map.Entry<String, Boolean> mod : state.entrySet()) {
-            mods.addProperty(mod.getKey(), mod.getValue());
+        for (Map.Entry<String, ModState> entry : state.entrySet()) {
+            JsonObject mod = new JsonObject();
+            mod.addProperty("on", entry.getValue().on);
+            if (entry.getValue().installed != null) {
+                mod.add("installed", entry.getValue().installed.write());
+            }
+            if (entry.getValue().update != null) mod.add("update", entry.getValue().update.write());
+            if (entry.getValue().files != null) mod.addProperty("files", entry.getValue().files);
+            mods.add(entry.getKey(), mod);
         }
         JsonObject root = new JsonObject();
         root.add("mods", mods);

@@ -26,14 +26,32 @@ public class GrugModsScreen extends Screen {
         int x = width / 2 - 100;
         boolean blocked = model.popup() != null;
         List<String> labels = model.labels();
+        List<Boolean> updates = model.updates();
         for (int i = 0; i < labels.size(); i++) {
             int row = i;
             Button button =
                     Button.builder(Component.literal(labels.get(i)), b -> clicked(row))
-                            .bounds(x, 36 + 22 * i, 200, 20)
+                            .bounds(x, 36 + 22 * i, updates.get(i) ? 150 : 200, 20)
                             .build();
             button.active = !blocked && !model.busy();
             addRenderableWidget(button);
+            if (updates.get(i)) {
+                Button update =
+                        Button.builder(Component.literal("Update"), b -> updated(row))
+                                .bounds(x + 154, 36 + 22 * i, 46, 20)
+                                .build();
+                update.active = !blocked && !model.busy();
+                addRenderableWidget(update);
+            }
+        }
+        String updateAll = model.updateAllLabel();
+        if (updateAll != null) {
+            Button all =
+                    Button.builder(Component.literal(updateAll), b -> updatedAll())
+                            .bounds(x + 24, 148, 152, 20)
+                            .build();
+            all.active = !blocked && !model.busy();
+            addRenderableWidget(all);
         }
         Button previous =
                 Button.builder(Component.literal("<"), b -> paged(false))
@@ -79,6 +97,16 @@ public class GrugModsScreen extends Screen {
 
     private void clicked(int row) {
         model.click(row);
+        rebuildWidgets();
+    }
+
+    private void updated(int row) {
+        model.clickUpdate(row);
+        rebuildWidgets();
+    }
+
+    private void updatedAll() {
+        model.clickUpdateAll();
         rebuildWidgets();
     }
 

@@ -36,10 +36,15 @@ class GrugModManagerTest {
 
     /** A jar bundling the mods examplemod and extra, with the index the build writes. */
     private static GrugModsExtractor.Resources jar() {
+        return jar("extra");
+    }
+
+    /** The same jar, in which the mod extra holds another file when {@code extra} differs. */
+    private static GrugModsExtractor.Resources jar(String extra) {
         Map<String, String> files = new HashMap<>();
         files.put(GrugModsExtractor.INDEX, "examplemod/about.json\nextra/about.json\n");
         files.put("/mods/examplemod/about.json", "tutorial");
-        files.put("/mods/extra/about.json", "extra");
+        files.put("/mods/extra/about.json", extra);
         return name -> {
             String content = files.get(name);
             return content == null
@@ -144,7 +149,7 @@ class GrugModManagerTest {
 
     @Test
     void aModTurnedOnThatIsNeitherBundledNorInstalledStaysAbsent() throws IOException {
-        state("{\"mods\": {\"ghost\": true}}");
+        state("{\"mods\": {\"ghost\": {\"on\": true}}}");
         manager().apply();
 
         assertFalse(Files.exists(mods().resolve("ghost")));
@@ -153,7 +158,7 @@ class GrugModManagerTest {
 
     @Test
     void aModTurnedOffAndAlreadyAbsentNeedsNoMove() throws IOException {
-        state("{\"mods\": {\"extra\": false}}");
+        state("{\"mods\": {\"extra\": {\"on\": false}}}");
         manager().apply();
 
         assertFalse(Files.exists(game.resolve("grug_mods_off")));
@@ -161,7 +166,7 @@ class GrugModManagerTest {
 
     @Test
     void aModInBothDirectoriesIsFatal() throws IOException {
-        state("{\"mods\": {\"examplemod\": false}}");
+        state("{\"mods\": {\"examplemod\": {\"on\": false}}}");
         Files.createDirectories(mods().resolve("examplemod"));
         Files.createDirectories(game.resolve("grug_mods_off/examplemod"));
 
@@ -194,7 +199,15 @@ class GrugModManagerTest {
     void stateThatIsNotTheExpectedShapeIsFatal() throws IOException {
         for (String bad :
                 new String[] {
-                    "[]", "{}", "{\"mods\": {\"a\": \"yes\"}}", "{\"mods\": {\"a\": []}}", "{"
+                    "[]",
+                    "{}",
+                    "{\"mods\": {\"a\": \"yes\"}}",
+                    "{\"mods\": {\"a\": []}}",
+                    "{",
+                    "{\"mods\": {\"a\": {}}}",
+                    "{\"mods\": {\"a\": {\"on\": true, \"installed\": {}}}}",
+                    "{\"mods\": {\"a\": {\"on\": true, \"installed\":"
+                            + " {\"source\": \"cdn\", \"sha256\": \"x\"}}}}"
                 }) {
             state(bad);
             IllegalStateException error =
@@ -232,7 +245,7 @@ class GrugModManagerTest {
             assertTrue(error.getMessage().contains("is not a mod name"), error.getMessage());
             clearFatal();
 
-            state("{\"mods\": {" + new com.google.gson.JsonPrimitive(name) + ": false}}");
+            state("{\"mods\": {" + new com.google.gson.JsonPrimitive(name) + ": {\"on\": false}}}");
             error = assertThrows(IllegalStateException.class, manager()::list, name);
             assertTrue(error.getMessage().contains("grug_mods_state.json"), error.getMessage());
             clearFatal();
@@ -375,6 +388,279 @@ class GrugModManagerTest {
         } finally {
             System.clearProperty(GrugCatalogue.URL_PROPERTY);
         }
+    }
+
+    private GrugModManager managerOver(GrugModsExtractor.Resources jar, FakeCatalogue fake) {
+        GrugModManager manager =
+                new GrugModManager(
+                        game.toFile(),
+                        jar,
+                        mod -> null,
+                        fake == null ? null : fake.catalogue(),
+                        Runnable::run);
+        manager.loadCatalogue();
+        return manager;
+    }
+
+    private static GrugModManager.Entry entry(GrugModManager manager, String name) {
+        return manager.list().stream().filter(e -> e.name().equals(name)).findFirst().get();
+    }
+
+    /** Installs remote from a release whose zip holds {@code content}, as the screen would. */
+    private void installRemote(String content) throws Exception {
+        byte[] zip = GrugCatalogueTest.zip("remote/about.json", content);
+        GrugModManager manager = managerOver(jar(), new FakeCatalogue(zip, hash(zip), true));
+        assertNull(manager.startInstall("remote").error());
+    }
+
+    private FakeCatalogue release(String content, boolean goodHash) throws Exception {
+        byte[] zip = GrugCatalogueTest.zip("remote/about.json", content);
+        return new FakeCatalogue(zip, goodHash ? hash(zip) : "0".repeat(64), true);
+    }
+
+    @Test
+    void aNewerReleaseOfAnInstalledModIsDownloadedAndReplacesItAtTheNextStart() throws Exception {
+        installRemote("1");
+        GrugModManager manager = managerOver(jar(), release("2", true));
+        assertTrue(entry(manager, "remote").updatable());
+
+        GrugModManager.Install install = manager.startUpdate("remote");
+
+        assertNull(install.error());
+        assertTrue(install.finished());
+        assertEquals("1", read(mods().resolve("remote/about.json")));
+        assertEquals("2", read(game.resolve("grug_mods_updates/remote/about.json")));
+        assertFalse(entry(manager, "remote").updatable());
+        assertTrue(entry(manager, "remote").updatePending());
+
+        manager.apply();
+
+        assertEquals("2", read(mods().resolve("remote/about.json")));
+        assertFalse(Files.exists(game.resolve("grug_mods_updates/remote")));
+        GrugModManager after = managerOver(jar(), release("2", true));
+        assertFalse(entry(after, "remote").updatable());
+        assertFalse(entry(after, "remote").updatePending());
+        assertTrue(entry(after, "remote").on());
+    }
+
+    @Test
+    void theRecordOfAnInstallIsTheHostsAndNotInTheModsFiles() throws Exception {
+        installRemote("1");
+
+        String state = read(game.resolve("grug_mods_state.json"));
+
+        assertTrue(state.contains("\"source\":\"release\""), state);
+        assertTrue(state.contains(hash(GrugCatalogueTest.zip("remote/about.json", "1"))), state);
+        try (var files = Files.list(mods().resolve("remote"))) {
+            assertEquals(
+                    List.of("about.json"), files.map(f -> f.getFileName().toString()).toList());
+        }
+    }
+
+    @Test
+    void anUpdateThatFailsTheHashCheckLeavesTheInstalledModAndStagesNothing() throws Exception {
+        installRemote("1");
+        GrugModManager manager = managerOver(jar(), release("2", false));
+
+        GrugModManager.Install install = manager.startUpdate("remote");
+
+        assertTrue(install.error().contains("does not match"), install.error());
+        assertEquals("1", read(mods().resolve("remote/about.json")));
+        assertFalse(Files.exists(game.resolve("grug_mods_updates/remote")));
+        assertFalse(entry(manager, "remote").updatePending());
+        manager.apply();
+        assertEquals("1", read(mods().resolve("remote/about.json")));
+    }
+
+    @Test
+    void anUpdateThatCannotBeDownloadedLeavesTheInstalledMod() throws Exception {
+        installRemote("1");
+        // A catalogue that answers the index and then fails the zip.
+        byte[] zip = GrugCatalogueTest.zip("remote/about.json", "3");
+        String index =
+                "{\"mods\":{\"remote\":{\"zip\":\"remote.zip\",\"size\":"
+                        + zip.length
+                        + ",\"sha256\":\""
+                        + hash(zip)
+                        + "\"}}}";
+        GrugCatalogue catalogue =
+                new GrugCatalogue(
+                        (url, limit, progress) -> {
+                            if (url.endsWith("index.json")) {
+                                return index.getBytes(StandardCharsets.UTF_8);
+                            }
+                            throw new IOException("connection reset");
+                        },
+                        "http://x/index.json");
+        GrugModManager manager =
+                new GrugModManager(game.toFile(), jar(), mod -> null, catalogue, Runnable::run);
+        manager.loadCatalogue();
+
+        GrugModManager.Install install = manager.startUpdate("remote");
+
+        assertEquals("connection reset", install.error());
+        assertFalse(Files.exists(game.resolve("grug_mods_updates/remote")));
+        assertEquals("1", read(mods().resolve("remote/about.json")));
+    }
+
+    @Test
+    void aModWithoutAnUpdateOrARecordHasNothingToUpdate() throws Exception {
+        installRemote("1");
+        GrugModManager same = managerOver(jar(), release("1", true));
+        assertFalse(entry(same, "remote").updatable());
+        assertEquals("remote has no update", same.startUpdate("remote").error());
+        assertEquals("ghost has no update", same.startUpdate("ghost").error());
+
+        // Installed before the record existed, and already on disk with the catalogue's mod.
+        Files.createDirectories(mods().resolve("extra"));
+        assertFalse(entry(managerOver(jar("changed"), null), "extra").updatable());
+    }
+
+    @Test
+    void aModTheSourceNoLongerHoldsHasNoUpdate() throws Exception {
+        installRemote("1");
+        GrugModManager gone = managerOver(jar(), null);
+        assertFalse(entry(gone, "remote").updatable());
+
+        state(
+                "{\"mods\": {\"gone\": {\"on\": true, \"installed\":"
+                        + " {\"source\": \"jar\", \"sha256\": \"x\"}}}}");
+        assertFalse(entry(managerOver(jar(), null), "gone").updatable());
+    }
+
+    @Test
+    void aBundledModThatANewerJarChangedIsUpdatedFromTheJar() throws Exception {
+        manager().setOn("extra", true);
+        manager().apply();
+        assertEquals("extra", read(mods().resolve("extra/about.json")));
+        assertFalse(entry(managerOver(jar(), null), "extra").updatable());
+
+        GrugModManager newer = managerOver(jar("extra 2"), null);
+        assertTrue(entry(newer, "extra").updatable());
+        GrugModManager.Install install = newer.startUpdate("extra");
+
+        assertNull(install.error());
+        assertEquals(1.0, install.progress());
+        assertEquals("extra", read(mods().resolve("extra/about.json")));
+        newer.apply();
+        assertEquals("extra 2", read(mods().resolve("extra/about.json")));
+        assertFalse(entry(managerOver(jar("extra 2"), null), "extra").updatable());
+    }
+
+    @Test
+    void anUpdateOfAModThatIsOffReplacesItWhereItWaits() throws Exception {
+        manager().setOn("extra", true);
+        manager().apply();
+        manager().setOn("extra", false);
+        manager().apply();
+        GrugModManager newer = managerOver(jar("extra 2"), null);
+
+        assertNull(newer.startUpdate("extra").error());
+        newer.apply();
+
+        assertEquals("extra 2", read(game.resolve("grug_mods_off/extra/about.json")));
+        assertFalse(Files.exists(mods().resolve("extra")));
+        assertFalse(entry(newer, "extra").on());
+    }
+
+    @Test
+    void anUpdateWhoseFilesOrInstalledModAreGoneIsDropped() throws Exception {
+        String pending =
+                "{\"mods\": {\"extra\": {\"on\": true, \"installed\": {\"source\": \"jar\","
+                        + " \"sha256\": \"a\"}, \"update\": {\"source\": \"jar\", \"sha256\":"
+                        + " \"b\"}}}}";
+        state(pending);
+        Files.createDirectories(mods().resolve("extra"));
+
+        manager().apply(); // no staged files
+
+        assertFalse(read(game.resolve("grug_mods_state.json")).contains("update"));
+        assertTrue(Files.isDirectory(mods().resolve("extra")));
+
+        state(pending);
+        Files.delete(mods().resolve("extra"));
+        Files.createDirectories(game.resolve("grug_mods_updates/extra"));
+        Files.writeString(game.resolve("grug_mods_updates/extra/about.json"), "x");
+
+        manager().apply(); // staged files, but nothing to replace
+
+        assertFalse(Files.exists(game.resolve("grug_mods_updates/extra")));
+        assertEquals("extra", read(mods().resolve("extra/about.json")));
+    }
+
+    @Test
+    void aStateFileThatCannotBeWrittenIsAnUpdateError() throws Exception {
+        manager().setOn("extra", true);
+        manager().apply();
+        GrugModManager newer = managerOver(jar("extra 2"), null);
+        Files.createDirectories(game.resolve("grug_mods_state.json.tmp/in-the-way"));
+
+        GrugModManager.Install install = newer.startUpdate("extra");
+
+        assertTrue(install.error().contains("Failed to write"), install.error());
+    }
+
+    @Test
+    void aBundledFileThatCannotBeReadIsFatal() throws Exception {
+        state(
+                "{\"mods\": {\"extra\": {\"on\": true, \"installed\": {\"source\": \"jar\","
+                        + " \"sha256\": \"a\"}}}}");
+        GrugModsExtractor.Resources broken =
+                name -> name.startsWith("/mods/") ? null : jar().open(name);
+
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> managerOver(broken, null).list());
+
+        assertTrue(error.getMessage().contains("mods bundled"), error.getMessage());
+    }
+
+    @Test
+    void aModWhoseFilesWereChangedIsEditedOnlyOnceItHasAnUpdate() throws Exception {
+        installRemote("1");
+        GrugModManager same = managerOver(jar(), release("1", true));
+        Files.writeString(mods().resolve("remote/about.json"), "mine");
+        assertFalse(entry(same, "remote").edited());
+
+        GrugModManager newer = managerOver(jar(), release("2", true));
+        assertTrue(entry(newer, "remote").edited());
+
+        Files.writeString(mods().resolve("remote/about.json"), "1");
+        assertFalse(entry(newer, "remote").edited());
+    }
+
+    @Test
+    void aTurnedOffModIsCheckedForEditsWhereItWaits() throws Exception {
+        manager().setOn("extra", true);
+        manager().apply();
+        manager().setOn("extra", false);
+        manager().apply();
+        GrugModManager newer = managerOver(jar("extra 2"), null);
+        assertFalse(entry(newer, "extra").edited());
+
+        Files.writeString(game.resolve("grug_mods_off/extra/about.json"), "mine");
+
+        assertTrue(entry(newer, "extra").edited());
+    }
+
+    @Test
+    void aModWithoutAHashOfItsFilesIsNotEdited() throws Exception {
+        state(
+                "{\"mods\": {\"extra\": {\"on\": true, \"installed\": {\"source\": \"jar\","
+                        + " \"sha256\": \"a\"}}}}");
+        Files.createDirectories(mods().resolve("extra"));
+
+        assertTrue(entry(managerOver(jar(), null), "extra").updatable());
+        assertFalse(entry(managerOver(jar(), null), "extra").edited());
+    }
+
+    @Test
+    void aDirectoryThatCannotBeReadIsFatal() {
+        IllegalStateException error =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> GrugModManager.directoryDigest(game.resolve("missing").toFile()));
+
+        assertTrue(error.getMessage().contains("Failed to read"), error.getMessage());
     }
 
     private static String read(Path file) {

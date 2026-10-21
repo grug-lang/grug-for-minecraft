@@ -14,6 +14,8 @@ public class GrugModsScreen extends GuiScreen {
     private static final int DONE = 12;
     private static final int ACCEPT = 13;
     private static final int DECLINE = 14;
+    private static final int UPDATE_ALL = 15;
+    private static final int FIRST_UPDATE = 20;
 
     private final GuiScreen parent;
     private final GrugModsScreenModel model;
@@ -29,8 +31,19 @@ public class GrugModsScreen extends GuiScreen {
         int x = width / 2 - 100;
         boolean blocked = model.popup() != null;
         List<String> labels = model.labels();
+        List<Boolean> updates = model.updates();
         for (int i = 0; i < labels.size(); i++) {
-            controlList.add(new GuiButton(FIRST_MOD + i, x, 36 + 22 * i, 200, 20, labels.get(i)));
+            int modWidth = updates.get(i) ? 150 : 200;
+            controlList.add(
+                    new GuiButton(FIRST_MOD + i, x, 36 + 22 * i, modWidth, 20, labels.get(i)));
+            if (updates.get(i)) {
+                controlList.add(
+                        new GuiButton(FIRST_UPDATE + i, x + 154, 36 + 22 * i, 46, 20, "Update"));
+            }
+        }
+        String updateAll = model.updateAllLabel();
+        if (updateAll != null) {
+            controlList.add(new GuiButton(UPDATE_ALL, x + 24, 148, 152, 20, updateAll));
         }
         controlList.add(new GuiButton(PREVIOUS, x, 148, 20, 20, "<"));
         controlList.add(new GuiButton(NEXT, x + 180, 148, 20, 20, ">"));
@@ -64,6 +77,8 @@ public class GrugModsScreen extends GuiScreen {
         else if (button.id == NEXT) model.next();
         else if (button.id == ACCEPT) model.accept();
         else if (button.id == DECLINE) model.decline();
+        else if (button.id == UPDATE_ALL) model.clickUpdateAll();
+        else if (button.id >= FIRST_UPDATE) model.clickUpdate(button.id - FIRST_UPDATE);
         else model.click(button.id - FIRST_MOD);
         initGui();
     }
