@@ -302,7 +302,7 @@ public final class GrugModsScreenModel {
 
     /**
      * Breaks text at spaces into lines no wider than {@code maxWidth}, for the loaders whose fonts
-     * have no word wrap of their own. A word wider than a line stands on one.
+     * have no word wrap of their own. A word wider than a line is cut into pieces that each fit.
      */
     public static List<String> wrap(String text, int maxWidth, ToIntFunction<String> width) {
         List<String> lines = new ArrayList<>();
@@ -311,10 +311,18 @@ public final class GrugModsScreenModel {
             String longer = line.length() == 0 ? word : line + " " + word;
             if (line.length() > 0 && width.applyAsInt(longer) > maxWidth) {
                 lines.add(line.toString());
-                line = new StringBuilder(word);
-            } else {
-                line = new StringBuilder(longer);
+                line = new StringBuilder();
             }
+            // What is left of the word goes on the line it can start, cut where the line is full.
+            String rest = line.length() == 0 ? word : line + " " + word;
+            line = new StringBuilder();
+            while (width.applyAsInt(rest) > maxWidth && rest.length() > 1) {
+                int cut = rest.length() - 1;
+                while (cut > 1 && width.applyAsInt(rest.substring(0, cut)) > maxWidth) cut--;
+                lines.add(rest.substring(0, cut));
+                rest = rest.substring(cut);
+            }
+            line.append(rest);
         }
         lines.add(line.toString());
         return lines;
