@@ -551,6 +551,48 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The same loader installed the way a player's launcher does it, on Windows (#530): the jar a
+  # player downloads, in the game portablemc installs, loading grug on the platform most players use.
+  # Boot-only for the reason the job above gives.
+  windows-installed:
+    name: a1.1.2_01-ornithe installed (Windows)
+    needs: [universal]
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the universal jar
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-universal
+          path: universal
+
+      # Relative, because the script reads it from Git Bash, where a Windows path with backslashes is
+      # not one.
+      - name: Load grug in an installed a1.1.2_01-ornithe
+        shell: bash
+        run: .github/scripts/run-loader.sh a1.1.2_01-ornithe production
+        env:
+          GRUG_UNIVERSAL_JAR: universal/grug.jar
+          GRUG_CI_BOOT_ONLY: '1'
+          # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
+          GRUG_CI_RUN_TIMEOUT: '900'
+
+      - name: Upload logs and crash reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-windows-a1.1.2_01-ornithe-logs
+          path: |
+            loaders/a1.1.2_01-ornithe/build/ci-production.log
+            loaders/a1.1.2_01-ornithe/build/production-game/logs
+            loaders/a1.1.2_01-ornithe/build/production-game/crash-reports
+            loaders/a1.1.2_01-ornithe/build/production-game/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Assembles the universal jar from core's release jar and every loader's layer, the jar a player
   # downloads, and fails unless it holds every invariant universal_jar.py checks: no duplicate
   # paths, every class in its loader's package, one layer per loaders/* directory, the native,

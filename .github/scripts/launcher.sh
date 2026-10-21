@@ -14,23 +14,39 @@ MAIN_DIR="${CACHE_DIR}/main"
 PORTABLEMC_VERSION="5.0.6"
 VENV="${CACHE_DIR}/portablemc-${PORTABLEMC_VERSION}"
 
+# A virtual environment keeps its programs in bin/ on Linux and Scripts/ on Windows, where they end in
+# .exe, and python3 there can be a Microsoft Store stub that opens the store instead of running
+# anything. Git Bash on a Windows runner reports OSTYPE=msys.
+case "${OSTYPE:-}" in
+  msys* | cygwin*)
+    PYTHON=python
+    VENV_BIN="${VENV}/Scripts"
+    EXE=.exe
+    ;;
+  *)
+    PYTHON=python3
+    VENV_BIN="${VENV}/bin"
+    EXE=
+    ;;
+esac
+
 install_portablemc() {
-  if [ ! -x "${VENV}/bin/portablemc" ]; then
-    python3 -m venv "$VENV"
-    "${VENV}/bin/pip" install --quiet "portablemc==${PORTABLEMC_VERSION}"
+  if [ ! -x "${VENV_BIN}/portablemc${EXE}" ]; then
+    "$PYTHON" -m venv "$VENV"
+    "${VENV_BIN}/pip${EXE}" install --quiet "portablemc==${PORTABLEMC_VERSION}"
   fi
 }
 
 portablemc() {
   install_portablemc
-  "${VENV}/bin/portablemc" --main-dir "$MAIN_DIR" "$@"
+  "${VENV_BIN}/portablemc${EXE}" --main-dir "$MAIN_DIR" "$@"
 }
 
 # Starts a version in GAME_DIR, installing it first if needed, and replaces this shell so the
 # watcher's process group is the game's.
 start() {
   install_portablemc
-  exec "${VENV}/bin/portablemc" --main-dir "$MAIN_DIR" start --mc-dir "$GAME_DIR" -u Player "$@"
+  exec "${VENV_BIN}/portablemc${EXE}" --main-dir "$MAIN_DIR" start --mc-dir "$GAME_DIR" -u Player "$@"
 }
 
 # Writes a launcher profile under versions/, as an installer would.

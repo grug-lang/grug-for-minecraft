@@ -56,7 +56,7 @@ cp "$JAR" "${GAME_DIR}/mods/"
 # installs them from the jar.
 mkdir -p "${GAME_DIR}/grug_mods"
 cp -r "${REPO_ROOT}/mods/coverage" "${GAME_DIR}/grug_mods/"
-python3 - "${REPO_ROOT}/mods" "${GAME_DIR}/grug_mods_state.json" <<'PY'
+"$PYTHON" - "${REPO_ROOT}/mods" "${GAME_DIR}/grug_mods_state.json" <<'PY'
 import json, pathlib, sys
 mods = sorted(p.name for p in pathlib.Path(sys.argv[1]).iterdir() if p.is_dir() and p.name != "coverage")
 pathlib.Path(sys.argv[2]).write_text(json.dumps({"mods": {name: True for name in mods}}) + "\n")
@@ -69,7 +69,7 @@ modrinth() {
   local project="$1" version="$2" loader="$3" url
   url=$(curl --fail --silent --show-error --user-agent "grug-lang/grug-for-minecraft CI" \
     "https://api.modrinth.com/v2/project/${project}/version" \
-    | python3 -c "import json, sys; print(next(f['url'] for v in json.load(sys.stdin) if v['version_number'] == sys.argv[1] and sys.argv[2] in v['loaders'] for f in v['files'] if f['primary']))" "$version" "$loader")
+    | "$PYTHON" -c "import json, sys; print(next(f['url'] for v in json.load(sys.stdin) if v['version_number'] == sys.argv[1] and sys.argv[2] in v['loaders'] for f in v['files'] if f['primary']))" "$version" "$loader")
   curl --fail --silent --show-error --location "$url" -o "${GAME_DIR}/mods/${project}-${version}.jar"
 }
 
@@ -111,13 +111,13 @@ case "$LOADER" in
     loader="$(property loader_version)"
     vanilla="${game}-gen2"
     vanilla_url=$(curl --fail --silent --show-error "https://ornithemc.net/mc-versions/gen2/version_manifest.json" \
-      | python3 -c "import json, sys; print(next(v['url'] for v in json.load(sys.stdin)['versions'] if v['id'] == sys.argv[1]))" "$game")
+      | "$PYTHON" -c "import json, sys; print(next(v['url'] for v in json.load(sys.stdin)['versions'] if v['id'] == sys.argv[1]))" "$game")
     install_profile "$vanilla" "$vanilla_url"
     profile="fabric-loader-${loader}-${game}-ornithe-gen2"
     install_profile "$profile" "https://meta.ornithemc.net/v3/versions/gen2/fabric-loader/${game}/${loader}/profile/json"
     curl --fail --silent --show-error "https://meta.ornithemc.net/v3/versions/gen2/libraries/${game}" \
       -o "${MAIN_DIR}/versions/${profile}/libraries.json"
-    python3 - "${MAIN_DIR}/versions" "$vanilla" "$profile" <<'EOF'
+    "$PYTHON" - "${MAIN_DIR}/versions" "$vanilla" "$profile" <<'EOF'
 import json, os, sys
 versions, vanilla, profile = sys.argv[1:]
 def rewrite(name, change):
