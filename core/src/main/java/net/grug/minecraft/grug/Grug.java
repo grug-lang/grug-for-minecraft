@@ -31,13 +31,17 @@ public final class Grug {
     }
 
     public static FileInfo[] compileAllFiles() {
+        FileInfo[] files;
         GrugStateLock.lock();
         try {
             if (statePtr == 0) throw new IllegalStateException("grug_state is not initialized");
-            return GrugNative.nativeCompileAllFiles(statePtr);
+            files = GrugNative.nativeCompileAllFiles(statePtr);
         } finally {
             GrugStateLock.unlock();
         }
+        // Outside the lock, so the shutdown it can start never waits on it.
+        GrugBootOnly.finish();
+        return files;
     }
 
     public static long createEntity(long fileId) {

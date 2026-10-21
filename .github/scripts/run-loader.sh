@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # scripts/ci/run-loader.sh <loader-dir-name> <build|run|update-goldens|production>
 #
-# GRUG_CI_BOOT_ONLY, when set, ends a run successfully at the title screen instead of waiting for
-# the tests, for a platform that the screenshot goldens were not made on.
+# GRUG_CI_BOOT_ONLY, when set, makes the game stop itself with status 0 as soon as grug has compiled
+# its mods (GrugBootOnly in core prints GRUG_LOADED_MSG first), instead of waiting for the tests. It
+# is for a platform that cannot give a whole run what it needs, such as OpenGL and the Linux
+# goldens. The game never opens a window, and the run succeeds on that line.
 #
 # production runs the same tests in an installed game instead of the development run: it hands the
 # universal jar named by GRUG_UNIVERSAL_JAR (which .github/scripts/universal_jar.py assembles from
@@ -120,6 +122,7 @@ fi
 EXPECTED_TESTS=$(find "${REPO_ROOT}/mods" -name "*-Test.grug" | wc -l | tr -d ' ')
 SUCCESS_MSG="[GRUG CI] ALL ${EXPECTED_TESTS} TESTS PASSED"
 BOOT_MSG="[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL"
+GRUG_LOADED_MSG="[GRUG CI] GRUG LOADED"
 
 if [ "$PHASE" != build ]; then
   if [ ! -f "${REPO_ROOT}/${LOADER_DIR}/test-save.txt" ]; then
@@ -225,10 +228,10 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   fi
 
   if grep -q -F "$SUCCESS_MSG" "$LOG_FILE"; then status=success; break; fi
-  # A boot-only run is done at the title screen: the game started, the native loaded and the mods
-  # were found, which is what a platform whose goldens we do not have needs shown. A crash on the
-  # way to the title screen is still caught by the checks below.
-  if [ "$reached_title" = true ] && [ -n "${GRUG_CI_BOOT_ONLY:-}" ]; then status=success; break; fi
+  # A boot-only run is done once grug has loaded: the native loaded, the VM started and the mods
+  # compiled, which is everything specific to grug on the platform. A crash before that is still
+  # caught by the checks below.
+  if [ -n "${GRUG_CI_BOOT_ONLY:-}" ] && grep -q -F "$GRUG_LOADED_MSG" "$LOG_FILE"; then status=success; break; fi
   if grep -q "FAIL " "$LOG_FILE"; then status=failed; break; fi
   if grep -q -E "$crash_re" "$LOG_FILE"; then status=crashed; break; fi
   # Checked before the liveness test below, because a Rust panic is written to the log a moment
@@ -268,7 +271,11 @@ report_native_abort() {
 
 case "$status" in
   success)
-    echo "==> $LOADER successfully ran and passed all tests."
+    if [ -n "${GRUG_CI_BOOT_ONLY:-}" ]; then
+      echo "==> $LOADER loaded grug. The tests were not run: this is a boot-only run."
+    else
+      echo "==> $LOADER successfully ran and passed all tests."
+    fi
     ;;
   failed)
     echo "==> $LOADER tests failed." >&2
