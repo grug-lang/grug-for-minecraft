@@ -472,6 +472,11 @@ def check_layers(jar, loaders):
     return problems
 
 
+# The mods under mods/ that stay out of the jar: test fixtures, which nobody installs to play. A
+# player's pack has a limited supply of block ids, and these ask for 32 of them (#509).
+UNBUNDLED_MODS = {"coverage"}
+
+
 def check_payload(jar, mods):
     # Each appears once at the root, which the duplicate check guarantees, and in no nested layer.
     singles = ("mod_api.json", "grug_bundled_mods.txt")
@@ -496,7 +501,12 @@ def check_payload(jar, mods):
     bundled = {name.split("/")[1] for name in jar.root.files if name.startswith("mods/")}
     problems += [f"mods/{mod} is not bundled in the jar" for mod in sorted(mods - bundled)]
     problems += [
-        f"the jar bundles mods/{mod}, which is not in mods/" for mod in sorted(bundled - mods)
+        f"the jar bundles mods/{mod}, which holds test fixtures and stays out of it"
+        for mod in sorted(bundled & UNBUNDLED_MODS)
+    ]
+    problems += [
+        f"the jar bundles mods/{mod}, which is not in mods/"
+        for mod in sorted(bundled - mods - UNBUNDLED_MODS)
     ]
     index = jar.root.files.get("grug_bundled_mods.txt", b"").decode().splitlines()
     listed = {"mods/" + line for line in index if line}
@@ -1161,7 +1171,7 @@ def check_dispatcher(jar, games=GAMES, known_gaps=KNOWN_GAPS):
 def check(path, repo=REPO_ROOT):
     jar = Universal.read(path)
     loaders = {p.name for p in (repo / "loaders").iterdir() if p.is_dir()}
-    mods = {p.name for p in (repo / "mods").iterdir() if p.is_dir()}
+    mods = {p.name for p in (repo / "mods").iterdir() if p.is_dir()} - UNBUNDLED_MODS
     problems = list(jar.problems)
     for run in (
         check_duplicates,
