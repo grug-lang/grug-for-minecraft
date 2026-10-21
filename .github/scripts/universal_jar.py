@@ -66,6 +66,8 @@ GRUG_MOD_ID = "grug"
 # (grug_forge_layers.json) names for the running Minecraft version, and nothing on any other game.
 BOOTSTRAP_MOD = "net/grug/minecraft/bootstrap/GrugForgeMod.class"
 FORGE_LAYERS_TABLE = "grug_forge_layers.json"
+# The 1.2.5 layer's ModLoader mod, whose VERSION constant is the version ModLoader shows (#502).
+MODLOADER_MOD = "net/grug/minecraft/forge125/mod_Grug.class"
 MIXIN_PLUGIN = "net.grug.minecraft.bootstrap.GrugMixinPlugin"
 # The outer fabric.mod.json's one entrypoint, which reports a Fabric-family game none of the nested
 # layers activated on, as GrugForgeMod reports a Forge-family game without a layer.
@@ -164,6 +166,60 @@ def write_manifest(attributes):
 def class_version(data):
     """A class file's major version, which decides whether a loader's ASM can read it."""
     return int.from_bytes(data[6:8], "big")
+
+
+# The size in bytes of each constant pool entry after its tag, by tag; a Utf8 entry's size is in its
+# own first two bytes instead. Long and Double entries take two slots of the pool.
+CONSTANT_SIZES = {
+    3: 4,
+    4: 4,
+    5: 8,
+    6: 8,
+    7: 2,
+    8: 2,
+    9: 4,
+    10: 4,
+    11: 4,
+    12: 4,
+    15: 3,
+    16: 2,
+    17: 4,
+}
+CONSTANT_SIZES |= {18: 4, 19: 2, 20: 2}
+
+
+def string_constant(data, field_name):
+    """The ConstantValue of a class file's String field, which javac writes for a static final String
+    initialised by a constant expression, or None if the class has no such field."""
+    try:
+        pos, count, pool, index = 10, int.from_bytes(data[8:10], "big"), {}, 1
+        while index < count:
+            tag = data[pos]
+            if tag == 1:
+                size = int.from_bytes(data[pos + 1 : pos + 3], "big")
+                pool[index] = data[pos + 3 : pos + 3 + size].decode("utf-8")
+                pos += 3 + size
+            else:
+                pool[index] = data[pos + 1 : pos + 3]  # a String entry's Utf8 index, among others
+                pos += 1 + CONSTANT_SIZES[tag]
+            index += 2 if tag in (5, 6) else 1
+
+        def u2(at):
+            return int.from_bytes(data[at : at + 2], "big")
+
+        pos += 6  # access flags, this class and superclass
+        pos += 2 + 2 * u2(pos)  # interfaces
+        fields, pos = u2(pos), pos + 2
+        for _ in range(fields):
+            name, attributes, pos = pool[u2(pos + 2)], u2(pos + 6), pos + 8
+            for _ in range(attributes):
+                attribute, size = pool[u2(pos)], int.from_bytes(data[pos + 2 : pos + 6], "big")
+                if name == field_name and attribute == "ConstantValue":
+                    return pool[int.from_bytes(pool[u2(pos + 6)], "big")]
+                pos += 6 + size
+    except (IndexError, KeyError, TypeError, UnicodeDecodeError):
+        return None
+    return None
 
 
 def root_mods_toml(version):
@@ -520,6 +576,13 @@ def check_versions(jar, repo):
                 problems.append(
                     f"{name} reports {mod.get('version')!r}, not {version} stamped with a commit"
                 )
+    # ModLoader reads no metadata: it asks the mod for its version (#502).
+    if MODLOADER_MOD in jar.root.files:
+        reported = string_constant(jar.root.files[MODLOADER_MOD], "VERSION")
+        if reported != version:
+            problems.append(
+                f"{MODLOADER_MOD} reports VERSION {reported!r}, not the repository version {version}"
+            )
     for loader, nested in sorted(jar.nested.items()):
         metadata = nested.json("fabric.mod.json", [])
         if metadata is not None and metadata.get("version") != version:
