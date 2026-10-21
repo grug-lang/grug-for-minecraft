@@ -112,10 +112,10 @@ WORK="$(cd "$WORK" && pwd)"
 GAME_DIR="${WORK}/game"
 LOG="${WORK}/launch.log"
 
-# EXPECT is error or inert. For an inert game, READY is the line that says loading is over, read
-# from READY_FILE (the launch log unless the loader keeps a log of its own), and COMPLAINTS are its
-# loader's words for a jar it refuses, skips or warns about, which must not appear.
-READY_FILE="$LOG"
+# EXPECT is error or inert. For an inert game, READY is the launch log's line that says loading is
+# over, and COMPLAINTS are its loader's words for a jar it refuses, skips or warns about, which must
+# appear neither there nor in LOADER_LOG, a log the loader keeps of its own.
+LOADER_LOG="$LOG"
 COMPLAINTS=''
 case "$RECIPE" in
   forge-1.21.1 | forge-1.16.5 | neoforge-20.4 | neoforge-21.1 | babric-b1.7.3)
@@ -135,8 +135,10 @@ case "$RECIPE" in
     ;;
   modloader-b1.7.3)
     EXPECT=inert
-    READY_FILE="${GAME_DIR}/ModLoader.txt"
-    READY='Done\.'
+    # ModLoader prints this once it has read the mods folder and the class path for mod_ classes,
+    # and logs each one it loads to ModLoader.txt.
+    READY='^Done\.'
+    LOADER_LOG="${GAME_DIR}/ModLoader.txt"
     COMPLAINTS='Mod Loaded|Failed to load mod'
     ;;
   *)
@@ -174,7 +176,7 @@ problems() {
     fi
   fi
   if [ -n "$COMPLAINTS" ]; then
-    grep -E -m3 -e "$COMPLAINTS" "$LOG" "$READY_FILE" 2>/dev/null | sed 's/^/the loader complained: /' || true
+    grep -E -m3 -e "$COMPLAINTS" "$LOG" "$LOADER_LOG" 2>/dev/null | sed 's/^/the loader complained: /' || true
   fi
   grep -E -m3 -e "$GRUG_STARTED" "$LOG" | sed 's/^/grug started: /' || true
   if [ -d "${GAME_DIR}/grug_mods" ]; then echo "grug started: it created grug_mods/"; fi
@@ -220,13 +222,13 @@ if [ "$EXPECT" = error ]; then
   exit 0
 fi
 
-until grep -E -q -e "$READY" "$READY_FILE" 2>/dev/null; do
+until grep -E -q -e "$READY" "$LOG"; do
   if [ -n "$(problems)" ]; then fail "$(problems)"; fi
   if ! kill -0 "$GAME_PID" 2>/dev/null; then fail "the game exited before loading ended"; fi
   if [ "$SECONDS" -ge "$deadline" ]; then fail "loading did not end within the timeout"; fi
   sleep 2
 done
-echo "==> ${RECIPE}: loading ended ($(grep -E -m1 -o -e "$READY" "$READY_FILE"))"
+echo "==> ${RECIPE}: loading ended ($(grep -E -m1 -o -e "$READY" "$LOG"))"
 
 # Waits for the game to settle on its first screen. A loader that rejects the jar does so around this
 # point, with an error screen, a crash report or a warning.
