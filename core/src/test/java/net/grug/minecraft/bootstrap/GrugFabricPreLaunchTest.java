@@ -13,16 +13,17 @@ class GrugFabricPreLaunchTest {
 
     @Test
     void reportsAGameWhereNoLayerLoaded() {
-        IllegalStateException error =
+        GrugUnsupportedGameException error =
                 assertThrows(
-                        IllegalStateException.class,
+                        GrugUnsupportedGameException.class,
                         () -> new GrugFabricPreLaunch(id -> false).onPreLaunch());
-        assertTrue(error.getMessage().startsWith("grug has no layer for this game,"));
+        assertTrue(error.getMessage().startsWith("grug does not run on this game:"));
     }
 
     @Test
     void asksFabricLoaderWhetherALayerLoaded() {
         // The stand-in Fabric Loader has loaded no mod, as on a game without a layer.
-        assertThrows(IllegalStateException.class, () -> new GrugFabricPreLaunch().onPreLaunch());
+        assertThrows(
+                GrugUnsupportedGameException.class, () -> new GrugFabricPreLaunch().onPreLaunch());
     }
 }

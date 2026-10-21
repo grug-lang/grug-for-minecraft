@@ -177,8 +177,10 @@ public final class GrugForgeLayers {
     public void start(ClassLoader classLoader) {
         Layer layer = running();
         if (layer == null) {
-            throw GrugUnsupportedGame.error(
-                    game == null ? "this game" : "Minecraft " + game.minecraft + " on this loader");
+            throw GrugUnsupportedGameException.of(
+                    game == null
+                            ? "this game"
+                            : "Minecraft " + game.minecraft + " with this mod loader");
         }
         try {
             Class.forName(layer.entrypoint, true, classLoader)
