@@ -30,17 +30,36 @@ public final class GrugHttp {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 30_000;
 
+    /**
+     * How long one whole fetch may take, which the read timeout does not bound: a server that sends
+     * a few bytes before each read times out keeps a transfer going for as long as it likes. It is
+     * checked between reads, so a fetch ends at most one read timeout after it.
+     */
+    static final long DEADLINE_MS = 5 * 60_000L;
+
     private GrugHttp() {}
 
     /** The fetcher the game uses. */
     public static Fetcher urlConnection() {
         return (url, limit, progress) ->
-                get(url, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, Math.min(limit, LIMIT), progress);
+                get(
+                        url,
+                        CONNECT_TIMEOUT_MS,
+                        READ_TIMEOUT_MS,
+                        DEADLINE_MS,
+                        Math.min(limit, LIMIT),
+                        progress);
     }
 
     static byte[] get(
-            String url, int connectTimeoutMs, int readTimeoutMs, long limit, LongConsumer progress)
+            String url,
+            int connectTimeoutMs,
+            int readTimeoutMs,
+            long deadlineMs,
+            long limit,
+            LongConsumer progress)
             throws IOException {
+        long deadline = System.nanoTime() + deadlineMs * 1_000_000L;
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(connectTimeoutMs);
         connection.setReadTimeout(readTimeoutMs);
@@ -61,6 +80,10 @@ public final class GrugHttp {
                     }
                     body.write(chunk, 0, read);
                     progress.accept(body.size());
+                    if (System.nanoTime() - deadline > 0) {
+                        throw new IOException(
+                                "GET " + url + " took longer than " + deadlineMs / 1000.0 + " s");
+                    }
                 }
                 return body.toByteArray();
             }

@@ -284,7 +284,9 @@ public final class GrugModManager {
                         catalogue.install(
                                 name, item, modsDir().toPath(), bytes -> install.done = bytes);
                         setOn(name, true);
-                    } catch (IOException e) {
+                    } catch (IOException | IllegalStateException e) {
+                        // The state file that cannot be written is a fatal of grug's, which
+                        // would otherwise end the worker with the download looking like it worked.
                         install.error = e.getMessage();
                     } finally {
                         install.finished = true;
