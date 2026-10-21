@@ -3,6 +3,7 @@ package net.grug.minecraft.grug;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntPredicate;
@@ -76,14 +77,17 @@ public final class GrugIdPool {
      * depends on the order they register in, and a player is as well served by turning off a mod
      * that uses a lot of ids. The error also gives the exact way to turn one off by hand.
      *
-     * @param needsByMod how many ids each grug mod needs, by the name of its directory
+     * @param modByName the mod, by the name of its directory, of each block or item that will take
+     *     an id, keyed by the name registration keys it by: a name two mods ship takes one id, so
+     *     it is counted once
      * @param modsDirectory the directory the mods are installed in
      */
-    public void requireRoom(Map<String, Integer> needsByMod, File modsDirectory) {
-        int needed = 0;
-        for (int count : needsByMod.values()) {
-            needed += count;
+    public void requireRoom(Map<String, String> modByName, File modsDirectory) {
+        Map<String, Integer> needsByMod = new HashMap<>();
+        for (String mod : modByName.values()) {
+            needsByMod.merge(mod, 1, Integer::sum);
         }
+        int needed = modByName.size();
         if (needed <= remaining()) return;
 
         throw Grug.fatal(shortage(needsByMod, needed, modsDirectory));

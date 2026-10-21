@@ -86,11 +86,18 @@ class GrugIdPoolTest {
                 error.getMessage().contains("No free item id for a grug item"), error.getMessage());
     }
 
-    private static Map<String, Integer> needs() {
-        Map<String, Integer> needs = new LinkedHashMap<>();
-        needs.put("buildcraft", 3);
-        needs.put("coverage", 32);
-        needs.put("examplemod", 1);
+    private static Map<String, String> mods(String mod, int count, Map<String, String> into) {
+        for (int i = 0; i < count; i++) {
+            into.put(mod + "_" + i, mod);
+        }
+        return into;
+    }
+
+    private static Map<String, String> needs() {
+        Map<String, String> needs = new LinkedHashMap<>();
+        mods("buildcraft", 3, needs);
+        mods("coverage", 32, needs);
+        mods("examplemod", 1, needs);
         return needs;
     }
 
@@ -131,9 +138,9 @@ class GrugIdPoolTest {
     @Test
     void modsWithTheSameNeedAreListedByName() {
         GrugIdPool pool = GrugIdPool.of("item", id -> true, 400, 410);
-        Map<String, Integer> needs = new LinkedHashMap<>();
-        needs.put("zeta", 2);
-        needs.put("alpha", 2);
+        Map<String, String> needs = new LinkedHashMap<>();
+        mods("zeta", 2, needs);
+        mods("alpha", 2, needs);
 
         IllegalStateException error =
                 assertThrows(
@@ -141,5 +148,17 @@ class GrugIdPoolTest {
                         () -> pool.requireRoom(needs, new File("grug_mods")));
 
         assertTrue(error.getMessage().contains("\n  alpha: 2\n  zeta: 2"), error.getMessage());
+    }
+
+    @Test
+    void aNameTwoModsShipTakesOneIdAndIsCountedOnce() {
+        GrugIdPool pool = GrugIdPool.of("block", id -> false, 125, 126);
+        Map<String, String> needs = new LinkedHashMap<>();
+        // Registration keys by name, so the second put replaced the first mod's block.
+        needs.put("foo", "first");
+        needs.put("foo", "second");
+        needs.put("bar", "second");
+
+        assertDoesNotThrow(() -> pool.requireRoom(needs, new File("grug_mods")));
     }
 }

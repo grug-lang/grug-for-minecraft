@@ -23,7 +23,6 @@ import net.minecraft.src.RenderBlocks;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.logging.Logger;
 
 /**
@@ -42,10 +41,13 @@ public class mod_Grug extends BaseMod {
     public static final Map<String, Long> blockFiles = new HashMap<>();
     public static final Map<String, Long> itemFiles = new HashMap<>();
 
-    /** How many block and item ids each grug mod needs, by the name of its directory. */
-    public static final Map<String, Integer> blockCountsByMod = new TreeMap<>();
+    /**
+     * The mod each registered block and item comes from, by the name the maps above key it by, so a
+     * name two mods both ship counts once, for the mod whose file is the one registered.
+     */
+    public static final Map<String, String> blockMods = new HashMap<>();
 
-    public static final Map<String, Integer> itemCountsByMod = new TreeMap<>();
+    public static final Map<String, String> itemMods = new HashMap<>();
 
     /**
      * The FML render ID for blocks that declare custom geometry, or -1 before {@link #load()}
@@ -88,20 +90,20 @@ public class mod_Grug extends BaseMod {
 
         blockFiles.clear();
         itemFiles.clear();
-        blockCountsByMod.clear();
-        itemCountsByMod.clear();
+        blockMods.clear();
+        itemMods.clear();
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
             GrugModsWatcher.fileIds.put(file.path(), file.fileId());
             String entityType = entry.entityType();
             if ("Block".equals(entityType)) {
                 blockFiles.put(entry.cleanName(), file.fileId());
-                blockCountsByMod.merge(entry.mod(), 1, Integer::sum);
+                blockMods.put(entry.cleanName(), entry.mod());
             } else if ("BlockEntity".equals(entityType)) {
                 GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
             } else if ("Item".equals(entityType)) {
                 itemFiles.put(entry.cleanName(), file.fileId());
-                itemCountsByMod.merge(entry.mod(), 1, Integer::sum);
+                itemMods.put(entry.cleanName(), entry.mod());
             }
         }
 
