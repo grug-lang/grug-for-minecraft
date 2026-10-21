@@ -1177,6 +1177,34 @@ def check(path, repo=REPO_ROOT):
     return problems
 
 
+def release_notes(readme, jar_name):
+    """The players' part of a release's notes, which release.yml puts above GitHub's generated
+    changelog (#503): the README's For Players section up to its first subsection, at the commit the
+    release names, with its paragraphs unwrapped, since a release body keeps every line break."""
+    lines = readme.splitlines()
+    try:
+        start = lines.index("## For Players") + 1
+    except ValueError:
+        raise AssemblyError("the README has no '## For Players' section") from None
+    end = next((i for i in range(start, len(lines)) if lines[i].startswith("#")), len(lines))
+    paragraphs = []
+    for line in lines[start:end]:
+        line = line.replace("`grug-<version>.jar`", f"`{jar_name}`")
+        block = re.match(r"\||[-*] |\d+\. ", line)
+        if (
+            line
+            and paragraphs
+            and paragraphs[-1]
+            and not block
+            and not paragraphs[-1].startswith("|")
+        ):
+            paragraphs[-1] += " " + line
+        else:
+            paragraphs.append(line)
+    body = "\n".join(paragraphs).strip()
+    return f"## Instructions for players\n\n{body}\n"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -1191,7 +1219,20 @@ def main(argv=None):
         "--repo", default=REPO_ROOT, type=Path, help="the checkout to compare with"
     )
     commands.add_parser("smoke-matrix", help="print the smoke jobs' matrix as JSON")
+    noting = commands.add_parser("release-notes", help="print a release's notes for players")
+    noting.add_argument("jar_name", help="the released jar's file name, grug-<version>.jar")
+    noting.add_argument(
+        "--readme", default=REPO_ROOT / "README.md", type=Path, help="the README to read"
+    )
     args = parser.parse_args(argv)
+
+    if args.command == "release-notes":
+        try:
+            print(release_notes(args.readme.read_text(), args.jar_name), end="")
+        except AssemblyError as error:
+            print(f"==> ERROR: {error}", file=sys.stderr)
+            return 1
+        return 0
 
     if args.command == "smoke-matrix":
         print(json.dumps(smoke_matrix()))

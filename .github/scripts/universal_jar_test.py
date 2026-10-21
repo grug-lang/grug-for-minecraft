@@ -950,6 +950,58 @@ class VersionCheckTest(unittest.TestCase):
         self.assertProblem(fixture.problems(), "declares no mod_version, the repository version")
 
 
+class ReleaseNotesTest(unittest.TestCase):
+    """The players' part of a release's notes (#503)."""
+
+    README = "\n".join(
+        [
+            "# grug",
+            "",
+            "## For Players",
+            "",
+            "Download the one jar, `grug-<version>.jar`, from the",
+            "latest release.",
+            "",
+            "| Game | Mod loader |",
+            "| :--- | :--- |",
+            "| Beta 1.7.3 | Ornithe |",
+            "",
+            "- one",
+            "- two",
+            "",
+            "Only Linux",
+            "is supported.",
+            "",
+            "### Test Keys",
+            "",
+            "Press R.",
+            "",
+            "## For Developers",
+        ]
+    )
+
+    def test_takes_the_for_players_section_up_to_its_first_subsection(self):
+        self.assertEqual(
+            universal_jar.release_notes(self.README, "grug-0.1.1.jar"),
+            "## Instructions for players\n\n"
+            "Download the one jar, `grug-0.1.1.jar`, from the latest release.\n\n"
+            "| Game | Mod loader |\n| :--- | :--- |\n| Beta 1.7.3 | Ornithe |\n\n"
+            "- one\n- two\n\n"
+            "Only Linux is supported.\n",
+        )
+
+    def test_a_readme_without_the_section(self):
+        with self.assertRaises(universal_jar.AssemblyError):
+            universal_jar.release_notes("# grug\n", "grug-0.1.1.jar")
+
+    def test_the_real_readme(self):
+        notes = universal_jar.release_notes(
+            (universal_jar.REPO_ROOT / "README.md").read_text(), "grug-0.1.1.jar"
+        )
+        self.assertIn("`grug-0.1.1.jar`", notes)
+        self.assertNotIn("Test Keys", notes)
+
+
 class SmokeTest(unittest.TestCase):
     """The smoke jobs: one game per mechanism the jar does not support (#493)."""
 
@@ -1082,6 +1134,28 @@ class CommandLineTest(unittest.TestCase):
         del fixture.core["mod_api.json"]
         fixture.assemble()
         self.assertEqual(universal_jar.main(["check", str(fixture.out)] + repo), 1)
+
+    def test_release_notes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            readme = Path(tmp) / "README.md"
+            readme.write_text("# grug\n\n## For Players\n\nDownload `grug-<version>.jar`.\n")
+            out = io.StringIO()
+            with mock.patch("sys.stdout", out):
+                self.assertEqual(
+                    universal_jar.main(
+                        ["release-notes", "grug-1.0.0.jar", "--readme", str(readme)]
+                    ),
+                    0,
+                )
+            self.assertIn("Download `grug-1.0.0.jar`.", out.getvalue())
+            readme.write_text("# grug\n")
+            with mock.patch("sys.stderr", io.StringIO()):
+                self.assertEqual(
+                    universal_jar.main(
+                        ["release-notes", "grug-1.0.0.jar", "--readme", str(readme)]
+                    ),
+                    1,
+                )
 
     def test_smoke_matrix(self):
         with mock.patch("sys.stdout", new_callable=io.StringIO) as out:

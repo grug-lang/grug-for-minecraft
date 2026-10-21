@@ -121,7 +121,9 @@ jobs:
         run: |
           jar="grug-${TAG#v}.jar"
           mv universal/grug.jar "$jar"
-          args=()
+          # The README's install steps for players, which gh puts above the changelog it generates.
+          python3 .github/scripts/universal_jar.py release-notes "$jar" > notes.md
+          args=(--notes-file notes.md)
           # A tag push already created the tag, so insist that it is the one we release.
           if [ "$EVENT" = push ]; then
             args+=(--verify-tag)
