@@ -644,6 +644,11 @@ def check_forge_family(jar, repo):
             f"{BOOTSTRAP_MOD} is newer than Java 8, which Forge 1.13 to 1.16 cannot read"
         )
 
+    if "ModType" in read_manifest(root.files.get(MANIFEST, b"")):
+        problems.append(
+            "the manifest has a ModType, which makes FML 1.7.10 to 1.12.2 skip the jar before "
+            "they read GrugForgeMod"
+        )
     # FML 1.7.10 to 1.12.2 give up on a jar at the first class their ASM cannot read, keeping the
     # mods found before it, so GrugForgeMod has to come first (#498).
     unreadable = next((n for n in root.classes() if class_version(root.files[n]) > JAVA_8), None)

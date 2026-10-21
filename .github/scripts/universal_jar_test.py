@@ -731,6 +731,12 @@ class ForgeFamilyTest(unittest.TestCase):
             problems, "Forge 1.13.2 breaks the launch, but should stop with grug's error"
         )
 
+    def test_a_manifest_with_mod_type(self):
+        problems = Fixture(self).problems_after(
+            {"META-INF/MANIFEST.MF": b"Manifest-Version: 1.0\r\nModType: grug\r\n\r\n"}
+        )
+        self.assertProblem(problems, "the manifest has a ModType")
+
     def test_a_class_old_fml_cannot_read_before_the_bootstrap(self):
         fixture = Fixture(self)
         fixture.layers["1.2.5-forge"]["Aaa.class"] = klass(JAVA_21)
