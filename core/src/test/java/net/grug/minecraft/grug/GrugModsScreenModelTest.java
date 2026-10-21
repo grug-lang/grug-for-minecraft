@@ -123,7 +123,8 @@ class GrugModsScreenModelTest {
     }
 
     @Test
-    void aModThatAppearsWhileTheScreenIsOpenNeedsARestart() throws IOException {
+    void aModThatAppearsFromOutsideWhileTheScreenIsOpenIsNotAChangeOfTheScreen()
+            throws IOException {
         GrugModsScreenModel model = model(3);
         Files.createDirectories(game.resolve("grug_mods/d"));
 
@@ -131,87 +132,132 @@ class GrugModsScreenModelTest {
         model.click(0);
 
         assertEquals(List.of("a: ON", "b: OFF", "c: ON"), model.labels());
-        assertTrue(model.restartNeeded());
+        assertFalse(model.restartNeeded());
     }
 
-    /** A catalogue holding the mod remote, over a game with no other mod. */
-    private GrugModsScreenModel remoteModel(byte[] zip, String sha) throws IOException {
-        String index = "{\"mods\":{\"remote\":{\"zip\":\"r.zip\",\"sha256\":\"" + sha + "\"}}}";
-        GrugCatalogue catalogue =
-                new GrugCatalogue(
-                        url -> {
-                            if (zip == null) throw new IOException("offline");
-                            return url.endsWith("index.json") ? index.getBytes() : zip;
-                        },
-                        "http://x/index.json");
+    /** A catalogue holding the mod remote, over a game with no other mod, and its waiting tasks. */
+    private GrugModsScreenModel remoteModel(
+            FakeCatalogue fake, FakeCatalogue.Waiting waiting, boolean startLoaded) {
         GrugModManager manager =
                 new GrugModManager(
                         game.toFile(),
                         name -> new ByteArrayInputStream(new byte[0]),
                         mod -> mod.equals("remote") ? "Sure?" : null,
-                        catalogue);
-        return new GrugModsScreenModel(manager, 5);
+                        fake.catalogue(),
+                        waiting);
+        GrugModsScreenModel model = new GrugModsScreenModel(manager, 5);
+        if (startLoaded) {
+            waiting.runAll();
+            assertTrue(model.poll());
+        }
+        return model;
+    }
+
+    private FakeCatalogue remote(boolean goodHash, boolean reachable) throws Exception {
+        byte[] zip = GrugCatalogueTest.zip("remote/about.json", "{}");
+        String hash = goodHash ? GrugCatalogueTest.sha256(zip) : "0".repeat(64);
+        return new FakeCatalogue(zip, hash, reachable);
     }
 
     @Test
-    void aCatalogueModIsDownloadedWhenTurnedOn() throws Exception {
-        byte[] zip = GrugCatalogueTest.zip("remote/about.json", "{}");
-        GrugModsScreenModel model = remoteModel(zip, GrugCatalogueTest.sha256(zip));
-        assertEquals(List.of("remote: OFF (download)"), model.labels());
-        assertNull(model.error());
+    void theCatalogueArrivesAfterTheScreenOpensWithoutAskingForARestart() throws Exception {
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModsScreenModel model = remoteModel(remote(true, true), waiting, false);
+
+        assertEquals(List.of(), model.labels());
+        assertEquals("Loading the mod catalogue...", model.status());
+        assertFalse(model.poll());
+        assertEquals(-1.0, model.progress());
+
+        waiting.runAll();
+
+        assertTrue(model.poll());
+        assertFalse(model.poll());
+        assertEquals(1, model.labels().size());
+        assertTrue(model.labels().get(0).startsWith("remote: OFF (download, "));
+        assertNull(model.status());
+        assertFalse(model.restartNeeded());
+    }
+
+    @Test
+    void aCatalogueModIsDownloadedWhileTheScreenShowsHowFarItIs() throws Exception {
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModsScreenModel model = remoteModel(remote(true, true), waiting, true);
 
         model.click(0);
         assertEquals("remote: Sure?", model.popup());
         model.accept();
 
+        assertTrue(model.busy());
+        assertEquals(0.0, model.progress());
+        assertTrue(model.status().startsWith("Downloading remote: 0 B of "), model.status());
+        model.click(0);
+        assertFalse(model.poll());
+        assertTrue(model.labels().get(0).startsWith("remote: OFF (download"));
+
+        waiting.runAll();
+
+        assertEquals(1.0, model.progress());
+        assertTrue(model.poll());
+        assertFalse(model.busy());
         assertEquals(List.of("remote: ON"), model.labels());
         assertTrue(Files.isRegularFile(game.resolve("grug_mods/remote/about.json")));
         assertTrue(model.restartNeeded());
         assertNull(model.error());
+        assertNull(model.status());
     }
 
     @Test
-    void aCatalogueModThatIsInstalledOrBundledIsNotDownloaded() throws Exception {
-        byte[] zip = GrugCatalogueTest.zip("remote/about.json", "{}");
+    void aFailedDownloadIsShownAndTheModStaysOff() throws Exception {
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModsScreenModel model = remoteModel(remote(false, true), waiting, true);
+
+        model.click(0);
+        model.accept();
+        waiting.runAll();
+
+        assertTrue(model.poll());
+        assertTrue(model.labels().get(0).startsWith("remote: OFF (download"));
+        assertTrue(model.error().startsWith("Could not install remote: "), model.error());
+        assertFalse(model.restartNeeded());
+    }
+
+    @Test
+    void aCatalogueModThatIsInstalledIsNotDownloaded() throws Exception {
         Files.createDirectories(game.resolve("grug_mods/remote"));
-        GrugModsScreenModel installed = remoteModel(zip, "0".repeat(64));
+        GrugModsScreenModel model =
+                remoteModel(remote(true, true), new FakeCatalogue.Waiting(), true);
 
-        assertEquals(List.of("remote: ON"), installed.labels());
+        assertEquals(List.of("remote: ON"), model.labels());
+    }
 
-        Files.delete(game.resolve("grug_mods/remote"));
-        GrugCatalogue catalogue =
-                new GrugCatalogue(
-                        url ->
-                                url.endsWith("index.json")
-                                        ? ("{\"mods\":{\"remote\":{\"zip\":\"r.zip\",\"sha256\":\""
-                                                        + "0".repeat(64)
-                                                        + "\"}}}")
-                                                .getBytes()
-                                        : zip,
-                        "http://x/index.json");
+    @Test
+    void aCatalogueModThatIsBundledIsNotDownloaded() throws Exception {
+        FakeCatalogue fake = remote(true, true);
         GrugModManager manager =
                 new GrugModManager(
                         game.toFile(),
                         name ->
                                 new ByteArrayInputStream(
-                                        (name.endsWith("txt") ? "remote/about.json\n" : "")
+                                        (name.endsWith(".txt") ? "remote/about.json\n" : "")
                                                 .getBytes()),
                         mod -> null,
-                        catalogue);
-        assertEquals(List.of("remote: OFF"), new GrugModsScreenModel(manager, 5).labels());
+                        fake.catalogue(),
+                        Runnable::run);
+
+        GrugModsScreenModel model = new GrugModsScreenModel(manager, 5);
+        model.poll();
+
+        assertEquals(List.of("remote: OFF"), model.labels());
     }
 
     @Test
-    void aFailedDownloadIsShownAndTheModStaysOff() throws Exception {
-        byte[] zip = GrugCatalogueTest.zip("remote/about.json", "{}");
-        GrugModsScreenModel model = remoteModel(zip, "0".repeat(64));
+    void aCatalogueThatCannotBeReadIsShown() throws Exception {
+        GrugModsScreenModel model =
+                remoteModel(remote(true, false), new FakeCatalogue.Waiting(), true);
 
-        model.click(0);
-        model.accept();
-
-        assertEquals(List.of("remote: OFF (download)"), model.labels());
-        assertTrue(model.error().startsWith("Could not install remote: "), model.error());
-        assertFalse(model.restartNeeded());
+        assertTrue(model.error().startsWith("Could not read the mod catalogue"), model.error());
+        assertEquals(List.of(), model.labels());
     }
 
     @Test
@@ -219,7 +265,8 @@ class GrugModsScreenModelTest {
         GrugModsScreenModel none = model(3);
         assertEquals(List.of(), none.errorLines(10, String::length));
 
-        GrugModsScreenModel model = remoteModel(null, "0".repeat(64));
+        GrugModsScreenModel model =
+                remoteModel(remote(true, false), new FakeCatalogue.Waiting(), true);
         // "Could not read the mod catalogue: offline" at ten characters a line.
         assertEquals(
                 List.of("Could not", "read the", "mod..."), model.errorLines(10, String::length));
@@ -229,10 +276,13 @@ class GrugModsScreenModelTest {
     }
 
     @Test
-    void aCatalogueThatCannotBeReadIsShown() throws Exception {
-        GrugModsScreenModel model = remoteModel(null, "0".repeat(64));
-
-        assertTrue(model.error().startsWith("Could not read the mod catalogue"), model.error());
-        assertEquals(List.of(), model.labels());
+    void sizesAreShownInBytesKibMibAndGib() {
+        assertEquals("0 B", GrugModsScreenModel.formatSize(0));
+        assertEquals("1023 B", GrugModsScreenModel.formatSize(1023));
+        assertEquals("1.0 KiB", GrugModsScreenModel.formatSize(1024));
+        assertEquals("1.5 KiB", GrugModsScreenModel.formatSize(1536));
+        assertEquals("2.0 MiB", GrugModsScreenModel.formatSize(2L * 1024 * 1024));
+        assertEquals("3.4 GiB", GrugModsScreenModel.formatSize(3500L * 1024 * 1024));
+        assertEquals("2048.0 GiB", GrugModsScreenModel.formatSize(2048L * 1024 * 1024 * 1024));
     }
 }

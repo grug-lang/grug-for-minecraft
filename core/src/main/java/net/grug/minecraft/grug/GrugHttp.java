@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.function.LongConsumer;
 
 /**
  * The one HTTP request grug makes: a GET of a whole body, for the mod catalogue (#511).
@@ -14,13 +15,17 @@ import java.net.URL;
  * it. It follows redirects, which GitHub's release downloads answer with.
  */
 public final class GrugHttp {
-    /** Fetches the body of a URL, or fails with an {@link IOException} that says why. */
+    /**
+     * Fetches the body of a URL, or fails with an {@link IOException} that says why, and also when
+     * the body is longer than {@code limit}. {@code progress} is told how many bytes have arrived
+     * so far, from the thread that fetches.
+     */
     public interface Fetcher {
-        byte[] get(String url) throws IOException;
+        byte[] get(String url, long limit, LongConsumer progress) throws IOException;
     }
 
     /** More than any mod's zip is, so a server cannot fill the memory of the game. */
-    static final int LIMIT = 128 * 1024 * 1024;
+    static final long LIMIT = 128L * 1024 * 1024;
 
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 30_000;
@@ -29,10 +34,12 @@ public final class GrugHttp {
 
     /** The fetcher the game uses. */
     public static Fetcher urlConnection() {
-        return url -> get(url, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, LIMIT);
+        return (url, limit, progress) ->
+                get(url, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, Math.min(limit, LIMIT), progress);
     }
 
-    static byte[] get(String url, int connectTimeoutMs, int readTimeoutMs, int limit)
+    static byte[] get(
+            String url, int connectTimeoutMs, int readTimeoutMs, long limit, LongConsumer progress)
             throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
         connection.setConnectTimeout(connectTimeoutMs);
@@ -48,11 +55,12 @@ public final class GrugHttp {
                 ByteArrayOutputStream body = new ByteArrayOutputStream();
                 byte[] chunk = new byte[8192];
                 for (int read = in.read(chunk); read >= 0; read = in.read(chunk)) {
-                    if (body.size() + read > limit) {
+                    if (body.size() + (long) read > limit) {
                         throw new IOException(
                                 "GET " + url + " answered more than " + limit + " bytes");
                     }
                     body.write(chunk, 0, read);
+                    progress.accept(body.size());
                 }
                 return body.toByteArray();
             }

@@ -85,7 +85,9 @@ class GrugCatalogueTest {
         served.put("/release/alpha.zip", zip);
         served.put(
                 "/release/index.json",
-                ("{\"commit\":\"abc\",\"mods\":{\"alpha\":{\"zip\":\"alpha.zip\",\"sha256\":\""
+                ("{\"commit\":\"abc\",\"mods\":{\"alpha\":{\"zip\":\"alpha.zip\",\"size\":"
+                                + zip.length
+                                + ",\"sha256\":\""
                                 + sha
                                 + "\"}}}")
                         .getBytes(StandardCharsets.UTF_8));
@@ -114,6 +116,40 @@ class GrugCatalogueTest {
         installAlpha(serveAlpha(zip, sha256(zip).toUpperCase()));
 
         assertTrue(Files.isRegularFile(target.resolve("alpha/about.json")));
+    }
+
+    @Test
+    void tellsHowManyBytesOfTheZipHaveBeenDownloaded() throws Exception {
+        byte[] zip = zip("alpha/about.json", "{}");
+        GrugCatalogue catalogue = serveAlpha(zip, sha256(zip));
+        java.util.List<Long> seen = new java.util.ArrayList<>();
+
+        catalogue.install("alpha", catalogue.fetch().get("alpha"), target, seen::add);
+
+        assertEquals(java.util.List.of((long) zip.length), seen);
+    }
+
+    @Test
+    void aZipLongerThanTheIndexSaysItIsFailsTheDownload() throws Exception {
+        byte[] zip = zip("alpha/about.json", "{}");
+        GrugCatalogue catalogue = serveAlpha(zip, sha256(zip));
+        served.put(
+                "/release/alpha.zip",
+                zip(
+                        "alpha/about.json",
+                        "{}",
+                        "alpha/more.txt",
+                        "padding to be longer than the index says"));
+
+        IOException error =
+                assertThrows(
+                        IOException.class,
+                        () -> catalogue.install("alpha", catalogue.fetch().get("alpha"), target));
+
+        assertTrue(
+                error.getMessage().contains("more than " + zip.length + " bytes"),
+                error.getMessage());
+        assertEquals(0, Files.list(target).count());
     }
 
     @Test
@@ -211,19 +247,30 @@ class GrugCatalogueTest {
 
     @Test
     void anIndexThatIsNotAnIndexIsRefused() throws Exception {
-        String good = "{\"zip\":\"a.zip\",\"sha256\":\"" + "0".repeat(64) + "\"}";
+        String good = "{\"zip\":\"a.zip\",\"size\":5,\"sha256\":\"" + "0".repeat(64) + "\"}";
         String[] bad = {
             "[]",
             "{}",
             "{\"mods\":{\"../x\":" + good + "}}",
             "{\"mods\":{\"alpha\":[]}}",
+            "{\"mods\":{\"alpha\":{\"zip\":\"a.zip\",\"sha256\":\"" + "0".repeat(64) + "\"}}}",
+            "{\"mods\":{\"alpha\":{\"zip\":\"a.zip\",\"size\":0,\"sha256\":\""
+                    + "0".repeat(64)
+                    + "\"}}}",
+            "{\"mods\":{\"alpha\":{\"zip\":\"a.zip\",\"size\":\"big\",\"sha256\":\""
+                    + "0".repeat(64)
+                    + "\"}}}",
             "{\"mods\":\"x\"}",
             "{\"mods\":[]}",
-            "{\"mods\":{\"alpha\":{\"zip\":null,\"sha256\":\"" + "0".repeat(64) + "\"}}}",
-            "{\"mods\":{\"alpha\":{\"zip\":{},\"sha256\":\"" + "0".repeat(64) + "\"}}}",
+            "{\"mods\":{\"alpha\":{\"zip\":null,\"size\":5,\"sha256\":\""
+                    + "0".repeat(64)
+                    + "\"}}}",
+            "{\"mods\":{\"alpha\":{\"zip\":{},\"size\":5,\"sha256\":\"" + "0".repeat(64) + "\"}}}",
             "{\"mods\":{\"alpha\":{\"sha256\":\"" + "0".repeat(64) + "\"}}}",
-            "{\"mods\":{\"alpha\":{\"zip\":\"../a.zip\",\"sha256\":\"" + "0".repeat(64) + "\"}}}",
-            "{\"mods\":{\"alpha\":{\"zip\":\"a.zip\",\"sha256\":\"abc\"}}}",
+            "{\"mods\":{\"alpha\":{\"zip\":\"../a.zip\",\"size\":5,\"sha256\":\""
+                    + "0".repeat(64)
+                    + "\"}}}",
+            "{\"mods\":{\"alpha\":{\"zip\":\"a.zip\",\"size\":5,\"sha256\":\"abc\"}}}",
             "{",
         };
         GrugCatalogue catalogue = new GrugCatalogue(GrugHttp.urlConnection(), base + "index.json");
@@ -244,6 +291,7 @@ class GrugCatalogueTest {
 
         assertEquals(java.util.List.of("alpha"), new java.util.ArrayList<>(items.keySet()));
         assertEquals(base + "alpha.zip", items.get("alpha").zipUrl);
+        assertEquals(zip.length, items.get("alpha").size());
     }
 
     @Test

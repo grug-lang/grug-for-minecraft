@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -69,35 +70,59 @@ class GrugHttpTest {
     void getsABody() throws IOException {
         assertArrayEquals(
                 "hello".getBytes(StandardCharsets.UTF_8),
-                GrugHttp.urlConnection().get(base + "ok"));
+                GrugHttp.urlConnection().get(base + "ok", 1000, bytes -> {}));
     }
 
     @Test
     void followsARedirect() throws IOException {
         assertArrayEquals(
                 "hello".getBytes(StandardCharsets.UTF_8),
-                GrugHttp.urlConnection().get(base + "moved"));
+                GrugHttp.urlConnection().get(base + "moved", 1000, bytes -> {}));
     }
 
     @Test
     void failsOnAStatusThatIsNotOk() {
         IOException error =
                 assertThrows(
-                        IOException.class, () -> GrugHttp.urlConnection().get(base + "missing"));
+                        IOException.class,
+                        () -> GrugHttp.urlConnection().get(base + "missing", 1000, bytes -> {}));
 
         assertTrue(error.getMessage().contains("answered 404"), error.getMessage());
     }
 
     @Test
+    void tellsHowManyBytesHaveArrived() throws IOException {
+        java.util.List<Long> seen = new java.util.ArrayList<>();
+
+        GrugHttp.urlConnection().get(base + "ok", 1000, seen::add);
+
+        assertEquals(java.util.List.of(5L), seen);
+    }
+
+    @Test
+    void theLimitIsTheSmallerOfTheCallersAndItsOwn() {
+        IOException error =
+                assertThrows(
+                        IOException.class,
+                        () -> GrugHttp.urlConnection().get(base + "ok", 3, bytes -> {}));
+
+        assertTrue(error.getMessage().contains("more than 3 bytes"), error.getMessage());
+    }
+
+    @Test
     void failsOnABodyOverTheLimit() {
         IOException error =
-                assertThrows(IOException.class, () -> GrugHttp.get(base + "ok", 1000, 1000, 3));
+                assertThrows(
+                        IOException.class,
+                        () -> GrugHttp.get(base + "ok", 1000, 1000, 3, bytes -> {}));
 
         assertTrue(error.getMessage().contains("more than 3 bytes"), error.getMessage());
     }
 
     @Test
     void failsWhenTheServerStallsPastTheReadTimeout() {
-        assertThrows(IOException.class, () -> GrugHttp.get(base + "stalls", 1000, 200, 1000));
+        assertThrows(
+                IOException.class,
+                () -> GrugHttp.get(base + "stalls", 1000, 200, 1000, bytes -> {}));
     }
 }

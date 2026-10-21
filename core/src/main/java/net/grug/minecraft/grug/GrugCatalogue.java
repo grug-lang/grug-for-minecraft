@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.LongConsumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -40,6 +41,9 @@ public final class GrugCatalogue {
     public static final String INDEX_URL =
             "https://github.com/grug-lang/grug-for-minecraft/releases/latest/download/index.json";
 
+    /** More than an index of any mod count a release holds, so a server cannot fill the memory. */
+    static final long INDEX_LIMIT = 16L * 1024 * 1024;
+
     /** More than any mod unpacks to, so a zip cannot fill the disk. */
     static final long UNPACKED_LIMIT = 512L * 1024 * 1024;
 
@@ -47,10 +51,17 @@ public final class GrugCatalogue {
     public static final class Item {
         final String zipUrl;
         final String sha256;
+        final long size;
 
-        Item(String zipUrl, String sha256) {
+        Item(String zipUrl, String sha256, long size) {
             this.zipUrl = zipUrl;
             this.sha256 = sha256;
+            this.size = size;
+        }
+
+        /** The size of the zip in bytes, which the index states so the screen can show it. */
+        public long size() {
+            return size;
         }
     }
 
@@ -76,7 +87,8 @@ public final class GrugCatalogue {
 
     /** The mods of the index by name. */
     public Map<String, Item> fetch() throws IOException {
-        String text = new String(http.get(indexUrl), StandardCharsets.UTF_8);
+        String text =
+                new String(http.get(indexUrl, INDEX_LIMIT, bytes -> {}), StandardCharsets.UTF_8);
         String base = indexUrl.substring(0, indexUrl.lastIndexOf('/') + 1);
         Map<String, Item> items = new TreeMap<>();
         try {
@@ -92,16 +104,21 @@ public final class GrugCatalogue {
                 JsonObject entry = mod.getValue().getAsJsonObject();
                 String zip = entry.get("zip").getAsString();
                 String sha256 = entry.get("sha256").getAsString();
-                if (!GrugModManager.validName(zip) || !sha256.matches("[0-9a-fA-F]{64}")) {
-                    throw new JsonParseException(mod.getKey() + " names a bad zip or SHA-256");
+                long size = entry.get("size").getAsLong();
+                if (!GrugModManager.validName(zip)
+                        || !sha256.matches("[0-9a-fA-F]{64}")
+                        || size < 1) {
+                    throw new JsonParseException(
+                            mod.getKey() + " names a bad zip, SHA-256 or size");
                 }
-                items.put(mod.getKey(), new Item(base + zip, sha256.toLowerCase()));
+                items.put(mod.getKey(), new Item(base + zip, sha256.toLowerCase(), size));
             }
         } catch (JsonParseException
                 | IllegalStateException
                 | NullPointerException
                 | ClassCastException
-                | UnsupportedOperationException e) {
+                | UnsupportedOperationException
+                | NumberFormatException e) {
             throw new IOException(indexUrl + " is not a mod index: " + e.getMessage(), e);
         }
         return items;
@@ -113,7 +130,16 @@ public final class GrugCatalogue {
      * zip that is not the index's, or a zip with an entry outside {@code <mod>/}.
      */
     public void install(String mod, Item item, Path target) throws IOException {
-        byte[] zip = http.get(item.zipUrl);
+        install(mod, item, target, bytes -> {});
+    }
+
+    /**
+     * As {@link #install(String, Item, Path)}, telling {@code progress} how many bytes of the zip
+     * have been downloaded. A zip longer than the index says it is fails the download.
+     */
+    public void install(String mod, Item item, Path target, LongConsumer progress)
+            throws IOException {
+        byte[] zip = http.get(item.zipUrl, item.size, progress);
         if (!item.sha256.equals(sha256(zip))) {
             throw new IOException(
                     "the download of " + mod + " does not match the SHA-256 of the index");

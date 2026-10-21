@@ -1067,6 +1067,7 @@ class ModZipsTest(unittest.TestCase):
             data = (out / "alpha.zip").read_bytes()
             self.assertEqual(index["mods"]["alpha"]["sha256"], hashlib.sha256(data).hexdigest())
             self.assertEqual(index["mods"]["alpha"]["zip"], "alpha.zip")
+            self.assertEqual(index["mods"]["alpha"]["size"], len(data))
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
                 self.assertEqual(archive.namelist(), ["alpha/about.json", "alpha/code/a.grug"])
 

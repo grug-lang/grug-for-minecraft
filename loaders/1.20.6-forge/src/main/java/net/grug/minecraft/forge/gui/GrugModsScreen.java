@@ -32,20 +32,20 @@ public class GrugModsScreen extends Screen {
                     Button.builder(Component.literal(labels.get(i)), b -> clicked(row))
                             .bounds(x, 36 + 22 * i, 200, 20)
                             .build();
-            button.active = !blocked;
+            button.active = !blocked && !model.busy();
             addRenderableWidget(button);
         }
         Button previous =
                 Button.builder(Component.literal("<"), b -> paged(false))
                         .bounds(x, 148, 20, 20)
                         .build();
-        previous.active = !blocked && model.hasPrevious();
+        previous.active = !blocked && !model.busy() && model.hasPrevious();
         addRenderableWidget(previous);
         Button next =
                 Button.builder(Component.literal(">"), b -> paged(true))
                         .bounds(x + 180, 148, 20, 20)
                         .build();
-        next.active = !blocked && model.hasNext();
+        next.active = !blocked && !model.busy() && model.hasNext();
         addRenderableWidget(next);
         Button done =
                 Button.builder(Component.literal("Done"), b -> onClose())
@@ -93,6 +93,9 @@ public class GrugModsScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (model.poll()) {
+            rebuildWidgets();
+        }
         // Screen.render draws the background, so the texts come after it.
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 16, 0xFFFFFF);
@@ -100,10 +103,22 @@ public class GrugModsScreen extends Screen {
             graphics.drawCenteredString(
                     font, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }
-        int errorY = 210;
-        for (String line : model.errorLines(400, font::width)) {
-            graphics.drawCenteredString(font, line, width / 2, errorY, 0xFF5555);
-            errorY += 10;
+        String status = model.status();
+        if (status != null) {
+            graphics.drawCenteredString(font, status, width / 2, 210, 0xFFFFFF);
+            double progress = model.progress();
+            if (progress >= 0) {
+                int x = width / 2 - 100;
+                graphics.fill(x - 1, 221, x + 201, 229, 0xFF000000);
+                graphics.fill(x, 222, x + 200, 228, 0xFF555555);
+                graphics.fill(x, 222, x + (int) (200 * progress), 228, 0xFF55FF55);
+            }
+        } else {
+            int errorY = 210;
+            for (String line : model.errorLines(400, font::width)) {
+                graphics.drawCenteredString(font, line, width / 2, errorY, 0xFF5555);
+                errorY += 10;
+            }
         }
         String popup = model.popup();
         if (popup != null) {
