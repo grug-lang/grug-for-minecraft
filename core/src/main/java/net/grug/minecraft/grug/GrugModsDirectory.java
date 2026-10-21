@@ -86,7 +86,7 @@ public final class GrugModsDirectory {
                 .toAbsolutePath()
                 .normalize()
                 .equals(runGrugDir.toPath().toAbsolutePath().normalize())) {
-            GrugModManager.of(gameDir, jar).apply();
+            new GrugModManager(gameDir, jar, GrugModManager.NO_PROMPTS).apply();
         }
         return active;
     }

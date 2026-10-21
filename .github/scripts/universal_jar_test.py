@@ -7,6 +7,7 @@ and mods/. It then breaks one invariant and requires the check to name it, so a 
 looking would fail here rather than pass on a broken jar in CI.
 """
 
+import hashlib
 import io
 import json
 import sys
@@ -1036,6 +1037,81 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertIn("`grug-0.1.1.jar`, from this release's assets below", notes)
         self.assertNotIn("Releases page", notes)
         self.assertNotIn("Test Keys", notes)
+
+
+class ModZipsTest(unittest.TestCase):
+    """The per-mod zips and the index a release attaches (#511)."""
+
+    def mods(self, tmp):
+        mods = Path(tmp) / "mods"
+        (mods / "alpha" / "code").mkdir(parents=True)
+        (mods / "alpha" / "about.json").write_text("{}")
+        (mods / "alpha" / "code" / "a.grug").write_text("a")
+        (mods / "beta").mkdir()
+        (mods / "beta" / "about.json").write_text("{}")
+        (mods / "coverage").mkdir()
+        (mods / "coverage" / "about.json").write_text("{}")
+        return mods
+
+    def test_one_zip_per_mod_but_the_fixtures_and_an_index_naming_each(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            index = universal_jar.write_mod_zips(self.mods(tmp), "abc123", out)
+
+            self.assertEqual(
+                sorted(p.name for p in out.iterdir()), ["alpha.zip", "beta.zip", "index.json"]
+            )
+            self.assertEqual(json.loads((out / "index.json").read_text()), index)
+            self.assertEqual(index["commit"], "abc123")
+            self.assertEqual(sorted(index["mods"]), ["alpha", "beta"])
+            data = (out / "alpha.zip").read_bytes()
+            self.assertEqual(index["mods"]["alpha"]["sha256"], hashlib.sha256(data).hexdigest())
+            self.assertEqual(index["mods"]["alpha"]["zip"], "alpha.zip")
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                self.assertEqual(archive.namelist(), ["alpha/about.json", "alpha/code/a.grug"])
+
+    def test_the_same_files_always_make_the_same_zip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mods = self.mods(tmp)
+            first = universal_jar.write_mod_zips(mods, "a", Path(tmp) / "one")
+            second = universal_jar.write_mod_zips(mods, "b", Path(tmp) / "two")
+            self.assertEqual(first["mods"], second["mods"])
+
+    def test_a_directory_without_mods_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            empty = Path(tmp) / "mods"
+            (empty / "coverage").mkdir(parents=True)
+            with self.assertRaisesRegex(AssemblyError, "holds no mod to publish"):
+                universal_jar.write_mod_zips(empty, "a", Path(tmp) / "out")
+
+    def test_the_real_mods_each_get_a_zip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            index = universal_jar.write_mod_zips(universal_jar.REPO_ROOT / "mods", "a", tmp)
+            self.assertIn("examplemod", index["mods"])
+            self.assertNotIn("coverage", index["mods"])
+
+    def test_the_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mods = self.mods(tmp)
+            argv = [
+                "mod-zips",
+                "--commit",
+                "abc",
+                "--mods",
+                str(mods),
+                "--out",
+                str(Path(tmp) / "o"),
+            ]
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                self.assertEqual(universal_jar.main(argv), 0)
+            self.assertIn("Wrote 2 mod zips", out.getvalue())
+            (mods / "alpha").rename(mods / "x")
+            for child in (mods / "x", mods / "beta"):
+                for path in sorted(child.rglob("*"), reverse=True):
+                    path.unlink() if path.is_file() else path.rmdir()
+                child.rmdir()
+            with mock.patch("sys.stderr", new_callable=io.StringIO):
+                self.assertEqual(universal_jar.main(argv), 1)
 
 
 class SmokeTest(unittest.TestCase):

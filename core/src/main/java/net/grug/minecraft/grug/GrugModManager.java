@@ -54,13 +54,21 @@ public final class GrugModManager {
         private final String name;
         private final boolean bundled;
         private final boolean installed;
+        private final boolean downloadable;
         private final boolean on;
         private final String prompt;
 
-        Entry(String name, boolean bundled, boolean installed, boolean on, String prompt) {
+        Entry(
+                String name,
+                boolean bundled,
+                boolean installed,
+                boolean downloadable,
+                boolean on,
+                String prompt) {
             this.name = name;
             this.bundled = bundled;
             this.installed = installed;
+            this.downloadable = downloadable;
             this.on = on;
             this.prompt = prompt;
         }
@@ -77,6 +85,14 @@ public final class GrugModManager {
         /** Whether the mod's files are on disk, in {@code grug_mods/} or {@code grug_mods_off/}. */
         public boolean installed() {
             return installed;
+        }
+
+        /**
+         * Whether the catalogue of the latest release holds a copy of the mod, which turning it on
+         * downloads when it is neither installed nor bundled in the jar.
+         */
+        public boolean downloadable() {
+            return downloadable;
         }
 
         /** Whether the player wants the mod on, which takes effect at the next start. */
@@ -97,22 +113,39 @@ public final class GrugModManager {
     private final File gameDir;
     private final GrugModsExtractor.Resources jar;
     private final Function<String, String> prompts;
+    private final GrugCatalogue catalogue;
+    private Map<String, GrugCatalogue.Item> remote;
+    private String catalogueError;
 
     public GrugModManager(
             File gameDir, GrugModsExtractor.Resources jar, Function<String, String> prompts) {
+        this(gameDir, jar, prompts, null);
+    }
+
+    /**
+     * @param catalogue where mods the jar does not bundle come from, or null for none
+     */
+    public GrugModManager(
+            File gameDir,
+            GrugModsExtractor.Resources jar,
+            Function<String, String> prompts,
+            GrugCatalogue catalogue) {
         this.gameDir = gameDir;
         this.jar = jar;
         this.prompts = prompts;
+        this.catalogue = catalogue;
     }
 
-    /** The manager of a game directory, over the mods bundled in the jar that loaded grug. */
+    /** No mod asks for a popup before it is turned on. */
+    static final Function<String, String> NO_PROMPTS = mod -> null;
+
+    /**
+     * The manager of a game directory, over the mods bundled in the jar that loaded grug and the
+     * catalogue of the latest release.
+     */
     public static GrugModManager of(File gameDir) {
-        return of(gameDir, GrugModsExtractor.classpath());
-    }
-
-    /** The manager of a game directory, over the mods bundled in the given jar. */
-    static GrugModManager of(File gameDir, GrugModsExtractor.Resources jar) {
-        return new GrugModManager(gameDir, jar, mod -> null);
+        return new GrugModManager(
+                gameDir, GrugModsExtractor.classpath(), NO_PROMPTS, GrugCatalogue.latest());
     }
 
     private File modsDir() {
@@ -127,7 +160,46 @@ public final class GrugModManager {
         return new File(gameDir, STATE);
     }
 
-    /** Every mod the game knows of, by name: installed, turned off, or only bundled. */
+    /**
+     * What went wrong reading the catalogue, or null when it was read or there is none. The list
+     * then holds the mods without it.
+     */
+    public String catalogueError() {
+        remote();
+        return catalogueError;
+    }
+
+    /** The catalogue's mods, read once: the first call is the request. */
+    private Map<String, GrugCatalogue.Item> remote() {
+        if (remote == null) {
+            remote = new TreeMap<>();
+            if (catalogue != null) {
+                try {
+                    remote.putAll(catalogue.fetch());
+                } catch (IOException e) {
+                    catalogueError = "Could not read the mod catalogue: " + e.getMessage();
+                }
+            }
+        }
+        return remote;
+    }
+
+    /**
+     * Downloads a mod of the catalogue into {@code grug_mods/} and turns it on. Nothing is
+     * installed when the download or its check fails. The mod loads at the next start, as every
+     * change does.
+     */
+    public void install(String name) throws IOException {
+        GrugCatalogue.Item item = remote().get(name);
+        if (item == null) {
+            throw new IOException(name + " is not in the catalogue");
+        }
+        Files.createDirectories(modsDir().toPath());
+        catalogue.install(name, item, modsDir().toPath());
+        setOn(name, true);
+    }
+
+    /** Every mod the game knows of, by name: installed, turned off, bundled or downloadable. */
     public List<Entry> list() {
         Map<String, Boolean> state = readState();
         TreeSet<String> names = new TreeSet<>(state.keySet());
@@ -135,6 +207,7 @@ public final class GrugModManager {
         names.addAll(directories(offDir()));
         Map<String, List<String>> bundled = bundled();
         names.addAll(bundled.keySet());
+        names.addAll(remote().keySet());
 
         List<Entry> entries = new ArrayList<>();
         for (String name : names) {
@@ -146,6 +219,7 @@ public final class GrugModManager {
                             name,
                             bundled.containsKey(name),
                             installed,
+                            remote().containsKey(name),
                             wanted != null ? wanted : running,
                             prompts.apply(name)));
         }
@@ -263,7 +337,7 @@ public final class GrugModManager {
      * Whether a name is one directory of {@code grug_mods/}, and so cannot lead out of the managed
      * directories when the state, which a player may edit by hand, is applied.
      */
-    private static boolean validName(String name) {
+    static boolean validName(String name) {
         return !name.isEmpty()
                 && !name.equals(".")
                 && !name.equals("..")

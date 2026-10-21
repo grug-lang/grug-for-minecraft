@@ -115,6 +115,12 @@ jobs:
       - name: Check the universal jar's invariants
         run: python3 .github/scripts/universal_jar.py check universal/grug.jar
 
+      # One zip per mod and the index that names each one's SHA-256, which the in-game mod manager
+      # installs from (#511). Every mod under mods/ but the test fixtures gets one, so a mod without
+      # a zip cannot be released.
+      - name: Zip every mod
+        run: python3 .github/scripts/universal_jar.py mod-zips --commit "$SHA" --out mod-zips
+
       - name: Publish the release
         env:
           TAG: ${{ steps.tag.outputs.tag }}
@@ -128,4 +134,4 @@ jobs:
           if [ "$EVENT" = push ]; then
             args+=(--verify-tag)
           fi
-          gh release create "$TAG" "$jar" --repo "${{ github.repository }}" --target "$SHA" --title "$TAG" --generate-notes "${args[@]}"
+          gh release create "$TAG" "$jar" mod-zips/*.zip mod-zips/index.json --repo "${{ github.repository }}" --target "$SHA" --title "$TAG" --generate-notes "${args[@]}"
