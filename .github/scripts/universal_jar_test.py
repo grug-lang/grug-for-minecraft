@@ -235,8 +235,14 @@ class Fixture:
 
     def assemble(self, skip=()):
         core = write_jar(self.dir / "core-release.jar", self.core)
-        assemble(core, self.layer_paths(skip), STAMPED, self.out)
+        assemble(core, self.layer_paths(skip), STAMPED, self.out, [self.dll()])
         return self.out
+
+    def dll(self):
+        """The Windows adapter, which a release builds on its own runner."""
+        path = self.dir / "adapter.dll"
+        path.write_bytes(b"MZ")
+        return path
 
     def problems(self, skip=()):
         return check(self.assemble(skip), self.repo)
@@ -264,6 +270,7 @@ class AssembleTest(unittest.TestCase):
             set(jar.nested), {"a1.1.2_01-ornithe", "b1.7.3-ornithe", "b1.7.3-stationapi"}
         )
         self.assertIn("natives/libadapter.so", jar.root.files)
+        self.assertIn("natives/adapter.dll", jar.root.files)
         self.assertIn("net/grug/minecraft/forge125/mod_Grug.class", jar.root.files)
         self.assertIn("META-INF/mods.toml", jar.root.files)
         outer = json.loads(jar.root.files["fabric.mod.json"])
@@ -445,7 +452,13 @@ class CheckTest(unittest.TestCase):
     def test_a_missing_native(self):
         fixture = Fixture(self)
         del fixture.core["natives/libadapter.so"]
-        self.assertProblem(fixture.problems(), "the root holds no native library")
+        self.assertProblem(fixture.problems(), "the root holds no libadapter.so")
+
+    def test_a_jar_without_the_windows_adapter_is_refused(self):
+        fixture = Fixture(self)
+        core = write_jar(fixture.dir / "core-release.jar", fixture.core)
+        assemble(core, fixture.layer_paths(), STAMPED, fixture.out)
+        self.assertProblem(check(fixture.out, fixture.repo), "the root holds no adapter.dll")
 
     def test_a_missing_mod_api(self):
         fixture = Fixture(self)
@@ -922,7 +935,7 @@ class VersionCheckTest(unittest.TestCase):
     def test_a_dirty_build_is_still_the_repository_version(self):
         fixture = Fixture(self)
         core = write_jar(fixture.dir / "core-release.jar", fixture.core)
-        assemble(core, fixture.layer_paths(), STAMPED + "-dirty", fixture.out)
+        assemble(core, fixture.layer_paths(), STAMPED + "-dirty", fixture.out, [fixture.dll()])
         self.assertEqual(check(fixture.out, fixture.repo), [])
 
     def test_an_outer_version_without_the_repository_version(self):
@@ -1240,7 +1253,17 @@ class CommandLineTest(unittest.TestCase):
         fixture = Fixture(self)
         core = write_jar(fixture.dir / "core-release.jar", fixture.core)
         out = fixture.dir / "cli.jar"
-        argv = ["assemble", "--core", str(core), "--version", STAMPED, "--out", str(out)]
+        argv = [
+            "assemble",
+            "--core",
+            str(core),
+            "--version",
+            STAMPED,
+            "--native",
+            str(fixture.dll()),
+            "--out",
+            str(out),
+        ]
         self.assertEqual(universal_jar.main(argv + [str(p) for p in fixture.layer_paths()]), 0)
         repo = ["--repo", str(fixture.repo)]
         self.assertEqual(universal_jar.main(["check", str(out)] + repo), 0)

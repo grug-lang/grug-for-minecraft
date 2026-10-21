@@ -281,7 +281,7 @@ def outer_fabric_mod_json(version, nested):
     }
 
 
-def assemble(core, layers, version, out):
+def assemble(core, layers, version, out, natives=()):
     entries = {}
     sources = {}
 
@@ -295,6 +295,10 @@ def assemble(core, layers, version, out):
         for name, data in files_of(archive).items():
             if name != MANIFEST:
                 add(name, data, Path(core).name)
+
+    # The natives core's own build did not make: each OS builds its own, on its own runner (#491).
+    for native in natives:
+        add("natives/" + Path(native).name, Path(native).read_bytes(), Path(native).name)
 
     attributes = {"Manifest-Version": "1.0"}
     nested = {}
@@ -483,6 +487,9 @@ def check_layers(jar, loaders):
 # player's pack has a limited supply of block ids, and these ask for 32 of them (#509).
 UNBUNDLED_MODS = {"coverage"}
 
+# The adapter of each OS grug runs on, which GrugNative picks from by the running one.
+NATIVES = ("libadapter.so", "adapter.dll")
+
 
 def check_payload(jar, mods):
     # Each appears once at the root, which the duplicate check guarantees, and in no nested layer.
@@ -490,8 +497,9 @@ def check_payload(jar, mods):
     problems = [
         f"{name} is missing from the root" for name in singles if name not in jar.root.files
     ]
-    if not any(name.startswith("natives/") for name in jar.root.files):
-        problems.append("the root holds no native library under natives/")
+    problems += [
+        f"the root holds no {name}" for name in NATIVES if "natives/" + name not in jar.root.files
+    ]
     for nested in jar.nested.values():
         for name in sorted(nested.files):
             if name in singles or name.startswith(("natives/", "mods/")):
@@ -1313,6 +1321,12 @@ def main(argv=None):
     assembling.add_argument("--core", required=True, help="core's release jar")
     assembling.add_argument("--version", required=True, help="the version the outer mod reports")
     assembling.add_argument("--out", required=True, help="where to write the universal jar")
+    assembling.add_argument(
+        "--native",
+        action="append",
+        default=[],
+        help="a native library built elsewhere, added under natives/; repeat for each",
+    )
     assembling.add_argument("layers", nargs="+", help="each loader's layerJar, grug-<loader>.jar")
     checking = commands.add_parser("check", help="check an assembled jar's invariants")
     checking.add_argument("jar")
@@ -1356,7 +1370,7 @@ def main(argv=None):
 
     if args.command == "assemble":
         try:
-            assemble(args.core, args.layers, args.version, args.out)
+            assemble(args.core, args.layers, args.version, args.out, args.native)
         except AssemblyError as error:
             print(f"==> ERROR: {error}", file=sys.stderr)
             return 1
