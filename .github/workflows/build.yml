@@ -522,6 +522,24 @@ jobs:
         shell: pwsh
         run: Get-CimInstance Win32_VideoController | Format-List Name, DriverVersion, VideoProcessor
 
+      # The runner has no GPU, and the OpenGL Windows itself provides cannot give LWJGL 2 an
+      # accelerated pixel format ("Pixel format not accelerated"). Mesa's llvmpipe renders in
+      # software: its opengl32.dll next to java.exe is found before the system's, which is how an
+      # application picks a different OpenGL on Windows. Pinned like every other version here.
+      - name: Install software OpenGL
+        shell: pwsh
+        env:
+          MESA_VERSION: 26.2.4
+          MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
+        run: |
+          $archive = "$env:RUNNER_TEMP\mesa.7z"
+          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z" -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:MESA_SHA256.ToUpper()) { throw "mesa3d archive does not match its pinned checksum" }
+          7z x $archive "-o$env:RUNNER_TEMP\mesa" -y | Out-Null
+          Get-ChildItem "$env:RUNNER_TEMP\mesa" | Format-Table Name
+          Copy-Item "$env:RUNNER_TEMP\mesa\x64\*.dll" "$env:JAVA_HOME\bin"
+          Get-ChildItem "$env:JAVA_HOME\bin\opengl32.dll"
+
       # Booting to the title screen is the bar here, not the suite: the screenshot goldens were made
       # on Linux, and a game that boots on Windows runs the same shared code the Linux jobs test.
       - name: Boot a1.1.2_01-ornithe
@@ -530,6 +548,7 @@ jobs:
         env:
           GRUG_CI_BOOT_ONLY: '1'
           GRUG_CI_RUN_TIMEOUT: '900'
+          GALLIUM_DRIVER: llvmpipe
 
       - name: Upload logs and crash reports
         if: always()
