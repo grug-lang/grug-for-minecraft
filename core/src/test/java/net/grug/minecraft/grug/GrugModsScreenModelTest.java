@@ -24,7 +24,8 @@ class GrugModsScreenModelTest {
         for (String name : new String[] {"a", "b", "c"}) {
             Files.createDirectories(game.resolve("grug_mods").resolve(name));
         }
-        Files.writeString(game.resolve("grug_mods_state.json"), "{\"mods\": {\"b\": false}}");
+        Files.writeString(
+                game.resolve("grug_mods_state.json"), "{\"mods\": {\"b\": {\"on\": false}}}");
         GrugModManager manager =
                 new GrugModManager(
                         game.toFile(),
@@ -157,6 +158,158 @@ class GrugModsScreenModelTest {
         byte[] zip = GrugCatalogueTest.zip("remote/about.json", "{}");
         String hash = goodHash ? GrugCatalogueTest.sha256(zip) : "0".repeat(64);
         return new FakeCatalogue(zip, hash, reachable);
+    }
+
+    private static GrugModsExtractor.Resources jarOf(String other) {
+        return name ->
+                name.equals(GrugModsExtractor.INDEX)
+                        ? new ByteArrayInputStream("other/about.json\n".getBytes())
+                        : name.equals("/mods/other/about.json")
+                                ? new ByteArrayInputStream(other.getBytes())
+                                : null;
+    }
+
+    private static FakeCatalogue release(String content, boolean goodHash) throws Exception {
+        byte[] zip = GrugCatalogueTest.zip("remote/about.json", content);
+        return new FakeCatalogue(
+                zip, goodHash ? GrugCatalogueTest.sha256(zip) : "0".repeat(64), true);
+    }
+
+    /** remote from a release and other from the jar are installed, at version 1. */
+    private void installBoth() throws Exception {
+        GrugModManager first =
+                new GrugModManager(
+                        game.toFile(),
+                        jarOf("1"),
+                        mod -> null,
+                        release("1", true).catalogue(),
+                        Runnable::run);
+        first.loadCatalogue();
+        assertNull(first.startInstall("remote").error());
+        first.setOn("other", true);
+        first.apply();
+    }
+
+    /** The screen after the jar and the release moved on to version 2. */
+    private GrugModsScreenModel updateModel(FakeCatalogue.Waiting waiting, boolean goodHash)
+            throws Exception {
+        GrugModManager manager =
+                new GrugModManager(
+                        game.toFile(),
+                        jarOf("2"),
+                        mod -> null,
+                        release("2", goodHash).catalogue(),
+                        waiting);
+        GrugModsScreenModel model = new GrugModsScreenModel(manager, 5);
+        waiting.runAll();
+        assertTrue(model.poll());
+        return model;
+    }
+
+    @Test
+    void anUpdateIsDownloadedOnItsButtonAndAsksForARestart() throws Exception {
+        installBoth();
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModsScreenModel model = updateModel(waiting, true);
+        assertEquals(List.of(true, true), model.updates());
+        assertEquals("Update all (2)", model.updateAllLabel());
+        assertFalse(model.restartNeeded());
+
+        model.clickUpdate(1); // remote, after other
+        model.clickUpdate(0); // ignored: a download runs
+        model.clickUpdateAll(); // ignored too
+        assertTrue(model.busy());
+        assertTrue(model.status().startsWith("Updating remote: "), model.status());
+        waiting.runAll();
+        assertTrue(model.poll());
+
+        assertFalse(model.busy());
+        assertNull(model.error());
+        assertEquals(List.of(true, false), model.updates());
+        assertEquals("Update all (1)", model.updateAllLabel());
+        assertTrue(model.restartNeeded());
+
+        model.clickUpdateAll(); // only the mod left
+        waiting.runAll();
+        assertTrue(model.poll());
+        model.clickUpdateAll(); // none left
+        assertFalse(model.busy());
+    }
+
+    @Test
+    void updateAllRunsTheDownloadsOneAfterAnother() throws Exception {
+        installBoth();
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModsScreenModel model = updateModel(waiting, true);
+
+        model.clickUpdateAll();
+        waiting.runAll();
+        assertTrue(model.poll());
+        assertTrue(model.busy()); // the second one has started
+        waiting.runAll();
+        assertTrue(model.poll());
+
+        assertFalse(model.busy());
+        assertNull(model.updateAllLabel());
+        assertEquals(List.of(false, false), model.updates());
+    }
+
+    @Test
+    void updateAllStopsAtTheFirstFailure() throws Exception {
+        installBoth();
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModsScreenModel model = updateModel(waiting, false);
+
+        model.clickUpdateAll();
+        waiting.runAll();
+        assertTrue(model.poll()); // other worked, remote started
+        waiting.runAll();
+        assertTrue(model.poll());
+
+        assertFalse(model.busy());
+        assertTrue(model.error().startsWith("Could not update remote: "), model.error());
+        assertEquals(List.of(false, true), model.updates());
+    }
+
+    @Test
+    void anUpdateThatReplacesChangedFilesAsksFirst() throws Exception {
+        installBoth();
+        Files.writeString(game.resolve("grug_mods/remote/about.json"), "mine");
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModsScreenModel model = updateModel(waiting, true);
+
+        model.clickUpdate(1);
+        assertFalse(model.busy());
+        assertEquals(
+                "remote has files you changed, which the update replaces. Update anyway?",
+                model.popup());
+        model.click(0); // ignored: a popup blocks the rest
+        model.decline();
+        assertNull(model.popup());
+        assertFalse(model.busy());
+        model.clickUpdate(1);
+        model.accept();
+        assertTrue(model.busy());
+        waiting.runAll();
+        assertTrue(model.poll());
+        assertEquals(List.of(true, false), model.updates());
+    }
+
+    @Test
+    void updateAllNamesEveryChangedModInOnePopup() throws Exception {
+        installBoth();
+        Files.writeString(game.resolve("grug_mods/remote/about.json"), "mine");
+        Files.writeString(game.resolve("grug_mods/other/about.json"), "mine");
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModsScreenModel model = updateModel(waiting, true);
+
+        model.clickUpdateAll();
+        assertEquals(
+                "other, remote have files you changed, which the update replaces. Update anyway?",
+                model.popup());
+        model.decline();
+        assertFalse(model.busy());
+        assertEquals("Update all (2)", model.updateAllLabel());
     }
 
     @Test
