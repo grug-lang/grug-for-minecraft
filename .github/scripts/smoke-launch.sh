@@ -6,9 +6,9 @@
 # universal_jar.py's GAMES, which picks one game per mechanism a mod loader reads the jar by, and is
 # listed by `universal_jar.py smoke-matrix`.
 #
-# Where grug's code runs (Forge, NeoForge and the Fabric family), the game has to stop with grug's
+# Where grug's code runs (Forge, NeoForge, FML 1.7.10 to 1.12.2 and the Fabric family), the game has to stop with grug's
 # own error, "grug does not run on ...", through its loader's error path: not with another error
-# first, and without grug starting. Where it does not (legacy FML and ModLoader), the game has to
+# first, and without grug starting. Where it does not (FML 1.3 to 1.6 and ModLoader), the game has to
 # load to its first screen with grug inactive: grug's boot marker cannot be the signal there, so
 # the recipe waits on a line its game or loader logs once loading is over, then for the log to go
 # quiet with the game still running, and fails on a crash, a crash report, a loader complaint about
@@ -75,6 +75,8 @@ launch() {
     forge-1.21.1) no_early_window && start --jvm-policy mojang "forge::1.21.1-52.1.0" ;;
     forge-1.16.5) start --jvm-policy mojang "forge::1.16.5-36.2.34" ;;
     forge-1.12.2) start --jvm-policy mojang "forge::1.12.2-14.23.5.2859" ;;
+    # Forge 1.7.10's version id carries the game version twice, as its installer names it.
+    forge-1.7.10) start --jvm-policy mojang "forge::1.7.10-10.13.4.1614-1.7.10" ;;
     forge-1.6.4) start --jvm-policy mojang "forge::1.6.4-9.11.1.1345" ;;
     neoforge-20.4) no_early_window && start --jvm-policy mojang "neoforge::20.4.253" ;;
     neoforge-21.1) no_early_window && start --jvm-policy mojang "neoforge::21.1.264" ;;
@@ -118,14 +120,8 @@ LOG="${WORK}/launch.log"
 LOADER_LOG="$LOG"
 COMPLAINTS=''
 case "$RECIPE" in
-  forge-1.21.1 | forge-1.16.5 | neoforge-20.4 | neoforge-21.1 | babric-b1.7.3)
+  forge-1.21.1 | forge-1.16.5 | forge-1.12.2 | forge-1.7.10 | neoforge-20.4 | neoforge-21.1 | babric-b1.7.3)
     EXPECT=error
-    ;;
-  forge-1.12.2)
-    EXPECT=inert
-    READY='Forge Mod Loader has successfully loaded'
-    # ModType keeps FML from reading the jar's classes at all.
-    COMPLAINTS='failed to read properly|There was a problem reading the entry'
     ;;
   forge-1.6.4)
     EXPECT=inert

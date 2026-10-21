@@ -74,7 +74,11 @@ def string_field_class(field, value, extra_constants=()):
 
 JAVA_7, JAVA_17, JAVA_21 = 51, 61, 65
 BOOTSTRAP_MOD = klass(
-    universal_jar.JAVA_8, universal_jar.FORGE_MOD, universal_jar.NEOFORGE_MOD, b"grug"
+    universal_jar.JAVA_8,
+    universal_jar.FORGE_MOD,
+    universal_jar.NEOFORGE_MOD,
+    universal_jar.FML_1_7_MOD,
+    b"grug",
 )
 
 OSL_DEPENDS = {
@@ -622,7 +626,7 @@ class ForgeFamilyTest(unittest.TestCase):
             self.assertEqual(toml["mods"][0]["version"], STAMPED)
             self.assertNotIn("dependencies", toml)
         manifest = universal_jar.read_manifest(jar.root.files["META-INF/MANIFEST.MF"])
-        self.assertEqual(manifest["ModType"], "grug")
+        self.assertNotIn("ModType", manifest)
 
     def test_refuses_a_root_layer_with_its_own_mods_toml(self):
         fixture = Fixture(self)
@@ -727,14 +731,20 @@ class ForgeFamilyTest(unittest.TestCase):
             problems, "Forge 1.13.2 breaks the launch, but should stop with grug's error"
         )
 
-    def test_a_manifest_without_mod_type(self):
-        problems = Fixture(self).problems_after(
-            {
-                "META-INF/MANIFEST.MF": b"Manifest-Version: 1.0\r\nMixinConfigs: grug-1.20.6-forge.mixins.json\r\n\r\n"
-            }
+    def test_a_class_old_fml_cannot_read_before_the_bootstrap(self):
+        fixture = Fixture(self)
+        fixture.layers["1.2.5-forge"]["Aaa.class"] = klass(JAVA_21)
+        problems = fixture.problems()
+        self.assertProblem(problems, "Aaa.class comes before net/grug/minecraft/bootstrap/Grug")
+        self.assertProblem(problems, "Forge 1.12.2 activates no layer, but should stop")
+
+    def test_a_bootstrap_without_the_fml_1_7_mod(self):
+        fixture = Fixture(self)
+        fixture.core["net/grug/minecraft/bootstrap/GrugForgeMod.class"] = klass(
+            universal_jar.JAVA_8, universal_jar.FORGE_MOD, universal_jar.NEOFORGE_MOD, b"grug"
         )
-        self.assertProblem(problems, "the manifest's ModType does not exclude FML")
-        self.assertProblem(problems, "Forge 1.12.2 reads every class, but should activate")
+        problems = fixture.problems()
+        self.assertProblem(problems, "Forge 1.7.10 activates no layer, but should stop")
 
     def test_a_first_class_old_fml_can_read(self):
         fixture = Fixture(self)
@@ -891,7 +901,8 @@ class UnsupportedGameTest(unittest.TestCase):
         jar = Universal.read(Fixture(self).assemble())
         games = {g.name: g for g in universal_jar.GAMES}
         self.assertEqual(universal_jar.activate(jar, games["Forge 1.21.1"]), universal_jar.REPORTS)
-        self.assertEqual(universal_jar.activate(jar, games["Forge 1.12.2"]), [])
+        self.assertEqual(universal_jar.activate(jar, games["Forge 1.12.2"]), universal_jar.REPORTS)
+        self.assertEqual(universal_jar.activate(jar, games["Forge 1.6.4"]), [])
 
 
 class VersionCheckTest(unittest.TestCase):
@@ -1086,7 +1097,7 @@ class SmokeTest(unittest.TestCase):
 
     def test_the_matrix(self):
         matrix = universal_jar.smoke_matrix()
-        self.assertEqual(len(matrix), 8)
+        self.assertEqual(len(matrix), 9)
         self.assertIn({"game": "Forge 1.21.1", "recipe": "forge-1.21.1"}, matrix)
         self.assertTrue(all(g.expect is None for g in universal_jar.GAMES if g.smoke))
 
