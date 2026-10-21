@@ -1177,10 +1177,16 @@ def check(path, repo=REPO_ROOT):
     return problems
 
 
+# The README's pointer to the Releases page, which on a release's own page would send the player back
+# to the list they came from, so a release's notes point at its own assets instead (#506).
+RELEASES_PAGE_CLAUSE = re.compile(r"from the latest release on the \[Releases page\]\([^)]*\)")
+
+
 def release_notes(readme, jar_name):
     """The players' part of a release's notes, which release.yml puts above GitHub's generated
     changelog (#503): the README's For Players section up to its first subsection, at the commit the
-    release names, with its paragraphs unwrapped, since a release body keeps every line break."""
+    release names, with its paragraphs unwrapped, since a release body keeps every line break, and
+    pointing at the release's own assets rather than the Releases page (#506)."""
     lines = readme.splitlines()
     try:
         start = lines.index("## For Players") + 1
@@ -1201,7 +1207,15 @@ def release_notes(readme, jar_name):
             paragraphs[-1] += " " + line
         else:
             paragraphs.append(line)
-    body = "\n".join(paragraphs).strip()
+    body, found = RELEASES_PAGE_CLAUSE.subn(
+        "from this release's assets below", "\n".join(paragraphs)
+    )
+    if not found:
+        raise AssemblyError(
+            "the README's For Players section no longer points at the latest release on the "
+            "Releases page, which a release's notes rewrite to its own assets"
+        )
+    body = body.strip()
     return f"## Instructions for players\n\n{body}\n"
 
 
