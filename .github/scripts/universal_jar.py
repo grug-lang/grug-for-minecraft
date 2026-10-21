@@ -33,7 +33,7 @@ Each layer jar is the layerJar output of a loader, named grug-<loader>.jar. `che
 assembled jar and this checkout's loaders/ and mods/ directories, prints every broken invariant,
 and exits 1 if there is one. It is what CI runs on the jar every production launch then uses.
 `smoke-matrix` prints the games CI boots with the jar as their only mod, one per mechanism.
-`mod-zips` writes one zip per mod under mods/ and the index.json that names each zip's SHA-256, which
+`mod-zips` writes one zip per mod under mods/ and the index.json that names each zip's SHA-256 and size, which
 a release attaches beside the jar so the in-game mod manager can install a mod on its own (#511).
 """
 
@@ -1255,7 +1255,11 @@ def write_mod_zips(mods_dir, commit, out):
     for name in names:
         data = mod_zip(mods_dir / name)
         (out / f"{name}.zip").write_bytes(data)
-        index["mods"][name] = {"zip": f"{name}.zip", "sha256": hashlib.sha256(data).hexdigest()}
+        index["mods"][name] = {
+            "zip": f"{name}.zip",
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "size": len(data),
+        }
     (out / "index.json").write_text(json.dumps(index, indent=2) + "\n")
     return index
 

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
@@ -54,7 +55,7 @@ public final class GrugModManager {
         private final String name;
         private final boolean bundled;
         private final boolean installed;
-        private final boolean downloadable;
+        private final long downloadSize;
         private final boolean on;
         private final String prompt;
 
@@ -62,13 +63,13 @@ public final class GrugModManager {
                 String name,
                 boolean bundled,
                 boolean installed,
-                boolean downloadable,
+                long downloadSize,
                 boolean on,
                 String prompt) {
             this.name = name;
             this.bundled = bundled;
             this.installed = installed;
-            this.downloadable = downloadable;
+            this.downloadSize = downloadSize;
             this.on = on;
             this.prompt = prompt;
         }
@@ -92,7 +93,12 @@ public final class GrugModManager {
          * downloads when it is neither installed nor bundled in the jar.
          */
         public boolean downloadable() {
-            return downloadable;
+            return downloadSize > 0;
+        }
+
+        /** The size of the mod's zip in bytes, or 0 when the catalogue does not hold it. */
+        public long downloadSize() {
+            return downloadSize;
         }
 
         /** Whether the player wants the mod on, which takes effect at the next start. */
@@ -114,8 +120,11 @@ public final class GrugModManager {
     private final GrugModsExtractor.Resources jar;
     private final Function<String, String> prompts;
     private final GrugCatalogue catalogue;
-    private Map<String, GrugCatalogue.Item> remote;
-    private String catalogueError;
+    private final Executor executor;
+    private volatile Map<String, GrugCatalogue.Item> remote = Collections.emptyMap();
+    private volatile String catalogueError;
+    private volatile boolean loading;
+    private boolean loadStarted;
 
     public GrugModManager(
             File gameDir, GrugModsExtractor.Resources jar, Function<String, String> prompts) {
@@ -130,10 +139,29 @@ public final class GrugModManager {
             GrugModsExtractor.Resources jar,
             Function<String, String> prompts,
             GrugCatalogue catalogue) {
+        this(gameDir, jar, prompts, catalogue, GrugModManager::onNewThread);
+    }
+
+    /**
+     * @param executor runs the requests, which the game keeps off its own thread
+     */
+    GrugModManager(
+            File gameDir,
+            GrugModsExtractor.Resources jar,
+            Function<String, String> prompts,
+            GrugCatalogue catalogue,
+            Executor executor) {
         this.gameDir = gameDir;
         this.jar = jar;
         this.prompts = prompts;
         this.catalogue = catalogue;
+        this.executor = executor;
+    }
+
+    static void onNewThread(Runnable task) {
+        Thread thread = new Thread(task, "grug-mod-manager");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /** No mod asks for a popup before it is turned on. */
@@ -161,42 +189,108 @@ public final class GrugModManager {
     }
 
     /**
-     * What went wrong reading the catalogue, or null when it was read or there is none. The list
-     * then holds the mods without it.
+     * What went wrong reading the catalogue, or null when it was read, is being read or there is
+     * none. The list then holds the mods without it.
      */
     public String catalogueError() {
-        remote();
         return catalogueError;
     }
 
-    /** The catalogue's mods, read once: the first call is the request. */
-    private Map<String, GrugCatalogue.Item> remote() {
-        if (remote == null) {
-            remote = new TreeMap<>();
-            if (catalogue != null) {
-                try {
-                    remote.putAll(catalogue.fetch());
-                } catch (IOException e) {
-                    catalogueError = "Could not read the mod catalogue: " + e.getMessage();
-                }
-            }
-        }
-        return remote;
+    /** Whether the catalogue is being read, which {@link #list} does not hold the mods of yet. */
+    public boolean catalogueLoading() {
+        return loading;
     }
 
     /**
-     * Downloads a mod of the catalogue into {@code grug_mods/} and turns it on. Nothing is
-     * installed when the download or its check fails. The mod loads at the next start, as every
-     * change does.
+     * Starts reading the catalogue, once, and returns at once: the request runs in the executor.
      */
-    public void install(String name) throws IOException {
-        GrugCatalogue.Item item = remote().get(name);
-        if (item == null) {
-            throw new IOException(name + " is not in the catalogue");
+    public synchronized void loadCatalogue() {
+        if (catalogue == null || loadStarted) return;
+        loadStarted = true;
+        loading = true;
+        executor.execute(
+                () -> {
+                    try {
+                        remote = Collections.unmodifiableMap(new TreeMap<>(catalogue.fetch()));
+                    } catch (IOException e) {
+                        catalogueError = "Could not read the mod catalogue: " + e.getMessage();
+                    } finally {
+                        loading = false;
+                    }
+                });
+    }
+
+    /** A download of a mod of the catalogue, which runs while the screen shows how far it is. */
+    public static final class Install {
+        private final String name;
+        private final long total;
+        private volatile long done;
+        private volatile boolean finished;
+        private volatile String error;
+
+        Install(String name, long total) {
+            this.name = name;
+            this.total = total;
         }
-        Files.createDirectories(modsDir().toPath());
-        catalogue.install(name, item, modsDir().toPath());
-        setOn(name, true);
+
+        public String name() {
+            return name;
+        }
+
+        /** The bytes of the zip downloaded so far. */
+        public long done() {
+            return done;
+        }
+
+        /** The size of the zip, as the index states it. */
+        public long total() {
+            return total;
+        }
+
+        /** How far it is, from 0 to 1. */
+        public double progress() {
+            if (total <= 0) return 1; // only the install of a mod the catalogue lacks, over at once
+            return Math.min(1.0, (double) done / total);
+        }
+
+        /** Whether it is over, whether it worked or not. */
+        public boolean finished() {
+            return finished;
+        }
+
+        /** Why it failed, once it is over, or null when it worked. */
+        public String error() {
+            return error;
+        }
+    }
+
+    /**
+     * Starts downloading a mod of the catalogue into {@code grug_mods/} and turning it on, and
+     * returns at once. Nothing is installed when the download or its check fails. The mod loads at
+     * the next start, as every change does.
+     */
+    public Install startInstall(String name) {
+        GrugCatalogue.Item item = remote.get(name);
+        Install install = new Install(name, item == null ? 0 : item.size());
+        if (item == null) {
+            install.error = name + " is not in the catalogue";
+            install.finished = true;
+            return install;
+        }
+        executor.execute(
+                () -> {
+                    try {
+                        Files.createDirectories(modsDir().toPath());
+                        catalogue.install(
+                                name, item, modsDir().toPath(), bytes -> install.done = bytes);
+                        setOn(name, true);
+                    } catch (IOException e) {
+                        install.error = e.getMessage();
+                    } finally {
+                        install.finished = true;
+                    }
+                });
+        return install;
     }
 
     /** Every mod the game knows of, by name: installed, turned off, bundled or downloadable. */
@@ -207,7 +301,8 @@ public final class GrugModManager {
         names.addAll(directories(offDir()));
         Map<String, List<String>> bundled = bundled();
         names.addAll(bundled.keySet());
-        names.addAll(remote().keySet());
+        Map<String, GrugCatalogue.Item> remote = this.remote;
+        names.addAll(remote.keySet());
 
         List<Entry> entries = new ArrayList<>();
         for (String name : names) {
@@ -219,7 +314,7 @@ public final class GrugModManager {
                             name,
                             bundled.containsKey(name),
                             installed,
-                            remote().containsKey(name),
+                            remote.containsKey(name) ? remote.get(name).size() : 0,
                             wanted != null ? wanted : running,
                             prompts.apply(name)));
         }
@@ -227,7 +322,7 @@ public final class GrugModManager {
     }
 
     /** Records that the player wants a mod on or off. The game follows at its next start. */
-    public void setOn(String name, boolean on) {
+    public synchronized void setOn(String name, boolean on) {
         if (!validName(name)) {
             throw Grug.fatal(name + " is not a mod name");
         }

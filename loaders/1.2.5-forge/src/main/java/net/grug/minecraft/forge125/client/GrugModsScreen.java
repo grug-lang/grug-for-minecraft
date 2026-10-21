@@ -47,6 +47,8 @@ public class GrugModsScreen extends GuiScreen {
     }
 
     private boolean enabled(int id) {
+        if (id == DONE) return true;
+        if (model.busy()) return false;
         if (id == PREVIOUS) return model.hasPrevious();
         if (id == NEXT) return model.hasNext();
         return true;
@@ -68,15 +70,30 @@ public class GrugModsScreen extends GuiScreen {
 
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        if (model.poll()) {
+            initGui();
+        }
         drawDefaultBackground();
         drawCenteredString(fontRenderer, "Grug Mods", width / 2, 16, 0xFFFFFF);
         if (model.restartNeeded()) {
             drawCenteredString(fontRenderer, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }
-        int errorY = 210;
-        for (String line : model.errorLines(400, fontRenderer::getStringWidth)) {
-            drawCenteredString(fontRenderer, line, width / 2, errorY, 0xFF5555);
-            errorY += 10;
+        String status = model.status();
+        if (status != null) {
+            drawCenteredString(fontRenderer, status, width / 2, 210, 0xFFFFFF);
+            double progress = model.progress();
+            if (progress >= 0) {
+                int x = width / 2 - 100;
+                drawRect(x - 1, 221, x + 201, 229, 0xFF000000);
+                drawRect(x, 222, x + 200, 228, 0xFF555555);
+                drawRect(x, 222, x + (int) (200 * progress), 228, 0xFF55FF55);
+            }
+        } else {
+            int errorY = 210;
+            for (String line : model.errorLines(400, fontRenderer::getStringWidth)) {
+                drawCenteredString(fontRenderer, line, width / 2, errorY, 0xFF5555);
+                errorY += 10;
+            }
         }
         super.drawScreen(mouseX, mouseY, partialTicks);
         String popup = model.popup();

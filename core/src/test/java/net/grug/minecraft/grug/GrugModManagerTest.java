@@ -184,17 +184,10 @@ class GrugModManagerTest {
 
     @Test
     void aGameDirectoryOverTheClasspathBundlesNoPopup() {
-        // The catalogue is pointed at a port nothing listens on, so no test reaches the internet.
-        System.setProperty(GrugCatalogue.URL_PROPERTY, "http://127.0.0.1:1/index.json");
-        try {
-            GrugModManager manager = GrugModManager.of(game.toFile());
+        GrugModManager manager = GrugModManager.of(game.toFile());
 
-            assertTrue(manager.list().stream().allMatch(e -> e.prompt() == null));
-            assertNull(manager.list().get(0).prompt());
-            assertTrue(manager.catalogueError().startsWith("Could not read the mod catalogue"));
-        } finally {
-            System.clearProperty(GrugCatalogue.URL_PROPERTY);
-        }
+        assertTrue(manager.list().stream().allMatch(e -> e.prompt() == null));
+        assertNull(manager.list().get(0).prompt());
     }
 
     @Test
@@ -246,25 +239,16 @@ class GrugModManagerTest {
         }
     }
 
-    /** A catalogue of the mod remote, whose zip holds one file, or one that fails to be read. */
-    private GrugModManager withCatalogue(boolean reachable, byte[] zip) {
-        return withCatalogue(reachable, zip, hash(zip));
+    private static byte[] remoteZip() throws IOException {
+        return GrugCatalogueTest.zip("remote/about.json", "{}");
     }
 
-    private GrugModManager withCatalogue(boolean reachable, byte[] zip, String indexedHash) {
-        String index =
-                "{\"mods\":{\"remote\":{\"zip\":\"remote.zip\",\"sha256\":\""
-                        + indexedHash
-                        + "\"}}}";
-        GrugCatalogue catalogue =
-                new GrugCatalogue(
-                        url -> {
-                            if (!reachable) throw new IOException("offline");
-                            if (url.endsWith("index.json")) return index.getBytes();
-                            return zip;
-                        },
-                        "http://x/index.json");
-        return new GrugModManager(game.toFile(), jar(), mod -> null, catalogue);
+    private GrugModManager withCatalogue(FakeCatalogue fake) {
+        GrugModManager manager =
+                new GrugModManager(
+                        game.toFile(), jar(), mod -> null, fake.catalogue(), Runnable::run);
+        manager.loadCatalogue();
+        return manager;
     }
 
     private static String hash(byte[] data) {
@@ -277,58 +261,108 @@ class GrugModManagerTest {
 
     @Test
     void aCatalogueModIsListedAsDownloadableUntilItIsInstalled() throws Exception {
-        GrugModManager manager =
-                withCatalogue(true, GrugCatalogueTest.zip("remote/about.json", "{}"));
+        byte[] zip = remoteZip();
+        GrugModManager manager = withCatalogue(new FakeCatalogue(zip, hash(zip), true));
 
         GrugModManager.Entry remote = manager.list().get(manager.list().size() - 1);
         assertEquals("remote", remote.name());
         assertTrue(remote.downloadable());
+        assertEquals(zip.length, remote.downloadSize());
         assertFalse(remote.installed());
         assertFalse(remote.on());
         assertNull(manager.catalogueError());
+        assertFalse(manager.catalogueLoading());
 
-        manager.install("remote");
+        GrugModManager.Install install = manager.startInstall("remote");
 
+        assertTrue(install.finished());
+        assertNull(install.error());
+        assertEquals("remote", install.name());
+        assertEquals(zip.length, install.total());
+        assertEquals(zip.length, install.done());
+        assertEquals(1.0, install.progress());
         assertTrue(Files.isRegularFile(mods().resolve("remote/about.json")));
         GrugModManager.Entry installed = manager.list().get(manager.list().size() - 1);
         assertTrue(installed.installed() && installed.on() && installed.downloadable());
     }
 
     @Test
-    void aModTheCatalogueDoesNotHoldCannotBeInstalled() {
-        GrugModManager manager = withCatalogue(true, new byte[0]);
+    void aModTheCatalogueDoesNotHoldCannotBeInstalled() throws Exception {
+        byte[] zip = remoteZip();
+        GrugModManager manager = withCatalogue(new FakeCatalogue(zip, hash(zip), true));
 
-        IOException error = assertThrows(IOException.class, () -> manager.install("ghost"));
+        GrugModManager.Install install = manager.startInstall("ghost");
 
-        assertTrue(error.getMessage().contains("not in the catalogue"), error.getMessage());
+        assertTrue(install.finished());
+        assertEquals("ghost is not in the catalogue", install.error());
+        assertEquals(1.0, install.progress());
     }
 
     @Test
-    void aCatalogueThatCannotBeReadLeavesTheLocalModsAndSaysWhy() {
-        GrugModManager manager = withCatalogue(false, new byte[0]);
+    void aCatalogueThatCannotBeReadLeavesTheLocalModsAndSaysWhy() throws Exception {
+        GrugModManager manager =
+                withCatalogue(new FakeCatalogue(remoteZip(), "0".repeat(64), false));
 
         assertEquals("examplemod-b extra-b", summary(manager.list()));
         assertEquals("Could not read the mod catalogue: offline", manager.catalogueError());
+        assertFalse(manager.catalogueLoading());
     }
 
     @Test
-    void aGameWithNoCatalogueHasNoError() {
-        assertNull(manager().catalogueError());
+    void aGameWithNoCatalogueHasNothingToLoad() {
+        GrugModManager manager = manager();
+
+        manager.loadCatalogue();
+
+        assertNull(manager.catalogueError());
+        assertFalse(manager.catalogueLoading());
+    }
+
+    @Test
+    void theCatalogueIsReadOnceAndWhileItIsBeingReadTheListHasNoneOfIt() throws Exception {
+        byte[] zip = remoteZip();
+        FakeCatalogue fake = new FakeCatalogue(zip, hash(zip), true);
+        FakeCatalogue.Waiting waiting = new FakeCatalogue.Waiting();
+        GrugModManager manager =
+                new GrugModManager(game.toFile(), jar(), mod -> null, fake.catalogue(), waiting);
+
+        manager.loadCatalogue();
+        manager.loadCatalogue();
+
+        assertTrue(manager.catalogueLoading());
+        assertEquals("examplemod-b extra-b", summary(manager.list()));
+        waiting.runAll();
+        assertFalse(manager.catalogueLoading());
+        assertEquals(1, fake.fetches);
+        assertEquals("examplemod-b extra-b remote-", summary(manager.list()));
     }
 
     @Test
     void aFailedInstallKeepsTheStateAsItWas() throws Exception {
-        GrugModManager manager =
-                withCatalogue(true, GrugCatalogueTest.zip("remote/about.json", "{}"));
-        GrugModManager wrongHash =
-                withCatalogue(
-                        true, GrugCatalogueTest.zip("remote/about.json", "{}"), "0".repeat(64));
+        byte[] zip = remoteZip();
+        GrugModManager manager = withCatalogue(new FakeCatalogue(zip, "0".repeat(64), true));
 
-        assertThrows(IOException.class, () -> wrongHash.install("remote"));
+        GrugModManager.Install install = manager.startInstall("remote");
 
+        assertTrue(install.error().contains("does not match"), install.error());
         assertFalse(Files.exists(mods().resolve("remote")));
         assertFalse(Files.exists(game.resolve("grug_mods_state.json")));
-        assertTrue(manager.list().stream().anyMatch(e -> e.name().equals("remote")));
+    }
+
+    @Test
+    void theRealExecutorRunsTheRequestOnAThreadOfItsOwn() throws Exception {
+        // The catalogue is pointed at a port nothing listens on, so no test reaches the internet.
+        System.setProperty(GrugCatalogue.URL_PROPERTY, "http://127.0.0.1:1/index.json");
+        try {
+            GrugModManager manager = GrugModManager.of(game.toFile());
+            manager.loadCatalogue();
+            for (int i = 0; i < 500 && manager.catalogueLoading(); i++) Thread.sleep(10);
+
+            assertFalse(manager.catalogueLoading());
+            assertTrue(manager.catalogueError().startsWith("Could not read the mod catalogue"));
+        } finally {
+            System.clearProperty(GrugCatalogue.URL_PROPERTY);
+        }
     }
 
     private static String read(Path file) {

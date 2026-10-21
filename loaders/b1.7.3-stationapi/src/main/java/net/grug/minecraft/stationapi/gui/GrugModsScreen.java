@@ -48,6 +48,8 @@ public class GrugModsScreen extends Screen {
     }
 
     private boolean enabled(int id) {
+        if (id == DONE) return true;
+        if (model.busy()) return false;
         if (id == PREVIOUS) return model.hasPrevious();
         if (id == NEXT) return model.hasNext();
         return true;
@@ -76,16 +78,31 @@ public class GrugModsScreen extends Screen {
 
     @Override
     public void render(int mouseX, int mouseY, float tickDelta) {
+        if (model.poll()) {
+            init();
+        }
         renderBackground();
         drawCenteredTextWithShadow(textRenderer, "Grug Mods", width / 2, 16, 0xFFFFFF);
         if (model.restartNeeded()) {
             drawCenteredTextWithShadow(
                     textRenderer, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }
-        int errorY = 210;
-        for (String line : model.errorLines(400, textRenderer::getWidth)) {
-            drawCenteredTextWithShadow(textRenderer, line, width / 2, errorY, 0xFF5555);
-            errorY += 10;
+        String status = model.status();
+        if (status != null) {
+            drawCenteredTextWithShadow(textRenderer, status, width / 2, 210, 0xFFFFFF);
+            double progress = model.progress();
+            if (progress >= 0) {
+                int x = width / 2 - 100;
+                fill(x - 1, 221, x + 201, 229, 0xFF000000);
+                fill(x, 222, x + 200, 228, 0xFF555555);
+                fill(x, 222, x + (int) (200 * progress), 228, 0xFF55FF55);
+            }
+        } else {
+            int errorY = 210;
+            for (String line : model.errorLines(400, textRenderer::getWidth)) {
+                drawCenteredTextWithShadow(textRenderer, line, width / 2, errorY, 0xFF5555);
+                errorY += 10;
+            }
         }
         super.render(mouseX, mouseY, tickDelta);
         String popup = model.popup();

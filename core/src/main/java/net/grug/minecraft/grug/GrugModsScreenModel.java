@@ -1,6 +1,5 @@
 package net.grug.minecraft.grug;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,10 +15,12 @@ public final class GrugModsScreenModel {
     private final GrugModManager manager;
     private final int pageSize;
     private List<GrugModManager.Entry> entries;
-    private final List<GrugModManager.Entry> atOpen;
+    private final Map<String, Boolean> atOpen = new HashMap<>();
     private int page;
     private GrugModManager.Entry asking;
     private String error;
+    private GrugModManager.Install installing;
+    private boolean catalogueWasLoading;
 
     /**
      * @param pageSize how many mods one page lists, which the loader's screen has room for
@@ -27,8 +28,79 @@ public final class GrugModsScreenModel {
     public GrugModsScreenModel(GrugModManager manager, int pageSize) {
         this.manager = manager;
         this.pageSize = pageSize;
-        this.entries = manager.list();
-        this.atOpen = entries;
+        manager.loadCatalogue();
+        this.catalogueWasLoading = manager.catalogueLoading();
+        refresh();
+    }
+
+    /** Takes the manager's list, and remembers what each mod it has not listed before was. */
+    private void refresh() {
+        entries = manager.list();
+        for (GrugModManager.Entry entry : entries) {
+            atOpen.putIfAbsent(entry.name(), entry.on());
+        }
+    }
+
+    /**
+     * Takes in what the requests in the background finished since the last call, and answers
+     * whether the page changed, so the loader's screen rebuilds its buttons. A screen calls it
+     * every frame.
+     */
+    public boolean poll() {
+        boolean changed = false;
+        boolean loading = manager.catalogueLoading();
+        if (catalogueWasLoading && !loading) {
+            catalogueWasLoading = false;
+            refresh();
+            changed = true;
+        }
+        if (installing != null && installing.finished()) {
+            error =
+                    installing.error() == null
+                            ? null
+                            : "Could not install " + installing.name() + ": " + installing.error();
+            installing = null;
+            refresh();
+            changed = true;
+        }
+        return changed;
+    }
+
+    /** Whether a download is running, which keeps every button of the page from answering. */
+    public boolean busy() {
+        return installing != null;
+    }
+
+    /** How far the download is, from 0 to 1, or -1 when none is running. */
+    public double progress() {
+        return installing == null ? -1 : installing.progress();
+    }
+
+    /** What the screen is waiting for, or null: the catalogue, or the download that is running. */
+    public String status() {
+        if (installing != null) {
+            return "Downloading "
+                    + installing.name()
+                    + ": "
+                    + formatSize(installing.done())
+                    + " of "
+                    + formatSize(installing.total());
+        }
+        return manager.catalogueLoading() ? "Loading the mod catalogue..." : null;
+    }
+
+    /** A size in bytes the way a screen shows it: B, KiB, MiB or GiB, to one decimal. */
+    public static String formatSize(long bytes) {
+        String[] units = {"B", "KiB", "MiB", "GiB"};
+        double value = bytes;
+        int unit = 0;
+        while (value >= 1024 && unit < units.length - 1) {
+            value /= 1024;
+            unit++;
+        }
+        return unit == 0
+                ? bytes + " B"
+                : String.format(java.util.Locale.ROOT, "%.1f %s", value, units[unit]);
     }
 
     /** The label of the button of a mod on this page: its name and whether it is on. */
@@ -39,7 +111,9 @@ public final class GrugModsScreenModel {
                     entry.name()
                             + ": "
                             + (entry.on() ? "ON" : "OFF")
-                            + (needsDownload(entry) ? " (download)" : ""));
+                            + (needsDownload(entry)
+                                    ? " (download, " + formatSize(entry.downloadSize()) + ")"
+                                    : ""));
         }
         return labels;
     }
@@ -72,7 +146,7 @@ public final class GrugModsScreenModel {
 
     /** The button of the {@code row}th mod on this page was clicked. */
     public void click(int row) {
-        if (asking != null) return; // the popup blocks everything behind it
+        if (asking != null || installing != null) return; // a popup or a download blocks the rest
         GrugModManager.Entry entry = pageEntries().get(row);
         if (!entry.on() && entry.prompt() != null) {
             asking = entry;
@@ -84,15 +158,11 @@ public final class GrugModsScreenModel {
     private void toggle(GrugModManager.Entry entry) {
         error = null;
         if (needsDownload(entry)) {
-            try {
-                manager.install(entry.name());
-            } catch (IOException e) {
-                error = "Could not install " + entry.name() + ": " + e.getMessage();
-            }
-        } else {
-            manager.setOn(entry.name(), !entry.on());
+            installing = manager.startInstall(entry.name());
+            return;
         }
-        entries = manager.list();
+        manager.setOn(entry.name(), !entry.on());
+        refresh();
     }
 
     /**
@@ -123,13 +193,8 @@ public final class GrugModsScreenModel {
 
     /** Whether the screen has changed what is on, which only takes effect at the next start. */
     public boolean restartNeeded() {
-        Map<String, Boolean> opened = new HashMap<>();
-        for (GrugModManager.Entry entry : atOpen) {
-            opened.put(entry.name(), entry.on());
-        }
         for (GrugModManager.Entry entry : entries) {
-            Boolean was = opened.get(entry.name());
-            if (was == null || was != entry.on()) return true;
+            if (atOpen.get(entry.name()) != entry.on()) return true;
         }
         return false;
     }
