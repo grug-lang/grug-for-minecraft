@@ -23,8 +23,12 @@ public final class GrugBlocks {
     @GrugGenerated("utility class: never instantiated")
     private GrugBlocks() {}
 
-    /** First id searched for a block. Vanilla Alpha 1.1.2_01 stops well below it. */
-    public static final int START_BLOCK_ID = 95;
+    /**
+     * First id searched for a block, just above the highest one vanilla Alpha 1.1.2_01 registers
+     * (85). The room up to {@link #LAST_BLOCK_ID} is all a pack has: the old range started at 128
+     * minus the block count, so it reached as low as 92 for the 36 blocks of the repository's mods.
+     */
+    public static final int START_BLOCK_ID = 86;
 
     /**
      * Alpha stores a block id in a signed byte, so an id of 128 or more reads back negative and
