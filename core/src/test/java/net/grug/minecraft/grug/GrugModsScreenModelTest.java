@@ -121,4 +121,16 @@ class GrugModsScreenModelTest {
                 GrugModsScreenModel.wrap("one two three enormousword x", 8, String::length));
         assertEquals(List.of("short"), GrugModsScreenModel.wrap("short", 8, String::length));
     }
+
+    @Test
+    void aModThatAppearsWhileTheScreenIsOpenNeedsARestart() throws IOException {
+        GrugModsScreenModel model = model(3);
+        Files.createDirectories(game.resolve("grug_mods/d"));
+
+        model.click(0);
+        model.click(0);
+
+        assertEquals(List.of("a: ON", "b: OFF", "c: ON"), model.labels());
+        assertTrue(model.restartNeeded());
+    }
 }

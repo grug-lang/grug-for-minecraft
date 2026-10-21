@@ -154,6 +154,9 @@ public final class GrugModManager {
 
     /** Records that the player wants a mod on or off. The game follows at its next start. */
     public void setOn(String name, boolean on) {
+        if (!validName(name)) {
+            throw Grug.fatal(name + " is not a mod name");
+        }
         Map<String, Boolean> state = readState();
         state.put(name, on);
         writeState(state);
@@ -241,6 +244,9 @@ public final class GrugModManager {
                 throw new JsonParseException("no \"mods\" object");
             }
             for (Map.Entry<String, JsonElement> mod : mods.entrySet()) {
+                if (!validName(mod.getKey())) {
+                    throw new JsonParseException(mod.getKey() + " is not a mod name");
+                }
                 JsonElement value = mod.getValue();
                 if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isBoolean()) {
                     throw new JsonParseException(mod.getKey() + " is not true or false");
@@ -251,6 +257,20 @@ public final class GrugModManager {
             throw Grug.fatal(stateFile() + " is not {\"mods\": {\"<name>\": true or false}}", e);
         }
         return state;
+    }
+
+    /**
+     * Whether a name is one directory of {@code grug_mods/}, and so cannot lead out of the managed
+     * directories when the state, which a player may edit by hand, is applied.
+     */
+    private static boolean validName(String name) {
+        return !name.isEmpty()
+                && !name.equals(".")
+                && !name.equals("..")
+                && name.indexOf('/') < 0
+                && name.indexOf('\\') < 0
+                && name.indexOf(':') < 0
+                && name.indexOf('\0') < 0;
     }
 
     private void writeState(Map<String, Boolean> state) {

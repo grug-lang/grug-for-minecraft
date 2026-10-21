@@ -1,7 +1,9 @@
 package net.grug.minecraft.grug;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.ToIntFunction;
 
 /**
@@ -93,8 +95,13 @@ public final class GrugModsScreenModel {
 
     /** Whether the screen has changed what is on, which only takes effect at the next start. */
     public boolean restartNeeded() {
-        for (int i = 0; i < entries.size(); i++) {
-            if (entries.get(i).on() != atOpen.get(i).on()) return true;
+        Map<String, Boolean> opened = new HashMap<>();
+        for (GrugModManager.Entry entry : atOpen) {
+            opened.put(entry.name(), entry.on());
+        }
+        for (GrugModManager.Entry entry : entries) {
+            Boolean was = opened.get(entry.name());
+            if (was == null || was != entry.on()) return true;
         }
         return false;
     }
