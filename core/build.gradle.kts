@@ -285,6 +285,10 @@ tasks.named<JavaCompile>("compileJava") {
 // can walk on every loader.
 val bundledModsIndexDir = layout.buildDirectory.dir("generated/bundled-mods-index")
 
+// mods/coverage/ holds test fixtures, which nobody installs to play and which ask for more block ids
+// than a pack has free (#509). The production and coexistence jobs install it beside the jar.
+val unbundledMods = "coverage/**"
+
 val generateBundledModsIndex = tasks.register("generateBundledModsIndex") {
     val modsDir = rootProject.file("mods")
     inputs.dir(modsDir)
@@ -293,7 +297,7 @@ val generateBundledModsIndex = tasks.register("generateBundledModsIndex") {
     doLast {
         // fileTree applies Gradle's default excludes, as processResources does when it copies the
         // mods, so the index lists exactly the files the jar holds.
-        val paths = fileTree(modsDir).files
+        val paths = fileTree(modsDir) { exclude(unbundledMods) }.files
             .map { it.relativeTo(modsDir).invariantSeparatorsPath }
             .sorted()
             .toList()
@@ -307,6 +311,7 @@ tasks.named<ProcessResources>("processResources") {
     dependsOn(buildGrugAdapter)
 
     from(rootProject.file("mods")) {
+        exclude(unbundledMods)
         into("mods")
     }
     from(generateBundledModsIndex)

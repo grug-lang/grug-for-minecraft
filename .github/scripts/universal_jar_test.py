@@ -465,6 +465,17 @@ class CheckTest(unittest.TestCase):
         fixture.core["grug_bundled_mods.txt"] += b"oldmod/about.json\n"
         self.assertProblem(fixture.problems(), "the jar bundles mods/oldmod, which is not in mods/")
 
+    def test_the_coverage_fixtures_are_not_bundled(self):
+        fixture = Fixture(self)
+        (fixture.repo / "mods" / "coverage").mkdir()
+        self.assertEqual(fixture.problems(), [])
+        fixture.core["mods/coverage/about.json"] = b"{}"
+        fixture.core["grug_bundled_mods.txt"] += b"coverage/about.json\n"
+        self.assertProblem(
+            fixture.problems(),
+            "the jar bundles mods/coverage, which holds test fixtures and stays out of it",
+        )
+
     def test_a_bundled_file_missing_from_the_index(self):
         fixture = Fixture(self)
         fixture.core["mods/examplemod/LICENSE"] = b""

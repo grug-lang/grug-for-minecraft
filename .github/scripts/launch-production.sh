@@ -50,6 +50,11 @@ STATIONAPI_JAVA="${STATIONAPI_JAVA:-$(command -v java)}"
 mkdir -p "${GAME_DIR}/mods" "$MAIN_DIR"
 cp "$JAR" "${GAME_DIR}/mods/"
 
+# The jar leaves the coverage fixtures out (#509), so the suite finds them where a player puts a mod
+# they downloaded: in grug_mods/. The first run extracts the bundled mods beside them.
+mkdir -p "${GAME_DIR}/grug_mods"
+cp -r "${REPO_ROOT}/mods/coverage" "${GAME_DIR}/grug_mods/"
+
 # A mod's primary file for one version and mod loader, from Modrinth as a player downloads it. The
 # mod loader matters: JEI publishes its Forge, NeoForge and Fabric builds under one version number,
 # and Forge skips the others without a word (#501).
