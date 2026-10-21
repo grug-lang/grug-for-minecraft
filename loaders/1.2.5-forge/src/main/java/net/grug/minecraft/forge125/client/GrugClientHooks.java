@@ -9,7 +9,10 @@ import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugIdShortage;
+import net.grug.minecraft.grug.GrugModManager;
 import net.grug.minecraft.grug.GrugModTreeDefect;
+import net.grug.minecraft.grug.GrugModsScreenModel;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
@@ -64,6 +67,7 @@ public class GrugClientHooks implements ITickHandler {
     private static final EnumSet<TickType> TICKS = EnumSet.of(TickType.GAME, TickType.RENDER);
 
     private boolean titleLogged = false;
+    private boolean idScreenShown = false;
     private boolean worldRequested = false;
     private boolean ciTestsRan = false;
 
@@ -365,6 +369,23 @@ public class GrugClientHooks implements ITickHandler {
                 && !GrugTitleButton.has(minecraft.currentScreen, GrugModsButton.class)) {
             GrugTitleButton.add(
                     minecraft.currentScreen, new GrugModsButton(minecraft.currentScreen));
+        }
+
+        // A game short of block or item ids registered none of that kind and let the title screen
+        // come up, so the player can turn mods off here (#510). Nothing but the mod manager is
+        // safe to enter: a world saved without the blocks would lose them.
+        if (minecraft.currentScreen instanceof GuiMainMenu && !idScreenShown) {
+            idScreenShown = true;
+            if (!GrugIdShortage.all().isEmpty()) {
+                // No one is there to answer the screen of a CI run, which should say why it
+                // stopped.
+                if ("true".equals(System.getenv("GRUG_CI"))) GrugIdShortage.failIfShort();
+                minecraft.displayGuiScreen(
+                        new GrugModsScreen(
+                                minecraft.currentScreen,
+                                new GrugModsScreenModel(
+                                        GrugModManager.of(minecraft.mcDataDir), 5)));
+            }
         }
 
         // The title screen is a GUI and has no world yet, so the game tick never fires there; this

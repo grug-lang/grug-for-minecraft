@@ -285,4 +285,54 @@ class GrugModsScreenModelTest {
         assertEquals("3.4 GiB", GrugModsScreenModel.formatSize(3500L * 1024 * 1024));
         assertEquals("2048.0 GiB", GrugModsScreenModel.formatSize(2048L * 1024 * 1024 * 1024));
     }
+
+    @Test
+    void aGameShortOfIdsShowsWhatEachModNeedsAndWhenEnoughIsOff() throws IOException {
+        GrugIdShortage.clear();
+        try {
+            GrugModsScreenModel model = model(3);
+            assertFalse(model.shortOfIds());
+            assertTrue(model.idLines().isEmpty());
+            assertTrue(model.idsFit());
+
+            GrugIdPool blocks = GrugIdPool.of("block", id -> false, 125, 129);
+            blocks.take();
+            assertFalse(blocks.hasRoomFor(needs("a", 3, "c", 4)));
+            GrugIdPool items = GrugIdPool.of("item", id -> false, 400, 401);
+            assertFalse(items.hasRoomFor(needs("a", 1, "b", 2)));
+
+            assertTrue(model.shortOfIds());
+            assertEquals(
+                    List.of("a: ON (3 blocks, 1 item)", "b: OFF (2 items)", "c: ON (4 blocks)"),
+                    model.labels());
+            assertEquals(
+                    List.of(
+                            "Block ids: 3 short (7 needed, 4 free). Turn off mods to free them.",
+                            "Item ids: 1 short (3 needed, 2 free). Turn off mods to free them."),
+                    model.idLines());
+            assertFalse(model.idsFit());
+
+            model.click(2); // c frees 4 blocks, which covers the 3 short
+            assertEquals(
+                    List.of(
+                            "Block ids: enough once the game restarts.",
+                            "Item ids: 1 short (3 needed, 2 free). Turn off mods to free them."),
+                    model.idLines());
+            assertFalse(model.idsFit());
+
+            model.click(0); // a frees 1 item
+            assertTrue(model.idsFit());
+        } finally {
+            GrugIdShortage.clear();
+        }
+    }
+
+    /** The ids each of two mods needs, by the name of a block or item they ship. */
+    private static java.util.Map<String, String> needs(
+            String firstMod, int first, String secondMod, int second) {
+        java.util.Map<String, String> needs = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < first; i++) needs.put(firstMod + i, firstMod);
+        for (int i = 0; i < second; i++) needs.put(secondMod + i, secondMod);
+        return needs;
+    }
 }

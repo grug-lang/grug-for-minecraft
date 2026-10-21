@@ -103,19 +103,83 @@ public final class GrugModsScreenModel {
                 : String.format(java.util.Locale.ROOT, "%.1f %s", value, units[unit]);
     }
 
-    /** The label of the button of a mod on this page: its name and whether it is on. */
+    /**
+     * The label of the button of a mod on this page: its name and whether it is on, then what it
+     * costs: the ids it needs while the game is short of them, or the download it would be.
+     */
     public List<String> labels() {
         List<String> labels = new ArrayList<>();
         for (GrugModManager.Entry entry : pageEntries()) {
+            String cost = idNeeds(entry.name());
+            if (needsDownload(entry)) cost = "download, " + formatSize(entry.downloadSize());
             labels.add(
                     entry.name()
                             + ": "
                             + (entry.on() ? "ON" : "OFF")
-                            + (needsDownload(entry)
-                                    ? " (download, " + formatSize(entry.downloadSize()) + ")"
-                                    : ""));
+                            + (cost.isEmpty() ? "" : " (" + cost + ")"));
         }
         return labels;
+    }
+
+    /** What a mod needs of the kinds of ids that are short, like "32 blocks, 1 item". */
+    private static String idNeeds(String mod) {
+        StringBuilder needs = new StringBuilder();
+        for (GrugIdShortage shortage : GrugIdShortage.all()) {
+            int count = shortage.needs(mod);
+            if (count == 0) continue;
+            if (needs.length() > 0) needs.append(", ");
+            needs.append(count).append(' ').append(shortage.kind()).append(count == 1 ? "" : "s");
+        }
+        return needs.toString();
+    }
+
+    /** Whether the game ran short of ids, which makes this screen the way past the title screen. */
+    public boolean shortOfIds() {
+        return !GrugIdShortage.all().isEmpty();
+    }
+
+    /**
+     * What the screen says about the ids, a line for each kind that is short: how far short it is,
+     * or that turning off what the player has will be enough once the game restarts.
+     */
+    public List<String> idLines() {
+        List<String> lines = new ArrayList<>();
+        for (GrugIdShortage shortage : GrugIdShortage.all()) {
+            int stillMissing = shortage.missing() - freed(shortage);
+            String kind =
+                    Character.toUpperCase(shortage.kind().charAt(0)) + shortage.kind().substring(1);
+            lines.add(
+                    stillMissing <= 0
+                            ? kind + " ids: enough once the game restarts."
+                            : kind
+                                    + " ids: "
+                                    + stillMissing
+                                    + " short ("
+                                    + shortage.needed()
+                                    + " needed, "
+                                    + shortage.free()
+                                    + " free). Turn off mods to free them.");
+        }
+        return lines;
+    }
+
+    /** Whether turning off what the player has makes every kind of id fit. */
+    public boolean idsFit() {
+        for (GrugIdShortage shortage : GrugIdShortage.all()) {
+            if (shortage.missing() - freed(shortage) > 0) return false;
+        }
+        return true;
+    }
+
+    /** The ids of the kind that the mods turned off since the screen opened would give back. */
+    private int freed(GrugIdShortage shortage) {
+        int freed = 0;
+        for (GrugModManager.Entry entry : entries) {
+            if (Boolean.TRUE.equals(atOpen.get(entry.name())) && !entry.on()) {
+                freed += shortage.needs(entry.name());
+            }
+        }
+        return freed;
     }
 
     /** Whether turning the mod on downloads it: it is in no place the game can take it from. */

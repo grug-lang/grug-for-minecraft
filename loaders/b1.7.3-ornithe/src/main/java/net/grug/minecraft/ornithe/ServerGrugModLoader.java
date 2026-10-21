@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
+import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.ornithe.resource.GrugResourcePackProvider;
 import net.minecraft.crafting.GrugRecipeHelper;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerEvents;
@@ -16,6 +17,8 @@ public class ServerGrugModLoader implements DedicatedServerModInitializer {
 
         MinecraftServerEvents.READY.register(
                 server -> {
+                    // A server has no screen to turn mods off on, so ids that are short end it.
+                    GrugIdShortage.failIfShort();
                     GrugModLoader.LOGGER.info("Parsing JSON recipes...");
                     GrugRecipeHelper.registerAutoDiscoveredRecipes(
                             GrugModLoader.getActiveGrugModsDir());

@@ -11,6 +11,7 @@ import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugFileIndex;
+import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.grug.GrugModsDirectory;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.minecraft.client.Minecraft;
@@ -130,7 +131,12 @@ public class mod_Grug extends BaseMod {
     @Override
     public void modsLoaded() {
         GrugBlocks.init();
-        GrugRecipeParser.registerAll(activeGrugDir);
+        // A game short of ids has registered none of what did not fit, so the recipes that give
+        // it would each report an unknown result, and the player cannot craft before turning mods
+        // off (#510).
+        if (GrugIdShortage.all().isEmpty()) {
+            GrugRecipeParser.registerAll(activeGrugDir);
+        }
     }
 
     /**

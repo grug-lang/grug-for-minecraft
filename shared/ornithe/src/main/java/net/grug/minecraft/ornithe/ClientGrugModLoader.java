@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.grug.minecraft.ornithe.client.GrugModelRenderer;
@@ -102,6 +103,10 @@ public class ClientGrugModLoader implements ClientModInitializer {
 
         MinecraftClientEvents.READY.register(
                 minecraft -> {
+                    // A game short of ids registered none of what did not fit, so the recipes that
+                    // give it would each fail, and the player cannot craft before turning mods off
+                    // (#510).
+                    if (!GrugIdShortage.all().isEmpty()) return;
                     GrugModLoader.LOGGER.info("Parsing JSON recipes...");
                     GrugRecipeHelper.registerAutoDiscoveredRecipes(
                             GrugModLoader.getActiveGrugModsDir());

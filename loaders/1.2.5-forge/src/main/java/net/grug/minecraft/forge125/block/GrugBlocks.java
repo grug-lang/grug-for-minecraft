@@ -91,7 +91,7 @@ public final class GrugBlocks {
         GrugIdPool ids =
                 GrugIdPool.of(
                         "block", id -> Block.blocksList[id] != null, START_BLOCK_ID, LAST_BLOCK_ID);
-        ids.requireRoom(mod_Grug.blockMods, modsDirectory());
+        if (!ids.hasRoomFor(mod_Grug.blockMods)) return;
         for (Map.Entry<String, Long> entry : mod_Grug.blockFiles.entrySet()) {
             String cleanName = entry.getKey();
             long blockFileId = entry.getValue();
@@ -134,7 +134,7 @@ public final class GrugBlocks {
                         id -> Item.itemsList[id] != null,
                         START_ITEM_ID,
                         Item.itemsList.length - 1);
-        ids.requireRoom(mod_Grug.itemMods, modsDirectory());
+        if (!ids.hasRoomFor(mod_Grug.itemMods)) return;
         for (Map.Entry<String, Long> entry : mod_Grug.itemFiles.entrySet()) {
             String cleanName = entry.getKey();
             long itemFileId = entry.getValue();
@@ -277,10 +277,6 @@ public final class GrugBlocks {
             if (GrugResourceIndex.findDirectResource(modsDir, path) != null) return path;
         }
         return null;
-    }
-
-    private static File modsDirectory() {
-        return GrugCore.getAdapter().getGrugModsDirectory();
     }
 
     private static Material stringToMaterial(String materialName) {
