@@ -15,9 +15,9 @@ import java.util.List;
  * error a mod installed on the wrong version reports, through its mod loader's own error path, so
  * the player learns at once that grug does not run there, what to do, and which games it runs on.
  *
- * <p>Loaders show it by {@link #toString}, which is only the message: a class name would push it
- * off screens that show little of it, such as Forge 1.16.5's, which draws two lines. The message
- * puts what to do first for the same reason.
+ * <p>Its message puts what to do first, since some loaders show little of it: Forge 1.16.5 gives an
+ * error one line of its screen, and Forge and NeoForge put this class's full name before the
+ * message, which is why the name says what happened.
  */
 public final class GrugUnsupportedGameException extends RuntimeException {
     /** The games the jar has a layer for, one per line, which universal_jar.py writes. */
@@ -58,10 +58,5 @@ public final class GrugUnsupportedGameException extends RuntimeException {
         } catch (IOException e) {
             throw Grug.fatal("Failed to read " + LIST, e);
         }
-    }
-
-    @Override
-    public String toString() {
-        return getMessage();
     }
 }
