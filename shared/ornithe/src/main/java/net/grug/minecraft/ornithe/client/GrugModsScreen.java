@@ -46,7 +46,9 @@ public class GrugModsScreen extends Screen {
         }
         buttons.add(new Button(PREVIOUS, x, 148, 20, "<"));
         buttons.add(new Button(NEXT, x + 180, 148, 20, ">"));
-        buttons.add(new Button(DONE, x, 186, 200, "Done"));
+        // A game short of ids has no safe place to go but out: a world saved without the blocks
+        // that did not fit would lose them (#510).
+        buttons.add(new Button(DONE, x, 186, 200, model.shortOfIds() ? "Quit game" : "Done"));
         if (blocked) {
             buttons.add(new Button(ACCEPT, x, 112, 98, "Accept"));
             buttons.add(new Button(DECLINE, x + 102, 112, 98, "Decline"));
@@ -74,9 +76,17 @@ public class GrugModsScreen extends Screen {
     }
 
     @Override
+    protected void keyPressed(char character, int key) {
+        // Escape would leave for the title screen, which a game short of ids must not reach.
+        if (model.shortOfIds()) return;
+        super.keyPressed(character, key);
+    }
+
+    @Override
     protected void buttonClicked(ButtonWidget button) {
         if (button.id == DONE) {
-            minecraft.openScreen(parent);
+            if (model.shortOfIds()) minecraft.shutdown();
+            else minecraft.openScreen(parent);
             return;
         }
         if (button.id == PREVIOUS) model.previous();
@@ -95,7 +105,16 @@ public class GrugModsScreen extends Screen {
             init();
         }
         renderBackground();
-        drawCenteredString(textRenderer, "Grug Mods", width / 2, 16, 0xFFFFFF);
+        if (model.shortOfIds()) {
+            drawCenteredString(textRenderer, "Grug Mods", width / 2, 4, 0xFFFFFF);
+            int lineY = 15;
+            for (String line : model.idLines()) {
+                drawCenteredString(textRenderer, line, width / 2, lineY, 0xFF5555);
+                lineY += 10;
+            }
+        } else {
+            drawCenteredString(textRenderer, "Grug Mods", width / 2, 16, 0xFFFFFF);
+        }
         if (model.restartNeeded()) {
             drawCenteredString(textRenderer, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }

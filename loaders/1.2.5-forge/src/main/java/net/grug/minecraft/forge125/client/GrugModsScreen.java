@@ -47,7 +47,10 @@ public class GrugModsScreen extends GuiScreen {
         }
         controlList.add(new GuiButton(PREVIOUS, x, 148, 20, 20, "<"));
         controlList.add(new GuiButton(NEXT, x + 180, 148, 20, 20, ">"));
-        controlList.add(new GuiButton(DONE, x, 186, 200, 20, "Done"));
+        // A game short of ids has no safe place to go but out: a world saved without the blocks
+        // that did not fit would lose them (#510).
+        controlList.add(
+                new GuiButton(DONE, x, 186, 200, 20, model.shortOfIds() ? "Quit game" : "Done"));
         if (blocked) {
             controlList.add(new GuiButton(ACCEPT, x, 112, 98, 20, "Accept"));
             controlList.add(new GuiButton(DECLINE, x + 102, 112, 98, 20, "Decline"));
@@ -70,7 +73,8 @@ public class GrugModsScreen extends GuiScreen {
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == DONE) {
-            mc.displayGuiScreen(parent);
+            if (model.shortOfIds()) mc.shutdown();
+            else mc.displayGuiScreen(parent);
             return;
         }
         if (button.id == PREVIOUS) model.previous();
@@ -84,12 +88,28 @@ public class GrugModsScreen extends GuiScreen {
     }
 
     @Override
+    protected void keyTyped(char character, int key) {
+        // Escape would leave for the title screen, which a game short of ids must not reach.
+        if (model.shortOfIds()) return;
+        super.keyTyped(character, key);
+    }
+
+    @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         if (model.poll()) {
             initGui();
         }
         drawDefaultBackground();
-        drawCenteredString(fontRenderer, "Grug Mods", width / 2, 16, 0xFFFFFF);
+        if (model.shortOfIds()) {
+            drawCenteredString(fontRenderer, "Grug Mods", width / 2, 4, 0xFFFFFF);
+            int lineY = 15;
+            for (String line : model.idLines()) {
+                drawCenteredString(fontRenderer, line, width / 2, lineY, 0xFF5555);
+                lineY += 10;
+            }
+        } else {
+            drawCenteredString(fontRenderer, "Grug Mods", width / 2, 16, 0xFFFFFF);
+        }
         if (model.restartNeeded()) {
             drawCenteredString(fontRenderer, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }

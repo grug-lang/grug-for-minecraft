@@ -1,15 +1,14 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -20,12 +19,14 @@ import java.util.Set;
 class GrugIdPoolTest {
 
     /**
-     * Drains the fatal a test provoked. {@code Grug.fatal} remembers the first error per thread and
-     * rethrows it at the next native call boundary, so leaving one set would fail the next test on
-     * this JVM that drives an export function, for a reason unrelated to that test.
+     * Forgets the shortage a test recorded, and drains the fatal one provoked. {@code Grug.fatal}
+     * remembers the first error per thread and rethrows it at the next native call boundary, so
+     * leaving one set would fail the next test on this JVM that drives an export function, for a
+     * reason unrelated to that test.
      */
     @AfterEach
     void drainPendingFatal() {
+        GrugIdShortage.clear();
         try {
             GrugErrors.throwPendingFatal();
         } catch (IllegalStateException expected) {
@@ -102,52 +103,31 @@ class GrugIdPoolTest {
     }
 
     @Test
-    void modsThatFitNeedNoError() {
+    void modsThatFitLeaveNoShortage() {
         Set<Integer> taken = taken(130, 131);
         GrugIdPool pool = GrugIdPool.of("block", taken::contains, 125, 170);
 
-        assertDoesNotThrow(() -> pool.requireRoom(needs(), new File("grug_mods")));
+        assertTrue(pool.hasRoomFor(needs()));
+        assertTrue(GrugIdShortage.all().isEmpty());
     }
 
     @Test
-    void modsThatDoNotFitGetAnErrorWithEveryModMostFirstAndHowToTurnOneOff() {
+    void modsThatDoNotFitRecordHowShortTheIdsAreAndWhatEachModNeeds() {
         Set<Integer> taken = taken(130, 131);
         GrugIdPool pool = GrugIdPool.of("block", taken::contains, 125, 160);
         pool.take();
 
-        IllegalStateException error =
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> pool.requireRoom(needs(), new File("grug_mods")));
+        assertFalse(pool.hasRoomFor(needs()));
 
-        String message = error.getMessage();
-        assertTrue(
-                message.contains(
-                        "Not enough free block ids for grug's blocks: they need 36 and 33 are"
-                                + " free among the ids 125 to 160, so 3 ids are short."),
-                message);
-        assertTrue(message.contains("\n  coverage: 32\n  buildcraft: 3\n  examplemod: 1"), message);
-        assertTrue(message.contains("at least 3 block ids together"), message);
-        assertTrue(
-                message.contains(
-                        "move the mod's directory out of grug_mods, for example "
-                                + new File("grug_mods", "coverage")),
-                message);
-    }
-
-    @Test
-    void modsWithTheSameNeedAreListedByName() {
-        GrugIdPool pool = GrugIdPool.of("item", id -> true, 400, 410);
-        Map<String, String> needs = new LinkedHashMap<>();
-        mods("zeta", 2, needs);
-        mods("alpha", 2, needs);
-
-        IllegalStateException error =
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> pool.requireRoom(needs, new File("grug_mods")));
-
-        assertTrue(error.getMessage().contains("\n  alpha: 2\n  zeta: 2"), error.getMessage());
+        assertEquals(1, GrugIdShortage.all().size());
+        GrugIdShortage shortage = GrugIdShortage.all().get(0);
+        assertEquals("block", shortage.kind());
+        assertEquals(36, shortage.needed());
+        assertEquals(33, shortage.free());
+        assertEquals(3, shortage.missing());
+        assertEquals(32, shortage.needs("coverage"));
+        assertEquals(3, shortage.needs("buildcraft"));
+        assertEquals(0, shortage.needs("unknown"));
     }
 
     @Test
@@ -159,6 +139,28 @@ class GrugIdPoolTest {
         needs.put("foo", "second");
         needs.put("bar", "second");
 
-        assertDoesNotThrow(() -> pool.requireRoom(needs, new File("grug_mods")));
+        assertTrue(pool.hasRoomFor(needs));
+    }
+
+    @Test
+    void failIfShortNamesEveryKindAndEveryModMostFirst() {
+        GrugIdShortage.failIfShort(); // nothing is short yet
+
+        Map<String, String> items = new LinkedHashMap<>();
+        mods("zeta", 2, items);
+        mods("alpha", 2, items);
+        assertFalse(GrugIdPool.of("item", id -> true, 400, 410).hasRoomFor(items));
+        assertFalse(GrugIdPool.of("block", taken(130)::contains, 125, 160).hasRoomFor(needs()));
+
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, GrugIdShortage::failIfShort);
+
+        String message = error.getMessage();
+        assertTrue(
+                message.contains("Not enough free item ids for grug's items: they need 4 and 0"),
+                message);
+        assertTrue(message.contains("\n  alpha: 2\n  zeta: 2"), message);
+        assertTrue(message.contains("\nNot enough free block ids"), message);
+        assertTrue(message.contains("\n  coverage: 32\n  buildcraft: 3\n  examplemod: 1"), message);
     }
 }
