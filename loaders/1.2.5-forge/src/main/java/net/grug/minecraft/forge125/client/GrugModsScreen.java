@@ -73,6 +73,11 @@ public class GrugModsScreen extends GuiScreen {
         if (model.restartNeeded()) {
             drawCenteredString(fontRenderer, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }
+        int errorY = 210;
+        for (String line : model.errorLines(400, fontRenderer::getStringWidth)) {
+            drawCenteredString(fontRenderer, line, width / 2, errorY, 0xFF5555);
+            errorY += 10;
+        }
         super.drawScreen(mouseX, mouseY, partialTicks);
         String popup = model.popup();
         if (popup != null) {

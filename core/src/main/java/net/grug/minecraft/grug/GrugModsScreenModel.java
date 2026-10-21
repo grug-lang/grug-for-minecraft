@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,6 +19,7 @@ public final class GrugModsScreenModel {
     private final List<GrugModManager.Entry> atOpen;
     private int page;
     private GrugModManager.Entry asking;
+    private String error;
 
     /**
      * @param pageSize how many mods one page lists, which the loader's screen has room for
@@ -33,9 +35,18 @@ public final class GrugModsScreenModel {
     public List<String> labels() {
         List<String> labels = new ArrayList<>();
         for (GrugModManager.Entry entry : pageEntries()) {
-            labels.add(entry.name() + ": " + (entry.on() ? "ON" : "OFF"));
+            labels.add(
+                    entry.name()
+                            + ": "
+                            + (entry.on() ? "ON" : "OFF")
+                            + (needsDownload(entry) ? " (download)" : ""));
         }
         return labels;
+    }
+
+    /** Whether turning the mod on downloads it: it is in no place the game can take it from. */
+    private static boolean needsDownload(GrugModManager.Entry entry) {
+        return entry.downloadable() && !entry.installed() && !entry.bundled();
     }
 
     private List<GrugModManager.Entry> pageEntries() {
@@ -71,8 +82,25 @@ public final class GrugModsScreenModel {
     }
 
     private void toggle(GrugModManager.Entry entry) {
-        manager.setOn(entry.name(), !entry.on());
+        error = null;
+        if (needsDownload(entry)) {
+            try {
+                manager.install(entry.name());
+            } catch (IOException e) {
+                error = "Could not install " + entry.name() + ": " + e.getMessage();
+            }
+        } else {
+            manager.setOn(entry.name(), !entry.on());
+        }
         entries = manager.list();
+    }
+
+    /**
+     * What the screen says went wrong, or null: the last install that failed, or else the catalogue
+     * that could not be read.
+     */
+    public String error() {
+        return error != null ? error : manager.catalogueError();
     }
 
     /** The text of the popup that blocks the screen, or null when there is none. */
@@ -104,6 +132,23 @@ public final class GrugModsScreenModel {
             if (was == null || was != entry.on()) return true;
         }
         return false;
+    }
+
+    /** The most lines of {@link #errorLines} a screen has room for. */
+    static final int ERROR_LINES = 3;
+
+    /**
+     * The error, if there is one, broken into at most {@link #ERROR_LINES} lines of at most {@code
+     * maxWidth}, which ends in an ellipsis when it had to be cut.
+     */
+    public List<String> errorLines(int maxWidth, ToIntFunction<String> width) {
+        String text = error();
+        if (text == null) return new ArrayList<>();
+        List<String> lines = wrap(text, maxWidth, width);
+        if (lines.size() <= ERROR_LINES) return lines;
+        List<String> cut = new ArrayList<>(lines.subList(0, ERROR_LINES));
+        cut.set(ERROR_LINES - 1, cut.get(ERROR_LINES - 1) + "...");
+        return cut;
     }
 
     /**

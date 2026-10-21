@@ -100,6 +100,11 @@ public class GrugModsScreen extends Screen {
             graphics.drawCenteredString(
                     font, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }
+        int errorY = 210;
+        for (String line : model.errorLines(400, font::width)) {
+            graphics.drawCenteredString(font, line, width / 2, errorY, 0xFF5555);
+            errorY += 10;
+        }
         String popup = model.popup();
         if (popup != null) {
             // Over the widgets behind it, so only the popup's own buttons, drawn again over the

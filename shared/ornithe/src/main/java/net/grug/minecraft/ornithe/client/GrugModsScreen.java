@@ -81,6 +81,11 @@ public class GrugModsScreen extends Screen {
         if (model.restartNeeded()) {
             drawCenteredString(textRenderer, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }
+        int errorY = 210;
+        for (String line : model.errorLines(400, textRenderer::getWidth)) {
+            drawCenteredString(textRenderer, line, width / 2, errorY, 0xFF5555);
+            errorY += 10;
+        }
         super.render(mouseX, mouseY, tickDelta);
         String popup = model.popup();
         if (popup != null) {

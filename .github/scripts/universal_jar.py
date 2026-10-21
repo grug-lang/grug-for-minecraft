@@ -27,14 +27,18 @@ layout (#488):
     universal_jar.py assemble --core <core release jar> --version <v> --out <jar> <layer jar>...
     universal_jar.py check <jar>
     universal_jar.py smoke-matrix
+    universal_jar.py mod-zips --commit <sha> --out <dir>
 
 Each layer jar is the layerJar output of a loader, named grug-<loader>.jar. `check` reads the
 assembled jar and this checkout's loaders/ and mods/ directories, prints every broken invariant,
 and exits 1 if there is one. It is what CI runs on the jar every production launch then uses.
 `smoke-matrix` prints the games CI boots with the jar as their only mod, one per mechanism.
+`mod-zips` writes one zip per mod under mods/ and the index.json that names each zip's SHA-256, which
+a release attaches beside the jar so the in-game mod manager can install a mod on its own (#511).
 """
 
 import argparse
+import hashlib
 import io
 import json
 import re
@@ -1217,6 +1221,45 @@ def check(path, repo=REPO_ROOT):
     return problems
 
 
+# -- Per-mod zips -----------------------------------------------------------------------------
+
+
+def mod_zip(mod_dir):
+    """One mod as a zip whose top-level entry is the mod's directory, exactly as it sits in the
+    repository. Entries are sorted and dated alike, so the same files always make the same zip."""
+    mod_dir = Path(mod_dir)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(mod_dir.rglob("*")):
+            if not path.is_file():
+                continue
+            info = zipfile.ZipInfo(f"{mod_dir.name}/{path.relative_to(mod_dir).as_posix()}")
+            info.date_time = (1980, 1, 1, 0, 0, 0)
+            info.external_attr = 0o100644 << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, path.read_bytes())
+    return buffer.getvalue()
+
+
+def write_mod_zips(mods_dir, commit, out):
+    """Writes <mod>.zip for every mod under mods_dir except the test fixtures, and index.json, which
+    names each zip with its SHA-256 and the commit they were made from. Returns the index."""
+    mods_dir, out = Path(mods_dir), Path(out)
+    names = sorted(
+        p.name for p in mods_dir.iterdir() if p.is_dir() and p.name not in UNBUNDLED_MODS
+    )
+    if not names:
+        raise AssemblyError(f"{mods_dir} holds no mod to publish")
+    out.mkdir(parents=True, exist_ok=True)
+    index = {"commit": commit, "mods": {}}
+    for name in names:
+        data = mod_zip(mods_dir / name)
+        (out / f"{name}.zip").write_bytes(data)
+        index["mods"][name] = {"zip": f"{name}.zip", "sha256": hashlib.sha256(data).hexdigest()}
+    (out / "index.json").write_text(json.dumps(index, indent=2) + "\n")
+    return index
+
+
 # The README's pointer to the Releases page, which on a release's own page would send the player back
 # to the list they came from, so a release's notes point at its own assets instead (#506).
 RELEASES_PAGE_CLAUSE = re.compile(r"from the latest release on the \[Releases page\]\([^)]*\)")
@@ -1273,6 +1316,12 @@ def main(argv=None):
         "--repo", default=REPO_ROOT, type=Path, help="the checkout to compare with"
     )
     commands.add_parser("smoke-matrix", help="print the smoke jobs' matrix as JSON")
+    zipping = commands.add_parser("mod-zips", help="write one zip per mod and their index.json")
+    zipping.add_argument("--commit", required=True, help="the commit the mods are taken from")
+    zipping.add_argument("--out", required=True, type=Path, help="the directory to write into")
+    zipping.add_argument(
+        "--mods", default=REPO_ROOT / "mods", type=Path, help="the mods directory to read"
+    )
     noting = commands.add_parser("release-notes", help="print a release's notes for players")
     noting.add_argument("jar_name", help="the released jar's file name, grug-<version>.jar")
     noting.add_argument(
@@ -1286,6 +1335,15 @@ def main(argv=None):
         except AssemblyError as error:
             print(f"==> ERROR: {error}", file=sys.stderr)
             return 1
+        return 0
+
+    if args.command == "mod-zips":
+        try:
+            index = write_mod_zips(args.mods, args.commit, args.out)
+        except AssemblyError as error:
+            print(f"==> ERROR: {error}", file=sys.stderr)
+            return 1
+        print(f"==> Wrote {len(index['mods'])} mod zips and index.json to {args.out}")
         return 0
 
     if args.command == "smoke-matrix":
