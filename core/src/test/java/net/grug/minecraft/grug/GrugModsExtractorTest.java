@@ -124,4 +124,18 @@ class GrugModsExtractorTest {
         assertTrue(Files.notExists(target.resolve("a/stale")));
         assertTrue(Files.isRegularFile(target.resolve("a/x.txt")));
     }
+
+    @Test
+    void refusesAnIndexedFileThatIsInNoMod() {
+        for (String entry : new String[] {"loose.txt", "/x.txt"}) {
+            Map<String, String> jar = jar();
+            jar.put(GrugModsExtractor.INDEX, entry + "\n");
+
+            IOException error =
+                    assertThrows(
+                            IOException.class, () -> GrugModsExtractor.bundled(resources(jar)));
+
+            assertTrue(error.getMessage().contains("not inside a mod"), error.getMessage());
+        }
+    }
 }

@@ -6,12 +6,14 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /** The mod manager's screen (#335): one button per grug mod, and a popup that blocks the rest. */
 public class GrugModsScreen extends Screen {
     private final Screen parent;
     private final GrugModsScreenModel model;
+    private final List<Button> popupButtons = new ArrayList<>();
 
     public GrugModsScreen(Screen parent, GrugModsScreenModel model) {
         super(Component.literal("Grug Mods"));
@@ -51,8 +53,9 @@ public class GrugModsScreen extends Screen {
                         .build();
         done.active = !blocked;
         addRenderableWidget(done);
+        popupButtons.clear();
         if (blocked) {
-            addRenderableWidget(
+            popupButtons.add(
                     Button.builder(
                                     Component.literal("Accept"),
                                     b -> {
@@ -61,7 +64,7 @@ public class GrugModsScreen extends Screen {
                                     })
                             .bounds(x, 112, 98, 20)
                             .build());
-            addRenderableWidget(
+            popupButtons.add(
                     Button.builder(
                                     Component.literal("Decline"),
                                     b -> {
@@ -70,6 +73,7 @@ public class GrugModsScreen extends Screen {
                                     })
                             .bounds(x + 102, 112, 98, 20)
                             .build());
+            popupButtons.forEach(this::addRenderableWidget);
         }
     }
 
@@ -89,20 +93,26 @@ public class GrugModsScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        // Screen.render draws the background, so the texts come after it.
+        super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 16, 0xFFFFFF);
         if (model.restartNeeded()) {
             graphics.drawCenteredString(
                     font, "Restart the game to apply", width / 2, 174, 0xFFFF55);
         }
-        super.render(graphics, mouseX, mouseY, partialTick);
         String popup = model.popup();
         if (popup != null) {
-            // Over the widgets behind it, so only the popup's own buttons are readable.
+            // Over the widgets behind it, so only the popup's own buttons, drawn again over the
+            // backdrop, are readable.
+            graphics.pose().pushPose();
             graphics.pose().translate(0, 0, 400);
             graphics.fill(width / 2 - 110, 56, width / 2 + 110, 140, 0xEE000000);
             graphics.drawWordWrap(
                     font, Component.literal(popup), width / 2 - 100, 62, 200, 0xFFFFFF);
+            for (Button button : popupButtons) {
+                button.render(graphics, mouseX, mouseY, partialTick);
+            }
+            graphics.pose().popPose();
         }
     }
 

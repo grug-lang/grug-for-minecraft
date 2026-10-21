@@ -47,7 +47,11 @@ public final class GrugModsExtractor {
     public static Map<String, List<String>> bundled(Resources resources) throws IOException {
         Map<String, List<String>> mods = new LinkedHashMap<>();
         for (String relative : index(resources)) {
-            String mod = relative.substring(0, relative.indexOf('/'));
+            int slash = relative.indexOf('/');
+            if (slash < 1) {
+                throw new IOException(INDEX + " lists " + relative + ", which is not inside a mod");
+            }
+            String mod = relative.substring(0, slash);
             mods.computeIfAbsent(mod, name -> new ArrayList<>()).add(relative);
         }
         return mods;

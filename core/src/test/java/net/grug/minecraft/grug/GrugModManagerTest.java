@@ -222,6 +222,22 @@ class GrugModManagerTest {
         assertTrue(error.getMessage().contains("mods bundled"), error.getMessage());
     }
 
+    @Test
+    void aNameThatCouldLeaveTheManagedDirectoriesIsFatal() throws IOException {
+        String[] bad = {"", ".", "..", "../x", "a/b", "a\\b", "c:", "a\u0000b"};
+        for (String name : bad) {
+            IllegalStateException error =
+                    assertThrows(IllegalStateException.class, () -> manager().setOn(name, true));
+            assertTrue(error.getMessage().contains("is not a mod name"), error.getMessage());
+            clearFatal();
+
+            state("{\"mods\": {" + new com.google.gson.JsonPrimitive(name) + ": false}}");
+            error = assertThrows(IllegalStateException.class, manager()::list, name);
+            assertTrue(error.getMessage().contains("grug_mods_state.json"), error.getMessage());
+            clearFatal();
+        }
+    }
+
     private static String read(Path file) {
         try {
             return Files.readString(file);
