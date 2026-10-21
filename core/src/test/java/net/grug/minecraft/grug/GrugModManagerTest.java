@@ -350,6 +350,18 @@ class GrugModManagerTest {
     }
 
     @Test
+    void aStateFileThatCannotBeWrittenIsAnInstallError() throws Exception {
+        byte[] zip = remoteZip();
+        GrugModManager manager = withCatalogue(new FakeCatalogue(zip, hash(zip), true));
+        Files.createDirectories(game.resolve("grug_mods_state.json/in-the-way"));
+
+        GrugModManager.Install install = manager.startInstall("remote");
+
+        assertTrue(install.finished());
+        assertTrue(install.error().contains("Failed to write"), install.error());
+    }
+
+    @Test
     void theRealExecutorRunsTheRequestOnAThreadOfItsOwn() throws Exception {
         // The catalogue is pointed at a port nothing listens on, so no test reaches the internet.
         System.setProperty(GrugCatalogue.URL_PROPERTY, "http://127.0.0.1:1/index.json");

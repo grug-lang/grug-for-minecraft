@@ -45,6 +45,21 @@ class GrugHttpTest {
                     exchange.close();
                 });
         server.createContext(
+                "/trickles",
+                exchange -> {
+                    exchange.sendResponseHeaders(200, 200);
+                    try {
+                        for (int i = 0; i < 200; i++) {
+                            exchange.getResponseBody().write(1);
+                            exchange.getResponseBody().flush();
+                            Thread.sleep(25);
+                        }
+                    } catch (IOException | InterruptedException e) {
+                        // The client gave up, which is what the test is for.
+                    }
+                    exchange.close();
+                });
+        server.createContext(
                 "/stalls",
                 exchange -> {
                     exchange.sendResponseHeaders(200, 100);
@@ -114,15 +129,31 @@ class GrugHttpTest {
         IOException error =
                 assertThrows(
                         IOException.class,
-                        () -> GrugHttp.get(base + "ok", 1000, 1000, 3, bytes -> {}));
+                        () -> GrugHttp.get(base + "ok", 1000, 1000, 10_000, 3, bytes -> {}));
 
         assertTrue(error.getMessage().contains("more than 3 bytes"), error.getMessage());
+    }
+
+    @Test
+    void failsWhenTheServerTricklesPastTheTotalDeadline() {
+        IOException error =
+                assertThrows(
+                        IOException.class,
+                        () -> GrugHttp.get(base + "trickles", 1000, 1000, 300, 1000, bytes -> {}));
+
+        assertTrue(error.getMessage().contains("took longer than 0.3 s"), error.getMessage());
+    }
+
+    @Test
+    void theRealFetcherHasADeadlineOfItsOwn() throws IOException {
+        assertTrue(GrugHttp.DEADLINE_MS > 0);
+        GrugHttp.urlConnection().get(base + "ok", 1000, bytes -> {});
     }
 
     @Test
     void failsWhenTheServerStallsPastTheReadTimeout() {
         assertThrows(
                 IOException.class,
-                () -> GrugHttp.get(base + "stalls", 1000, 200, 1000, bytes -> {}));
+                () -> GrugHttp.get(base + "stalls", 1000, 200, 10_000, 1000, bytes -> {}));
     }
 }
