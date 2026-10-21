@@ -959,8 +959,8 @@ class ReleaseNotesTest(unittest.TestCase):
             "",
             "## For Players",
             "",
-            "Download the one jar, `grug-<version>.jar`, from the",
-            "latest release.",
+            "Download the one jar, `grug-<version>.jar`, from the latest release on the",
+            "[Releases page](https://example.com/releases) and put it in `mods/`.",
             "",
             "| Game | Mod loader |",
             "| :--- | :--- |",
@@ -984,11 +984,17 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertEqual(
             universal_jar.release_notes(self.README, "grug-0.1.1.jar"),
             "## Instructions for players\n\n"
-            "Download the one jar, `grug-0.1.1.jar`, from the latest release.\n\n"
+            "Download the one jar, `grug-0.1.1.jar`, from this release's assets below and put it in "
+            "`mods/`.\n\n"
             "| Game | Mod loader |\n| :--- | :--- |\n| Beta 1.7.3 | Ornithe |\n\n"
             "- one\n- two\n\n"
             "Only Linux is supported.\n",
         )
+
+    def test_a_readme_that_no_longer_points_at_the_releases_page(self):
+        readme = self.README.replace("[Releases page](https://example.com/releases)", "website")
+        with self.assertRaisesRegex(universal_jar.AssemblyError, "no longer points"):
+            universal_jar.release_notes(readme, "grug-0.1.1.jar")
 
     def test_a_readme_without_the_section(self):
         with self.assertRaises(universal_jar.AssemblyError):
@@ -998,7 +1004,8 @@ class ReleaseNotesTest(unittest.TestCase):
         notes = universal_jar.release_notes(
             (universal_jar.REPO_ROOT / "README.md").read_text(), "grug-0.1.1.jar"
         )
-        self.assertIn("`grug-0.1.1.jar`", notes)
+        self.assertIn("`grug-0.1.1.jar`, from this release's assets below", notes)
+        self.assertNotIn("Releases page", notes)
         self.assertNotIn("Test Keys", notes)
 
 
@@ -1138,7 +1145,10 @@ class CommandLineTest(unittest.TestCase):
     def test_release_notes(self):
         with tempfile.TemporaryDirectory() as tmp:
             readme = Path(tmp) / "README.md"
-            readme.write_text("# grug\n\n## For Players\n\nDownload `grug-<version>.jar`.\n")
+            readme.write_text(
+                "## For Players\n\nGet `grug-<version>.jar` from the latest release on the "
+                "[Releases page](https://example.com).\n"
+            )
             out = io.StringIO()
             with mock.patch("sys.stdout", out):
                 self.assertEqual(
@@ -1147,7 +1157,7 @@ class CommandLineTest(unittest.TestCase):
                     ),
                     0,
                 )
-            self.assertIn("Download `grug-1.0.0.jar`.", out.getvalue())
+            self.assertIn("Get `grug-1.0.0.jar` from this release's assets below.", out.getvalue())
             readme.write_text("# grug\n")
             with mock.patch("sys.stderr", io.StringIO()):
                 self.assertEqual(
