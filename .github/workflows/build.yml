@@ -102,6 +102,39 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # The adapter as a Windows DLL (#528). Built on its own runner, with grug-rs compiled there for the
+  # MSVC target (Rust's default on Windows, and the one grug-rs's own CI uses), because a static
+  # library is built for one OS and the Linux jobs hand theirs around as an artifact.
+  native-windows:
+    name: adapter.dll (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # Puts cl and link on the PATH, as a Developer Command Prompt does.
+      - name: Set up the MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
+
+      - name: Build the adapter
+        shell: bash
+        run: ./gradlew :core:buildGrugAdapter -Dgrug.activeLoader=a1.1.2_01-ornithe
+
+      # A DLL that links is not one the JVM can bind: the JNI entry points have to be exported by name.
+      - name: Check the DLL exports the JNI entry points
+        shell: bash
+        run: |
+          dumpbin //exports core/build/generated/resources/natives/adapter.dll | tee exports.txt
+          grep -q Java_net_grug_minecraft_grug_GrugNative_nativeInit exports.txt
+
   core:
     name: core tests
     needs: grug-rs
