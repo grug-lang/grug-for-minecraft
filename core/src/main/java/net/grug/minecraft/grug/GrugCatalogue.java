@@ -97,7 +97,11 @@ public final class GrugCatalogue {
                 }
                 items.put(mod.getKey(), new Item(base + zip, sha256.toLowerCase()));
             }
-        } catch (JsonParseException | IllegalStateException | NullPointerException e) {
+        } catch (JsonParseException
+                | IllegalStateException
+                | NullPointerException
+                | ClassCastException
+                | UnsupportedOperationException e) {
             throw new IOException(indexUrl + " is not a mod index: " + e.getMessage(), e);
         }
         return items;
