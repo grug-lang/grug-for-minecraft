@@ -143,7 +143,7 @@ class GrugForgeLayersTest {
                         () -> on("1.20.4").start(getClass().getClassLoader()));
         assertEquals(
                 "grug does not run on Minecraft 1.20.4 with this mod loader: remove it from the"
-                    + " mods folder. It runs on: Forge 1.20.6, Ornithe b1.7.3 with OSL.",
+                        + " mods folder. It runs on: Forge 1.20.6, Ornithe b1.7.3 with OSL.",
                 error.getMessage());
         assertEquals(0, FakeLayerEntry.constructed);
         GrugUnsupportedGameException unnamed =

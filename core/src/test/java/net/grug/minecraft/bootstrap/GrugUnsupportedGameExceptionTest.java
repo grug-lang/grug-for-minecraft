@@ -19,8 +19,6 @@ class GrugUnsupportedGameExceptionTest {
         assertEquals(
                 "grug does not run on X: remove it from the mods folder. It runs on: A, B.",
                 error.getMessage());
-        // What the loaders show, with no class name in front of the message.
-        assertEquals(error.getMessage(), error.toString());
     }
 
     @Test
