@@ -369,9 +369,11 @@ public final class GrugModManager {
                             remote.containsKey(name) ? remote.get(name).size() : 0,
                             wanted != null ? wanted.on : running,
                             prompts.apply(name),
-                            wanted != null && newerSource(name, wanted, bundled) != null,
+                            installed
+                                    && wanted != null
+                                    && newerSource(name, wanted, bundled) != null,
                             wanted != null && wanted.update != null,
-                            wanted != null && edited(name, wanted, bundled, running)));
+                            installed && wanted != null && edited(name, wanted, bundled, running)));
         }
         return Collections.unmodifiableList(entries);
     }
@@ -490,7 +492,9 @@ public final class GrugModManager {
      */
     public Install startUpdate(String name) {
         ModState mod = readState().get(name);
-        Source newer = mod == null ? null : newerSource(name, mod, bundled());
+        boolean installed =
+                new File(modsDir(), name).isDirectory() || new File(offDir(), name).isDirectory();
+        Source newer = mod == null || !installed ? null : newerSource(name, mod, bundled());
         GrugCatalogue.Item item = remote.get(name);
         boolean download = newer != null && newer.kind.equals(Source.RELEASE);
         Install install = new Install(name, download ? item.size() : 0);

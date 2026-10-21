@@ -525,6 +525,7 @@ class GrugModManagerTest {
         state(
                 "{\"mods\": {\"gone\": {\"on\": true, \"installed\":"
                         + " {\"source\": \"jar\", \"sha256\": \"x\"}}}}");
+        Files.createDirectories(mods().resolve("gone"));
         assertFalse(entry(managerOver(jar(), null), "gone").updatable());
     }
 
@@ -589,6 +590,19 @@ class GrugModManagerTest {
     }
 
     @Test
+    void aModThePlayerDeletedHasNoUpdateToOfferAndNoFilesToCompare() throws Exception {
+        installRemote("1");
+        GrugModsExtractor.deleteTree(mods().resolve("remote"));
+        GrugModManager newer = managerOver(jar(), release("2", true));
+
+        GrugModManager.Entry gone = entry(newer, "remote");
+        assertFalse(gone.installed());
+        assertFalse(gone.updatable());
+        assertFalse(gone.edited());
+        assertEquals("remote has no update", newer.startUpdate("remote").error());
+    }
+
+    @Test
     void aStateFileThatCannotBeWrittenIsAnUpdateError() throws Exception {
         manager().setOn("extra", true);
         manager().apply();
@@ -605,6 +619,7 @@ class GrugModManagerTest {
         state(
                 "{\"mods\": {\"extra\": {\"on\": true, \"installed\": {\"source\": \"jar\","
                         + " \"sha256\": \"a\"}}}}");
+        Files.createDirectories(mods().resolve("extra"));
         GrugModsExtractor.Resources broken =
                 name -> name.startsWith("/mods/") ? null : jar().open(name);
 
