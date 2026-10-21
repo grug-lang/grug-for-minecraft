@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
@@ -23,8 +24,17 @@ public final class GrugBlocks {
     @GrugGenerated("utility class: never instantiated")
     private GrugBlocks() {}
 
-    private static int nextBlockId = 160;
-    private static int nextItemId = 400;
+    /** First id searched for a block. */
+    public static final int START_BLOCK_ID = 160;
+
+    /**
+     * Block ids stop here. The top id is left free as on 1.2.5, because some mods hardcode it
+     * instead of searching for a free one.
+     */
+    public static final int LAST_BLOCK_ID = 254;
+
+    /** First id searched for an item. */
+    public static final int START_ITEM_ID = 400;
 
     // Allocate unused empty sprite slots in terrain.png and items.png starting from
     // 160
@@ -43,6 +53,9 @@ public final class GrugBlocks {
         BlockEntityAccess.grug$register(GrugBlockEntity.class, "grug:generic_block_entity");
 
         // Register Dynamic Blocks
+        GrugIdPool blockIds =
+                GrugIdPool.of(
+                        "block", id -> Block.BY_ID[id] != null, START_BLOCK_ID, LAST_BLOCK_ID);
         for (Map.Entry<String, Long> entry : GrugModLoader.blockFiles.entrySet()) {
             String cleanName = entry.getKey();
             long blockFileId = entry.getValue();
@@ -66,7 +79,7 @@ public final class GrugBlocks {
             GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
             GrugDeclarations.currentlyInitializingBlock = null;
 
-            int blockId = nextBlockId++;
+            int blockId = blockIds.take();
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
             if (block.drawsCustomGeometry()) {
@@ -100,6 +113,9 @@ public final class GrugBlocks {
         }
 
         // Register Dynamic Items
+        GrugIdPool itemIds =
+                GrugIdPool.of(
+                        "item", id -> Item.BY_ID[id] != null, START_ITEM_ID, Item.BY_ID.length - 1);
         for (Map.Entry<String, Long> entry : GrugModLoader.itemFiles.entrySet()) {
             String cleanName = entry.getKey();
             long itemFileId = entry.getValue();
@@ -121,7 +137,7 @@ public final class GrugBlocks {
             GrugDeclarations.declaredItems.put(fullId, itemData);
             GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);
 
-            int itemId = nextItemId++;
+            int itemId = itemIds.take();
             GrugItem item = new GrugItem(itemId - 256, itemFileId);
 
             // Texture Registration

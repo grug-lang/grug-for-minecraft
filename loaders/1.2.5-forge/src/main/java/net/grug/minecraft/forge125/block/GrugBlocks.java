@@ -9,6 +9,7 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockFaces;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModels;
@@ -86,6 +87,10 @@ public final class GrugBlocks {
     }
 
     private static void registerBlocks() {
+        // A pack's other mods have registered by now, so what is free is what they left.
+        GrugIdPool ids =
+                GrugIdPool.of(
+                        "block", id -> Block.blocksList[id] != null, START_BLOCK_ID, LAST_BLOCK_ID);
         for (Map.Entry<String, Long> entry : mod_Grug.blockFiles.entrySet()) {
             String cleanName = entry.getKey();
             long blockFileId = entry.getValue();
@@ -109,7 +114,7 @@ public final class GrugBlocks {
             GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
             GrugDeclarations.currentlyInitializingBlock = null;
 
-            int blockId = allocateBlockId();
+            int blockId = ids.take();
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
             block.setBlockName("grug_" + cleanName);
@@ -122,6 +127,12 @@ public final class GrugBlocks {
     }
 
     private static void registerItems() {
+        GrugIdPool ids =
+                GrugIdPool.of(
+                        "item",
+                        id -> Item.itemsList[id] != null,
+                        START_ITEM_ID,
+                        Item.itemsList.length - 1);
         for (Map.Entry<String, Long> entry : mod_Grug.itemFiles.entrySet()) {
             String cleanName = entry.getKey();
             long itemFileId = entry.getValue();
@@ -143,7 +154,7 @@ public final class GrugBlocks {
             GrugDeclarations.declaredItems.put(fullId, itemData);
             GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);
 
-            int itemId = allocateItemId();
+            int itemId = ids.take();
             // Item shifts its id by 256 internally, so this lands at Item.itemsList[itemId].
             GrugItem item = new GrugItem(itemId - 256, itemFileId);
             item.setItemName(cleanName);
@@ -264,25 +275,6 @@ public final class GrugBlocks {
             if (GrugResourceIndex.findDirectResource(modsDir, path) != null) return path;
         }
         return null;
-    }
-
-    /**
-     * The first free block id at or after {@link #START_BLOCK_ID}. A pack's other mods may already
-     * hold ids from that range, so taking the next one blindly would collide.
-     */
-    private static int allocateBlockId() {
-        for (int id = START_BLOCK_ID; id <= LAST_BLOCK_ID; id++) {
-            if (Block.blocksList[id] == null) return id;
-        }
-        throw Grug.fatal("No free block id for a grug block");
-    }
-
-    /** The first free item slot at or after {@link #START_ITEM_ID}. */
-    private static int allocateItemId() {
-        for (int id = START_ITEM_ID; id < Item.itemsList.length; id++) {
-            if (Item.itemsList[id] == null) return id;
-        }
-        throw Grug.fatal("No free item id for a grug item");
     }
 
     private static Material stringToMaterial(String materialName) {
