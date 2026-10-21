@@ -37,6 +37,41 @@ def klass(version=universal_jar.JAVA_8, *descriptors):
     return b"\xca\xfe\xba\xbe\x00\x00" + version.to_bytes(2, "big") + b"".join(descriptors)
 
 
+def utf8(text):
+    data = text.encode()
+    return b"\x01" + len(data).to_bytes(2, "big") + data
+
+
+def string_field_class(field, value, extra_constants=()):
+    """A minimal Java 8 class file with one static final String field holding value as its
+    ConstantValue, as javac writes mod_Grug.VERSION. extra_constants are raw constant pool entries
+    placed before the ones the field needs."""
+
+    def u2(n):
+        return n.to_bytes(2, "big")
+
+    pool, slots = [], [1]
+
+    def constant(entry):
+        pool.append(entry)
+        index = slots[0]
+        slots[0] += 2 if entry[0] in (5, 6) else 1  # a Long or a Double takes two slots
+        return index
+
+    for entry in extra_constants:
+        constant(entry)
+    this = constant(b"\x07" + u2(constant(utf8("net/grug/minecraft/forge125/mod_Grug"))))
+    parent = constant(b"\x07" + u2(constant(utf8("java/lang/Object"))))
+    name, descriptor = constant(utf8(field)), constant(utf8("Ljava/lang/String;"))
+    attribute = constant(utf8("ConstantValue"))
+    string = constant(b"\x08" + u2(constant(utf8(value))))
+    field_info = u2(0x19) + u2(name) + u2(descriptor) + u2(1)
+    field_info += u2(attribute) + (2).to_bytes(4, "big") + u2(string)
+    header = b"\xca\xfe\xba\xbe\x00\x00" + universal_jar.JAVA_8.to_bytes(2, "big")
+    body = u2(0x21) + u2(this) + u2(parent) + u2(0) + u2(1) + field_info + u2(0) + u2(0)
+    return header + u2(slots[0]) + b"".join(pool) + body
+
+
 JAVA_7, JAVA_17, JAVA_21 = 51, 61, 65
 BOOTSTRAP_MOD = klass(
     universal_jar.JAVA_8, universal_jar.FORGE_MOD, universal_jar.NEOFORGE_MOD, b"grug"
@@ -96,7 +131,7 @@ def layers():
         },
         "1.2.5-forge": {
             "META-INF/MANIFEST.MF": b"Manifest-Version: 1.0\r\n\r\n",
-            "net/grug/minecraft/forge125/mod_Grug.class": klass(),
+            "net/grug/minecraft/forge125/mod_Grug.class": string_field_class("VERSION", VERSION),
             "GrugTorchFlicker.class": klass(),
             "vanilla_names.txt": b"",
         },
@@ -884,6 +919,30 @@ class VersionCheckTest(unittest.TestCase):
             fixture.problems(),
             "grug-a1.1.2_01-ornithe.jar reports version 'unspecified', not the repository version",
         )
+
+    def test_a_modloader_mod_with_a_version_of_its_own(self):
+        fixture = Fixture(self)
+        layer = fixture.layers["1.2.5-forge"]
+        layer["net/grug/minecraft/forge125/mod_Grug.class"] = string_field_class("VERSION", "9.9.9")
+        self.assertProblem(
+            fixture.problems(),
+            "mod_Grug.class reports VERSION '9.9.9', not the repository version 1.0.0",
+        )
+
+    def test_a_modloader_mod_without_a_version_constant(self):
+        fixture = Fixture(self)
+        layer = fixture.layers["1.2.5-forge"]
+        layer["net/grug/minecraft/forge125/mod_Grug.class"] = string_field_class("OTHER", VERSION)
+        self.assertProblem(fixture.problems(), "mod_Grug.class reports VERSION None")
+
+    def test_reads_a_string_constant_past_every_kind_of_constant(self):
+        # A Long and a Double take two slots each, which shifts every later index.
+        extra = [b"\x05" + bytes(8), b"\x06" + bytes(8), b"\x03" + bytes(4), b"\x0c" + bytes(4)]
+        data = string_field_class("VERSION", "1.2.3", extra)
+        self.assertEqual(universal_jar.string_constant(data, "VERSION"), "1.2.3")
+        self.assertIsNone(universal_jar.string_constant(data, "OTHER"))
+        self.assertIsNone(universal_jar.string_constant(klass(), "VERSION"))
+        self.assertIsNone(universal_jar.string_constant(data[:40], "VERSION"))
 
     def test_a_checkout_without_a_repository_version(self):
         fixture = Fixture(self)
