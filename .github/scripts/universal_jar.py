@@ -495,6 +495,41 @@ def gradle_property(path, key):
     return None
 
 
+def check_versions(jar, repo):
+    """One repository version, the root gradle.properties's mod_version, which a release's tag names
+    (#499): every nested layer reports it, and the outer metadata reports it stamped with the commit
+    the jar was built from, as core publishes it."""
+    version = gradle_property(repo / "gradle.properties", "mod_version")
+    if version is None:
+        return ["the root gradle.properties declares no mod_version, the repository version"]
+    problems = []
+    stamped = re.compile(re.escape(version) + r"-[0-9a-f]{12}(-dirty)?")
+    outer = jar.root.json("fabric.mod.json", [])
+    if outer is not None and not stamped.fullmatch(str(outer.get("version"))):
+        problems.append(
+            f"the outer fabric.mod.json reports {outer.get('version')!r}, not {version} stamped "
+            "with a commit"
+        )
+    for name in (MODS_TOML, NEOFORGE_MODS_TOML):
+        try:
+            mods = tomllib.loads(jar.root.files[name].decode()).get("mods", [])
+        except (KeyError, ValueError):
+            continue  # check_forge_family reports a file that is missing or does not parse
+        for mod in mods:
+            if not stamped.fullmatch(str(mod.get("version"))):
+                problems.append(
+                    f"{name} reports {mod.get('version')!r}, not {version} stamped with a commit"
+                )
+    for loader, nested in sorted(jar.nested.items()):
+        metadata = nested.json("fabric.mod.json", [])
+        if metadata is not None and metadata.get("version") != version:
+            problems.append(
+                f"{nested.name} reports version {metadata.get('version')!r}, not the repository "
+                f"version {version}"
+            )
+    return problems
+
+
 def check_forge_family(jar, repo):
     """The root metadata every Forge and NeoForge reads, and the table core's GrugForgeMod and
     GrugMixinPlugin start a Forge layer from (#493)."""
@@ -1072,6 +1107,7 @@ def check(path, repo=REPO_ROOT):
         lambda j: check_payload(j, mods),
         check_metadata,
         lambda j: check_forge_family(j, repo),
+        lambda j: check_versions(j, repo),
         check_dispatcher,
     ):
         problems += run(jar)

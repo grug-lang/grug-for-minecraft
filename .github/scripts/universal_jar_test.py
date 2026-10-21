@@ -146,6 +146,11 @@ CORE = {
 }
 
 
+# The repository version of the fixture's checkout, and the version core publishes it under.
+VERSION = "1.0.0"
+STAMPED = VERSION + "-0123456789ab"
+
+
 def write_jar(path, files, duplicate=None):
     with zipfile.ZipFile(path, "w") as archive:
         for name, data in files.items():
@@ -171,6 +176,7 @@ class Fixture:
         self.repo = self.dir / "repo"
         for loader in universal_jar.LAYERS:
             (self.repo / "loaders" / loader).mkdir(parents=True)
+        (self.repo / "gradle.properties").write_text(f"mod_version={VERSION}\n")
         (self.repo / "loaders" / "1.20.6-forge" / "gradle.properties").write_text(
             "minecraft_version=1.20.6\n"
         )
@@ -188,7 +194,7 @@ class Fixture:
 
     def assemble(self, skip=()):
         core = write_jar(self.dir / "core-release.jar", self.core)
-        assemble(core, self.layer_paths(skip), "1.0.0-abc", self.out)
+        assemble(core, self.layer_paths(skip), STAMPED, self.out)
         return self.out
 
     def problems(self, skip=()):
@@ -567,7 +573,7 @@ class ForgeFamilyTest(unittest.TestCase):
             self.assertEqual(toml["loaderVersion"], "[0,)")
             self.assertEqual(toml["license"], "MIT")
             self.assertEqual([mod["modId"] for mod in toml["mods"]], ["grug"])
-            self.assertEqual(toml["mods"][0]["version"], "1.0.0-abc")
+            self.assertEqual(toml["mods"][0]["version"], STAMPED)
             self.assertNotIn("dependencies", toml)
         manifest = universal_jar.read_manifest(jar.root.files["META-INF/MANIFEST.MF"])
         self.assertEqual(manifest["ModType"], "grug")
@@ -842,6 +848,49 @@ class UnsupportedGameTest(unittest.TestCase):
         self.assertEqual(universal_jar.activate(jar, games["Forge 1.12.2"]), [])
 
 
+class VersionCheckTest(unittest.TestCase):
+    """One repository version (#499)."""
+
+    def assertProblem(self, problems, text):
+        self.assertTrue(any(text in p for p in problems), f"no problem names {text!r}: {problems}")
+
+    def test_a_dirty_build_is_still_the_repository_version(self):
+        fixture = Fixture(self)
+        core = write_jar(fixture.dir / "core-release.jar", fixture.core)
+        assemble(core, fixture.layer_paths(), STAMPED + "-dirty", fixture.out)
+        self.assertEqual(check(fixture.out, fixture.repo), [])
+
+    def test_an_outer_version_without_the_repository_version(self):
+        fixture = Fixture(self)
+        core = write_jar(fixture.dir / "core-release.jar", fixture.core)
+        assemble(core, fixture.layer_paths(), "2.0.0-0123456789ab", fixture.out)
+        problems = check(fixture.out, fixture.repo)
+        self.assertProblem(problems, "the outer fabric.mod.json reports '2.0.0-0123456789ab'")
+        self.assertProblem(problems, "META-INF/mods.toml reports '2.0.0-0123456789ab'")
+        self.assertProblem(problems, "META-INF/neoforge.mods.toml reports '2.0.0-0123456789ab'")
+
+    def test_an_unstamped_outer_version(self):
+        fixture = Fixture(self)
+        core = write_jar(fixture.dir / "core-release.jar", fixture.core)
+        assemble(core, fixture.layer_paths(), VERSION, fixture.out)
+        self.assertProblem(check(fixture.out, fixture.repo), "not 1.0.0 stamped with a commit")
+
+    def test_a_layer_with_a_version_of_its_own(self):
+        fixture = Fixture(self)
+        metadata = json.loads(fixture.layers["a1.1.2_01-ornithe"]["fabric.mod.json"])
+        metadata["version"] = "unspecified"
+        fixture.layers["a1.1.2_01-ornithe"]["fabric.mod.json"] = json.dumps(metadata).encode()
+        self.assertProblem(
+            fixture.problems(),
+            "grug-a1.1.2_01-ornithe.jar reports version 'unspecified', not the repository version",
+        )
+
+    def test_a_checkout_without_a_repository_version(self):
+        fixture = Fixture(self)
+        (fixture.repo / "gradle.properties").write_text("other=1\n")
+        self.assertProblem(fixture.problems(), "declares no mod_version, the repository version")
+
+
 class SmokeTest(unittest.TestCase):
     """The smoke jobs: one game per mechanism the jar does not support (#493)."""
 
@@ -967,7 +1016,7 @@ class CommandLineTest(unittest.TestCase):
         fixture = Fixture(self)
         core = write_jar(fixture.dir / "core-release.jar", fixture.core)
         out = fixture.dir / "cli.jar"
-        argv = ["assemble", "--core", str(core), "--version", "1", "--out", str(out)]
+        argv = ["assemble", "--core", str(core), "--version", STAMPED, "--out", str(out)]
         self.assertEqual(universal_jar.main(argv + [str(p) for p in fixture.layer_paths()]), 0)
         repo = ["--repo", str(fixture.repo)]
         self.assertEqual(universal_jar.main(["check", str(out)] + repo), 0)

@@ -17,7 +17,7 @@ base {
     archivesName = project.properties["archives_base_name"]
 }
 
-version = project.properties["mod_version"]
+version = grugVersion
 group = project.properties["maven_group"]
 
 loom {

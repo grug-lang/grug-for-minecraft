@@ -27,7 +27,7 @@ plugins {
 apply from: '../../gradle/grug-core.gradle'
 
 group = 'net.grug'
-version = '1.0.0'
+version = grugVersion
 
 def projectDirFile = project.projectDir
 def repoRoot = projectDirFile.parentFile.parentFile
