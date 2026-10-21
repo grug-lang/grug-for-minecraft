@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.ornithe.GrugModLoader;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
@@ -11,6 +12,7 @@ import net.grug.minecraft.ornithe.item.GrugItem;
 import net.grug.minecraft.ornithe.mixin.BlockEntityAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
+import net.minecraft.item.Item;
 import net.ornithemc.osl.blocks.api.BlockRegistry;
 import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 
@@ -21,9 +23,17 @@ public final class GrugBlocks {
     @GrugGenerated("utility class: never instantiated")
     private GrugBlocks() {}
 
+    /** First id searched for a block. Vanilla Alpha 1.1.2_01 stops well below it. */
     public static final int START_BLOCK_ID = 95;
-    private static int nextBlockId = START_BLOCK_ID;
-    private static int nextItemId = 400;
+
+    /**
+     * Alpha stores a block id in a signed byte, so an id of 128 or more reads back negative and
+     * crashes the chunk when the block is placed. The search stops here for that reason.
+     */
+    public static final int LAST_BLOCK_ID = 127;
+
+    /** First id searched for an item. */
+    public static final int START_ITEM_ID = 400;
 
     public static final Map<String, Integer> BLOCK_SPRITES = new HashMap<>();
     public static final Map<String, Integer> ITEM_SPRITES = new HashMap<>();
@@ -41,12 +51,9 @@ public final class GrugBlocks {
         BlockEntityAccess.grug$register(GrugBlockEntity.class, "grug:generic_block_entity");
 
         // Register Dynamic Blocks
-        //
-        // Alpha stores a block id in a signed byte, so an id of 128 or more reads back negative and
-        // crashes the chunk when the block is placed. Keep the highest dynamic id at 127 by
-        // starting just below it, rather than at a fixed 95 that overflows once there are enough
-        // grug blocks.
-        nextBlockId = 128 - GrugModLoader.blockFiles.size();
+        GrugIdPool blockIds =
+                GrugIdPool.of(
+                        "block", id -> Block.BY_ID[id] != null, START_BLOCK_ID, LAST_BLOCK_ID);
         for (Map.Entry<String, Long> entry : GrugModLoader.blockFiles.entrySet()) {
             String cleanName = entry.getKey();
             long blockFileId = entry.getValue();
@@ -70,7 +77,7 @@ public final class GrugBlocks {
             GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
             GrugDeclarations.currentlyInitializingBlock = null;
 
-            int blockId = nextBlockId++;
+            int blockId = blockIds.take();
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);
             if (block.drawsCustomGeometry()) {
@@ -99,6 +106,9 @@ public final class GrugBlocks {
         }
 
         // Register Dynamic Items
+        GrugIdPool itemIds =
+                GrugIdPool.of(
+                        "item", id -> Item.BY_ID[id] != null, START_ITEM_ID, Item.BY_ID.length - 1);
         for (Map.Entry<String, Long> entry : GrugModLoader.itemFiles.entrySet()) {
             String cleanName = entry.getKey();
             long itemFileId = entry.getValue();
@@ -120,7 +130,7 @@ public final class GrugBlocks {
             GrugDeclarations.declaredItems.put(fullId, itemData);
             GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);
 
-            int itemId = nextItemId++;
+            int itemId = itemIds.take();
             GrugItem item = new GrugItem(itemId - 256, itemFileId);
 
             // Texture Registration
