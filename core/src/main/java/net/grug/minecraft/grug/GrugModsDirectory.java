@@ -80,14 +80,13 @@ public final class GrugModsDirectory {
         }
 
         File active = resolve(gameDir, development);
-        try {
-            // A run pointed at another directory, a reference run's or the repository's, loads
-            // exactly what is there, so the examples only ever land in the game's own directory.
-            if (active.getCanonicalPath().equals(runGrugDir.getCanonicalPath())) {
-                new GrugModManager(gameDir, jar, mod -> null).apply();
-            }
-        } catch (IOException e) {
-            throw Grug.fatal("Failed to resolve the grug mods directory", e);
+        // A run pointed at another directory, a reference run's or the repository's, loads exactly
+        // what is there, so the manager only ever changes the game's own directory.
+        if (active.toPath()
+                .toAbsolutePath()
+                .normalize()
+                .equals(runGrugDir.toPath().toAbsolutePath().normalize())) {
+            GrugModManager.of(gameDir, jar).apply();
         }
         return active;
     }
