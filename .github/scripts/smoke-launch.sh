@@ -23,9 +23,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source-path=SCRIPTDIR source=launcher.sh
 source "${REPO_ROOT}/.github/scripts/launcher.sh"
 
-# The original ModLoader for Beta 1.7.3, as Risugami released it, kept by the ModloaderFix project.
-MODLOADER_URL="https://raw.githubusercontent.com/coffeenotfound/ModloaderFix-b1.7.3/db5e088abf3922a7c89dbc9d97394ef7c5bc5c1c/jars/ModLoader%20b1.7.3%20Original.zip"
-MODLOADER_SHA256="78bc1107a2ae78334d1086c7f372601c141b53345f23ce73931ef318df5cf83e"
+# ModLoader for Beta 1.7.3 as a player installs it today. Risugami's original builds a File from its
+# own code source, which launchwrapper, the way every current launcher boots Beta, reports as a jar:
+# URI, so it stops the launch with "URI is not hierarchical". The ModloaderFix build changes only
+# that path; its mod_ discovery, which this game tests, is the original's.
+MODLOADER_URL="https://github.com/coffeenotfound/ModloaderFix-b1.7.3/releases/download/v1.0.0/ModLoader.Fix.b1.7.3-1.0.0.jar"
+MODLOADER_SHA256="725591f1e27624f210206e057f9a38b85f28b955bb7ff25bf2ee2449994f1e8c"
 
 # Forge's and NeoForge's early loading window opens its GL window against a 10-second deadline and,
 # when a headless display misses it, blocks forever in a message box. run-loader.sh switches it off
@@ -39,7 +42,7 @@ no_early_window() {
 # ModLoader's classes replace the game's, and META-INF goes, since its signature no longer matches.
 install_modloader() {
   local id="$1" vanilla="${MAIN_DIR}/versions/b1.7.3" dir="${MAIN_DIR}/versions/$1"
-  local zip="${CACHE_DIR}/modloader-b1.7.3-original.zip"
+  local zip="${CACHE_DIR}/modloader-fix-b1.7.3-1.0.0.jar"
   cached_download "$MODLOADER_URL" "$zip"
   echo "${MODLOADER_SHA256}  ${zip}" | sha256sum --check --quiet
   mkdir -p "$dir"
@@ -47,7 +50,7 @@ install_modloader() {
 import json, sys, zipfile
 profile, vanilla, modloader, id, out = sys.argv[1:]
 with zipfile.ZipFile(modloader) as patch:
-    added = {name: patch.read(name) for name in patch.namelist()}
+    added = {n: patch.read(n) for n in patch.namelist() if not n.startswith("META-INF/")}
 with zipfile.ZipFile(vanilla) as game, zipfile.ZipFile(f"{out}/{id}.jar", "w") as jar:
     for info in game.infolist():
         if not info.filename.startswith("META-INF/") and info.filename not in added:
@@ -165,15 +168,15 @@ problems() {
   # crash's first lines can reach the log before the line with grug's message, so for it only an
   # exit without that message is a failure, which the wait below reports.
   if [ "$EXPECT" = inert ]; then
-    grep -E -m1 "$CRASHES" "$LOG" | sed 's/^/crashed: /' || true
+    grep -E -m1 -e "$CRASHES" "$LOG" | sed 's/^/crashed: /' || true
     if compgen -G "${GAME_DIR}/crash-reports/*" >/dev/null; then
       echo "crashed: $(ls "${GAME_DIR}/crash-reports")"
     fi
   fi
   if [ -n "$COMPLAINTS" ]; then
-    grep -E -m3 "$COMPLAINTS" "$LOG" "$READY_FILE" 2>/dev/null | sed 's/^/the loader complained: /' || true
+    grep -E -m3 -e "$COMPLAINTS" "$LOG" "$READY_FILE" 2>/dev/null | sed 's/^/the loader complained: /' || true
   fi
-  grep -E -m3 "$GRUG_STARTED" "$LOG" | sed 's/^/grug started: /' || true
+  grep -E -m3 -e "$GRUG_STARTED" "$LOG" | sed 's/^/grug started: /' || true
   if [ -d "${GAME_DIR}/grug_mods" ]; then echo "grug started: it created grug_mods/"; fi
 }
 
@@ -203,7 +206,7 @@ settle() {
 }
 
 if [ "$EXPECT" = error ]; then
-  until grep -q -F "$GRUG_ERROR" "$LOG"; do
+  until grep -q -F -e "$GRUG_ERROR" "$LOG"; do
     if [ -n "$(problems)" ]; then fail "$(problems)"; fi
     if ! kill -0 "$GAME_PID" 2>/dev/null; then fail "the game exited without grug's error"; fi
     if [ "$SECONDS" -ge "$deadline" ]; then fail "grug's error did not appear within the timeout"; fi
@@ -217,13 +220,13 @@ if [ "$EXPECT" = error ]; then
   exit 0
 fi
 
-until grep -E -q "$READY" "$READY_FILE" 2>/dev/null; do
+until grep -E -q -e "$READY" "$READY_FILE" 2>/dev/null; do
   if [ -n "$(problems)" ]; then fail "$(problems)"; fi
   if ! kill -0 "$GAME_PID" 2>/dev/null; then fail "the game exited before loading ended"; fi
   if [ "$SECONDS" -ge "$deadline" ]; then fail "loading did not end within the timeout"; fi
   sleep 2
 done
-echo "==> ${RECIPE}: loading ended ($(grep -E -m1 -o "$READY" "$READY_FILE"))"
+echo "==> ${RECIPE}: loading ended ($(grep -E -m1 -o -e "$READY" "$READY_FILE"))"
 
 # Waits for the game to settle on its first screen. A loader that rejects the jar does so around this
 # point, with an error screen, a crash report or a warning.
