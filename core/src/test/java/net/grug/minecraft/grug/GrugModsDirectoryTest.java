@@ -91,7 +91,7 @@ class GrugModsDirectoryTest {
 
         assertEquals(new File(game, "grug_mods"), active);
         assertTrue(GrugModsDirectory.modApiJson(game).isFile());
-        assertTrue(new File(active, "coverage/LICENSE").isFile());
+        assertTrue(new File(active, "examplemod/LICENSE").isFile());
         assertTrue(new File(active, ".examples_generated.txt").isFile());
     }
 
@@ -104,7 +104,7 @@ class GrugModsDirectoryTest {
         GrugModsDirectory.prepare(game, false);
 
         assertTrue(GrugModsDirectory.modApiJson(game).isFile());
-        assertTrue(Files.notExists(game.toPath().resolve("grug_mods/coverage")));
+        assertTrue(Files.notExists(game.toPath().resolve("grug_mods/examplemod")));
         assertEquals(0, override.list().length);
     }
 
@@ -148,7 +148,7 @@ class GrugModsDirectoryTest {
     void anExtractionThatFailsIsFatal() throws IOException {
         File game = gameDir();
         Files.createDirectories(game.toPath().resolve("grug_mods"));
-        Files.writeString(game.toPath().resolve("grug_mods/coverage"), "a file, not a directory");
+        Files.writeString(game.toPath().resolve("grug_mods/examplemod"), "a file, not a directory");
 
         IllegalStateException error =
                 assertThrows(

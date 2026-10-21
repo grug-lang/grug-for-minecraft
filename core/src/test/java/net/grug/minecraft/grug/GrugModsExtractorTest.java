@@ -62,7 +62,7 @@ class GrugModsExtractorTest {
         GrugModsExtractor.extract(
                 GrugModsExtractor.classpath(), target, target.resolve(".examples_generated.txt"));
 
-        assertTrue(Files.isRegularFile(target.resolve("coverage/LICENSE")));
+        assertTrue(Files.isRegularFile(target.resolve("examplemod/LICENSE")));
     }
 
     @Test
