@@ -115,10 +115,14 @@ class GrugModsScreenModelTest {
     }
 
     @Test
-    void wrapsAtSpacesAndKeepsALongWordWhole() {
+    void wrapsAtSpacesAndCutsAWordWiderThanALine() {
         assertEquals(
-                List.of("one two", "three", "enormousword", "x"),
+                List.of("one two", "three", "enormous", "word x"),
                 GrugModsScreenModel.wrap("one two three enormousword x", 8, String::length));
+        assertEquals(
+                List.of("abcdefgh", "ijklmnop", "qr"),
+                GrugModsScreenModel.wrap("abcdefghijklmnopqr", 8, String::length));
+        assertEquals(List.of("a", "b", "c"), GrugModsScreenModel.wrap("abc", 0, String::length));
         assertEquals(List.of("short"), GrugModsScreenModel.wrap("short", 8, String::length));
     }
 
