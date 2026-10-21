@@ -124,6 +124,11 @@ fun runCommand(command: List<String>, workingDir: File? = null) {
     }
 }
 
+// The native is built for the OS the build runs on: a Linux shared object with cc, or a Windows DLL
+// with the MSVC compiler (cl), which the build finds on the PATH of a Developer Command Prompt. A
+// release holds every native, each built on its own OS (#491).
+val windows = System.getProperty("os.name").startsWith("Windows")
+
 val grugRsDir = layout.buildDirectory.dir("grug-rs").get().asFile
 val grugRsUrl = "https://github.com/grug-lang/grug-rs.git"
 
@@ -131,7 +136,9 @@ val grugRsUrl = "https://github.com/grug-lang/grug-rs.git"
 val grugRsRevision = "69a50bcfd73dc09b73edc81eabab7fc8032e66a3"
 
 // Where the adapter links grug-rs from. cloneGrugRs and buildGrugRs both write this one file.
-val libGruggers = grugRsDir.resolve("target/release/libgruggers.a")
+val libGruggers = grugRsDir.resolve(
+    if (windows) "target/release/gruggers.lib" else "target/release/libgruggers.a"
+)
 
 // A libgruggers.a built elsewhere, as a path. See stagePrebuiltGrugRs below.
 val prebuiltGrugRs = providers.gradleProperty("grug.prebuiltGrugRs").orNull
@@ -216,7 +223,7 @@ val generateGrugAdapter = tasks.register("generateGrugAdapter") {
 
         runCommand(
             listOf(
-                "python3",
+                if (windows) "python" else "python3",
                 generatorScript.absolutePath,
                 modApiJson.absolutePath,
                 generatedC.absolutePath,
@@ -239,7 +246,7 @@ val buildGrugAdapter = tasks.register("buildGrugAdapter") {
         .singleFile
 
     val outLib = nativesOutDir
-        .resolve("libadapter.so")
+        .resolve(if (windows) "adapter.dll" else "libadapter.so")
 
     inputs.file(adapterC)
     inputs.file(generatedC)
@@ -253,24 +260,56 @@ val buildGrugAdapter = tasks.register("buildGrugAdapter") {
 
         val javaHome = System.getProperty("java.home")
 
-        runCommand(
-            listOf(
-                "cc",
-                "-shared",
-                "-fPIC",
-                "-I$javaHome/include",
-                "-I$javaHome/include/linux",
-                "-I${nativeSrcDir.absolutePath}",
-                adapterC.absolutePath,
-                generatedC.absolutePath,
-                libGruggers.absolutePath,
-                "-o",
-                outLib.absolutePath,
-                "-ldl",
-                "-lpthread",
-                "-lm"
+        if (windows) {
+            // /MD matches the dynamic C runtime Rust links by default, which every JVM has loaded
+            // already. The objects go to a directory of their own, not into the build's working one.
+            // The libraries after gruggers.lib are what a Rust static library asks its linker for
+            // (rustc --print native-static-libs).
+            val objects = nativesOutDir.resolve("obj")
+            objects.mkdirs()
+            runCommand(
+                listOf(
+                    "cl",
+                    "/nologo",
+                    "/MD",
+                    "/LD",
+                    "/I$javaHome\\include",
+                    "/I$javaHome\\include\\win32",
+                    "/I${nativeSrcDir.absolutePath}",
+                    adapterC.absolutePath,
+                    generatedC.absolutePath,
+                    libGruggers.absolutePath,
+                    "/Fo${objects.absolutePath}\\",
+                    "/Fe${outLib.absolutePath}",
+                    "/link",
+                    "advapi32.lib",
+                    "bcrypt.lib",
+                    "kernel32.lib",
+                    "ntdll.lib",
+                    "userenv.lib",
+                    "ws2_32.lib"
+                )
             )
-        )
+        } else {
+            runCommand(
+                listOf(
+                    "cc",
+                    "-shared",
+                    "-fPIC",
+                    "-I$javaHome/include",
+                    "-I$javaHome/include/linux",
+                    "-I${nativeSrcDir.absolutePath}",
+                    adapterC.absolutePath,
+                    generatedC.absolutePath,
+                    libGruggers.absolutePath,
+                    "-o",
+                    outLib.absolutePath,
+                    "-ldl",
+                    "-lpthread",
+                    "-lm"
+                )
+            )
+        }
     }
 }
 
