@@ -58,7 +58,7 @@ public final class GrugBlocks {
         GrugIdPool blockIds =
                 GrugIdPool.of(
                         "block", id -> Block.BY_ID[id] != null, START_BLOCK_ID, LAST_BLOCK_ID);
-        blockIds.requireRoom(GrugModLoader.blockCountsByMod, modsDirectory());
+        blockIds.requireRoom(GrugModLoader.blockMods, modsDirectory());
         for (Map.Entry<String, Long> entry : GrugModLoader.blockFiles.entrySet()) {
             String cleanName = entry.getKey();
             long blockFileId = entry.getValue();
@@ -119,7 +119,7 @@ public final class GrugBlocks {
         GrugIdPool itemIds =
                 GrugIdPool.of(
                         "item", id -> Item.BY_ID[id] != null, START_ITEM_ID, Item.BY_ID.length - 1);
-        itemIds.requireRoom(GrugModLoader.itemCountsByMod, modsDirectory());
+        itemIds.requireRoom(GrugModLoader.itemMods, modsDirectory());
         for (Map.Entry<String, Long> entry : GrugModLoader.itemFiles.entrySet()) {
             String cleanName = entry.getKey();
             long itemFileId = entry.getValue();
