@@ -7,7 +7,7 @@
 # listed by `universal_jar.py smoke-matrix`.
 #
 # Where grug's code runs (Forge, NeoForge and the Fabric family), the game has to stop with grug's
-# own error, "grug has no layer for ...", through its loader's error path: not with another error
+# own error, "grug does not run on ...", through its loader's error path: not with another error
 # first, and without grug starting. Where it does not (legacy FML and ModLoader), the game has to
 # load to its first screen with grug inactive: grug's boot marker cannot be the signal there, so
 # the recipe waits on a line its game or loader logs once loading is over, then for the log to go
@@ -144,8 +144,8 @@ case "$RECIPE" in
     exit 2
     ;;
 esac
-# grug's error, from core's GrugUnsupportedGame.
-GRUG_ERROR='grug has no layer for'
+# grug's error, from core's GrugUnsupportedGameException.
+GRUG_ERROR='grug does not run on'
 # A crash on any version: the report every version writes, and the ways a thread dies before one.
 CRASHES='---- Minecraft Crash Report ----|Exception in thread "main"|Exception in thread "Minecraft main thread"|Could not execute entrypoint stage|Broken grug invariant'
 # grug's own log lines; GrugModsDirectory also creates grug_mods/ in the game directory once a layer
