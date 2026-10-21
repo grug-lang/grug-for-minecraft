@@ -50,12 +50,14 @@ STATIONAPI_JAVA="${STATIONAPI_JAVA:-$(command -v java)}"
 mkdir -p "${GAME_DIR}/mods" "$MAIN_DIR"
 cp "$JAR" "${GAME_DIR}/mods/"
 
-# A mod's primary file for one version, from Modrinth as a player downloads it.
+# A mod's primary file for one version and mod loader, from Modrinth as a player downloads it. The
+# mod loader matters: JEI publishes its Forge, NeoForge and Fabric builds under one version number,
+# and Forge skips the others without a word (#501).
 modrinth() {
-  local project="$1" version="$2" url
+  local project="$1" version="$2" loader="$3" url
   url=$(curl --fail --silent --show-error --user-agent "grug-lang/grug-for-minecraft CI" \
     "https://api.modrinth.com/v2/project/${project}/version" \
-    | python3 -c "import json, sys; print(next(f['url'] for v in json.load(sys.stdin) if v['version_number'] == sys.argv[1] for f in v['files'] if f['primary']))" "$version")
+    | python3 -c "import json, sys; print(next(f['url'] for v in json.load(sys.stdin) if v['version_number'] == sys.argv[1] and sys.argv[2] in v['loaders'] for f in v['files'] if f['primary']))" "$version" "$loader")
   curl --fail --silent --show-error --location "$url" -o "${GAME_DIR}/mods/${project}-${version}.jar"
 }
 
@@ -69,7 +71,7 @@ case "$LOADER" in
   1.20.6-forge)
     if [ "$BESIDE" = jei ]; then
       jei="$(property jei_version)"
-      modrinth jei "$jei"
+      modrinth jei "$jei" forge
     fi
     portablemc --version >/dev/null
     # A player's launcher picks a JVM the version accepts; this is the same choice.
@@ -124,7 +126,7 @@ EOF
     # OSL, which a player of any OSL mod installs beside it (Ornithe's installer says so once it is
     # done), from Modrinth like they would. The Ornithe layers depend on it rather than nesting it.
     osl="$(property osl_version)"
-    modrinth osl "$osl"
+    modrinth osl "$osl" ornithe
     portablemc --version >/dev/null
     start "${LEGACY_LIBRARIES[@]}" --jvm-policy mojang --exclude-lib 'org.ow2.asm:*:7.0' "$profile"
     ;;
