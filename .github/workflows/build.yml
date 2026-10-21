@@ -491,6 +491,65 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # One loader on Windows (#530): the one whose Windows setup is least like the others, so the DLL,
+  # JNI, and core's Windows paths and file locking are exercised by a game that really runs. The
+  # runner has no GPU, so the game renders with whatever OpenGL Windows itself provides.
+  windows:
+    name: a1.1.2_01-ornithe (Windows)
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Set up the MSVC toolchain
+        uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
+
+      # run-loader.sh is bash, and Git for Windows puts its coreutils link.exe ahead of MSVC's linker
+      # in a bash step's PATH, so rustc would run the wrong one. The runner has no use for it.
+      - name: Take Git's link.exe off the PATH
+        shell: pwsh
+        run: Remove-Item "C:\Program Files\Git\usr\bin\link.exe"
+
+      - name: Show the graphics the runner has
+        shell: pwsh
+        run: Get-CimInstance Win32_VideoController | Format-List Name, DriverVersion, VideoProcessor
+
+      - name: Run tests (a1.1.2_01-ornithe)
+        shell: bash
+        run: .github/scripts/run-loader.sh a1.1.2_01-ornithe run
+        env:
+          GRUG_CI_RUN_TIMEOUT: '900'
+
+      - name: Upload logs and crash reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-a1.1.2_01-ornithe-logs
+          path: |
+            loaders/a1.1.2_01-ornithe/run/logs
+            loaders/a1.1.2_01-ornithe/run/crash-reports
+            loaders/a1.1.2_01-ornithe/run/ci-run-loader.log
+            loaders/a1.1.2_01-ornithe/run/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload unmatched screenshot captures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-a1.1.2_01-ornithe-screenshots
+          path: loaders/a1.1.2_01-ornithe/run/grug-screenshot-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Assembles the universal jar from core's release jar and every loader's layer, the jar a player
   # downloads, and fails unless it holds every invariant universal_jar.py checks: no duplicate
   # paths, every class in its loader's package, one layer per loaders/* directory, the native,
