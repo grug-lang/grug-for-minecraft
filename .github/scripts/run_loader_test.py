@@ -185,8 +185,8 @@ class RunLoaderTest(unittest.TestCase):
         result = self.run_script(boot, 1, {"GRUG_CI_BOOT_ONLY": "1"})
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("loaded grug. The tests were not run", result.stderr)
-        self.assertNotIn("passed all tests", result.stderr)
+        self.assertIn("loaded grug. The tests were not run", result.stdout)
+        self.assertNotIn("passed all tests", result.stdout)
         # Without the setting the same log is a game that exited before the tests passed.
         self.assertNotEqual(self.run_script(boot, 1).returncode, 0)
 
