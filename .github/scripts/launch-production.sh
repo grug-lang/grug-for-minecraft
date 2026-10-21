@@ -59,7 +59,7 @@ cp -r "${REPO_ROOT}/mods/coverage" "${GAME_DIR}/grug_mods/"
 "$PYTHON" - "${REPO_ROOT}/mods" "${GAME_DIR}/grug_mods_state.json" <<'PY'
 import json, pathlib, sys
 mods = sorted(p.name for p in pathlib.Path(sys.argv[1]).iterdir() if p.is_dir() and p.name != "coverage")
-pathlib.Path(sys.argv[2]).write_text(json.dumps({"mods": {name: True for name in mods}}) + "\n")
+pathlib.Path(sys.argv[2]).write_text(json.dumps({"mods": {name: {"on": True} for name in mods}}) + "\n")
 PY
 
 # A mod's primary file for one version and mod loader, from Modrinth as a player downloads it. The
