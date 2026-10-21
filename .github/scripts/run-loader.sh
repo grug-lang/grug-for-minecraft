@@ -38,7 +38,11 @@ if [ ! -d "$LOADER_DIR" ]; then
   exit 2
 fi
 
-if [ "$PHASE" != build ] && [ -z "${DISPLAY:-}" ]; then
+# Git Bash on a Windows runner reports OSTYPE=msys. Windows has no X server to start: the game opens
+# its window on the runner's desktop.
+case "${OSTYPE:-}" in msys* | cygwin*) WINDOWS=true ;; *) WINDOWS=false ;; esac
+
+if [ "$PHASE" != build ] && [ "$WINDOWS" = false ] && [ -z "${DISPLAY:-}" ]; then
   echo "DISPLAY is not set. Start an X server first, e.g. run under xvfb-run." >&2
   exit 2
 fi
@@ -134,7 +138,11 @@ if [ "$PHASE" != build ]; then
   echo "==> Replacing ${GAME_DIR#"${REPO_ROOT}/"}/saves with a fresh copy of test-saves/${SAVE_ZIP}"
   rm -rf "${GAME_DIR}/saves"
   mkdir -p "${GAME_DIR}/saves/"
-  unzip -q -o "${REPO_ROOT}/test-saves/${SAVE_ZIP}" -d "${GAME_DIR}/saves/"
+  # Git Bash has no unzip, so the save is unpacked by Python, which every runner has. On Windows
+  # python3 can be a Microsoft Store stub that opens the store instead of running anything.
+  PYTHON=python3
+  [ "$WINDOWS" = true ] && PYTHON=python
+  "$PYTHON" -m zipfile -e "${REPO_ROOT}/test-saves/${SAVE_ZIP}" "${GAME_DIR}/saves/"
 fi
 
 # Forge's early load window is cosmetic and can only hurt a headless CI run: it creates its GL window
@@ -178,6 +186,9 @@ cleanup() {
     sleep 1
   done
   kill -KILL -- "-${gradle_pid}" 2>/dev/null || true
+  # Git Bash has no process groups to signal, and the game is a Windows process it cannot reach
+  # through its own pid, so the runner's Java processes are ended by name.
+  if [ "$WINDOWS" = true ]; then taskkill //F //T //IM java.exe >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -191,10 +202,13 @@ tail -f "$LOG_FILE" &
 tail_pid=$!
 
 # setsid gives the launch its own process group so cleanup can kill Gradle and the game together.
+# Windows has none, and cleanup ends its Java processes by name instead.
+SETSID=setsid
+[ "$WINDOWS" = true ] && SETSID=
 if [ "$PHASE" = production ]; then
-  setsid "${REPO_ROOT}/.github/scripts/launch-production.sh" "$LOADER" "$GAME_DIR" "$UNIVERSAL_JAR" >"$LOG_FILE" 2>&1 &
+  $SETSID "${REPO_ROOT}/.github/scripts/launch-production.sh" "$LOADER" "$GAME_DIR" "$UNIVERSAL_JAR" >"$LOG_FILE" 2>&1 &
 else
-  setsid ./gradlew "${task_prefix}runClient" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
+  $SETSID ./gradlew "${task_prefix}runClient" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
 fi
 gradle_pid=$!
 
