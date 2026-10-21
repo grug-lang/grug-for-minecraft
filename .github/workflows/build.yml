@@ -492,8 +492,7 @@ jobs:
           retention-days: 7
 
   # One loader on Windows (#530): the one whose Windows setup is least like the others, so the DLL,
-  # JNI, and core's Windows paths are exercised by a game that really starts. The
-  # runner has no GPU, so the game renders with whatever OpenGL Windows itself provides.
+  # JNI, and core's Windows paths are exercised by a game that really starts.
   windows:
     name: a1.1.2_01-ornithe (Windows)
     runs-on: windows-2025
@@ -518,41 +517,17 @@ jobs:
         shell: pwsh
         run: Remove-Item "C:\Program Files\Git\usr\bin\link.exe"
 
-      - name: Show the graphics the runner has
-        shell: pwsh
-        run: Get-CimInstance Win32_VideoController | Format-List Name, DriverVersion, VideoProcessor
-
-      # The runner has no GPU, and the OpenGL Windows itself provides cannot give LWJGL 2 an
-      # accelerated pixel format ("Pixel format not accelerated"). Mesa's llvmpipe renders in
-      # software. LWJGL asks GDI for its pixel format, which goes to the driver registered with
-      # Windows rather than to a DLL beside java.exe, so Mesa's own system-wide deploy script (its
-      # unattended mode, choice 1) registers it as the OpenGL driver. Pinned like every other
-      # version here.
-      - name: Install software OpenGL
-        shell: pwsh
-        env:
-          MESA_VERSION: 26.2.4
-          MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
-        run: |
-          $archive = "$env:RUNNER_TEMP\mesa.7z"
-          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z" -OutFile $archive
-          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:MESA_SHA256.ToUpper()) { throw "mesa3d archive does not match its pinned checksum" }
-          7z x $archive "-o$env:RUNNER_TEMP\mesa" -y | Out-Null
-          Push-Location "$env:RUNNER_TEMP\mesa"
-          cmd /c "systemwidedeploy.cmd 1"
-          Pop-Location
-          Get-ChildItem "$env:windir\System32\mesadrv.dll"
-          reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL"
-
-      # Booting to the title screen is the bar here, not the suite: the screenshot goldens were made
-      # on Linux, and a game that boots on Windows runs the same shared code the Linux jobs test.
-      - name: Boot a1.1.2_01-ornithe
+      # No window is ever opened: with GRUG_CI_BOOT_ONLY the game stops itself, with status 0, as soon
+      # as grug has compiled its mods. By then the native has loaded, the VM has started and the mods
+      # directory has been read, which is everything specific to grug on Windows. What the rest of a run
+      # adds, a window, OpenGL and screenshots that the goldens were made for on Linux, is vanilla's and
+      # the same shared code the Linux jobs test (#530).
+      - name: Load grug in a1.1.2_01-ornithe
         shell: bash
         run: .github/scripts/run-loader.sh a1.1.2_01-ornithe run
         env:
           GRUG_CI_BOOT_ONLY: '1'
           GRUG_CI_RUN_TIMEOUT: '900'
-          GALLIUM_DRIVER: llvmpipe
 
       - name: Upload logs and crash reports
         if: always()
