@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # scripts/ci/run-loader.sh <loader-dir-name> <build|run|update-goldens|production>
 #
+# GRUG_CI_BOOT_ONLY, when set, ends a run successfully at the title screen instead of waiting for
+# the tests, for a platform that the screenshot goldens were not made on.
+#
 # production runs the same tests in an installed game instead of the development run: it hands the
 # universal jar named by GRUG_UNIVERSAL_JAR (which .github/scripts/universal_jar.py assembles from
 # every loader's layerJar) to launch-production.sh, which installs the game and mod loader the way a
@@ -222,6 +225,10 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   fi
 
   if grep -q -F "$SUCCESS_MSG" "$LOG_FILE"; then status=success; break; fi
+  # A boot-only run is done at the title screen: the game started, the native loaded and the mods
+  # were found, which is what a platform whose goldens we do not have needs shown. A crash on the
+  # way to the title screen is still caught by the checks below.
+  if [ "$reached_title" = true ] && [ -n "${GRUG_CI_BOOT_ONLY:-}" ]; then status=success; break; fi
   if grep -q "FAIL " "$LOG_FILE"; then status=failed; break; fi
   if grep -q -E "$crash_re" "$LOG_FILE"; then status=crashed; break; fi
   # Checked before the liveness test below, because a Rust panic is written to the log a moment
