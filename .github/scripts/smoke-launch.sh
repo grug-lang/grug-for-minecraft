@@ -136,8 +136,9 @@ case "$RECIPE" in
   modloader-b1.7.3)
     EXPECT=inert
     # ModLoader prints this once it has read the mods folder and the class path for mod_ classes,
-    # and logs each one it loads to ModLoader.txt.
-    READY='^Done\.'
+    # and logs each one it loads to ModLoader.txt. The launcher's last progress line ends in a
+    # carriage return, which can leave one in front of it.
+    READY=$'^\r?Done\\.'
     LOADER_LOG="${GAME_DIR}/ModLoader.txt"
     COMPLAINTS='Mod Loaded|Failed to load mod'
     ;;
