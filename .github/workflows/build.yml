@@ -491,12 +491,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # One loader on Windows (#530): the one whose Windows setup is least like the others, so the DLL,
-  # JNI, and core's Windows paths are exercised by a game that really starts.
+  # Loaders on Windows (#530, #531): a1.1.2_01-ornithe, whose Windows setup is least like the others,
+  # and then one loader per pull request until every loader is here, so the DLL, JNI, and core's
+  # Windows paths are exercised by a game that really starts, in each loader's own adapter.
   windows:
-    name: a1.1.2_01-ornithe (Windows)
+    name: ${{ matrix.dir }} (Windows)
     runs-on: windows-2025
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [a1.1.2_01-ornithe, b1.7.3-ornithe]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -522,9 +527,9 @@ jobs:
       # directory has been read, which is everything specific to grug on Windows. What the rest of a run
       # adds, a window, OpenGL and screenshots that the goldens were made for on Linux, is vanilla's and
       # the same shared code the Linux jobs test (#530).
-      - name: Load grug in a1.1.2_01-ornithe
+      - name: Load grug in ${{ matrix.dir }}
         shell: bash
-        run: .github/scripts/run-loader.sh a1.1.2_01-ornithe run
+        run: .github/scripts/run-loader.sh ${{ matrix.dir }} run
         env:
           GRUG_CI_BOOT_ONLY: '1'
           GRUG_CI_RUN_TIMEOUT: '900'
@@ -533,12 +538,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: windows-a1.1.2_01-ornithe-logs
+          name: windows-${{ matrix.dir }}-logs
           path: |
-            loaders/a1.1.2_01-ornithe/run/logs
-            loaders/a1.1.2_01-ornithe/run/crash-reports
-            loaders/a1.1.2_01-ornithe/run/ci-run-loader.log
-            loaders/a1.1.2_01-ornithe/run/hs_err_pid*.log
+            loaders/${{ matrix.dir }}/run/logs
+            loaders/${{ matrix.dir }}/run/crash-reports
+            loaders/${{ matrix.dir }}/run/ci-run-loader.log
+            loaders/${{ matrix.dir }}/run/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -546,19 +551,23 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: windows-a1.1.2_01-ornithe-screenshots
-          path: loaders/a1.1.2_01-ornithe/run/grug-screenshot-artifacts
+          name: windows-${{ matrix.dir }}-screenshots
+          path: loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
           if-no-files-found: ignore
           retention-days: 7
 
-  # The same loader installed the way a player's launcher does it, on Windows (#530): the jar a
+  # The same loaders installed the way a player's launcher does it, on Windows (#530): the jar a
   # player downloads, in the game portablemc installs, loading grug on the platform most players use.
   # Boot-only for the reason the job above gives.
   windows-installed:
-    name: a1.1.2_01-ornithe installed (Windows)
+    name: ${{ matrix.dir }} installed (Windows)
     needs: [universal]
     runs-on: windows-2025
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [a1.1.2_01-ornithe, b1.7.3-ornithe]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -571,9 +580,9 @@ jobs:
 
       # Relative, because the script reads it from Git Bash, where a Windows path with backslashes is
       # not one.
-      - name: Load grug in an installed a1.1.2_01-ornithe
+      - name: Load grug in an installed ${{ matrix.dir }}
         shell: bash
-        run: .github/scripts/run-loader.sh a1.1.2_01-ornithe production
+        run: .github/scripts/run-loader.sh ${{ matrix.dir }} production
         env:
           GRUG_UNIVERSAL_JAR: universal/grug.jar
           GRUG_CI_BOOT_ONLY: '1'
@@ -584,12 +593,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: production-windows-a1.1.2_01-ornithe-logs
+          name: production-windows-${{ matrix.dir }}-logs
           path: |
-            loaders/a1.1.2_01-ornithe/build/ci-production.log
-            loaders/a1.1.2_01-ornithe/build/production-game/logs
-            loaders/a1.1.2_01-ornithe/build/production-game/crash-reports
-            loaders/a1.1.2_01-ornithe/build/production-game/hs_err_pid*.log
+            loaders/${{ matrix.dir }}/build/ci-production.log
+            loaders/${{ matrix.dir }}/build/production-game/logs
+            loaders/${{ matrix.dir }}/build/production-game/crash-reports
+            loaders/${{ matrix.dir }}/build/production-game/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
 
