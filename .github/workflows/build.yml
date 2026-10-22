@@ -540,11 +540,12 @@ jobs:
 
       # 1.20.6 and 1.2.5 open their window before grug loads, so unlike the other loaders they need
       # an OpenGL. The runner has no GPU, and the OpenGL Windows itself provides cannot give LWJGL
-      # an accelerated pixel format. Mesa's llvmpipe renders in software; it is registered as the
+      # an accelerated pixel format (1.2.5 without it dies with "Pixel format not accelerated", 1.20.6
+      # hangs opening its window). Mesa's llvmpipe renders in software; it is registered as the
       # OpenGL driver with its own system-wide deploy script (unattended mode, choice 1), because
       # LWJGL asks GDI, which goes to the registered driver. Pinned like every other version here.
       - name: Install software OpenGL (loaders that open a window first)
-        if: matrix.dir == '1.20.6-forge'
+        if: matrix.dir == '1.20.6-forge' || matrix.dir == '1.2.5-forge'
         shell: pwsh
         env:
           MESA_VERSION: 26.2.4
@@ -642,11 +643,12 @@ jobs:
 
       # 1.20.6 and 1.2.5 open their window before grug loads, so unlike the other loaders they need
       # an OpenGL. The runner has no GPU, and the OpenGL Windows itself provides cannot give LWJGL
-      # an accelerated pixel format. Mesa's llvmpipe renders in software; it is registered as the
+      # an accelerated pixel format (1.2.5 without it dies with "Pixel format not accelerated", 1.20.6
+      # hangs opening its window). Mesa's llvmpipe renders in software; it is registered as the
       # OpenGL driver with its own system-wide deploy script (unattended mode, choice 1), because
       # LWJGL asks GDI, which goes to the registered driver. Pinned like every other version here.
       - name: Install software OpenGL (loaders that open a window first)
-        if: matrix.dir == '1.20.6-forge'
+        if: matrix.dir == '1.20.6-forge' || matrix.dir == '1.2.5-forge'
         shell: pwsh
         env:
           MESA_VERSION: 26.2.4
