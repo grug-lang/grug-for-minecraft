@@ -492,7 +492,7 @@ jobs:
           retention-days: 7
 
   # Loaders on Windows (#530, #531): a1.1.2_01-ornithe, whose Windows setup is least like the others,
-  # and then one loader per pull request until every loader is here, so the DLL, JNI, and core's
+  # and the other four, so the DLL, JNI, and core's
   # Windows paths are exercised by a game that really starts, in each loader's own adapter.
   windows:
     name: ${{ matrix.dir }} (Windows)
@@ -501,17 +501,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [a1.1.2_01-ornithe, b1.7.3-ornithe]
+        dir: [a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi, 1.20.6-forge, 1.2.5-forge]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up JDK 21
+        id: java21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
+
+      # 1.2.5 boots its game on Java 8 through GRUG_JAVA8, as in the Linux jobs, and JAVA_HOME goes
+      # back to 21 for the Gradle 9 wrapper.
+      - name: Set up JDK 8 (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        id: java8
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Restore JDK 21 for Gradle (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        shell: bash
+        run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
 
       - name: Set up the MSVC toolchain
         uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
@@ -531,6 +547,7 @@ jobs:
         shell: bash
         run: .github/scripts/run-loader.sh ${{ matrix.dir }} run
         env:
+          GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_CI_BOOT_ONLY: '1'
           GRUG_CI_RUN_TIMEOUT: '900'
 
@@ -567,10 +584,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [a1.1.2_01-ornithe, b1.7.3-ornithe]
+        dir: [a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi, 1.20.6-forge, 1.2.5-forge]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        id: java21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # 1.2.5 boots its game on Java 8 through GRUG_JAVA8, as in the Linux jobs, and JAVA_HOME goes
+      # back to 21 for the Gradle 9 wrapper.
+      - name: Set up JDK 8 (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        id: java8
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Restore JDK 21 for Gradle (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        shell: bash
+        run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
 
       - name: Download the universal jar
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -584,6 +623,7 @@ jobs:
         shell: bash
         run: .github/scripts/run-loader.sh ${{ matrix.dir }} production
         env:
+          GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_UNIVERSAL_JAR: universal/grug.jar
           GRUG_CI_BOOT_ONLY: '1'
           # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
