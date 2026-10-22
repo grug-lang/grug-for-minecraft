@@ -45,6 +45,8 @@ property() {
 # StationAPI needs Java 17, so a player of it picks a newer Java in their launcher, and that launch
 # uses the Java the build runs on.
 STATIONAPI_JAVA="${JAVA_HOME:+${JAVA_HOME}/bin/java}"
+# On Windows the program is java.exe, which a path without the extension does not name to portablemc.
+[ -n "${JAVA_HOME:-}" ] && [ -f "${JAVA_HOME}/bin/java.exe" ] && STATIONAPI_JAVA="${JAVA_HOME}/bin/java.exe"
 STATIONAPI_JAVA="${STATIONAPI_JAVA:-$(command -v java)}"
 
 mkdir -p "${GAME_DIR}/mods" "$MAIN_DIR"
