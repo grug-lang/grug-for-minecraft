@@ -47,6 +47,9 @@ def runtimeDevJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-dev.jar')
 def runtimeFogJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-fog.jar')
 def runtimeJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime.jar')
 def nativesDir = new File(buildDirFile, 'natives')
+def windows = System.getProperty('os.name').startsWith('Windows')
+// On a Windows runner python3 can be a Microsoft Store stub that runs nothing.
+def pythonCommand = windows ? 'python' : 'python3'
 
 def runDir = new File(projectDirFile, 'run')
 def modsDir = new File(repoRoot, 'mods')
@@ -141,7 +144,7 @@ dependencies {
     runtimeLibs 'com.google.code.gson:gson:2.14.0'
     runtimeLibs 'org.jetbrains:annotations:26.1.0'
 
-    natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.3:natives-linux'
+    natives "org.lwjgl.lwjgl:lwjgl-platform:2.9.3:natives-${windows ? 'windows' : 'linux'}"
 
     natives 'net.java.jinput:jinput:2.0.10:natives-all'
 }
@@ -170,7 +173,7 @@ tasks.register('fetchMcpSnapshot', Exec) {
     doFirst {
         mcpDir.mkdirs()
         workingDir = mcpDir
-        commandLine 'bash', '-c',
+        commandLine 'sh', '-c',
             "set -e; git init -q; git remote add origin '${MCP_REPO}'; " +
             "git fetch -q --depth 1 origin '${MCP_COMMIT}'; git checkout -q FETCH_HEAD"
     }
@@ -187,7 +190,7 @@ tasks.register('reobfSrg', Exec) {
     outputs.file reobfSrgFile
     doFirst {
         reobfSrgFile.parentFile.mkdirs()
-        commandLine 'python3', new File(toolsDir, 'invert_srg.py').absolutePath,
+        commandLine pythonCommand, new File(toolsDir, 'invert_srg.py').absolutePath,
             new File(mcpDir, 'conf/client.srg').absolutePath,
             new File(mcpDir, 'conf/fields.csv').absolutePath,
             new File(mcpDir, 'conf/methods.csv').absolutePath,
@@ -364,7 +367,7 @@ tasks.register('obfuscateRuntime', Exec) {
 }
 
 tasks.register('extractNatives') {
-    description = 'Extracts the LWJGL 2 / JInput Linux natives for -Djava.library.path.'
+    description = 'Extracts the LWJGL 2 / JInput natives of the running OS for -Djava.library.path.'
     outputs.dir nativesDir
     doLast {
         delete nativesDir
@@ -416,7 +419,7 @@ def findJava8 = {
         '/usr/lib/jvm/zulu8',
     ])
     for (candidate in candidates) {
-        def exe = new File(candidate, 'bin/java')
+        def exe = new File(candidate, windows ? 'bin/java.exe' : 'bin/java')
         if (!exe.canExecute()) continue
         def release = new File(candidate, 'release')
         if (release.isFile()) {
@@ -444,7 +447,7 @@ def launchCommand = { Iterable<File> libraries, File gameDir, File assets ->
 
     def command = []
     // CI wraps the whole job in xvfb-run, which sets DISPLAY; only add one for a bare local run.
-    if (!System.getenv('DISPLAY')) {
+    if (!windows && !System.getenv('DISPLAY')) {
         command += ['xvfb-run', '-a', '-s',
             '-screen 0 1280x720x24 +extension RANDR +extension GLX']
     }

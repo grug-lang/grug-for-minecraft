@@ -538,7 +538,29 @@ jobs:
         shell: pwsh
         run: Remove-Item "C:\Program Files\Git\usr\bin\link.exe"
 
-      # No window is ever opened: with GRUG_CI_BOOT_ONLY the game stops itself, with status 0, as soon
+      # 1.20.6 and 1.2.5 open their window before grug loads, so unlike the other loaders they need
+      # an OpenGL. The runner has no GPU, and the OpenGL Windows itself provides cannot give LWJGL
+      # an accelerated pixel format. Mesa's llvmpipe renders in software; it is registered as the
+      # OpenGL driver with its own system-wide deploy script (unattended mode, choice 1), because
+      # LWJGL asks GDI, which goes to the registered driver. Pinned like every other version here.
+      - name: Install software OpenGL (loaders that open a window first)
+        if: matrix.dir == '1.20.6-forge' || matrix.dir == '1.2.5-forge'
+        shell: pwsh
+        env:
+          MESA_VERSION: 26.2.4
+          MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
+        run: |
+          $archive = "$env:RUNNER_TEMP\mesa.7z"
+          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z" -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:MESA_SHA256.ToUpper()) { throw "mesa3d archive does not match its pinned checksum" }
+          7z x $archive "-o$env:RUNNER_TEMP\mesa" -y | Out-Null
+          Push-Location "$env:RUNNER_TEMP\mesa"
+          cmd /c "systemwidedeploy.cmd 1"
+          Pop-Location
+          Get-ChildItem "$env:windir\System32\mesadrv.dll"
+          reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL"
+
+      # Where no window opens before grug loads, none is ever opened: with GRUG_CI_BOOT_ONLY the game stops itself, with status 0, as soon
       # as grug has compiled its mods. By then the native has loaded, the VM has started and the mods
       # directory has been read, which is everything specific to grug on Windows. What the rest of a run
       # adds, a window, OpenGL and screenshots that the goldens were made for on Linux, is vanilla's and
@@ -549,6 +571,7 @@ jobs:
         env:
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_CI_BOOT_ONLY: '1'
+          GALLIUM_DRIVER: llvmpipe
           GRUG_CI_RUN_TIMEOUT: '900'
 
       - name: Upload logs and crash reports
@@ -617,6 +640,28 @@ jobs:
           name: grug-universal
           path: universal
 
+      # 1.20.6 and 1.2.5 open their window before grug loads, so unlike the other loaders they need
+      # an OpenGL. The runner has no GPU, and the OpenGL Windows itself provides cannot give LWJGL
+      # an accelerated pixel format. Mesa's llvmpipe renders in software; it is registered as the
+      # OpenGL driver with its own system-wide deploy script (unattended mode, choice 1), because
+      # LWJGL asks GDI, which goes to the registered driver. Pinned like every other version here.
+      - name: Install software OpenGL (loaders that open a window first)
+        if: matrix.dir == '1.20.6-forge' || matrix.dir == '1.2.5-forge'
+        shell: pwsh
+        env:
+          MESA_VERSION: 26.2.4
+          MESA_SHA256: 351fc8c8b695878ffb3eaa044b3ead08672a48b1a045e3c3e3975811df0f6695
+        run: |
+          $archive = "$env:RUNNER_TEMP\mesa.7z"
+          Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z" -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $env:MESA_SHA256.ToUpper()) { throw "mesa3d archive does not match its pinned checksum" }
+          7z x $archive "-o$env:RUNNER_TEMP\mesa" -y | Out-Null
+          Push-Location "$env:RUNNER_TEMP\mesa"
+          cmd /c "systemwidedeploy.cmd 1"
+          Pop-Location
+          Get-ChildItem "$env:windir\System32\mesadrv.dll"
+          reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL"
+
       # Relative, because the script reads it from Git Bash, where a Windows path with backslashes is
       # not one.
       - name: Load grug in an installed ${{ matrix.dir }}
@@ -626,6 +671,7 @@ jobs:
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_UNIVERSAL_JAR: universal/grug.jar
           GRUG_CI_BOOT_ONLY: '1'
+          GALLIUM_DRIVER: llvmpipe
           # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
           GRUG_CI_RUN_TIMEOUT: '900'
 
