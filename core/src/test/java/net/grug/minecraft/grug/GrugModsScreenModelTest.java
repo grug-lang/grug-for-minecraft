@@ -482,6 +482,17 @@ class GrugModsScreenModelTest {
             assertEquals("c: OFF (5 blocks)", model.labels().get(0)); // the order did not move
             model.click(1); // a frees 1 item
             assertTrue(model.idsFit());
+
+            // b was off when the screen opened and is in no count, so turning it on is refused,
+            // while c, which was on, can be turned back on.
+            model.click(2);
+            assertEquals("b: OFF (2 items)", model.labels().get(2));
+            assertEquals(
+                    "The game is short of ids, so b stays off. Turn off a mod first.",
+                    model.error());
+            model.click(0);
+            assertEquals("c: ON (5 blocks)", model.labels().get(0));
+            assertNull(model.error());
         } finally {
             GrugIdShortage.clear();
         }
