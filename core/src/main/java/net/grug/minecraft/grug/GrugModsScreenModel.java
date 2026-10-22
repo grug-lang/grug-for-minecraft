@@ -295,6 +295,15 @@ public final class GrugModsScreenModel {
     public void click(int row) {
         if (blocked()) return; // a popup or a download blocks the rest
         GrugModManager.Entry entry = pageEntries().get(row);
+        // A mod that was off when the screen opened is in no shortage count, so turning it on would
+        // spend ids the screen has promised to be free.
+        if (shortOfIds() && !entry.on() && !Boolean.TRUE.equals(atOpen.get(entry.name()))) {
+            error =
+                    "The game is short of ids, so "
+                            + entry.name()
+                            + " stays off. Turn off a mod first.";
+            return;
+        }
         if (!entry.on() && entry.prompt() != null) {
             asking = entry;
             return;
