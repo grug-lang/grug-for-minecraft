@@ -544,7 +544,7 @@ jobs:
       # OpenGL driver with its own system-wide deploy script (unattended mode, choice 1), because
       # LWJGL asks GDI, which goes to the registered driver. Pinned like every other version here.
       - name: Install software OpenGL (loaders that open a window first)
-        if: matrix.dir == '1.20.6-forge' || matrix.dir == '1.2.5-forge'
+        if: matrix.dir == '1.20.6-forge'
         shell: pwsh
         env:
           MESA_VERSION: 26.2.4
@@ -646,7 +646,7 @@ jobs:
       # OpenGL driver with its own system-wide deploy script (unattended mode, choice 1), because
       # LWJGL asks GDI, which goes to the registered driver. Pinned like every other version here.
       - name: Install software OpenGL (loaders that open a window first)
-        if: matrix.dir == '1.20.6-forge' || matrix.dir == '1.2.5-forge'
+        if: matrix.dir == '1.20.6-forge'
         shell: pwsh
         env:
           MESA_VERSION: 26.2.4
