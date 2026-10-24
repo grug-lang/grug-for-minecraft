@@ -13,7 +13,6 @@ export run() {
         Test.assert(be_opt.has(), "chest has no block entity after being placed.")
 
         me.expect_error("update_recipe_output")
-        be_be: BlockEntity = be_opt.unwrap()
-        be_be.update_recipe_output(0)
+        be_opt.unwrap().update_recipe_output(0)
     }
 }

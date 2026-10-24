@@ -49,17 +49,13 @@ local _setup() {
     pipe_self.set(self_opt.unwrap())
 
     diamond: Item = item(resource_location("minecraft:diamond"))
-    pipe_source_be: BlockEntity = pipe_source.unwrap()
-    pipe_source_be.set_item_in_slot(0, diamond, 1)
+    pipe_source.unwrap().set_item_in_slot(0, diamond, 1)
 }
 
 local _check() {
-    pipe_source_be: BlockEntity = pipe_source.unwrap()
-    source_count: number = pipe_source_be.get_item_count_in_slot(0)
-    pipe_target_be: BlockEntity = pipe_target.unwrap()
-    target_count: number = pipe_target_be.get_item_count_in_slot(0)
-    pipe_self_be: BlockEntity = pipe_self.unwrap()
-    pipe_count: number = pipe_self_be.get_item_count_in_slot(0)
+    source_count: number = pipe_source.unwrap().get_item_count_in_slot(0)
+    target_count: number = pipe_target.unwrap().get_item_count_in_slot(0)
+    pipe_count: number = pipe_self.unwrap().get_item_count_in_slot(0)
 
     Test.assert(source_count + target_count + pipe_count == 1, "The diamond should exist exactly once.")
     Test.assert(source_count == 0, "The source chest should be empty.")
@@ -74,9 +70,7 @@ local _check() {
 # destination still fails with the assertion that names it. A pipe that never moves it runs into the
 # runner's own tick budget instead of a count picked to be big enough on a fast machine. See #173.
 local _pipe_has_moved() bool {
-    pipe_source_be: BlockEntity = pipe_source.unwrap()
-    source_empty: bool = pipe_source_be.get_item_count_in_slot(0) == 0
-    pipe_self_be: BlockEntity = pipe_self.unwrap()
-    pipe_empty: bool = pipe_self_be.get_item_count_in_slot(0) == 0
+    source_empty: bool = pipe_source.unwrap().get_item_count_in_slot(0) == 0
+    pipe_empty: bool = pipe_self.unwrap().get_item_count_in_slot(0) == 0
     return source_empty and pipe_empty
 }

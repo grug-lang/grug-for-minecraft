@@ -11,8 +11,7 @@ export run() {
 
         drop_inventory(level, x, origin.y(), origin.z())
 
-        chest_be: BlockEntity = chest_opt.unwrap()
-        empty_item: Option[Item] = chest_be.get_item_in_slot(0)
+        empty_item: Option[Item] = chest_opt.unwrap().get_item_in_slot(0)
         Test.assert(not empty_item.has(), "The emptied chest still reports an item.")
     }
 }

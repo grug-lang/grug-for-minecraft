@@ -14,7 +14,6 @@ export run() {
         Test.assert(be_opt.has(), "chest has no block entity after being placed.")
 
         me.expect_error("take_crafting_result")
-        be_be: BlockEntity = be_opt.unwrap()
-        be_be.take_crafting_result(1)
+        be_opt.unwrap().take_crafting_result(1)
     }
 }

@@ -256,8 +256,7 @@ local _faces_receptor() bool {
     if not receptor.has() {
         return false
     }
-    receptor_be: BlockEntity = receptor.unwrap()
-    return receptor_be.is_power_receiver()
+    return receptor.unwrap().is_power_receiver()
 }
 
 # PowerProvider.receiveEnergy on the receptor in front of the engine. Only called after
