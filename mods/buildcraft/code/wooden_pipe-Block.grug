@@ -4,3 +4,18 @@ export init() {
     set_block_entity(e"wooden_pipe_entity")
     set_inventory_size(1)
 }
+
+# PipeLogicWood.blockActivated: a right click with the wrench makes the pipe extract from the next
+# side that has an inventory. The block entity does it on its next tick, because only it knows its
+# own side. The reference declines every other click, which a use export cannot do yet (#546).
+export use(world: Level, x: number, y: number, z: number, player: Player) {
+    held: Option[Item] = player.get_held_item()
+    if held.has() {
+        if equals(held.unwrap(), item(resource_location("grug:wrench"))) {
+            pipe: Option[BlockEntity] = world.get_block_entity(x, y, z)
+            if pipe.has() {
+                set_saved_number(pipe.unwrap(), "rotate", 1)
+            }
+        }
+    }
+}

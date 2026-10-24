@@ -1,0 +1,89 @@
+# Covers the side a wooden pipe extracts from, as PipeLogicWood does in BuildCraft 2.2.14. The side is the
+# pipe's metadata, 0 to 5 for YNeg, YPos, ZNeg, ZPos, XNeg and XPos and 6 for none; the port saves it as
+# the metadata plus one under "source". A fresh pipe has metadata 0 and switchSource searches from the
+# side after it, wrapping round, so with chests at x - 1 (4) and x + 1 (5) it picks 4. A right click with
+# the wrench makes it search again from there and pick 5, and the next click wraps round to 4. A click
+# without the wrench changes nothing, and taking the chosen chest away makes the pipe pick the other.
+# The block entity's tick is run by hand after each click, because the wrench only sets the request and
+# the tick acts on it. On 1.20.6 the click reaches the block by a packet, so each wait is for the side to
+# change, run until it does. That a click without the wrench changes nothing has no condition to wait
+# for, so it waits a fixed 20 ticks.
+step: number = 0
+waited: number = 0
+
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    player: Player = Test.get_player()
+    wrench: Item = item(resource_location("grug:wrench"))
+
+    if step == 0 {
+        level.place_block(x - 1, y, z, "minecraft:chest")
+        level.place_block(x + 1, y, z, "minecraft:chest")
+        level.place_block(x, y, z, "grug:wooden_pipe")
+        Test.tick_block_entity(_pipe(level, x, y, z), 1)
+        Test.assert(_source(level, x, y, z) == 5, "A fresh pipe should extract from side 4, saved as 5.")
+
+        # A chunk reload makes the block entity read what it saved, which round_trip_nbt does without one.
+        Test.round_trip_nbt(_pipe(level, x, y, z))
+        Test.tick_block_entity(_pipe(level, x, y, z), 1)
+        Test.assert(_source(level, x, y, z) == 5, "The side should survive a reload.")
+
+        Test.set_held_item(player, wrench)
+        Test.use_block(level, x, y, z)
+        step = 1
+        Test.not_done()
+    } else if step == 1 {
+        Test.tick_block_entity(_pipe(level, x, y, z), 1)
+        if _source(level, x, y, z) == 6 {
+            Test.use_block(level, x, y, z)
+            step = 2
+        }
+        _wait()
+    } else if step == 2 {
+        Test.tick_block_entity(_pipe(level, x, y, z), 1)
+        if _source(level, x, y, z) == 5 {
+            Test.clear_held_item(player)
+            Test.use_block(level, x, y, z)
+            step = 3
+            waited = 0
+        }
+        _wait()
+    } else if step == 3 {
+        Test.tick_block_entity(_pipe(level, x, y, z), 1)
+        waited = waited + 1
+        if waited < 20 {
+            Test.not_done()
+            return
+        }
+        Test.assert(_source(level, x, y, z) == 5, "A click without the wrench should leave the side at 4.")
+
+        # The chest the pipe extracts from is replaced, so the next tick picks the other one.
+        level.place_block(x - 1, y, z, "minecraft:stone")
+        step = 4
+        Test.not_done()
+    } else {
+        Test.tick_block_entity(_pipe(level, x, y, z), 1)
+        Test.assert(_source(level, x, y, z) == 6, "A pipe whose chest is gone should pick the other chest.")
+    }
+}
+
+# A step that has not seen what it waits for yet keeps the test alive.
+local _wait() {
+    waited = waited + 1
+    Test.assert(waited < 200, "The wrench did not change the pipe's side.")
+    Test.not_done()
+}
+
+local _pipe(level: Level, x: number, y: number, z: number) BlockEntity {
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(pipe_opt.has(), "The wooden pipe should have a block entity.")
+    return pipe_opt.unwrap()
+}
+
+local _source(level: Level, x: number, y: number, z: number) number {
+    return get_saved_number(_pipe(level, x, y, z), "source")
+}
