@@ -600,15 +600,28 @@ public class ForgeAdapter implements ModLoaderAdapter {
         ((Level) levelObj).explode(null, x, y, z, (float) power, Level.ExplosionInteraction.BLOCK);
     }
 
+    /**
+     * The player a right-click is answered for. In single player the block's use runs on the
+     * integrated server, which reads the server's copy of the player's hand, so a test that puts
+     * something in the client player's hand has to put it in the server's copy to be seen.
+     */
+    @GrugGenerated("singleplayer versus a connected client: which hand the use reads is plumbing")
+    private static Player serverSideOf(Player player) {
+        var server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null || !player.level().isClientSide) return player;
+        ServerPlayer serverPlayer = server.getPlayerList().getPlayer(player.getUUID());
+        return serverPlayer != null ? serverPlayer : player;
+    }
+
     @Override
     public Object getHeldItem(Object playerObj) {
-        ItemStack stack = ((Player) playerObj).getMainHandItem();
+        ItemStack stack = serverSideOf((Player) playerObj).getMainHandItem();
         return !stack.isEmpty() ? stack.getItem() : null;
     }
 
     @Override
     public void setHeldItem(Object playerObj, Object itemObj) {
-        ((Player) playerObj)
+        serverSideOf((Player) playerObj)
                 .setItemInHand(
                         InteractionHand.MAIN_HAND,
                         itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj));
