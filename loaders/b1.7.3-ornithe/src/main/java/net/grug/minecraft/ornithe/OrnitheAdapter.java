@@ -317,7 +317,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public void setItemInSlot(Object blockEntityObj, double slot, Object itemObj, double count) {
         Inventory inv = (Inventory) blockEntityObj;
-        inv.setItem((int) slot, new ItemStack((Item) itemObj, (int) count));
+        // item() resolves a name with no matching Item to the block of that name, so a block can
+        // arrive
+        // here as well as an item.
+        ItemStack stack =
+                itemObj instanceof Item
+                        ? new ItemStack((Item) itemObj, (int) count)
+                        : new ItemStack((Block) itemObj, (int) count);
+        inv.setItem((int) slot, stack);
     }
 
     @Override
