@@ -65,10 +65,8 @@ final class GrugSpecialInventory {
             damage = adapter.getItemDamageInSlot(blockEntity, response.slot());
             taken = adapter.takeItemFromSlot(blockEntity, response.slot(), count);
         }
-        if (taken > 0) {
-            adapter.setItemInSlot(destination, destinationSlot, item, taken);
-            adapter.setItemDamageInSlot(destination, destinationSlot, damage);
-        }
+        adapter.setItemInSlot(destination, destinationSlot, item, taken);
+        adapter.setItemDamageInSlot(destination, destinationSlot, damage);
         return taken;
     }
 
