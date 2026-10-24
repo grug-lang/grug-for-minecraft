@@ -115,11 +115,6 @@
 					"tracking_issue": 473
 				},
 				{
-					"what": "A right click on a wooden pipe with anything but the wrench does nothing and is not passed on, where the reference passes it on, so a block cannot be placed against a pipe by right-clicking it.",
-					"why": "A block that exports use has handled every right click on it, and a use export returns nothing, so the pipe cannot decline a click it does not want, as PipeLogicWood.blockActivated does by returning false.",
-					"tracking_issue": 546
-				},
-				{
 					"what": "Which slots of an inventory another block may use is a slot range the block entity declares, rather than the reference's side-aware ISpecialInventory, and a machine's crafting result is pulled by a wooden pipe one item at a time, spending 1 energy for it, where ISpecialInventory.extractItem hands the pipe whatever the machine decides and spends no energy.",
 					"why": "The reference asks the neighbour inventory itself, per side and per item (ISpecialInventory.addItem and extractItem), and PipeItemsWood.checkExtract takes that answer as it is without using energy. grug exports can only be called by the host and cannot return a value, so the rule is declared to the host instead and read back with is_slot_extractable, and the pipe takes the crafting result through take_crafting_result, one item at a time, with the energy of a plain slot.",
 					"tracking_issue": 340

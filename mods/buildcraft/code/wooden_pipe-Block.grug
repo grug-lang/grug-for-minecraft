@@ -7,7 +7,8 @@ export init() {
 
 # PipeLogicWood.blockActivated: a right click with the wrench makes the pipe extract from the next
 # side that has an inventory. The block entity does it on its next tick, because only it knows its
-# own side. The reference declines every other click, which a use export cannot do yet (#546).
+# own side. Any other click is declined, as the reference returns false for it, so the held item is
+# used or placed as usual.
 export use(world: Level, x: number, y: number, z: number, player: Player) {
     held: Option[Item] = player.get_held_item()
     if held.has() {
@@ -16,6 +17,8 @@ export use(world: Level, x: number, y: number, z: number, player: Player) {
             if pipe.has() {
                 set_saved_number(pipe.unwrap(), "rotate", 1)
             }
+            return
         }
     }
+    decline_use()
 }
