@@ -19,8 +19,7 @@ export run() {
         level.place_block(x, y, z, "minecraft:chest")
         chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         Test.assert(chest_opt.has(), "The chest should have a block entity.")
-        chest_be: BlockEntity = chest_opt.unwrap()
-        chest_be.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+        chest_opt.unwrap().set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
 
         # Drops the chest's contents as an item entity, the same way the build's own block clearing
         # drops whatever inventory a fixture left behind.

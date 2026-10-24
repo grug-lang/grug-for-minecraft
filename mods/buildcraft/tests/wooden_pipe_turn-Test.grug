@@ -46,17 +46,13 @@ local _turn_setup() {
     pipe_turn_self.set(self_opt.unwrap())
 
     diamond: Item = item(resource_location("minecraft:diamond"))
-    pipe_turn_source_be: BlockEntity = pipe_turn_source.unwrap()
-    pipe_turn_source_be.set_item_in_slot(0, diamond, 1)
+    pipe_turn_source.unwrap().set_item_in_slot(0, diamond, 1)
 }
 
 local _turn_check() {
-    pipe_turn_source_be: BlockEntity = pipe_turn_source.unwrap()
-    source_count: number = pipe_turn_source_be.get_item_count_in_slot(0)
-    pipe_turn_target_be: BlockEntity = pipe_turn_target.unwrap()
-    target_count: number = pipe_turn_target_be.get_item_count_in_slot(0)
-    pipe_turn_self_be: BlockEntity = pipe_turn_self.unwrap()
-    pipe_count: number = pipe_turn_self_be.get_item_count_in_slot(0)
+    source_count: number = pipe_turn_source.unwrap().get_item_count_in_slot(0)
+    target_count: number = pipe_turn_target.unwrap().get_item_count_in_slot(0)
+    pipe_count: number = pipe_turn_self.unwrap().get_item_count_in_slot(0)
 
     Test.assert(source_count + target_count + pipe_count == 1, "The diamond should exist exactly once.")
     Test.assert(source_count == 0, "The source chest should be empty.")
@@ -68,9 +64,7 @@ local _turn_check() {
 # source chest and the pipe's own one-slot buffer; the corner it turned is what _check asserts. See
 # #173.
 local _turn_pipe_has_moved() bool {
-    pipe_turn_source_be: BlockEntity = pipe_turn_source.unwrap()
-    source_empty: bool = pipe_turn_source_be.get_item_count_in_slot(0) == 0
-    pipe_turn_self_be: BlockEntity = pipe_turn_self.unwrap()
-    pipe_empty: bool = pipe_turn_self_be.get_item_count_in_slot(0) == 0
+    source_empty: bool = pipe_turn_source.unwrap().get_item_count_in_slot(0) == 0
+    pipe_empty: bool = pipe_turn_self.unwrap().get_item_count_in_slot(0) == 0
     return source_empty and pipe_empty
 }

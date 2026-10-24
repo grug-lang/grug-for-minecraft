@@ -61,7 +61,6 @@ local _place(level: Level, x: number, y: number, z: number) BlockEntity {
     Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
 
     diamond: Item = item(resource_location("minecraft:diamond"))
-    source_be: BlockEntity = source_opt.unwrap()
-    source_be.set_item_in_slot(0, diamond, 5)
+    source_opt.unwrap().set_item_in_slot(0, diamond, 5)
     return pipe_opt.unwrap()
 }

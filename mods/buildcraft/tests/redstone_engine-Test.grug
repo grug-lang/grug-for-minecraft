@@ -151,8 +151,7 @@ local _check_gain() {
         return
     }
 
-    engine_be: BlockEntity = engine.unwrap()
-    level: Level = engine_be.level()
+    level: Level = engine.unwrap().level()
     now: number = level.get_time()
     phase: number = Math.remainder(now, 20)
     if phase < 5 or phase > 15 {

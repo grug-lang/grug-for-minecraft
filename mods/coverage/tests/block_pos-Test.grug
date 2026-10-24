@@ -11,8 +11,7 @@ export run() {
         block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
 
-        block_be: BlockEntity = block_opt.unwrap()
-        above: BlockPos = block_be.block_pos().above_n(2)
+        above: BlockPos = block_opt.unwrap().block_pos().above_n(2)
         Test.assert(above.center().y() > origin.y(), "above_n did not move the position up.")
     }
 }

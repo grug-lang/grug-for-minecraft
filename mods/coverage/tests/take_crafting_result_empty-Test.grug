@@ -12,7 +12,6 @@ export run() {
         be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         Test.assert(be_opt.has(), "coverage_block has no block entity after being placed.")
 
-        be_be: BlockEntity = be_opt.unwrap()
-        Test.assert(be_be.take_crafting_result(1) == 0, "an empty result should be 0.")
+        Test.assert(be_opt.unwrap().take_crafting_result(1) == 0, "an empty result should be 0.")
     }
 }

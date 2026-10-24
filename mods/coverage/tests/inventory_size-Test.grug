@@ -9,12 +9,10 @@ export run() {
     level.place_block(x, y, z, "grug:coverage_block")
     block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     Test.assert(block_opt.has(), "The coverage block should have a block entity.")
-    block_be: BlockEntity = block_opt.unwrap()
-    Test.assert(block_be.get_inventory_size() == 9, "The coverage block should have 9 slots.")
+    Test.assert(block_opt.unwrap().get_inventory_size() == 9, "The coverage block should have 9 slots.")
 
     level.place_block(x, y, z, "minecraft:chest")
     chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     Test.assert(chest_opt.has(), "The chest should have a block entity.")
-    chest_be: BlockEntity = chest_opt.unwrap()
-    Test.assert(chest_be.get_inventory_size() == 27, "A chest should have 27 slots.")
+    Test.assert(chest_opt.unwrap().get_inventory_size() == 27, "A chest should have 27 slots.")
 }

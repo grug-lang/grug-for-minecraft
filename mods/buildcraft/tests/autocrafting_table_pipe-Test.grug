@@ -53,8 +53,7 @@ export run() {
 # The table's init() is what a pipe goes by, and an inventory that has declared nothing is extractable
 # everywhere, so a denied grid slot is what says the table has spoken.
 local _table_has_declared() bool {
-    pipe_table_table_be: BlockEntity = pipe_table_table.unwrap()
-    return not pipe_table_table_be.is_slot_extractable(0)
+    return not pipe_table_table.unwrap().is_slot_extractable(0)
 }
 
 # Three wheat in the top row craft one bread. Wheat and bread are items rather than blocks on every
@@ -170,6 +169,5 @@ local _check() {
 # leave the result slot filled forever, turning the failure into a wait that never converges instead
 # of the item assertion that names the wheat. See #173.
 local _bread_has_moved() bool {
-    pipe_table_chest_be: BlockEntity = pipe_table_chest.unwrap()
-    return pipe_table_chest_be.get_item_count_in_slot(0) > 0
+    return pipe_table_chest.unwrap().get_item_count_in_slot(0) > 0
 }

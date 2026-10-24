@@ -126,17 +126,14 @@ local _test_graphics_setup() {
     Test.assert(chest2_be.has(), "Chest 2 has no block entity.")
     graphics_chest2.set(chest2_be.unwrap())
 
-    graphics_chest1_be: BlockEntity = graphics_chest1.unwrap()
-    graphics_chest1_be.set_item_in_slot(0, diamond_item, 5)
-    graphics_chest2_be: BlockEntity = graphics_chest2.unwrap()
-    graphics_chest2_be.set_item_in_slot(0, diamond_item, 5)
+    graphics_chest1.unwrap().set_item_in_slot(0, diamond_item, 5)
+    graphics_chest2.unwrap().set_item_in_slot(0, diamond_item, 5)
 
     # Fill the crafting grid, so the screenshot has to render real item sprites rather than nine
     # empty slots. That makes the comparison sensitive to texture loading as well as to layout.
     slot: number = 0
     while slot < 9 {
-        graphics_table_be: BlockEntity = graphics_table.unwrap()
-        graphics_table_be.set_item_in_slot(slot, diamond_item, 1)
+        graphics_table.unwrap().set_item_in_slot(slot, diamond_item, 1)
         slot = slot + 1
     }
 
@@ -164,15 +161,12 @@ local _test_graphics_check() {
     slot: number = 0
     while slot < 9 {
         # (A call's arguments have to stay on one line in grug, hence the local.)
-        graphics_table_be: BlockEntity = graphics_table.unwrap()
-        count: number = graphics_table_be.get_item_count_in_slot(slot)
+        count: number = graphics_table.unwrap().get_item_count_in_slot(slot)
         Test.assert(count == 1, "Expected the crafting grid to still hold exactly 1 diamond per slot.")
         slot = slot + 1
     }
-    graphics_chest1_be: BlockEntity = graphics_chest1.unwrap()
-    chest1_count: number = graphics_chest1_be.get_item_count_in_slot(0)
-    graphics_chest2_be: BlockEntity = graphics_chest2.unwrap()
-    chest2_count: number = graphics_chest2_be.get_item_count_in_slot(0)
+    chest1_count: number = graphics_chest1.unwrap().get_item_count_in_slot(0)
+    chest2_count: number = graphics_chest2.unwrap().get_item_count_in_slot(0)
     Test.assert(chest1_count == 5, "Expected chest 1 to still hold its 5 diamonds.")
     Test.assert(chest2_count == 5, "Expected chest 2 to still hold its 5 diamonds.")
 }
