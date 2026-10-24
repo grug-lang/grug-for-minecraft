@@ -1,0 +1,46 @@
+# Covers the recipes for the stone gear and the wrench, which BuildCraftCore registers as a stone gear from
+# a wooden gear ringed by cobblestone and a wrench from two iron ingots over a stone gear. Each grid is put
+# in an autocrafting table, whose result slot is what the recipe makes.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 30
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:autocrafting_table")
+    table_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(table_opt.has(), "The autocrafting table should have a block entity.")
+    table: BlockEntity = table_opt.unwrap()
+
+    cobblestone: Item = item(resource_location("minecraft:cobblestone"))
+    iron: Item = item(resource_location("minecraft:iron_ingot"))
+    wooden_gear: Item = item(resource_location("grug:wooden_gear"))
+    stone_gear: Item = item(resource_location("grug:stone_gear"))
+    wrench: Item = item(resource_location("grug:wrench"))
+
+    set_item_in_slot(table, 1, cobblestone, 1)
+    set_item_in_slot(table, 3, cobblestone, 1)
+    set_item_in_slot(table, 4, wooden_gear, 1)
+    set_item_in_slot(table, 5, cobblestone, 1)
+    set_item_in_slot(table, 7, cobblestone, 1)
+    update_recipe_output(table, 0)
+    result: Option[Item] = get_crafting_result_item(table)
+    Test.assert(result.has(), "A wooden gear ringed by cobblestone should make something.")
+    Test.assert(equals(result.unwrap(), stone_gear), "A wooden gear ringed by cobblestone should make a stone gear.")
+
+    slot: number = 0
+    while slot < 9 {
+        set_item_count_in_slot(table, slot, 0)
+        slot = slot + 1
+    }
+
+    set_item_in_slot(table, 0, iron, 1)
+    set_item_in_slot(table, 2, iron, 1)
+    set_item_in_slot(table, 4, stone_gear, 1)
+    set_item_in_slot(table, 7, iron, 1)
+    update_recipe_output(table, 0)
+    result = get_crafting_result_item(table)
+    Test.assert(result.has(), "A stone gear under two iron ingots should make something.")
+    Test.assert(equals(result.unwrap(), wrench), "A stone gear under two iron ingots should make a wrench.")
+}

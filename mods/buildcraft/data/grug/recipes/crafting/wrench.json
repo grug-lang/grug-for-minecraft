@@ -1,0 +1,19 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "i i",
+        " g ",
+        " i "
+    ],
+    "key": {
+        "i": {
+            "item": "minecraft:iron_ingot"
+        },
+        "g": {
+            "item": "grug:stone_gear"
+        }
+    },
+    "result": {
+        "id": "grug:wrench"
+    }
+}
