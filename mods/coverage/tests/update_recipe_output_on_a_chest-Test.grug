@@ -1,7 +1,7 @@
 # update_recipe_output on a non-grug block entity has no result container to cache into, so it
 # reports a host error naming the function rather than writing a slot that does not exist.
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x() + 7
@@ -12,7 +12,8 @@ export run() {
         be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         Test.assert(be_opt.has(), "chest has no block entity after being placed.")
 
-        Test.expect_error("update_recipe_output")
-        update_recipe_output(be_opt.unwrap(), 0)
+        me.expect_error("update_recipe_output")
+        be_be: BlockEntity = be_opt.unwrap()
+        be_be.update_recipe_output(0)
     }
 }

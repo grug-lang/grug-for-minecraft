@@ -8,6 +8,6 @@ export run() {
 
     level.place_block(x, y, z, "minecraft:chest")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
-    Test.expect_error("Only a grug block entity can receive energy")
-    set_power_receiver(be, 10)
+    me.expect_error("Only a grug block entity can receive energy")
+    be.set_power_receiver(10)
 }

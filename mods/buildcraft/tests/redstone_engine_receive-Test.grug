@@ -20,7 +20,7 @@ export run() {
     # Waits for a time 5 to 15 ticks past a multiple of 20. See the header.
     phase: number = Math.remainder(level.get_time(), 20)
     if phase < 5 or phase > 15 {
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -31,22 +31,22 @@ export run() {
 
     # One stroke: the receiver gains nothing, and the feeder pays 1 energy for it.
     receiver: BlockEntity = _scenario(level, x, y, z, 1, 100)
-    Test.assert(get_saved_number(receiver, "energy") == 100, "One stroke's 1 energy should add 0 to the receiver, as (int)(1 * 0.95F) is 0.")
-    Test.assert(get_energy_stored(receiver) == 0, "The receiver should have emptied its store on its tick.")
+    Test.assert(receiver.get_saved_number("energy") == 100, "One stroke's 1 energy should add 0 to the receiver, as (int)(1 * 0.95F) is 0.")
+    Test.assert(receiver.get_energy_stored() == 0, "The receiver should have emptied its store on its tick.")
 
     # Two strokes that both arrive before the receiver's tick add 1.
     receiver = _scenario(level, x + 4, y, z, 2, 100)
-    Test.assert(get_saved_number(receiver, "energy") == 101, "Two strokes should add 1 to the receiver, as (int)(2 * 0.95F) is 1.")
-    Test.assert(get_energy_stored(receiver) == 0, "The receiver should have emptied its store on its tick.")
+    Test.assert(receiver.get_saved_number("energy") == 101, "Two strokes should add 1 to the receiver, as (int)(2 * 0.95F) is 1.")
+    Test.assert(receiver.get_energy_stored() == 0, "The receiver should have emptied its store on its tick.")
 
     # Three add 2.
     receiver = _scenario(level, x + 8, y, z, 3, 100)
-    Test.assert(get_saved_number(receiver, "energy") == 102, "Three strokes should add 2 to the receiver, as (int)(3 * 0.95F) is 2.")
+    Test.assert(receiver.get_saved_number("energy") == 102, "Three strokes should add 2 to the receiver, as (int)(3 * 0.95F) is 2.")
 
     # An engine at 1000 is not pushed above it by a stroke that adds nothing, and does not explode.
     level.place_block(x + 12, y, z - 1, "minecraft:glass")
     receiver = _scenario(level, x + 12, y, z, 1, 1000)
-    Test.assert(get_saved_number(receiver, "energy") == 1000, "A receiver at 1000 should stay at 1000.")
+    Test.assert(receiver.get_saved_number("energy") == 1000, "A receiver at 1000 should stay at 1000.")
     Test.assert(not level.is_air(x + 12, y, z - 1), "A receiver at 1000 should not explode when a stroke adds nothing.")
     level.place_block(x + 12, y, z - 1, "minecraft:air")
 
@@ -81,12 +81,12 @@ local _scenario(level: Level, x: number, y: number, z: number, feeders: number, 
 # each of which draws the engine again (redstone_engine_stroke-Test.grug runs whole ones).
 local _deliver(receiver: BlockEntity, feeder: BlockEntity, stored_before: number) {
     Test.tick_block_entity(feeder, 1)
-    set_saved_number(feeder, "progress", 0.495)
-    before: number = get_saved_number(feeder, "energy")
-    Test.assert(get_energy_stored(receiver) == stored_before, "A feeder should not have handed its energy over before it passes halfway.")
+    feeder.set_saved_number("progress", 0.495)
+    before: number = feeder.get_saved_number("energy")
+    Test.assert(receiver.get_energy_stored() == stored_before, "A feeder should not have handed its energy over before it passes halfway.")
     Test.tick_block_entity(feeder, 1)
-    Test.assert(get_saved_number(feeder, "energy") == before - 1, "A feeder should lose exactly 1 energy at its delivery.")
-    Test.assert(get_energy_stored(receiver) == stored_before + 1, "The delivery should add 1 to the receiver's store.")
+    Test.assert(feeder.get_saved_number("energy") == before - 1, "A feeder should lose exactly 1 energy at its delivery.")
+    Test.assert(receiver.get_energy_stored() == stored_before + 1, "The delivery should add 1 to the receiver's store.")
 }
 
 # The index-th feeder of the receiver at (x, y, z): index 0 is west of it and faces east, 1 is east
@@ -116,8 +116,8 @@ local _place_engine(level: Level, x: number, y: number, z: number, powered: bool
     Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     Test.assert(level.has_neighbor_signal(x, y, z) == powered, "The engine's redstone signal should match what the test set up.")
     engine: BlockEntity = engine_opt.unwrap()
-    set_saved_number(engine, "energy", energy)
-    set_saved_number(engine, "oriented", 1)
-    set_saved_number(engine, "orientation", facing)
+    engine.set_saved_number("energy", energy)
+    engine.set_saved_number("oriented", 1)
+    engine.set_saved_number("orientation", facing)
     return engine
 }

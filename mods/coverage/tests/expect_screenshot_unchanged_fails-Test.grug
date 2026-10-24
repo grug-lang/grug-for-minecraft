@@ -5,7 +5,7 @@
 export run() {
     # Matched on the wording rather than the number, so the check does not depend on how the
     # share is formatted.
-    Test.expect_error("the frame still shows what it showed before")
+    me.expect_error("the frame still shows what it showed before")
     first: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
     second: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
     second.differs_from(first, 50)

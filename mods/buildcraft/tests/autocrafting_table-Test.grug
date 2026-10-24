@@ -18,18 +18,18 @@ graphics_chest1: Option[BlockEntity] = Option.new()
 graphics_chest2: Option[BlockEntity] = Option.new()
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         # Runs before the camera setup, so it still builds at the player's own origin.
         _test_logic()
 
         _test_graphics_setup()
-        Test.not_done()
+        me.not_done()
     } else if not Test.screen_open() {
         # On 1.20.6 the screen is opened by a packet from the server, so it is not open yet when
         # use_block returns, and a settled world does not say the packet has arrived: the world
         # can answer settled from its first tick, which is how the capture was once taken of the
         # world instead of the panel. See #418.
-        Test.not_done()
+        me.not_done()
     } else if not Test.world_settled() {
         # How long the opened GUI takes to reach the framebuffer is a condition rather than a tick
         # count. The setup places blocks, so the renderer has pending rebuilds until the frame that
@@ -38,7 +38,7 @@ export run() {
         # fixed 40-tick wait was measured for this on the CI stack (the frame was still the
         # level-loading screen at tick 0 and first held the real GUI at tick 16), and it raced a
         # slower runner. See #257.
-        Test.not_done()
+        me.not_done()
     } else {
         _test_graphics_check()
         Test.close_screen()
@@ -64,28 +64,25 @@ local _test_logic() {
 
     diamond_item: Item = item(resource_location("minecraft:diamond"))
 
-    # TODO: Change to chest1.set_item_in_slot() once entities can have methods
-    set_item_in_slot(chest1, 0, diamond_item, 5)
-    set_item_in_slot(chest2, 0, diamond_item, 5)
+    chest1.set_item_in_slot(0, diamond_item, 5)
+    chest2.set_item_in_slot(0, diamond_item, 5)
 
     # Prime the grid
     slot: number = 0
     while slot < 9 {
-        set_item_in_slot(table, slot, diamond_item, 1)
+        table.set_item_in_slot(slot, diamond_item, 1)
         slot = slot + 1
     }
 
-    # TODO: Change to table.take_crafting_result() once entities can have methods
     # Pull 1: 9 diamonds used (from grid). Restocks 9 from chests nearest first: BuildCraft drains
     # the XNeg neighbour (chest 2, at x - 1) before XPos, so chest 2 empties and chest 1 keeps 1.
-    take_crafting_result(table, 1)
+    table.take_crafting_result(1)
 
     # Pull 2: 9 diamonds used (from grid). Restock fails (requires 9, has 1). Grid empties.
-    take_crafting_result(table, 1)
+    table.take_crafting_result(1)
 
-    # TODO: Change to chest1.get_item_count_in_slot() once entities can have methods
-    chest1_count: number = get_item_count_in_slot(chest1, 0)
-    chest2_count: number = get_item_count_in_slot(chest2, 0)
+    chest1_count: number = chest1.get_item_count_in_slot(0)
+    chest2_count: number = chest2.get_item_count_in_slot(0)
 
     Test.assert(chest1_count == 1, "Expected exactly 1 diamond to remain in chest 1.")
     Test.assert(chest2_count == 0, "Expected exactly 0 diamonds to remain in chest 2.")
@@ -129,14 +126,17 @@ local _test_graphics_setup() {
     Test.assert(chest2_be.has(), "Chest 2 has no block entity.")
     graphics_chest2.set(chest2_be.unwrap())
 
-    set_item_in_slot(graphics_chest1.unwrap(), 0, diamond_item, 5)
-    set_item_in_slot(graphics_chest2.unwrap(), 0, diamond_item, 5)
+    graphics_chest1_be: BlockEntity = graphics_chest1.unwrap()
+    graphics_chest1_be.set_item_in_slot(0, diamond_item, 5)
+    graphics_chest2_be: BlockEntity = graphics_chest2.unwrap()
+    graphics_chest2_be.set_item_in_slot(0, diamond_item, 5)
 
     # Fill the crafting grid, so the screenshot has to render real item sprites rather than nine
     # empty slots. That makes the comparison sensitive to texture loading as well as to layout.
     slot: number = 0
     while slot < 9 {
-        set_item_in_slot(graphics_table.unwrap(), slot, diamond_item, 1)
+        graphics_table_be: BlockEntity = graphics_table.unwrap()
+        graphics_table_be.set_item_in_slot(slot, diamond_item, 1)
         slot = slot + 1
     }
 
@@ -164,12 +164,15 @@ local _test_graphics_check() {
     slot: number = 0
     while slot < 9 {
         # (A call's arguments have to stay on one line in grug, hence the local.)
-        count: number = get_item_count_in_slot(graphics_table.unwrap(), slot)
+        graphics_table_be: BlockEntity = graphics_table.unwrap()
+        count: number = graphics_table_be.get_item_count_in_slot(slot)
         Test.assert(count == 1, "Expected the crafting grid to still hold exactly 1 diamond per slot.")
         slot = slot + 1
     }
-    chest1_count: number = get_item_count_in_slot(graphics_chest1.unwrap(), 0)
-    chest2_count: number = get_item_count_in_slot(graphics_chest2.unwrap(), 0)
+    graphics_chest1_be: BlockEntity = graphics_chest1.unwrap()
+    chest1_count: number = graphics_chest1_be.get_item_count_in_slot(0)
+    graphics_chest2_be: BlockEntity = graphics_chest2.unwrap()
+    chest2_count: number = graphics_chest2_be.get_item_count_in_slot(0)
     Test.assert(chest1_count == 5, "Expected chest 1 to still hold its 5 diamonds.")
     Test.assert(chest2_count == 5, "Expected chest 2 to still hold its 5 diamonds.")
 }

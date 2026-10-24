@@ -138,7 +138,7 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
 
 ## Writing tests
 
-- `run()` is called once per tick; `Test.not_done()` keeps the test alive.
+- `run()` is called once per tick; `me.not_done()` keeps the test alive.
 - The runner clears the test area before every test, so a test starts from a clean test area and
   never compensates for an earlier test: it does not reset state a previous test left, close a
   screen a previous test opened, or guard against a leak at all. A test that opens a GUI is the one

@@ -1,7 +1,7 @@
 # Exercises place_block's vanilla-reflection and grug-block paths, plus custom and vanilla item
 # lookups. The unresolved path is expect_place_block_unknown-Test.grug, which aborts on the error.
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x()
@@ -28,7 +28,7 @@ export run() {
         # A block name no loader has is the script's own error, and it ends the run's test right
         # here, so it comes last. place_block reports it rather than leaving the block unplaced
         # without a word.
-        Test.expect_error("place_block")
+        me.expect_error("place_block")
         level.place_block(x + 6, y, z, "grug:does_not_exist")
     }
 }

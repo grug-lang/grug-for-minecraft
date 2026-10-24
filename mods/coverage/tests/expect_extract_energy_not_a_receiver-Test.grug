@@ -8,6 +8,6 @@ export run() {
 
     level.place_block(x, y, z, "grug:coverage_block")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
-    Test.expect_error("is not an energy receiver")
-    extract_energy(be, 1)
+    me.expect_error("is not an energy receiver")
+    be.extract_energy(1)
 }

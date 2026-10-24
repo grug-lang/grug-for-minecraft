@@ -8,6 +8,6 @@ export run() {
 
     level.place_block(x, y, z, "minecraft:chest")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
-    Test.expect_error("is not an energy receiver")
-    receive_energy(be, 1)
+    me.expect_error("is not an energy receiver")
+    be.receive_energy(1)
 }

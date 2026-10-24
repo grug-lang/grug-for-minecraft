@@ -15,23 +15,54 @@ export on_neighbor_change()
 export output_taken(amount: number)
 export render()
 export tick()
+.block_pos() BlockPos
+.consume_crafting_ingredients(start_slot: number)
+.count_item_in_inventory(item: Item, damage: number) number
+.extract_energy(max: number) number
+.extract_item_from_inventory(item: Item, damage: number, amount: number) number
+.get_crafting_result_damage() number
+.get_crafting_result_item() Option[Item]
+.get_energy_stored() number
+.get_inventory_size() number
+.get_item_count_in_slot(slot: number) number
+.get_item_damage_in_slot(slot: number) number
+.get_item_in_slot(slot: number) Option[Item]
+.get_saved_number(name: string) number
+.insert_item_into_inventory(item: Item, damage: number, amount: number) number
+.is_power_receiver() bool
+.is_slot_extractable(slot: number) bool
+.is_slot_insertable(slot: number) bool
+.level() Level
+.receive_energy(amount: number) number
+.redraw()
+.set_extractable_slots(first: number, last: number)
+.set_insertable_slots(first: number, last: number)
+.set_item_count_in_slot(slot: number, count: number)
+.set_item_damage_in_slot(slot: number, damage: number)
+.set_item_in_slot(slot: number, item: Item, count: number)
+.set_power_receiver(max_stored: number)
+.set_saved_number(name: string, value: number)
+.take_crafting_result(amount: number) number
+.take_item_from_slot(slot: number, amount: number) number
+.update_recipe_output(start_slot: number)
 
 ## Item
 export init()
 
 ## Test
 export run()
+.expect_error(message: string)
+.not_done()
+.tick() number
 Test.assert(condition: bool, message: string)
 Test.clear_held_item(player: Player)
 Test.close_screen()
-Test.expect_error(message: string)
 Test.force_gc()
 Test.get_client_level() Level
 Test.get_origin() Vec3
 Test.get_player() Player
 Test.hot_reload_count(relative_path: string) number
 Test.is_reference() bool
-Test.not_done()
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
@@ -42,7 +73,6 @@ Test.set_box_radius(radius: number)
 Test.set_held_item(player: Player, item: Item)
 Test.set_mod_file_state(relative_path: string, state: string)
 Test.setup_graphics_camera() Vec3
-Test.tick() number
 Test.tick_block_entity(block_entity: BlockEntity, ticks: number)
 Test.use_block(level: Level, x: number, y: number, z: number)
 Test.world_settled() bool
@@ -108,53 +138,23 @@ Option.new() Option[$Value]
 
 # Host functions
 
-consume_crafting_ingredients(block_entity: BlockEntity, start_slot: number)
-count_item_in_inventory(block_entity: BlockEntity, item: Item, damage: number) number
 decline_use()
 draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 draw_model(model: resource, x: number, y: number, z: number, dx: number, dy: number, dz: number)
 drop_inventory(level: Level, x: number, y: number, z: number)
 equals(a: $Type, b: $Type) bool
-extract_energy(block_entity: BlockEntity, max: number) number
-extract_item_from_inventory(block_entity: BlockEntity, item: Item, damage: number, amount: number) number
-get_block_entity_level(block_entity: BlockEntity) Level
-get_block_pos_of_block_entity(block_entity: BlockEntity) BlockPos
-get_crafting_result_damage(block_entity: BlockEntity) number
-get_crafting_result_item(block_entity: BlockEntity) Option[Item]
-get_energy_stored(block_entity: BlockEntity) number
-get_inventory_size(block_entity: BlockEntity) number
-get_item_count_in_slot(block_entity: BlockEntity, slot: number) number
-get_item_damage_in_slot(block_entity: BlockEntity, slot: number) number
-get_item_in_slot(block_entity: BlockEntity, slot: number) Option[Item]
-get_saved_number(block_entity: BlockEntity, name: string) number
 gui(texture_path: resource) GUI
-insert_item_into_inventory(block_entity: BlockEntity, item: Item, damage: number, amount: number) number
-is_power_receiver(block_entity: BlockEntity) bool
-is_slot_extractable(block_entity: BlockEntity, slot: number) bool
-is_slot_insertable(block_entity: BlockEntity, slot: number) bool
 item(resource_location: ResourceLocation) Item
 item_entity(level: Level, x: number, y: number, z: number, item_stack: ItemStack) ItemEntity
 item_stack(item: Item, damage: number) ItemStack
 print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)
-receive_energy(block_entity: BlockEntity, amount: number) number
-redraw(block_entity: BlockEntity)
 resource_location(resource_location_string: string) ResourceLocation
 set_block_entity(entity_string: entity)
 set_custom_render()
-set_extractable_slots(block_entity: BlockEntity, first: number, last: number)
 set_flat_lighting()
 set_hardness(value: number)
-set_insertable_slots(block_entity: BlockEntity, first: number, last: number)
 set_inventory_size(size: number)
-set_item_count_in_slot(block_entity: BlockEntity, slot: number, count: number)
-set_item_damage_in_slot(block_entity: BlockEntity, slot: number, damage: number)
-set_item_in_slot(block_entity: BlockEntity, slot: number, item: Item, count: number)
 set_material(material_name: string)
-set_power_receiver(block_entity: BlockEntity, max_stored: number)
-set_saved_number(block_entity: BlockEntity, name: string, value: number)
-take_crafting_result(block_entity: BlockEntity, amount: number) number
-take_item_from_slot(block_entity: BlockEntity, slot: number, amount: number) number
-update_recipe_output(block_entity: BlockEntity, start_slot: number)
 vec3_zero() Vec3

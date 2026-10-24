@@ -15,5 +15,5 @@ export run() {
     Test.assert(block_opt.has(), "coverage_init_block has no block entity after being placed.")
 
     be: BlockEntity = block_opt.unwrap()
-    Test.assert(get_saved_number(be, "inited") == 1, "init() had not run by the time the block was placed on this loader.")
+    Test.assert(be.get_saved_number("inited") == 1, "init() had not run by the time the block was placed on this loader.")
 }

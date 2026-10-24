@@ -35,7 +35,7 @@ export run() {
         Test.set_held_item(player, wrench)
         Test.use_block(level, x, y, z)
         step = 1
-        Test.not_done()
+        me.not_done()
     } else if step == 1 {
         Test.tick_block_entity(_pipe(level, x, y, z), 1)
         if _source(level, x, y, z) == 6 {
@@ -56,7 +56,7 @@ export run() {
         Test.tick_block_entity(_pipe(level, x, y, z), 1)
         waited = waited + 1
         if waited < 20 {
-            Test.not_done()
+            me.not_done()
             return
         }
         Test.assert(_source(level, x, y, z) == 5, "A click without the wrench should leave the side at 4.")
@@ -64,7 +64,7 @@ export run() {
         # The chest the pipe extracts from is replaced, so the next tick picks the other one.
         level.place_block(x - 1, y, z, "minecraft:stone")
         step = 4
-        Test.not_done()
+        me.not_done()
     } else {
         Test.tick_block_entity(_pipe(level, x, y, z), 1)
         Test.assert(_source(level, x, y, z) == 6, "A pipe whose chest is gone should pick the other chest.")
@@ -75,7 +75,7 @@ export run() {
 local _wait() {
     waited = waited + 1
     Test.assert(waited < 200, "The wrench did not change the pipe's side.")
-    Test.not_done()
+    me.not_done()
 }
 
 local _pipe(level: Level, x: number, y: number, z: number) BlockEntity {
@@ -85,5 +85,5 @@ local _pipe(level: Level, x: number, y: number, z: number) BlockEntity {
 }
 
 local _source(level: Level, x: number, y: number, z: number) number {
-    return get_saved_number(_pipe(level, x, y, z), "source")
+    return _pipe(level, x, y, z).get_saved_number("source")
 }

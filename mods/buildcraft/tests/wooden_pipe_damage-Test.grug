@@ -4,12 +4,12 @@ pipe_damage_target: Option[BlockEntity] = Option.new()
 pipe_damage_self: Option[BlockEntity] = Option.new()
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _damage_setup()
-        Test.not_done()
-    } else if not _damage_pipe_has_moved() or Test.tick() < 20 {
+        me.not_done()
+    } else if not _damage_pipe_has_moved() or me.tick() < 20 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
-        Test.not_done()
+        me.not_done()
     } else {
         _damage_check()
     }
@@ -47,15 +47,19 @@ local _damage_setup() {
 
     # A sword so the damage is meaningful; the pipe must not repair it in transit.
     sword: Item = item(resource_location("minecraft:diamond_sword"))
-    set_item_in_slot(pipe_damage_source.unwrap(), 0, sword, 1)
-    set_item_damage_in_slot(pipe_damage_source.unwrap(), 0, 7)
+    pipe_damage_source_be: BlockEntity = pipe_damage_source.unwrap()
+    pipe_damage_source_be.set_item_in_slot(0, sword, 1)
+    pipe_damage_source_be.set_item_damage_in_slot(0, 7)
 }
 
 local _damage_check() {
-    source_count: number = get_item_count_in_slot(pipe_damage_source.unwrap(), 0)
-    target_count: number = get_item_count_in_slot(pipe_damage_target.unwrap(), 0)
-    pipe_count: number = get_item_count_in_slot(pipe_damage_self.unwrap(), 0)
-    target_damage: number = get_item_damage_in_slot(pipe_damage_target.unwrap(), 0)
+    pipe_damage_source_be: BlockEntity = pipe_damage_source.unwrap()
+    source_count: number = pipe_damage_source_be.get_item_count_in_slot(0)
+    pipe_damage_target_be: BlockEntity = pipe_damage_target.unwrap()
+    target_count: number = pipe_damage_target_be.get_item_count_in_slot(0)
+    pipe_damage_self_be: BlockEntity = pipe_damage_self.unwrap()
+    pipe_count: number = pipe_damage_self_be.get_item_count_in_slot(0)
+    target_damage: number = pipe_damage_target_be.get_item_damage_in_slot(0)
 
     Test.assert(source_count + target_count + pipe_count == 1, "The sword should exist exactly once.")
     Test.assert(source_count == 0, "The source chest should be empty.")
@@ -67,7 +71,9 @@ local _damage_check() {
 # source chest and the pipe's own one-slot buffer, and the damage it arrived with is what _check
 # asserts. See #173.
 local _damage_pipe_has_moved() bool {
-    source_empty: bool = get_item_count_in_slot(pipe_damage_source.unwrap(), 0) == 0
-    pipe_empty: bool = get_item_count_in_slot(pipe_damage_self.unwrap(), 0) == 0
+    pipe_damage_source_be: BlockEntity = pipe_damage_source.unwrap()
+    source_empty: bool = pipe_damage_source_be.get_item_count_in_slot(0) == 0
+    pipe_damage_self_be: BlockEntity = pipe_damage_self.unwrap()
+    pipe_empty: bool = pipe_damage_self_be.get_item_count_in_slot(0) == 0
     return source_empty and pipe_empty
 }

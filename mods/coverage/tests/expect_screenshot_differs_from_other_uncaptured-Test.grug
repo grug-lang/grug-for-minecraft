@@ -4,8 +4,8 @@
 # half of the same check is the receiver being the unread one, and both halves need a test of their own
 # because a check written as "either one" has two ways to be true.
 export run() {
-    if Test.tick() == 0 {
-        Test.expect_error("have to be captured first")
+    if me.tick() == 0 {
+        me.expect_error("have to be captured first")
         never_read: Screenshot = Test.screenshot()
         captured: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
         captured.differs_from(never_read, 50)

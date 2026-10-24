@@ -30,9 +30,9 @@ remeshed: bool = false
 remesh_ticks: number = 0
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _setup()
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -40,8 +40,8 @@ export run() {
     # particles that torch gave off live for up to 40 ticks after it is cleared away. One of them in
     # the crop is a few pixels that are never in the same place twice, so wait out the longest life
     # with some to spare. The world has no way to say how many particles are left.
-    if Test.tick() < 60 {
-        Test.not_done()
+    if me.tick() < 60 {
+        me.not_done()
         return
     }
 
@@ -51,7 +51,7 @@ export run() {
     # the change only the engine's own redraw can put it on screen, and only a settle is waited for.
     if not changed {
         if not _ready() {
-            Test.not_done()
+            me.not_done()
             return
         }
         if capture == 0 {
@@ -61,12 +61,12 @@ export run() {
         }
         changed = true
         settled_ticks = 0
-        Test.not_done()
+        me.not_done()
         return
     }
 
     if not _settled() {
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -74,7 +74,7 @@ export run() {
         Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
         capture = 1
         changed = false
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -120,9 +120,9 @@ local _show_progresses() {
     i: number = 0
     while i < 6 {
         engine: BlockEntity = _engine(i)
-        set_saved_number(engine, "orientation", 1)
-        set_saved_number(engine, "oriented", 1)
-        set_saved_number(engine, "progress", _progress(i))
+        engine.set_saved_number("orientation", 1)
+        engine.set_saved_number("oriented", 1)
+        engine.set_saved_number("progress", _progress(i))
         Test.tick_block_entity(engine, 1)
         i = i + 1
     }
@@ -161,9 +161,9 @@ local _show_facings() {
     i: number = 0
     while i < 6 {
         engine: BlockEntity = _engine(i)
-        set_saved_number(engine, "orientation", i)
-        set_saved_number(engine, "progress", 0.5)
-        redraw(engine)
+        engine.set_saved_number("orientation", i)
+        engine.set_saved_number("progress", 0.5)
+        engine.redraw()
         i = i + 1
     }
 }

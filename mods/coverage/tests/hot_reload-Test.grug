@@ -7,14 +7,14 @@ change_baseline: number = -1
 path: string = "coverage/code/coverage_block-Block.grug"
 
 export run() {
-    if Test.tick() == 0 {
-        Test.not_done()
-    } else if Test.tick() == 1 {
+    if me.tick() == 0 {
+        me.not_done()
+    } else if me.tick() == 1 {
         change_baseline = Test.hot_reload_count(path)
         Test.set_mod_file_state(path, "invalid")
-        Test.not_done()
+        me.not_done()
     } else if Test.hot_reload_count(path) <= change_baseline {
-        Test.not_done()
+        me.not_done()
     } else {
         Test.set_mod_file_state(path, "normal")
     }

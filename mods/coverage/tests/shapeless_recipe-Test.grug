@@ -29,26 +29,26 @@ export run() {
 
     # Slots 0 and 1 are neighbours, in the order the recipe file lists its ingredients.
     adjacent: BlockEntity = _grid(level, x, y, z)
-    set_item_in_slot(adjacent, 0, stick, 1)
-    set_item_in_slot(adjacent, 1, ingot, 1)
-    update_recipe_output(adjacent, 0)
-    Test.assert(take_crafting_result(adjacent, 2) == 2, "The adjacent ingredients should craft the shapeless recipe's two results.")
-    Test.assert(take_crafting_result(adjacent, 1) == 0, "The shapeless recipe should have nothing left to give.")
+    adjacent.set_item_in_slot(0, stick, 1)
+    adjacent.set_item_in_slot(1, ingot, 1)
+    adjacent.update_recipe_output(0)
+    Test.assert(adjacent.take_crafting_result(2) == 2, "The adjacent ingredients should craft the shapeless recipe's two results.")
+    Test.assert(adjacent.take_crafting_result(1) == 0, "The shapeless recipe should have nothing left to give.")
 
     # Slots 4 and 8 are diagonal, and the items are the other way round.
     diagonal: BlockEntity = _grid(level, x + 3, y, z)
-    set_item_in_slot(diagonal, 4, ingot, 1)
-    set_item_in_slot(diagonal, 8, stick, 1)
-    update_recipe_output(diagonal, 0)
-    Test.assert(take_crafting_result(diagonal, 2) == 2, "The diagonal ingredients should craft the same two results.")
+    diagonal.set_item_in_slot(4, ingot, 1)
+    diagonal.set_item_in_slot(8, stick, 1)
+    diagonal.update_recipe_output(0)
+    Test.assert(diagonal.take_crafting_result(2) == 2, "The diagonal ingredients should craft the same two results.")
 
     # Two sticks are not the stick and iron ingot the recipe names, so nothing matches: a grid answers
     # only when it holds exactly the ingredients the recipe lists, each as often as it lists them.
     wrong: BlockEntity = _grid(level, x + 6, y, z)
-    set_item_in_slot(wrong, 0, stick, 1)
-    set_item_in_slot(wrong, 1, stick, 1)
-    update_recipe_output(wrong, 0)
-    Test.assert(take_crafting_result(wrong, 1) == 0, "Two sticks should not match a recipe naming a stick and an iron ingot.")
+    wrong.set_item_in_slot(0, stick, 1)
+    wrong.set_item_in_slot(1, stick, 1)
+    wrong.update_recipe_output(0)
+    Test.assert(wrong.take_crafting_result(1) == 0, "Two sticks should not match a recipe naming a stick and an iron ingot.")
 }
 
 # The coverage block's block entity has the nine slots a crafting grid reads, which is why this is

@@ -1,7 +1,7 @@
 # A grug block entity with no cached result returns 0 from take_crafting_result, the empty-result
 # branch the crafting tests never reach because they always craft something first.
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x() - 5
@@ -12,6 +12,7 @@ export run() {
         be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         Test.assert(be_opt.has(), "coverage_block has no block entity after being placed.")
 
-        Test.assert(take_crafting_result(be_opt.unwrap(), 1) == 0, "an empty result should be 0.")
+        be_be: BlockEntity = be_opt.unwrap()
+        Test.assert(be_be.take_crafting_result(1) == 0, "an empty result should be 0.")
     }
 }

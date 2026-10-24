@@ -20,7 +20,7 @@ export run() {
     # the engine is ticked, so this is the time every tick below sees.
     phase: number = Math.remainder(level.get_time(), 20)
     if phase < 5 or phase > 15 {
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -31,10 +31,10 @@ export run() {
 
     engine: BlockEntity = _place(level, x - 4, y, z, true)
     pipe: BlockEntity = level.get_block_entity(x - 4, y + 1, z).unwrap()
-    set_saved_number(engine, "energy", 0)
+    engine.set_saved_number("energy", 0)
     Test.tick_block_entity(engine, 19)
-    Test.assert(get_energy_stored(pipe) == 0, "An engine with no energy should hand the pipe nothing.")
-    Test.assert(get_saved_number(engine, "progress") == 0, "An engine with no energy should not move its piston.")
+    Test.assert(pipe.get_energy_stored() == 0, "An engine with no energy should hand the pipe nothing.")
+    Test.assert(engine.get_saved_number("progress") == 0, "An engine with no energy should not move its piston.")
 
     _stroke(level, x, y, z, 100, 51, 101)
     _stroke(level, x + 4, y, z, 400, 26, 51)
@@ -44,10 +44,10 @@ export run() {
     # Without a redstone signal the engine never starts a stroke.
     engine = _place(level, x + 16, y, z, false)
     pipe = level.get_block_entity(x + 16, y + 1, z).unwrap()
-    set_saved_number(engine, "energy", 100)
+    engine.set_saved_number("energy", 100)
     Test.tick_block_entity(engine, 120)
-    Test.assert(get_energy_stored(pipe) == 0, "An engine with no redstone signal should hand the pipe nothing.")
-    Test.assert(get_saved_number(engine, "progress") == 0, "An engine with no redstone signal should not move its piston.")
+    Test.assert(pipe.get_energy_stored() == 0, "An engine with no redstone signal should hand the pipe nothing.")
+    Test.assert(engine.get_saved_number("progress") == 0, "An engine with no redstone signal should not move its piston.")
 }
 
 # Runs two strokes of an engine holding the given energy, with delivery_tick and rest_tick as the
@@ -55,41 +55,41 @@ export run() {
 local _stroke(level: Level, x: number, y: number, z: number, energy: number, delivery_tick: number, rest_tick: number) {
     engine: BlockEntity = _place(level, x, y, z, true)
     pipe: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
-    set_saved_number(engine, "energy", energy)
+    engine.set_saved_number("energy", energy)
 
     # The start tick.
     expected: number = energy
     _tick(engine, 1)
-    Test.assert(get_saved_number(engine, "progress") == 0, "The start tick should add nothing to progress.")
-    Test.assert(get_saved_number(engine, "energy") == expected, "Starting a stroke should not take energy.")
+    Test.assert(engine.get_saved_number("progress") == 0, "The start tick should add nothing to progress.")
+    Test.assert(engine.get_saved_number("energy") == expected, "Starting a stroke should not take energy.")
 
     _tick(engine, delivery_tick - 2)
-    Test.assert(get_energy_stored(pipe) == 0, "The pipe should have nothing the tick before the delivery.")
-    Test.assert(get_saved_number(engine, "energy") == expected, "The engine should still hold all its energy the tick before the delivery.")
-    Test.assert(get_saved_number(engine, "progress") > 0, "The piston should be moving.")
+    Test.assert(pipe.get_energy_stored() == 0, "The pipe should have nothing the tick before the delivery.")
+    Test.assert(engine.get_saved_number("energy") == expected, "The engine should still hold all its energy the tick before the delivery.")
+    Test.assert(engine.get_saved_number("progress") > 0, "The piston should be moving.")
 
     _tick(engine, 1)
     expected = expected - 1
-    Test.assert(get_energy_stored(pipe) == 1, "The pipe should hold 1 energy after the delivery tick.")
-    Test.assert(get_saved_number(engine, "energy") == expected, "The engine should have lost exactly 1 energy at the delivery.")
+    Test.assert(pipe.get_energy_stored() == 1, "The pipe should hold 1 energy after the delivery tick.")
+    Test.assert(engine.get_saved_number("energy") == expected, "The engine should have lost exactly 1 energy at the delivery.")
 
     _tick(engine, rest_tick - delivery_tick - 1)
-    Test.assert(get_saved_number(engine, "progress") > 0.9, "Progress should be nearly 1 the tick before the piston rests.")
+    Test.assert(engine.get_saved_number("progress") > 0.9, "Progress should be nearly 1 the tick before the piston rests.")
 
     _tick(engine, 1)
-    Test.assert(get_saved_number(engine, "progress") == 0, "Progress should be 0 on the tick the piston rests.")
-    Test.assert(get_energy_stored(pipe) == 1, "The pipe should still hold 1 energy, as only one stroke has delivered.")
+    Test.assert(engine.get_saved_number("progress") == 0, "Progress should be 0 on the tick the piston rests.")
+    Test.assert(pipe.get_energy_stored() == 1, "The pipe should still hold 1 energy, as only one stroke has delivered.")
 
     # The second stroke starts on the tick after the rest tick: it adds nothing there, and adds the
     # speed on the tick after that.
     _tick(engine, 1)
-    Test.assert(get_saved_number(engine, "progress") == 0, "The second stroke's start tick should add nothing to progress.")
+    Test.assert(engine.get_saved_number("progress") == 0, "The second stroke's start tick should add nothing to progress.")
     _tick(engine, 1)
-    Test.assert(get_saved_number(engine, "progress") > 0, "The second stroke should be moving the tick after it started.")
+    Test.assert(engine.get_saved_number("progress") > 0, "The second stroke should be moving the tick after it started.")
 
     _tick(engine, delivery_tick - 2)
-    Test.assert(get_energy_stored(pipe) == 2, "The second stroke should have delivered 1 more energy.")
-    Test.assert(get_saved_number(engine, "energy") == expected - 1, "The engine should have lost 1 more energy.")
+    Test.assert(pipe.get_energy_stored() == 2, "The second stroke should have delivered 1 more energy.")
+    Test.assert(engine.get_saved_number("energy") == expected - 1, "The engine should have lost 1 more energy.")
 }
 
 # Ticks the engine the given number of times in a row, within the test's one game tick.

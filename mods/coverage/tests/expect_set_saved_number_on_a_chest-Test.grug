@@ -12,6 +12,6 @@ export run() {
     Test.assert(chest_opt.has(), "The chest should have a block entity.")
     chest: BlockEntity = chest_opt.unwrap()
 
-    Test.expect_error("Only a grug block entity saves numbers")
-    set_saved_number(chest, "energy", 1)
+    me.expect_error("Only a grug block entity saves numbers")
+    chest.set_saved_number("energy", 1)
 }

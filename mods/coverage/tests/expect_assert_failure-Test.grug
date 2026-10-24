@@ -1,6 +1,6 @@
 # Test.assert(false, ...) reports through hostFunctionErrorHappened, which stops the script right
 # there, so run() returns without finishing. That is the abort an expected error accepts.
 export run() {
-    Test.expect_error("Assertion failed")
+    me.expect_error("Assertion failed")
     Test.assert(false, "This assertion is expected to fail.")
 }

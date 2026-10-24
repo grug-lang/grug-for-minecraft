@@ -10,16 +10,16 @@ export run() {
 
     level.place_block(x, y, z, "grug:coverage_power_block")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
-    receive_energy(be, 8)
+    be.receive_energy(8)
 
-    set_power_receiver(be, 10)
-    Test.assert(get_energy_stored(be) == 8, "Declaring again with the same limit should keep the energy.")
+    be.set_power_receiver(10)
+    Test.assert(be.get_energy_stored() == 8, "Declaring again with the same limit should keep the energy.")
 
-    set_power_receiver(be, 5)
-    Test.assert(get_energy_stored(be) == 5, "A lower limit should cut the energy down to it.")
-    Test.assert(receive_energy(be, 100) == 0, "The store is full at the lower limit.")
+    be.set_power_receiver(5)
+    Test.assert(be.get_energy_stored() == 5, "A lower limit should cut the energy down to it.")
+    Test.assert(be.receive_energy(100) == 0, "The store is full at the lower limit.")
 
-    set_power_receiver(be, 20)
-    Test.assert(receive_energy(be, 100) == 15, "The new limit should be the one that applies.")
-    Test.assert(get_energy_stored(be) == 20, "The store should be full at the new limit.")
+    be.set_power_receiver(20)
+    Test.assert(be.receive_energy(100) == 15, "The new limit should be the one that applies.")
+    Test.assert(be.get_energy_stored() == 20, "The store should be full at the new limit.")
 }

@@ -19,28 +19,28 @@ export run() {
     stone_gear: Item = item(resource_location("grug:stone_gear"))
     wrench: Item = item(resource_location("grug:wrench"))
 
-    set_item_in_slot(table, 1, cobblestone, 1)
-    set_item_in_slot(table, 3, cobblestone, 1)
-    set_item_in_slot(table, 4, wooden_gear, 1)
-    set_item_in_slot(table, 5, cobblestone, 1)
-    set_item_in_slot(table, 7, cobblestone, 1)
-    update_recipe_output(table, 0)
-    result: Option[Item] = get_crafting_result_item(table)
+    table.set_item_in_slot(1, cobblestone, 1)
+    table.set_item_in_slot(3, cobblestone, 1)
+    table.set_item_in_slot(4, wooden_gear, 1)
+    table.set_item_in_slot(5, cobblestone, 1)
+    table.set_item_in_slot(7, cobblestone, 1)
+    table.update_recipe_output(0)
+    result: Option[Item] = table.get_crafting_result_item()
     Test.assert(result.has(), "A wooden gear ringed by cobblestone should make something.")
     Test.assert(equals(result.unwrap(), stone_gear), "A wooden gear ringed by cobblestone should make a stone gear.")
 
     slot: number = 0
     while slot < 9 {
-        set_item_count_in_slot(table, slot, 0)
+        table.set_item_count_in_slot(slot, 0)
         slot = slot + 1
     }
 
-    set_item_in_slot(table, 0, iron, 1)
-    set_item_in_slot(table, 2, iron, 1)
-    set_item_in_slot(table, 4, stone_gear, 1)
-    set_item_in_slot(table, 7, iron, 1)
-    update_recipe_output(table, 0)
-    result = get_crafting_result_item(table)
+    table.set_item_in_slot(0, iron, 1)
+    table.set_item_in_slot(2, iron, 1)
+    table.set_item_in_slot(4, stone_gear, 1)
+    table.set_item_in_slot(7, iron, 1)
+    table.update_recipe_output(0)
+    result = table.get_crafting_result_item()
     Test.assert(result.has(), "A stone gear under two iron ingots should make something.")
     Test.assert(equals(result.unwrap(), wrench), "A stone gear under two iron ingots should make a wrench.")
 }

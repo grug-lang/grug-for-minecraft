@@ -2,7 +2,7 @@
 # negative cases are the ones a floor-based modulo gets wrong, and they matter because the quarry
 # compares the parity of coordinates that can be negative.
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         Test.assert(Math.remainder(7, 3) == 1, "Math.remainder(7, 3) should be 1.")
         Test.assert(Math.remainder(6, 3) == 0, "Math.remainder(6, 3) should be 0.")
         Test.assert(Math.remainder(0, 20) == 0, "Math.remainder(0, 20) should be 0.")

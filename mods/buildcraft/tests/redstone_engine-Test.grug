@@ -27,20 +27,20 @@ ey: number = 0
 ez: number = 0
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _setup()
-        Test.not_done()
+        me.not_done()
         return
     }
 
     if gain_phase != 3 {
         _check_gain()
-        Test.not_done()
+        me.not_done()
         return
     }
 
     if not _ready() {
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -66,7 +66,7 @@ export run() {
     settled_ticks = 0
     remeshed = false
     remesh_ticks = 0
-    Test.not_done()
+    me.not_done()
 }
 
 local _setup() {
@@ -151,7 +151,8 @@ local _check_gain() {
         return
     }
 
-    level: Level = get_block_entity_level(engine.unwrap())
+    engine_be: BlockEntity = engine.unwrap()
+    level: Level = engine_be.level()
     now: number = level.get_time()
     phase: number = Math.remainder(now, 20)
     if phase < 5 or phase > 15 {
@@ -180,12 +181,12 @@ local _check_gain() {
 
 local _energy() number {
     block_entity: BlockEntity = engine.unwrap()
-    return get_saved_number(block_entity, "energy")
+    return block_entity.get_saved_number("energy")
 }
 
 local _set_energy(energy: number) {
     block_entity: BlockEntity = engine.unwrap()
-    set_saved_number(block_entity, "energy", energy)
+    block_entity.set_saved_number("energy", energy)
 }
 
 # Sets the energy the engine is drawn from, then has the game draw it again, since its trunk is only
@@ -193,7 +194,7 @@ local _set_energy(energy: number) {
 local _draw_stage(energy: number, expected_stage: number) {
     _set_energy(energy)
     block_entity: BlockEntity = engine.unwrap()
-    redraw(block_entity)
+    block_entity.redraw()
     Test.assert(_stage(_energy()) == expected_stage, "The engine should have reached the next stage.")
 }
 

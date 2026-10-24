@@ -9,9 +9,8 @@
 # draws the engine from its saved progress anyway.
 drawn_progress: number = 0
 
-# TODO: Change to me.level() and me.block_pos() once entities can have methods
-level: Level = get_block_entity_level(me)
-pos: BlockPos = get_block_pos_of_block_entity(me)
+level: Level = me.level()
+pos: BlockPos = me.block_pos()
 center: Vec3 = pos.center()
 x: number = center.x()
 y: number = center.y()
@@ -29,8 +28,8 @@ progress_part: number = 0
 # holds, so the engine reproduces that by emptying its store whenever its grug entity is created,
 # which is every time its chunk is loaded, as the wooden pipe does.
 export init() {
-    set_power_receiver(me, 1000)
-    extract_energy(me, 1000)
+    me.set_power_receiver(1000)
+    me.extract_energy(1000)
 }
 
 # The engine as RenderEngine draws it, turned to face the way the engine does, with the trunk in its
@@ -42,7 +41,7 @@ export init() {
 # progress on every frame of a tick, so the picture only changes once per tick, and a redraw per tick
 # of a stroke is as often as it needs to be drawn again. See _redraw_if_moved.
 export render() {
-    stage: number = _stage(get_saved_number(me, "energy"))
+    stage: number = _stage(me.get_saved_number("energy"))
     facing: number = _facing()
     x_degrees: number = _x_degrees(facing)
     z_degrees: number = _z_degrees(facing)
@@ -52,7 +51,7 @@ export render() {
     draw_model(r"assets/grug/models/block/redstone_engine_base.json", x_degrees, 0, z_degrees, 0, 0, 0)
 
     # The distance along the facing in blocks, and which way along each world axis the facing goes.
-    step: number = _step(get_saved_number(me, "progress"))
+    step: number = _step(me.get_saved_number("progress"))
     unit: number = step / 16
     dir_x: number = _dir_x(facing)
     dir_y: number = _dir_y(facing)
@@ -90,27 +89,27 @@ export tick() {
     # instead, because the moment a block entity is created differs by loader (#187), so this is the
     # one hook that is the same everywhere. The block sets "rotate" when a player right-clicks it with
     # the wrench, which BlockEngine.b answers with the same search.
-    if get_saved_number(me, "oriented") == 0 {
-        set_saved_number(me, "orientation", 1)
-        set_saved_number(me, "oriented", 1)
+    if me.get_saved_number("oriented") == 0 {
+        me.set_saved_number("orientation", 1)
+        me.set_saved_number("oriented", 1)
         _switch_orientation()
     }
-    if get_saved_number(me, "rotate") == 1 {
-        set_saved_number(me, "rotate", 0)
+    if me.get_saved_number("rotate") == 1 {
+        me.set_saved_number("rotate", 0)
         _switch_orientation()
     }
 
-    before: number = get_saved_number(me, "energy")
+    before: number = me.get_saved_number("energy")
 
     # TileBuildCraft.n_ updates the power provider first, which is before Engine.update. Its power
     # loss comes after doWork has emptied the store, so it never has anything to take, and it is not
     # modelled.
-    if get_energy_stored(me) >= 1 {
+    if me.get_energy_stored() >= 1 {
         # TileEngine.doWork: the energy of a provider holding at most 50 goes in through addEnergy,
         # cut to 95% as a float and truncated, so a lone stroke's 1 energy adds 0 and two strokes that
         # arrive before the engine's tick add 1. The float cast gives Math.floor(n * 0.95) for every
         # n the store can hold.
-        _add_energy(Math.floor(extract_energy(me, 50) * 0.95))
+        _add_energy(Math.floor(me.extract_energy(50) * 0.95))
 
         # The explosion can have destroyed this engine, and then there is nothing left to tick.
         if not _exists() {
@@ -118,7 +117,7 @@ export tick() {
         }
     }
 
-    stored: number = get_saved_number(me, "energy")
+    stored: number = me.get_saved_number("energy")
     energy: number = stored
 
     if level.has_neighbor_signal(x, y, z) {
@@ -131,15 +130,15 @@ export tick() {
     }
 
     if energy != stored {
-        set_saved_number(me, "energy", energy)
+        me.set_saved_number("energy", energy)
     }
 
     _stroke()
 
     # Drawing the engine again costs a chunk's worth of work, so it is only asked for when the trunk
     # it draws changes colour. The stroke can lower the energy too.
-    if _stage(get_saved_number(me, "energy")) != _stage(before) {
-        redraw(me)
+    if _stage(me.get_saved_number("energy")) != _stage(before) {
+        me.redraw()
     }
 }
 
@@ -147,10 +146,10 @@ export tick() {
 # cost of the animation: a stroke changes the progress every tick, so it is a redraw per tick, and an
 # engine at rest or at a stage's standstill (no stroke, progress unchanged) costs nothing.
 local _redraw_if_moved() {
-    progress: number = get_saved_number(me, "progress")
+    progress: number = me.get_saved_number("progress")
     if progress != drawn_progress {
         drawn_progress = progress
-        redraw(me)
+        me.redraw()
     }
 }
 
@@ -167,7 +166,7 @@ local _step(progress: number) number {
 # engine, when that leaves it above maxEnergy, and then cuts it to maxEnergy. The explosion is at the
 # block's corner, where the reference passes the tile's integer coordinates, and not at its centre.
 local _add_energy(addition: number) {
-    energy: number = get_saved_number(me, "energy") + addition
+    energy: number = me.get_saved_number("energy") + addition
     if energy > 1000 {
         level.explode(x - 0.5, y - 0.5, z - 0.5, 1)
         energy = 1000
@@ -177,7 +176,7 @@ local _add_energy(addition: number) {
             return
         }
     }
-    set_saved_number(me, "energy", energy)
+    me.set_saved_number("energy", energy)
 }
 
 # Whether this engine's block is still in the world.
@@ -190,11 +189,11 @@ local _exists() bool {
 # comes to rest again at 1. A resting piston starts a stroke when the engine has a redstone signal
 # and the receptor would take energy.
 local _stroke() {
-    energy: number = get_saved_number(me, "energy")
+    energy: number = me.get_saved_number("energy")
 
     if progress_part != 0 {
-        progress: number = get_saved_number(me, "progress") + _piston_speed(energy)
-        set_saved_number(me, "progress", progress)
+        progress: number = me.get_saved_number("progress") + _piston_speed(energy)
+        me.set_saved_number("progress", progress)
 
         if progress > 0.5 and progress_part == 1 {
             progress_part = 2
@@ -205,7 +204,7 @@ local _stroke() {
                 }
             }
         } else if progress >= 1 {
-            set_saved_number(me, "progress", 0)
+            me.set_saved_number("progress", 0)
             progress_part = 0
         }
     } else if level.has_neighbor_signal(x, y, z) {
@@ -219,12 +218,12 @@ local _stroke() {
 # maxEnergyExtracted. The receptor's own minimum and maximum are not exposed to grug, because no
 # ported receptor has a minimum above 1. Only a real extraction takes the energy off the engine.
 local _extract_energy(do_extract: bool) number {
-    energy: number = get_saved_number(me, "energy")
+    energy: number = me.get_saved_number("energy")
     if energy < 1 {
         return 0
     }
     if do_extract {
-        set_saved_number(me, "energy", energy - 1)
+        me.set_saved_number("energy", energy - 1)
     }
     return 1
 }
@@ -257,7 +256,8 @@ local _faces_receptor() bool {
     if not receptor.has() {
         return false
     }
-    return is_power_receiver(receptor.unwrap())
+    receptor_be: BlockEntity = receptor.unwrap()
+    return receptor_be.is_power_receiver()
 }
 
 # PowerProvider.receiveEnergy on the receptor in front of the engine. Only called after
@@ -265,7 +265,7 @@ local _faces_receptor() bool {
 local _hand_energy(amount: number) {
     side: number = _facing()
     receptor: BlockEntity = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)).unwrap()
-    receive_energy(receptor, amount)
+    receptor.receive_energy(amount)
 }
 
 # Engine.computeEnergyStage for EngineWood's maxEnergy of 1000: 0 is blue up to 25% of it, 1 green up
@@ -288,16 +288,16 @@ local _stage(energy: number) number {
 # stops at the first side with a power receptor next to it, so the current side is the last one tried.
 # With no receptor the orientation stays as it was.
 local _switch_orientation() {
-    start: number = get_saved_number(me, "orientation")
+    start: number = me.get_saved_number("orientation")
     i: number = start + 1
     while i <= start + 6 {
         side: number = Math.remainder(i, 6)
         if _is_powered_tile(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) {
-            set_saved_number(me, "orientation", side)
+            me.set_saved_number("orientation", side)
 
             # It was drawn along the old orientation until now, so only another one needs drawing again.
             if side != start {
-                redraw(me)
+                me.redraw()
             }
             return
         }
@@ -344,10 +344,10 @@ local _neighbor_z(side: number) number {
 # Until the engine has picked its facing on its first tick it faces up, as the reference's
 # orientation starts out.
 local _facing() number {
-    if get_saved_number(me, "oriented") == 0 {
+    if me.get_saved_number("oriented") == 0 {
         return 1
     }
-    return get_saved_number(me, "orientation")
+    return me.get_saved_number("orientation")
 }
 
 # RenderEngine's angle about x for each orientation, as the clockwise degrees draw_model

@@ -12,6 +12,6 @@ export run() {
     Test.assert(chest_opt.has(), "The chest should have a block entity.")
     chest: BlockEntity = chest_opt.unwrap()
 
-    Test.expect_error("Only a grug block entity has a tick to run")
+    me.expect_error("Only a grug block entity has a tick to run")
     Test.tick_block_entity(chest, 1)
 }

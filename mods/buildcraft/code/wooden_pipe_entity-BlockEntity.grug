@@ -10,8 +10,8 @@
 # matrix. Instead it is one-slot buffered, it prefers a real inventory over another pipe so a chain
 # of pipes feeds forward, and it only ever extracts from one side, so it cannot pump the same item
 # back and forth between two inventories.
-level: Level = get_block_entity_level(me)
-pos: BlockPos = get_block_pos_of_block_entity(me)
+level: Level = me.level()
+pos: BlockPos = me.block_pos()
 center: Vec3 = pos.center()
 x: number = center.x()
 y: number = center.y()
@@ -30,35 +30,35 @@ z: number = center.z()
 # reproduces that bug itself by emptying its store whenever its grug entity is created, which is
 # every time its chunk is loaded.
 export init() {
-    set_power_receiver(me, 64)
-    extract_energy(me, 64)
+    me.set_power_receiver(64)
+    me.extract_energy(64)
 }
 
 export tick() {
     # BlockEngine's twin for the pipe is PipeLogicWood.blockActivated, which the block's use export
     # answers by setting "rotate". The reference also checks the side when the pipe is initialised and
     # whenever a neighbour changes, which a check every tick comes to the same as.
-    if get_saved_number(me, "rotate") == 1 {
-        set_saved_number(me, "rotate", 0)
+    if me.get_saved_number("rotate") == 1 {
+        me.set_saved_number("rotate", 0)
         _switch_source()
     }
     _switch_source_if_needed()
 
-    if get_item_count_in_slot(me, 0) == 0 {
+    if me.get_item_count_in_slot(0) == 0 {
         _try_pull()
     } else {
         _try_push()
     }
 
     # PowerProvider.update's power loss, which comes after doWork.
-    extract_energy(me, 64)
+    me.extract_energy(64)
 }
 
 # grug wants a helper defined after the first place it is called, so the helpers below are ordered
 # by their callers rather than grouped by topic.
 local _try_pull() {
     # PowerProvider.update calls doWork when the provider holds at least its activation energy, 1.
-    if get_energy_stored(me) < 1 {
+    if me.get_energy_stored() < 1 {
         return
     }
 
@@ -116,7 +116,7 @@ local _switch_source() {
 
 # The pipe's metadata as the reference reads it: 0 to 5 is the side it extracts from and 6 is none.
 local _meta() number {
-    stored: number = get_saved_number(me, "source")
+    stored: number = me.get_saved_number("source")
     if stored == 0 {
         return 0
     }
@@ -124,7 +124,7 @@ local _meta() number {
 }
 
 local _set_meta(meta: number) {
-    set_saved_number(me, "source", meta + 1)
+    me.set_saved_number("source", meta + 1)
 }
 
 local _is_inventory(nx: number, ny: number, nz: number) bool {
@@ -144,14 +144,14 @@ local _is_inventory(nx: number, ny: number, nz: number) bool {
 # offers, and an inventory with no slots at all offers nothing, which is what keeps the redstone
 # engine out of the pipe's way.
 local _has_extractable_slot(neighbor: BlockEntity) bool {
-    size: number = get_inventory_size(neighbor)
+    size: number = neighbor.get_inventory_size()
     if size <= 0 {
         return false
     }
 
     slot: number = 0
     while slot <= size {
-        if is_slot_extractable(neighbor, slot) {
+        if neighbor.is_slot_extractable(slot) {
             return true
         }
         slot = slot + 1
@@ -160,7 +160,7 @@ local _has_extractable_slot(neighbor: BlockEntity) bool {
 }
 
 local _try_push() {
-    item_opt: Option[Item] = get_item_in_slot(me, 0)
+    item_opt: Option[Item] = me.get_item_in_slot(0)
     if not item_opt.has() {
         return
     }
@@ -186,10 +186,10 @@ local _pull_from(nx: number, ny: number, nz: number) bool {
     }
 
     neighbor: BlockEntity = neighbor_opt.unwrap()
-    size: number = get_inventory_size(neighbor)
+    size: number = neighbor.get_inventory_size()
     slot: number = 0
     while slot <= size {
-        if is_slot_extractable(neighbor, slot) {
+        if neighbor.is_slot_extractable(slot) {
             if _take_from(neighbor, slot, size) {
                 return true
             }
@@ -210,24 +210,24 @@ local _take_from(neighbor: BlockEntity, slot: number, size: number) bool {
         return _take_crafting_result(neighbor)
     }
 
-    count: number = get_item_count_in_slot(neighbor, slot)
+    count: number = neighbor.get_item_count_in_slot(slot)
     if count == 0 {
         return false
     }
 
-    item_opt: Option[Item] = get_item_in_slot(neighbor, slot)
+    item_opt: Option[Item] = neighbor.get_item_in_slot(slot)
     if not item_opt.has() {
         return false
     }
 
     # Read the damage before taking, because taking empties the slot.
-    damage: number = get_item_damage_in_slot(neighbor, slot)
+    damage: number = neighbor.get_item_damage_in_slot(slot)
     # take_item_from_slot, not extract_item_from_inventory. They look interchangeable, but only the
     # former calls removeItem and then fires output_taken, which is what drives the autocrafting
     # table's restock and craft loop. extract_item_from_inventory only fires item_extracted, which
     # the table ignores for its output slot.
-    spent: number = extract_energy(me, count)
-    taken: number = take_item_from_slot(neighbor, slot, spent)
+    spent: number = me.extract_energy(count)
+    taken: number = neighbor.take_item_from_slot(slot, spent)
     if taken == 0 {
         return false
     }
@@ -240,24 +240,24 @@ local _take_from(neighbor: BlockEntity, slot: number, size: number) bool {
 # ISpecialInventory's extractItem, which spends no energy at all, so the port keeps pulling one item
 # of it at a time and spends one energy for it.
 local _take_crafting_result(neighbor: BlockEntity) bool {
-    result_opt: Option[Item] = get_crafting_result_item(neighbor)
+    result_opt: Option[Item] = neighbor.get_crafting_result_item()
     if not result_opt.has() {
         return false
     }
 
-    damage: number = get_crafting_result_damage(neighbor)
-    if take_crafting_result(neighbor, 1) == 0 {
+    damage: number = neighbor.get_crafting_result_damage()
+    if neighbor.take_crafting_result(1) == 0 {
         return false
     }
 
-    extract_energy(me, 1)
+    me.extract_energy(1)
     _store(result_opt.unwrap(), damage, 1)
     return true
 }
 
 local _store(item: Item, damage: number, count: number) {
-    set_item_in_slot(me, 0, item, count)
-    set_item_damage_in_slot(me, 0, damage)
+    me.set_item_in_slot(0, item, count)
+    me.set_item_damage_in_slot(0, damage)
 }
 
 local _push_to_inventory(item: Item) bool {
@@ -307,33 +307,33 @@ local _try_insert(nx: number, ny: number, nz: number, item: Item) bool {
     }
 
     neighbor: BlockEntity = neighbor_opt.unwrap()
-    count: number = get_item_count_in_slot(me, 0)
-    inserted: number = insert_item_into_inventory(neighbor, item, get_item_damage_in_slot(me, 0), count)
+    count: number = me.get_item_count_in_slot(0)
+    inserted: number = neighbor.insert_item_into_inventory(item, me.get_item_damage_in_slot(0), count)
     if inserted == 0 {
         return false
     }
 
-    set_item_count_in_slot(me, 0, count - inserted)
+    me.set_item_count_in_slot(0, count - inserted)
     return true
 }
 
 local _drop() {
-    item_opt: Option[Item] = get_item_in_slot(me, 0)
+    item_opt: Option[Item] = me.get_item_in_slot(0)
     if not item_opt.has() {
         return
     }
 
     # item_stack makes a stack of one, so a stack the pipe carries drops as that many items. Each
     # item entity takes ownership of its stack, so every one gets a stack of its own.
-    remaining: number = get_item_count_in_slot(me, 0)
+    remaining: number = me.get_item_count_in_slot(0)
     while remaining > 0 {
-        stack: ItemStack = item_stack(item_opt.unwrap(), get_item_damage_in_slot(me, 0))
+        stack: ItemStack = item_stack(item_opt.unwrap(), me.get_item_damage_in_slot(0))
         dropped: ItemEntity = item_entity(level, x, y + 0.5, z, stack)
         dropped.entity().set_delta_movement(vec3_zero())
         dropped.entity().spawn(level)
         remaining = remaining - 1
     }
-    set_item_count_in_slot(me, 0, 0)
+    me.set_item_count_in_slot(0, 0)
 }
 
 local _is_pipe(nx: number, ny: number, nz: number) bool {

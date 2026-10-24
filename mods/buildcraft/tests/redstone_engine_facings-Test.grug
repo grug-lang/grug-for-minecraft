@@ -15,9 +15,9 @@ remeshed: bool = false
 remesh_ticks: number = 0
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _setup()
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -25,13 +25,13 @@ export run() {
     # red particles that torch gave off live for up to 40 ticks after it is cleared away. One of them
     # in the crop is a few pixels that are never in the same place twice, so wait out the longest
     # life with some to spare. The world has no way to say how many particles are left.
-    if Test.tick() < 60 {
-        Test.not_done()
+    if me.tick() < 60 {
+        me.not_done()
         return
     }
 
     if not _ready() {
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -56,9 +56,9 @@ local _setup() {
         engine_opt: Option[BlockEntity] = level.get_block_entity(ex + facing, ey, ez)
         Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
         engine: BlockEntity = engine_opt.unwrap()
-        set_saved_number(engine, "orientation", facing)
-        set_saved_number(engine, "oriented", 1)
-        redraw(engine)
+        engine.set_saved_number("orientation", facing)
+        engine.set_saved_number("oriented", 1)
+        engine.redraw()
         facing = facing + 1
     }
 }

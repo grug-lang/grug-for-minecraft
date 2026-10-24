@@ -1,8 +1,8 @@
 # A mod that is not an exact port, as the coverage mod is not, may allow a tolerance. The invalid
 # crop is what proves the tolerance of 1 was accepted before the comparison ran.
 export run() {
-    if Test.tick() == 0 {
-        Test.expect_error("is -1, which is outside")
+    if me.tick() == 0 {
+        me.expect_error("is -1, which is outside")
         Test.screenshot().tolerance(1).equals(r"screenshots/dummy", -1, 0, 10, 10)
     }
 }
