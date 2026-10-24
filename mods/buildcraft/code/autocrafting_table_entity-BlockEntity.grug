@@ -6,6 +6,24 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
+export item_extracted(slot: number, amount: number) {
+    if slot >= 0 and slot <= 8 {
+        me.update_recipe_output(0)
+    }
+}
+
+export item_inserted(slot: number, amount: number) {
+    if slot >= 0 and slot <= 8 {
+        me.update_recipe_output(0)
+    }
+}
+
+export output_taken(amount: number) {
+    _try_restock_about_to_empty()
+    me.consume_crafting_ingredients(0)
+    me.update_recipe_output(0)
+}
+
 # What a pipe may take from this table and put into it, mirroring the reference's ISpecialInventory:
 # the table hands out its crafting result as a whole stack, from any side, and never the ingredients
 # it is crafting from (TileAutoWorkbench.extractItem), and it takes an item only into the slot that
@@ -43,24 +61,6 @@ export add_item(item: Item, damage: number, count: number, from_side: number, ad
     } else {
         response.accept_into_slot(best)
     }
-}
-
-export item_extracted(slot: number, amount: number) {
-    if slot >= 0 and slot <= 8 {
-        me.update_recipe_output(0)
-    }
-}
-
-export item_inserted(slot: number, amount: number) {
-    if slot >= 0 and slot <= 8 {
-        me.update_recipe_output(0)
-    }
-}
-
-export output_taken(amount: number) {
-    _try_restock_about_to_empty()
-    me.consume_crafting_ingredients(0)
-    me.update_recipe_output(0)
 }
 
 local _try_restock_about_to_empty() {
