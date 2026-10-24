@@ -18,10 +18,18 @@ public final class GrugBlockUse {
     }
 
     /** Whether the block consumed the click: it has a {@code use} export and did not decline. */
-    public static boolean use(
-            long blockHandle, long worldId, double x, double y, double z, long playerId) {
+    public static boolean use(long blockHandle, long worldId, int x, int y, int z, long playerId) {
         declined = false;
-        boolean handled = ExportFns.Block_use(blockHandle, worldId, x, y, z, playerId);
+        boolean handled = ExportFns.Block_use(blockHandle, worldId, posId(x, y, z), playerId);
         return handled && !declined;
+    }
+
+    /** Runs a block's {@code on_break} export for the block at the given position. */
+    public static void onBreak(long blockHandle, long worldId, int x, int y, int z) {
+        ExportFns.Block_on_break(blockHandle, worldId, posId(x, y, z));
+    }
+
+    private static long posId(int x, int y, int z) {
+        return GrugEntities.addEntity(GrugEntityType.BlockPos, new BlockPos(x, y, z));
     }
 }

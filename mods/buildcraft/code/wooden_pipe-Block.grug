@@ -9,11 +9,11 @@ export init() {
 # side that has an inventory. The block entity does it on its next tick, because only it knows its
 # own side. Any other click is declined, as the reference returns false for it, so the held item is
 # used or placed as usual.
-export use(world: Level, x: number, y: number, z: number, player: Player) {
+export use(world: Level, pos: BlockPos, player: Player) {
     held: Option[Item] = player.get_held_item()
     if held.has() {
         if equals(held.unwrap(), item(resource_location("grug:wrench"))) {
-            pipe: Option[BlockEntity] = world.get_block_entity(BlockPos.new(x, y, z))
+            pipe: Option[BlockEntity] = world.get_block_entity(pos)
             if pipe.has() {
                 pipe_be: BlockEntity = pipe.unwrap()
                 pipe_be.set_saved_number("rotate", 1)

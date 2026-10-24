@@ -3,6 +3,6 @@ export init() {
     set_material("stone")
 }
 
-export use(world: Level, x: number, y: number, z: number, player: Player) {
+export use(world: Level, pos: BlockPos, player: Player) {
     held: Option[Item] = player.get_held_item()
 }

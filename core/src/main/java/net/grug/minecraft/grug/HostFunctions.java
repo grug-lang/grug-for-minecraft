@@ -914,8 +914,11 @@ public class HostFunctions {
 
     // Host functions
 
-    public static void drop_inventory(long levelId, double x, double y, double z) {
-        GrugCore.getAdapter().dropInventory(GrugEntities.entityData.get(levelId).object, x, y, z);
+    public static void drop_inventory(long levelId, long posId) {
+        BlockPos pos = (BlockPos) GrugEntities.entityData.get(posId).object;
+        GrugCore.getAdapter()
+                .dropInventory(
+                        GrugEntities.entityData.get(levelId).object, pos.x(), pos.y(), pos.z());
     }
 
     public static boolean equals(Object a, Object b) {

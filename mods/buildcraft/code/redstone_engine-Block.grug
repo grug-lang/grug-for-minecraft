@@ -12,11 +12,11 @@ export init() {
 # BlockEngine.b: a right click with the wrench turns the engine to the next side with a power
 # receptor. The block entity does the turning on its next tick, because only it knows its own
 # orientation.
-export use(world: Level, x: number, y: number, z: number, player: Player) {
+export use(world: Level, pos: BlockPos, player: Player) {
     held: Option[Item] = player.get_held_item()
     if held.has() {
         if equals(held.unwrap(), item(resource_location("grug:wrench"))) {
-            engine: Option[BlockEntity] = world.get_block_entity(BlockPos.new(x, y, z))
+            engine: Option[BlockEntity] = world.get_block_entity(pos)
             if engine.has() {
                 engine_be: BlockEntity = engine.unwrap()
                 engine_be.set_saved_number("rotate", 1)

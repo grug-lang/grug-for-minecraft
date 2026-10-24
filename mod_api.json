@@ -19,21 +19,9 @@
 							}
 						},
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						}
 					]
@@ -49,21 +37,9 @@
 							}
 						},
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						},
 						{
@@ -1597,7 +1573,7 @@
 			]
 		},
 		"drop_inventory": {
-			"description": "Drops the inventory of a block entity into the world.",
+			"description": "Drops the inventory of the block entity at a position into the world.",
 			"parameters": [
 				{
 					"name": "level",
@@ -1606,21 +1582,9 @@
 					}
 				},
 				{
-					"name": "x",
+					"name": "pos",
 					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "y",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "z",
-					"type": {
-						"name": "number"
+						"name": "BlockPos"
 					}
 				}
 			]

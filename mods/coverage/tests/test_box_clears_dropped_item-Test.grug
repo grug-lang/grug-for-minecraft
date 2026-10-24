@@ -25,7 +25,7 @@ export run() {
 
         # Drops the chest's contents as an item entity, the same way the build's own block clearing
         # drops whatever inventory a fixture left behind.
-        drop_inventory(level, x, y, z)
+        drop_inventory(level, pos)
         dropped: Option[ItemEntity] = level.find_item_entity(Vec3.new(x, y, z), 3)
         Test.assert(dropped.has(), "Dropping the chest should have left an item entity.")
         me.not_done()

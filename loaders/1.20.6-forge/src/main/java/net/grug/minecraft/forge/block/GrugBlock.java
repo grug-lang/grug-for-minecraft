@@ -1,7 +1,6 @@
 package net.grug.minecraft.forge.block;
 
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
-import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockUse;
@@ -98,7 +97,7 @@ public class GrugBlock extends Block implements EntityBlock {
             long blockHandle = Grug.createEntity(this.blockFileId);
             if (blockHandle != 0) {
                 long worldId = GrugEntities.addEntity(GrugEntityType.Level, level);
-                ExportFns.Block_on_break(blockHandle, worldId, pos.getX(), pos.getY(), pos.getZ());
+                GrugBlockUse.onBreak(blockHandle, worldId, pos.getX(), pos.getY(), pos.getZ());
                 Grug.destroyEntity(blockHandle);
             }
             super.onRemove(state, level, pos, newState, isMoving);

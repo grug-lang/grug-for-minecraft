@@ -37,7 +37,7 @@ export run() {
 
         # Dropping a non-empty inventory takes the stacked-items path.
         chest.set_item_in_slot(0, diamond, 3)
-        drop_inventory(level, x, origin.y(), origin.z())
+        drop_inventory(level, pos)
         Test.assert(chest.get_item_count_in_slot(0) == 0, "the drop should empty the chest.")
     }
 }

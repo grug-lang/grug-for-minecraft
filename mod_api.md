@@ -4,8 +4,8 @@ Generated from mod_api.json by mod_api_catalog.py; do not edit. Descriptions are
 
 ## Block
 export init()
-export on_break(world: Level, x: number, y: number, z: number)
-export use(world: Level, x: number, y: number, z: number, player: Player)
+export on_break(world: Level, pos: BlockPos)
+export use(world: Level, pos: BlockPos, player: Player)
 
 ## BlockEntity
 export init()
@@ -143,7 +143,7 @@ Vec3.new(x: number, y: number, z: number) Vec3
 decline_use()
 draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 draw_model(model: resource, x: number, y: number, z: number, dx: number, dy: number, dz: number)
-drop_inventory(level: Level, x: number, y: number, z: number)
+drop_inventory(level: Level, pos: BlockPos)
 equals(a: $Type, b: $Type) bool
 gui(texture_path: resource) GUI
 item(resource_location: ResourceLocation) Item
