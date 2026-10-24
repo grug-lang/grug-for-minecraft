@@ -1,10 +1,10 @@
 # Covers what a declined click does in the game: the click is left to the held item, which places a block
 # against the face that was clicked, while a block whose use export does not decline keeps the click and
-# nothing is placed. The player holds one stone. The block that handles the click is used first, so the
-# stone is still in hand for the block that declines, whose click places it on top of that block.
+# nothing is placed. The player holds one cobblestone. The block that handles the click is used first, so the
+# cobblestone is still in hand for the block that declines, whose click places it on top of that block.
 # That the handling block places nothing has no condition to wait for, so it is checked once the declined
-# click's stone has appeared, which came after it. On 1.20.6 the clicks reach the blocks by packets, so
-# the stone is waited for.
+# click's cobblestone has appeared, which came after it. On 1.20.6 the clicks reach the blocks by packets, so
+# the cobblestone is waited for.
 waited: number = 0
 
 export run() {
@@ -17,16 +17,20 @@ export run() {
     if Test.tick() == 0 {
         level.place_block(x, y, z, "grug:coverage_decline_use")
         level.place_block(x + 4, y, z, "grug:coverage_use")
-        Test.set_held_item(Test.get_player(), item(resource_location("minecraft:stone")))
+        Test.set_held_item(Test.get_player(), item(resource_location("minecraft:cobblestone")))
         Test.use_block(level, x + 4, y, z)
         Test.use_block(level, x, y, z)
         Test.not_done()
-    } else if level.get_block(x, y + 1, z) != "minecraft:stone" {
+    } else if not _is_cobblestone(level, x, y + 1, z) {
         waited = waited + 1
-        Test.assert(waited < 100, "The declined click should have placed the held stone on top of the block.")
+        Test.assert(waited < 100, "The declined click should have placed the held cobblestone on top of the block.")
         Test.not_done()
     } else {
-        Test.assert(level.get_block(x + 4, y + 1, z) != "minecraft:stone", "A click the block handled should not place the held block.")
+        Test.assert(not _is_cobblestone(level, x + 4, y + 1, z), "A click the block handled should not place the held block.")
         Test.clear_held_item(Test.get_player())
     }
+}
+
+local _is_cobblestone(level: Level, x: number, y: number, z: number) bool {
+    return level.get_block(x, y, z) == "minecraft:cobblestone"
 }
