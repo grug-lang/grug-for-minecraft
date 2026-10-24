@@ -1,0 +1,19 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        " c ",
+        "cgc",
+        " c "
+    ],
+    "key": {
+        "c": {
+            "item": "minecraft:cobblestone"
+        },
+        "g": {
+            "item": "grug:wooden_gear"
+        }
+    },
+    "result": {
+        "id": "grug:stone_gear"
+    }
+}
