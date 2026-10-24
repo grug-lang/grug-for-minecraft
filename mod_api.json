@@ -882,6 +882,34 @@
 						"name": "Vec3"
 					}
 				}
+			},
+			"static_methods": {
+				"new": {
+					"description": "Creates the position of the block at whole-number coordinates. Every coordinate must be a whole number the game can address, so a fractional or non-finite one, or one beyond a 32-bit integer, is reported. Like `new BlockPos(x, y, z)` in Forge and Fabric, whose positions are integer valued.",
+					"return_type": {
+						"name": "BlockPos"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
 			}
 		},
 		"Color": {
@@ -1538,6 +1566,34 @@
 					"return_type": {
 						"name": "number"
 					}
+				}
+			},
+			"static_methods": {
+				"new": {
+					"description": "Creates a vector from its components, which may be fractional: a position inside a block, or a point to measure from. Like `new Vec3(x, y, z)` in Forge and Fabric.",
+					"return_type": {
+						"name": "Vec3"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},

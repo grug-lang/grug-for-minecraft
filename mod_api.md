@@ -82,6 +82,7 @@ Test.world_settled() bool
 ## BlockPos
 .above_n(n: number) BlockPos
 .center() Vec3
+BlockPos.new(x: number, y: number, z: number) BlockPos
 
 ## Color
 Color.rgb(r: number, g: number, b: number) Color
@@ -135,6 +136,7 @@ Option.new() Option[$Value]
 .x() number
 .y() number
 .z() number
+Vec3.new(x: number, y: number, z: number) Vec3
 
 # Host functions
 

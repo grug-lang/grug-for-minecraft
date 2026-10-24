@@ -535,6 +535,26 @@ public class HostFunctions {
 
     // Classes
 
+    public static long BlockPos_new(double x, double y, double z) {
+        String[] names = {"x", "y", "z"};
+        double[] values = {x, y, z};
+        for (int i = 0; i < values.length; i++) {
+            // The first comparison is false for NaN and for anything beyond an int, so one test
+            // covers every value that has no block.
+            if (!(Math.abs(values[i]) <= Integer.MAX_VALUE) || values[i] != Math.floor(values[i])) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "BlockPos.new: "
+                                + names[i]
+                                + " must be a whole number within 32 bits, got "
+                                + values[i]);
+                return 0;
+            }
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.BlockPos, new BlockPos((int) x, (int) y, (int) z));
+    }
+
     public static long BlockPos_above_n(long blockPosId, double n) {
         BlockPos pos = (BlockPos) GrugEntities.entityData.get(blockPosId).object;
         return GrugEntities.addEntity(
@@ -843,6 +863,10 @@ public class HostFunctions {
                             + (int) percent
                             + "% was asked for.");
         }
+    }
+
+    public static long Vec3_new(double x, double y, double z) {
+        return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(x, y, z));
     }
 
     public static double Vec3_x(long vec3Id) {

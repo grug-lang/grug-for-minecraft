@@ -1,0 +1,5 @@
+# BlockPos.new must report a coordinate that is not a whole number, because a position addresses a block.
+export run() {
+    me.expect_error("BlockPos.new: z must be a whole number within 32 bits, got 0.5")
+    BlockPos.new(1, 2, 0.5)
+}

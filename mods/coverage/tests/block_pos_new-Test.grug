@@ -1,0 +1,13 @@
+# Covers BlockPos.new and Vec3.new: a position built from whole numbers is the center of that block, and a vector keeps its fractional components.
+export run() {
+    pos: BlockPos = BlockPos.new(1, -2, 3)
+    center: Vec3 = pos.center()
+    Test.assert(center.x() == 1.5, "The center of block 1 should be at 1.5.")
+    Test.assert(center.y() == -1.5, "The center of block -2 should be at -1.5.")
+    Test.assert(center.z() == 3.5, "The center of block 3 should be at 3.5.")
+
+    vec: Vec3 = Vec3.new(0.25, -2, 3.75)
+    Test.assert(vec.x() == 0.25, "Vec3.new should keep a fractional x.")
+    Test.assert(vec.y() == -2, "Vec3.new should keep y.")
+    Test.assert(vec.z() == 3.75, "Vec3.new should keep a fractional z.")
+}
