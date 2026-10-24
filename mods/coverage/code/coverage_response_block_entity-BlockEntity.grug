@@ -7,6 +7,7 @@
 #   4 answers twice with the same answer
 #   5 returns without answering
 #   6 answers, and keeps the response so that on_neighbor_change can use it after the call
+#   7 answers the first time it is asked and errors on every later ask (add_item only)
 # What the last call was asked is saved under "seen_remove", "seen_add" and "seen_side".
 level: Level = me.level()
 
@@ -74,6 +75,13 @@ export add_item(item: Item, damage: number, count: number, from_side: number, ad
     } else if mode == 6 {
         kept_add.set(response)
         response.refuse()
+    } else if mode == 7 {
+        if me.get_saved_number("asked") > 0 {
+            empty: Option[Item] = Option.new()
+            empty.unwrap()
+        }
+        me.set_saved_number("asked", 1)
+        response.accept_into_slot(me.get_saved_number("slot"))
     } else {
         response.refuse()
     }

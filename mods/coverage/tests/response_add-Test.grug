@@ -35,6 +35,16 @@ export run() {
     Test.assert(target.get_item_count_in_slot(2) == 64, "The named slot should be full.")
     Test.assert(target.add_item(diamond, 0, 1, 4, false) == 0, "A full slot should fit nothing.")
 
+    # The named slot only takes the same item at the same damage.
+    stick: Item = item(resource_location("minecraft:stick"))
+    Test.assert(target.add_item(stick, 0, 1, 4, true) == 0, "A different item should not go into a taken slot.")
+    Test.assert(target.add_item(diamond, 1, 1, 4, false) == 0, "A different damage should not go into a taken slot.")
+
+    # A vanilla chest has no grug script at all, so it decides nothing for itself either.
+    level.place_block(x + 2, y, z, "minecraft:chest")
+    chest: BlockEntity = level.get_block_entity(x + 2, y, z).unwrap()
+    Test.assert(chest.add_item(diamond, 0, 1, 4, true) == -1, "A chest should answer -1.")
+
     # A block entity without the export decides nothing for itself.
     Test.assert(plain.add_item(diamond, 0, 5, 4, true) == -1, "A block entity without the export should answer -1.")
     Test.assert(plain.get_item_count_in_slot(0) == 0, "A block entity without the export should be left alone.")

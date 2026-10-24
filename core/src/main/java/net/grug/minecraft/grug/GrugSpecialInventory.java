@@ -116,7 +116,8 @@ final class GrugSpecialInventory {
                     return 0;
                 }
                 return Math.min(
-                        response.amount(), adapter.getItemCountInSlot(blockEntity, response.slot()));
+                        response.amount(),
+                        adapter.getItemCountInSlot(blockEntity, response.slot()));
             case CRAFTING_RESULT:
                 Object stack = adapter.getResultStack(blockEntity);
                 return stack == null ? 0 : adapter.getStackCount(stack);
@@ -142,7 +143,8 @@ final class GrugSpecialInventory {
     }
 
     /** The response the export gave, or null when the block entity did not run the export. */
-    private static ExtractResponse callExtract(Object blockEntity, double fromSide, boolean remove) {
+    private static ExtractResponse callExtract(
+            Object blockEntity, double fromSide, boolean remove) {
         long handle = GrugCore.getAdapter().getGrugEntityHandle(blockEntity);
         if (handle == 0) {
             return null;
