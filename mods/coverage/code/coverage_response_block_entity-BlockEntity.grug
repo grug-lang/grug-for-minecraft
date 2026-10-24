@@ -13,6 +13,16 @@ level: Level = me.level()
 kept_extract: Option[ExtractResponse] = Option.new()
 kept_add: Option[AddResponse] = Option.new()
 
+# Uses the responses the exports kept, after those calls have returned.
+export on_neighbor_change() {
+    if kept_extract.has() {
+        kept_extract.unwrap().refuse()
+    }
+    if kept_add.has() {
+        kept_add.unwrap().refuse()
+    }
+}
+
 export extract_item(from_side: number, remove: bool, response: ExtractResponse) {
     me.set_saved_number("seen_side", from_side)
     if remove {
@@ -66,15 +76,5 @@ export add_item(item: Item, damage: number, count: number, from_side: number, ad
         response.refuse()
     } else {
         response.refuse()
-    }
-}
-
-# Uses the responses the exports kept, after those calls have returned.
-export on_neighbor_change() {
-    if kept_extract.has() {
-        kept_extract.unwrap().refuse()
-    }
-    if kept_add.has() {
-        kept_add.unwrap().refuse()
     }
 }
