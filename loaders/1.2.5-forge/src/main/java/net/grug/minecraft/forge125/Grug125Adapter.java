@@ -1088,12 +1088,22 @@ public class Grug125Adapter implements ModLoaderAdapter {
                         : null;
 
         if (block != null) {
-            // Go through the block's own activation hook so the test drives the same code path a
-            // real right-click does, instead of a copy of the block's GUI layout. This is not
-            // restricted to grug blocks: real mods open their GUI from a server-side activation
-            // (BuildCraft's BlockAutoWorkbench does exactly this), and the test only has to trigger
-            // it, not reproduce it.
-            block.blockActivated(world, blockX, blockY, blockZ, player);
+            // Go through the client's own right-click, which asks the block's activation first and
+            // the held item after, so the test drives the same path a real click does and a block
+            // that declines leaves the click to the item. This is not restricted to grug blocks:
+            // real mods open their GUI from a server-side activation (BuildCraft's
+            // BlockAutoWorkbench does exactly this), and the test only has to trigger it, not
+            // reproduce it.
+            ModLoader.getMinecraftInstance()
+                    .playerController
+                    .onPlayerRightClick(
+                            player,
+                            world,
+                            player.inventory.getCurrentItem(),
+                            blockX,
+                            blockY,
+                            blockZ,
+                            1);
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,

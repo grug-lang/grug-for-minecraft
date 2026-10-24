@@ -989,9 +989,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 (blockId >= 0 && blockId < Block.BLOCKS.length) ? Block.BLOCKS[blockId] : null;
 
         if (block instanceof GrugBlock grugBlock) {
-            // Go through the block's own onUse() so the test drives the same code path a real
-            // right-click does, instead of a copy of the block's GUI layout.
-            grugBlock.onUse(world, blockX, blockY, blockZ, player);
+            // Go through the client's own right-click, which asks the block's use first and the
+            // held
+            // item after, so the test drives the same path a real click does and a block that
+            // declines leaves the click to the item.
+            mc.interactionManager.interactBlock(
+                    player, world, player.inventory.getSelectedItem(), blockX, blockY, blockZ, 1);
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
