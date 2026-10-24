@@ -9,10 +9,10 @@ export run() {
     y: number = origin.y()
     z: number = origin.z()
 
-    level.place_block(x, y, z, "minecraft:stone")
-    level.place_block(x, y + 1, z, "minecraft:redstone_torch")
+    level.place_block(BlockPos.new(x, y, z), "minecraft:stone")
+    level.place_block(BlockPos.new(x, y + 1, z), "minecraft:redstone_torch")
 
-    Test.assert(level.has_neighbor_signal(x, y + 2, z), "The block above a redstone torch should be powered.")
+    Test.assert(level.has_neighbor_signal(BlockPos.new(x, y + 2, z)), "The block above a redstone torch should be powered.")
 
-    Test.assert(not level.has_neighbor_signal(x + 8, y + 8, z + 8), "A block away from any torch should not be powered.")
+    Test.assert(not level.has_neighbor_signal(BlockPos.new(x + 8, y + 8, z + 8)), "A block away from any torch should not be powered.")
 }

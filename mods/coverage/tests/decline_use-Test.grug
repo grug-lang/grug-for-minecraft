@@ -9,11 +9,13 @@ export run() {
     y: number = origin.y()
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:coverage_decline_use")
-    Test.use_block(level, x, y, z)
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:coverage_decline_use")
+    Test.use_block(level, pos)
 
     # A block with no use export has not handled the click either, which is the other way a click is
     # left to the game.
-    level.place_block(x + 1, y, z, "grug:coverage_mat_snow")
-    Test.use_block(level, x + 1, y, z)
+    pos2: BlockPos = BlockPos.new(x + 1, y, z)
+    level.place_block(pos2, "grug:coverage_mat_snow")
+    Test.use_block(level, pos2)
 }

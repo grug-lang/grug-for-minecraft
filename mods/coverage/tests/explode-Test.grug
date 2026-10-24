@@ -10,15 +10,18 @@ export run() {
     y: number = origin.y() + 20
     z: number = origin.z()
 
-    level.place_block(x + 1, y, z, "minecraft:glass")
-    level.place_block(x - 1, y, z, "minecraft:glass")
-    level.place_block(x + 12, y, z, "minecraft:glass")
+    pos: BlockPos = BlockPos.new(x + 1, y, z)
+    level.place_block(pos, "minecraft:glass")
+    pos2: BlockPos = BlockPos.new(x - 1, y, z)
+    level.place_block(pos2, "minecraft:glass")
+    pos3: BlockPos = BlockPos.new(x + 12, y, z)
+    level.place_block(pos3, "minecraft:glass")
 
     level.explode(x + 0.5, y + 0.5, z + 0.5, 3)
 
-    Test.assert(level.is_air(x + 1, y, z), "The glass next to the explosion should be destroyed.")
-    Test.assert(level.is_air(x - 1, y, z), "The glass on the other side should be destroyed.")
-    Test.assert(not level.is_air(x + 12, y, z), "The glass out of reach should survive.")
+    Test.assert(level.is_air(pos), "The glass next to the explosion should be destroyed.")
+    Test.assert(level.is_air(pos2), "The glass on the other side should be destroyed.")
+    Test.assert(not level.is_air(pos3), "The glass out of reach should survive.")
 
-    level.place_block(x + 12, y, z, "minecraft:air")
+    level.place_block(pos3, "minecraft:air")
 }

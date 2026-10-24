@@ -120,7 +120,7 @@ export tick() {
     stored: number = me.get_saved_number("energy")
     energy: number = stored
 
-    if level.has_neighbor_signal(x, y, z) {
+    if level.has_neighbor_signal(BlockPos.new(x, y, z)) {
         if Math.remainder(level.get_time(), 20) == 0 {
             energy = energy + 1
         }
@@ -181,7 +181,7 @@ local _add_energy(addition: number) {
 
 # Whether this engine's block is still in the world.
 local _exists() bool {
-    return level.get_block(x, y, z) == "grug:redstone_engine"
+    return level.get_block(BlockPos.new(x, y, z)) == "grug:redstone_engine"
 }
 
 # The rest of TileEngine.n_ on the server, after Engine.update: the piston moves by the speed of
@@ -207,7 +207,7 @@ local _stroke() {
             me.set_saved_number("progress", 0)
             progress_part = 0
         }
-    } else if level.has_neighbor_signal(x, y, z) {
+    } else if level.has_neighbor_signal(BlockPos.new(x, y, z)) {
         if _faces_receptor() and _extract_energy(false) > 0 {
             progress_part = 1
         }
@@ -252,7 +252,7 @@ local _piston_speed(energy: number) number {
 # The block in front of the engine, when it is a power receiver. TileEngine.isPoweredTile.
 local _faces_receptor() bool {
     side: number = _facing()
-    receptor: Option[BlockEntity] = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
+    receptor: Option[BlockEntity] = level.get_block_entity(BlockPos.new(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)))
     if not receptor.has() {
         return false
     }
@@ -264,7 +264,7 @@ local _faces_receptor() bool {
 # _faces_receptor.
 local _hand_energy(amount: number) {
     side: number = _facing()
-    receptor: BlockEntity = level.get_block_entity(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)).unwrap()
+    receptor: BlockEntity = level.get_block_entity(BlockPos.new(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))).unwrap()
     receptor.receive_energy(amount)
 }
 
@@ -307,7 +307,7 @@ local _switch_orientation() {
 
 # TileEngine.isPoweredTile: an IPowerReceptor, which here is a wooden pipe or another engine.
 local _is_powered_tile(nx: number, ny: number, nz: number) bool {
-    block: string = level.get_block(nx, ny, nz)
+    block: string = level.get_block(BlockPos.new(nx, ny, nz))
     return block == "grug:wooden_pipe" or block == "grug:redstone_engine"
 }
 

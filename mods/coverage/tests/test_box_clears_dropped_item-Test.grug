@@ -16,8 +16,9 @@ export run() {
         y: number = origin.y()
         z: number = origin.z()
 
-        level.place_block(x, y, z, "minecraft:chest")
-        chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        pos: BlockPos = BlockPos.new(x, y, z)
+        level.place_block(pos, "minecraft:chest")
+        chest_opt: Option[BlockEntity] = level.get_block_entity(pos)
         Test.assert(chest_opt.has(), "The chest should have a block entity.")
         chest_be: BlockEntity = chest_opt.unwrap()
         chest_be.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
@@ -25,7 +26,7 @@ export run() {
         # Drops the chest's contents as an item entity, the same way the build's own block clearing
         # drops whatever inventory a fixture left behind.
         drop_inventory(level, x, y, z)
-        dropped: Option[ItemEntity] = level.find_item_entity(x, y, z, 3)
+        dropped: Option[ItemEntity] = level.find_item_entity(Vec3.new(x, y, z), 3)
         Test.assert(dropped.has(), "Dropping the chest should have left an item entity.")
         me.not_done()
     } else if me.tick() == 1 {
@@ -38,7 +39,7 @@ export run() {
         x: number = origin.x() + 8
         y: number = origin.y()
         z: number = origin.z()
-        Test.assert(level.count_item_entities(x, y, z, 3) == 0, "The build's sweep should have removed the dropped item.")
-        Test.assert(not level.find_item_entity(x, y, z, 3).has(), "The build's sweep should have removed the dropped item.")
+        Test.assert(level.count_item_entities(Vec3.new(x, y, z), 3) == 0, "The build's sweep should have removed the dropped item.")
+        Test.assert(not level.find_item_entity(Vec3.new(x, y, z), 3).has(), "The build's sweep should have removed the dropped item.")
     }
 }

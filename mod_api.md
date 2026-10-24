@@ -63,7 +63,7 @@ Test.get_origin() Vec3
 Test.get_player() Player
 Test.hot_reload_count(relative_path: string) number
 Test.is_reference() bool
-Test.notify_neighbors(level: Level, x: number, y: number, z: number)
+Test.notify_neighbors(level: Level, pos: BlockPos)
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
 Test.round_trip_nbt(block_entity: BlockEntity)
@@ -74,7 +74,7 @@ Test.set_held_item(player: Player, item: Item)
 Test.set_mod_file_state(relative_path: string, state: string)
 Test.setup_graphics_camera() Vec3
 Test.tick_block_entity(block_entity: BlockEntity, ticks: number)
-Test.use_block(level: Level, x: number, y: number, z: number)
+Test.use_block(level: Level, pos: BlockPos)
 Test.world_settled() bool
 
 # Classes
@@ -103,15 +103,15 @@ Color.rgb(r: number, g: number, b: number) Color
 .entity() Entity
 
 ## Level
-.count_item_entities(x: number, y: number, z: number, radius: number) number
+.count_item_entities(center: Vec3, radius: number) number
 .explode(x: number, y: number, z: number, power: number)
-.find_item_entity(x: number, y: number, z: number, radius: number) Option[ItemEntity]
-.get_block(x: number, y: number, z: number) string
-.get_block_entity(x: number, y: number, z: number) Option[BlockEntity]
+.find_item_entity(center: Vec3, radius: number) Option[ItemEntity]
+.get_block(pos: BlockPos) string
+.get_block_entity(pos: BlockPos) Option[BlockEntity]
 .get_time() number
-.has_neighbor_signal(x: number, y: number, z: number) bool
-.is_air(x: number, y: number, z: number) bool
-.place_block(x: number, y: number, z: number, block_name: string)
+.has_neighbor_signal(pos: BlockPos) bool
+.is_air(pos: BlockPos) bool
+.place_block(pos: BlockPos, block_name: string)
 
 ## Math
 Math.floor(value: number) number

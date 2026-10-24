@@ -132,7 +132,7 @@ local _is_inventory(nx: number, ny: number, nz: number) bool {
         return false
     }
 
-    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(BlockPos.new(nx, ny, nz))
     if not neighbor_opt.has() {
         return false
     }
@@ -180,7 +180,7 @@ local _try_push() {
 }
 
 local _pull_from(nx: number, ny: number, nz: number) bool {
-    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(BlockPos.new(nx, ny, nz))
     if not neighbor_opt.has() {
         return false
     }
@@ -301,7 +301,7 @@ local _push_to_pipe(item: Item) bool {
 # Pushes the whole stack the pipe carries and keeps what the neighbour had no room for, which is
 # pushed on the next tick, to this neighbour or another.
 local _try_insert(nx: number, ny: number, nz: number, item: Item) bool {
-    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(BlockPos.new(nx, ny, nz))
     if not neighbor_opt.has() {
         return false
     }
@@ -337,7 +337,7 @@ local _drop() {
 }
 
 local _is_pipe(nx: number, ny: number, nz: number) bool {
-    return level.get_block(nx, ny, nz) == "grug:wooden_pipe"
+    return level.get_block(BlockPos.new(nx, ny, nz)) == "grug:wooden_pipe"
 }
 
 local _neighbor_x(side: number) number {

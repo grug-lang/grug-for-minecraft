@@ -7,8 +7,8 @@ export run() {
     y: number = origin.y() + 20
     z: number = origin.z()
 
-    Test.assert(level.count_item_entities(x, y, z, 2) == 0, "There should be no item entities yet.")
-    Test.assert(not level.find_item_entity(x, y, z, 2).has(), "There should be no item entity yet.")
+    Test.assert(level.count_item_entities(Vec3.new(x, y, z), 2) == 0, "There should be no item entities yet.")
+    Test.assert(not level.find_item_entity(Vec3.new(x, y, z), 2).has(), "There should be no item entity yet.")
 
     diamond: Item = item(resource_location("minecraft:diamond"))
     stack: ItemStack = item_stack(diamond, 0)
@@ -16,10 +16,10 @@ export run() {
     spawned.entity().set_delta_movement(vec3_zero())
     spawned.entity().spawn(level)
 
-    Test.assert(level.count_item_entities(x, y, z, 2) == 1, "The spawned item entity should be counted.")
-    Test.assert(level.count_item_entities(x + 10, y, z, 2) == 0, "A far position should count none.")
-    Test.assert(level.find_item_entity(x, y, z, 2).has(), "The spawned item entity should be found.")
-    Test.assert(not level.find_item_entity(x + 10, y, z, 2).has(), "A far position should find no entity.")
+    Test.assert(level.count_item_entities(Vec3.new(x, y, z), 2) == 1, "The spawned item entity should be counted.")
+    Test.assert(level.count_item_entities(Vec3.new(x + 10, y, z), 2) == 0, "A far position should count none.")
+    Test.assert(level.find_item_entity(Vec3.new(x, y, z), 2).has(), "The spawned item entity should be found.")
+    Test.assert(not level.find_item_entity(Vec3.new(x + 10, y, z), 2).has(), "A far position should find no entity.")
 
     # A second, isolated item inside the query's box but diagonal from the query point, so a radius
     # check has to leave it out while a box check counts it. This is the outside branch of the
@@ -31,6 +31,6 @@ export run() {
     corner.entity().set_delta_movement(vec3_zero())
     corner.entity().spawn(level)
 
-    found: Option[ItemEntity] = level.find_item_entity(cx, y, cz, 2)
-    Test.assert(found.has() or level.count_item_entities(cx, y, cz, 2) > -1, "A corner item is at most the one in the box.")
+    found: Option[ItemEntity] = level.find_item_entity(Vec3.new(cx, y, cz), 2)
+    Test.assert(found.has() or level.count_item_entities(Vec3.new(cx, y, cz), 2) > -1, "A corner item is at most the one in the box.")
 }

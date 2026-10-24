@@ -10,8 +10,9 @@ export run() {
     y: number = origin.y()
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:coverage_init_block")
-    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:coverage_init_block")
+    block_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(block_opt.has(), "coverage_init_block has no block entity after being placed.")
 
     be: BlockEntity = block_opt.unwrap()

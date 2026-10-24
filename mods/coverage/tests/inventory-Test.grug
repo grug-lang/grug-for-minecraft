@@ -5,8 +5,9 @@ export run() {
         origin: Vec3 = Test.get_origin()
         x: number = origin.x() + 2
 
-        level.place_block(x, origin.y(), origin.z(), "minecraft:chest")
-        chest_opt: Option[BlockEntity] = level.get_block_entity(x, origin.y(), origin.z())
+        pos: BlockPos = BlockPos.new(x, origin.y(), origin.z())
+        level.place_block(pos, "minecraft:chest")
+        chest_opt: Option[BlockEntity] = level.get_block_entity(pos)
         Test.assert(chest_opt.has(), "chest has no block entity after being placed.")
 
         drop_inventory(level, x, origin.y(), origin.z())

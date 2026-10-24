@@ -21,9 +21,11 @@ export run() {
     wrench: Item = item(resource_location("grug:wrench"))
 
     if step == 0 {
-        level.place_block(x - 1, y, z, "minecraft:chest")
-        level.place_block(x + 1, y, z, "minecraft:chest")
-        level.place_block(x, y, z, "grug:wooden_pipe")
+        pos: BlockPos = BlockPos.new(x - 1, y, z)
+        level.place_block(pos, "minecraft:chest")
+        level.place_block(BlockPos.new(x + 1, y, z), "minecraft:chest")
+        pos2: BlockPos = BlockPos.new(x, y, z)
+        level.place_block(pos2, "grug:wooden_pipe")
         Test.tick_block_entity(_pipe(level, x, y, z), 1)
         Test.assert(_source(level, x, y, z) == 5, "A fresh pipe should extract from side 4, saved as 5.")
 
@@ -33,13 +35,14 @@ export run() {
         Test.assert(_source(level, x, y, z) == 5, "The side should survive a reload.")
 
         Test.set_held_item(player, wrench)
-        Test.use_block(level, x, y, z)
+        Test.use_block(level, pos2)
         step = 1
         me.not_done()
     } else if step == 1 {
         Test.tick_block_entity(_pipe(level, x, y, z), 1)
         if _source(level, x, y, z) == 6 {
-            Test.use_block(level, x, y, z)
+            pos2: BlockPos = BlockPos.new(x, y, z)
+            Test.use_block(level, pos2)
             step = 2
         }
         _wait()
@@ -47,7 +50,8 @@ export run() {
         Test.tick_block_entity(_pipe(level, x, y, z), 1)
         if _source(level, x, y, z) == 5 {
             Test.clear_held_item(player)
-            Test.use_block(level, x, y, z)
+            pos2: BlockPos = BlockPos.new(x, y, z)
+            Test.use_block(level, pos2)
             step = 3
             waited = 0
         }
@@ -62,7 +66,8 @@ export run() {
         Test.assert(_source(level, x, y, z) == 5, "A click without the wrench should leave the side at 4.")
 
         # The chest the pipe extracts from is replaced, so the next tick picks the other one.
-        level.place_block(x - 1, y, z, "minecraft:stone")
+        pos: BlockPos = BlockPos.new(x - 1, y, z)
+        level.place_block(pos, "minecraft:stone")
         step = 4
         me.not_done()
     } else {
@@ -79,7 +84,7 @@ local _wait() {
 }
 
 local _pipe(level: Level, x: number, y: number, z: number) BlockEntity {
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(BlockPos.new(x, y, z))
     Test.assert(pipe_opt.has(), "The wooden pipe should have a block entity.")
     return pipe_opt.unwrap()
 }

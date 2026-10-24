@@ -9,9 +9,9 @@ export run() {
         z: number = origin.z()
 
         # A vanilla block named without a namespace.
-        level.place_block(x + 4, y, z, "stone")
+        level.place_block(BlockPos.new(x + 4, y, z), "stone")
         # A grug block named with its namespace.
-        level.place_block(x + 5, y, z, "grug:coverage_block")
+        level.place_block(BlockPos.new(x + 5, y, z), "grug:coverage_block")
 
         # Custom and vanilla items.
         custom: Item = item(resource_location("grug:coverage_item"))
@@ -29,6 +29,6 @@ export run() {
         # here, so it comes last. place_block reports it rather than leaving the block unplaced
         # without a word.
         me.expect_error("place_block")
-        level.place_block(x + 6, y, z, "grug:does_not_exist")
+        level.place_block(BlockPos.new(x + 6, y, z), "grug:does_not_exist")
     }
 }

@@ -32,13 +32,14 @@ local _setup() {
     y: number = origin.y()
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:coverage_block")
-    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:coverage_block")
+    block_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(block_opt.has(), "coverage_block has no block entity after being placed.")
     block: BlockEntity = block_opt.unwrap()
 
     icon: Item = item(resource_location("grug:coverage_item"))
     block.set_item_in_slot(0, icon, 1)
 
-    Test.use_block(level, x, y, z)
+    Test.use_block(level, pos)
 }

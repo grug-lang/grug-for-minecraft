@@ -747,21 +747,9 @@
 							}
 						},
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						}
 					]
@@ -799,7 +787,7 @@
 					}
 				},
 				"use_block": {
-					"description": "Right-clicks the block at the given coordinates as the local player, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. Note that the player is the one the test is already running as, so this only does anything in singleplayer.",
+					"description": "Right-clicks the block at the given position as the local player, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. Note that the player is the one the test is already running as, so this only does anything in singleplayer.",
 					"parameters": [
 						{
 							"name": "level",
@@ -808,21 +796,9 @@
 							}
 						},
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						}
 					]
@@ -1111,7 +1087,7 @@
 			"description": "A dimension or world.",
 			"methods": {
 				"get_block_entity": {
-					"description": "Gets the BlockEntity at the specified coordinates.",
+					"description": "Gets the BlockEntity at the given position.",
 					"return_type": {
 						"name": "Option",
 						"generics": [
@@ -1122,44 +1098,20 @@
 					},
 					"parameters": [
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						}
 					]
 				},
 				"place_block": {
-					"description": "Places a block in the world.",
+					"description": "Places a block at the given position.",
 					"parameters": [
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						},
 						{
@@ -1200,27 +1152,15 @@
 					]
 				},
 				"has_neighbor_signal": {
-					"description": "Whether the block at the specified coordinates is receiving a redstone signal from a neighboring block.",
+					"description": "Whether the block at the given position is receiving a redstone signal from a neighboring block.",
 					"return_type": {
 						"name": "bool"
 					},
 					"parameters": [
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						}
 					]
@@ -1232,79 +1172,43 @@
 					}
 				},
 				"get_block": {
-					"description": "The name of the block at the specified coordinates, e.g. \"minecraft:stone\" or \"grug:wooden_pipe\".",
+					"description": "The name of the block at the given position, e.g. \"minecraft:stone\" or \"grug:wooden_pipe\".",
 					"return_type": {
 						"name": "string"
 					},
 					"parameters": [
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						}
 					]
 				},
 				"is_air": {
-					"description": "Whether the block at the specified coordinates is air.",
+					"description": "Whether the block at the given position is air.",
 					"return_type": {
 						"name": "bool"
 					},
 					"parameters": [
 						{
-							"name": "x",
+							"name": "pos",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "BlockPos"
 							}
 						}
 					]
 				},
 				"count_item_entities": {
-					"description": "The number of item entities within radius blocks of the specified coordinates.",
+					"description": "The number of item entities within radius blocks of the given point.",
 					"return_type": {
 						"name": "number"
 					},
 					"parameters": [
 						{
-							"name": "x",
+							"name": "center",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "Vec3"
 							}
 						},
 						{
@@ -1316,7 +1220,7 @@
 					]
 				},
 				"find_item_entity": {
-					"description": "The first item entity within radius blocks of the specified coordinates, if any.",
+					"description": "The first item entity within radius blocks of the given point, if any.",
 					"return_type": {
 						"name": "Option",
 						"generics": [
@@ -1327,21 +1231,9 @@
 					},
 					"parameters": [
 						{
-							"name": "x",
+							"name": "center",
 							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
+								"name": "Vec3"
 							}
 						},
 						{

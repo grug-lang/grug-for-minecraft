@@ -26,17 +26,20 @@ local _turn_setup() {
     # The source is below the pipe and the engine beside it. A fresh pipe's side is 0, below, and
     # PipeLogicWood.switchSourceIfNeeded keeps it while that side holds an inventory, so the source is
     # the chest below rather than the target it pushes to.
-    level.place_block(x, y - 1, z, "minecraft:chest")
-    level.place_block(x, y, z, "grug:wooden_pipe")
-    level.place_block(x, y, z - 1, "minecraft:chest")
+    pos: BlockPos = BlockPos.new(x, y - 1, z)
+    level.place_block(pos, "minecraft:chest")
+    pos2: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos2, "grug:wooden_pipe")
+    pos3: BlockPos = BlockPos.new(x, y, z - 1)
+    level.place_block(pos3, "minecraft:chest")
 
-    level.place_block(x - 1, y - 2, z, "minecraft:stone")
-    level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch")
-    level.place_block(x - 1, y, z, "grug:redstone_engine")
+    level.place_block(BlockPos.new(x - 1, y - 2, z), "minecraft:stone")
+    level.place_block(BlockPos.new(x - 1, y - 1, z), "minecraft:redstone_torch")
+    level.place_block(BlockPos.new(x - 1, y, z), "grug:redstone_engine")
 
-    source_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
-    target_opt: Option[BlockEntity] = level.get_block_entity(x, y, z - 1)
-    self_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    source_opt: Option[BlockEntity] = level.get_block_entity(pos)
+    target_opt: Option[BlockEntity] = level.get_block_entity(pos3)
+    self_opt: Option[BlockEntity] = level.get_block_entity(pos2)
     Test.assert(source_opt.has(), "The source chest should have a block entity.")
     Test.assert(target_opt.has(), "The target chest should have a block entity.")
     Test.assert(self_opt.has(), "The pipe should have a block entity.")

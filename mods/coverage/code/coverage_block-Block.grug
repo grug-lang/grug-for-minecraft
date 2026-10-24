@@ -15,7 +15,7 @@ export use(world: Level, x: number, y: number, z: number, player: Player) {
     gui_layout.add_crafting_grid(0, 30, 17)
     gui_layout.add_crafting_result(124, 35)
 
-    block_entity: BlockEntity = world.get_block_entity(x, y, z).unwrap()
+    block_entity: BlockEntity = world.get_block_entity(BlockPos.new(x, y, z)).unwrap()
 
     gui_layout.open(player, block_entity)
 }

@@ -12,27 +12,28 @@ export run() {
 
     Test.assert(_facing(level, x, y, z) == 1, "An engine with no receptor next to it should face 1.")
 
-    level.place_block(x + 4, y, z - 1, "grug:wooden_pipe")
+    level.place_block(BlockPos.new(x + 4, y, z - 1), "grug:wooden_pipe")
     Test.assert(_facing(level, x + 4, y, z) == 2, "A pipe at z - 1 should make the engine face 2.")
 
-    level.place_block(x + 8, y, z - 1, "grug:wooden_pipe")
-    level.place_block(x + 9, y, z, "grug:wooden_pipe")
+    level.place_block(BlockPos.new(x + 8, y, z - 1), "grug:wooden_pipe")
+    level.place_block(BlockPos.new(x + 9, y, z), "grug:wooden_pipe")
     Test.assert(_facing(level, x + 8, y, z) == 2, "Pipes at z - 1 and x + 1 should make the engine face 2, as 2 is visited before 5.")
 
-    level.place_block(x + 12, y - 1, z, "grug:wooden_pipe")
+    level.place_block(BlockPos.new(x + 12, y - 1, z), "grug:wooden_pipe")
     Test.assert(_facing(level, x + 12, y, z) == 0, "A pipe at y - 1 should make the engine face 0.")
 
-    level.place_block(x + 16, y + 1, z, "grug:wooden_pipe")
+    level.place_block(BlockPos.new(x + 16, y + 1, z), "grug:wooden_pipe")
     Test.assert(_facing(level, x + 16, y, z) == 1, "A pipe at y + 1 should make the engine face 1.")
 
-    level.place_block(x - 4, y, z + 1, "grug:redstone_engine")
+    level.place_block(BlockPos.new(x - 4, y, z + 1), "grug:redstone_engine")
     Test.assert(_facing(level, x - 4, y, z) == 3, "An engine at z + 1 should make the engine face 3.")
 }
 
 # Places an engine, runs its first tick and returns the orientation it picked.
 local _facing(level: Level, x: number, y: number, z: number) number {
-    level.place_block(x, y, z, "grug:redstone_engine")
-    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:redstone_engine")
+    engine_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     engine: BlockEntity = engine_opt.unwrap()
     Test.tick_block_entity(engine, 1)

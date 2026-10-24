@@ -8,6 +8,6 @@ export run() {
         origin: Vec3 = Test.get_origin()
 
         me.expect_error("place_block: the game did not put")
-        level.place_block(origin.x(), 400, origin.z(), "minecraft:stone")
+        level.place_block(BlockPos.new(origin.x(), 400, origin.z()), "minecraft:stone")
     }
 }

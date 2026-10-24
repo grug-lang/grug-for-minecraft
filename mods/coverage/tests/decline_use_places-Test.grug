@@ -15,11 +15,13 @@ export run() {
     z: number = origin.z()
 
     if me.tick() == 0 {
-        level.place_block(x, y, z, "grug:coverage_decline_use")
-        level.place_block(x + 4, y, z, "grug:coverage_use")
+        pos: BlockPos = BlockPos.new(x, y, z)
+        level.place_block(pos, "grug:coverage_decline_use")
+        pos2: BlockPos = BlockPos.new(x + 4, y, z)
+        level.place_block(pos2, "grug:coverage_use")
         Test.set_held_item(Test.get_player(), item(resource_location("minecraft:cobblestone")))
-        Test.use_block(level, x + 4, y, z)
-        Test.use_block(level, x, y, z)
+        Test.use_block(level, pos2)
+        Test.use_block(level, pos)
         me.not_done()
     } else if not _is_cobblestone(level, x, y + 1, z) {
         waited = waited + 1
@@ -32,5 +34,5 @@ export run() {
 }
 
 local _is_cobblestone(level: Level, x: number, y: number, z: number) bool {
-    return level.get_block(x, y, z) == "minecraft:cobblestone"
+    return level.get_block(BlockPos.new(x, y, z)) == "minecraft:cobblestone"
 }

@@ -12,13 +12,13 @@ export run() {
     z: number = origin.z()
 
     pipe: BlockEntity = _place(level, x, y, z)
-    source: BlockEntity = level.get_block_entity(x - 1, y, z).unwrap()
+    source: BlockEntity = level.get_block_entity(BlockPos.new(x - 1, y, z)).unwrap()
     Test.tick_block_entity(pipe, 1)
     Test.assert(pipe.get_item_count_in_slot(0) == 0, "A pipe with no energy should pull nothing.")
     Test.assert(source.get_item_count_in_slot(0) == 5, "The chest should still hold its 5.")
 
     pipe = _place(level, x + 4, y, z)
-    source = level.get_block_entity(x + 3, y, z).unwrap()
+    source = level.get_block_entity(BlockPos.new(x + 3, y, z)).unwrap()
     pipe.receive_energy(1)
     Test.tick_block_entity(pipe, 1)
     Test.assert(pipe.get_item_count_in_slot(0) == 1, "A pipe with 1 energy should pull 1 item.")
@@ -26,7 +26,7 @@ export run() {
     Test.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its energy.")
 
     pipe = _place(level, x + 8, y, z)
-    source = level.get_block_entity(x + 7, y, z).unwrap()
+    source = level.get_block_entity(BlockPos.new(x + 7, y, z)).unwrap()
     pipe.receive_energy(3)
     Test.tick_block_entity(pipe, 1)
     Test.assert(pipe.get_item_count_in_slot(0) == 3, "A pipe with 3 energy should pull 3 items.")
@@ -34,8 +34,8 @@ export run() {
     Test.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its 3.")
 
     pipe = _place(level, x + 12, y, z)
-    source = level.get_block_entity(x + 11, y, z).unwrap()
-    target: BlockEntity = level.get_block_entity(x + 13, y, z).unwrap()
+    source = level.get_block_entity(BlockPos.new(x + 11, y, z)).unwrap()
+    target: BlockEntity = level.get_block_entity(BlockPos.new(x + 13, y, z)).unwrap()
     pipe.receive_energy(64)
     Test.tick_block_entity(pipe, 1)
     Test.assert(pipe.get_item_count_in_slot(0) == 5, "A pipe with 64 energy should pull the slot's whole stack of 5, not 64.")
@@ -51,12 +51,14 @@ export run() {
 # Places a pipe at x with a chest of 5 diamonds on its west side and an empty chest on its east side,
 # and returns the pipe's block entity.
 local _place(level: Level, x: number, y: number, z: number) BlockEntity {
-    level.place_block(x - 1, y, z, "minecraft:chest")
-    level.place_block(x, y, z, "grug:wooden_pipe")
-    level.place_block(x + 1, y, z, "minecraft:chest")
+    pos: BlockPos = BlockPos.new(x - 1, y, z)
+    level.place_block(pos, "minecraft:chest")
+    pos2: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos2, "grug:wooden_pipe")
+    level.place_block(BlockPos.new(x + 1, y, z), "minecraft:chest")
 
-    source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    source_opt: Option[BlockEntity] = level.get_block_entity(pos)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(pos2)
     Test.assert(source_opt.has(), "The chest should have a block entity.")
     Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
 

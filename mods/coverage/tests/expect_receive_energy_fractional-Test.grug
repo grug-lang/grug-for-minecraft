@@ -6,8 +6,9 @@ export run() {
     y: number = origin.y() + 20
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:coverage_power_block")
-    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:coverage_power_block")
+    be: BlockEntity = level.get_block_entity(pos).unwrap()
     me.expect_error("has to be a whole number from 0 to")
     be.receive_energy(1.5)
 }

@@ -101,7 +101,7 @@ local _wall_in_front_of(origin: Vec3) {
         # reaches past the top and bottom of a level view from where the camera sits.
         up: number = -4
         while up <= 0 {
-            level.place_block(x, origin.y() + up, z, "grug:coverage_block")
+            level.place_block(BlockPos.new(x, origin.y() + up, z), "grug:coverage_block")
             up = up + 1
         }
         across = across + 1

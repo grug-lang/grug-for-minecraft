@@ -49,6 +49,7 @@ local _use() {
     y: number = origin.y()
     z: number = origin.z() + row - 2
 
-    level.place_block(x, y, z, "grug:coverage_block")
-    Test.use_block(level, x, y, z)
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:coverage_block")
+    Test.use_block(level, pos)
 }

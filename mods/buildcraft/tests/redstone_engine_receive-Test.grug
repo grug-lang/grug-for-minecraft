@@ -44,17 +44,19 @@ export run() {
     Test.assert(receiver.get_saved_number("energy") == 102, "Three strokes should add 2 to the receiver, as (int)(3 * 0.95F) is 2.")
 
     # An engine at 1000 is not pushed above it by a stroke that adds nothing, and does not explode.
-    level.place_block(x + 12, y, z - 1, "minecraft:glass")
+    pos: BlockPos = BlockPos.new(x + 12, y, z - 1)
+    level.place_block(pos, "minecraft:glass")
     receiver = _scenario(level, x + 12, y, z, 1, 1000)
     Test.assert(receiver.get_saved_number("energy") == 1000, "A receiver at 1000 should stay at 1000.")
-    Test.assert(not level.is_air(x + 12, y, z - 1), "A receiver at 1000 should not explode when a stroke adds nothing.")
-    level.place_block(x + 12, y, z - 1, "minecraft:air")
+    Test.assert(not level.is_air(pos), "A receiver at 1000 should not explode when a stroke adds nothing.")
+    level.place_block(pos, "minecraft:air")
 
     # Two strokes add 1 to an engine at 1000, which explodes. The explosion destroys the engine, so
     # there is no energy left to read.
-    level.place_block(x - 4, y, z - 1, "minecraft:glass")
+    pos2: BlockPos = BlockPos.new(x - 4, y, z - 1)
+    level.place_block(pos2, "minecraft:glass")
     _scenario(level, x - 4, y, z, 2, 1000)
-    Test.assert(level.is_air(x - 4, y, z - 1), "A receiver pushed above 1000 should explode.")
+    Test.assert(level.is_air(pos2), "A receiver pushed above 1000 should explode.")
 }
 
 # Builds a receiver at (x, y, z) holding receiver_energy and the given number of feeders next to it
@@ -107,14 +109,15 @@ local _place_feeder(level: Level, x: number, y: number, z: number, index: number
 # would have picked it on its first tick, so that tick does not look at its neighbours.
 local _place_engine(level: Level, x: number, y: number, z: number, powered: bool, energy: number, facing: number) BlockEntity {
     if powered {
-        level.place_block(x, y - 2, z, "minecraft:stone")
-        level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+        level.place_block(BlockPos.new(x, y - 2, z), "minecraft:stone")
+        level.place_block(BlockPos.new(x, y - 1, z), "minecraft:redstone_torch")
     }
-    level.place_block(x, y, z, "grug:redstone_engine")
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:redstone_engine")
 
-    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    engine_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
-    Test.assert(level.has_neighbor_signal(x, y, z) == powered, "The engine's redstone signal should match what the test set up.")
+    Test.assert(level.has_neighbor_signal(pos) == powered, "The engine's redstone signal should match what the test set up.")
     engine: BlockEntity = engine_opt.unwrap()
     engine.set_saved_number("energy", energy)
     engine.set_saved_number("oriented", 1)

@@ -7,8 +7,9 @@ export run() {
     y: number = origin.y() + 20
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:coverage_power_block")
-    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:coverage_power_block")
+    be: BlockEntity = level.get_block_entity(pos).unwrap()
     be.receive_energy(6)
     be.set_saved_number("energy", 3)
 

@@ -52,8 +52,8 @@ local _setup() {
 
     facing: number = 0
     while facing < 6 {
-        level.place_block(ex + facing, ey, ez, "grug:redstone_engine")
-        engine_opt: Option[BlockEntity] = level.get_block_entity(ex + facing, ey, ez)
+        level.place_block(BlockPos.new(ex + facing, ey, ez), "grug:redstone_engine")
+        engine_opt: Option[BlockEntity] = level.get_block_entity(BlockPos.new(ex + facing, ey, ez))
         Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
         engine: BlockEntity = engine_opt.unwrap()
         engine.set_saved_number("orientation", facing)
@@ -69,7 +69,7 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     while wy < y0 + 17 {
         wx: number = x0
         while wx < x0 + 17 {
-            level.place_block(wx, wy, z, "minecraft:stone")
+            level.place_block(BlockPos.new(wx, wy, z), "minecraft:stone")
             wx = wx + 1
         }
         wy = wy + 1
@@ -107,7 +107,8 @@ local _force_remesh() {
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
-    level.place_block(x - 6, y + 3, z + 10, "minecraft:dirt")
-    level.place_block(x - 6, y + 3, z + 10, "minecraft:stone")
-    Test.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+    pos: BlockPos = BlockPos.new(x - 6, y + 3, z + 10)
+    level.place_block(pos, "minecraft:dirt")
+    level.place_block(pos, "minecraft:stone")
+    Test.assert(level.get_block(pos) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }

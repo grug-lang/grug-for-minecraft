@@ -8,8 +8,9 @@ export run() {
     y: number = origin.y() + 30
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:autocrafting_table")
-    table_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:autocrafting_table")
+    table_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(table_opt.has(), "The autocrafting table should have a block entity.")
     table: BlockEntity = table_opt.unwrap()
 

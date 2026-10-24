@@ -263,12 +263,18 @@ public class HostFunctions {
         return GrugCore.getAdapter().isWorldSettled();
     }
 
-    public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
-        GrugCore.getAdapter().notifyNeighbors(GrugEntities.entityData.get(levelId).object, x, y, z);
+    public static void Test_notify_neighbors(long levelId, long posId) {
+        BlockPos pos = (BlockPos) GrugEntities.entityData.get(posId).object;
+        GrugCore.getAdapter()
+                .notifyNeighbors(
+                        GrugEntities.entityData.get(levelId).object, pos.x(), pos.y(), pos.z());
     }
 
-    public static void Test_use_block(long levelId, double x, double y, double z) {
-        GrugCore.getAdapter().useBlockForTest(GrugEntities.entityData.get(levelId).object, x, y, z);
+    public static void Test_use_block(long levelId, long posId) {
+        BlockPos pos = (BlockPos) GrugEntities.entityData.get(posId).object;
+        GrugCore.getAdapter()
+                .useBlockForTest(
+                        GrugEntities.entityData.get(levelId).object, pos.x(), pos.y(), pos.z());
     }
 
     public static long Test_screenshot() {
@@ -641,10 +647,15 @@ public class HostFunctions {
                 .getItemEntityDamage(GrugEntities.entityData.get(itemEntityId).object);
     }
 
-    public static long Level_get_block_entity(long levelId, double x, double y, double z) {
+    public static long Level_get_block_entity(long levelId, long posId) {
+        BlockPos pos = (BlockPos) GrugEntities.entityData.get(posId).object;
         Object be =
                 GrugCore.getAdapter()
-                        .getBlockEntity(GrugEntities.entityData.get(levelId).object, x, y, z);
+                        .getBlockEntity(
+                                GrugEntities.entityData.get(levelId).object,
+                                pos.x(),
+                                pos.y(),
+                                pos.z());
         // TODO: Should this not call Grug.hostFunctionErrorHappened when be is null?
         if (be != null) {
             return GrugEntities.addEntity(
@@ -654,10 +665,15 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
-    public static void Level_place_block(
-            long levelId, double x, double y, double z, String blockName) {
+    public static void Level_place_block(long levelId, long posId, String blockName) {
+        BlockPos pos = (BlockPos) GrugEntities.entityData.get(posId).object;
         GrugCore.getAdapter()
-                .placeBlock(GrugEntities.entityData.get(levelId).object, x, y, z, blockName);
+                .placeBlock(
+                        GrugEntities.entityData.get(levelId).object,
+                        pos.x(),
+                        pos.y(),
+                        pos.z(),
+                        blockName);
     }
 
     public static void Level_explode(long levelId, double x, double y, double z, double power) {
@@ -682,35 +698,50 @@ public class HostFunctions {
         GrugCore.getAdapter().explode(GrugEntities.entityData.get(levelId).object, x, y, z, power);
     }
 
-    public static boolean Level_has_neighbor_signal(long levelId, double x, double y, double z) {
+    public static boolean Level_has_neighbor_signal(long levelId, long posId) {
+        BlockPos pos = (BlockPos) GrugEntities.entityData.get(posId).object;
         return GrugCore.getAdapter()
-                .hasNeighborSignal(GrugEntities.entityData.get(levelId).object, x, y, z);
+                .hasNeighborSignal(
+                        GrugEntities.entityData.get(levelId).object, pos.x(), pos.y(), pos.z());
     }
 
     public static double Level_get_time(long levelId) {
         return GrugCore.getAdapter().getWorldTime(GrugEntities.entityData.get(levelId).object);
     }
 
-    public static String Level_get_block(long levelId, double x, double y, double z) {
-        return GrugCore.getAdapter().getBlock(GrugEntities.entityData.get(levelId).object, x, y, z);
-    }
-
-    public static boolean Level_is_air(long levelId, double x, double y, double z) {
-        return GrugCore.getAdapter().isAir(GrugEntities.entityData.get(levelId).object, x, y, z);
-    }
-
-    public static double Level_count_item_entities(
-            long levelId, double x, double y, double z, double radius) {
+    public static String Level_get_block(long levelId, long posId) {
+        BlockPos pos = (BlockPos) GrugEntities.entityData.get(posId).object;
         return GrugCore.getAdapter()
-                .countItemEntities(GrugEntities.entityData.get(levelId).object, x, y, z, radius);
+                .getBlock(GrugEntities.entityData.get(levelId).object, pos.x(), pos.y(), pos.z());
     }
 
-    public static long Level_find_item_entity(
-            long levelId, double x, double y, double z, double radius) {
+    public static boolean Level_is_air(long levelId, long posId) {
+        BlockPos pos = (BlockPos) GrugEntities.entityData.get(posId).object;
+        return GrugCore.getAdapter()
+                .isAir(GrugEntities.entityData.get(levelId).object, pos.x(), pos.y(), pos.z());
+    }
+
+    public static double Level_count_item_entities(long levelId, long centerId, double radius) {
+        Vec3 center = (Vec3) GrugEntities.entityData.get(centerId).object;
+        return GrugCore.getAdapter()
+                .countItemEntities(
+                        GrugEntities.entityData.get(levelId).object,
+                        center.x(),
+                        center.y(),
+                        center.z(),
+                        radius);
+    }
+
+    public static long Level_find_item_entity(long levelId, long centerId, double radius) {
+        Vec3 center = (Vec3) GrugEntities.entityData.get(centerId).object;
         Object entity =
                 GrugCore.getAdapter()
                         .findItemEntity(
-                                GrugEntities.entityData.get(levelId).object, x, y, z, radius);
+                                GrugEntities.entityData.get(levelId).object,
+                                center.x(),
+                                center.y(),
+                                center.z(),
+                                radius);
         if (entity != null) {
             return GrugEntities.addEntity(
                     GrugEntityType.Option,

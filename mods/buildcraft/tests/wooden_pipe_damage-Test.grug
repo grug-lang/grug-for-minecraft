@@ -23,23 +23,27 @@ local _damage_setup() {
     y: number = origin.y() + 45
     z: number = origin.z()
 
-    level.place_block(x - 1, y, z, "minecraft:chest")
-    level.place_block(x, y, z, "grug:wooden_pipe")
-    level.place_block(x + 1, y, z, "minecraft:chest")
+    pos: BlockPos = BlockPos.new(x - 1, y, z)
+    level.place_block(pos, "minecraft:chest")
+    pos2: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos2, "grug:wooden_pipe")
+    pos3: BlockPos = BlockPos.new(x + 1, y, z)
+    level.place_block(pos3, "minecraft:chest")
 
     # A torch powers the block above it, but not the block it is attached to, and a standing torch
     # does not power the block above its own base, so this puts the torch under the engine.
-    level.place_block(x, y - 3, z, "minecraft:stone")
-    level.place_block(x, y - 2, z, "minecraft:redstone_torch")
-    level.place_block(x, y - 1, z, "grug:redstone_engine")
+    level.place_block(BlockPos.new(x, y - 3, z), "minecraft:stone")
+    level.place_block(BlockPos.new(x, y - 2, z), "minecraft:redstone_torch")
+    pos4: BlockPos = BlockPos.new(x, y - 1, z)
+    level.place_block(pos4, "grug:redstone_engine")
 
-    source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
-    target_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
-    self_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    source_opt: Option[BlockEntity] = level.get_block_entity(pos)
+    target_opt: Option[BlockEntity] = level.get_block_entity(pos3)
+    self_opt: Option[BlockEntity] = level.get_block_entity(pos2)
     Test.assert(source_opt.has(), "The source chest should have a block entity.")
     Test.assert(target_opt.has(), "The target chest should have a block entity.")
     Test.assert(self_opt.has(), "The pipe should have a block entity.")
-    Test.assert(level.has_neighbor_signal(x, y - 1, z), "The engine should be powered by the torch.")
+    Test.assert(level.has_neighbor_signal(pos4), "The engine should be powered by the torch.")
 
     pipe_damage_source.set(source_opt.unwrap())
     pipe_damage_target.set(target_opt.unwrap())

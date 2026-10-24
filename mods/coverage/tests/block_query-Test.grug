@@ -10,18 +10,18 @@ export run() {
     # Terrain can reach 20 blocks above the origin (a hill on the seed, or a block left by an earlier
     # test at the same offset), so climb until the spot is air instead of trusting the offset.
     steps: number = 0
-    while not level.is_air(x, y, z) and steps < 64 {
+    while not level.is_air(BlockPos.new(x, y, z)) and steps < 64 {
         y = y + 1
         steps = steps + 1
     }
 
-    Test.assert(level.is_air(x, y, z), "The test spot should start as air.")
-    Test.assert(level.get_block(x, y, z) == "minecraft:air", "Air should be named minecraft:air.")
+    Test.assert(level.is_air(BlockPos.new(x, y, z)), "The test spot should start as air.")
+    Test.assert(level.get_block(BlockPos.new(x, y, z)) == "minecraft:air", "Air should be named minecraft:air.")
 
-    level.place_block(x, y, z, "minecraft:stone")
-    Test.assert(level.get_block(x, y, z) == "minecraft:stone", "Stone should be named minecraft:stone.")
-    Test.assert(not level.is_air(x, y, z), "A placed block should not be air.")
+    level.place_block(BlockPos.new(x, y, z), "minecraft:stone")
+    Test.assert(level.get_block(BlockPos.new(x, y, z)) == "minecraft:stone", "Stone should be named minecraft:stone.")
+    Test.assert(not level.is_air(BlockPos.new(x, y, z)), "A placed block should not be air.")
 
-    level.place_block(x, y, z, "grug:coverage_block")
-    Test.assert(level.get_block(x, y, z) == "grug:coverage_block", "A grug block should keep its grug name.")
+    level.place_block(BlockPos.new(x, y, z), "grug:coverage_block")
+    Test.assert(level.get_block(BlockPos.new(x, y, z)) == "grug:coverage_block", "A grug block should keep its grug name.")
 }

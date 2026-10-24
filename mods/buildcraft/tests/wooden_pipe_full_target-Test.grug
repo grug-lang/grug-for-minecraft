@@ -38,25 +38,29 @@ local _full_target_setup() {
     # The source sits below the pipe and the engine beside it, so the pipe's six sides hold exactly
     # two inventories: the sword below, and the full chest to the side. A fresh pipe's side is 0,
     # below, and it keeps that side while it holds an inventory, so the sword's chest is the source.
-    level.place_block(x, y - 1, z, "minecraft:chest")
-    level.place_block(x, y, z, "grug:wooden_pipe")
-    level.place_block(x + 1, y, z, "minecraft:chest")
+    pos: BlockPos = BlockPos.new(x, y - 1, z)
+    level.place_block(pos, "minecraft:chest")
+    pos2: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos2, "grug:wooden_pipe")
+    pos3: BlockPos = BlockPos.new(x + 1, y, z)
+    level.place_block(pos3, "minecraft:chest")
 
     # The engine is beside the pipe rather than below it, because below is the source. A torch powers
     # the block above it, but not the block it is attached to, and a standing torch does not power the
     # block above its own base, so this puts a torch under the engine with stone beneath that.
-    level.place_block(x - 1, y - 2, z, "minecraft:stone")
-    level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch")
-    level.place_block(x - 1, y, z, "grug:redstone_engine")
+    level.place_block(BlockPos.new(x - 1, y - 2, z), "minecraft:stone")
+    level.place_block(BlockPos.new(x - 1, y - 1, z), "minecraft:redstone_torch")
+    pos4: BlockPos = BlockPos.new(x - 1, y, z)
+    level.place_block(pos4, "grug:redstone_engine")
 
-    source_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
-    target_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    source_opt: Option[BlockEntity] = level.get_block_entity(pos)
+    target_opt: Option[BlockEntity] = level.get_block_entity(pos3)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(pos2)
     Test.assert(source_opt.has(), "The source chest should have a block entity.")
     Test.assert(target_opt.has(), "The target chest should have a block entity.")
     Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
-    Test.assert(level.has_neighbor_signal(x - 1, y, z), "The engine should be powered by the torch.")
-    Test.assert(level.has_neighbor_signal(x, y, z), "The pipe should be powered by the engine.")
+    Test.assert(level.has_neighbor_signal(pos4), "The engine should be powered by the torch.")
+    Test.assert(level.has_neighbor_signal(pos2), "The pipe should be powered by the engine.")
 
     full_target_source.set(source_opt.unwrap())
     full_target_target.set(target_opt.unwrap())
@@ -117,10 +121,10 @@ local _full_target_check() {
 
     # Counting the item entities, not merely finding one, is what makes this an accounting test: a
     # pipe that both inserted and dropped, or dropped twice, would still pass a find-one assertion.
-    dropped_count: number = level.count_item_entities(x, y, z, 10)
+    dropped_count: number = level.count_item_entities(Vec3.new(x, y, z), 10)
     Test.assert(dropped_count == 1, "Exactly one item entity should have been dropped near the pipe.")
 
-    found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
+    found: Option[ItemEntity] = level.find_item_entity(Vec3.new(x, y, z), 10)
     Test.assert(found.has(), "The pipe should have dropped the sword.")
     if found.has() {
         dropped: ItemEntity = found.unwrap()

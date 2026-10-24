@@ -53,14 +53,17 @@ local _test_logic() {
     y: number = origin.y()
     z: number = origin.z()
 
-    level.place_block(x, y, z, _autocrafting_table())
-    table: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, _autocrafting_table())
+    table: BlockEntity = level.get_block_entity(pos).unwrap()
 
-    level.place_block(x + 1, y, z, "minecraft:chest")
-    chest1: BlockEntity = level.get_block_entity(x + 1, y, z).unwrap()
+    pos2: BlockPos = BlockPos.new(x + 1, y, z)
+    level.place_block(pos2, "minecraft:chest")
+    chest1: BlockEntity = level.get_block_entity(pos2).unwrap()
 
-    level.place_block(x - 1, y, z, "minecraft:chest")
-    chest2: BlockEntity = level.get_block_entity(x - 1, y, z).unwrap()
+    pos3: BlockPos = BlockPos.new(x - 1, y, z)
+    level.place_block(pos3, "minecraft:chest")
+    chest2: BlockEntity = level.get_block_entity(pos3).unwrap()
 
     diamond_item: Item = item(resource_location("minecraft:diamond"))
 
@@ -105,23 +108,26 @@ local _test_graphics_setup() {
     # when they are missing. get_block_entity finding nothing turns a missing chunk or block into a
     # readable failure rather than a screenshot of nothing.
 
-    level.place_block(x, y, z, _autocrafting_table())
-    table_be: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, _autocrafting_table())
+    table_be: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(table_be.has(), "The autocrafting table has no block entity after being placed.")
     graphics_table.set(table_be.unwrap())
 
-    chest1_be: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    pos2: BlockPos = BlockPos.new(x + 1, y, z)
+    chest1_be: Option[BlockEntity] = level.get_block_entity(pos2)
     if not chest1_be.has() {
-        level.place_block(x + 1, y, z, "minecraft:chest")
-        chest1_be = level.get_block_entity(x + 1, y, z)
+        level.place_block(pos2, "minecraft:chest")
+        chest1_be = level.get_block_entity(pos2)
     }
     Test.assert(chest1_be.has(), "Chest 1 has no block entity.")
     graphics_chest1.set(chest1_be.unwrap())
 
-    chest2_be: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    pos3: BlockPos = BlockPos.new(x - 1, y, z)
+    chest2_be: Option[BlockEntity] = level.get_block_entity(pos3)
     if not chest2_be.has() {
-        level.place_block(x - 1, y, z, "minecraft:chest")
-        chest2_be = level.get_block_entity(x - 1, y, z)
+        level.place_block(pos3, "minecraft:chest")
+        chest2_be = level.get_block_entity(pos3)
     }
     Test.assert(chest2_be.has(), "Chest 2 has no block entity.")
     graphics_chest2.set(chest2_be.unwrap())
@@ -142,7 +148,7 @@ local _test_graphics_setup() {
 
     # Right-click the block to open the real GUI, rather than redeclaring its layout here. A
     # hand-copied layout could silently drift away from what the block actually opens.
-    Test.use_block(level, x, y, z)
+    Test.use_block(level, pos)
 }
 
 local _test_graphics_check() {

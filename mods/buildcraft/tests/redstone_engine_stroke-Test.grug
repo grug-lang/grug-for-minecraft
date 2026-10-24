@@ -30,7 +30,7 @@ export run() {
     z: number = origin.z()
 
     engine: BlockEntity = _place(level, x - 4, y, z, true)
-    pipe: BlockEntity = level.get_block_entity(x - 4, y + 1, z).unwrap()
+    pipe: BlockEntity = level.get_block_entity(BlockPos.new(x - 4, y + 1, z)).unwrap()
     engine.set_saved_number("energy", 0)
     Test.tick_block_entity(engine, 19)
     Test.assert(pipe.get_energy_stored() == 0, "An engine with no energy should hand the pipe nothing.")
@@ -43,7 +43,7 @@ export run() {
 
     # Without a redstone signal the engine never starts a stroke.
     engine = _place(level, x + 16, y, z, false)
-    pipe = level.get_block_entity(x + 16, y + 1, z).unwrap()
+    pipe = level.get_block_entity(BlockPos.new(x + 16, y + 1, z)).unwrap()
     engine.set_saved_number("energy", 100)
     Test.tick_block_entity(engine, 120)
     Test.assert(pipe.get_energy_stored() == 0, "An engine with no redstone signal should hand the pipe nothing.")
@@ -54,7 +54,7 @@ export run() {
 # tick numbers described above.
 local _stroke(level: Level, x: number, y: number, z: number, energy: number, delivery_tick: number, rest_tick: number) {
     engine: BlockEntity = _place(level, x, y, z, true)
-    pipe: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
+    pipe: BlockEntity = level.get_block_entity(BlockPos.new(x, y + 1, z)).unwrap()
     engine.set_saved_number("energy", energy)
 
     # The start tick.
@@ -102,16 +102,18 @@ local _tick(engine: BlockEntity, ticks: number) {
 # checking its signal. A torch powers the block above it, but not the block it is attached to.
 local _place(level: Level, x: number, y: number, z: number, powered: bool) BlockEntity {
     if powered {
-        level.place_block(x, y - 2, z, "minecraft:stone")
-        level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+        level.place_block(BlockPos.new(x, y - 2, z), "minecraft:stone")
+        level.place_block(BlockPos.new(x, y - 1, z), "minecraft:redstone_torch")
     }
-    level.place_block(x, y + 1, z, "grug:wooden_pipe")
-    level.place_block(x, y, z, "grug:redstone_engine")
+    pos: BlockPos = BlockPos.new(x, y + 1, z)
+    level.place_block(pos, "grug:wooden_pipe")
+    pos2: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos2, "grug:redstone_engine")
 
-    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y + 1, z)
+    engine_opt: Option[BlockEntity] = level.get_block_entity(pos2)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     Test.assert(pipe_opt.has(), "The wooden pipe should have a block entity.")
-    Test.assert(level.has_neighbor_signal(x, y, z) == powered, "The engine's redstone signal should match what the test set up.")
+    Test.assert(level.has_neighbor_signal(pos2) == powered, "The engine's redstone signal should match what the test set up.")
     return engine_opt.unwrap()
 }

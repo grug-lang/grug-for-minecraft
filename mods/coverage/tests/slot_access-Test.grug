@@ -14,8 +14,9 @@ export run() {
         y: number = origin.y() + 15
         z: number = origin.z()
 
-        level.place_block(x, y, z, "grug:coverage_block")
-        be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        pos: BlockPos = BlockPos.new(x, y, z)
+        level.place_block(pos, "grug:coverage_block")
+        be_opt: Option[BlockEntity] = level.get_block_entity(pos)
         Test.assert(be_opt.has(), "The coverage block should have a block entity.")
         be: BlockEntity = be_opt.unwrap()
         diamond: Item = item(resource_location("minecraft:diamond"))
@@ -106,8 +107,9 @@ export run() {
 
         # The permissive default is per block entity, so a chest that declared nothing is untouched by
         # the rule the coverage block just declared.
-        level.place_block(x + 1, y, z, "minecraft:chest")
-        chest_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+        pos2: BlockPos = BlockPos.new(x + 1, y, z)
+        level.place_block(pos2, "minecraft:chest")
+        chest_opt: Option[BlockEntity] = level.get_block_entity(pos2)
         Test.assert(chest_opt.has(), "The chest should have a block entity.")
         chest: BlockEntity = chest_opt.unwrap()
         Test.assert(chest.is_slot_extractable(0), "A chest that declared nothing should be extractable.")

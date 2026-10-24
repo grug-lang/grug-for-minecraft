@@ -68,8 +68,9 @@ local _setup_table() {
     y: number = origin.y() + 5
     z: number = origin.z()
 
-    level.place_block(x - 1, y, z, "grug:autocrafting_table")
-    table_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
+    pos: BlockPos = BlockPos.new(x - 1, y, z)
+    level.place_block(pos, "grug:autocrafting_table")
+    table_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(table_opt.has(), "The autocrafting table should have a block entity.")
     table: BlockEntity = table_opt.unwrap()
     pipe_table_table.set(table)
@@ -112,18 +113,21 @@ local _setup_pipe() {
     y: number = origin.y() + 5
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:wooden_pipe")
-    level.place_block(x + 1, y, z, "minecraft:chest")
-    level.place_block(x, y - 3, z, "minecraft:stone")
-    level.place_block(x, y - 2, z, "minecraft:redstone_torch")
-    level.place_block(x, y - 1, z, "grug:redstone_engine")
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:wooden_pipe")
+    pos2: BlockPos = BlockPos.new(x + 1, y, z)
+    level.place_block(pos2, "minecraft:chest")
+    level.place_block(BlockPos.new(x, y - 3, z), "minecraft:stone")
+    level.place_block(BlockPos.new(x, y - 2, z), "minecraft:redstone_torch")
+    pos3: BlockPos = BlockPos.new(x, y - 1, z)
+    level.place_block(pos3, "grug:redstone_engine")
 
-    chest_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
-    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    chest_opt: Option[BlockEntity] = level.get_block_entity(pos2)
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(chest_opt.has(), "The chest should have a block entity.")
     Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
-    Test.assert(level.has_neighbor_signal(x, y - 1, z), "The engine should be powered by the torch.")
-    Test.assert(level.has_neighbor_signal(x, y, z), "The pipe should be powered by the engine.")
+    Test.assert(level.has_neighbor_signal(pos3), "The engine should be powered by the torch.")
+    Test.assert(level.has_neighbor_signal(pos), "The pipe should be powered by the engine.")
 
     pipe_table_chest.set(chest_opt.unwrap())
     pipe_table_pipe.set(pipe_opt.unwrap())
@@ -161,7 +165,7 @@ local _check() {
 
     # Nothing was dropped on the way: the chest took it, and an item entity here would mean the pipe
     # gave up on the push.
-    Test.assert(level.count_item_entities(x, y, z, 5) == 0, "The pipe should not have dropped anything.")
+    Test.assert(level.count_item_entities(Vec3.new(x, y, z), 5) == 0, "The pipe should not have dropped anything.")
 }
 
 # The pipe moving the crafted bread into the chest is what this test observes, and the game's own tick

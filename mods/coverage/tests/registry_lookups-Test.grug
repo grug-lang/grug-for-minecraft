@@ -16,7 +16,7 @@ export run() {
 
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
-        level.place_block(origin.x() + 7, origin.y(), origin.z(), "minecraft:crafting_table")
+        level.place_block(BlockPos.new(origin.x() + 7, origin.y(), origin.z()), "minecraft:crafting_table")
         Test.assert(true, "a multi-word vanilla block places.")
     }
 }

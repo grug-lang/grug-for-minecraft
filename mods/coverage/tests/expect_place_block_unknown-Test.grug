@@ -6,5 +6,5 @@ export run() {
     origin: Vec3 = Test.get_origin()
 
     me.expect_error("Could not resolve block")
-    level.place_block(origin.x(), origin.y(), origin.z(), "grug:does_not_exist")
+    level.place_block(BlockPos.new(origin.x(), origin.y(), origin.z()), "grug:does_not_exist")
 }

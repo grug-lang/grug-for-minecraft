@@ -123,7 +123,7 @@ local _count_in_neighbors(item: Item, damage: number) number {
 }
 
 local _count_in_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number) number {
-    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(BlockPos.new(nx, ny, nz))
     if neighbor_opt.has() {
         neighbor_be: BlockEntity = neighbor_opt.unwrap()
         return neighbor_be.count_item_in_inventory(item, damage)
@@ -171,7 +171,7 @@ local _extract_from_neighbors(item: Item, damage: number, amount: number) number
 }
 
 local _extract_from_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number, amount: number) number {
-    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(BlockPos.new(nx, ny, nz))
     if neighbor_opt.has() {
         neighbor_be: BlockEntity = neighbor_opt.unwrap()
         return neighbor_be.extract_item_from_inventory(item, damage, amount)

@@ -13,7 +13,7 @@ export use(world: Level, x: number, y: number, z: number, player: Player) {
     held: Option[Item] = player.get_held_item()
     if held.has() {
         if equals(held.unwrap(), item(resource_location("grug:wrench"))) {
-            pipe: Option[BlockEntity] = world.get_block_entity(x, y, z)
+            pipe: Option[BlockEntity] = world.get_block_entity(BlockPos.new(x, y, z))
             if pipe.has() {
                 pipe_be: BlockEntity = pipe.unwrap()
                 pipe_be.set_saved_number("rotate", 1)

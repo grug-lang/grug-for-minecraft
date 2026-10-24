@@ -7,8 +7,9 @@ export run() {
     y: number = origin.y() + 20
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:coverage_neighbor_block")
-    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "grug:coverage_neighbor_block")
+    block_opt: Option[BlockEntity] = level.get_block_entity(pos)
     Test.assert(block_opt.has(), "The neighbour-coverage block should have a block entity.")
     be: BlockEntity = block_opt.unwrap()
 
@@ -16,8 +17,9 @@ export run() {
 
     # Placing a neighbour, then notifying it, should make the loader call on_neighbor_change on the
     # block entity. place_block is quiet on the Ornithe loaders, so the notify is explicit.
-    level.place_block(x + 1, y, z, "minecraft:stone")
-    Test.notify_neighbors(level, x + 1, y, z)
+    pos2: BlockPos = BlockPos.new(x + 1, y, z)
+    level.place_block(pos2, "minecraft:stone")
+    Test.notify_neighbors(level, pos2)
 
     Test.assert(be.get_item_count_in_slot(0) == 1, "The neighbour change should have been delivered.")
 }

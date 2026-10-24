@@ -6,8 +6,9 @@ export run() {
     y: number = origin.y() + 20
     z: number = origin.z()
 
-    level.place_block(x, y, z, "minecraft:chest")
-    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    pos: BlockPos = BlockPos.new(x, y, z)
+    level.place_block(pos, "minecraft:chest")
+    be: BlockEntity = level.get_block_entity(pos).unwrap()
     me.expect_error("Only a grug block entity can receive energy")
     be.set_power_receiver(10)
 }

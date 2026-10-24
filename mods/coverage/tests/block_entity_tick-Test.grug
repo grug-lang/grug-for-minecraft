@@ -10,8 +10,9 @@ export run() {
         y: number = origin.y()
         z: number = origin.z()
 
-        level.place_block(x, y, z, "grug:foo_block")
-        block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+        pos: BlockPos = BlockPos.new(x, y, z)
+        level.place_block(pos, "grug:foo_block")
+        block_opt: Option[BlockEntity] = level.get_block_entity(pos)
         Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
 
         me.not_done()
@@ -31,6 +32,6 @@ local _diamond_has_spawned() bool {
     y: number = origin.y()
     z: number = origin.z()
     level: Level = Test.get_client_level()
-    found: Option[ItemEntity] = level.find_item_entity(x, y + 2, z, 2)
+    found: Option[ItemEntity] = level.find_item_entity(Vec3.new(x, y + 2, z), 2)
     return found.has()
 }

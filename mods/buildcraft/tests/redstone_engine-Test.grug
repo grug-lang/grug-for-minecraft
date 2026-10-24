@@ -79,8 +79,8 @@ local _setup() {
     ey = origin.y() - 1.88
     ez = origin.z() + 4
 
-    level.place_block(ex, ey, ez, "grug:redstone_engine")
-    engine_opt: Option[BlockEntity] = level.get_block_entity(ex, ey, ez)
+    level.place_block(BlockPos.new(ex, ey, ez), "grug:redstone_engine")
+    engine_opt: Option[BlockEntity] = level.get_block_entity(BlockPos.new(ex, ey, ez))
     Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     engine.set(engine_opt.unwrap())
 
@@ -88,7 +88,7 @@ local _setup() {
 
     # The stone the torch stands on goes in now, so that powering the engine later places nothing
     # but the torch itself.
-    level.place_block(ex, ey - 2, ez, "minecraft:stone")
+    level.place_block(BlockPos.new(ex, ey - 2, ez), "minecraft:stone")
 
     _check_thresholds()
 }
@@ -99,7 +99,7 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     while wy < y0 + 13 {
         wx: number = x0
         while wx < x0 + 13 {
-            level.place_block(wx, wy, z, "minecraft:stone")
+            level.place_block(BlockPos.new(wx, wy, z), "minecraft:stone")
             wx = wx + 1
         }
         wy = wy + 1
@@ -202,14 +202,14 @@ local _draw_stage(energy: number, expected_stage: number) {
 # engine, standing on a stone block.
 local _power() {
     level: Level = Test.get_client_level()
-    level.place_block(ex, ey - 1, ez, "minecraft:redstone_torch")
-    Test.assert(level.has_neighbor_signal(ex, ey, ez), "The torch under the engine should power it.")
+    level.place_block(BlockPos.new(ex, ey - 1, ez), "minecraft:redstone_torch")
+    Test.assert(level.has_neighbor_signal(BlockPos.new(ex, ey, ez)), "The torch under the engine should power it.")
 }
 
 local _unpower() {
     level: Level = Test.get_client_level()
-    level.place_block(ex, ey - 1, ez, "minecraft:air")
-    Test.assert(not level.has_neighbor_signal(ex, ey, ez), "The engine should be unpowered once the torch is gone.")
+    level.place_block(BlockPos.new(ex, ey - 1, ez), "minecraft:air")
+    Test.assert(not level.has_neighbor_signal(BlockPos.new(ex, ey, ez)), "The engine should be unpowered once the torch is gone.")
 }
 
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
@@ -243,9 +243,10 @@ local _force_remesh() {
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
-    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
-    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
-    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+    pos: BlockPos = BlockPos.new(x - 6, y + 3, z + 6)
+    level.place_block(pos, "minecraft:dirt")
+    level.place_block(pos, "minecraft:stone")
+    Test.assert(level.get_block(pos) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }
 
 # The thresholds of Engine.computeEnergyStage for EngineWood's maxEnergy of 1000, which are the ones

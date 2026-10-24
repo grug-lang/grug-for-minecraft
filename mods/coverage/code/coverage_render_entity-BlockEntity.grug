@@ -31,7 +31,7 @@ export render() {
 # The sides are the six the rest of the codebase numbers the same way: 0 down, 1 up, 2 north,
 # 3 south, 4 west and 5 east.
 local _arm(side: number) {
-    if level.get_block(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) != "grug:coverage_render" {
+    if level.get_block(BlockPos.new(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))) != "grug:coverage_render" {
         return
     }
 
