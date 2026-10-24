@@ -459,9 +459,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public void setHeldItem(Object playerObj, Object itemObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
-        player.inventory.setItem(
-                player.inventory.selectedSlot,
-                itemObj == null ? null : new ItemStack((Item) itemObj));
+        // item() resolves a name with no matching Item to the block of that name, so a block can
+        // arrive here as well as an item.
+        ItemStack stack = null;
+        if (itemObj instanceof Item) {
+            stack = new ItemStack((Item) itemObj);
+        } else if (itemObj != null) {
+            stack = new ItemStack((Block) itemObj);
+        }
+        player.inventory.setItem(player.inventory.selectedSlot, stack);
     }
 
     @Override
@@ -1054,9 +1060,20 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
         if (block instanceof GrugBlock) {
             GrugBlock grugBlock = (GrugBlock) block;
-            // Go through the block's own use() so the test drives the same code path a real
-            // right-click does, instead of a copy of the block's GUI layout.
-            grugBlock.use(world, blockX, blockY, blockZ, player);
+            // Go through the client's own right-click, which asks the block's use first and the
+            // held
+            // item after, so the test drives the same path a real click does and a block that
+            // declines leaves the click to the item.
+            MinecraftInstance.get()
+                    .interactionManager
+                    .useBlock(
+                            player,
+                            world,
+                            player.inventory.getSelectedItem(),
+                            blockX,
+                            blockY,
+                            blockZ,
+                            1);
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
