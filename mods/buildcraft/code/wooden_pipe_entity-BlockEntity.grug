@@ -17,11 +17,9 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
-# The side the pipe extracts from, chosen as the first adjacent inventory and kept until that
-# inventory is gone. The reference stores the side in the pipe's metadata and cycles it with a
-# wrench; the port has neither, so the choice is automatic (see the deviation in about.json). -1
-# means no inventory has been chosen yet.
-input_side: number = -1
+# The side the pipe extracts from is the pipe's block metadata in the reference, 0 to 5 for a side
+# and 6 for none, and it is saved with the block entity as "source" plus one here, so that a pipe whose
+# number was never saved reads as the reference's fresh metadata of 0. See _meta.
 
 # PipeItemsWood's provider is configured with a maximum of 64 stored and a power loss of 64 on
 # every tick (configure(50, 1, 64, 1, 64) and configurePowerPerdition(64, 1)), so the pipe holds at
@@ -37,6 +35,15 @@ export init() {
 }
 
 export tick() {
+    # BlockEngine's twin for the pipe is PipeLogicWood.blockActivated, which the block's use export
+    # answers by setting "rotate". The reference also checks the side when the pipe is initialised and
+    # whenever a neighbour changes, which a check every tick comes to the same as.
+    if get_saved_number(me, "rotate") == 1 {
+        set_saved_number(me, "rotate", 0)
+        _switch_source()
+    }
+    _switch_source_if_needed()
+
     if get_item_count_in_slot(me, 0) == 0 {
         _try_pull()
     } else {
@@ -55,9 +62,7 @@ local _try_pull() {
         return
     }
 
-    if not _input_is_valid() {
-        _pick_input()
-    }
+    input_side: number = _input_side()
     if input_side < 0 {
         return
     }
@@ -70,27 +75,56 @@ local _try_pull() {
     }
 }
 
-# True while the chosen side still holds a non-pipe inventory. Re-checked on every pull, so a broken
-# or replaced chest makes the pipe choose again.
-local _input_is_valid() bool {
-    if input_side < 0 {
-        return false
+# The side the pipe extracts from, or -1 for none.
+local _input_side() number {
+    meta: number = _meta()
+    if meta > 5 {
+        return -1
     }
-    return _is_inventory(_neighbor_x(input_side), _neighbor_y(input_side), _neighbor_z(input_side))
+    return meta
 }
 
-# The first adjacent inventory, searched in side order. The reference starts from the side the pipe
-# was placed facing and moves on to the next one; the port has no facing, so the order is fixed.
-local _pick_input() {
-    side: number = 0
-    while side < 6 {
+# PipeLogicWood.switchSourceIfNeeded: a pipe with no side, or whose side no longer holds an
+# inventory, looks for another.
+local _switch_source_if_needed() {
+    meta: number = _meta()
+    if meta > 5 {
+        _switch_source()
+        return
+    }
+    if not _is_inventory(_neighbor_x(meta), _neighbor_y(meta), _neighbor_z(meta)) {
+        _switch_source()
+    }
+}
+
+# PipeLogicWood.switchSource, which a fresh pipe and the wrench share: the search starts at the side
+# after the current one and wraps round, so the current side is the last one tried, and with no
+# inventory around the pipe has no side.
+local _switch_source() {
+    meta: number = _meta()
+    i: number = meta + 1
+    while i <= meta + 6 {
+        side: number = Math.remainder(i, 6)
         if _is_inventory(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) {
-            input_side = side
+            _set_meta(side)
             return
         }
-        side = side + 1
+        i = i + 1
     }
-    input_side = -1
+    _set_meta(6)
+}
+
+# The pipe's metadata as the reference reads it: 0 to 5 is the side it extracts from and 6 is none.
+local _meta() number {
+    stored: number = get_saved_number(me, "source")
+    if stored == 0 {
+        return 0
+    }
+    return stored - 1
+}
+
+local _set_meta(meta: number) {
+    set_saved_number(me, "source", meta + 1)
 }
 
 local _is_inventory(nx: number, ny: number, nz: number) bool {
@@ -227,6 +261,7 @@ local _store(item: Item, damage: number, count: number) {
 }
 
 local _push_to_inventory(item: Item) bool {
+    input_side: number = _input_side()
     side: number = 0
     while side < 6 {
         if side != input_side {
@@ -245,6 +280,7 @@ local _push_to_inventory(item: Item) bool {
 }
 
 local _push_to_pipe(item: Item) bool {
+    input_side: number = _input_side()
     side: number = 0
     while side < 6 {
         if side != input_side {

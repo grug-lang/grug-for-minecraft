@@ -35,21 +35,22 @@ local _full_target_setup() {
     y: number = origin.y() + 40
     z: number = origin.z()
 
-    # The source sits below the pipe and the engine beside it, so the pipe's six sides hold exactly
-    # two inventories: the sword below, and the full chest to the side.
+    # The source sits to the east of the pipe and the engine beside it, so the pipe's six sides hold
+    # exactly two inventories: the sword to the east, and the full chest below. A fresh pipe's search
+    # starts at the side after 0, below, and so finds the east chest first and takes it as the source.
     level.place_block(x, y - 1, z, "minecraft:chest")
     level.place_block(x, y, z, "grug:wooden_pipe")
     level.place_block(x + 1, y, z, "minecraft:chest")
 
-    # The engine is beside the pipe rather than below it, because below is the source. A torch powers
+    # The engine is beside the pipe rather than below it, because below is the target. A torch powers
     # the block above it, but not the block it is attached to, and a standing torch does not power the
     # block above its own base, so this puts a torch under the engine with stone beneath that.
     level.place_block(x - 1, y - 2, z, "minecraft:stone")
     level.place_block(x - 1, y - 1, z, "minecraft:redstone_torch")
     level.place_block(x - 1, y, z, "grug:redstone_engine")
 
-    source_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
-    target_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    source_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    target_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
     pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     Test.assert(source_opt.has(), "The source chest should have a block entity.")
     Test.assert(target_opt.has(), "The target chest should have a block entity.")

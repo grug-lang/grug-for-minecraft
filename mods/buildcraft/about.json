@@ -115,9 +115,9 @@
 					"tracking_issue": 473
 				},
 				{
-					"what": "The wooden pipe chooses its extraction side automatically instead of storing it in the block's metadata.",
-					"why": "The port has no block metadata access or wrench yet; the reference stores the side in the pipe's metadata and cycles it with a wrench (PipeLogicWood.switchSource).",
-					"tracking_issue": 131
+					"what": "A right click on a wooden pipe with anything but the wrench does nothing and is not passed on, where the reference passes it on, so a block cannot be placed against a pipe by right-clicking it.",
+					"why": "A block that exports use has handled every right click on it, and a use export returns nothing, so the pipe cannot decline a click it does not want, as PipeLogicWood.blockActivated does by returning false.",
+					"tracking_issue": 546
 				},
 				{
 					"what": "Which slots of an inventory another block may use is a slot range the block entity declares, rather than the reference's side-aware ISpecialInventory, and a machine's crafting result is pulled by a wooden pipe one item at a time, spending 1 energy for it, where ISpecialInventory.extractItem hands the pipe whatever the machine decides and spends no energy.",
