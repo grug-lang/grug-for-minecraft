@@ -7,15 +7,15 @@ file_baseline: number = -1
 dir_baseline: number = -1
 
 export run() {
-    if Test.tick() == 0 {
-        Test.not_done()
-    } else if Test.tick() == 1 {
+    if me.tick() == 0 {
+        me.not_done()
+    } else if me.tick() == 1 {
         file_baseline = Test.hot_reload_count(file_path)
         dir_baseline = Test.hot_reload_count(dir_path)
         Test.set_mod_file_state(file_path, "deleted")
-        Test.not_done()
+        me.not_done()
     } else if Test.hot_reload_count(file_path) <= file_baseline and Test.hot_reload_count(dir_path) <= dir_baseline {
-        Test.not_done()
+        me.not_done()
     } else {
         Test.set_mod_file_state(file_path, "normal")
     }

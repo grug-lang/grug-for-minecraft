@@ -44,8 +44,10 @@ def sorted_lines(functions: dict, prefix: str) -> list:
 
 def entity_lines(entity: dict, name: str) -> list:
     exports = {function["name"]: function for function in entity.get("export_functions", [])}
-    return sorted_lines(exports, "export ") + sorted_lines(
-        entity.get("static_methods", {}), f"{name}."
+    return (
+        sorted_lines(exports, "export ")
+        + sorted_lines(entity.get("methods", {}), ".")
+        + sorted_lines(entity.get("static_methods", {}), f"{name}.")
     )
 
 

@@ -1,6 +1,6 @@
 # GUI.open must reject a slot that falls outside the block entity's inventory.
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x()
@@ -16,7 +16,7 @@ export run() {
         layout.add_crafting_grid(9, 0, 0)
 
         player: Player = Test.get_player()
-        Test.expect_error("GUI.open: The GUI uses slot")
+        me.expect_error("GUI.open: The GUI uses slot")
         layout.open(player, block_opt.unwrap())
     }
 }

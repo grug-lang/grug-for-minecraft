@@ -2,7 +2,7 @@
 # and gives up. That is GrugBlockEntity.initGrug's "already attempted" and "no handle" branches and
 # GrugBlock.getEntityFileId's "no block entity string" branch.
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x() + 4
@@ -10,10 +10,10 @@ export run() {
         level.place_block(x, origin.y(), origin.z(), "grug:coverage_model_cube")
         be_opt: Option[BlockEntity] = level.get_block_entity(x, origin.y(), origin.z())
         Test.assert(be_opt.has(), "the block has no block entity.")
-        Test.not_done()
-    } else if Test.tick() < 5 {
+        me.not_done()
+    } else if me.tick() < 5 {
         # Let the block entity tick and retry its init.
-        Test.not_done()
+        me.not_done()
     } else {
         Test.assert(true, "reached")
     }

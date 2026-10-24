@@ -12,12 +12,12 @@ export run() {
     Test.assert(block_opt.has(), "The neighbour-coverage block should have a block entity.")
     be: BlockEntity = block_opt.unwrap()
 
-    Test.assert(get_item_count_in_slot(be, 0) == 0, "The marker slot should start empty.")
+    Test.assert(be.get_item_count_in_slot(0) == 0, "The marker slot should start empty.")
 
     # Placing a neighbour, then notifying it, should make the loader call on_neighbor_change on the
     # block entity. place_block is quiet on the Ornithe loaders, so the notify is explicit.
     level.place_block(x + 1, y, z, "minecraft:stone")
     Test.notify_neighbors(level, x + 1, y, z)
 
-    Test.assert(get_item_count_in_slot(be, 0) == 1, "The neighbour change should have been delivered.")
+    Test.assert(be.get_item_count_in_slot(0) == 1, "The neighbour change should have been delivered.")
 }

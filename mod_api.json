@@ -147,7 +147,423 @@
 					"description": "Called every game tick, so every 0.05 seconds.",
 					"engine_called": true
 				}
-			]
+			],
+			"methods": {
+				"block_pos": {
+					"description": "Gets the world position of a BlockEntity.",
+					"return_type": {
+						"name": "BlockPos"
+					}
+				},
+				"consume_crafting_ingredients": {
+					"description": "Consumes 1 set of ingredients from a 3x3 grid, leaving behind buckets if necessary.",
+					"parameters": [
+						{
+							"name": "start_slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"count_item_in_inventory": {
+					"description": "Counts how many of a specific item are in an entire inventory.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
+						{
+							"name": "damage",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"extract_energy": {
+					"description": "Takes up to max energy out of a receiver's own store, for the receiver to spend, and returns how much it took: everything in the store when that is not more than max, else max. Max must be a whole number from 0 to 2147483647. Reported when the block entity is not a receiver.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "max",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"extract_item_from_inventory": {
+					"description": "Extracts a specific amount of an item from an inventory, scanning its slots for one that holds that item. Only the slots the block entity lets another block extract from are scanned, which for an inventory declaring no such rule is all of them.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
+						{
+							"name": "damage",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_crafting_result_damage": {
+					"description": "The damage of a block entity's crafting result, or 0 when it has no result. The result is not an inventory slot: a grug block entity keeps it in a dedicated container, and a reference tile computes it on demand. A block entity with no result container at all answers 0 rather than reporting an error, so this can be asked of any inventory; take_crafting_result, which consumes the result, reports an error there instead because taking from nothing is a different mistake from there being nothing to take.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"get_crafting_result_item": {
+					"description": "The Item in a block entity's crafting result, if it has one, without taking it. The result is not an inventory slot: a grug block entity keeps it in a dedicated container, and a reference tile computes it on demand, so take_crafting_result is how it is consumed. A block entity with no result container at all answers an empty Option rather than reporting an error.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					}
+				},
+				"get_energy_stored": {
+					"description": "The energy a receiver holds right now. Reported when the block entity is not a receiver.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"get_inventory_size": {
+					"description": "The number of slots in a block entity's inventory.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"get_item_count_in_slot": {
+					"description": "Gets the size of the item stack in a slot.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_item_damage_in_slot": {
+					"description": "Gets the damage/metadata of the item stack in a slot.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_item_in_slot": {
+					"description": "Gets the Item in a specific inventory slot.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_saved_number": {
+					"description": "The number a block entity saved under a name with set_saved_number, or 0 when it never saved one, which is the default a fresh save answers too. Only a grug block entity saves numbers; asking any other block entity is reported.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"insert_item_into_inventory": {
+					"description": "Inserts up to amount of an item with the given damage into a block entity's inventory, returning how many were actually inserted. Only the slots the block entity lets another block insert into are filled, which for an inventory declaring no such rule is all of them.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
+						{
+							"name": "damage",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"is_power_receiver": {
+					"description": "Whether a block entity has declared itself an energy receiver with set_power_receiver. A vanilla block entity never has, and neither has a grug block entity that has not run its init() yet. Ask this before sending energy to a block entity that is not your own.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"is_slot_extractable": {
+					"description": "Whether this slot of a block entity's inventory is one another block may take from, which is how a machine keeps the slots it does not want emptied. The slots are the inventory's own, followed by its crafting result as the slot after the last one, so slot get_inventory_size() is that result. A block entity that declares no rule with set_extractable_slots is extractable everywhere, which is what a vanilla chest is. The rule says which slots are open rather than what is in them: a caller that also wants to match items reads the slot with get_item_in_slot itself, and a caller managing its own slots uses take_item_from_slot, which is not restricted by this.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"is_slot_insertable": {
+					"description": "Whether this slot of a block entity's inventory is one another block may put into, which is how a machine keeps the slots it does not want filled. Only the inventory's own slots are ever filled, so slot get_inventory_size(), the crafting result, is insertable only when a range says so. A block entity that declares no rule with set_insertable_slots is insertable everywhere, which is what a vanilla chest is. insert_item_into_inventory fills only the slots this accepts, and set_item_in_slot still writes to any of them.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"level": {
+					"description": "Gets the Level (dimension) a BlockEntity is in.",
+					"return_type": {
+						"name": "Level"
+					}
+				},
+				"receive_energy": {
+					"description": "Adds energy to a receiver's store, up to its max_stored, and returns how much was stored. Energy that does not fit is lost. The amount must be a whole number from 0 to 2147483647. Reported when the block entity is not a receiver.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"redraw": {
+					"description": "Has the game build a block's geometry again, so a render function that draws from state the world does not know changed, such as a saved number, draws the new state. The game already rebuilds a block's geometry when a neighbouring block changes, so this is only for state the block entity keeps itself. A rebuild costs a chunk's worth of work, so call it when what render draws changes, not every tick. On a version whose client keeps its own copy of the block entity, this also sends that copy the block entity's saved numbers, since they are what the client's render function reads. Only a grug block entity has a render function; any other block entity is reported."
+				},
+				"set_extractable_slots": {
+					"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it.",
+					"parameters": [
+						{
+							"name": "first",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "last",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_insertable_slots": {
+					"description": "Declares the slots of this block entity's inventory another block may put into, the first and the last inclusive. A last below the first declares no slot at all. This is a permission rather than a lock: insert_item_into_inventory fills only these slots and set_item_in_slot still writes to any of them, so a block managing its own slots is unaffected. A block entity that declares nothing is insertable everywhere, and declaring again replaces the earlier range rather than adding to it.",
+					"parameters": [
+						{
+							"name": "first",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "last",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_item_count_in_slot": {
+					"description": "Changes the amount of items in a specific slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "count",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_item_damage_in_slot": {
+					"description": "Changes the damage/metadata of the item stack in a specific slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "damage",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_item_in_slot": {
+					"description": "Sets the item in a specific inventory slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
+						{
+							"name": "count",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_power_receiver": {
+					"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. Call it from the block entity's init(), since the declaration is not saved and has to be made again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, separately from its saved numbers, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only a grug block entity can receive energy; any other block entity is reported.",
+					"parameters": [
+						{
+							"name": "max_stored",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_saved_number": {
+					"description": "Saves a number under a name in a block entity's saved data, so it survives the block entity's chunk being unloaded and loaded again, which a member variable does not: the grug entity is created again then and its member scope starts over. Read it back with get_saved_number. Only a grug block entity saves numbers; any other block entity is reported, because a number that silently failed to persist would be lost with its chunk.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"take_crafting_result": {
+					"description": "Takes part of a block entity's crafting result. The result is not an inventory slot: a grug block entity holds it in a dedicated container, and a reference tile computes it on demand.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"take_item_from_slot": {
+					"description": "Takes item(s) from an inventory slot. TODO: This description should document what happens and the fn returns when a slot only contains 2 items, but the code tries to take 3 items. Does it just return 2?",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"update_recipe_output": {
+					"description": "Evaluates a 3x3 crafting grid and caches the result in the block entity's result container.",
+					"parameters": [
+						{
+							"name": "start_slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
 		},
 		"Item": {
 			"description": "An item.",
@@ -168,6 +584,28 @@
 					"engine_called": true
 				}
 			],
+			"methods": {
+				"tick": {
+					"description": "Returns the current tick number within this test's execution, starting at 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"not_done": {
+					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick."
+				},
+				"expect_error": {
+					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised.",
+					"parameters": [
+						{
+							"name": "message",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				}
+			},
 			"static_methods": {
 				"assert": {
 					"description": "Asserts a condition is true.",
@@ -328,9 +766,6 @@
 						}
 					]
 				},
-				"not_done": {
-					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Will eventually be replaced by `me.not_done()` once entities can have methods."
-				},
 				"close_screen": {
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
@@ -363,12 +798,6 @@
 						"name": "Vec3"
 					}
 				},
-				"tick": {
-					"description": "Returns the current tick number within this test's execution, starting at 0. Will eventually be replaced by `me.tick()` once entities can have methods.",
-					"return_type": {
-						"name": "number"
-					}
-				},
 				"use_block": {
 					"description": "Right-clicks the block at the given coordinates as the local player, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. Note that the player is the one the test is already running as, so this only does anything in singleplayer.",
 					"parameters": [
@@ -394,17 +823,6 @@
 							"name": "z",
 							"type": {
 								"name": "number"
-							}
-						}
-					]
-				},
-				"expect_error": {
-					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised.",
-					"parameters": [
-						{
-							"name": "message",
-							"type": {
-								"name": "string"
 							}
 						}
 					]
@@ -1141,49 +1559,6 @@
 		}
 	},
 	"host_functions": {
-		"consume_crafting_ingredients": {
-			"description": "Consumes 1 set of ingredients from a 3x3 grid, leaving behind buckets if necessary.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "start_slot",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"count_item_in_inventory": {
-			"description": "Counts how many of a specific item are in an entire inventory.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "item",
-					"type": {
-						"name": "Item"
-					}
-				},
-				{
-					"name": "damage",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
 		"draw_box": {
 			"description": "Draws one axis-aligned box as part of the geometry a block entity's render pass is building. The coordinates are block-local, from 0 to 1 on each axis measured from the block's minimum corner, so 0.25 on the y axis is a quarter of a block above the block's bottom face and 1 is flush with the far side. Each of the box's six faces is drawn with the block's own texture, the whole of it, lit and face-culled the way the game lights every other block. Boxes are drawn whole rather than merged, so two boxes that touch leave a shared face in between: the depth test hides it against the box behind it, and it costs nothing to see. Only legal during a render pass, which only `render` opens, and the first of each pair has to be the near corner: `x1 <= x2`, `y1 <= y2` and `z1 <= z2`. A box the wrong way round is reported and not drawn, because the game reads the shape as it stands and builds each face from it: the four faces spanning a reversed axis then come out wound backwards and are culled, so the two faces at its ends survive at swapped depths and what is left is visibly not the box that was asked for. Nothing checks the range, though: a box that reaches past the block is drawn unclipped, exactly as asked for, because clipping it would be grug choosing a different shape than the mod wrote.",
 			"parameters": [
@@ -1327,230 +1702,6 @@
 				}
 			]
 		},
-		"extract_item_from_inventory": {
-			"description": "Extracts a specific amount of an item from an inventory, scanning its slots for one that holds that item. Only the slots the block entity lets another block extract from are scanned, which for an inventory declaring no such rule is all of them.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "item",
-					"type": {
-						"name": "Item"
-					}
-				},
-				{
-					"name": "damage",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "amount",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"get_block_entity_level": {
-			"description": "Gets the Level (dimension) a BlockEntity is in.",
-			"return_type": {
-				"name": "Level"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"get_block_pos_of_block_entity": {
-			"description": "Gets the world position of a BlockEntity.",
-			"return_type": {
-				"name": "BlockPos"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"insert_item_into_inventory": {
-			"description": "Inserts up to amount of an item with the given damage into a block entity's inventory, returning how many were actually inserted. Only the slots the block entity lets another block insert into are filled, which for an inventory declaring no such rule is all of them.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "item",
-					"type": {
-						"name": "Item"
-					}
-				},
-				{
-					"name": "damage",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "amount",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"get_crafting_result_damage": {
-			"description": "The damage of a block entity's crafting result, or 0 when it has no result. The result is not an inventory slot: a grug block entity keeps it in a dedicated container, and a reference tile computes it on demand. A block entity with no result container at all answers 0 rather than reporting an error, so this can be asked of any inventory; take_crafting_result, which consumes the result, reports an error there instead because taking from nothing is a different mistake from there being nothing to take.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"get_crafting_result_item": {
-			"description": "The Item in a block entity's crafting result, if it has one, without taking it. The result is not an inventory slot: a grug block entity keeps it in a dedicated container, and a reference tile computes it on demand, so take_crafting_result is how it is consumed. A block entity with no result container at all answers an empty Option rather than reporting an error.",
-			"return_type": {
-				"name": "Option",
-				"generics": [
-					{
-						"name": "Item"
-					}
-				]
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"get_inventory_size": {
-			"description": "The number of slots in a block entity's inventory.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"get_item_count_in_slot": {
-			"description": "Gets the size of the item stack in a slot.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"get_item_damage_in_slot": {
-			"description": "Gets the damage/metadata of the item stack in a slot.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"get_item_in_slot": {
-			"description": "Gets the Item in a specific inventory slot.",
-			"return_type": {
-				"name": "Option",
-				"generics": [
-					{
-						"name": "Item"
-					}
-				]
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"get_saved_number": {
-			"description": "The number a block entity saved under a name with set_saved_number, or 0 when it never saved one, which is the default a fresh save answers too. Only a grug block entity saves numbers; asking any other block entity is reported.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "name",
-					"type": {
-						"name": "string"
-					}
-				}
-			]
-		},
 		"gui": {
 			"description": "Creates a new dynamic GUI layout using the specified background texture.",
 			"return_type": {
@@ -1562,46 +1713,6 @@
 					"type": {
 						"name": "resource",
 						"resource_extension": ".png"
-					}
-				}
-			]
-		},
-		"is_slot_extractable": {
-			"description": "Whether this slot of a block entity's inventory is one another block may take from, which is how a machine keeps the slots it does not want emptied. The slots are the inventory's own, followed by its crafting result as the slot after the last one, so slot get_inventory_size(block_entity) is that result. A block entity that declares no rule with set_extractable_slots is extractable everywhere, which is what a vanilla chest is. The rule says which slots are open rather than what is in them: a caller that also wants to match items reads the slot with get_item_in_slot itself, and a caller managing its own slots uses take_item_from_slot, which is not restricted by this.",
-			"return_type": {
-				"name": "bool"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"is_slot_insertable": {
-			"description": "Whether this slot of a block entity's inventory is one another block may put into, which is how a machine keeps the slots it does not want filled. Only the inventory's own slots are ever filled, so slot get_inventory_size(block_entity), the crafting result, is insertable only when a range says so. A block entity that declares no rule with set_insertable_slots is insertable everywhere, which is what a vanilla chest is. insert_item_into_inventory fills only the slots this accepts, and set_item_in_slot still writes to any of them.",
-			"return_type": {
-				"name": "bool"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
 					}
 				}
 			]
@@ -1753,17 +1864,6 @@
 				}
 			]
 		},
-		"redraw": {
-			"description": "Has the game build a block's geometry again, so a render function that draws from state the world does not know changed, such as a saved number, draws the new state. The game already rebuilds a block's geometry when a neighbouring block changes, so this is only for state the block entity keeps itself. A rebuild costs a chunk's worth of work, so call it when what render draws changes, not every tick. On a version whose client keeps its own copy of the block entity, this also sends that copy the block entity's saved numbers, since they are what the client's render function reads. Only a grug block entity has a render function; any other block entity is reported.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
 		"resource_location": {
 			"description": "Creates a new ResourceLocation.",
 			"return_type": {
@@ -1793,29 +1893,6 @@
 		"set_custom_render": {
 			"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all."
 		},
-		"set_extractable_slots": {
-			"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "first",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "last",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
 		"set_flat_lighting": {
 			"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal during a Block's init(), after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
 		},
@@ -1824,29 +1901,6 @@
 			"parameters": [
 				{
 					"name": "value",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"set_insertable_slots": {
-			"description": "Declares the slots of this block entity's inventory another block may put into, the first and the last inclusive. A last below the first declares no slot at all. This is a permission rather than a lock: insert_item_into_inventory fills only these slots and set_item_in_slot still writes to any of them, so a block managing its own slots is unaffected. A block entity that declares nothing is insertable everywhere, and declaring again replaces the earlier range rather than adding to it.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "first",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "last",
 					"type": {
 						"name": "number"
 					}
@@ -1864,81 +1918,6 @@
 				}
 			]
 		},
-		"set_item_count_in_slot": {
-			"description": "Changes the amount of items in a specific slot.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "count",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"set_item_damage_in_slot": {
-			"description": "Changes the damage/metadata of the item stack in a specific slot.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "damage",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"set_item_in_slot": {
-			"description": "Sets the item in a specific inventory slot.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "item",
-					"type": {
-						"name": "Item"
-					}
-				},
-				{
-					"name": "count",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
 		"set_material": {
 			"description": "Sets the material of the block (e.g., 'wood', 'stone').",
 			"parameters": [
@@ -1950,182 +1929,11 @@
 				}
 			]
 		},
-		"set_saved_number": {
-			"description": "Saves a number under a name in a block entity's saved data, so it survives the block entity's chunk being unloaded and loaded again, which a member variable does not: the grug entity is created again then and its member scope starts over. Read it back with get_saved_number. Only a grug block entity saves numbers; any other block entity is reported, because a number that silently failed to persist would be lost with its chunk.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "name",
-					"type": {
-						"name": "string"
-					}
-				},
-				{
-					"name": "value",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"take_crafting_result": {
-			"description": "Takes part of a block entity's crafting result. The result is not an inventory slot: a grug block entity holds it in a dedicated container, and a reference tile computes it on demand.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "amount",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"take_item_from_slot": {
-			"description": "Takes item(s) from an inventory slot. TODO: This description should document what happens and the fn returns when a slot only contains 2 items, but the code tries to take 3 items. Does it just return 2?",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "slot",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "amount",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"update_recipe_output": {
-			"description": "Evaluates a 3x3 crafting grid and caches the result in the block entity's result container.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "start_slot",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
 		"vec3_zero": {
 			"description": "Creates a new Vec3, initialized with all zeros.",
 			"return_type": {
 				"name": "Vec3"
 			}
-		},
-		"set_power_receiver": {
-			"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. Call it from the block entity's init(), since the declaration is not saved and has to be made again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, separately from its saved numbers, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only a grug block entity can receive energy; any other block entity is reported.",
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "max_stored",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"is_power_receiver": {
-			"description": "Whether a block entity has declared itself an energy receiver with set_power_receiver. A vanilla block entity never has, and neither has a grug block entity that has not run its init() yet. Ask this before sending energy to a block entity that is not your own.",
-			"return_type": {
-				"name": "bool"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"get_energy_stored": {
-			"description": "The energy a receiver holds right now. Reported when the block entity is not a receiver.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				}
-			]
-		},
-		"receive_energy": {
-			"description": "Adds energy to a receiver's store, up to its max_stored, and returns how much was stored. Energy that does not fit is lost. The amount must be a whole number from 0 to 2147483647. Reported when the block entity is not a receiver.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "amount",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"extract_energy": {
-			"description": "Takes up to max energy out of a receiver's own store, for the receiver to spend, and returns how much it took: everything in the store when that is not more than max, else max. Max must be a whole number from 0 to 2147483647. Reported when the block entity is not a receiver.",
-			"return_type": {
-				"name": "number"
-			},
-			"parameters": [
-				{
-					"name": "block_entity",
-					"type": {
-						"name": "BlockEntity"
-					}
-				},
-				{
-					"name": "max",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
 		},
 		"decline_use": {
 			"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Calling it outside a use export does nothing."

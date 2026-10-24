@@ -2,7 +2,7 @@
 # (wrong item and wrong damage), consuming a crafting ingredient, taking from a vanilla (non-grug)
 # block entity, and dropping a non-empty inventory.
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x() + 5
@@ -13,30 +13,30 @@ export run() {
         chest: BlockEntity = be_opt.unwrap()
 
         # An empty slot has no damage and no item.
-        Test.assert(get_item_damage_in_slot(chest, 0) == 0, "empty slot should report no damage.")
-        Test.assert(not get_item_in_slot(chest, 1).has(), "slot 1 should be empty.")
+        Test.assert(chest.get_item_damage_in_slot(0) == 0, "empty slot should report no damage.")
+        Test.assert(not chest.get_item_in_slot(1).has(), "slot 1 should be empty.")
 
         diamond: Item = item(resource_location("minecraft:diamond"))
         iron: Item = item(resource_location("minecraft:iron_ingot"))
 
-        set_item_in_slot(chest, 0, diamond, 2)
+        chest.set_item_in_slot(0, diamond, 2)
 
         # A diamond does not match an iron ingot, and a damage of 5 does not match the diamond's 0.
-        Test.assert(count_item_in_inventory(chest, iron, 0) == 0, "no iron should be counted.")
-        Test.assert(count_item_in_inventory(chest, diamond, 5) == 0, "wrong damage should miss.")
-        Test.assert(extract_item_from_inventory(chest, iron, 0, 5) == 0, "no iron to extract.")
-        Test.assert(extract_item_from_inventory(chest, diamond, 5, 5) == 0, "wrong damage misses.")
+        Test.assert(chest.count_item_in_inventory(iron, 0) == 0, "no iron should be counted.")
+        Test.assert(chest.count_item_in_inventory(diamond, 5) == 0, "wrong damage should miss.")
+        Test.assert(chest.extract_item_from_inventory(iron, 0, 5) == 0, "no iron to extract.")
+        Test.assert(chest.extract_item_from_inventory(diamond, 5, 5) == 0, "wrong damage misses.")
 
         # Consuming one crafting ingredient leaves the rest of the stack.
-        consume_crafting_ingredients(chest, 0)
-        Test.assert(get_item_count_in_slot(chest, 0) == 1, "one diamond should be consumed.")
+        chest.consume_crafting_ingredients(0)
+        Test.assert(chest.get_item_count_in_slot(0) == 1, "one diamond should be consumed.")
 
         # Taking from a vanilla block entity skips the grug entity hook.
-        Test.assert(take_item_from_slot(chest, 0, 1) == 1, "taking from the chest should work.")
+        Test.assert(chest.take_item_from_slot(0, 1) == 1, "taking from the chest should work.")
 
         # Dropping a non-empty inventory takes the stacked-items path.
-        set_item_in_slot(chest, 0, diamond, 3)
+        chest.set_item_in_slot(0, diamond, 3)
         drop_inventory(level, x, origin.y(), origin.z())
-        Test.assert(get_item_count_in_slot(chest, 0) == 0, "the drop should empty the chest.")
+        Test.assert(chest.get_item_count_in_slot(0) == 0, "the drop should empty the chest.")
     }
 }

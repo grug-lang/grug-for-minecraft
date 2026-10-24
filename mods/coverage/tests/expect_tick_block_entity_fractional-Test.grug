@@ -12,6 +12,6 @@ export run() {
     Test.assert(block_opt.has(), "coverage_block should have a block entity.")
     block: BlockEntity = block_opt.unwrap()
 
-    Test.expect_error("whole number from 0 to")
+    me.expect_error("whole number from 0 to")
     Test.tick_block_entity(block, 2.5)
 }

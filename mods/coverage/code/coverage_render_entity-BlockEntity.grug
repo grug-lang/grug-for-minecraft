@@ -7,8 +7,8 @@
 # so a cached shape would go stale the moment this block was joined to something. The x, y and z
 # below are the block's own centre, from the member scope the same way, and are the ones every
 # neighbour offset is measured from.
-level: Level = get_block_entity_level(me)
-pos: BlockPos = get_block_pos_of_block_entity(me)
+level: Level = me.level()
+pos: BlockPos = me.block_pos()
 center: Vec3 = pos.center()
 x: number = center.x()
 y: number = center.y()

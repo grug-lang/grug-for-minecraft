@@ -7,13 +7,13 @@ pipe_target: Option[BlockEntity] = Option.new()
 pipe_self: Option[BlockEntity] = Option.new()
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _setup()
-        Test.not_done()
-    } else if not _pipe_has_moved() or Test.tick() < 20 {
+        me.not_done()
+    } else if not _pipe_has_moved() or me.tick() < 20 {
         # The floor keeps the suite's timing where the coverage_render references were captured,
         # which that fixture's light depends on (#262). The condition is what gates this wait.
-        Test.not_done()
+        me.not_done()
     } else {
         _check()
     }
@@ -49,13 +49,17 @@ local _setup() {
     pipe_self.set(self_opt.unwrap())
 
     diamond: Item = item(resource_location("minecraft:diamond"))
-    set_item_in_slot(pipe_source.unwrap(), 0, diamond, 1)
+    pipe_source_be: BlockEntity = pipe_source.unwrap()
+    pipe_source_be.set_item_in_slot(0, diamond, 1)
 }
 
 local _check() {
-    source_count: number = get_item_count_in_slot(pipe_source.unwrap(), 0)
-    target_count: number = get_item_count_in_slot(pipe_target.unwrap(), 0)
-    pipe_count: number = get_item_count_in_slot(pipe_self.unwrap(), 0)
+    pipe_source_be: BlockEntity = pipe_source.unwrap()
+    source_count: number = pipe_source_be.get_item_count_in_slot(0)
+    pipe_target_be: BlockEntity = pipe_target.unwrap()
+    target_count: number = pipe_target_be.get_item_count_in_slot(0)
+    pipe_self_be: BlockEntity = pipe_self.unwrap()
+    pipe_count: number = pipe_self_be.get_item_count_in_slot(0)
 
     Test.assert(source_count + target_count + pipe_count == 1, "The diamond should exist exactly once.")
     Test.assert(source_count == 0, "The source chest should be empty.")
@@ -70,7 +74,9 @@ local _check() {
 # destination still fails with the assertion that names it. A pipe that never moves it runs into the
 # runner's own tick budget instead of a count picked to be big enough on a fast machine. See #173.
 local _pipe_has_moved() bool {
-    source_empty: bool = get_item_count_in_slot(pipe_source.unwrap(), 0) == 0
-    pipe_empty: bool = get_item_count_in_slot(pipe_self.unwrap(), 0) == 0
+    pipe_source_be: BlockEntity = pipe_source.unwrap()
+    source_empty: bool = pipe_source_be.get_item_count_in_slot(0) == 0
+    pipe_self_be: BlockEntity = pipe_self.unwrap()
+    pipe_empty: bool = pipe_self_be.get_item_count_in_slot(0) == 0
     return source_empty and pipe_empty
 }

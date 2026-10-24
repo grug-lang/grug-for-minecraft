@@ -275,19 +275,262 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Screenshot, new GrugScreenshot(0));
     }
 
-    // TODO: Change to me.tick() once entities can have methods
-    public static double Test_tick() {
+    public static double Test_tick(long testId) {
         return (double) GrugTestState.currentTestTick;
     }
 
-    // TODO: Change to me.not_done() once entities can have methods
-    public static void Test_not_done() {
+    public static void Test_not_done(long testId) {
         GrugTestState.testNotDone = true;
     }
 
-    // TODO: Change to me.expect_error() once entities can have methods
-    public static void Test_expect_error(String message) {
+    public static void Test_expect_error(long testId, String message) {
         GrugTestState.testExpectedError = message;
+    }
+
+    // BlockEntity methods
+
+    public static boolean BlockEntity_is_slot_extractable(long blockEntityId, double slot) {
+        return GrugSlotAccess.isExtractable(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+    }
+
+    public static boolean BlockEntity_is_slot_insertable(long blockEntityId, double slot) {
+        return GrugSlotAccess.isInsertable(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+    }
+
+    public static void BlockEntity_consume_crafting_ingredients(
+            long blockEntityId, double startSlot) {
+        GrugCore.getAdapter()
+                .consumeCraftingIngredients(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
+    }
+
+    public static double BlockEntity_count_item_in_inventory(
+            long blockEntityId, long itemId, double damage) {
+        return GrugCore.getAdapter()
+                .countItemInInventory(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        GrugEntities.entityData.get(itemId).object,
+                        damage);
+    }
+
+    public static double BlockEntity_extract_item_from_inventory(
+            long blockEntityId, long itemId, double damage, double amount) {
+        return GrugCore.getAdapter()
+                .extractItemFromInventory(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        GrugEntities.entityData.get(itemId).object,
+                        damage,
+                        amount);
+    }
+
+    public static double BlockEntity_insert_item_into_inventory(
+            long blockEntityId, long itemId, double damage, double amount) {
+        return GrugCore.getAdapter()
+                .insertItemIntoInventory(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        GrugEntities.entityData.get(itemId).object,
+                        damage,
+                        amount);
+    }
+
+    public static long BlockEntity_level(long blockEntityId) {
+        Object level =
+                GrugCore.getAdapter()
+                        .getBlockEntityLevel(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+        return GrugEntities.addEntity(GrugEntityType.Level, level);
+    }
+
+    public static long BlockEntity_block_pos(long blockEntityId) {
+        BlockPos pos =
+                GrugCore.getAdapter()
+                        .getBlockPosOfBlockEntity(
+                                HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+        return GrugEntities.addEntity(GrugEntityType.BlockPos, pos);
+    }
+
+    public static double BlockEntity_get_crafting_result_damage(long blockEntityId) {
+        Object stack =
+                GrugCore.getAdapter()
+                        .getResultStack(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+        return stack != null ? GrugCore.getAdapter().getStackDamage(stack) : 0;
+    }
+
+    public static long BlockEntity_get_crafting_result_item(long blockEntityId) {
+        Object stack =
+                GrugCore.getAdapter()
+                        .getResultStack(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+        if (stack != null) {
+            return GrugEntities.addEntity(
+                    GrugEntityType.Option,
+                    new GrugOption(
+                            GrugEntities.addEntity(
+                                    GrugEntityType.Item,
+                                    GrugCore.getAdapter().getStackItem(stack))));
+        }
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+    }
+
+    public static double BlockEntity_get_inventory_size(long blockEntityId) {
+        return GrugCore.getAdapter()
+                .getInventorySize(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+    }
+
+    public static double BlockEntity_get_item_count_in_slot(long blockEntityId, double slot) {
+        return GrugCore.getAdapter()
+                .getItemCountInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+    }
+
+    public static double BlockEntity_get_item_damage_in_slot(long blockEntityId, double slot) {
+        return GrugCore.getAdapter()
+                .getItemDamageInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+    }
+
+    public static long BlockEntity_get_item_in_slot(long blockEntityId, double slot) {
+        Object item =
+                GrugCore.getAdapter()
+                        .getItemInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
+        if (item != null) {
+            return GrugEntities.addEntity(
+                    GrugEntityType.Option,
+                    new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
+        }
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+    }
+
+    public static double BlockEntity_get_saved_number(long blockEntityId, String name) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!GrugSavedNumbers.isHolder(blockEntity)) {
+            reportNotSaving("get_saved_number");
+            return 0;
+        }
+        return GrugSavedNumbers.get(blockEntity, name);
+    }
+
+    public static void BlockEntity_set_saved_number(long blockEntityId, String name, double value) {
+        if (!GrugSavedNumbers.set(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), name, value)) {
+            reportNotSaving("set_saved_number");
+        }
+    }
+
+    public static void BlockEntity_set_power_receiver(long blockEntityId, double maxStored) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkCanDeclare(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkEnergy("The most a receiver holds", maxStored);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "set_power_receiver: " + problem);
+            return;
+        }
+        GrugPower.declare(blockEntity, maxStored);
+    }
+
+    public static boolean BlockEntity_is_power_receiver(long blockEntityId) {
+        return GrugPower.isReceiver(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
+    }
+
+    public static double BlockEntity_get_energy_stored(long blockEntityId) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkIsReceiver(blockEntity);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "get_energy_stored: " + problem);
+            return 0;
+        }
+        return GrugPower.stored(blockEntity);
+    }
+
+    public static double BlockEntity_receive_energy(long blockEntityId, double amount) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkIsReceiver(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkEnergy("The amount", amount);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "receive_energy: " + problem);
+            return 0;
+        }
+        return GrugPower.receive(blockEntity, amount);
+    }
+
+    public static double BlockEntity_extract_energy(long blockEntityId, double max) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        String problem = GrugPower.checkIsReceiver(blockEntity);
+        if (problem == null) {
+            problem = GrugPower.checkEnergy("The most to take", max);
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "extract_energy: " + problem);
+            return 0;
+        }
+        return GrugPower.extract(blockEntity, max);
+    }
+
+    public static void BlockEntity_redraw(long blockEntityId) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!GrugSavedNumbers.isHolder(blockEntity)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "redraw: Only a grug block entity has a render function to draw again.");
+            return;
+        }
+        GrugCore.getAdapter().redraw(blockEntity);
+    }
+
+    public static void BlockEntity_set_item_count_in_slot(
+            long blockEntityId, double slot, double count) {
+        GrugCore.getAdapter()
+                .setItemCountInSlot(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, count);
+    }
+
+    public static void BlockEntity_set_item_damage_in_slot(
+            long blockEntityId, double slot, double damage) {
+        GrugCore.getAdapter()
+                .setItemDamageInSlot(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, damage);
+    }
+
+    public static void BlockEntity_set_item_in_slot(
+            long blockEntityId, double slot, long itemId, double count) {
+        GrugCore.getAdapter()
+                .setItemInSlot(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        slot,
+                        GrugEntities.entityData.get(itemId).object,
+                        count);
+    }
+
+    public static void BlockEntity_set_extractable_slots(
+            long blockEntityId, double first, double last) {
+        GrugSlotAccess.declareExtractable(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), first, last);
+    }
+
+    public static void BlockEntity_set_insertable_slots(
+            long blockEntityId, double first, double last) {
+        GrugSlotAccess.declareInsertable(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), first, last);
+    }
+
+    public static double BlockEntity_take_crafting_result(long blockEntityId, double amount) {
+        return GrugCore.getAdapter()
+                .takeCraftingResult(HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount);
+    }
+
+    public static double BlockEntity_take_item_from_slot(
+            long blockEntityId, double slot, double amount) {
+        return GrugCore.getAdapter()
+                .takeItemFromSlot(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, amount);
+    }
+
+    public static void BlockEntity_update_recipe_output(long blockEntityId, double startSlot) {
+        GrugCore.getAdapter()
+                .updateRecipeOutput(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
     }
 
     // Classes
@@ -616,30 +859,6 @@ public class HostFunctions {
 
     // Host functions
 
-    public static boolean is_slot_extractable(long blockEntityId, double slot) {
-        return GrugSlotAccess.isExtractable(
-                HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
-    }
-
-    public static boolean is_slot_insertable(long blockEntityId, double slot) {
-        return GrugSlotAccess.isInsertable(
-                HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
-    }
-
-    public static void consume_crafting_ingredients(long blockEntityId, double startSlot) {
-        GrugCore.getAdapter()
-                .consumeCraftingIngredients(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
-    }
-
-    public static double count_item_in_inventory(long blockEntityId, long itemId, double damage) {
-        return GrugCore.getAdapter()
-                .countItemInInventory(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        GrugEntities.entityData.get(itemId).object,
-                        damage);
-    }
-
     public static void drop_inventory(long levelId, double x, double y, double z) {
         GrugCore.getAdapter().dropInventory(GrugEntities.entityData.get(levelId).object, x, y, z);
     }
@@ -660,90 +879,6 @@ public class HostFunctions {
             }
         }
         return java.util.Objects.equals(a, b);
-    }
-
-    public static double extract_item_from_inventory(
-            long blockEntityId, long itemId, double damage, double amount) {
-        return GrugCore.getAdapter()
-                .extractItemFromInventory(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        GrugEntities.entityData.get(itemId).object,
-                        damage,
-                        amount);
-    }
-
-    public static double insert_item_into_inventory(
-            long blockEntityId, long itemId, double damage, double amount) {
-        return GrugCore.getAdapter()
-                .insertItemIntoInventory(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        GrugEntities.entityData.get(itemId).object,
-                        damage,
-                        amount);
-    }
-
-    public static long get_block_entity_level(long blockEntityId) {
-        Object level =
-                GrugCore.getAdapter()
-                        .getBlockEntityLevel(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
-        return GrugEntities.addEntity(GrugEntityType.Level, level);
-    }
-
-    public static long get_block_pos_of_block_entity(long blockEntityId) {
-        BlockPos pos =
-                GrugCore.getAdapter()
-                        .getBlockPosOfBlockEntity(
-                                HostFunctionHelpers.resolveBlockEntity(blockEntityId));
-        return GrugEntities.addEntity(GrugEntityType.BlockPos, pos);
-    }
-
-    public static double get_crafting_result_damage(long blockEntityId) {
-        Object stack =
-                GrugCore.getAdapter()
-                        .getResultStack(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
-        return stack != null ? GrugCore.getAdapter().getStackDamage(stack) : 0;
-    }
-
-    public static long get_crafting_result_item(long blockEntityId) {
-        Object stack =
-                GrugCore.getAdapter()
-                        .getResultStack(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
-        if (stack != null) {
-            return GrugEntities.addEntity(
-                    GrugEntityType.Option,
-                    new GrugOption(
-                            GrugEntities.addEntity(
-                                    GrugEntityType.Item,
-                                    GrugCore.getAdapter().getStackItem(stack))));
-        }
-        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
-    }
-
-    public static double get_inventory_size(long blockEntityId) {
-        return GrugCore.getAdapter()
-                .getInventorySize(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
-    }
-
-    public static double get_item_count_in_slot(long blockEntityId, double slot) {
-        return GrugCore.getAdapter()
-                .getItemCountInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
-    }
-
-    public static double get_item_damage_in_slot(long blockEntityId, double slot) {
-        return GrugCore.getAdapter()
-                .getItemDamageInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
-    }
-
-    public static long get_item_in_slot(long blockEntityId, double slot) {
-        Object item =
-                GrugCore.getAdapter()
-                        .getItemInSlot(HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
-        if (item != null) {
-            return GrugEntities.addEntity(
-                    GrugEntityType.Option,
-                    new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
-        }
-        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
     public static long gui(String texturePath) {
@@ -865,75 +1000,6 @@ public class HostFunctions {
         }
     }
 
-    public static double get_saved_number(long blockEntityId, String name) {
-        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
-        if (!GrugSavedNumbers.isHolder(blockEntity)) {
-            reportNotSaving("get_saved_number");
-            return 0;
-        }
-        return GrugSavedNumbers.get(blockEntity, name);
-    }
-
-    public static void set_saved_number(long blockEntityId, String name, double value) {
-        if (!GrugSavedNumbers.set(
-                HostFunctionHelpers.resolveBlockEntity(blockEntityId), name, value)) {
-            reportNotSaving("set_saved_number");
-        }
-    }
-
-    public static void set_power_receiver(long blockEntityId, double maxStored) {
-        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
-        String problem = GrugPower.checkCanDeclare(blockEntity);
-        if (problem == null) {
-            problem = GrugPower.checkEnergy("The most a receiver holds", maxStored);
-        }
-        if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "set_power_receiver: " + problem);
-            return;
-        }
-        GrugPower.declare(blockEntity, maxStored);
-    }
-
-    public static boolean is_power_receiver(long blockEntityId) {
-        return GrugPower.isReceiver(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
-    }
-
-    public static double get_energy_stored(long blockEntityId) {
-        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
-        String problem = GrugPower.checkIsReceiver(blockEntity);
-        if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "get_energy_stored: " + problem);
-            return 0;
-        }
-        return GrugPower.stored(blockEntity);
-    }
-
-    public static double receive_energy(long blockEntityId, double amount) {
-        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
-        String problem = GrugPower.checkIsReceiver(blockEntity);
-        if (problem == null) {
-            problem = GrugPower.checkEnergy("The amount", amount);
-        }
-        if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "receive_energy: " + problem);
-            return 0;
-        }
-        return GrugPower.receive(blockEntity, amount);
-    }
-
-    public static double extract_energy(long blockEntityId, double max) {
-        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
-        String problem = GrugPower.checkIsReceiver(blockEntity);
-        if (problem == null) {
-            problem = GrugPower.checkEnergy("The most to take", max);
-        }
-        if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "extract_energy: " + problem);
-            return 0;
-        }
-        return GrugPower.extract(blockEntity, max);
-    }
-
     /**
      * A saved number on a block entity that does not save them. Only a grug block entity writes
      * them into its NBT, so a number on a vanilla one would be lost with its chunk without a word.
@@ -944,17 +1010,6 @@ public class HostFunctions {
                 hostFunction
                         + ": Only a grug block entity saves numbers, and this block entity is not"
                         + " one.");
-    }
-
-    public static void redraw(long blockEntityId) {
-        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
-        if (!GrugSavedNumbers.isHolder(blockEntity)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "redraw: Only a grug block entity has a render function to draw again.");
-            return;
-        }
-        GrugCore.getAdapter().redraw(blockEntity);
     }
 
     public static void set_custom_render() {
@@ -1008,61 +1063,12 @@ public class HostFunctions {
                     "set_inventory_size: Can only be called during a Block's init().");
     }
 
-    public static void set_item_count_in_slot(long blockEntityId, double slot, double count) {
-        GrugCore.getAdapter()
-                .setItemCountInSlot(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, count);
-    }
-
-    public static void set_item_damage_in_slot(long blockEntityId, double slot, double damage) {
-        GrugCore.getAdapter()
-                .setItemDamageInSlot(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, damage);
-    }
-
-    public static void set_item_in_slot(
-            long blockEntityId, double slot, long itemId, double count) {
-        GrugCore.getAdapter()
-                .setItemInSlot(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        slot,
-                        GrugEntities.entityData.get(itemId).object,
-                        count);
-    }
-
-    public static void set_extractable_slots(long blockEntityId, double first, double last) {
-        GrugSlotAccess.declareExtractable(
-                HostFunctionHelpers.resolveBlockEntity(blockEntityId), first, last);
-    }
-
-    public static void set_insertable_slots(long blockEntityId, double first, double last) {
-        GrugSlotAccess.declareInsertable(
-                HostFunctionHelpers.resolveBlockEntity(blockEntityId), first, last);
-    }
-
     public static void set_material(String materialName) {
         if (GrugDeclarations.currentlyInitializingBlock != null)
             GrugDeclarations.currentlyInitializingBlock.material = materialName;
         else
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "set_material: Can only be called during a Block's init().");
-    }
-
-    public static double take_crafting_result(long blockEntityId, double amount) {
-        return GrugCore.getAdapter()
-                .takeCraftingResult(HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount);
-    }
-
-    public static double take_item_from_slot(long blockEntityId, double slot, double amount) {
-        return GrugCore.getAdapter()
-                .takeItemFromSlot(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, amount);
-    }
-
-    public static void update_recipe_output(long blockEntityId, double startSlot) {
-        GrugCore.getAdapter()
-                .updateRecipeOutput(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
     }
 
     /**

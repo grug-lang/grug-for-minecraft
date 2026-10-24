@@ -19,16 +19,16 @@ path: string = "coverage/assets/grug/textures/item/coverage_item.png"
 before: Option[Screenshot] = Option.new()
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _setup()
-        Test.not_done()
+        me.not_done()
     } else if not Test.screen_open() {
         # On 1.20.6 the screen is opened by a packet from the server, so it is not open when use_block
         # returns. See #418, #421.
-        Test.not_done()
+        me.not_done()
     } else if not Test.world_settled() {
         # The panel is only on screen once a frame holding it has been drawn, as in the other GUI tests.
-        Test.not_done()
+        me.not_done()
     } else if not swapped {
         # The shipped icon, read once the panel is drawn, so the comparison below is between two frames of
         # the same GUI.
@@ -38,20 +38,20 @@ export run() {
         reload_baseline = Test.reload_count(path)
         Test.set_mod_file_state(path, "swapped")
         swapped = true
-        Test.not_done()
+        me.not_done()
     } else if not reload_seen {
         # Waiting for the engine to report the write rather than a number of ticks, as the block test does.
         if Test.hot_reload_count(path) > change_baseline {
             reload_seen = true
         }
-        Test.not_done()
+        me.not_done()
     } else if Test.reload_count(path) <= reload_baseline {
         # The loader still has to answer the report, so this waits for it to say the reload finished.
-        Test.not_done()
+        me.not_done()
     } else if not Test.world_settled() {
         # The next capture must come after frames drawn with the new texture, so this waits for the loader to
         # forget its settled frames and see them drawn again. See #324.
-        Test.not_done()
+        me.not_done()
     } else {
         # The reload must not have taken the panel down, or the capture below would be the world and
         # the comparison would pass for the wrong reason.
@@ -76,7 +76,7 @@ local _setup() {
     block: BlockEntity = block_opt.unwrap()
 
     icon: Item = item(resource_location("grug:coverage_item"))
-    set_item_in_slot(block, 0, icon, 1)
+    block.set_item_in_slot(0, icon, 1)
 
     Test.use_block(level, x, y, z)
 }

@@ -9,6 +9,6 @@ export run() {
     power = power * power
     power = power * power
 
-    Test.expect_error("explode: power must be from 0 to")
+    me.expect_error("explode: power must be from 0 to")
     level.explode(origin.x(), origin.y() + 20, origin.z(), power)
 }

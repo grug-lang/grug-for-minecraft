@@ -36,5 +36,5 @@ local _facing(level: Level, x: number, y: number, z: number) number {
     Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     engine: BlockEntity = engine_opt.unwrap()
     Test.tick_block_entity(engine, 1)
-    return get_saved_number(engine, "orientation")
+    return engine.get_saved_number("orientation")
 }

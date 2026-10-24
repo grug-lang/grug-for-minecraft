@@ -26,6 +26,7 @@ MOD_API = {
                 {"name": "use", "parameters": [number("x")]},
                 {"name": "init"},
             ],
+            "methods": {"level": {"return_type": {"name": "Level"}}, "ask": {}},
             "static_methods": {
                 "make": {"return_type": {"name": "Alpha"}},
                 "assert": {"parameters": [number("n")]},
@@ -98,11 +99,16 @@ class CatalogTest(unittest.TestCase):
             [
                 "export init()",
                 "export use(x: number)",
+                ".ask()",
+                ".level() Level",
                 "Alpha.assert(n: number)",
                 "Alpha.make() Alpha",
             ],
             self.section("## Alpha"),
         )
+
+    def test_an_entity_method_starts_with_a_dot_like_a_class_method(self):
+        self.assertIn(".level() Level", self.section("## Alpha"))
 
     def test_an_engine_called_export_has_no_flag(self):
         self.assertEqual(["export tick()"], self.section("## Zed"))

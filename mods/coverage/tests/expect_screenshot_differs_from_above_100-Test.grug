@@ -2,8 +2,8 @@
 # closes both ends of the range the comparison accepts. Nothing here passes 100 itself, so the range's
 # far end is covered as a bound and not as a value.
 export run() {
-    if Test.tick() == 0 {
-        Test.expect_error("percent must be a whole number")
+    if me.tick() == 0 {
+        me.expect_error("percent must be a whole number")
         first: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
         second: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
         second.differs_from(first, 101)

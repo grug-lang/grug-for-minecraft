@@ -19,14 +19,14 @@ export run() {
         _use()
         waiting = true
         waited = 0
-        Test.not_done()
+        me.not_done()
         return
     }
 
     if not Test.screen_open() {
         waited = waited + 1
         Test.assert(waited < 100, "The GUI did not open after a block was placed and used in the same tick.")
-        Test.not_done()
+        me.not_done()
         return
     }
 
@@ -38,7 +38,7 @@ export run() {
         row = row + 1
     }
     if row < 4 {
-        Test.not_done()
+        me.not_done()
     }
 }
 

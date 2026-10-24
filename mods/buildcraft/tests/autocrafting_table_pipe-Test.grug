@@ -18,33 +18,33 @@ pipe_placed_at: number = -1
 pipe_bread_at: number = -1
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _setup_table()
-        Test.not_done()
+        me.not_done()
     } else if not _table_has_declared() {
         # The table declares what another block may use of it in init(), and init runs when the
         # block entity's grug entity is created, which on some loaders is its first tick rather than
         # its placement. Waiting for the declaration beats a fixed tick count, and the pipe is placed
         # after, which is the order a player builds in.
-        Test.not_done()
+        me.not_done()
     } else if pipe_placed_at < 0 {
         _check_rule()
         _setup_pipe()
-        pipe_placed_at = Test.tick()
-        Test.not_done()
+        pipe_placed_at = me.tick()
+        me.not_done()
     } else if not _bread_has_moved() {
-        Test.not_done()
+        me.not_done()
     } else if pipe_bread_at < 0 {
         # The chest first holds the bread on this tick, and the item entity that carried it through
         # the pipe is still in the world until the sweep that follows (#272), so record the arrival
         # and let it happen before the check.
-        pipe_bread_at = Test.tick()
-        Test.not_done()
-    } else if Test.tick() < pipe_placed_at + 25 or Test.tick() < pipe_bread_at + 2 {
+        pipe_bread_at = me.tick()
+        me.not_done()
+    } else if me.tick() < pipe_placed_at + 25 or me.tick() < pipe_bread_at + 2 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262). The two ticks after the
         # arrival are for that sweep: the carrying entity is gone by then, while a genuinely
         # dropped item persists and the dropped-item assertion still fails on it (#272).
-        Test.not_done()
+        me.not_done()
     } else {
         _check()
     }
@@ -53,7 +53,8 @@ export run() {
 # The table's init() is what a pipe goes by, and an inventory that has declared nothing is extractable
 # everywhere, so a denied grid slot is what says the table has spoken.
 local _table_has_declared() bool {
-    return not is_slot_extractable(pipe_table_table.unwrap(), 0)
+    pipe_table_table_be: BlockEntity = pipe_table_table.unwrap()
+    return not pipe_table_table_be.is_slot_extractable(0)
 }
 
 # Three wheat in the top row craft one bread. Wheat and bread are items rather than blocks on every
@@ -76,29 +77,29 @@ local _setup_table() {
     wheat: Item = item(resource_location("minecraft:wheat"))
     slot: number = 0
     while slot < 3 {
-        set_item_in_slot(table, slot, wheat, 1)
+        table.set_item_in_slot(slot, wheat, 1)
         slot = slot + 1
     }
-    update_recipe_output(table, 0)
+    table.update_recipe_output(0)
 
-    result_opt: Option[Item] = get_crafting_result_item(table)
+    result_opt: Option[Item] = table.get_crafting_result_item()
     Test.assert(result_opt.has(), "The three wheat should have crafted a result.")
     if result_opt.has() {
         Test.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
     }
-    Test.assert(get_crafting_result_damage(table) == 0, "A crafted bread should be undamaged.")
+    Test.assert(table.get_crafting_result_damage() == 0, "A crafted bread should be undamaged.")
 }
 
 # The table's own rule, which is what the pipe has to go by: its grid is not extractable and its
 # result, the slot one past the grid, is.
 local _check_rule() {
     table: BlockEntity = pipe_table_table.unwrap()
-    Test.assert(get_inventory_size(table) == 9, "The table should have a nine-slot grid.")
-    Test.assert(not is_slot_extractable(table, 0), "A pipe must not extract from the recipe grid.")
-    Test.assert(not is_slot_extractable(table, 8), "A pipe must not extract from the recipe grid.")
-    Test.assert(is_slot_extractable(table, 9), "A pipe must be able to extract the crafting result.")
-    Test.assert(is_slot_insertable(table, 0), "A pipe must be able to insert into the recipe grid.")
-    Test.assert(not is_slot_insertable(table, 9), "The table does not offer its crafting result for insertion.")
+    Test.assert(table.get_inventory_size() == 9, "The table should have a nine-slot grid.")
+    Test.assert(not table.is_slot_extractable(0), "A pipe must not extract from the recipe grid.")
+    Test.assert(not table.is_slot_extractable(8), "A pipe must not extract from the recipe grid.")
+    Test.assert(table.is_slot_extractable(9), "A pipe must be able to extract the crafting result.")
+    Test.assert(table.is_slot_insertable(0), "A pipe must be able to insert into the recipe grid.")
+    Test.assert(not table.is_slot_insertable(9), "The table does not offer its crafting result for insertion.")
 }
 
 # The table sits to the pipe's west and the chest to its east, so the side scan reaches the table
@@ -141,19 +142,19 @@ local _check() {
 
     # One bread, not three wheat. A pipe reading the grid instead of the result would take a wheat
     # per tick until the grid ran dry, so both the count and the item are what separate the two.
-    Test.assert(get_item_count_in_slot(chest, 0) == 1, "The chest should hold exactly 1 bread.")
-    chest_item: Option[Item] = get_item_in_slot(chest, 0)
+    Test.assert(chest.get_item_count_in_slot(0) == 1, "The chest should hold exactly 1 bread.")
+    chest_item: Option[Item] = chest.get_item_in_slot(0)
     Test.assert(chest_item.has(), "The chest's slot 0 should hold an item.")
     if chest_item.has() {
         Test.assert(equals(chest_item.unwrap(), item(resource_location("minecraft:bread"))), "The chest should hold the crafted bread, not a wheat.")
     }
 
-    Test.assert(get_item_count_in_slot(pipe, 0) == 0, "The pipe should not still be holding the bread.")
-    Test.assert(not get_crafting_result_item(table).has(), "The table should have no result left.")
+    Test.assert(pipe.get_item_count_in_slot(0) == 0, "The pipe should not still be holding the bread.")
+    Test.assert(not table.get_crafting_result_item().has(), "The table should have no result left.")
     slot: number = 0
     while slot < 9 {
         # (A call's arguments have to stay on one line in grug, hence the local.)
-        count: number = get_item_count_in_slot(table, slot)
+        count: number = table.get_item_count_in_slot(slot)
         Test.assert(count == 0, "The crafted wheat should be gone from the grid.")
         slot = slot + 1
     }
@@ -169,5 +170,6 @@ local _check() {
 # leave the result slot filled forever, turning the failure into a wait that never converges instead
 # of the item assertion that names the wheat. See #173.
 local _bread_has_moved() bool {
-    return get_item_count_in_slot(pipe_table_chest.unwrap(), 0) > 0
+    pipe_table_chest_be: BlockEntity = pipe_table_chest.unwrap()
+    return pipe_table_chest_be.get_item_count_in_slot(0) > 0
 }

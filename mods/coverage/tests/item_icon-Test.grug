@@ -7,18 +7,18 @@
 # scaled to 48 by 48. See redstone_engine_item-Test.grug.
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _setup()
-        Test.not_done()
+        me.not_done()
     } else if not Test.screen_open() {
         # On 1.20.6 the screen is opened by a packet from the server, so it is not open when use_block
         # returns and a settled world does not say the packet arrived: the world can answer settled
         # from its first tick. Wait for the screen itself rather than counting settled answers. #418,
         # #421.
-        Test.not_done()
+        me.not_done()
     } else if not Test.world_settled() {
         # The panel is only on screen once a frame holding it has been drawn, as in the other GUI tests.
-        Test.not_done()
+        me.not_done()
     } else {
         Test.screenshot().equals(r"screenshots/item_icon", 466, 162, 514, 210)
         Test.close_screen()
@@ -38,7 +38,7 @@ local _setup() {
     block: BlockEntity = block_opt.unwrap()
 
     icon: Item = item(resource_location("grug:coverage_item"))
-    set_item_in_slot(block, 0, icon, 1)
+    block.set_item_in_slot(0, icon, 1)
 
     Test.use_block(level, x, y, z)
 }

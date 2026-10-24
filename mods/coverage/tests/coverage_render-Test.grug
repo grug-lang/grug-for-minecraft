@@ -19,9 +19,9 @@ remesh_ticks: number = 0
 settled_ticks: number = 0
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _setup()
-        Test.not_done()
+        me.not_done()
     } else if not Test.world_settled() {
         # The mesh below has to read the settled light, so the wait comes first: the loader reports
         # false until its light engine and its mesh rebuilds are done, and a world that never settles
@@ -29,7 +29,7 @@ export run() {
         # first tick is also what exercises the answer's client-side "not yet" outcomes, which are
         # gone by the time a fixed floor would have expired.
         settled_ticks = 0
-        Test.not_done()
+        me.not_done()
     } else if settled_ticks < 5 {
         # One settled answer is not enough to swap on. A light packet already in flight can land a
         # tick later, and a light update re-meshes only the section it changed, not the neighbours
@@ -37,18 +37,18 @@ export run() {
         # forever. Five answers in a row is well past the tick an in-flight update takes to arrive.
         # See #259.
         settled_ticks = settled_ticks + 1
-        Test.not_done()
+        me.not_done()
     } else if not remeshed {
         _force_remesh()
         remeshed = true
-        Test.not_done()
+        me.not_done()
     } else if remesh_ticks < 5 {
         # The loaders that mesh synchronously answer settled immediately, so their capture could
         # otherwise be taken before the swap's mesh has been rendered, and the frame it reads would
         # be the one from before the swap. Five runner ticks is past the frame or two those loaders
         # take, and costs nothing on 1.20.6, where the wait below is the real one. See #259.
         remesh_ticks = remesh_ticks + 1
-        Test.not_done()
+        me.not_done()
     } else if not Test.world_settled() {
         # Waiting for the mesh the swap scheduled. A rebuild bakes a face's per-vertex light, and a
         # rebuild that ran while the light was still propagating keeps that mid-propagation light
@@ -58,7 +58,7 @@ export run() {
         # to land. It is also the wait that replaces the old 60-tick floor: the answer is false until
         # the fixture's frame has been drawn, so the capture no longer races a slower runner. See
         # #257.
-        Test.not_done()
+        me.not_done()
     } else {
         _check()
     }

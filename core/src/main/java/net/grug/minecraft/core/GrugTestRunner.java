@@ -21,7 +21,7 @@ import java.util.function.LongSupplier;
  * <p>This used to be a single blocking call that ran each test to completion, which meant zero real
  * ticks (and so zero rendered frames) ever elapsed during a test. That's fine for pure logic tests,
  * but useless for anything that needs to screenshot actual rendered output. A test now spreads
- * itself over as many ticks as it needs by calling {@code Test.not_done()}, and real frames render
+ * itself over as many ticks as it needs by calling {@code me.not_done()}, and real frames render
  * between those invocations via the normal game loop.
  */
 public class GrugTestRunner {
@@ -419,7 +419,7 @@ public class GrugTestRunner {
                         "Test exceeded "
                                 + DEFAULT_MAX_TEST_TICKS
                                 + " ticks without finishing (did it forget to stop calling"
-                                + " Test.not_done()?)");
+                                + " me.not_done()?)");
                 return;
             }
             currentTick++;
@@ -608,7 +608,7 @@ public class GrugTestRunner {
     }
 
     private void destroyCurrentEntity() {
-        // Cleared here rather than when the next test starts, so a Test.expect_error expectation
+        // Cleared here rather than when the next test starts, so a me.expect_error expectation
         // cannot outlive the test that asked for it even when that test failed partway through. A
         // leftover expectation would keep
         // GrugErrors.onRuntimeError recording errors for a test that is no longer running. The

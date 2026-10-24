@@ -1,8 +1,6 @@
-# TODO: Change to me.level() once entities can have methods
-level: Level = get_block_entity_level(me)
+level: Level = me.level()
 
-# TODO: Change to me.block_pos() once entities can have methods
-pos: BlockPos = get_block_pos_of_block_entity(me)
+pos: BlockPos = me.block_pos()
 center: Vec3 = pos.center()
 x: number = center.x()
 y: number = center.y()
@@ -16,29 +14,29 @@ z: number = center.z()
 # other loaders is its first tick, so the rule is not necessarily in place the moment the table
 # appears. That is tracked as its own issue rather than worked around here: a pipe beside the table
 # re-picks what it pulls from every tick, so it settles once this has run either way.
-result_slot: number = get_inventory_size(me)
+result_slot: number = me.get_inventory_size()
 
 export init() {
-    set_extractable_slots(me, result_slot, result_slot)
-    set_insertable_slots(me, 0, result_slot - 1)
+    me.set_extractable_slots(result_slot, result_slot)
+    me.set_insertable_slots(0, result_slot - 1)
 }
 
 export item_extracted(slot: number, amount: number) {
     if slot >= 0 and slot <= 8 {
-        update_recipe_output(me, 0)
+        me.update_recipe_output(0)
     }
 }
 
 export item_inserted(slot: number, amount: number) {
     if slot >= 0 and slot <= 8 {
-        update_recipe_output(me, 0)
+        me.update_recipe_output(0)
     }
 }
 
 export output_taken(amount: number) {
     _try_restock_about_to_empty()
-    consume_crafting_ingredients(me, 0)
-    update_recipe_output(me, 0)
+    me.consume_crafting_ingredients(0)
+    me.update_recipe_output(0)
 }
 
 local _try_restock_about_to_empty() {
@@ -48,18 +46,18 @@ local _try_restock_about_to_empty() {
 
     slot: number = 0
     while slot < 9 {
-        count: number = get_item_count_in_slot(me, slot)
+        count: number = me.get_item_count_in_slot(slot)
 
         if count == 1 {
-            item_opt: Option[Item] = get_item_in_slot(me, slot)
+            item_opt: Option[Item] = me.get_item_in_slot(slot)
             if item_opt.has() {
                 item: Item = item_opt.unwrap()
-                damage: number = get_item_damage_in_slot(me, slot)
+                damage: number = me.get_item_damage_in_slot(slot)
 
                 extracted: number = _extract_from_neighbors(item, damage, 1)
 
                 if extracted > 0 {
-                    set_item_count_in_slot(me, slot, 2)
+                    me.set_item_count_in_slot(slot, 2)
                 }
             }
         }
@@ -70,11 +68,11 @@ local _try_restock_about_to_empty() {
 local _can_restock_all() bool {
     slot: number = 0
     while slot < 9 {
-        if get_item_count_in_slot(me, slot) == 1 {
-            item_opt: Option[Item] = get_item_in_slot(me, slot)
+        if me.get_item_count_in_slot(slot) == 1 {
+            item_opt: Option[Item] = me.get_item_in_slot(slot)
             if item_opt.has() {
                 item: Item = item_opt.unwrap()
-                damage: number = get_item_damage_in_slot(me, slot)
+                damage: number = me.get_item_damage_in_slot(slot)
 
                 required: number = _count_required(item, damage)
 
@@ -95,11 +93,11 @@ local _count_required(target_item: Item, target_damage: number) number {
     slot: number = 0
 
     while slot < 9 {
-        if get_item_count_in_slot(me, slot) == 1 {
-            item_opt: Option[Item] = get_item_in_slot(me, slot)
+        if me.get_item_count_in_slot(slot) == 1 {
+            item_opt: Option[Item] = me.get_item_in_slot(slot)
             if item_opt.has() {
                 is_same_item: bool = equals(item_opt.unwrap(), target_item)
-                is_same_damage: bool = get_item_damage_in_slot(me, slot) == target_damage
+                is_same_damage: bool = me.get_item_damage_in_slot(slot) == target_damage
 
                 if is_same_item and is_same_damage {
                     required = required + 1
@@ -127,7 +125,8 @@ local _count_in_neighbors(item: Item, damage: number) number {
 local _count_in_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number) number {
     neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
     if neighbor_opt.has() {
-        return count_item_in_inventory(neighbor_opt.unwrap(), item, damage)
+        neighbor_be: BlockEntity = neighbor_opt.unwrap()
+        return neighbor_be.count_item_in_inventory(item, damage)
     }
     return 0
 }
@@ -174,7 +173,8 @@ local _extract_from_neighbors(item: Item, damage: number, amount: number) number
 local _extract_from_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number, amount: number) number {
     neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
     if neighbor_opt.has() {
-        return extract_item_from_inventory(neighbor_opt.unwrap(), item, damage, amount)
+        neighbor_be: BlockEntity = neighbor_opt.unwrap()
+        return neighbor_be.extract_item_from_inventory(item, damage, amount)
     }
     return 0
 }

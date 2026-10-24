@@ -17,13 +17,13 @@ import java.util.function.Supplier;
 public final class GrugTestState {
     private GrugTestState() {}
 
-    // Set by GrugTestRunner immediately before each Test.run() call; read by Test.tick().
+    // Set by GrugTestRunner immediately before each Test.run() call; read by me.tick().
     public static int currentTestTick = 0;
-    // Set by Test.not_done(); reset to false by GrugTestRunner immediately before each
+    // Set by me.not_done(); reset to false by GrugTestRunner immediately before each
     // Test.run() call.
     public static boolean testNotDone = false;
 
-    // Set by Test.expect_error(); cleared by GrugTestRunner when a test starts and when it ends, so
+    // Set by me.expect_error(); cleared by GrugTestRunner when a test starts and when it ends, so
     // it cannot outlive the test that asked for it. While non-null, an export function that aborts
     // on a host error whose message contains this text counts as a pass, which is how the error
     // branches get exercised. It also gates whether onRuntimeError records into testRuntimeErrors,

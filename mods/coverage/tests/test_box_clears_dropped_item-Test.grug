@@ -7,7 +7,7 @@
 # checks the next build's sweep is rid of it.
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         # Eight blocks out, so the fixture is outside the default room but inside the test area the
@@ -19,18 +19,19 @@ export run() {
         level.place_block(x, y, z, "minecraft:chest")
         chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         Test.assert(chest_opt.has(), "The chest should have a block entity.")
-        set_item_in_slot(chest_opt.unwrap(), 0, item(resource_location("minecraft:diamond")), 1)
+        chest_be: BlockEntity = chest_opt.unwrap()
+        chest_be.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
 
         # Drops the chest's contents as an item entity, the same way the build's own block clearing
         # drops whatever inventory a fixture left behind.
         drop_inventory(level, x, y, z)
         dropped: Option[ItemEntity] = level.find_item_entity(x, y, z, 3)
         Test.assert(dropped.has(), "Dropping the chest should have left an item entity.")
-        Test.not_done()
-    } else if Test.tick() == 1 {
+        me.not_done()
+    } else if me.tick() == 1 {
         # Forces a build, and so a sweep, while the dropped item is still in the area.
         Test.set_box_radius(4)
-        Test.not_done()
+        me.not_done()
     } else {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()

@@ -5,6 +5,6 @@ export run() {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
 
-    Test.expect_error("Could not resolve block")
+    me.expect_error("Could not resolve block")
     level.place_block(origin.x(), origin.y(), origin.z(), "grug:does_not_exist")
 }

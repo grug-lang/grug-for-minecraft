@@ -27,7 +27,7 @@ export run() {
         Test.set_held_item(player, wrench)
         Test.use_block(level, x, y, z)
         step = 1
-        Test.not_done()
+        me.not_done()
     } else if step == 1 {
         Test.tick_block_entity(_engine(level, x, y, z), 1)
         if _facing(level, x, y, z) == 5 {
@@ -48,7 +48,7 @@ export run() {
         Test.tick_block_entity(_engine(level, x, y, z), 1)
         waited = waited + 1
         if waited < 20 {
-            Test.not_done()
+            me.not_done()
             return
         }
         Test.assert(_facing(level, x, y, z) == 2, "A click without the wrench should leave the engine facing 2.")
@@ -59,7 +59,7 @@ export run() {
 local _wait() {
     waited = waited + 1
     Test.assert(waited < 200, "The wrench did not turn the engine.")
-    Test.not_done()
+    me.not_done()
 }
 
 local _engine(level: Level, x: number, y: number, z: number) BlockEntity {
@@ -69,5 +69,5 @@ local _engine(level: Level, x: number, y: number, z: number) BlockEntity {
 }
 
 local _facing(level: Level, x: number, y: number, z: number) number {
-    return get_saved_number(_engine(level, x, y, z), "orientation")
+    return _engine(level, x, y, z).get_saved_number("orientation")
 }

@@ -21,17 +21,17 @@ export run() {
 
     # Slot 0 is the single cell of shaped_recipe.json's one-row "S" pattern.
     grid: BlockEntity = _grid(level, x, y, z)
-    set_item_in_slot(grid, 0, stick, 1)
-    update_recipe_output(grid, 0)
-    Test.assert(take_crafting_result(grid, 1) == 1, "A single stick should craft the shaped recipe's one result.")
-    Test.assert(take_crafting_result(grid, 1) == 0, "The shaped recipe should have nothing left to give.")
+    grid.set_item_in_slot(0, stick, 1)
+    grid.update_recipe_output(0)
+    Test.assert(grid.take_crafting_result(1) == 1, "A single stick should craft the shaped recipe's one result.")
+    Test.assert(grid.take_crafting_result(1) == 0, "The shaped recipe should have nothing left to give.")
 
     # Flint is not the stick the recipe names, so nothing matches. An iron ingot would not do:
     # 1.20.6 crafts nine iron nuggets from one.
     wrong: BlockEntity = _grid(level, x + 3, y, z)
-    set_item_in_slot(wrong, 0, flint, 1)
-    update_recipe_output(wrong, 0)
-    Test.assert(take_crafting_result(wrong, 1) == 0, "A flint should not match a recipe that names a stick.")
+    wrong.set_item_in_slot(0, flint, 1)
+    wrong.update_recipe_output(0)
+    Test.assert(wrong.take_crafting_result(1) == 0, "A flint should not match a recipe that names a stick.")
 }
 
 # The coverage block's block entity has the nine slots a crafting grid reads, which is why this is

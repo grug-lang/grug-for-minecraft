@@ -14,38 +14,38 @@ export run() {
     pipe: BlockEntity = _place(level, x, y, z)
     source: BlockEntity = level.get_block_entity(x - 1, y, z).unwrap()
     Test.tick_block_entity(pipe, 1)
-    Test.assert(get_item_count_in_slot(pipe, 0) == 0, "A pipe with no energy should pull nothing.")
-    Test.assert(get_item_count_in_slot(source, 0) == 5, "The chest should still hold its 5.")
+    Test.assert(pipe.get_item_count_in_slot(0) == 0, "A pipe with no energy should pull nothing.")
+    Test.assert(source.get_item_count_in_slot(0) == 5, "The chest should still hold its 5.")
 
     pipe = _place(level, x + 4, y, z)
     source = level.get_block_entity(x + 3, y, z).unwrap()
-    receive_energy(pipe, 1)
+    pipe.receive_energy(1)
     Test.tick_block_entity(pipe, 1)
-    Test.assert(get_item_count_in_slot(pipe, 0) == 1, "A pipe with 1 energy should pull 1 item.")
-    Test.assert(get_item_count_in_slot(source, 0) == 4, "The chest should have given 1.")
-    Test.assert(get_energy_stored(pipe) == 0, "The pipe should have spent its energy.")
+    Test.assert(pipe.get_item_count_in_slot(0) == 1, "A pipe with 1 energy should pull 1 item.")
+    Test.assert(source.get_item_count_in_slot(0) == 4, "The chest should have given 1.")
+    Test.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its energy.")
 
     pipe = _place(level, x + 8, y, z)
     source = level.get_block_entity(x + 7, y, z).unwrap()
-    receive_energy(pipe, 3)
+    pipe.receive_energy(3)
     Test.tick_block_entity(pipe, 1)
-    Test.assert(get_item_count_in_slot(pipe, 0) == 3, "A pipe with 3 energy should pull 3 items.")
-    Test.assert(get_item_count_in_slot(source, 0) == 2, "The chest should have given 3.")
-    Test.assert(get_energy_stored(pipe) == 0, "The pipe should have spent its 3.")
+    Test.assert(pipe.get_item_count_in_slot(0) == 3, "A pipe with 3 energy should pull 3 items.")
+    Test.assert(source.get_item_count_in_slot(0) == 2, "The chest should have given 3.")
+    Test.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its 3.")
 
     pipe = _place(level, x + 12, y, z)
     source = level.get_block_entity(x + 11, y, z).unwrap()
     target: BlockEntity = level.get_block_entity(x + 13, y, z).unwrap()
-    receive_energy(pipe, 64)
+    pipe.receive_energy(64)
     Test.tick_block_entity(pipe, 1)
-    Test.assert(get_item_count_in_slot(pipe, 0) == 5, "A pipe with 64 energy should pull the slot's whole stack of 5, not 64.")
-    Test.assert(get_item_count_in_slot(source, 0) == 0, "The chest should be empty.")
-    Test.assert(get_energy_stored(pipe) == 0, "The pipe should have spent 5 and lost the rest.")
+    Test.assert(pipe.get_item_count_in_slot(0) == 5, "A pipe with 64 energy should pull the slot's whole stack of 5, not 64.")
+    Test.assert(source.get_item_count_in_slot(0) == 0, "The chest should be empty.")
+    Test.assert(pipe.get_energy_stored() == 0, "The pipe should have spent 5 and lost the rest.")
 
     # The next tick pushes the whole stack on to the chest on the other side.
     Test.tick_block_entity(pipe, 1)
-    Test.assert(get_item_count_in_slot(target, 0) == 5, "The whole stack should have moved on to the east chest.")
-    Test.assert(get_item_count_in_slot(pipe, 0) == 0, "The pipe should have nothing left to carry.")
+    Test.assert(target.get_item_count_in_slot(0) == 5, "The whole stack should have moved on to the east chest.")
+    Test.assert(pipe.get_item_count_in_slot(0) == 0, "The pipe should have nothing left to carry.")
 }
 
 # Places a pipe at x with a chest of 5 diamonds on its west side and an empty chest on its east side,
@@ -61,6 +61,7 @@ local _place(level: Level, x: number, y: number, z: number) BlockEntity {
     Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
 
     diamond: Item = item(resource_location("minecraft:diamond"))
-    set_item_in_slot(source_opt.unwrap(), 0, diamond, 5)
+    source_be: BlockEntity = source_opt.unwrap()
+    source_be.set_item_in_slot(0, diamond, 5)
     return pipe_opt.unwrap()
 }

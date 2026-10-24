@@ -3,12 +3,12 @@ pipe_drop_source: Option[BlockEntity] = Option.new()
 pipe_drop_self: Option[BlockEntity] = Option.new()
 
 export run() {
-    if Test.tick() == 0 {
+    if me.tick() == 0 {
         _drop_setup()
-        Test.not_done()
-    } else if not _drop_pipe_has_moved() or Test.tick() < 15 {
+        me.not_done()
+    } else if not _drop_pipe_has_moved() or me.tick() < 15 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
-        Test.not_done()
+        me.not_done()
     } else {
         _drop_check()
     }
@@ -40,8 +40,9 @@ local _drop_setup() {
     pipe_drop_self.set(self_opt.unwrap())
 
     sword: Item = item(resource_location("minecraft:diamond_sword"))
-    set_item_in_slot(pipe_drop_source.unwrap(), 0, sword, 1)
-    set_item_damage_in_slot(pipe_drop_source.unwrap(), 0, 7)
+    pipe_drop_source_be: BlockEntity = pipe_drop_source.unwrap()
+    pipe_drop_source_be.set_item_in_slot(0, sword, 1)
+    pipe_drop_source_be.set_item_damage_in_slot(0, 7)
 }
 
 local _drop_check() {
@@ -51,7 +52,8 @@ local _drop_check() {
     y: number = origin.y() + 50
     z: number = origin.z()
 
-    source_count: number = get_item_count_in_slot(pipe_drop_source.unwrap(), 0)
+    pipe_drop_source_be: BlockEntity = pipe_drop_source.unwrap()
+    source_count: number = pipe_drop_source_be.get_item_count_in_slot(0)
     Test.assert(source_count == 0, "The source chest should be empty.")
 
     # A wide radius, because the dropped item is not held in place.
@@ -68,7 +70,9 @@ local _drop_check() {
 # buffer. Nothing accepts the item here, so that also means it is on the ground, which is what _check
 # asserts, damage and all. See #173.
 local _drop_pipe_has_moved() bool {
-    source_empty: bool = get_item_count_in_slot(pipe_drop_source.unwrap(), 0) == 0
-    pipe_empty: bool = get_item_count_in_slot(pipe_drop_self.unwrap(), 0) == 0
+    pipe_drop_source_be: BlockEntity = pipe_drop_source.unwrap()
+    source_empty: bool = pipe_drop_source_be.get_item_count_in_slot(0) == 0
+    pipe_drop_self_be: BlockEntity = pipe_drop_self.unwrap()
+    pipe_empty: bool = pipe_drop_self_be.get_item_count_in_slot(0) == 0
     return source_empty and pipe_empty
 }
