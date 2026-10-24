@@ -710,6 +710,19 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Object getHeldItem(Object playerObj) {
+        ItemStack stack = ((EntityPlayer) playerObj).inventory.getCurrentItem();
+        return (stack != null) ? stack.getItem() : null;
+    }
+
+    @Override
+    public void setHeldItem(Object playerObj, Object itemObj) {
+        net.minecraft.src.InventoryPlayer inventory = ((EntityPlayer) playerObj).inventory;
+        inventory.setInventorySlotContents(
+                inventory.currentItem, itemObj == null ? null : new ItemStack((Item) itemObj));
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.isBlockIndirectlyGettingPowered(

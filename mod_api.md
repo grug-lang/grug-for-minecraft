@@ -22,6 +22,7 @@ export init()
 ## Test
 export run()
 Test.assert(condition: bool, message: string)
+Test.clear_held_item(player: Player)
 Test.close_screen()
 Test.expect_error(message: string)
 Test.force_gc()
@@ -38,6 +39,7 @@ Test.round_trip_nbt(block_entity: BlockEntity)
 Test.screen_open() bool
 Test.screenshot() Screenshot
 Test.set_box_radius(radius: number)
+Test.set_held_item(player: Player, item: Item)
 Test.set_mod_file_state(relative_path: string, state: string)
 Test.setup_graphics_camera() Vec3
 Test.tick() number
@@ -89,6 +91,9 @@ Math.remainder(value: number, divisor: number) number
 .set(value: $Value)
 .unwrap() $Value
 Option.new() Option[$Value]
+
+## Player
+.get_held_item() Option[Item]
 
 ## Screenshot
 .capture(x1: number, y1: number, x2: number, y2: number) Screenshot

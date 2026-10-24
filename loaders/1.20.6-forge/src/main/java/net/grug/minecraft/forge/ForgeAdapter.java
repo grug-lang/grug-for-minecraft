@@ -601,6 +601,20 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Object getHeldItem(Object playerObj) {
+        ItemStack stack = ((Player) playerObj).getMainHandItem();
+        return !stack.isEmpty() ? stack.getItem() : null;
+    }
+
+    @Override
+    public void setHeldItem(Object playerObj, Object itemObj) {
+        ((Player) playerObj)
+                .setItemInHand(
+                        InteractionHand.MAIN_HAND,
+                        itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj));
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         return world.hasNeighborSignal(

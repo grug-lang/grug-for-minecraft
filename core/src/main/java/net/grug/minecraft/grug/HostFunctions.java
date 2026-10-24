@@ -42,6 +42,28 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Level, level);
     }
 
+    public static long Player_get_held_item(long playerId) {
+        Object item =
+                GrugCore.getAdapter().getHeldItem(GrugEntities.entityData.get(playerId).object);
+        if (item == null) {
+            return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.Option,
+                new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
+    }
+
+    public static void Test_set_held_item(long playerId, long itemId) {
+        GrugCore.getAdapter()
+                .setHeldItem(
+                        GrugEntities.entityData.get(playerId).object,
+                        GrugEntities.entityData.get(itemId).object);
+    }
+
+    public static void Test_clear_held_item(long playerId) {
+        GrugCore.getAdapter().setHeldItem(GrugEntities.entityData.get(playerId).object, null);
+    }
+
     public static long Test_get_player() {
         return addPlayer(GrugCore.getAdapter().testPlayer());
     }

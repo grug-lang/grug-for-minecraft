@@ -140,6 +140,18 @@ public interface ModLoaderAdapter {
      */
     void explode(Object levelObj, double x, double y, double z, double power);
 
+    /**
+     * The item in the player's selected hotbar slot, or null for an empty hand. The stack's count
+     * and damage are not part of the answer.
+     */
+    Object getHeldItem(Object playerObj);
+
+    /**
+     * Test only: puts one of the item in the player's selected hotbar slot, or empties it for a
+     * null item.
+     */
+    void setHeldItem(Object playerObj, Object itemObj);
+
     boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
 
     /** The world's time in ticks, which {@code World.getWorldTime()} is in BuildCraft 2.2.14. */

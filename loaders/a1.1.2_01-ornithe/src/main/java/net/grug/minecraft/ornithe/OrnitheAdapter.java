@@ -468,6 +468,20 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Object getHeldItem(Object playerObj) {
+        ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
+        return (stack != null) ? stack.getItem() : null;
+    }
+
+    @Override
+    public void setHeldItem(Object playerObj, Object itemObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        player.inventory.setItem(
+                player.inventory.selectedSlot,
+                itemObj == null ? null : new ItemStack((Item) itemObj));
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.hasNeighborSignal(

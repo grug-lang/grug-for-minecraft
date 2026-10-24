@@ -408,6 +408,34 @@
 							}
 						}
 					]
+				},
+				"set_held_item": {
+					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"clear_held_item": {
+					"description": "Test only: empties the player's selected hotbar slot.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
 				}
 			}
 		}
@@ -1091,6 +1119,22 @@
 					"description": "Gets the Z coordinate of a Vec3.",
 					"return_type": {
 						"name": "number"
+					}
+				}
+			}
+		},
+		"Player": {
+			"description": "A player.",
+			"methods": {
+				"get_held_item": {
+					"description": "The item in the player's selected hotbar slot, or an empty Option for an empty hand. Only the item is reported, not the stack's count or damage.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
 					}
 				}
 			}
