@@ -1,0 +1,73 @@
+# Covers the wrench turning a redstone engine, as BlockEngine.b does in BuildCraft 2.2.14: a right click
+# with the wrench makes TileEngine.switchOrientation search from the side after the current one and stop at
+# the first with a power receptor, and a right click with anything else leaves the engine alone. The engine
+# starts facing 2 for the pipe at z - 1; the pipe at x + 1 makes the wrench turn it to 5 and the next click
+# round to 2 again, since the search wraps and ends on the side it started from. The block entity's tick is
+# run by hand after each click, because the wrench only sets the request and the tick acts on it. On 1.20.6
+# the click reaches the block by a packet, so each wait is for the orientation to change, run until it does.
+# That a click without the wrench changes nothing has no condition to wait for, so it waits a fixed 20 ticks.
+step: number = 0
+waited: number = 0
+
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    player: Player = Test.get_player()
+    wrench: Item = item(resource_location("grug:wrench"))
+
+    if step == 0 {
+        level.place_block(x, y, z - 1, "grug:wooden_pipe")
+        level.place_block(x + 1, y, z, "grug:wooden_pipe")
+        level.place_block(x, y, z, "grug:redstone_engine")
+        Test.tick_block_entity(_engine(level, x, y, z), 1)
+        Test.assert(_facing(level, x, y, z) == 2, "The engine should start facing the pipe at z - 1.")
+        Test.set_held_item(player, wrench)
+        Test.use_block(level, x, y, z)
+        step = 1
+        Test.not_done()
+    } else if step == 1 {
+        Test.tick_block_entity(_engine(level, x, y, z), 1)
+        if _facing(level, x, y, z) == 5 {
+            Test.use_block(level, x, y, z)
+            step = 2
+        }
+        _wait()
+    } else if step == 2 {
+        Test.tick_block_entity(_engine(level, x, y, z), 1)
+        if _facing(level, x, y, z) == 2 {
+            Test.clear_held_item(player)
+            Test.use_block(level, x, y, z)
+            step = 3
+            waited = 0
+        }
+        _wait()
+    } else {
+        Test.tick_block_entity(_engine(level, x, y, z), 1)
+        waited = waited + 1
+        if waited < 20 {
+            Test.not_done()
+            return
+        }
+        Test.assert(_facing(level, x, y, z) == 2, "A click without the wrench should leave the engine facing 2.")
+    }
+}
+
+# A step that has not seen what it waits for yet keeps the test alive.
+local _wait() {
+    waited = waited + 1
+    Test.assert(waited < 200, "The wrench did not turn the engine.")
+    Test.not_done()
+}
+
+local _engine(level: Level, x: number, y: number, z: number) BlockEntity {
+    engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    return engine_opt.unwrap()
+}
+
+local _facing(level: Level, x: number, y: number, z: number) number {
+    return get_saved_number(_engine(level, x, y, z), "orientation")
+}

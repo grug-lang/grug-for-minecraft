@@ -1,3 +1,4 @@
+# TODO: Remove this placeholder comment once https://github.com/grug-lang/grug-tests/issues/149 is merged
 # The redstone engine draws its own geometry, because which trunk it draws depends on the energy its
 # block entity has built up. See redstone_engine_entity-BlockEntity.grug.
 export init() {
@@ -6,4 +7,19 @@ export init() {
     set_block_entity(e"redstone_engine_entity")
     set_custom_render()
     set_flat_lighting()
+}
+
+# BlockEngine.b: a right click with the wrench turns the engine to the next side with a power
+# receptor. The block entity does the turning on its next tick, because only it knows its own
+# orientation.
+export use(world: Level, x: number, y: number, z: number, player: Player) {
+    held: Option[Item] = player.get_held_item()
+    if held.has() {
+        if equals(held.unwrap(), item(resource_location("grug:wrench"))) {
+            engine: Option[BlockEntity] = world.get_block_entity(x, y, z)
+            if engine.has() {
+                set_saved_number(engine.unwrap(), "rotate", 1)
+            }
+        }
+    }
 }

@@ -88,16 +88,16 @@ export tick() {
 
     # BlockEngine.c picks the facing when the engine is placed. The port does it on the first tick
     # instead, because the moment a block entity is created differs by loader (#187), so this is the
-    # one hook that is the same everywhere.
+    # one hook that is the same everywhere. The block sets "rotate" when a player right-clicks it with
+    # the wrench, which BlockEngine.b answers with the same search.
     if get_saved_number(me, "oriented") == 0 {
-        picked: number = _pick_orientation()
-        set_saved_number(me, "orientation", picked)
+        set_saved_number(me, "orientation", 1)
         set_saved_number(me, "oriented", 1)
-
-        # It was drawn facing up until now, so only another facing needs drawing again.
-        if picked != 1 {
-            redraw(me)
-        }
+        _switch_orientation()
+    }
+    if get_saved_number(me, "rotate") == 1 {
+        set_saved_number(me, "rotate", 0)
+        _switch_orientation()
     }
 
     before: number = get_saved_number(me, "energy")
@@ -284,19 +284,25 @@ local _stage(energy: number) number {
     return 3
 }
 
-# TileEngine.switchOrientation for a fresh engine, whose orientation is 1. The search starts after
-# the current orientation, wraps round and stops at the first side with a power receptor next to it,
-# so 2, 3, 4, 5, 0, 1 are visited. With no receptor it stays 1.
-local _pick_orientation() number {
-    i: number = 2
-    while i <= 7 {
+# TileEngine.switchOrientation. The search starts after the current orientation, wraps round and
+# stops at the first side with a power receptor next to it, so the current side is the last one tried.
+# With no receptor the orientation stays as it was.
+local _switch_orientation() {
+    start: number = get_saved_number(me, "orientation")
+    i: number = start + 1
+    while i <= start + 6 {
         side: number = Math.remainder(i, 6)
         if _is_powered_tile(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) {
-            return side
+            set_saved_number(me, "orientation", side)
+
+            # It was drawn along the old orientation until now, so only another one needs drawing again.
+            if side != start {
+                redraw(me)
+            }
+            return
         }
         i = i + 1
     }
-    return 1
 }
 
 # TileEngine.isPoweredTile: an IPowerReceptor, which here is a wooden pipe or another engine.
