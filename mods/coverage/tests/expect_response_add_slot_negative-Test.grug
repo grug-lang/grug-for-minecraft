@@ -1,0 +1,16 @@
+# A block entity that names a slot its inventory does not have is an err, not a write before the start.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_response_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    be.set_saved_number("add_mode", 1)
+    be.set_saved_number("slot", -1)
+    me.expect_error("named slot -1")
+    be.add_item(diamond, 0, 1, 0, true)
+}

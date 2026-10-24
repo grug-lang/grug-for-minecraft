@@ -89,7 +89,9 @@ final class GrugSpecialInventory {
         while (remaining > 0) {
             AddResponse response = callAdd(blockEntity, itemId, damage, remaining, fromSide, add);
             if (response == null) {
-                return total == 0 && remaining == count ? NO_EXPORT : total;
+                // Only the first ask can find no export; a later one found it already, so it ended
+                // in an err.
+                return remaining == count ? NO_EXPORT : total;
             }
             if (response.refused() || !validSlot(blockEntity, response.slot(), "add_item")) {
                 break;
