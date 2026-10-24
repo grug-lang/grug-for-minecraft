@@ -1,0 +1,22 @@
+# Covers Player.get_held_item(), which a block's use export asks to tell what the player holds, as
+# BuildCraft's wrench needs: an empty hand has no item, and an item put in the hand is the one reported.
+export run() {
+    player: Player = Test.get_player()
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    sword: Item = item(resource_location("minecraft:diamond_sword"))
+
+    Test.clear_held_item(player)
+    Test.assert(not player.get_held_item().has(), "An empty hand should hold no item.")
+
+    Test.set_held_item(player, diamond)
+    held: Option[Item] = player.get_held_item()
+    Test.assert(held.has(), "A hand holding a diamond should report an item.")
+    Test.assert(equals(held.unwrap(), diamond), "The held item should be the diamond.")
+    Test.assert(not equals(held.unwrap(), sword), "The held diamond should not be the sword.")
+
+    Test.set_held_item(player, sword)
+    Test.assert(equals(player.get_held_item().unwrap(), sword), "Replacing the held item should report the sword.")
+
+    Test.clear_held_item(player)
+    Test.assert(not player.get_held_item().has(), "A cleared hand should hold no item.")
+}
