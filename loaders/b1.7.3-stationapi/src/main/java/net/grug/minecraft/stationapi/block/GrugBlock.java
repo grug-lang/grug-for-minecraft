@@ -3,6 +3,7 @@ package net.grug.minecraft.stationapi.block;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugBlockUse;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugEntityType;
@@ -98,7 +99,7 @@ public class GrugBlock extends TemplateBlockWithEntity {
         if (blockHandle != 0) {
             long worldId = GrugEntities.addEntity(GrugEntityType.Level, world);
             long playerId = GrugEntities.addEntity(GrugEntityType.Player, player);
-            boolean handled = ExportFns.Block_use(blockHandle, worldId, x, y, z, playerId);
+            boolean handled = GrugBlockUse.use(blockHandle, worldId, x, y, z, playerId);
             Grug.destroyEntity(blockHandle);
             if (handled) {
                 return true;

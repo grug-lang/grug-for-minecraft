@@ -2126,6 +2126,9 @@
 					}
 				}
 			]
+		},
+		"decline_use": {
+			"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Calling it outside a use export does nothing."
 		}
 	}
 }

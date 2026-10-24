@@ -42,6 +42,10 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Level, level);
     }
 
+    public static void decline_use() {
+        GrugBlockUse.decline();
+    }
+
     public static long Player_get_held_item(long playerId) {
         Object item =
                 GrugCore.getAdapter().getHeldItem(GrugEntities.entityData.get(playerId).object);

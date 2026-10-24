@@ -4,6 +4,7 @@ import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugBlockUse;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugEntityType;
@@ -127,7 +128,7 @@ public class GrugBlock extends Block implements EntityBlock {
             long worldId = GrugEntities.addEntity(GrugEntityType.Level, level);
             long playerId = GrugEntities.addEntity(GrugEntityType.Player, player);
             boolean handled =
-                    ExportFns.Block_use(
+                    GrugBlockUse.use(
                             blockHandle, worldId, pos.getX(), pos.getY(), pos.getZ(), playerId);
             Grug.destroyEntity(blockHandle);
 

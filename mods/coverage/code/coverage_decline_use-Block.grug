@@ -1,0 +1,8 @@
+# Fixture block for coverage: its use export declines every click, as the wooden pipe's does without the wrench.
+export init() {
+    set_material("stone")
+}
+
+export use(world: Level, x: number, y: number, z: number, player: Player) {
+    decline_use()
+}
