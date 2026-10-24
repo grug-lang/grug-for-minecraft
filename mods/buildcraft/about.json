@@ -125,11 +125,6 @@
 					"tracking_issue": 340
 				},
 				{
-					"what": "The redstone engine cannot be rotated with a wrench to the next side that has a power receiver, as the reference's wrench does.",
-					"why": "The engine already picks its facing when it first ticks and is drawn along it, but rotating it needs the block to know which item the player holds (#403) and a wrench item, and the port has neither.",
-					"tracking_issue": 368
-				},
-				{
 					"what": "On b1.7.3-stationapi the redstone engine's item is drawn with the game's per-face shading, where 2.2.14's item render and the port on every other loader draw it with GL lighting off. The plate sits at the reference's progress 0.25 everywhere.",
 					"why": "StationAPI draws a baked item model with fixed-function lighting, and only turns that off for a model whose GUI light is not side lit. The port draws the engine's item through that renderer rather than the loader's own item renderer, so it cannot turn the lighting off without mixing into StationAPI's renderer.",
 					"tracking_issue": 386
