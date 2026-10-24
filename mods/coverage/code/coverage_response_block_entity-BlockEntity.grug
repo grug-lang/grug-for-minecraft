@@ -1,0 +1,80 @@
+# Answers a pipe the way a test tells it to, for the tests of the response classes. A test saves a
+# mode under "extract_mode" or "add_mode" and the exports behave accordingly:
+#   0 refuses
+#   1 answers with the slot and amount the test saved under "slot" and "amount"
+#   2 gives the crafting result (extract_item only)
+#   3 answers twice with different answers
+#   4 answers twice with the same answer
+#   5 returns without answering
+#   6 answers, and keeps the response so that on_neighbor_change can use it after the call
+# What the last call was asked is saved under "seen_remove", "seen_add" and "seen_side".
+level: Level = me.level()
+
+kept_extract: Option[ExtractResponse] = Option.new()
+kept_add: Option[AddResponse] = Option.new()
+
+export extract_item(from_side: number, remove: bool, response: ExtractResponse) {
+    me.set_saved_number("seen_side", from_side)
+    if remove {
+        me.set_saved_number("seen_remove", 1)
+    } else {
+        me.set_saved_number("seen_remove", 0)
+    }
+
+    mode: number = me.get_saved_number("extract_mode")
+    if mode == 1 {
+        response.give_from_slot(me.get_saved_number("slot"), me.get_saved_number("amount"))
+    } else if mode == 2 {
+        response.give_crafting_result()
+    } else if mode == 3 {
+        response.refuse()
+        response.give_from_slot(0, 1)
+    } else if mode == 4 {
+        response.refuse()
+        response.refuse()
+    } else if mode == 5 {
+        # Deliberately says nothing.
+    } else if mode == 6 {
+        kept_extract.set(response)
+        response.refuse()
+    } else {
+        response.refuse()
+    }
+}
+
+export add_item(item: Item, damage: number, count: number, from_side: number, add: bool, response: AddResponse) {
+    me.set_saved_number("seen_side", from_side)
+    if add {
+        me.set_saved_number("seen_add", 1)
+    } else {
+        me.set_saved_number("seen_add", 0)
+    }
+
+    mode: number = me.get_saved_number("add_mode")
+    if mode == 1 {
+        response.accept_into_slot(me.get_saved_number("slot"))
+    } else if mode == 3 {
+        response.refuse()
+        response.accept_into_slot(0)
+    } else if mode == 4 {
+        response.refuse()
+        response.refuse()
+    } else if mode == 5 {
+        # Deliberately says nothing.
+    } else if mode == 6 {
+        kept_add.set(response)
+        response.refuse()
+    } else {
+        response.refuse()
+    }
+}
+
+# Uses the responses the exports kept, after those calls have returned.
+export on_neighbor_change() {
+    if kept_extract.has() {
+        kept_extract.unwrap().refuse()
+    }
+    if kept_add.has() {
+        kept_add.unwrap().refuse()
+    }
+}

@@ -190,6 +190,30 @@ public interface ModLoaderAdapter {
      */
     Object getResultStack(Object blockEntityObj);
 
+    /** How many items a stack holds, for {@link #getResultStack} to read. */
+    double getStackCount(Object stackObj);
+
+    /**
+     * The grug entity handle of a block entity, or 0 when it is not a grug block entity. The host
+     * calls a block entity's exports through it, which is how a pipe asks a neighbour per side and
+     * per item.
+     */
+    long getGrugEntityHandle(Object blockEntityObj);
+
+    /**
+     * Puts up to {@code amount} of an item into one inventory slot, as many as the slot has room
+     * for, and returns how many went in. The slot is not checked against any declared slot range,
+     * because the block entity that named it has already decided. With {@code commit} false it only
+     * answers how many would fit and changes nothing.
+     */
+    double insertItemIntoSlot(
+            Object blockEntityObj,
+            double slot,
+            Object itemObj,
+            double damage,
+            double amount,
+            boolean commit);
+
     /** The Item in a result stack, for {@link #getResultStack} to read. */
     Object getStackItem(Object stackObj);
 

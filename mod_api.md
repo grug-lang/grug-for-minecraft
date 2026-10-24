@@ -8,6 +8,8 @@ export on_break(world: Level, x: number, y: number, z: number)
 export use(world: Level, x: number, y: number, z: number, player: Player)
 
 ## BlockEntity
+export add_item(item: Item, damage: number, count: number, from_side: number, add: bool, response: AddResponse)
+export extract_item(from_side: number, remove: bool, response: ExtractResponse)
 export init()
 export item_extracted(slot: number, amount: number)
 export item_inserted(slot: number, amount: number)
@@ -15,11 +17,14 @@ export on_neighbor_change()
 export output_taken(amount: number)
 export render()
 export tick()
+.add_item(item: Item, damage: number, count: number, from_side: number, add: bool) number
+.ask_extract_item(from_side: number) number
 .block_pos() BlockPos
 .consume_crafting_ingredients(start_slot: number)
 .count_item_in_inventory(item: Item, damage: number) number
 .extract_energy(max: number) number
 .extract_item_from_inventory(item: Item, damage: number, amount: number) number
+.extract_item_into(destination: BlockEntity, destination_slot: number, from_side: number) number
 .get_crafting_result_damage() number
 .get_crafting_result_item() Option[Item]
 .get_energy_stored() number
@@ -79,6 +84,10 @@ Test.world_settled() bool
 
 # Classes
 
+## AddResponse
+.accept_into_slot(slot: number)
+.refuse()
+
 ## BlockPos
 .above_n(n: number) BlockPos
 .center() Vec3
@@ -89,6 +98,11 @@ Color.rgb(r: number, g: number, b: number) Color
 ## Entity
 .set_delta_movement(vec3: Vec3)
 .spawn(level: Level)
+
+## ExtractResponse
+.give_crafting_result()
+.give_from_slot(slot: number, amount: number)
+.refuse()
 
 ## GUI
 .add_crafting_grid(start_slot: number, x: number, y: number)

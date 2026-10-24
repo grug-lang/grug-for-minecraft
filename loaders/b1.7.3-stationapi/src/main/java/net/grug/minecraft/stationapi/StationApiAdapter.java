@@ -293,6 +293,51 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double getStackCount(Object stackObj) {
+        return ((ItemStack) stackObj).count;
+    }
+
+    @Override
+    public long getGrugEntityHandle(Object blockEntityObj) {
+        if (blockEntityObj instanceof GrugBlockEntity) {
+            return ((GrugBlockEntity) blockEntityObj).getGrugEntityHandle();
+        }
+        return 0;
+    }
+
+    @Override
+    public double insertItemIntoSlot(
+            Object blockEntityObj,
+            double slot,
+            Object itemObj,
+            double damage,
+            double amount,
+            boolean commit) {
+        Inventory inv = (Inventory) blockEntityObj;
+        Item item = (Item) itemObj;
+        int meta = (int) damage;
+        int maxSize = new ItemStack(item, 1, meta).getMaxCount();
+        ItemStack stack = inv.getStack((int) slot);
+        int room;
+        if (stack == null) {
+            room = maxSize;
+        } else if (stack.getItem() == item && stack.getDamage() == meta) {
+            room = maxSize - stack.count;
+        } else {
+            room = 0;
+        }
+        int add = Math.min(Math.max(room, 0), (int) amount);
+        if (commit && add > 0) {
+            if (stack == null) {
+                inv.setStack((int) slot, new ItemStack(item, add, meta));
+            } else {
+                stack.count += add;
+            }
+        }
+        return add;
+    }
+
+    @Override
     public double takeCraftingResult(Object blockEntityObj, double amount) {
         if (blockEntityObj instanceof GrugBlockEntity gbe) {
             ItemStack removed = gbe.takeResultStack((int) amount);

@@ -226,6 +226,53 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double getStackCount(Object stackObj) {
+        return ((ItemStack) stackObj).stackSize;
+    }
+
+    @Override
+    public long getGrugEntityHandle(Object blockEntityObj) {
+        if (blockEntityObj instanceof GrugBlockEntity) {
+            return ((GrugBlockEntity) blockEntityObj).getGrugEntityHandle();
+        }
+        return 0;
+    }
+
+    @Override
+    public double insertItemIntoSlot(
+            Object blockEntityObj,
+            double slot,
+            Object itemObj,
+            double damage,
+            double amount,
+            boolean commit) {
+        IInventory inventory = (IInventory) blockEntityObj;
+        Item item = (Item) itemObj;
+        int meta = (int) damage;
+        int maxStack = item.getItemStackLimit();
+        ItemStack stack = inventory.getStackInSlot((int) slot);
+        int room;
+        if (stack == null) {
+            room = maxStack;
+        } else if (stack.getItem() == item && stack.getItemDamage() == meta) {
+            room = maxStack - stack.stackSize;
+        } else {
+            room = 0;
+        }
+        int add = Math.min(Math.max(room, 0), (int) amount);
+        if (commit && add > 0) {
+            if (stack == null) {
+                ItemStack created = new ItemStack(item, add);
+                created.setItemDamage(meta);
+                inventory.setInventorySlotContents((int) slot, created);
+            } else {
+                stack.stackSize += add;
+            }
+        }
+        return add;
+    }
+
+    @Override
     public double takeCraftingResult(Object blockEntityObj, double amount) {
         if (blockEntityObj instanceof GrugBlockEntity) {
             GrugBlockEntity gbe = (GrugBlockEntity) blockEntityObj;

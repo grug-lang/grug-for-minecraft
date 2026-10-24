@@ -138,6 +138,72 @@
 					]
 				},
 				{
+					"name": "extract_item",
+					"description": "Called when a pipe asks this block entity for an item, which is BuildCraft's ISpecialInventory.extractItem. The block entity decides what it hands out, per side, and answers through the response: give_from_slot, give_crafting_result or refuse. from_side is the side of this block entity the pipe is on, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east. remove is false when the pipe only wants to know what it would get, and true when the host is about to move the items, which it does itself after the export returns. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err. A block entity without this export is asked by its declared extractable slots instead.",
+					"parameters": [
+						{
+							"name": "from_side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "remove",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "response",
+							"type": {
+								"name": "ExtractResponse"
+							}
+						}
+					]
+				},
+				{
+					"name": "add_item",
+					"description": "Called when a pipe asks this block entity to take an item, which is BuildCraft's ISpecialInventory.addItem. The block entity decides per side and per item, and answers through the response: accept_into_slot or refuse. The host puts as many of the items into the named slot as fit, and asks again with the rest until the stack is in or the block entity refuses. from_side is the side of this block entity the pipe is on, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east. add is false when the pipe only wants to know whether it would be taken, and true when the host is about to move the items. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err. A block entity without this export is filled by its declared insertable slots instead.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
+						{
+							"name": "damage",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "count",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "from_side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "add",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "response",
+							"type": {
+								"name": "AddResponse"
+							}
+						}
+					]
+				},
+				{
 					"name": "render",
 					"description": "Called by the game when it builds this block's geometry, for a block whose init() called `set_custom_render`. Everything drawn here replaces the block's usual model, so a machine can draw a shape no model JSON describes: pipes that join up to their neighbours, animated parts, anything conditional on the world. Build the shape with `draw_box`. The game calls this again whenever it rebuilds the geometry, which includes every neighbouring block change, so read the neighbours here rather than caching the shape in a member variable. A block that declares `set_custom_render` and draws nothing reports an error, because nothing on screen is not a shape anyone chose.",
 					"engine_called": true
@@ -149,6 +215,58 @@
 				}
 			],
 			"methods": {
+				"add_item": {
+					"description": "Offers items to this block entity through its add_item export, as a pipe on from_side does. The block entity names the slot, the host puts in as many as fit, and it asks again with the rest until the stack is in or the block entity refuses. Answers how many items went in, and -1 when the block entity has no add_item export. With add false it asks once and changes nothing, answering how many would fit.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
+						{
+							"name": "damage",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "count",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "from_side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "add",
+							"type": {
+								"name": "bool"
+							}
+						}
+					]
+				},
+				"ask_extract_item": {
+					"description": "Asks this block entity how many items a pipe on from_side would get from it, through its extract_item export, and takes nothing. Answers -1 when the block entity has no extract_item export, 0 when it refuses, and otherwise how many items it would hand out, so a caller can tell a block entity that decides for itself from one it has to read slot by slot.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "from_side",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"block_pos": {
 					"description": "Gets the world position of a BlockEntity.",
 					"return_type": {
@@ -220,6 +338,32 @@
 						},
 						{
 							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"extract_item_into": {
+					"description": "Takes what this block entity's extract_item export hands a pipe on from_side and puts it in a slot of the destination, which has to be empty. The block entity decides what and how many; the host moves them, and fires the usual item_extracted and output_taken exports. Answers how many items moved, 0 when the block entity refused, and -1 when it has no extract_item export.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "destination",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "destination_slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "from_side",
 							"type": {
 								"name": "number"
 							}
@@ -1554,6 +1698,53 @@
 							}
 						]
 					}
+				}
+			}
+		},
+		"ExtractResponse": {
+			"description": "The answer to a pipe asking a block entity for an item, passed to its extract_item export. It is only valid during that call, it is answered once, and a second answer is an err even when it repeats the first. An export that returns without answering is an err too, so refusing is always an explicit refuse().",
+			"methods": {
+				"give_crafting_result": {
+					"description": "Hands the pipe this block entity's whole crafting result, whatever its stack size, as BuildCraft's autocrafting table does. When the block entity has no result, nothing is given."
+				},
+				"give_from_slot": {
+					"description": "Hands the pipe up to amount items from one inventory slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"refuse": {
+					"description": "Hands the pipe nothing."
+				}
+			}
+		},
+		"AddResponse": {
+			"description": "The answer to a pipe offering a block entity an item, passed to its add_item export. It is only valid during that call, it is answered once, and a second answer is an err even when it repeats the first. An export that returns without answering is an err too, so refusing is always an explicit refuse().",
+			"methods": {
+				"accept_into_slot": {
+					"description": "Takes the items into one inventory slot, as many as fit. The host asks again with the rest.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"refuse": {
+					"description": "Takes nothing."
 				}
 			}
 		}

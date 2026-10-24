@@ -115,11 +115,6 @@
 					"tracking_issue": 473
 				},
 				{
-					"what": "Which slots of an inventory another block may use is a slot range the block entity declares, rather than the reference's side-aware ISpecialInventory, and a machine's crafting result is pulled by a wooden pipe one item at a time, spending 1 energy for it, where ISpecialInventory.extractItem hands the pipe whatever the machine decides and spends no energy.",
-					"why": "The reference asks the neighbour inventory itself, per side and per item (ISpecialInventory.addItem and extractItem), and PipeItemsWood.checkExtract takes that answer as it is without using energy. grug exports can only be called by the host and cannot return a value, so the rule is declared to the host instead and read back with is_slot_extractable, and the pipe takes the crafting result through take_crafting_result, one item at a time, with the energy of a plain slot.",
-					"tracking_issue": 340
-				},
-				{
 					"what": "On b1.7.3-stationapi the redstone engine's item is drawn with the game's per-face shading, where 2.2.14's item render and the port on every other loader draw it with GL lighting off. The plate sits at the reference's progress 0.25 everywhere.",
 					"why": "StationAPI draws a baked item model with fixed-function lighting, and only turns that off for a model whose GUI light is not side lit. The port draws the engine's item through that renderer rather than the loader's own item renderer, so it cannot turn the lighting off without mixing into StationAPI's renderer.",
 					"tracking_issue": 386
