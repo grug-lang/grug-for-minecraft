@@ -9,8 +9,8 @@ package net.grug.minecraft.grug;
  * <ol>
  *   <li>It is only valid during the call it was passed to.
  *   <li>It is answered at most once, and a second answer is an err even when it repeats the first.
- *   <li>It has to be answered: an export that returns without answering is an err raised by the host
- *       that called it.
+ *   <li>It has to be answered: an export that returns without answering is an err raised by the
+ *       host that called it.
  * </ol>
  *
  * <p>A response class builds on this by calling {@link #beginAnswer} first in each of its answering

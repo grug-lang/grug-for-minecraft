@@ -50,4 +50,10 @@ export run() {
     plain: BlockEntity = destination
     Test.assert(plain.ask_extract_item(0) == -1, "A block entity without the export should answer -1.")
     Test.assert(plain.extract_item_into(source, 2, 0) == -1, "A block entity without the export should move nothing.")
+
+    # A vanilla chest has no grug script at all, so it decides nothing for itself either.
+    level.place_block(x + 2, y, z, "minecraft:chest")
+    chest: BlockEntity = level.get_block_entity(x + 2, y, z).unwrap()
+    Test.assert(chest.ask_extract_item(0) == -1, "A chest should answer -1.")
+    Test.assert(chest.extract_item_into(source, 2, 0) == -1, "A chest should move nothing.")
 }
