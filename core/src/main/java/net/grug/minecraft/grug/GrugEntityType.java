@@ -1,11 +1,13 @@
 package net.grug.minecraft.grug;
 
 public enum GrugEntityType {
+    AddResponse,
     Block,
     BlockEntity,
     BlockPos,
     Color,
     Entity,
+    ExtractResponse,
     GUI,
     Item,
     ItemEntity,

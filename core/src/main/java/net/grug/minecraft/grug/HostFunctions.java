@@ -299,6 +299,36 @@ public class HostFunctions {
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot);
     }
 
+    public static double BlockEntity_ask_extract_item(long blockEntityId, double fromSide) {
+        return GrugSpecialInventory.askExtract(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), fromSide);
+    }
+
+    public static double BlockEntity_extract_item_into(
+            long blockEntityId, long destinationId, double destinationSlot, double fromSide) {
+        return GrugSpecialInventory.extractInto(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                HostFunctionHelpers.resolveBlockEntity(destinationId),
+                destinationSlot,
+                fromSide);
+    }
+
+    public static double BlockEntity_add_item(
+            long blockEntityId,
+            long itemId,
+            double damage,
+            double count,
+            double fromSide,
+            boolean add) {
+        return GrugSpecialInventory.addItem(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                itemId,
+                damage,
+                count,
+                fromSide,
+                add);
+    }
+
     public static void BlockEntity_consume_crafting_ingredients(
             long blockEntityId, double startSlot) {
         GrugCore.getAdapter()
@@ -534,6 +564,27 @@ public class HostFunctions {
     }
 
     // Classes
+
+    public static void ExtractResponse_refuse(long responseId) {
+        ((ExtractResponse) GrugEntities.entityData.get(responseId).object).refuse();
+    }
+
+    public static void ExtractResponse_give_from_slot(long responseId, double slot, double amount) {
+        ((ExtractResponse) GrugEntities.entityData.get(responseId).object)
+                .giveFromSlot(slot, amount);
+    }
+
+    public static void ExtractResponse_give_crafting_result(long responseId) {
+        ((ExtractResponse) GrugEntities.entityData.get(responseId).object).giveCraftingResult();
+    }
+
+    public static void AddResponse_refuse(long responseId) {
+        ((AddResponse) GrugEntities.entityData.get(responseId).object).refuse();
+    }
+
+    public static void AddResponse_accept_into_slot(long responseId, double slot) {
+        ((AddResponse) GrugEntities.entityData.get(responseId).object).acceptIntoSlot(slot);
+    }
 
     public static long BlockPos_above_n(long blockPosId, double n) {
         BlockPos pos = (BlockPos) GrugEntities.entityData.get(blockPosId).object;

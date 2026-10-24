@@ -6,19 +6,43 @@ x: number = center.x()
 y: number = center.y()
 z: number = center.z()
 
-# Which of this table's slots another block may use, mirroring the reference's ISpecialInventory: it
-# takes the crafting result and fills the recipe grid, and never the ingredients the table is
-# crafting from. The result sits one slot past the inventory, because it is not an inventory slot.
-# This is declared in init() rather than in member scope, which can only declare. init() runs when
-# this block entity's grug entity is created, which on 1.20.6 is when the block is placed but on the
-# other loaders is its first tick, so the rule is not necessarily in place the moment the table
-# appears. That is tracked as its own issue rather than worked around here: a pipe beside the table
-# re-picks what it pulls from every tick, so it settles once this has run either way.
-result_slot: number = me.get_inventory_size()
+# What a pipe may take from this table and put into it, mirroring the reference's ISpecialInventory:
+# the table hands out its crafting result as a whole stack, from any side, and never the ingredients
+# it is crafting from (TileAutoWorkbench.extractItem), and it takes an item only into the slot that
+# already holds the same item with the fewest of them, so a recipe grid is filled by hand and topped
+# up by pipes (TileAutoWorkbench.addItem).
+export extract_item(from_side: number, remove: bool, response: ExtractResponse) {
+    if me.get_crafting_result_item().has() {
+        response.give_crafting_result()
+    } else {
+        response.refuse()
+    }
+}
 
-export init() {
-    me.set_extractable_slots(result_slot, result_slot)
-    me.set_insertable_slots(0, result_slot - 1)
+export add_item(item: Item, damage: number, count: number, from_side: number, add: bool, response: AddResponse) {
+    best: number = -1
+    best_count: number = 2147483647
+
+    slot: number = 0
+    while slot < 9 {
+        slot_count: number = me.get_item_count_in_slot(slot)
+        if slot_count > 0 and slot_count < best_count {
+            slot_item: Option[Item] = me.get_item_in_slot(slot)
+            if slot_item.has() {
+                if equals(slot_item.unwrap(), item) and me.get_item_damage_in_slot(slot) == damage {
+                    best = slot
+                    best_count = slot_count
+                }
+            }
+        }
+        slot = slot + 1
+    }
+
+    if best < 0 {
+        response.refuse()
+    } else {
+        response.accept_into_slot(best)
+    }
 }
 
 export item_extracted(slot: number, amount: number) {

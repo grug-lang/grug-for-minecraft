@@ -150,6 +150,7 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   settle has a condition, so wait on it even when the condition is awkward to name.
 - `tolerance()` is a last resort for a rendering difference that cannot be fixed, never for a flaky
   capture. Each call needs a comment linking its tracking issue.
+- Every response class in `mod_api.json` (a class the host passes to an export so it can answer, such as `ExtractResponse`) needs four tests in `mods/coverage/`, one per rule of `GrugResponse`: using the response after the export returned, answering twice with different answers, answering twice with the same answer, and returning without an answer. The base class enforces the rules once, so each class's tests prove it is wired to it.
 - A fix for a defect that a failing or flaky run found ships with a test that fails without it, in
   the same pull request. Runs that pass afterwards are not evidence for a defect that failed one run
   in three. Prefer a grug test in `mods/coverage/`, as for coverage above: it runs on every loader,

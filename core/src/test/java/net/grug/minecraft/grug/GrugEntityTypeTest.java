@@ -18,7 +18,7 @@ class GrugEntityTypeTest {
 
     @Test
     void getMatchesTheFirstAndLastTypes() {
-        assertEquals(GrugEntityType.Block, GrugEntityType.get(0));
+        assertEquals(GrugEntityType.AddResponse, GrugEntityType.get(0));
         assertEquals(
                 GrugEntityType.values()[GrugEntityType.values().length - 1],
                 GrugEntityType.get(GrugEntityType.values().length - 1));

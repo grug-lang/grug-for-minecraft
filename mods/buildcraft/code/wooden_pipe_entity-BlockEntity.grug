@@ -4,8 +4,11 @@
 # or drops it when nothing accepts it. This is PipeItemsWood.doWork with the energy of its power
 # provider, which the energy host functions model: the pipe is an energy receiver that holds at most
 # 64 and loses 64 on every tick, so what it does not spend on the tick it arrives is gone.
-# Which slots of that inventory the pipe may touch is the inventory's own rule, asked through
-# is_slot_extractable, so a machine can offer a pipe its output and keep its ingredients to itself.
+# What the pipe may touch of that inventory is the inventory's own rule. A machine that defines the
+# extract_item and add_item exports, as ISpecialInventory does in the reference, decides per side and
+# per item what it hands the pipe and what it takes from it, and the pipe spends no energy on what it
+# is handed. Any other inventory is read slot by slot through is_slot_extractable, which is what
+# checkExtractGeneric does.
 # This is not the full old BuildCraft pipe: it has no travelling item entity and no connection
 # matrix. Instead it is one-slot buffered, it prefers a real inventory over another pipe so a chain
 # of pipes feeds forward, and it only ever extracts from one side, so it cannot pump the same item
@@ -92,7 +95,7 @@ local _switch_source_if_needed() {
         _switch_source()
         return
     }
-    if not _is_inventory(_neighbor_x(meta), _neighbor_y(meta), _neighbor_z(meta)) {
+    if not _is_inventory(meta) {
         _switch_source()
     }
 }
@@ -105,7 +108,7 @@ local _switch_source() {
     i: number = meta + 1
     while i <= meta + 6 {
         side: number = Math.remainder(i, 6)
-        if _is_inventory(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side)) {
+        if _is_inventory(side) {
             _set_meta(side)
             return
         }
@@ -127,7 +130,10 @@ local _set_meta(meta: number) {
     me.set_saved_number("source", meta + 1)
 }
 
-local _is_inventory(nx: number, ny: number, nz: number) bool {
+local _is_inventory(side: number) bool {
+    nx: number = _neighbor_x(side)
+    ny: number = _neighbor_y(side)
+    nz: number = _neighbor_z(side)
     if _is_pipe(nx, ny, nz) {
         return false
     }
@@ -136,14 +142,29 @@ local _is_inventory(nx: number, ny: number, nz: number) bool {
     if not neighbor_opt.has() {
         return false
     }
-    return _has_extractable_slot(neighbor_opt.unwrap())
+    return _has_extractable_slot(neighbor_opt.unwrap(), _reverse(side))
+}
+
+# The side of a neighbour that faces the pipe, given the side of the pipe the neighbour is on. The
+# sides pair up as 0 and 1, 2 and 3, 4 and 5, like Orientations.reverse.
+local _reverse(side: number) number {
+    if Math.remainder(side, 2) == 0 {
+        return side + 1
+    }
+    return side - 1
 }
 
 # Whether this inventory offers a pipe anything. The slot after the last inventory slot is the
 # crafting result, which is not an inventory slot but is what a machine like the autocrafting table
 # offers, and an inventory with no slots at all offers nothing, which is what keeps the redstone
 # engine out of the pipe's way.
-local _has_extractable_slot(neighbor: BlockEntity) bool {
+local _has_extractable_slot(neighbor: BlockEntity, from_side: number) bool {
+    # A machine that answers for itself is a source whatever it holds right now, as every inventory
+    # is in the reference. Asking takes nothing.
+    if neighbor.ask_extract_item(from_side) >= 0 {
+        return true
+    }
+
     size: number = neighbor.get_inventory_size()
     if size <= 0 {
         return false
@@ -186,6 +207,18 @@ local _pull_from(nx: number, ny: number, nz: number) bool {
     }
 
     neighbor: BlockEntity = neighbor_opt.unwrap()
+
+    # A machine that answers for itself hands over whatever it decides, as ISpecialInventory's
+    # extractItem does, and the pipe spends no energy on it.
+    from_side: number = _reverse(_input_side())
+    offered: number = neighbor.ask_extract_item(from_side)
+    if offered >= 0 {
+        if offered == 0 {
+            return false
+        }
+        return neighbor.extract_item_into(me, 0, from_side) > 0
+    }
+
     size: number = neighbor.get_inventory_size()
     slot: number = 0
     while slot <= size {
@@ -236,8 +269,8 @@ local _take_from(neighbor: BlockEntity, slot: number, size: number) bool {
     return true
 }
 
-# A machine's crafting result is not a slot with a stack to size the pull by. In the reference it is an
-# ISpecialInventory's extractItem, which spends no energy at all, so the port keeps pulling one item
+# A machine's crafting result that is offered as an extractable slot, rather than answered through
+# the extract_item export, is not a slot with a stack to size the pull by, so the pipe pulls one item
 # of it at a time and spends one energy for it.
 local _take_crafting_result(neighbor: BlockEntity) bool {
     result_opt: Option[Item] = neighbor.get_crafting_result_item()
@@ -269,7 +302,7 @@ local _push_to_inventory(item: Item) bool {
             ny: number = _neighbor_y(side)
             nz: number = _neighbor_z(side)
             if not _is_pipe(nx, ny, nz) {
-                if _try_insert(nx, ny, nz, item) {
+                if _try_insert(nx, ny, nz, side, item) {
                     return true
                 }
             }
@@ -288,7 +321,7 @@ local _push_to_pipe(item: Item) bool {
             ny: number = _neighbor_y(side)
             nz: number = _neighbor_z(side)
             if _is_pipe(nx, ny, nz) {
-                if _try_insert(nx, ny, nz, item) {
+                if _try_insert(nx, ny, nz, side, item) {
                     return true
                 }
             }
@@ -300,7 +333,7 @@ local _push_to_pipe(item: Item) bool {
 
 # Pushes the whole stack the pipe carries and keeps what the neighbour had no room for, which is
 # pushed on the next tick, to this neighbour or another.
-local _try_insert(nx: number, ny: number, nz: number, item: Item) bool {
+local _try_insert(nx: number, ny: number, nz: number, side: number, item: Item) bool {
     neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
     if not neighbor_opt.has() {
         return false
@@ -308,7 +341,14 @@ local _try_insert(nx: number, ny: number, nz: number, item: Item) bool {
 
     neighbor: BlockEntity = neighbor_opt.unwrap()
     count: number = me.get_item_count_in_slot(0)
-    inserted: number = neighbor.insert_item_into_inventory(item, me.get_item_damage_in_slot(0), count)
+    damage: number = me.get_item_damage_in_slot(0)
+
+    # A machine that answers for itself names the slot per item, like ISpecialInventory's addItem,
+    # and answers -1 when it does not, which leaves the inventory's declared slots to decide.
+    inserted: number = neighbor.add_item(item, damage, count, _reverse(side), true)
+    if inserted < 0 {
+        inserted = neighbor.insert_item_into_inventory(item, damage, count)
+    }
     if inserted == 0 {
         return false
     }

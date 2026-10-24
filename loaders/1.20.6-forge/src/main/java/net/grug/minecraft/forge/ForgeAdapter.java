@@ -284,6 +284,53 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double getStackCount(Object stackObj) {
+        return ((ItemStack) stackObj).getCount();
+    }
+
+    @Override
+    public long getGrugEntityHandle(Object blockEntityObj) {
+        if (blockEntityObj instanceof GrugBlockEntity) {
+            return ((GrugBlockEntity) blockEntityObj).getGrugEntityHandle();
+        }
+        return 0;
+    }
+
+    @Override
+    public double insertItemIntoSlot(
+            Object blockEntityObj,
+            double slot,
+            Object itemObj,
+            double damage,
+            double amount,
+            boolean commit) {
+        Container inv = (Container) blockEntityObj;
+        Item item = (Item) itemObj;
+        int meta = (int) damage;
+        int maxSize = new ItemStack(item).getMaxStackSize();
+        ItemStack stack = inv.getItem((int) slot);
+        int room;
+        if (stack.isEmpty()) {
+            room = maxSize;
+        } else if (stack.is(item) && stack.getDamageValue() == meta) {
+            room = maxSize - stack.getCount();
+        } else {
+            room = 0;
+        }
+        int add = Math.min(Math.max(room, 0), (int) amount);
+        if (commit && add > 0) {
+            if (stack.isEmpty()) {
+                ItemStack created = new ItemStack(item, add);
+                created.setDamageValue(meta);
+                inv.setItem((int) slot, created);
+            } else {
+                stack.grow(add);
+            }
+        }
+        return add;
+    }
+
+    @Override
     public double takeCraftingResult(Object blockEntityObj, double amount) {
         if (blockEntityObj instanceof GrugBlockEntity gbe) {
             ItemStack removed = gbe.takeResultStack((int) amount);

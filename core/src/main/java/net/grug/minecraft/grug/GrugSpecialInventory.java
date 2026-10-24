@@ -1,0 +1,192 @@
+package net.grug.minecraft.grug;
+
+import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.ModLoaderAdapter;
+
+/**
+ * Asks a block entity's {@code extract_item} and {@code add_item} exports what a pipe may take from
+ * it and put into it, and moves the items itself, as BuildCraft 2.2.14 does with {@code
+ * ISpecialInventory}: the block entity decides per side and per item, the host performs the move.
+ *
+ * <p>Every method returns {@link #NO_EXPORT} when the block entity does not define the export, so a
+ * caller can fall back to the slot ranges the block entity declared.
+ *
+ * <p>An export that returns false did not run, either because the script has no such export or
+ * because it hit an err, which was reported already. Both leave the block entity unasked.
+ */
+final class GrugSpecialInventory {
+    static final double NO_EXPORT = -1;
+
+    private GrugSpecialInventory() {}
+
+    /** How many items a pipe on {@code fromSide} would get, without taking any. */
+    static double askExtract(Object blockEntity, double fromSide) {
+        ExtractResponse response = callExtract(blockEntity, fromSide, false);
+        if (response == null) {
+            return NO_EXPORT;
+        }
+        return available(blockEntity, response);
+    }
+
+    /**
+     * Takes what the block entity gives a pipe on {@code fromSide} and puts it in the destination's
+     * slot, which has to be empty. Returns how many items moved.
+     */
+    static double extractInto(
+            Object blockEntity, Object destination, double destinationSlot, double fromSide) {
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        if (adapter.getItemCountInSlot(destination, destinationSlot) != 0) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "BlockEntity.extract_item_into: slot "
+                            + (int) destinationSlot
+                            + " of the destination is not empty.");
+            return 0;
+        }
+        ExtractResponse response = callExtract(blockEntity, fromSide, true);
+        if (response == null) {
+            return NO_EXPORT;
+        }
+        double count = available(blockEntity, response);
+        if (count == 0) {
+            return 0;
+        }
+
+        Object item;
+        double damage;
+        double taken;
+        if (response.kind() == ExtractResponse.Kind.CRAFTING_RESULT) {
+            Object stack = adapter.getResultStack(blockEntity);
+            item = adapter.getStackItem(stack);
+            damage = adapter.getStackDamage(stack);
+            taken = adapter.takeCraftingResult(blockEntity, count);
+        } else {
+            item = adapter.getItemInSlot(blockEntity, response.slot());
+            damage = adapter.getItemDamageInSlot(blockEntity, response.slot());
+            taken = adapter.takeItemFromSlot(blockEntity, response.slot(), count);
+        }
+        if (taken > 0) {
+            adapter.setItemInSlot(destination, destinationSlot, item, taken);
+            adapter.setItemDamageInSlot(destination, destinationSlot, damage);
+        }
+        return taken;
+    }
+
+    /**
+     * Puts an item into the block entity as it answers, one slot at a time until the stack is in or
+     * the block entity refuses, and returns how many went in. With {@code add} false it asks once
+     * and changes nothing.
+     */
+    static double addItem(
+            Object blockEntity,
+            long itemId,
+            double damage,
+            double count,
+            double fromSide,
+            boolean add) {
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        Object item = GrugEntities.entityData.get(itemId).object;
+        double remaining = count;
+        double total = 0;
+        while (remaining > 0) {
+            AddResponse response = callAdd(blockEntity, itemId, damage, remaining, fromSide, add);
+            if (response == null) {
+                return total == 0 && remaining == count ? NO_EXPORT : total;
+            }
+            if (response.refused() || !validSlot(blockEntity, response.slot(), "add_item")) {
+                break;
+            }
+            double moved =
+                    adapter.insertItemIntoSlot(
+                            blockEntity, response.slot(), item, damage, remaining, add);
+            total += moved;
+            remaining -= moved;
+            if (!add || moved == 0) {
+                break;
+            }
+        }
+        return total;
+    }
+
+    private static double available(Object blockEntity, ExtractResponse response) {
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        switch (response.kind()) {
+            case SLOT:
+                if (!validSlot(blockEntity, response.slot(), "extract_item")) {
+                    return 0;
+                }
+                return Math.min(
+                        response.amount(), adapter.getItemCountInSlot(blockEntity, response.slot()));
+            case CRAFTING_RESULT:
+                Object stack = adapter.getResultStack(blockEntity);
+                return stack == null ? 0 : adapter.getStackCount(stack);
+            default:
+                return 0;
+        }
+    }
+
+    private static boolean validSlot(Object blockEntity, int slot, String export) {
+        double size = GrugCore.getAdapter().getInventorySize(blockEntity);
+        if (slot < 0 || slot >= size) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    export
+                            + " named slot "
+                            + slot
+                            + ", but the inventory has slots 0 to "
+                            + ((int) size - 1)
+                            + ".");
+            return false;
+        }
+        return true;
+    }
+
+    /** The response the export gave, or null when the block entity did not run the export. */
+    private static ExtractResponse callExtract(Object blockEntity, double fromSide, boolean remove) {
+        long handle = GrugCore.getAdapter().getGrugEntityHandle(blockEntity);
+        if (handle == 0) {
+            return null;
+        }
+        ExtractResponse response = new ExtractResponse();
+        long responseId = GrugEntities.addEntity(GrugEntityType.ExtractResponse, response);
+        if (!ExportFns.BlockEntity_extract_item(handle, fromSide, remove, responseId)) {
+            response.close();
+            return null;
+        }
+        return response.finish() ? response : refusedResponse();
+    }
+
+    private static AddResponse callAdd(
+            Object blockEntity,
+            long itemId,
+            double damage,
+            double count,
+            double fromSide,
+            boolean add) {
+        long handle = GrugCore.getAdapter().getGrugEntityHandle(blockEntity);
+        if (handle == 0) {
+            return null;
+        }
+        AddResponse response = new AddResponse();
+        long responseId = GrugEntities.addEntity(GrugEntityType.AddResponse, response);
+        if (!ExportFns.BlockEntity_add_item(
+                handle, itemId, damage, count, fromSide, add, responseId)) {
+            response.close();
+            return null;
+        }
+        return response.finish() ? response : refused();
+    }
+
+    /** What an export that returned without answering counts as, after the err was reported. */
+    private static ExtractResponse refusedResponse() {
+        ExtractResponse response = new ExtractResponse();
+        response.refuse();
+        return response;
+    }
+
+    private static AddResponse refused() {
+        AddResponse response = new AddResponse();
+        response.refuse();
+        return response;
+    }
+}
