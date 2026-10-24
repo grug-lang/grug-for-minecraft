@@ -1,5 +1,1 @@
 # TODO: Remove this placeholder comment once https://github.com/grug-lang/grug-tests/issues/149 is merged
-# BuildCraft's wrench does nothing by itself: a block that cares tests Player.get_held_item() in its
-# use export, as BlockEngine and PipeLogicWood do in 2.2.14.
-export init() {
-}
