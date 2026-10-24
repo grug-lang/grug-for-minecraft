@@ -7,6 +7,7 @@
 #   4 answers twice with the same answer
 #   5 returns without answering
 #   6 answers, and keeps the response so that on_neighbor_change can use it after the call
+#   8 gives from slot 0 and then gives the crafting result (extract_item only)
 #   7 answers the first time it is asked and errors on every later ask (add_item only)
 # What the last call was asked is saved under "seen_remove", "seen_add" and "seen_side".
 level: Level = me.level()
@@ -43,6 +44,9 @@ export extract_item(from_side: number, remove: bool, response: ExtractResponse) 
     } else if mode == 4 {
         response.refuse()
         response.refuse()
+    } else if mode == 8 {
+        response.give_from_slot(0, 1)
+        response.give_crafting_result()
     } else if mode == 5 {
         # Deliberately says nothing.
     } else if mode == 6 {
