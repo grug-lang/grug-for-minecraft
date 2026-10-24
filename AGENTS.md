@@ -175,6 +175,9 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
 - The one exception is precision: a reference's Java `float` becomes a grug `number`, a 64-bit
   double, because the difference is not perceptible to players. Do not emulate float32 rounding,
   and derive tick counts from float64 arithmetic.
+- When a ported mod has configs, a port reproduces the default config: the values the reference ships
+  with and runs with when nobody edits the file. Where a config comment and the code default
+  disagree, the code default is what players get, so that is what gets ported.
 - Read the reference before inventing a model. BuildCraft 2.2.14 is already decompiled at
   `~/agent-workspaces/buildcraft-2.2.14-src/src`, with the original class files and textures in
   `classes/`; do not decompile it again. The jars are in `~/.technic/modpacks/tekkit/mods/` and
