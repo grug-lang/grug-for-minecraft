@@ -140,24 +140,16 @@ that version resolves, including the two this loader is built against, declare
 A screenshot test compares its capture against the PNGs in the reference directory it names,
 which is `screenshots/` or any directory nested under it in the mod, each PNG named after the
 loader that produced it, so a rendering that none of them represents yet has to be accepted
-explicitly.
+explicitly, from a CI runner's capture: a world capture from a local run can differ slightly. A
+failing job uploads its unmatched capture as `loader-<loader>-screenshots` (the reference job as
+`reference-1.2.5-forge-screenshots`); copy that loader's PNG into the reference directory.
 
-The normal accept is the capture the failing CI job writes. A loader job whose screenshot differs
-uploads `loader-<loader>-screenshots`, and the reference job uploads its own captures. Download the
-artifact and copy that loader's PNG into the reference directory, so the golden is exactly the
-capture the job compared. Never take a world capture from a local run: it can differ slightly from
-the CI runner's.
-
-`update-goldens` is only for a screenshot test with no committed reference yet, which a normal CI
-run refuses to bootstrap:
+The `update-goldens` phase writes every unmatched capture into the reference directory under the
+running loader's name instead of failing, so the new PNGs turn up in `git status` to review:
 
 ```sh
 .github/scripts/run-loader.sh <loader-dir-name> update-goldens
 ```
 
-It writes every unmatched capture into the mod's reference directory under the running loader's
-name, so the new PNGs turn up in `git status` to review and commit; the normal jobs then compare
-against them. The reference's first 1.2.5 golden is bootstrapped the same way, with
-`GRUG_REFERENCE=1`, a harness-only `GRUG_MODS_DIR` and `GRUG_REFERENCE_MODS_DIR` at the staged
-reference mods. The reference's normal run is the `reference` CI job; its failure artifacts carry
-the reference's own captures.
+Use it for a screenshot test with no reference yet, which a normal CI run refuses to bootstrap, or
+on CI when many references change at once, since the suite stops at its first failure.
