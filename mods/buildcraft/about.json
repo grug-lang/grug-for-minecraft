@@ -101,7 +101,7 @@
 			"deviations": [
 				{
 					"what": "The wooden pipe renders as a cube instead of a centre with arms.",
-					"why": "The block-entity rendering hook (set_custom_render) draws a block's own geometry on all five loaders, but the pipe does not use it yet, so it still draws as its cube.",
+					"why": "The block-entity rendering hook (set_custom_render) draws the pipe's cube on all five loaders, so the block is not opaque and the items inside it are lit, but the reference's centre-and-arms shape is not modelled yet.",
 					"tracking_issue": 102
 				},
 				{
