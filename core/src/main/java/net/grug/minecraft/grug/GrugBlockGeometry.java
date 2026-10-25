@@ -138,6 +138,10 @@ public final class GrugBlockGeometry {
      * methods refuse it. It is destroyed in the finally so a fatal raised inside the script cannot
      * leave it behind.
      *
+     * <p>The context and every host entity the export creates are rooted in a list for this call
+     * only. A frame export runs every frame, and a call such as {@code item} inside it would
+     * otherwise add one more entity to the process-wide root list on every frame and keep it alive.
+     *
      * <p>The method as a whole is excluded because the call needs a live grug entity, which only a
      * game has. The guard on the handle is in front of it, in {@link #draw}, and stays measured.
      */
@@ -151,12 +155,16 @@ public final class GrugBlockGeometry {
             return false;
         }
 
-        long contextHandle = GrugEntities.addEntity(GrugEntityType.RenderContext, context);
-        try {
-            Grug.callExportFn(entityHandle, exportFnId, contextHandle);
-        } finally {
-            GrugEntities.removeEntity(contextHandle);
-        }
+        GrugEntities.withFreshOwner(
+                () -> {
+                    long contextHandle =
+                            GrugEntities.addEntity(GrugEntityType.RenderContext, context);
+                    try {
+                        Grug.callExportFn(entityHandle, exportFnId, contextHandle);
+                    } finally {
+                        GrugEntities.removeEntity(contextHandle);
+                    }
+                });
         return true;
     }
 
