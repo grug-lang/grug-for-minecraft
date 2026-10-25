@@ -177,12 +177,22 @@ public class GrugClientHooks implements ITickHandler {
     /** The render distance a run found, put back when the run ends. -1 while no run owns one. */
     private static int savedRenderDistance = -1;
 
+    /** The particle setting a run found, put back with the render distance. */
+    private static int savedParticleSetting = -1;
+
+    /** The game's "Minimal" particle setting, which spawns no ordinary particle at all. */
+    private static final int MINIMAL_PARTICLES = 2;
+
     /**
      * Shrinks the view to the smallest the game allows before a run starts, remembering the old
      * distance. A run's room is at most 17 blocks across, so a default view only streams in far
      * chunks whose light and mesh rebuilds the runner then has to work through, which both slows
      * the run down and, on Beta, makes the frame cost grow across repeats as the world streams in
      * (#422). The run puts the old distance back when it ends. See #444.
+     *
+     * <p>Particles go to minimal for the run too. They come from the world's random, so a capture
+     * with one in it is a different picture on every run, and a reference mod's particles, such as
+     * the redstone engine's (#581), would fail its screenshots at random.
      */
     @GrugGenerated("dev-only: the view is shrunk for a run")
     private static void shrinkViewForRun(Minecraft minecraft) {
@@ -191,6 +201,8 @@ public class GrugClientHooks implements ITickHandler {
         }
         savedRenderDistance = minecraft.gameSettings.renderDistance;
         minecraft.gameSettings.renderDistance = TINY_RENDER_DISTANCE;
+        savedParticleSetting = minecraft.gameSettings.particleSetting;
+        minecraft.gameSettings.particleSetting = MINIMAL_PARTICLES;
         System.setProperty(FOG_PROPERTY, "1");
         if (minecraft.renderGlobal != null) {
             minecraft.renderGlobal.loadRenderers();
@@ -205,6 +217,8 @@ public class GrugClientHooks implements ITickHandler {
         }
         minecraft.gameSettings.renderDistance = savedRenderDistance;
         savedRenderDistance = -1;
+        minecraft.gameSettings.particleSetting = savedParticleSetting;
+        savedParticleSetting = -1;
         System.clearProperty(FOG_PROPERTY);
         if (minecraft.renderGlobal != null) {
             minecraft.renderGlobal.loadRenderers();
