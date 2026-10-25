@@ -222,6 +222,8 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   `gh api repos/grug-lang/grug-for-minecraft/issues/<n>/issue-field-values -X POST --input -` with
   `{"issue_field_values":[{"field_id":36963465,"value":"Medium"}]}`.
 - Give every new issue at least one fitting label (`gh label list` shows them, for example `bug`, `feature`, `docs`, `backend`, `frontend`), with `--label` on `gh issue create`. Never add `planned` or `maybe planned`: the repository owner decides those.
+- Record progress on an issue (what a pull request did, what is left) by rewriting its body, not
+  in a comment: the body is what the next reader reads first.
 - Merge only with the maintainer's authorization, by rebase. Nothing is pushed to `main`. A pull
   request that changes only markdown merges without waiting for CI.
 - Do not add repository documentation beyond this file.
