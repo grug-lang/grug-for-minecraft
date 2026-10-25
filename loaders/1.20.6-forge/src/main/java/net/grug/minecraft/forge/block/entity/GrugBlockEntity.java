@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge.block.entity;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge.GrugModLoader;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.grug.ExportFns;
@@ -8,6 +9,7 @@ import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
 import net.grug.minecraft.grug.GrugPower;
+import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -315,6 +317,7 @@ public class GrugBlockEntity extends BlockEntity
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         readSavedNumbers(tag);
+        readSavedLists(tag, registries);
         GrugPower.load(this, tag.getDouble("GrugEnergy"));
         if (tag.contains("GrugInvSize")) {
             stacks = NonNullList.withSize(tag.getInt("GrugInvSize"), ItemStack.EMPTY);
@@ -335,6 +338,7 @@ public class GrugBlockEntity extends BlockEntity
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         writeSavedNumbers(tag);
+        writeSavedLists(tag, registries);
         tag.putDouble("GrugEnergy", GrugPower.stored(this));
         ensureSized();
         tag.putInt("GrugInvSize", stacks.size());
@@ -410,5 +414,69 @@ public class GrugBlockEntity extends BlockEntity
             numbers.put(number.getString("Name"), number.getDouble("Value"));
         }
         GrugSavedNumbers.replace(this, numbers);
+    }
+
+    /**
+     * The saved lists, as a list of named lists of records, as the older loaders write them:
+     * numbers as name and value pairs, and an item as this version's own stack data.
+     */
+    private void writeSavedLists(CompoundTag tag, HolderLookup.Provider registries) {
+        ListTag lists = new ListTag();
+        for (Map.Entry<String, List<GrugSavedLists.Record>> entry :
+                GrugSavedLists.snapshot(this).entrySet()) {
+            CompoundTag list = new CompoundTag();
+            list.putString("Name", entry.getKey());
+            ListTag records = new ListTag();
+            for (GrugSavedLists.Record record : entry.getValue()) {
+                CompoundTag recordTag = new CompoundTag();
+                ListTag numbers = new ListTag();
+                for (Map.Entry<String, Double> number : record.numbers().entrySet()) {
+                    CompoundTag numberTag = new CompoundTag();
+                    numberTag.putString("Name", number.getKey());
+                    numberTag.putDouble("Value", number.getValue());
+                    numbers.add(numberTag);
+                }
+                recordTag.put("Numbers", numbers);
+                if (record.item() != null) {
+                    ItemStack stack =
+                            (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0);
+                    recordTag.put("Item", stack.save(registries));
+                }
+                records.add(recordTag);
+            }
+            list.put("Records", records);
+            lists.add(list);
+        }
+        tag.put("GrugLists", lists);
+    }
+
+    private void readSavedLists(CompoundTag tag, HolderLookup.Provider registries) {
+        Map<String, List<GrugSavedLists.Record>> lists = new HashMap<>();
+        ListTag listTags = tag.getList("GrugLists", Tag.TAG_COMPOUND);
+        for (int i = 0; i < listTags.size(); i++) {
+            CompoundTag listTag = listTags.getCompound(i);
+            List<GrugSavedLists.Record> records = new ArrayList<>();
+            ListTag recordTags = listTag.getList("Records", Tag.TAG_COMPOUND);
+            for (int j = 0; j < recordTags.size(); j++) {
+                CompoundTag recordTag = recordTags.getCompound(j);
+                Map<String, Double> numbers = new HashMap<>();
+                ListTag numberTags = recordTag.getList("Numbers", Tag.TAG_COMPOUND);
+                for (int k = 0; k < numberTags.size(); k++) {
+                    CompoundTag numberTag = numberTags.getCompound(k);
+                    numbers.put(numberTag.getString("Name"), numberTag.getDouble("Value"));
+                }
+                Object item = null;
+                if (recordTag.contains("Item")) {
+                    ItemStack stack =
+                            ItemStack.parseOptional(registries, recordTag.getCompound("Item"));
+                    if (!stack.isEmpty()) {
+                        item = GrugCore.getAdapter().getStackItem(stack);
+                    }
+                }
+                records.add(new GrugSavedLists.Record(numbers, item));
+            }
+            lists.put(listTag.getString("Name"), records);
+        }
+        GrugSavedLists.replace(this, lists);
     }
 }

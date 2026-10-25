@@ -55,22 +55,22 @@ local _setup() {
 local _check() {
     source_count: number = pipe_source.unwrap().get_item_count_in_slot(0)
     target_count: number = pipe_target.unwrap().get_item_count_in_slot(0)
-    pipe_count: number = pipe_self.unwrap().get_item_count_in_slot(0)
+    pipe_travelling: number = pipe_self.unwrap().get_saved_list_size("traveling")
 
-    Test.assert(source_count + target_count + pipe_count == 1, "The diamond should exist exactly once.")
+    Test.assert(source_count + target_count + pipe_travelling == 1, "The diamond should exist exactly once.")
     Test.assert(source_count == 0, "The source chest should be empty.")
     Test.assert(target_count == 1, "The target chest should hold the diamond.")
-    Test.assert(pipe_count == 0, "The pipe should not still be holding the diamond.")
+    Test.assert(pipe_travelling == 0, "The pipe should not still be carrying the diamond.")
 }
 
 # The pipe moving the item is what this test observes, and the game's own tick is the only clock that
 # moves it: Test.tick() counts runner ticks, which are rendered frames, so a fixed count races the
-# engine on a loaded machine. The item has left the source chest and the pipe's own one-slot buffer
-# once the pipe has finished handling it, and where it went next is what _check asserts, so a wrong
+# engine on a loaded machine. The item has left the source chest and the pipe's travelling list once
+# the pipe has finished handling it, and where it went next is what _check asserts, so a wrong
 # destination still fails with the assertion that names it. A pipe that never moves it runs into the
 # runner's own tick budget instead of a count picked to be big enough on a fast machine. See #173.
 local _pipe_has_moved() bool {
     source_empty: bool = pipe_source.unwrap().get_item_count_in_slot(0) == 0
-    pipe_empty: bool = pipe_self.unwrap().get_item_count_in_slot(0) == 0
+    pipe_empty: bool = pipe_self.unwrap().get_saved_list_size("traveling") == 0
     return source_empty and pipe_empty
 }

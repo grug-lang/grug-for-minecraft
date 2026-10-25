@@ -1,9 +1,8 @@
-# Covers the wooden pipe dropping its carried item when the target inventory has no room for it.
-# This is the other half of wooden_pipe_drop_damage-Test.grug: that test drops the item because
-# nothing at all is connected, this one drops it because something is connected but full. The two take
-# different routes through the pipe. An unconnected pipe fails both the inventory insert and the
-# pipe-to-pipe push, while a full target only fails the insert, so the pipe still has to decide to
-# give the item up rather than hold it forever.
+# Covers the wooden pipe dropping its travelling item when the only other inventory has no room for
+# it. This is the other half of wooden_pipe_drop_damage-Test.grug: that test has no other inventory at
+# all, this one has a connected chest that is full. In the reference both come to the same end: a full
+# inventory fails canReceivePipeObjects, so the exit list at the pipe's centre is empty and the item
+# is dropped there, rather than being carried to the full chest's face and dropped against it.
 full_target_source: Option[BlockEntity] = Option.new()
 full_target_target: Option[BlockEntity] = Option.new()
 full_target_pipe: Option[BlockEntity] = Option.new()
@@ -93,12 +92,12 @@ local _full_target_check() {
 
     source_count: number = full_target_source.unwrap().get_item_count_in_slot(0)
     target_count: number = full_target_target.unwrap().get_item_count_in_slot(0)
-    pipe_count: number = full_target_pipe.unwrap().get_item_count_in_slot(0)
+    pipe_travelling: number = full_target_pipe.unwrap().get_saved_list_size("traveling")
 
-    # The item is accounted for at every place it could be: taken from the source, not buffered in
+    # The item is accounted for at every place it could be: taken from the source, not carried by
     # the pipe, not merged into the full target, and on the ground exactly once.
     Test.assert(source_count == 0, "The source chest should be empty.")
-    Test.assert(pipe_count == 0, "The pipe should not still be holding the sword.")
+    Test.assert(pipe_travelling == 0, "The pipe should not still be carrying the sword.")
     Test.assert(target_count == 64, "The target chest slot 0 should still hold its 64 diamonds.")
 
     # The filler is undamaged and the sword is not, so the item check catches a merge as well as an
@@ -123,13 +122,13 @@ local _full_target_check() {
     }
 }
 
-# The pipe has finished with the item once it has left the source chest and the pipe's own one-slot
-# buffer. With every target slot filled that means it is on the ground, which is what _full_target_check
-# accounts for; waiting for the item entity instead would risk the sword dropped by the band above
-# this one, which is ten blocks away and falls through this test's search radius on its way down. See
-# #173.
+# The pipe has finished with the item once it has left the source chest and the pipe's travelling
+# list. With every target slot filled that means it is on the ground, which is what
+# _full_target_check accounts for; waiting for the item entity instead would risk the sword dropped
+# by the band above this one, which is ten blocks away and falls through this test's search radius on
+# its way down. See #173.
 local _full_target_pipe_has_moved() bool {
     source_empty: bool = full_target_source.unwrap().get_item_count_in_slot(0) == 0
-    pipe_empty: bool = full_target_pipe.unwrap().get_item_count_in_slot(0) == 0
+    pipe_empty: bool = full_target_pipe.unwrap().get_saved_list_size("traveling") == 0
     return source_empty and pipe_empty
 }

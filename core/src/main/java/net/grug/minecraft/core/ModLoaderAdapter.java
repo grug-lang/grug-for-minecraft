@@ -104,7 +104,7 @@ public interface ModLoaderAdapter {
     double getInventorySize(Object blockEntityObj);
 
     double insertItemIntoInventory(
-            Object blockEntityObj, Object itemObj, double damage, double amount);
+            Object blockEntityObj, Object itemObj, double damage, double amount, boolean insert);
 
     double getItemCountInSlot(Object blockEntityObj, double slot);
 
@@ -156,6 +156,20 @@ public interface ModLoaderAdapter {
 
     /** The world's time in ticks, which {@code World.getWorldTime()} is in BuildCraft 2.2.14. */
     long getWorldTime(Object levelObj);
+
+    /**
+     * The level's own random's next whole number below {@code bound}, which is {@code
+     * World.random.nextInt(bound)} in BuildCraft 2.2.14. It is the same random the game draws from
+     * for everything else, so a mod that uses it changes what the game does on that seed exactly as
+     * the reference does.
+     */
+    int nextRandomInt(Object levelObj, int bound);
+
+    /** The level's own random's next float from 0 up to but not including 1. */
+    double nextRandomFloat(Object levelObj);
+
+    /** The level's own random's next Gaussian, with mean 0 and standard deviation 1. */
+    double nextRandomGaussian(Object levelObj);
 
     String getBlock(Object levelObj, double x, double y, double z);
 

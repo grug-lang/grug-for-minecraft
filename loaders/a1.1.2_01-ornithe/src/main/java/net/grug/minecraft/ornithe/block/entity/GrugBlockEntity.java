@@ -9,6 +9,7 @@ import net.grug.minecraft.grug.GrugPower;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugPowerNbt;
+import net.grug.minecraft.ornithe.block.GrugSavedListsNbt;
 import net.grug.minecraft.ornithe.block.GrugSavedNumbersNbt;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
@@ -383,6 +384,7 @@ public class GrugBlockEntity extends BlockEntity
     public void readNbt(NbtCompound nbt) {
         super.readNbt(nbt);
         GrugSavedNumbersNbt.read(this, nbt);
+        GrugSavedListsNbt.read(this, nbt);
         GrugPowerNbt.read(this, nbt);
 
         if (nbt.contains("GrugInvSize")) {
@@ -410,6 +412,7 @@ public class GrugBlockEntity extends BlockEntity
     public void writeNbt(NbtCompound nbt) {
         super.writeNbt(nbt);
         GrugSavedNumbersNbt.write(this, nbt);
+        GrugSavedListsNbt.write(this, nbt);
         GrugPowerNbt.write(this, nbt);
         ensureSized();
 

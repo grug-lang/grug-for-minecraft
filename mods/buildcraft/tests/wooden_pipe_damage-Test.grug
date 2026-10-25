@@ -54,20 +54,20 @@ local _damage_setup() {
 local _damage_check() {
     source_count: number = pipe_damage_source.unwrap().get_item_count_in_slot(0)
     target_count: number = pipe_damage_target.unwrap().get_item_count_in_slot(0)
-    pipe_count: number = pipe_damage_self.unwrap().get_item_count_in_slot(0)
+    pipe_travelling: number = pipe_damage_self.unwrap().get_saved_list_size("traveling")
     target_damage: number = pipe_damage_target.unwrap().get_item_damage_in_slot(0)
 
-    Test.assert(source_count + target_count + pipe_count == 1, "The sword should exist exactly once.")
+    Test.assert(source_count + target_count + pipe_travelling == 1, "The sword should exist exactly once.")
     Test.assert(source_count == 0, "The source chest should be empty.")
     Test.assert(target_count == 1, "The target chest should hold the sword.")
     Test.assert(target_damage == 7, "The moved sword should keep its damage.")
 }
 
 # Same wait as wooden_pipe-Test.grug: the pipe has finished handling the item once it has left the
-# source chest and the pipe's own one-slot buffer, and the damage it arrived with is what _check
+# source chest and the pipe's travelling list, and the damage it arrived with is what _check
 # asserts. See #173.
 local _damage_pipe_has_moved() bool {
     source_empty: bool = pipe_damage_source.unwrap().get_item_count_in_slot(0) == 0
-    pipe_empty: bool = pipe_damage_self.unwrap().get_item_count_in_slot(0) == 0
+    pipe_empty: bool = pipe_damage_self.unwrap().get_saved_list_size("traveling") == 0
     return source_empty and pipe_empty
 }

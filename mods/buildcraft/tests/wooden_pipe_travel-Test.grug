@@ -1,0 +1,76 @@
+# Covers a travelling item's position and phase tick by tick, as PipeTransportItems.moveSolids moves
+# it: 49 moves from the face it entered on to the block's centre, then 51 from the centre to the far
+# face of a horizontal exit, which is where it is handed on. The pipe is ticked by hand, after one
+# dose of energy, so no engine timing or loaded machine can shift the counts.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # Band 2, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 10
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    level.place_block(x + 1, y, z, "minecraft:chest")
+
+    source: BlockEntity = _entity(level, x - 1, y, z)
+    pipe: BlockEntity = _entity(level, x, y, z)
+    target: BlockEntity = _entity(level, x + 1, y, z)
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    source.set_item_in_slot(0, diamond, 1)
+
+    pipe.receive_energy(1)
+    Test.tick_block_entity(pipe, 1)
+
+    # The item starts on the face between the chest and the pipe, on the pipe floor, heading east.
+    Test.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+    Test.assert(_hundredths(_pos(pipe, "x") - x) == 0, "The item should start on the pipe's west face.")
+    Test.assert(_pos(pipe, "y") == y + 0.25, "The item should start on the pipe floor.")
+    Test.assert(_pos(pipe, "z") == z + 0.5, "The item should start on the pipe's centre line.")
+    Test.assert(_number(pipe, "to_center") == 1, "The item should still be heading for the centre.")
+    Test.assert(_number(pipe, "direction") == 5, "The item should travel east, away from the chest.")
+    Test.assert(_number(pipe, "count") == 1, "The record should carry the chest's single diamond.")
+
+    # 48 more moves leave it 0.02 short of the centre, and the 49th reaches it and snaps.
+    Test.tick_block_entity(pipe, 48)
+    Test.assert(_number(pipe, "to_center") == 1, "48 moves should not reach the centre.")
+    Test.assert(_hundredths(_pos(pipe, "x") - x) == 48, "48 moves should leave the item 0.02 short of the centre.")
+    Test.tick_block_entity(pipe, 1)
+    Test.assert(_number(pipe, "to_center") == 0, "The 49th move should reach the centre.")
+    Test.assert(_hundredths(_pos(pipe, "x") - x) == 50, "The item should snap to the centre.")
+    Test.assert(_pos(pipe, "y") == y + 0.25, "The centre should be on the pipe floor.")
+    Test.assert(_pos(pipe, "z") == z + 0.5, "The centre should be the block's centre.")
+    Test.assert(_number(pipe, "direction") == 5, "The only exit is east, so the pick stays east.")
+
+    # 50 more moves are still inside the pipe; the 51st is past its face, so it is handed over.
+    Test.tick_block_entity(pipe, 50)
+    Test.assert(pipe.get_saved_list_size("traveling") == 1, "50 moves from the centre should still be inside the pipe.")
+    Test.assert(_hundredths(_pos(pipe, "x") - x) == 100, "50 moves should put the item on the pipe's east face.")
+    Test.tick_block_entity(pipe, 1)
+    Test.assert(pipe.get_saved_list_size("traveling") == 0, "The 51st move should hand the item over.")
+    Test.assert(target.get_item_count_in_slot(0) == 1, "The east chest should hold the diamond.")
+    Test.assert(source.get_item_count_in_slot(0) == 0, "The west chest should be empty.")
+}
+
+local _entity(level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+local _number(pipe: BlockEntity, key: string) number {
+    return pipe.get_saved_list_number("traveling", 0, key)
+}
+
+local _pos(pipe: BlockEntity, axis: string) number {
+    return pipe.get_saved_list_number("traveling", 0, axis)
+}
+
+# A position is accumulated one float64 step at a time, so 48 steps of 0.01 are not the double
+# nearest 0.48 but a rounding error away from it. Rounding the distance to hundredths is what the
+# tests compare, since that is the precision the reference's own float32 has.
+local _hundredths(value: number) number {
+    return Math.floor(value * 100 + 0.5)
+}
