@@ -1,0 +1,106 @@
+name: Set up a loader build
+description: >-
+  The toolchain, the grug-rs static library and the caches a loader's Gradle build needs, shared by
+  the layer job and the build job. The checkout stays in the workflow, because this action is
+  read from it.
+inputs:
+  loader:
+    description: The loaders/* directory name, which keys the per-loader caches.
+    required: true
+outputs:
+  java21-path:
+    description: JAVA_HOME of the JDK 21 this action installed.
+    value: ${{ steps.java21.outputs.path }}
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK 21
+      id: java21
+      id: java21
+      uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      with:
+        distribution: temurin
+        java-version: 21
+        cache: gradle
+
+    - name: Download the grug-rs static library
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: grug-rs-library
+        path: .grug-ci
+
+    # A hit here means this push changed neither mod_api.json nor the generator, so the three
+    # generated files are already the right ones and Gradle's own up-to-date check on
+    # generateGrugAdapter skips the run.
+    - name: Restore the generated adapter
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          core/build/generated/grug
+          core/build/generated/sources/grug
+        key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py', '.github/workflows/build.yml') }}
+
+    # Gradle's own state on the loader side: the distribution each loader's wrapper pins and the
+    # dependency cache its build resolves against. cache: gradle above covers both paths, but what it
+    # restores is whatever the job that saved it happened to resolve, and the job that saves it is the
+    # one that ran first and resolved the least: grug-rs, which only ever builds core on Gradle 8.14.
+    # So every loader was downloading its own Gradle distribution again on every run. Removing the
+    # "Fetching distribution" line from every loader's log is what this bought, and it is the whole
+    # of what it bought.
+    #
+    # One entry per loader. It used to be one entry for all five, and whichever loader finished first
+    # wrote it and nobody wrote it again, so what it held was that loader's resolved subset. A
+    # diagnostic on a throwaway branch (#433) listed the restored cache in all five jobs: 70 MB, 41
+    # groups, no net.java.jinput:jinput:2.0.10 and no com.google.guava:guava:33.2.1-jre, so
+    # 1.2.5-forge fetched them from Maven Central on every run and a 403 there failed its Build
+    # step although the cache had restored successfully.
+    #
+    # Keyed on every file that decides what is resolvable, so a version, repository or plugin bump
+    # misses rather than restoring a graph that no longer matches the build. The standalone loaders'
+    # own root.gradle is not in the key because it resolves nothing: it registers the task that execs
+    # their own wrapper.
+    - name: Cache the Gradle distributions and dependencies
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/wrapper
+          ~/.gradle/caches/modules-2
+        key: grug-gradle-${{ runner.os }}-${{ inputs.loader }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+
+    # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
+    # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
+    # job in this workflow is grug-rs, which never resolves a Minecraft, so it wins and the Forge
+    # and Loom content never gets in. Keyed per loader, because ForgeGradle and Loom both write to
+    # the same directory and no loader may restore another's, and on the files that name the
+    # Minecraft and mapping versions, so a version bump misses instead of serving the old one.
+    #
+    # Which means loaders/*/gradle.properties and not just the build files: that is where every
+    # loader's minecraft_version and mappings actually live, a subproject's properties file overriding
+    # the root one, so a bump there with the key unchanged restores the old Minecraft.
+    #
+    # Not the assets: downloadAssets takes 1.9s from resources.download.minecraft.net, which is not
+    # worth the 500MB the asset index and objects take in the entry. 1.2.5-forge is excluded
+    # entirely, because it does not provision a Minecraft at all (see the snapshot below), so none of
+    # these paths would exist there and the action would report that no cache was saved.
+    - name: Cache the Minecraft toolchain
+      if: inputs.loader != '1.2.5-forge'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches/forge_gradle/mcp_repo
+          ~/.gradle/caches/forge_gradle/minecraft_repo
+          ~/.gradle/caches/forge_gradle/minecraft_user_repo
+          ~/.gradle/caches/forge_gradle/maven_downloader
+          ~/.gradle/caches/fabric-loom
+          ~/.gradle/caches/ornithe-keratin
+        key: grug-minecraft-${{ runner.os }}-${{ inputs.loader }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'loaders/*/gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+
+    # 1.2.5-forge's Minecraft is the pinned MCP snapshot its build clones, 170MB into its own build
+    # directory, which is 13s of its Build step. Keyed on the build file that holds the pin, so a
+    # different snapshot misses rather than restoring the previous one.
+    - name: Cache the 1.2.5 MCP snapshot
+      if: inputs.loader == '1.2.5-forge'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: loaders/1.2.5-forge/build/mcp125
+        key: grug-mcp125-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
