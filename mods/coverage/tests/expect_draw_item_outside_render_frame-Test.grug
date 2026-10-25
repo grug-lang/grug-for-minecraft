@@ -1,7 +1,0 @@
-# draw_item only means anything during a block entity's render_frame(), because a stack drawn into
-# the chunk geometry could not turn to face the player every frame. A test is not that, so calling
-# it here must report an error rather than silently drawing nothing.
-export run() {
-    me.expect_error("render_frame")
-    draw_item(item(resource_location("minecraft:stick")), 0, 1, 0.0, 0.0, 0.0)
-}

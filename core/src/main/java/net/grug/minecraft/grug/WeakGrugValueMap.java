@@ -21,6 +21,13 @@ public class WeakGrugValueMap {
         return ref.get();
     }
 
+    /** Removes the entry for {@code id}, answering what it held, or null when it held nothing. */
+    public GrugObject remove(long id) {
+        cleanup();
+        WeakValue ref = map.remove(id);
+        return ref != null ? ref.get() : null;
+    }
+
     private void cleanup() {
         WeakValue ref;
         while ((ref = (WeakValue) queue.poll()) != null) {

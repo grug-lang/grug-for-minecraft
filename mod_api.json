@@ -205,13 +205,29 @@
 				},
 				{
 					"name": "render",
-					"description": "Called by the game when it builds this block's geometry, for a block whose init() called `set_custom_render`. Everything drawn here replaces the block's usual model, so a machine can draw a shape no model JSON describes: pipes that join up to their neighbours, animated parts, anything conditional on the world. Build the shape with `draw_box`. The game calls this again whenever it rebuilds the geometry, which includes every neighbouring block change, so read the neighbours here rather than caching the shape in a member variable. A block that declares `set_custom_render` and draws nothing reports an error, because nothing on screen is not a shape anyone chose.",
-					"engine_called": true
+					"description": "Called by the game while it builds this block's geometry, once per chunk rebuild, for a block whose init() called `set_custom_render`. Everything drawn through `ctx` replaces the block's model, so a machine can be a shape no model JSON describes. The result is baked into the chunk's mesh, so it is rebuilt only when the geometry is, and it cannot follow the camera or change between ticks: that is render_frame()'s job. Read the neighbours in this call rather than caching the shape, because the game calls it again after every neighbouring block change. A block that declares `set_custom_render` and draws nothing reports an error.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "RenderContext"
+							}
+						}
+					]
 				},
 				{
 					"name": "render_frame",
-					"description": "Called by the game once per frame while this block entity is in view, after the block's own geometry has been drawn. That geometry is either the block's model or what render() baked into the chunk, and neither changes with the camera or between ticks, so a part that turns to face the player or moves every frame belongs here instead: draw it with `draw_item`, whose position is block-local and measured the same way as `draw_box`'s. `partial_tick()` is how much of the current tick has already elapsed, for interpolating between the previous tick's state and this one, and `camera_yaw()` is the direction the camera looks in. Drawing nothing is not an error: a machine with no item in flight has nothing to draw.",
-					"engine_called": true
+					"description": "Called by the game once per frame while this block entity is in view, after the chunk geometry has been drawn. Draw what changes between frames or follows the camera through `ctx`, at a block-local position measured the same way as RenderContext.draw_box. The output is drawn immediately and thrown away at the end of the frame, so it can read partial_tick() and camera_yaw(), which a chunk pass cannot. It is asked for a block whose init() called set_custom_render, and a script without this export is declined without a report. Drawing nothing is not an error: a machine with no item in flight has nothing to draw.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "RenderFrameContext"
+							}
+						}
+					]
 				},
 				{
 					"name": "tick",
@@ -1932,145 +1948,161 @@
 					"description": "Takes nothing."
 				}
 			}
+		},
+		"RenderContext": {
+			"description": "The context of a chunk render pass, passed to a block entity's render(). Everything drawn through it is recorded into the geometry the game bakes into the chunk's mesh. A context is only valid while its render() call is running: saving it in a member variable and using it later is refused, because the geometry it recorded has already been baked.",
+			"methods": {
+				"draw_box": {
+					"description": "Draws one axis-aligned box as part of the geometry a block entity's render pass is building. The coordinates are block-local, from 0 to 1 on each axis measured from the block's minimum corner, so 0.25 on the y axis is a quarter of a block above the block's bottom face and 1 is flush with the far side. Each of the box's six faces is drawn with the block's own texture, the whole of it, lit and face-culled the way the game lights every other block. Boxes are drawn whole rather than merged, so two boxes that touch leave a shared face in between: the depth test hides it against the box behind it, and it costs nothing to see. Only legal on the context render() was passed, while that call is running: a context saved for later is refused, because its geometry has already been baked. The first of each pair has to be the near corner: `x1 <= x2`, `y1 <= y2` and `z1 <= z2`. A box the wrong way round is reported and not drawn, because the game reads the shape as it stands and builds each face from it: the four faces spanning a reversed axis then come out wound backwards and are culled, so the two faces at its ends survive at swapped depths and what is left is visibly not the box that was asked for. Nothing checks the range, though: a box that reaches past the block is drawn unclipped, exactly as asked for, because clipping it would be grug choosing a different shape than the mod wrote.",
+					"parameters": [
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"draw_model": {
+					"description": "Draws a block model JSON's elements, turned about the block's centre by multiples of 90 degrees, as part of the geometry a block entity's render pass is building, each face with the texture the model names for it and at the texture coordinates its uv gives, the way the game draws that model from a blockstate. The model's parent chain is followed and its textures merged the way the game reads a model, so a model that only swaps one texture of its parent's is how one shape is drawn in several colours. Every loader draws from the same reading of the model, Alpha included, which has no model format of its own. Lit and face-culled the way the game lights every other block, with a face culled only when the model gives it a cullface. Only legal on the context render() was passed, while that call is running: a context saved for later is refused, because its geometry has already been baked. The angles are in degrees and have to be multiples of 90, and a turn is clockwise seen from the positive end of its axis, as the x and y of a blockstate variant are: an x of 90 carries up to north, a y of 90 carries north to east and a z of 90 carries up to east. The turns apply z first, then y, then x, the order a model renderer applies its rotation angles in, so a model turned about z alone keeps facing the same way round. A face keeps its texture and its uv, so its texture turns with it. After the turn the whole model moves by dx, dy and dz, in blocks along the world axes and not along the turned ones, so a part that slides along the way the model faces is moved by the same offset whichever way it was turned to face; pass 0, 0, 0 to leave it where it is. A moved face keeps its cull side, so a model that is moved out of the block should give no cullface. The offsets have to be finite numbers, or they are reported and the model is not drawn. Turning is how one set of boxes is faced six ways without the model being written six times; pass 0, 0, 0 to draw it as written. An angle that is not a multiple of 90 is reported and the model is not drawn. A model grug cannot draw as written is reported and not drawn: one that cannot be read or has no elements, a face whose texture key resolves to nothing, and an element or face rotated by anything other than 0 degrees, since drawing that unrotated would be a shape the model did not describe.",
+					"parameters": [
+						{
+							"name": "model",
+							"type": {
+								"name": "resource",
+								"resource_extension": ".json"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "dx",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "dy",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "dz",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
+		},
+		"RenderFrameContext": {
+			"description": "The context of a frame render pass, passed to a block entity's render_frame(). Everything drawn through it is drawn on top of the chunk geometry for that frame and thrown away at the end of it. A context is only valid while its render_frame() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"draw_item": {
+					"description": "Draws one stack the way the game draws a dropped item, on top of the chunk geometry, on the context render_frame() was passed, while that call is running. The position is block-local, from 0 to 1 measured from the block's minimum corner, the same as `draw_box`, and it is the item's own position: the lift below is added by this call. An item that is a block is drawn as the block's own inventory shape, a quarter of a block across, or half a block across for the few block shapes that fill an inventory slot where the version says so, lifted a quarter of a block and not turning with the camera. Every other item is drawn as one flat sprite half a block across and lifted a tenth of a block, turned every frame to face the player. Lighting is off, so the stack is drawn at full brightness, and the brightness is the block's own. A stack of more than 1 is drawn as 2 copies, more than 5 as 3 and more than 20 as 4, the extra copies scattered by the reference's own values: from a random re-seeded with 187 for every stack, so the copies land in the same places for every stack and every loader. A count of 0 or less draws nothing. The damage is the stack's damage, which is the block's metadata on the versions that have one. The damage and the count have to be whole numbers from 0 to 2147483647, and the position has to be finite, or the stack is reported and not drawn. Only legal on the context render_frame() was passed, while that call is running: a context saved for later is refused. What render() records is baked into the chunk's geometry once, and a stack drawn there could not turn to face the player.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
+						{
+							"name": "damage",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "count",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"partial_tick": {
+					"description": "How much of the current tick has already elapsed, from 0 up to but not including 1, on the context render_frame() was passed, while that call is running. A reference that moves a part a little every tick interpolates between the previous tick's position and this one's with it. Only legal on that context, while render_frame() is running: a chunk pass runs once per rebuild rather than once per frame, so it has no frame fraction to answer.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"camera_yaw": {
+					"description": "The direction the camera looks in, in degrees, on the context render_frame() was passed, while that call is running: the game's own yaw, so 0 looks towards positive z, 90 towards negative x, and it increases clockwise seen from above. What a sprite is turned by to face the player, though `draw_item` already does that turn itself. Only legal on that context, while render_frame() is running.",
+					"return_type": {
+						"name": "number"
+					}
+				}
+			}
 		}
 	},
 	"host_functions": {
-		"camera_yaw": {
-			"description": "The direction the camera looks in, in degrees, during a block entity's render_frame(): the game's own yaw, so 0 looks towards positive z, 90 towards negative x, and it increases clockwise seen from above. What a sprite is turned by to face the player, though `draw_item` already does that turn itself. Only legal during render_frame(), because a chunk pass runs once per rebuild rather than once per frame.",
-			"return_type": {
-				"name": "number"
-			}
-		},
-		"draw_box": {
-			"description": "Draws one axis-aligned box as part of the geometry a block entity's render pass is building. The coordinates are block-local, from 0 to 1 on each axis measured from the block's minimum corner, so 0.25 on the y axis is a quarter of a block above the block's bottom face and 1 is flush with the far side. Each of the box's six faces is drawn with the block's own texture, the whole of it, lit and face-culled the way the game lights every other block. Boxes are drawn whole rather than merged, so two boxes that touch leave a shared face in between: the depth test hides it against the box behind it, and it costs nothing to see. Only legal during a chunk render pass, which only `render` opens, and the first of each pair has to be the near corner: `x1 <= x2`, `y1 <= y2` and `z1 <= z2`. A box the wrong way round is reported and not drawn, because the game reads the shape as it stands and builds each face from it: the four faces spanning a reversed axis then come out wound backwards and are culled, so the two faces at its ends survive at swapped depths and what is left is visibly not the box that was asked for. Nothing checks the range, though: a box that reaches past the block is drawn unclipped, exactly as asked for, because clipping it would be grug choosing a different shape than the mod wrote.",
-			"parameters": [
-				{
-					"name": "x1",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "y1",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "z1",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "x2",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "y2",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "z2",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"draw_item": {
-			"description": "Draws one stack the way the game draws a dropped item, on top of the chunk geometry, during a block entity's render_frame(). The position is block-local, from 0 to 1 measured from the block's minimum corner, the same as `draw_box`, and it is the item's own position: the lift below is added by this call. An item that is a block is drawn as the block's own inventory shape, a quarter of a block across, or half a block across for the few block shapes that fill an inventory slot where the version says so, lifted a quarter of a block and not turning with the camera. Every other item is drawn as one flat sprite half a block across and lifted a tenth of a block, turned every frame to face the player. Lighting is off, so the stack is drawn at full brightness, and the brightness is the block's own. A stack of more than 1 is drawn as 2 copies, more than 5 as 3 and more than 20 as 4, the extra copies scattered by the reference's own values: from a random re-seeded with 187 for every stack, so the copies land in the same places for every stack and every loader. A count of 0 or less draws nothing. The damage is the stack's damage, which is the block's metadata on the versions that have one. The damage and the count have to be whole numbers from 0 to 2147483647, and the position has to be finite, or the stack is reported and not drawn. Only legal during render_frame(), never from render(): what render() records is baked into the chunk's geometry once, and a stack drawn there could not turn to face the player.",
-			"parameters": [
-				{
-					"name": "item",
-					"type": {
-						"name": "Item"
-					}
-				},
-				{
-					"name": "damage",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "count",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "x",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "y",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "z",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"draw_model": {
-			"description": "Draws a block model JSON's elements, turned about the block's centre by multiples of 90 degrees, as part of the geometry a block entity's render pass is building, each face with the texture the model names for it and at the texture coordinates its uv gives, the way the game draws that model from a blockstate. The model's parent chain is followed and its textures merged the way the game reads a model, so a model that only swaps one texture of its parent's is how one shape is drawn in several colours. Every loader draws from the same reading of the model, Alpha included, which has no model format of its own. Lit and face-culled the way the game lights every other block, with a face culled only when the model gives it a cullface. Only legal during a chunk render pass, which only `render` opens: `render_frame()` is the per-frame pass, and draws stacks with `draw_item` instead. The angles are in degrees and have to be multiples of 90, and a turn is clockwise seen from the positive end of its axis, as the x and y of a blockstate variant are: an x of 90 carries up to north, a y of 90 carries north to east and a z of 90 carries up to east. The turns apply z first, then y, then x, the order a model renderer applies its rotation angles in, so a model turned about z alone keeps facing the same way round. A face keeps its texture and its uv, so its texture turns with it. After the turn the whole model moves by dx, dy and dz, in blocks along the world axes and not along the turned ones, so a part that slides along the way the model faces is moved by the same offset whichever way it was turned to face; pass 0, 0, 0 to leave it where it is. A moved face keeps its cull side, so a model that is moved out of the block should give no cullface. The offsets have to be finite numbers, or they are reported and the model is not drawn. Turning is how one set of boxes is faced six ways without the model being written six times; pass 0, 0, 0 to draw it as written. An angle that is not a multiple of 90 is reported and the model is not drawn. A model grug cannot draw as written is reported and not drawn: one that cannot be read or has no elements, a face whose texture key resolves to nothing, and an element or face rotated by anything other than 0 degrees, since drawing that unrotated would be a shape the model did not describe.",
-			"parameters": [
-				{
-					"name": "model",
-					"type": {
-						"name": "resource",
-						"resource_extension": ".json"
-					}
-				},
-				{
-					"name": "x",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "y",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "z",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "dx",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "dy",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "dz",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
 		"drop_inventory": {
 			"description": "Drops the inventory of a block entity into the world.",
 			"parameters": [
@@ -2211,12 +2243,6 @@
 					}
 				}
 			]
-		},
-		"partial_tick": {
-			"description": "How much of the current tick has already elapsed, from 0 up to but not including 1, during a block entity's render_frame(). A reference that moves a part a little every tick interpolates between the previous tick's position and this one's with it. Only legal during render_frame(), because a chunk pass runs once per rebuild rather than once per frame.",
-			"return_type": {
-				"name": "number"
-			}
 		},
 		"print": {
 			"description": "Prints a value.",

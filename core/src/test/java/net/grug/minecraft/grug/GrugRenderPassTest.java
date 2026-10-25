@@ -435,6 +435,21 @@ class GrugRenderPassTest {
         assertEquals(box.hashCode(), box.hashCode());
     }
 
+    @Test
+    void aPassCarriesAContextTheExportCanBeGiven() {
+        GrugRenderPass.open();
+        GrugRenderPass.Context first = GrugRenderPass.context();
+        assertTrue(first != null, "An open pass has a context.");
+        GrugRenderPass.close();
+        assertEquals(null, GrugRenderPass.context(), "A closed pass has no context.");
+
+        GrugRenderPass.openFrame(0.0, 0.0);
+        GrugRenderPass.Context second = GrugRenderPass.context();
+        assertTrue(second != null);
+        assertNotEquals(first, second, "Every pass gets its own context, so a saved one is stale.");
+        GrugRenderPass.closeFrame();
+    }
+
     // --- The frame pass ---
 
     private static final Object ITEM = new Object();

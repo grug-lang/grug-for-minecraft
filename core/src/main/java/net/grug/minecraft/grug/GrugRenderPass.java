@@ -33,11 +33,26 @@ import java.util.List;
  * pass that drew nothing.
  */
 public final class GrugRenderPass {
+    /**
+     * The context a pass hands its export, which is what the context's methods check before they
+     * draw.
+     *
+     * <p>A new one is made for every pass and cleared when the pass closes, so a script that saves
+     * the context in a member variable and uses it in a later call is refused: the context is no
+     * longer the one the open pass was given. The whole point is that the check is about the call,
+     * not about the script's good behaviour.
+     */
+    public static final class Context {
+        @GrugGenerated("marker: only a pass makes one")
+        private Context() {}
+    }
+
     private static final List<GrugBox> BOXES = new ArrayList<>();
     private static final List<GrugQuad> QUADS = new ArrayList<>();
     private static final List<GrugItemDraw> ITEMS = new ArrayList<>();
     private static boolean open = false;
     private static boolean frame = false;
+    private static Context context = null;
     private static double partialTick = 0.0;
     private static double cameraYaw = 0.0;
 
@@ -84,9 +99,18 @@ public final class GrugRenderPass {
         QUADS.clear();
         ITEMS.clear();
         frame = isFrame;
+        context = new Context();
         partialTick = framePartialTick;
         cameraYaw = frameCameraYaw;
         open = true;
+    }
+
+    /**
+     * The context the open pass was given, which a loader hands to the pass's export, or null when
+     * no pass is open.
+     */
+    public static Context context() {
+        return context;
     }
 
     /** How much of the current tick has already elapsed, in a frame pass. */
@@ -137,6 +161,7 @@ public final class GrugRenderPass {
         QUADS.clear();
         ITEMS.clear();
         frame = false;
+        context = null;
         partialTick = 0.0;
         cameraYaw = 0.0;
         open = false;

@@ -55,7 +55,7 @@ public final class GrugBlockGeometry {
             GrugFrameGeometry geometry;
             try {
                 if (entityHandle != 0) {
-                    callExport(entityHandle, frameRenderFnId);
+                    callExport(entityHandle, frameRenderFnId, GrugRenderPass.context());
                 }
             } finally {
                 geometry = GrugRenderPass.closeFrame();
@@ -106,7 +106,7 @@ public final class GrugBlockGeometry {
                 // native side a null entity pointer.
                 ranRender = false;
                 if (entityHandle != 0) {
-                    ranRender = callExport(entityHandle, renderFnId);
+                    ranRender = callExport(entityHandle, renderFnId, GrugRenderPass.context());
                 }
             } finally {
                 geometry = GrugRenderPass.close();
@@ -123,7 +123,8 @@ public final class GrugBlockGeometry {
     }
 
     /**
-     * Calls an engine-called export, and answers whether it did.
+     * Calls an engine-called render export with the pass's context, and answers whether it called
+     * it.
      *
      * <p>The invalid-id check lives in here rather than in the caller because it cannot be false
      * today: grug builds its table of export ids from {@code mod_api.json}, so the id for {@code
@@ -132,18 +133,30 @@ public final class GrugBlockGeometry {
      * of bounds and panics, and that would turn a future edit to {@code mod_api.json} into a crash
      * rather than a report.
      *
+     * <p>The context is a grug entity of its own for exactly the duration of the call, so a script
+     * that saves it in a member variable holds an entity that no longer exists, and the context's
+     * methods refuse it. It is destroyed in the finally so a fatal raised inside the script cannot
+     * leave it behind.
+     *
      * <p>The method as a whole is excluded because the call needs a live grug entity, which only a
      * game has. The guard on the handle is in front of it, in {@link #draw}, and stays measured.
      */
     @GrugGenerated(
-            "the call into the VM, and the guard on an id that cannot be invalid while mod_api.json"
-                + " declares render and render_frame: exercising either needs a live grug entity")
-    private static boolean callExport(long entityHandle, long exportFnId) {
+            "the call into the VM, its context entity, and the guard on an id that cannot be"
+                    + " invalid while mod_api.json declares render and render_frame: exercising"
+                    + " either needs a live grug entity")
+    private static boolean callExport(
+            long entityHandle, long exportFnId, GrugRenderPass.Context context) {
         if (exportFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
             return false;
         }
 
-        Grug.callExportFn(entityHandle, exportFnId);
+        long contextHandle = GrugEntities.addEntity(GrugEntityType.RenderContext, context);
+        try {
+            Grug.callExportFn(entityHandle, exportFnId, contextHandle);
+        } finally {
+            GrugEntities.removeEntity(contextHandle);
+        }
         return true;
     }
 

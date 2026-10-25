@@ -18,21 +18,21 @@ frame_yaw: number = 0
 # script error, so the run is unaffected.
 refused_bad_count: bool = false
 
-export render() {
-    draw_box(0.2, 0.0, 0.4, 0.8, 0.15, 0.6)
+export render(ctx: RenderContext) {
+    ctx.draw_box(0.2, 0.0, 0.4, 0.8, 0.15, 0.6)
 }
 
-export render_frame() {
-    frame_tick = partial_tick()
-    frame_yaw = camera_yaw()
+export render_frame(ctx: RenderFrameContext) {
+    frame_tick = ctx.partial_tick()
+    frame_yaw = ctx.camera_yaw()
 
     # A log is a block item, so it is a cube a quarter of a block across, lifted a quarter. The
     # stick is one flat sprite half a block across, lifted a tenth, turned to face the camera.
-    draw_item(log, 0, 1, 0.3, 0.2, 0.5)
-    draw_item(stick, 0, 1, 0.7, 0.2, 0.5)
+    ctx.draw_item(log, 0, 1, 0.3, 0.2, 0.5)
+    ctx.draw_item(stick, 0, 1, 0.7, 0.2, 0.5)
 
     if not refused_bad_count {
         refused_bad_count = true
-        draw_item(stick, 0, 1.5, 0.5, 0.5, 0.5)
+        ctx.draw_item(stick, 0, 1.5, 0.5, 0.5, 0.5)
     }
 }

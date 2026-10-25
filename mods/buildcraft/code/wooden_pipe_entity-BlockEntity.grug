@@ -51,8 +51,8 @@ export init() {
 # Until #102 replaces it, the pipe's own shape is the cube its model describes. Drawing it here
 # rather than leaving it to the model is what makes the block non-opaque, so the items inside it are
 # lit rather than sitting in an opaque block's darkness, as they are in the reference's open cage.
-export render() {
-    draw_box(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+export render(ctx: RenderContext) {
+    ctx.draw_box(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
 }
 
 # RenderPipe.renderSolids: every travelling item is drawn where its record stands, every frame,
@@ -60,11 +60,11 @@ export render() {
 # the chunk's geometry. The record's x, y and z are world coordinates, and draw_item's are measured
 # from the block's minimum corner, so the half block between the member centre and that corner comes
 # off each axis.
-export render_frame() {
+export render_frame(ctx: RenderFrameContext) {
     index: number = 0
     records: number = me.get_saved_list_size("traveling")
     while index < records {
-        _draw_travelling(index)
+        _draw_travelling(ctx, index)
         index = index + 1
     }
 }
@@ -93,7 +93,7 @@ export tick() {
 
 # One travelling record, if it still holds an item, drawn the way the reference's doRenderItem draws
 # a travelling item: a block as a small cube, anything else as a flat sprite facing the player.
-local _draw_travelling(index: number) {
+local _draw_travelling(ctx: RenderFrameContext, index: number) {
     item_opt: Option[Item] = me.get_saved_list_item("traveling", index)
     count: number = me.get_saved_list_number("traveling", index, "count")
     if not item_opt.has() or count <= 0 {
@@ -104,7 +104,7 @@ local _draw_travelling(index: number) {
     px: number = me.get_saved_list_number("traveling", index, "x") - x + 0.5
     py: number = me.get_saved_list_number("traveling", index, "y") - y + 0.5
     pz: number = me.get_saved_list_number("traveling", index, "z") - z + 0.5
-    draw_item(item_opt.unwrap(), damage, count, px, py, pz)
+    ctx.draw_item(item_opt.unwrap(), damage, count, px, py, pz)
 }
 
 local _move_items() {
