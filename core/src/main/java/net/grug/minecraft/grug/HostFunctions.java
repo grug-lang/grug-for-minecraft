@@ -6,6 +6,9 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import java.awt.image.BufferedImage;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class HostFunctions {
 
@@ -447,75 +450,87 @@ public class HostFunctions {
     }
 
     public static double BlockEntity_get_saved_list_size(long blockEntityId, String name) {
-        Object blockEntity = listHolder("get_saved_list_size", blockEntityId);
-        if (blockEntity == null) return 0;
-        return GrugSavedLists.size(blockEntity, name);
+        return withSavedLists(
+                "get_saved_list_size",
+                blockEntityId,
+                blockEntity -> (double) GrugSavedLists.size(blockEntity, name),
+                () -> 0.0);
     }
 
     public static double BlockEntity_append_saved_list_record(long blockEntityId, String name) {
-        Object blockEntity = listHolder("append_saved_list_record", blockEntityId);
-        if (blockEntity == null) return 0;
-        return GrugSavedLists.append(blockEntity, name);
+        return withSavedLists(
+                "append_saved_list_record",
+                blockEntityId,
+                blockEntity -> (double) GrugSavedLists.append(blockEntity, name),
+                () -> 0.0);
     }
 
     public static void BlockEntity_remove_saved_list_record(
             long blockEntityId, String name, double index) {
-        Object blockEntity = listHolder("remove_saved_list_record", blockEntityId);
-        if (blockEntity == null) return;
-        if (recordOrReport("remove_saved_list_record", blockEntity, name, index) != null) {
-            GrugSavedLists.remove(blockEntity, name, (int) index);
-        }
+        withSavedRecord(
+                "remove_saved_list_record",
+                blockEntityId,
+                name,
+                index,
+                (blockEntity, record) -> {
+                    GrugSavedLists.remove(blockEntity, name, (int) index);
+                    return null;
+                },
+                () -> null);
     }
 
     public static double BlockEntity_get_saved_list_number(
             long blockEntityId, String name, double index, String key) {
-        Object blockEntity = listHolder("get_saved_list_number", blockEntityId);
-        if (blockEntity == null) return 0;
-        GrugSavedLists.Record record =
-                recordOrReport("get_saved_list_number", blockEntity, name, index);
-        if (record == null) {
-            return 0;
-        }
-        Double value = record.numbers().get(key);
-        return value != null ? value : 0;
+        return withSavedRecord(
+                "get_saved_list_number",
+                blockEntityId,
+                name,
+                index,
+                (blockEntity, record) -> {
+                    Double value = record.numbers().get(key);
+                    return value != null ? value : 0.0;
+                },
+                () -> 0.0);
     }
 
     public static void BlockEntity_set_saved_list_number(
             long blockEntityId, String name, double index, String key, double value) {
-        Object blockEntity = listHolder("set_saved_list_number", blockEntityId);
-        if (blockEntity == null) return;
-        GrugSavedLists.Record record =
-                recordOrReport("set_saved_list_number", blockEntity, name, index);
-        if (record == null) {
-            return;
-        }
-        GrugSavedLists.setNumber(blockEntity, record, key, value);
+        withSavedRecord(
+                "set_saved_list_number",
+                blockEntityId,
+                name,
+                index,
+                (blockEntity, record) -> {
+                    GrugSavedLists.setNumber(blockEntity, record, key, value);
+                    return null;
+                },
+                () -> null);
     }
 
     public static long BlockEntity_get_saved_list_item(
             long blockEntityId, String name, double index) {
-        Object blockEntity = listHolder("get_saved_list_item", blockEntityId);
-        if (blockEntity == null) return emptyItemOption();
-        GrugSavedLists.Record record =
-                recordOrReport("get_saved_list_item", blockEntity, name, index);
-        if (record == null) {
-            return emptyItemOption();
-        }
-        Object item = record.item();
-        Object handle = item != null ? GrugEntities.addEntity(GrugEntityType.Item, item) : null;
-        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(handle));
+        return withSavedRecord(
+                "get_saved_list_item",
+                blockEntityId,
+                name,
+                index,
+                (blockEntity, record) -> itemOption(record.item()),
+                () -> itemOption(null));
     }
 
     public static void BlockEntity_set_saved_list_item(
             long blockEntityId, String name, double index, long itemId) {
-        Object blockEntity = listHolder("set_saved_list_item", blockEntityId);
-        if (blockEntity == null) return;
-        GrugSavedLists.Record record =
-                recordOrReport("set_saved_list_item", blockEntity, name, index);
-        if (record == null) {
-            return;
-        }
-        GrugSavedLists.setItem(blockEntity, record, GrugEntities.entityData.get(itemId).object);
+        withSavedRecord(
+                "set_saved_list_item",
+                blockEntityId,
+                name,
+                index,
+                (blockEntity, record) -> {
+                    GrugSavedLists.setItem(
+                            blockEntity, record, GrugEntities.entityData.get(itemId).object);
+                    return null;
+                },
+                () -> null);
     }
 
     public static void BlockEntity_set_power_receiver(long blockEntityId, double maxStored) {
@@ -1227,9 +1242,46 @@ public class HostFunctions {
                 Grug.statePtr, hostFunction + ": Saved list \"" + name + "\": " + problem);
     }
 
-    /** An empty {@code Option[Item]}, which a saved-list read answers when it finds no item. */
-    private static long emptyItemOption() {
-        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+    /**
+     * Runs a saved-list call, answering the default after reporting a block entity that saves no
+     * lists. One helper for every saved-list host function, so the report and the branch that
+     * follows it exist once rather than once per entry.
+     */
+    private static <T> T withSavedLists(
+            String hostFunction,
+            long blockEntityId,
+            Function<Object, T> call,
+            Supplier<T> missing) {
+        Object blockEntity = listHolder(hostFunction, blockEntityId);
+        return blockEntity == null ? missing.get() : call.apply(blockEntity);
+    }
+
+    /**
+     * Runs a call on one record of a saved list, answering the default after reporting a block
+     * entity that saves no lists, or an index that names no record of the list.
+     */
+    private static <T> T withSavedRecord(
+            String hostFunction,
+            long blockEntityId,
+            String name,
+            double index,
+            BiFunction<Object, GrugSavedLists.Record, T> call,
+            Supplier<T> missing) {
+        return withSavedLists(
+                hostFunction,
+                blockEntityId,
+                blockEntity -> {
+                    GrugSavedLists.Record record =
+                            recordOrReport(hostFunction, blockEntity, name, index);
+                    return record == null ? missing.get() : call.apply(blockEntity, record);
+                },
+                missing);
+    }
+
+    /** The item as an {@code Option[Item]}, empty when there is none. */
+    private static long itemOption(Object item) {
+        Object handle = item != null ? GrugEntities.addEntity(GrugEntityType.Item, item) : null;
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(handle));
     }
 
     public static void set_custom_render() {
