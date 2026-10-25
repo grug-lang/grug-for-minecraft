@@ -9,6 +9,11 @@ export run() {
     # Band 2, clear of the bands the other pipe tests use.
     y: number = origin.y() + 10
     z: number = origin.z()
+    # The block coordinates, since the placement asks for a position and the record stores world
+    # coordinates. The pipe's own x, y and z are the block's centre.
+    bx: number = Math.floor(x)
+    by: number = Math.floor(y)
+    bz: number = Math.floor(z)
 
     level.place_block(x - 1, y, z, "minecraft:chest")
     level.place_block(x, y, z, "grug:wooden_pipe")
@@ -26,9 +31,9 @@ export run() {
 
     # The item starts on the face between the chest and the pipe, on the pipe floor, heading east.
     Test.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
-    Test.assert(_hundredths(_pos(pipe, "x") - x) == 0, "The item should start on the pipe's west face.")
-    Test.assert(_pos(pipe, "y") == y + 0.25, "The item should start on the pipe floor.")
-    Test.assert(_pos(pipe, "z") == z + 0.5, "The item should start on the pipe's centre line.")
+    Test.assert(_hundredths(_pos(pipe, "x") - bx) == 0, "The item should start on the pipe's west face.")
+    Test.assert(_pos(pipe, "y") == by + 0.25, "The item should start on the pipe floor.")
+    Test.assert(_pos(pipe, "z") == bz + 0.5, "The item should start on the pipe's centre line.")
     Test.assert(_number(pipe, "to_center") == 1, "The item should still be heading for the centre.")
     Test.assert(_number(pipe, "direction") == 5, "The item should travel east, away from the chest.")
     Test.assert(_number(pipe, "count") == 1, "The record should carry the chest's single diamond.")
@@ -36,18 +41,18 @@ export run() {
     # 48 more moves leave it 0.02 short of the centre, and the 49th reaches it and snaps.
     Test.tick_block_entity(pipe, 48)
     Test.assert(_number(pipe, "to_center") == 1, "48 moves should not reach the centre.")
-    Test.assert(_hundredths(_pos(pipe, "x") - x) == 48, "48 moves should leave the item 0.02 short of the centre.")
+    Test.assert(_hundredths(_pos(pipe, "x") - bx) == 48, "48 moves should leave the item 0.02 short of the centre.")
     Test.tick_block_entity(pipe, 1)
     Test.assert(_number(pipe, "to_center") == 0, "The 49th move should reach the centre.")
-    Test.assert(_hundredths(_pos(pipe, "x") - x) == 50, "The item should snap to the centre.")
-    Test.assert(_pos(pipe, "y") == y + 0.25, "The centre should be on the pipe floor.")
-    Test.assert(_pos(pipe, "z") == z + 0.5, "The centre should be the block's centre.")
+    Test.assert(_hundredths(_pos(pipe, "x") - bx) == 50, "The item should snap to the centre.")
+    Test.assert(_pos(pipe, "y") == by + 0.25, "The centre should be on the pipe floor.")
+    Test.assert(_pos(pipe, "z") == bz + 0.5, "The centre should be the block's centre.")
     Test.assert(_number(pipe, "direction") == 5, "The only exit is east, so the pick stays east.")
 
     # 50 more moves are still inside the pipe; the 51st is past its face, so it is handed over.
     Test.tick_block_entity(pipe, 50)
     Test.assert(pipe.get_saved_list_size("traveling") == 1, "50 moves from the centre should still be inside the pipe.")
-    Test.assert(_hundredths(_pos(pipe, "x") - x) == 100, "50 moves should put the item on the pipe's east face.")
+    Test.assert(_hundredths(_pos(pipe, "x") - bx) == 100, "50 moves should put the item on the pipe's east face.")
     Test.tick_block_entity(pipe, 1)
     Test.assert(pipe.get_saved_list_size("traveling") == 0, "The 51st move should hand the item over.")
     Test.assert(target.get_item_count_in_slot(0) == 1, "The east chest should hold the diamond.")
