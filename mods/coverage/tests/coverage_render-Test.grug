@@ -12,14 +12,14 @@ render_block: Option[BlockEntity] = Option.new()
 # Whether the fixture has been meshed again from the settled light yet. See _force_remesh.
 remeshed: bool = false
 
-# How many runner ticks have passed since the swap. See the wait in run().
+# How many runner ticks have passed since the swap. See the wait in tick().
 remesh_ticks: number = 0
 
-# How many runner ticks in a row the world has answered settled. See the hold in run().
+# How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
     } else if not Test.world_settled() {
@@ -64,7 +64,7 @@ export run(ctx: TestRunContext) {
     }
 }
 
-local _setup(ctx: TestRunContext) {
+local _setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
 
     # The runner builds a sealed, torch-lit room around the player before every test, so the
@@ -123,7 +123,7 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     }
 }
 
-local _check(ctx: TestRunContext) {
+local _check(ctx: TestTickContext) {
     # The block entity is what the hook drew through, so a missing one would make the screenshot
     # below a picture of nothing that happens to match an empty reference. Asserting it here turns
     # that into a readable failure. It is a member variable because it is created on tick 0 and read
@@ -150,7 +150,7 @@ local _check(ctx: TestRunContext) {
 # neighbours, which is what makes the mesh read the light the wait above settled. Without it the
 # capture is a coin toss between the settled bake and one made while the light was still propagating,
 # and both are byte-identical when they happen. See #259.
-local _force_remesh(ctx: TestRunContext) {
+local _force_remesh(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

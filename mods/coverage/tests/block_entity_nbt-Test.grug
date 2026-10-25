@@ -6,7 +6,7 @@
 # the result replaced the old one, which is why the test gets the block entity again.
 # The GrugExtra and GrugNew keys are nothing a grug block entity reads, so they are dropped by the
 # load; they are there so every numeric type, a missing compound and a missing list are written.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

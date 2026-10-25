@@ -5,8 +5,8 @@
 # It runs after redstone_engine-Test.grug, which closes any screen an earlier test left open, and it
 # closes the GUI it opens for the same reason. See #195.
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
     } else if not Test.screen_open() {
@@ -28,7 +28,7 @@ export run(ctx: TestRunContext) {
     }
 }
 
-local _setup(ctx: TestRunContext) {
+local _setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.setup_graphics_camera()
     x: number = origin.x()

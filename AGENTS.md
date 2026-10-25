@@ -40,7 +40,7 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 - **An invariant throws** `Grug.fatal(...)`, which crashes the game on purpose even inside a script
   call, because the JNI layer would otherwise swallow the exception. Catching and carrying on past
   an invariant is the bug.
-- **A bounded defect is reported and still fails its scope**: `TestRunContext.assert` uses
+- **A bounded defect is reported and still fails its scope**: `TestTickContext.assert` uses
   `Grug.hostFunctionErrorHappened`, and a test file outside `tests/` fails the run, while the game
   keeps running.
 - **A grug mod err is always contained**: the JNI layer prints and clears it and the script carries
@@ -149,7 +149,7 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
 
 ## Writing tests
 
-- `run(ctx)` is called once per tick; `ctx.not_done()` keeps the test alive.
+- `tick(ctx)` is called once per tick; `ctx.not_done()` keeps the test alive.
 - The runner clears the test area before every test, so a test starts from a clean test area and
   never compensates for an earlier test: it does not reset state a previous test left, close a
   screen a previous test opened, or guard against a leak at all. A test that opens a GUI is the one

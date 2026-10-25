@@ -17,8 +17,8 @@ public class HostFunctions {
 
     // Entities
 
-    public static void TestRunContext_assert(long contextId, boolean condition, String message) {
-        if (!requireRunContext("TestRunContext.assert", contextId)) return;
+    public static void TestTickContext_assert(long contextId, boolean condition, String message) {
+        if (!requireTickContext("TestTickContext.assert", contextId)) return;
         if (!condition) {
             // A runtime error, not Grug.fatal: a failed assertion should fail just the test, not
             // take the whole game down.
@@ -305,18 +305,18 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Screenshot, new GrugScreenshot(0));
     }
 
-    public static double TestRunContext_tick(long contextId) {
-        if (!requireRunContext("TestRunContext.tick", contextId)) return 0.0;
+    public static double TestTickContext_current_tick(long contextId) {
+        if (!requireTickContext("TestTickContext.current_tick", contextId)) return 0.0;
         return (double) GrugTestState.currentTestTick;
     }
 
-    public static void TestRunContext_not_done(long contextId) {
-        if (!requireRunContext("TestRunContext.not_done", contextId)) return;
+    public static void TestTickContext_not_done(long contextId) {
+        if (!requireTickContext("TestTickContext.not_done", contextId)) return;
         GrugTestState.testNotDone = true;
     }
 
-    public static void TestRunContext_expect_error(long contextId, String message) {
-        if (!requireRunContext("TestRunContext.expect_error", contextId)) return;
+    public static void TestTickContext_expect_error(long contextId, String message) {
+        if (!requireTickContext("TestTickContext.expect_error", contextId)) return;
         GrugTestState.testExpectedError = message;
     }
 
@@ -1164,9 +1164,9 @@ public class HostFunctions {
         return requireContext(method, "render", contextId, GrugRenderPass.context());
     }
 
-    /** The same rule for the context a test's {@code run()} was passed. */
-    private static boolean requireRunContext(String method, long contextId) {
-        return requireContext(method, "run", contextId, GrugTestState.runContext());
+    /** The same rule for the context a test's {@code tick()} was passed. */
+    private static boolean requireTickContext(String method, long contextId) {
+        return requireContext(method, "tick", contextId, GrugTestState.tickContext());
     }
 
     private static boolean requireContext(

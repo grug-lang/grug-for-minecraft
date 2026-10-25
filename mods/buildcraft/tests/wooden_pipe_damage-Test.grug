@@ -3,11 +3,11 @@ pipe_damage_source: Option[BlockEntity] = Option.new()
 pipe_damage_target: Option[BlockEntity] = Option.new()
 pipe_damage_self: Option[BlockEntity] = Option.new()
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _damage_setup(ctx)
         ctx.not_done()
-    } else if not _damage_pipe_has_moved() or ctx.tick() < 20 {
+    } else if not _damage_pipe_has_moved() or ctx.current_tick() < 20 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
         ctx.not_done()
     } else {
@@ -15,7 +15,7 @@ export run(ctx: TestRunContext) {
     }
 }
 
-local _damage_setup(ctx: TestRunContext) {
+local _damage_setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -51,7 +51,7 @@ local _damage_setup(ctx: TestRunContext) {
     pipe_damage_source.unwrap().set_item_damage_in_slot(0, 7)
 }
 
-local _damage_check(ctx: TestRunContext) {
+local _damage_check(ctx: TestTickContext) {
     source_count: number = pipe_damage_source.unwrap().get_item_count_in_slot(0)
     target_count: number = pipe_damage_target.unwrap().get_item_count_in_slot(0)
     pipe_travelling: number = pipe_damage_self.unwrap().get_saved_list_size("traveling")

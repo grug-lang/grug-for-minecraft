@@ -17,8 +17,8 @@ graphics_table: Option[BlockEntity] = Option.new()
 graphics_chest1: Option[BlockEntity] = Option.new()
 graphics_chest2: Option[BlockEntity] = Option.new()
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         # Runs before the camera setup, so it still builds at the player's own origin.
         _test_logic(ctx)
 
@@ -45,7 +45,7 @@ export run(ctx: TestRunContext) {
     }
 }
 
-local _test_logic(ctx: TestRunContext) {
+local _test_logic(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
 
     origin: Vec3 = Test.get_origin()
@@ -88,7 +88,7 @@ local _test_logic(ctx: TestRunContext) {
     ctx.assert(chest2_count == 0, "Expected exactly 0 diamonds to remain in chest 2.")
 }
 
-local _test_graphics_setup(ctx: TestRunContext) {
+local _test_graphics_setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     diamond_item: Item = item(resource_location("minecraft:diamond"))
 
@@ -142,7 +142,7 @@ local _test_graphics_setup(ctx: TestRunContext) {
     Test.use_block(level, x, y, z)
 }
 
-local _test_graphics_check(ctx: TestRunContext) {
+local _test_graphics_check(ctx: TestTickContext) {
     # This is the GUI panel and nothing else, at 1280x720: the panel's top-left is at (376, 111)
     # and its bottom-right at (904, 609). The obvious-looking ((1280-176)/2, (720-166)/2) =
     # (552, 277) is not where the panel is, and a crop from there takes the wrong part of the

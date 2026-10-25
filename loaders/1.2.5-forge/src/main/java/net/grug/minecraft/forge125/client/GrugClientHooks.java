@@ -257,8 +257,8 @@ public class GrugClientHooks implements ITickHandler {
     }
 
     /**
-     * The game tick, which is where the test runner is driven: one {@code Test.run()} call per game
-     * tick, the cadence the other four loaders use.
+     * The game tick, which is where the test runner is driven: one {@code Test.tick()} call per
+     * game tick, the cadence the other four loaders use.
      */
     private void gameTick(Minecraft minecraft) {
         // The grug sprites cannot be handed to the texture manager before the atlas exists: FML
@@ -302,7 +302,7 @@ public class GrugClientHooks implements ITickHandler {
             }
         }
 
-        // One Test.run() call per game tick, so ticks separate a test's invocations.
+        // One Test.tick() call per game tick, so ticks separate a test's invocations.
         if (testRunner != null) {
             testRunner.tick(minecraft.thePlayer);
             if (testRunner.isFinished()) {

@@ -898,14 +898,14 @@
 			"description": "Utility functions for automated tests.",
 			"export_functions": [
 				{
-					"name": "run",
-					"description": "Runs the test, once per tick. Everything that reports on the test's progress goes through `ctx`: assertions, asking for another tick, and expecting an error.",
+					"name": "tick",
+					"description": "Called once per game tick while the test runs. Everything that reports on the test's progress goes through `ctx`: assertions, asking for another tick, and expecting an error.",
 					"engine_called": true,
 					"parameters": [
 						{
 							"name": "ctx",
 							"type": {
-								"name": "TestRunContext"
+								"name": "TestTickContext"
 							}
 						}
 					]
@@ -2133,11 +2133,11 @@
 				}
 			}
 		},
-		"TestRunContext": {
-			"description": "The context of one call to a test's run(). The test's assertions and its tick bookkeeping go through it. A context is only valid while its run() call is running: saving it in a member variable and using it in a later tick is refused.",
+		"TestTickContext": {
+			"description": "The context of one call to a test's tick(). The test's assertions and its tick bookkeeping go through it. A context is only valid while its tick() call is running: saving it in a member variable and using it in a later tick is refused.",
 			"methods": {
 				"assert": {
-					"description": "Asserts a condition is true. Only legal on the context run() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Asserts a condition is true. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "condition",
@@ -2153,17 +2153,17 @@
 						}
 					]
 				},
-				"tick": {
-					"description": "Returns the current tick number within this test's execution, starting at 0. Only legal on the context run() was passed, while that call is running: a context saved for later is refused.",
+				"current_tick": {
+					"description": "Returns the current tick number within this test's execution, starting at 0. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"return_type": {
 						"name": "number"
 					}
 				},
 				"not_done": {
-					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Only legal on the context run() was passed, while that call is running: a context saved for later is refused."
+					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused."
 				},
 				"expect_error": {
-					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised. Only legal on the context run() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "message",

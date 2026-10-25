@@ -2,10 +2,10 @@
 change_baseline: number = -1
 path: string = "coverage/code/coverage_item-Item.grug"
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         ctx.not_done()
-    } else if ctx.tick() == 1 {
+    } else if ctx.current_tick() == 1 {
         change_baseline = Test.hot_reload_count(path)
         Test.set_mod_file_state(path, "invalid")
         ctx.not_done()

@@ -685,7 +685,7 @@ public class GrugModLoader {
                     }
                 }
 
-                // The runner does one Test.run() call per real tick, so that real ticks (and real
+                // The runner does one Test.tick() call per real tick, so that real ticks (and real
                 // rendered frames) elapse between a test's own invocations.
                 advanceTestRunner(mc);
 

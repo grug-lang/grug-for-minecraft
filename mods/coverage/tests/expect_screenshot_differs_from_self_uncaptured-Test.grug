@@ -1,8 +1,8 @@
 # The screenshot doing the comparing is the one that never captured anything. This is the other half of
 # the check the previous test covers: there the unread one was the argument, here it is the receiver,
 # and a test that only ever does it one way never exercises the other.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         ctx.expect_error("have to be captured first")
         never_read: Screenshot = Test.screenshot()
         captured: Screenshot = Test.screenshot().capture(590, 310, 690, 410)

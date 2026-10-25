@@ -1,7 +1,7 @@
 # Covers item + resource_location + item_stack (with damage) + item_entity + ItemEntity.damage +
 # Entity.set_delta_movement + Entity.spawn + vec3_zero.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
 

@@ -1,5 +1,5 @@
 # A block entity that names a slot its inventory does not have is an err, not a write past the end.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

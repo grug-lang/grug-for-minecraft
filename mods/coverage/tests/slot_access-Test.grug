@@ -2,8 +2,8 @@
 # accessible everywhere, a declared range is reported by is_slot_extractable and is_slot_insertable and
 # is what insert_item_into_inventory fills, an empty range denies everything, and a crafting result
 # reads as an item and a damage while there is one and as an empty Option and a zero without.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         # Band 15 with an x offset, clear of every other test's fixtures: a rule lives on the block entity

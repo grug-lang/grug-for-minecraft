@@ -17,14 +17,14 @@ pipe_placed_at: number = -1
 # still there on the delayed check and the dropped-item assertion still fails on it.
 pipe_bread_at: number = -1
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _setup_table(ctx)
         ctx.not_done()
     } else if pipe_placed_at < 0 {
         _check_rule(ctx)
         _setup_pipe(ctx)
-        pipe_placed_at = ctx.tick()
+        pipe_placed_at = ctx.current_tick()
         ctx.not_done()
     } else if not _bread_has_moved() {
         ctx.not_done()
@@ -32,9 +32,9 @@ export run(ctx: TestRunContext) {
         # The chest first holds the bread on this tick, and the item entity that carried it through
         # the pipe is still in the world until the sweep that follows (#272), so record the arrival
         # and let it happen before the check.
-        pipe_bread_at = ctx.tick()
+        pipe_bread_at = ctx.current_tick()
         ctx.not_done()
-    } else if ctx.tick() < pipe_placed_at + 25 or ctx.tick() < pipe_bread_at + 2 {
+    } else if ctx.current_tick() < pipe_placed_at + 25 or ctx.current_tick() < pipe_bread_at + 2 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262). The two ticks after the
         # arrival are for that sweep: the carrying entity is gone by then, while a genuinely
         # dropped item persists and the dropped-item assertion still fails on it (#272).
@@ -47,7 +47,7 @@ export run(ctx: TestRunContext) {
 # Three wheat in the top row craft one bread. Wheat and bread are items rather than blocks on every
 # loader, so the recipe's result can be named and compared, unlike a grid of diamonds, whose 3x3
 # recipe is the diamond block.
-local _setup_table(ctx: TestRunContext) {
+local _setup_table(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x() + 12
@@ -80,7 +80,7 @@ local _setup_table(ctx: TestRunContext) {
 # The table's own answers, which are what the pipe has to go by: it offers its crafting result, one
 # bread, from any side, and it takes only an item that its grid already holds. Asking is a dry run, so
 # none of it moves anything.
-local _check_rule(ctx: TestRunContext) {
+local _check_rule(ctx: TestTickContext) {
     table: BlockEntity = pipe_table_table.unwrap()
     wheat: Item = item(resource_location("minecraft:wheat"))
     diamond: Item = item(resource_location("minecraft:diamond"))
@@ -97,7 +97,7 @@ local _check_rule(ctx: TestRunContext) {
 # The table sits to the pipe's west and the chest to its east, so the side scan reaches the table
 # before the chest and the pipe pulls from the table rather than the other way round. The engine is
 # below the pipe, where a torch powers it.
-local _setup_pipe(ctx: TestRunContext) {
+local _setup_pipe(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x() + 12
@@ -121,7 +121,7 @@ local _setup_pipe(ctx: TestRunContext) {
     pipe_table_pipe.set(pipe_opt.unwrap())
 }
 
-local _check(ctx: TestRunContext) {
+local _check(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x() + 12

@@ -11,7 +11,7 @@
 step: number = 0
 waited: number = 0
 
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -72,18 +72,18 @@ export run(ctx: TestRunContext) {
 }
 
 # A step that has not seen what it waits for yet keeps the test alive.
-local _wait(ctx: TestRunContext) {
+local _wait(ctx: TestTickContext) {
     waited = waited + 1
     ctx.assert(waited < 200, "The wrench did not change the pipe's side.")
     ctx.not_done()
 }
 
-local _pipe(ctx: TestRunContext, level: Level, x: number, y: number, z: number) BlockEntity {
+local _pipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
     pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     ctx.assert(pipe_opt.has(), "The wooden pipe should have a block entity.")
     return pipe_opt.unwrap()
 }
 
-local _source(ctx: TestRunContext, level: Level, x: number, y: number, z: number) number {
+local _source(ctx: TestTickContext, level: Level, x: number, y: number, z: number) number {
     return _pipe(ctx, level, x, y, z).get_saved_number("source")
 }

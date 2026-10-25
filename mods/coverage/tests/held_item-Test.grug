@@ -1,6 +1,6 @@
 # Covers Player.get_held_item(), which a block's use export asks to tell what the player holds, as
 # BuildCraft's wrench needs: an empty hand has no item, and an item put in the hand is the one reported.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     player: Player = Test.get_player()
     diamond: Item = item(resource_location("minecraft:diamond"))
     sword: Item = item(resource_location("minecraft:diamond_sword"))

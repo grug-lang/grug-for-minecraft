@@ -9,7 +9,7 @@
 step: number = 0
 waited: number = 0
 
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -56,18 +56,18 @@ export run(ctx: TestRunContext) {
 }
 
 # A step that has not seen what it waits for yet keeps the test alive.
-local _wait(ctx: TestRunContext) {
+local _wait(ctx: TestTickContext) {
     waited = waited + 1
     ctx.assert(waited < 200, "The wrench did not turn the engine.")
     ctx.not_done()
 }
 
-local _engine(ctx: TestRunContext, level: Level, x: number, y: number, z: number) BlockEntity {
+local _engine(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
     engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     return engine_opt.unwrap()
 }
 
-local _facing(ctx: TestRunContext, level: Level, x: number, y: number, z: number) number {
+local _facing(ctx: TestTickContext, level: Level, x: number, y: number, z: number) number {
     return _engine(ctx, level, x, y, z).get_saved_number("orientation")
 }

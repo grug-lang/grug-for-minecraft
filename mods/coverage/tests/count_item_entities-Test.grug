@@ -1,6 +1,6 @@
 # Covers Level.count_item_entities() and Level.find_item_entity(), which the wooden pipe's drop
 # tests need to assert an item was dropped.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

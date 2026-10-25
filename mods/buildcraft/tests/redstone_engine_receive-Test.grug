@@ -8,13 +8,13 @@
 # touches, and glass is weak enough for the explosion to break and drops no item entity. Two feeders
 # are placed west and east of the receiver, so the north side is free.
 
-# Only the engines are ticked, with Test.tick_block_entity, and everything happens inside one run()
+# Only the engines are ticked, with Test.tick_block_entity, and everything happens inside one tick()
 # call, so the game's own tick cannot run an engine in between. Test.tick_block_entity leaves the
 # clock alone, so the time Level.get_time reads stays where the test found it. The test waits for a
 # time 5 to 15 ticks past a multiple of 20, so no tick it gives lands on one, even if the integrated
 # server thread advances a few ticks during the call, and a powered engine gains nothing of its own
 # while it is ticked. The energy the test expects therefore changes only by strokes.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
 
     # Waits for a time 5 to 15 ticks past a multiple of 20. See the header.
@@ -61,7 +61,7 @@ export run(ctx: TestRunContext) {
 # (west, east, then north), all facing it, each holding 100 energy and powered. Runs each feeder up
 # to its delivery, checks that it paid 1 energy for it and that the receiver's store holds one more,
 # then ticks the receiver once and returns it.
-local _scenario(ctx: TestRunContext, level: Level, x: number, y: number, z: number, feeders: number, receiver_energy: number) BlockEntity {
+local _scenario(ctx: TestTickContext, level: Level, x: number, y: number, z: number, feeders: number, receiver_energy: number) BlockEntity {
     receiver: BlockEntity = _place_engine(ctx, level, x, y, z, true, receiver_energy, 1)
 
     i: number = 0
@@ -79,7 +79,7 @@ local _scenario(ctx: TestRunContext, level: Level, x: number, y: number, z: numb
 # progress, so the progress is then set to just under the 0.5 a Blue stroke (100 energy) needs to
 # pass, and the next tick, which adds 0.01, delivers. That saves the 50 ticks a whole stroke takes,
 # each of which draws the engine again (redstone_engine_stroke-Test.grug runs whole ones).
-local _deliver(ctx: TestRunContext, receiver: BlockEntity, feeder: BlockEntity, stored_before: number) {
+local _deliver(ctx: TestTickContext, receiver: BlockEntity, feeder: BlockEntity, stored_before: number) {
     Test.tick_block_entity(feeder, 1)
     feeder.set_saved_number("progress", 0.495)
     before: number = feeder.get_saved_number("energy")
@@ -91,7 +91,7 @@ local _deliver(ctx: TestRunContext, receiver: BlockEntity, feeder: BlockEntity, 
 
 # The index-th feeder of the receiver at (x, y, z): index 0 is west of it and faces east, 1 is east
 # of it and faces west, and 2 is north of it and faces south. Facing 5 is east, 4 west and 3 south.
-local _place_feeder(ctx: TestRunContext, level: Level, x: number, y: number, z: number, index: number) BlockEntity {
+local _place_feeder(ctx: TestTickContext, level: Level, x: number, y: number, z: number, index: number) BlockEntity {
     if index == 0 {
         return _place_engine(ctx, level, x - 1, y, z, true, 100, 5)
     }
@@ -105,7 +105,7 @@ local _place_feeder(ctx: TestRunContext, level: Level, x: number, y: number, z: 
 # under the torch) when powered, and returns its block entity after checking the signal. A torch
 # powers the block above it, but not the block it is attached to. The facing is saved as the engine
 # would have picked it on its first tick, so that tick does not look at its neighbours.
-local _place_engine(ctx: TestRunContext, level: Level, x: number, y: number, z: number, powered: bool, energy: number, facing: number) BlockEntity {
+local _place_engine(ctx: TestTickContext, level: Level, x: number, y: number, z: number, powered: bool, energy: number, facing: number) BlockEntity {
     if powered {
         level.place_block(x, y - 2, z, "minecraft:stone")
         level.place_block(x, y - 1, z, "minecraft:redstone_torch")

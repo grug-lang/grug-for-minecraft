@@ -1,8 +1,8 @@
 # Math.remainder is Java's % on doubles, which is what BuildCraft's world time checks read. The
 # negative cases are the ones a floor-based modulo gets wrong, and they matter because the quarry
 # compares the parity of coordinates that can be negative.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         ctx.assert(Math.remainder(7, 3) == 1, "Math.remainder(7, 3) should be 1.")
         ctx.assert(Math.remainder(6, 3) == 0, "Math.remainder(6, 3) should be 0.")
         ctx.assert(Math.remainder(0, 20) == 0, "Math.remainder(0, 20) should be 0.")

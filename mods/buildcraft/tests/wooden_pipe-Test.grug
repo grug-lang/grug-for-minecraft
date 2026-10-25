@@ -6,11 +6,11 @@ pipe_source: Option[BlockEntity] = Option.new()
 pipe_target: Option[BlockEntity] = Option.new()
 pipe_self: Option[BlockEntity] = Option.new()
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
-    } else if not _pipe_has_moved() or ctx.tick() < 20 {
+    } else if not _pipe_has_moved() or ctx.current_tick() < 20 {
         # The floor keeps the suite's timing where the coverage_render references were captured,
         # which that fixture's light depends on (#262). The condition is what gates this wait.
         ctx.not_done()
@@ -19,7 +19,7 @@ export run(ctx: TestRunContext) {
     }
 }
 
-local _setup(ctx: TestRunContext) {
+local _setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -52,7 +52,7 @@ local _setup(ctx: TestRunContext) {
     pipe_source.unwrap().set_item_in_slot(0, diamond, 1)
 }
 
-local _check(ctx: TestRunContext) {
+local _check(ctx: TestTickContext) {
     source_count: number = pipe_source.unwrap().get_item_count_in_slot(0)
     target_count: number = pipe_target.unwrap().get_item_count_in_slot(0)
     pipe_travelling: number = pipe_self.unwrap().get_saved_list_size("traveling")
