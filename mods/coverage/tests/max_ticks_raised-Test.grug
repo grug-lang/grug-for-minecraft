@@ -1,0 +1,15 @@
+# A test is capped at 200 ticks unless its init raises the budget with set_max_ticks, so this one
+# keeps asking for ticks past the default and has to finish instead of failing at 200. Waiting
+# 250 ticks is what a real duration costs: an item travelling along a pipe takes a hundred game
+# ticks a hop, with nothing to observe in between (#589).
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(300)
+}
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() < 250 {
+        ctx.not_done()
+    } else {
+        ctx.assert(ctx.current_tick() == 250, "The test should have run to tick 250.")
+    }
+}

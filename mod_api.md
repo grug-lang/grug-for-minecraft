@@ -63,6 +63,7 @@ export tick()
 export init()
 
 ## Test
+export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
 Test.clear_held_item(player: Player)
 Test.close_screen()
@@ -163,6 +164,9 @@ Option.new() Option[$Value]
 .differs_from(other: Screenshot, percent: number)
 .equals(reference: resource, x1: number, y1: number, x2: number, y2: number)
 .tolerance(percent: number) Screenshot
+
+## TestInitContext
+.set_max_ticks(ticks: number)
 
 ## TestTickContext
 .assert(condition: bool, message: string)

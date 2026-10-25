@@ -898,6 +898,19 @@
 			"description": "Utility functions for automated tests.",
 			"export_functions": [
 				{
+					"name": "init",
+					"description": "Called once when the test's grug entity is created, which is before its first tick. Member scope runs first and can only declare, so this is the first point at which a test can call anything on `ctx`: it is where a test that needs more than the default number of ticks raises its budget. A test without an init keeps the default.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "TestInitContext"
+							}
+						}
+					]
+				},
+				{
 					"name": "tick",
 					"description": "Called once per game tick while the test runs. Everything that reports on the test's progress goes through `ctx`: assertions, asking for another tick, and expecting an error.",
 					"engine_called": true,
@@ -2169,6 +2182,22 @@
 							"name": "message",
 							"type": {
 								"name": "string"
+							}
+						}
+					]
+				}
+			}
+		},
+		"TestInitContext": {
+			"description": "The context of a test's init(). Only calls that have to be made before the test starts live on it, so a test cannot make them twice or after it has started. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"set_max_ticks": {
+					"description": "Raises how many ticks the test may take before the runner fails it, which is 200 for a test that does not ask. A test with a real duration to wait for, such as an item travelling along a pipe a hundred game ticks at a time, needs more than that. The ticks are game ticks, as counted by TestTickContext.current_tick. They have to be a whole number from 200 to 2147483647: a test can raise its budget but not lower it, and anything else is reported without changing the budget. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
 							}
 						}
 					]

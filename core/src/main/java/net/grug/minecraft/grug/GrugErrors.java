@@ -41,6 +41,7 @@ public final class GrugErrors {
      * <p>Visible for tests: they drive the record without the adapter onRuntimeError logs to.
      */
     public static void recordTestRuntimeError(String reason) {
+        GrugTestState.runtimeErrorCount++;
         if (GrugTestState.testExpectedError == null) {
             return;
         }

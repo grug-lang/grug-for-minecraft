@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
 import java.awt.image.BufferedImage;
@@ -303,6 +304,33 @@ public class HostFunctions {
 
     public static long Test_screenshot() {
         return GrugEntities.addEntity(GrugEntityType.Screenshot, new GrugScreenshot(0));
+    }
+
+    /**
+     * Raises the running test's tick budget. Only the test's {@code init()} is passed the context
+     * this lives on, so a test can neither call it twice nor after it has started.
+     *
+     * <p>A test can only raise its budget: the default is the ceiling for a test that did not ask
+     * for more, and a smaller number would only make a slow runner fail a test that fits the
+     * default. A value that is not a whole number from the default up to what an int holds is a
+     * mistake in the mod, reported without changing the budget.
+     */
+    public static void TestInitContext_set_max_ticks(long contextId, double ticks) {
+        if (!requireInitContext("TestInitContext.set_max_ticks", contextId)) return;
+        if (ticks != Math.floor(ticks)
+                || ticks < GrugTestRunner.DEFAULT_MAX_TEST_TICKS
+                || ticks > Integer.MAX_VALUE) {
+            GrugModTreeDefect.report(
+                    "TestInitContext.set_max_ticks: The ticks have to be a whole number from "
+                            + GrugTestRunner.DEFAULT_MAX_TEST_TICKS
+                            + " to "
+                            + Integer.MAX_VALUE
+                            + ", and were "
+                            + ticks
+                            + ".");
+            return;
+        }
+        GrugTestState.maxTestTicks = (int) ticks;
     }
 
     public static double TestTickContext_current_tick(long contextId) {
@@ -1167,6 +1195,11 @@ public class HostFunctions {
     /** The same rule for the context a test's {@code tick()} was passed. */
     private static boolean requireTickContext(String method, long contextId) {
         return requireContext(method, "tick", contextId, GrugTestState.tickContext());
+    }
+
+    /** The same rule for the context a test's {@code init()} was passed. */
+    private static boolean requireInitContext(String method, long contextId) {
+        return requireContext(method, "init", contextId, GrugTestState.initContext());
     }
 
     private static boolean requireContext(

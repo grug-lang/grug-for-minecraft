@@ -18,6 +18,7 @@ public enum GrugEntityType {
     RenderContext,
     ResourceLocation,
     Screenshot,
+    TestInitContext,
     TestTickContext,
     Vec3;
 
