@@ -8,18 +8,18 @@
 # PipeItemsWood.doWork with the energy of its power provider, which the energy host functions model:
 # the pipe is an energy receiver that holds at most 64 and loses 64 on every tick, so what it does
 # not spend on the tick it arrives is gone.
-#
+
 # The pipe's own inventory is only the extraction inbox: extract_item_into has to name a slot for
 # the items a machine hands over, so the pipe takes them into slot 0 and immediately moves them into
 # a travelling record, and the slot is empty at every tick boundary. The reference's pipe has no
 # inventory slots at all.
-#
+
 # What the pipe may touch of a neighbouring inventory is that inventory's own rule. A machine that
 # defines the extract_item and add_item exports, as ISpecialInventory does in the reference, decides
 # per side and per item what it hands over and what it takes, and the pipe spends no energy on what
 # it is handed. Any other inventory is read slot by slot through is_slot_extractable, which is what
 # checkExtractGeneric does.
-#
+
 # A wooden pipe connects to inventories and to other kinds of pipe, but not to another wooden pipe,
 # because PipeLogicWood.isPipeConnected refuses one unless the pipes.alwaysConnect config is true and
 # its default is false. So two wooden pipes never hand an item to each other, and handing to another
