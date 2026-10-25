@@ -107,6 +107,12 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
 - Coverage stays at 100% on `core`. Cover a host function from a committed mod's own path first,
   then a grug test in `mods/coverage/`, then a Java test, and `@GrugGenerated` only as a last
   resort. "A grug test cannot reach this" is not "no test can reach this".
+- A coverage failure prints only the counts. The gate uploads `coverage-report` even when it
+  fails, so `gh run download <run> --name coverage-report` is the fast route: each runner's XML
+  has a `<line>` with `mi` or `mb` above 0 for a missed instruction or branch. The report sums
+  every runner, so a branch missed in one loader's adapter fails the gate even when another loader
+  covers it. A coverage job cancelled before that upload still leaves the per-runner exec and class
+  artifacts for `.github/scripts/combine-coverage.py`.
 - Print diagnostics before `ALL N TESTS PASSED`: `run-loader.sh` stops reading the log there.
 
 ## Versions are pinned
