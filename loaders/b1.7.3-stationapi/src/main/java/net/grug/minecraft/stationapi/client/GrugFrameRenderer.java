@@ -89,8 +89,11 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
                         yaw);
         if (geometry.items().isEmpty()) return;
 
+        // The dispatcher colours a block entity with method_1782, which this mapping leaves under
+        // its intermediary name. World.getBrightness is the integer light level instead, so using
+        // it here overflows the 0..1 colour and draws the items full bright.
         float brightness =
-                grugBlockEntity.world.getBrightness(
+                grugBlockEntity.world.method_1782(
                         grugBlockEntity.x, grugBlockEntity.y, grugBlockEntity.z);
 
         GL11.glPushAttrib(
