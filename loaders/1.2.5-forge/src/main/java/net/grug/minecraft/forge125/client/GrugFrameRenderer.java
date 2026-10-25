@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.client;
 
+import net.grug.minecraft.forge125.block.GrugBlock;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
 import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugFrameGeometry;
@@ -13,6 +14,7 @@ import net.minecraft.src.RenderManager;
 import net.minecraft.src.Tessellator;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.TileEntitySpecialRenderer;
+import net.minecraft.src.World;
 import net.minecraft.src.forge.ForgeHooksClient;
 
 import org.lwjgl.opengl.GL11;
@@ -59,6 +61,12 @@ public class GrugFrameRenderer extends TileEntitySpecialRenderer {
         if (!(tile instanceof GrugBlockEntity)) return;
 
         GrugBlockEntity blockEntity = (GrugBlockEntity) tile;
+        World world = tile.worldObj;
+        Block block = Block.blocksList[world.getBlockId(tile.xCoord, tile.yCoord, tile.zCoord)];
+        if (!(block instanceof GrugBlock) || !((GrugBlock) block).drawsCustomGeometry()) {
+            return;
+        }
+
         float yaw = RenderManager.instance.playerViewY;
         GrugFrameGeometry geometry =
                 GrugBlockGeometry.drawFrame(

@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
+import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.GrugBoxRenderer;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.minecraft.block.Block;
@@ -68,6 +69,14 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
         GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
         if (grugBlockEntity.world == null) return;
 
+        Block block =
+                Block.BLOCKS[
+                        grugBlockEntity.world.getBlockId(
+                                grugBlockEntity.x, grugBlockEntity.y, grugBlockEntity.z)];
+        if (!(block instanceof GrugBlock) || !((GrugBlock) block).drawsCustomGeometry()) {
+            return;
+        }
+
         float yaw = cameraYaw(tickDelta);
         GrugFrameGeometry geometry =
                 GrugBlockGeometry.drawFrame(
@@ -126,7 +135,14 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
         Block block = null;
         if (draw.item() instanceof Item) {
             item = (Item) draw.item();
-            block = item.id >= 0 && item.id < Block.BLOCKS.length ? Block.BLOCKS[item.id] : null;
+            // StationAPI gives items their own id space, so an item's id is not the id of the
+            // block it places. A block item names its block directly.
+            if (item instanceof net.minecraft.item.BlockItem) {
+                block =
+                        Block.BLOCKS[
+                                ((net.grug.minecraft.stationapi.mixin.BlockItemMixin) item)
+                                        .grug$blockId()];
+            }
         } else if (draw.item() instanceof Block) {
             block = (Block) draw.item();
             item = Item.ITEMS[block.id];

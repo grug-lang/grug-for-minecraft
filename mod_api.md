@@ -15,8 +15,8 @@ export item_extracted(slot: number, amount: number)
 export item_inserted(slot: number, amount: number)
 export on_neighbor_change()
 export output_taken(amount: number)
-export render()
-export render_frame()
+export render(ctx: RenderContext)
+export render_frame(ctx: RenderFrameContext)
 export tick()
 .add_item(item: Item, damage: number, count: number, from_side: number, add: bool) number
 .append_saved_list_record(name: string) number
@@ -150,6 +150,15 @@ Option.new() Option[$Value]
 ## Player
 .get_held_item() Option[Item]
 
+## RenderContext
+.draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
+.draw_model(model: resource, x: number, y: number, z: number, dx: number, dy: number, dz: number)
+
+## RenderFrameContext
+.camera_yaw() number
+.draw_item(item: Item, damage: number, count: number, x: number, y: number, z: number)
+.partial_tick() number
+
 ## Screenshot
 .capture(x1: number, y1: number, x2: number, y2: number) Screenshot
 .differs_from(other: Screenshot, percent: number)
@@ -163,18 +172,13 @@ Option.new() Option[$Value]
 
 # Host functions
 
-camera_yaw() number
 decline_use()
-draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
-draw_item(item: Item, damage: number, count: number, x: number, y: number, z: number)
-draw_model(model: resource, x: number, y: number, z: number, dx: number, dy: number, dz: number)
 drop_inventory(level: Level, x: number, y: number, z: number)
 equals(a: $Type, b: $Type) bool
 gui(texture_path: resource) GUI
 item(resource_location: ResourceLocation) Item
 item_entity(level: Level, x: number, y: number, z: number, item_stack: ItemStack) ItemEntity
 item_stack(item: Item, damage: number) ItemStack
-partial_tick() number
 print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)

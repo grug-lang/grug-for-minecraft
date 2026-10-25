@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 
+import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -20,6 +21,7 @@ import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Draws what a grug block entity's {@code render_frame()} drew, on top of the chunk geometry, once
@@ -54,6 +56,12 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
             MultiBufferSource buffer,
             int packedLight,
             int packedOverlay) {
+        BlockState state = blockEntity.getBlockState();
+        if (!(state.getBlock() instanceof GrugBlock grugBlock)
+                || !grugBlock.drawsCustomGeometry()) {
+            return;
+        }
+
         // The camera is already interpolated for this frame, so its yaw is the direction the
         // player looks in without the partial tick being applied again here.
         float yaw = Minecraft.getInstance().gameRenderer.getMainCamera().getYRot();

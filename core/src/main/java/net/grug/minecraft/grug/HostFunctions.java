@@ -1117,30 +1117,55 @@ public class HostFunctions {
         }
     }
 
-    public static void draw_box(double x1, double y1, double z1, double x2, double y2, double z2) {
-        // A draw call outside a render pass, or one whose corners are the wrong way round, is a mod
-        // mistake rather than an engine one, and the sandbox is that the script carries on
-        // afterwards: see the mod_api.json description. One report for both, because record has one
-        // answer and the two causes are the same thing: the box was not recorded.
+    /**
+     * Whether {@code contextId} is the context of the pass that is open right now.
+     *
+     * <p>A context is only valid while the export it was passed to is running. The engine makes a
+     * fresh one for every pass and destroys it when the pass closes, so a script that saves it in a
+     * member variable holds either a context that no longer exists or one from an earlier pass.
+     * Either way what it drew no longer belongs to any pass, and silently ignoring it would leave
+     * the author with a shape that is missing a piece and no line saying why.
+     *
+     * <p>Reported as a mod-tree defect rather than a host function error: a context used outside
+     * its call is a mistake in the mod, not a call that a game refused. The report names the method
+     * and the rule, and the run fails on it.
+     */
+    private static boolean requireContext(String method, long contextId) {
+        GrugObject object = GrugEntities.entityData.get(contextId);
+        if (object != null && object.object == GrugRenderPass.context()) {
+            return true;
+        }
+        GrugModTreeDefect.report(
+                method
+                        + ": A render context is only valid while the export it was passed to is"
+                        + " running. A context saved in a member variable and used later is"
+                        + " refused.");
+        return false;
+    }
+
+    public static void RenderContext_draw_box(
+            long contextId, double x1, double y1, double z1, double x2, double y2, double z2) {
+        if (!requireContext("RenderContext.draw_box", contextId)) return;
+
         if (!GrugRenderPass.record(x1, y1, z1, x2, y2, z2)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    "draw_box: The box was not recorded. It can only be called while a block"
-                        + " entity's render() is drawing, and its corners have to be the right way"
-                        + " round: the first of each pair is the near corner and must be no greater"
-                        + " than the second, so draw_box(0, 0, 0, 1, 1, 1) and not draw_box(1, 0,"
-                        + " 0, 0, 1, 1).");
+                    "RenderContext.draw_box: The box was not recorded. Its corners have to be the"
+                        + " right way round: the first of each pair is the near corner and must be"
+                        + " no greater than the second, so draw_box(0, 0, 0, 1, 1, 1) and not"
+                        + " draw_box(1, 0, 0, 0, 1, 1).");
         }
     }
 
     /**
-     * Draws a model JSON's elements into the open render pass, each face with the texture the model
-     * names for it, turned about the block's centre by multiples of 90 degrees, which is how a
-     * model renderer faces one set of boxes six ways. The model is read with {@link GrugModels},
-     * which every loader draws from, and what can go wrong is decided there and in {@link
-     * GrugRenderPass}, where a Java test reaches it.
+     * Draws a model JSON's elements, each face with the texture the model names for it, turned
+     * about the block's centre by multiples of 90 degrees, which is how a model renderer faces one
+     * set of boxes six ways. The model is read with {@link GrugModels}, which every loader draws
+     * from, and what can go wrong is decided there and in {@link GrugRenderPass}, where a Java test
+     * reaches it.
      */
-    public static void draw_model(
+    public static void RenderContext_draw_model(
+            long contextId,
             String modelPath,
             double xDegrees,
             double yDegrees,
@@ -1148,6 +1173,8 @@ public class HostFunctions {
             double dx,
             double dy,
             double dz) {
+        if (!requireContext("RenderContext.draw_model", contextId)) return;
+
         String problem =
                 GrugRenderPass.recordModel(
                         GrugCore.getAdapter().getGrugModsDirectory(),
@@ -1159,13 +1186,13 @@ public class HostFunctions {
                         dy,
                         dz);
         if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_model: " + problem);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "RenderContext.draw_model: " + problem);
         }
     }
 
     /**
-     * Draws one stack the way the game draws a dropped item, on top of the chunk geometry, during a
-     * block entity's frame pass.
+     * Draws one stack the way the game draws a dropped item, on top of the chunk geometry, for this
+     * frame.
      *
      * <p>A stack has to be drawn this way rather than with draw_box because a dropped item's flat
      * sprite turns to face the camera every frame, and a chunk pass bakes its geometry once. The
@@ -1173,21 +1200,20 @@ public class HostFunctions {
      * what is decided here is that the call is legal and that its numbers are usable. See the
      * {@code mod_api.json} description for what is drawn.
      */
-    public static void draw_item(
-            long itemId, double damage, double count, double x, double y, double z) {
-        if (!GrugRenderPass.isFrame()) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "draw_item: It can only be called while a block entity's render_frame() is"
-                            + " drawing, never from render(): what render() records is baked into"
-                            + " the chunk's geometry, and a stack drawn there could not turn to"
-                            + " face the player every frame.");
-            return;
-        }
+    public static void RenderFrameContext_draw_item(
+            long contextId,
+            long itemId,
+            double damage,
+            double count,
+            double x,
+            double y,
+            double z) {
+        if (!requireContext("RenderFrameContext.draw_item", contextId)) return;
 
         String problem = GrugItemDraw.problem(damage, count, x, y, z);
         if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_item: " + problem);
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "RenderFrameContext.draw_item: " + problem);
             return;
         }
 
@@ -1196,38 +1222,25 @@ public class HostFunctions {
     }
 
     /**
-     * How much of the current tick has already elapsed, from 0 up to but not including 1, during a
-     * block entity's frame pass.
+     * How much of the current tick has already elapsed, from 0 up to but not including 1, for this
+     * frame.
      *
-     * <p>Only legal in {@code render_frame()}: a chunk pass runs once per rebuild rather than once
-     * per frame, so there is no frame fraction for it to mean.
+     * <p>A chunk pass runs once per rebuild rather than once per frame, so it has no frame fraction
+     * to answer.
      */
-    public static double partial_tick() {
-        if (!GrugRenderPass.isFrame()) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "partial_tick: It can only be called while a block entity's render_frame() is"
-                            + " drawing.");
-            return 0.0;
-        }
+    public static double RenderFrameContext_partial_tick(long contextId) {
+        if (!requireContext("RenderFrameContext.partial_tick", contextId)) return 0.0;
+
         return GrugRenderPass.partialTick();
     }
 
     /**
-     * The direction the camera looks in, in degrees, during a block entity's frame pass: the game's
-     * own yaw, so 0 looks towards positive z, 90 towards negative x, and it increases clockwise
-     * seen from above.
-     *
-     * <p>Only legal in {@code render_frame()}, for the same reason as {@link #partial_tick()}.
+     * The direction the camera looks in, in degrees, for this frame: the game's own yaw, so 0 looks
+     * towards positive z, 90 towards negative x, and it increases clockwise seen from above.
      */
-    public static double camera_yaw() {
-        if (!GrugRenderPass.isFrame()) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "camera_yaw: It can only be called while a block entity's render_frame() is"
-                            + " drawing.");
-            return 0.0;
-        }
+    public static double RenderFrameContext_camera_yaw(long contextId) {
+        if (!requireContext("RenderFrameContext.camera_yaw", contextId)) return 0.0;
+
         return GrugRenderPass.cameraYaw();
     }
 

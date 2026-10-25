@@ -102,6 +102,9 @@ final class GrugNative {
 
     static native boolean nativeCallExportFn(long statePtr, long entityHandle, long exportFnId);
 
+    static native boolean nativeCallExportFnWithId(
+            long statePtr, long entityHandle, long exportFnId, long firstArgId);
+
     static native void nativeDestroyEntity(long statePtr, long entityHandle);
 
     static native String[] nativeGetUpdatedResources(long statePtr);

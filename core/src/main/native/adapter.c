@@ -240,6 +240,13 @@ Java_net_grug_minecraft_grug_GrugNative_nativeCallExportFn(JNIEnv *env, jclass c
     return grug_call_export_fn((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle, (uint64_t)exportFnId, NULL, 0) ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_net_grug_minecraft_grug_GrugNative_nativeCallExportFnWithId(JNIEnv *env, jclass clazz, jlong statePtr, jlong entityHandle, jlong exportFnId, jlong firstArgId) {
+    union grug_value args[1];
+    args[0]._id = (uint64_t)firstArgId;
+    return grug_call_export_fn((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle, (uint64_t)exportFnId, args, 1) ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT void JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeDestroyEntity(JNIEnv *env, jclass clazz, jlong statePtr, jlong entityHandle) {
     grug_deinit_entity((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle);

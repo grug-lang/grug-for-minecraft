@@ -75,6 +75,28 @@ public final class Grug {
     }
 
     /**
+     * Calls an export that takes one entity argument, which is how a render pass hands its context
+     * to the export that draws through it.
+     *
+     * <p>The native call takes an argument array already; this is the Java side of the one shape a
+     * render context needs. A second argument shape would have to add its own overload the same
+     * way, until something actually needs one.
+     */
+    public static boolean callExportFn(long entityHandle, long exportFnId, long firstArgId) {
+        boolean result;
+        GrugStateLock.lock();
+        try {
+            result =
+                    GrugNative.nativeCallExportFnWithId(
+                            statePtr, entityHandle, exportFnId, firstArgId);
+        } finally {
+            GrugStateLock.unlock();
+        }
+        GrugErrors.throwPendingFatal();
+        return result;
+    }
+
+    /**
      * For invariants that must never be broken. Use as {@code throw Grug.fatal("...")}. This
      * crashes the game, even when thrown inside a game function that a script called.
      */

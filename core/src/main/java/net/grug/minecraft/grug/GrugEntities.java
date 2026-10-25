@@ -59,6 +59,19 @@ public final class GrugEntities {
     }
 
     /**
+     * Expires a host entity id, so a script that saved the id cannot resolve it again.
+     *
+     * <p>The render context is the first user: it is valid only for the call it was passed to, and
+     * removing its id is what makes a saved context stale rather than a context from a later pass.
+     */
+    public static void removeEntity(long id) {
+        GrugObject object = entityData.remove(id);
+        if (object != null) {
+            fnEntities.remove(object);
+        }
+    }
+
+    /**
      * {@link Grug#createEntity} with the host entities the call creates rooted in {@code owner} and
      * {@code me} resolving to {@code initializingBlockEntity}, under the state lock.
      *

@@ -15,6 +15,7 @@ public enum GrugEntityType {
     Level,
     Option,
     Player,
+    RenderContext,
     ResourceLocation,
     Screenshot,
     Vec3;

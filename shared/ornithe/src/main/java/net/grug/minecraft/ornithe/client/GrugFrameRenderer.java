@@ -4,6 +4,7 @@ import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
+import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.minecraft.block.Block;
@@ -57,6 +58,16 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
         if (!(blockEntity instanceof GrugBlockEntity)) return;
 
         GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;
+        if (grugBlockEntity.world == null) return;
+
+        Block block =
+                Block.BY_ID[
+                        grugBlockEntity.world.getBlock(
+                                grugBlockEntity.x, grugBlockEntity.y, grugBlockEntity.z)];
+        if (!(block instanceof GrugBlock) || !((GrugBlock) block).drawsCustomGeometry()) {
+            return;
+        }
+
         float yaw = cameraYaw(tickDelta);
         GrugFrameGeometry geometry =
                 GrugBlockGeometry.drawFrame(

@@ -40,7 +40,7 @@ export init() {
 # plate, which is what the reference draws while the engine works. The reference reads the same
 # progress on every frame of a tick, so the picture only changes once per tick, and a redraw per tick
 # of a stroke is as often as it needs to be drawn again. See _redraw_if_moved.
-export render() {
+export render(ctx: RenderContext) {
     stage: number = _stage(me.get_saved_number("energy"))
     facing: number = _facing()
     x_degrees: number = _x_degrees(facing)
@@ -48,7 +48,7 @@ export render() {
     # The reference draws the base, then the plate, then the chamber boxes and the trunk last, and
     # the order is kept because faces that share a plane, where one engine's trunk meets the next
     # engine's plate, are won by whichever is drawn last.
-    draw_model(r"assets/grug/models/block/redstone_engine_base.json", x_degrees, 0, z_degrees, 0, 0, 0)
+    ctx.draw_model(r"assets/grug/models/block/redstone_engine_base.json", x_degrees, 0, z_degrees, 0, 0, 0)
 
     # The distance along the facing in blocks, and which way along each world axis the facing goes.
     step: number = _step(me.get_saved_number("progress"))
@@ -57,7 +57,7 @@ export render() {
     dir_y: number = _dir_y(facing)
     dir_z: number = _dir_z(facing)
 
-    draw_model(r"assets/grug/models/block/redstone_engine_plate.json", x_degrees, 0, z_degrees, dir_x * unit, dir_y * unit, dir_z * unit)
+    ctx.draw_model(r"assets/grug/models/block/redstone_engine_plate.json", x_degrees, 0, z_degrees, dir_x * unit, dir_y * unit, dir_z * unit)
 
     # A chamber box every two pixels from the base, for as long as it is not past the plate by more
     # than two pixels, as the reference's loop does. At rest that is two boxes, and the second has its
@@ -67,18 +67,18 @@ export render() {
     pixels: number = 0
     while pixels <= step + 2 {
         offset: number = pixels / 16
-        draw_model(r"assets/grug/models/block/redstone_engine_chamber.json", x_degrees, 0, z_degrees, dir_x * offset, dir_y * offset, dir_z * offset)
+        ctx.draw_model(r"assets/grug/models/block/redstone_engine_chamber.json", x_degrees, 0, z_degrees, dir_x * offset, dir_y * offset, dir_z * offset)
         pixels = pixels + 2
     }
 
     if stage == 0 {
-        draw_model(r"assets/grug/models/block/redstone_engine_blue.json", x_degrees, 0, z_degrees, 0, 0, 0)
+        ctx.draw_model(r"assets/grug/models/block/redstone_engine_blue.json", x_degrees, 0, z_degrees, 0, 0, 0)
     } else if stage == 1 {
-        draw_model(r"assets/grug/models/block/redstone_engine_green.json", x_degrees, 0, z_degrees, 0, 0, 0)
+        ctx.draw_model(r"assets/grug/models/block/redstone_engine_green.json", x_degrees, 0, z_degrees, 0, 0, 0)
     } else if stage == 2 {
-        draw_model(r"assets/grug/models/block/redstone_engine_yellow.json", x_degrees, 0, z_degrees, 0, 0, 0)
+        ctx.draw_model(r"assets/grug/models/block/redstone_engine_yellow.json", x_degrees, 0, z_degrees, 0, 0, 0)
     } else {
-        draw_model(r"assets/grug/models/block/redstone_engine_red.json", x_degrees, 0, z_degrees, 0, 0, 0)
+        ctx.draw_model(r"assets/grug/models/block/redstone_engine_red.json", x_degrees, 0, z_degrees, 0, 0, 0)
     }
 }
 
