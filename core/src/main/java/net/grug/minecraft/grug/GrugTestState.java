@@ -56,18 +56,25 @@ public final class GrugTestState {
             "the call into the VM and its context entity: exercising it needs a live grug entity")
     public static boolean callRun(long entityHandle, long exportFnId) {
         boolean[] completed = new boolean[1];
-        GrugEntities.withFreshOwner(
-                () -> {
-                    RunContext context = openRunContext();
-                    long contextHandle =
-                            GrugEntities.addEntity(GrugEntityType.TestRunContext, context);
-                    try {
-                        completed[0] = Grug.callExportFn(entityHandle, exportFnId, contextHandle);
-                    } finally {
-                        GrugEntities.removeEntity(contextHandle);
-                        closeRunContext();
-                    }
-                });
+        // The root list is process-global, and a render pass on another thread swaps it under the
+        // state lock, so this swap has to be made under the same lock. See createEntityWithOwner.
+        GrugEntities.runLocked(
+                () ->
+                        GrugEntities.withFreshOwner(
+                                () -> {
+                                    RunContext context = openRunContext();
+                                    long contextHandle =
+                                            GrugEntities.addEntity(
+                                                    GrugEntityType.TestRunContext, context);
+                                    try {
+                                        completed[0] =
+                                                Grug.callExportFn(
+                                                        entityHandle, exportFnId, contextHandle);
+                                    } finally {
+                                        GrugEntities.removeEntity(contextHandle);
+                                        closeRunContext();
+                                    }
+                                }));
         return completed[0];
     }
 
