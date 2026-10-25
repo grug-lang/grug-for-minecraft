@@ -120,9 +120,10 @@ fi
 # The file watcher's thread panics when something else in the process closed the descriptor its
 # directory stream owns (#562). The panic is std's, raised on the watcher thread, so it is not #123.
 if printf '%s\n' "$PANIC_MESSAGE" | grep -q "unexpected error during closedir"; then
-  echo "==> This is the file watcher's closedir panic: another library closed a descriptor the watcher's"
-  echo "==> directory stream owned, which is not a bug in grug-rs. Tracked as"
-  echo "==> grug-lang/grug-for-minecraft#562; a re-run of the job passes."
+  echo "==> This is the file watcher's closedir panic: the descriptor its directory stream owned was"
+  echo "==> closed by other code in the process. In the runs examined that was jinput's nClose(0) on a"
+  echo "==> device that never opened, which GrugNative.disableControllerProbe now prevents; a recurrence"
+  echo "==> would have another closer. Tracked as grug-lang/grug-for-minecraft#562."
 else
   echo "==> The panic itself is in grug-lang/grug-rs; this repository only sees the abort."
   echo "==> Tracked as grug-lang/grug-for-minecraft#123, whose report carries the analysis."
