@@ -40,7 +40,9 @@ export use(world: Level, x: number, y: number, z: number, player: Player) {
 
 local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: BlockEntity) {
     index: number = 0
-    while index < pipe.get_saved_list_size("traveling") {
+    # Nothing is removed from the list here, so its size cannot change under the loop.
+    records: number = pipe.get_saved_list_size("traveling")
+    while index < records {
         item_opt: Option[Item] = pipe.get_saved_list_item("traveling", index)
         count: number = pipe.get_saved_list_number("traveling", index, "count")
         if item_opt.has() and count > 0 {

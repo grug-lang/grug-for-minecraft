@@ -71,11 +71,14 @@ export tick() {
 # by their callers rather than grouped by topic.
 local _move_items() {
     index: number = 0
+    remaining: number = me.get_saved_list_size("traveling")
     # A record that leaves the pipe is removed, which moves the next one into the same index, so the
-    # index only advances when the record before it stayed.
-    while index < me.get_saved_list_size("traveling") {
+    # index only advances when the record before it stayed, and the count only falls when one left.
+    while index < remaining {
         if _move_item(index) {
             index = index + 1
+        } else {
+            remaining = remaining - 1
         }
     }
 }
@@ -145,10 +148,11 @@ local _end_steps(direction: number) number {
 # both times so the two agree. The reverse of the travel direction is never an exit, which is what
 # stops an item going back into the inventory it came from.
 local _pick_direction(current: number, item: Item, damage: number) number {
+    reverse: number = _reverse(current)
     exits: number = 0
     direction: number = 0
     while direction < 6 {
-        if direction != _reverse(current) and _accepts(direction, item, damage) {
+        if direction != reverse and _accepts(direction, item, damage) {
             exits = exits + 1
         }
         direction = direction + 1
@@ -164,7 +168,7 @@ local _pick_direction(current: number, item: Item, damage: number) number {
     choice: number = level.random_int(exits)
     direction = 0
     while direction < 6 {
-        if direction != _reverse(current) and _accepts(direction, item, damage) {
+        if direction != reverse and _accepts(direction, item, damage) {
             if choice == 0 {
                 return direction
             }
@@ -368,8 +372,9 @@ local _switch_source_if_needed() {
 # inventory around the pipe has no side.
 local _switch_source() {
     meta: number = _meta()
+    last: number = meta + 6
     i: number = meta + 1
-    while i <= meta + 6 {
+    while i <= last {
         side: number = Math.remainder(i, 6)
         if _is_inventory(side) {
             _set_meta(side)
