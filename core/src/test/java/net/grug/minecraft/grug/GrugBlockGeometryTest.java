@@ -50,7 +50,9 @@ class GrugBlockGeometryTest {
         // draw opens and closes the pass itself, so nothing should be left open. A failing
         // assertion in the middle of one would leave every later test in this class unable to
         // open a pass.
-        if (GrugRenderPass.isOpen()) {
+        if (GrugRenderPass.isFrame()) {
+            GrugRenderPass.closeFrame();
+        } else if (GrugRenderPass.isOpen()) {
             GrugRenderPass.close();
         }
     }
@@ -113,6 +115,21 @@ class GrugBlockGeometryTest {
         assertFalse(
                 GrugRenderPass.isOpen(),
                 "A pass left open would make the next block's pass fail its nesting invariant.");
+    }
+
+    @Test
+    void aFramePassWithNoBlockEntityDrawsNothingAndReportsNothing() {
+        // Unlike a chunk pass, a frame pass that draws nothing is a machine with no item in flight,
+        // which is not a defect. A block entity that was never created is the half of the guard a
+        // JVM test can reach, and the report queue is where a wrong report would land.
+        GrugFrameGeometry geometry =
+                GrugBlockGeometry.drawFrame(0, Grug.INVALID_GRUG_EXPORT_FN_ID, 0.5, 90.0);
+
+        assertTrue(geometry.items().isEmpty(), "There is nothing to draw, so no stacks come back.");
+        assertTrue(drainReports().isEmpty(), "Nothing was drawn, and nothing may be reported.");
+        assertFalse(
+                GrugRenderPass.isOpen(),
+                "A frame pass left open would make the next block's pass fail its invariant.");
     }
 
     @Test

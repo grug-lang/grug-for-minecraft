@@ -1,0 +1,6 @@
+# camera_yaw only means anything during a block entity's render_frame(), the same as partial_tick.
+# A test is not a frame pass, so calling it here must report an error.
+export run() {
+    me.expect_error("render_frame")
+    camera_yaw()
+}

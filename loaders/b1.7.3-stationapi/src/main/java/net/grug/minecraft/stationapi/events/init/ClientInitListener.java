@@ -4,6 +4,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.GrugBlockModels;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
+import net.grug.minecraft.stationapi.client.GrugFrameRenderer;
 import net.grug.minecraft.stationapi.gui.GrugScreen;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
 import net.grug.minecraft.stationapi.gui.StationGuiHelper;
@@ -13,6 +14,7 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
+import net.modificationstation.stationapi.api.client.event.block.entity.BlockEntityRendererRegisterEvent;
 import net.modificationstation.stationapi.api.client.event.option.KeyBindingRegisterEvent;
 import net.modificationstation.stationapi.api.client.event.texture.TextureRegisterEvent;
 import net.modificationstation.stationapi.api.client.gui.screen.GuiHandler;
@@ -34,6 +36,19 @@ public class ClientInitListener {
         event.keyBindings.add(runTestsKey);
         forceResolutionKey = new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);
         event.keyBindings.add(forceResolutionKey);
+    }
+
+    /**
+     * Gives every grug block entity the per-frame renderer what {@code render_frame()} draws
+     * through.
+     *
+     * <p>It is registered for the one grug block entity class every grug block shares, so the
+     * renderer is asked about every grug block and answers only for the blocks that declared {@code
+     * set_custom_render}, the same condition the chunk's geometry uses.
+     */
+    @EventListener
+    public void registerBlockEntityRenderers(BlockEntityRendererRegisterEvent event) {
+        event.register(GrugBlockEntity.class, new GrugFrameRenderer());
     }
 
     /**

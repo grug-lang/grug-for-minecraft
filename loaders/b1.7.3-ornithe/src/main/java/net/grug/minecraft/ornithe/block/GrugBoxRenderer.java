@@ -126,4 +126,31 @@ public final class GrugBoxRenderer {
                 (float) box.y2(),
                 (float) box.z2());
     }
+
+    /**
+     * The block renderer a block item is drawn with.
+     *
+     * <p>A block drawn as an item needs no world of its own: the reference's own dropped-item
+     * renderer constructs one the same way.
+     */
+    private static final BlockRenderer BLOCK_ITEM_RENDERER = new BlockRenderer();
+
+    /** Whether {@code block} has a 3D inventory shape rather than a flat icon. */
+    public static boolean isFullItem(Block block) {
+        return BlockRenderer.isItem3d(block.getRenderType());
+    }
+
+    /**
+     * Whether {@code block}'s inventory shape fills an inventory slot, which the reference draws at
+     * twice the size of the other blocks: render types 1, 19, 12 and 2.
+     */
+    public static boolean isFullSizeItemRenderType(Block block) {
+        int renderType = block.getRenderType();
+        return renderType == 1 || renderType == 19 || renderType == 12 || renderType == 2;
+    }
+
+    /** Draws {@code block} as an item at the origin, with the terrain atlas bound. */
+    public static void drawBlockAsItem(Block block, int damage) {
+        BLOCK_ITEM_RENDERER.renderAsItem(block, damage, 1.0F);
+    }
 }

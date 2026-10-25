@@ -30,6 +30,8 @@ public class GrugBlockEntity extends BlockEntity
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean renderFnIdResolved = false;
+    private long frameRenderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private boolean frameRenderFnIdResolved = false;
     private boolean initStarted = false;
 
     /**
@@ -181,6 +183,22 @@ public class GrugBlockEntity extends BlockEntity
             renderFnIdResolved = true;
         }
         return renderFnId;
+    }
+
+    /**
+     * The id of the {@code render_frame} export, looked up once and remembered, because this is
+     * asked for every frame the block is in view.
+     *
+     * <p>A block entity whose script has no {@code render_frame} is asked anyway, and the engine
+     * declines the call without reporting, so a machine with nothing that moves between frames
+     * needs no branch of its own.
+     */
+    public long getFrameRenderFnId() {
+        if (!frameRenderFnIdResolved) {
+            frameRenderFnId = Grug.getExportFnId("BlockEntity", "render_frame");
+            frameRenderFnIdResolved = true;
+        }
+        return frameRenderFnId;
     }
 
     @Override

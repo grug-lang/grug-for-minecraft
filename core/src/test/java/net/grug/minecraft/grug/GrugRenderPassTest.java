@@ -22,7 +22,9 @@ class GrugRenderPassTest {
     void closeAnyPassLeftOpen() {
         // The nested-open test throws on purpose, which leaves the flag set. Leaving it set would
         // fail every later test in this class for a reason that has nothing to do with them.
-        if (GrugRenderPass.isOpen()) {
+        if (GrugRenderPass.isFrame()) {
+            GrugRenderPass.closeFrame();
+        } else if (GrugRenderPass.isOpen()) {
             GrugRenderPass.close();
         }
     }
@@ -431,5 +433,132 @@ class GrugRenderPassTest {
 
         assertEquals(box, box);
         assertEquals(box.hashCode(), box.hashCode());
+    }
+
+    // --- The frame pass ---
+
+    private static final Object ITEM = new Object();
+
+    @Test
+    void aFramePassIsOpenAndCarriesTheFramesNumbers() {
+        GrugRenderPass.openFrame(0.25, 90.0);
+
+        assertTrue(GrugRenderPass.isOpen());
+        assertTrue(GrugRenderPass.isFrame());
+        assertEquals(0.25, GrugRenderPass.partialTick());
+        assertEquals(90.0, GrugRenderPass.cameraYaw());
+    }
+
+    @Test
+    void aChunkPassIsNotAFramePass() {
+        GrugRenderPass.open();
+
+        assertTrue(GrugRenderPass.isOpen());
+        assertFalse(GrugRenderPass.isFrame());
+    }
+
+    @Test
+    void aFramePassRecordsTheStacksInTheOrderTheyWereDrawn() {
+        GrugRenderPass.openFrame(0.5, 180.0);
+        assertTrue(GrugRenderPass.recordItem(ITEM, 2, 7, 0.25, 0.5, 0.75));
+        assertTrue(GrugRenderPass.recordItem("another", 0, 1, 0.0, 0.0, 0.0));
+
+        GrugFrameGeometry geometry = GrugRenderPass.closeFrame();
+
+        assertEquals(2, geometry.items().size());
+        GrugItemDraw first = geometry.items().get(0);
+        assertEquals(ITEM, first.item());
+        assertEquals(2, first.damage());
+        assertEquals(7, first.count());
+        assertEquals(0.25, first.x());
+        assertEquals(0.5, first.y());
+        assertEquals(0.75, first.z());
+        assertEquals("another", geometry.items().get(1).item());
+    }
+
+    @Test
+    void aChunkPassRefusesAStack() {
+        GrugRenderPass.open();
+
+        assertFalse(GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0));
+    }
+
+    @Test
+    void aFramePassRefusesABoxAndAModel() throws Exception {
+        GrugRenderPass.openFrame(0.0, 0.0);
+
+        assertFalse(GrugRenderPass.record(0, 0, 0, 1, 1, 1));
+        assertTrue(
+                GrugRenderPass.recordModel(mods.toFile(), writePlate(), 0, 0, 0, 0, 0, 0)
+                        .contains("while a block entity's render() is drawing"));
+    }
+
+    @Test
+    void nothingToRecordIsRefusedOutsideEitherPass() {
+        assertFalse(GrugRenderPass.isFrame());
+        assertFalse(GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0));
+    }
+
+    @Test
+    void closingAFramePassAsAChunkPassBreaksAnInvariant() {
+        GrugRenderPass.openFrame(0.0, 0.0);
+
+        RuntimeException error = assertThrows(RuntimeException.class, GrugRenderPass::close);
+        assertTrue(error.getMessage().contains("frame pass"), error.getMessage());
+        assertTrue(GrugRenderPass.isFrame(), "The failed close leaves the pass as it was.");
+    }
+
+    @Test
+    void closingAChunkPassAsAFramePassBreaksAnInvariant() {
+        GrugRenderPass.open();
+
+        RuntimeException error = assertThrows(RuntimeException.class, GrugRenderPass::closeFrame);
+        assertTrue(error.getMessage().contains("chunk pass"), error.getMessage());
+        assertTrue(GrugRenderPass.isOpen(), "The failed close leaves the pass as it was.");
+    }
+
+    @Test
+    void aClosedFramePassIsClosedAndForgetsTheFramesNumbers() {
+        GrugRenderPass.openFrame(0.75, 270.0);
+        GrugRenderPass.closeFrame();
+
+        assertFalse(GrugRenderPass.isOpen());
+        assertFalse(GrugRenderPass.isFrame());
+        assertEquals(0.0, GrugRenderPass.partialTick());
+        assertEquals(0.0, GrugRenderPass.cameraYaw());
+    }
+
+    @Test
+    void aFramePassStartsEmptyRatherThanInheritingWhatALeftOneDrew() {
+        GrugRenderPass.openFrame(0.0, 0.0);
+        GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0);
+        GrugRenderPass.closeFrame();
+
+        GrugRenderPass.openFrame(0.0, 0.0);
+        assertTrue(GrugRenderPass.closeFrame().items().isEmpty());
+    }
+
+    @Test
+    void closingAChainOfFramePassesHandsTheItemsOverRatherThanAliasingThePass() {
+        GrugRenderPass.openFrame(0.0, 0.0);
+        GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0);
+        List<GrugItemDraw> first = GrugRenderPass.closeFrame().items();
+
+        GrugRenderPass.openFrame(0.0, 0.0);
+        GrugRenderPass.recordItem("another", 0, 1, 0.0, 0.0, 0.0);
+        GrugRenderPass.closeFrame();
+
+        assertEquals(1, first.size(), "the next pass cannot change a closed one's items");
+    }
+
+    @Test
+    void theRecordedItemsCannotBeChangedThroughTheReturnedList() {
+        GrugRenderPass.openFrame(0.0, 0.0);
+        GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0);
+
+        List<GrugItemDraw> items = GrugRenderPass.closeFrame().items();
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> items.add(new GrugItemDraw(ITEM, 0, 1, 0.0, 0.0, 0.0)));
     }
 }

@@ -14,6 +14,13 @@ import java.util.List;
  * only place a draw call can go, because the geometry has to end up in whatever the loader's
  * rendering stack is in the middle of building, and only the loader knows what that is.
  *
+ * <p>There are two kinds of pass. A chunk pass is opened for {@code render()} and records the
+ * shapes the game bakes into a chunk's geometry. A frame pass is opened for {@code render_frame()}
+ * and records the stacks drawn on top of that geometry every frame; it carries the frame's partial
+ * tick and the direction the camera looks in, which is what lets a mod interpolate between ticks
+ * and turn a sprite towards the player. The two kinds cannot be mixed: a chunk pass refuses
+ * draw_item, and a frame pass refuses draw_box and draw_model, because neither has anywhere to go.
+ *
  * <p>There is at most one open pass at a time. The caller ({@link GrugBlockGeometry}) holds {@link
  * GrugStateLock} across the whole pass, so two loaders on different threads cannot interleave their
  * open/record/close even on a version that rebuilds chunks on worker threads. A script cannot start
@@ -22,13 +29,17 @@ import java.util.List;
  *
  * <p>Nothing here reports an error itself. A JVM test cannot call into the native adapter that
  * carries {@code Grug.hostFunctionErrorHappened}, so the reporting lives in the caller that can:
- * {@link HostFunctions} for a draw call outside a pass, and {@link GrugBlockGeometry} for a pass
- * that drew nothing.
+ * {@link HostFunctions} for a draw call outside a pass, and {@link GrugBlockGeometry} for a chunk
+ * pass that drew nothing.
  */
 public final class GrugRenderPass {
     private static final List<GrugBox> BOXES = new ArrayList<>();
     private static final List<GrugQuad> QUADS = new ArrayList<>();
+    private static final List<GrugItemDraw> ITEMS = new ArrayList<>();
     private static boolean open = false;
+    private static boolean frame = false;
+    private static double partialTick = 0.0;
+    private static double cameraYaw = 0.0;
 
     @GrugGenerated("utility class: never instantiated")
     private GrugRenderPass() {}
@@ -38,34 +49,97 @@ public final class GrugRenderPass {
         return open;
     }
 
+    /** Whether the open pass is a frame pass, which is the only state draw_item is legal in. */
+    public static boolean isFrame() {
+        return open && frame;
+    }
+
     /**
-     * Opens a pass, with nothing recorded in it. Nesting is impossible from a script and
+     * Opens a chunk pass, with nothing recorded in it. Nesting is impossible from a script and
      * unreachable from a loader, so reaching it means the engine is broken, and that is reported as
      * an invariant rather than recovered from: a second pass would cross-contaminate one block's
      * boxes into another's geometry, and quietly dropping the first one's boxes would draw the
      * wrong shape without saying so.
      */
     public static void open() {
+        open(false, 0.0, 0.0);
+    }
+
+    /**
+     * Opens a frame pass for one frame, with nothing recorded in it.
+     *
+     * @param partialTick how much of the current tick has already elapsed, from 0 up to but not
+     *     including 1
+     * @param cameraYaw the direction the camera looks in, in degrees, as the game's own yaw
+     */
+    public static void openFrame(double partialTick, double cameraYaw) {
+        open(true, partialTick, cameraYaw);
+    }
+
+    private static void open(boolean isFrame, double framePartialTick, double frameCameraYaw) {
         if (open) {
             throw Grug.fatal("A block entity render pass is already open.");
         }
         BOXES.clear();
         QUADS.clear();
+        ITEMS.clear();
+        frame = isFrame;
+        partialTick = framePartialTick;
+        cameraYaw = frameCameraYaw;
         open = true;
     }
 
+    /** How much of the current tick has already elapsed, in a frame pass. */
+    public static double partialTick() {
+        return partialTick;
+    }
+
+    /** The direction the camera looks in, in degrees, in a frame pass. */
+    public static double cameraYaw() {
+        return cameraYaw;
+    }
+
     /**
-     * Closes the pass and returns what the render function recorded, in the order it drew it.
+     * Closes a chunk pass and returns what the render function recorded, in the order it drew it.
      *
      * <p>Copies, so the geometry a loader is about to draw cannot be changed by the next pass, and
      * so that closing the pass does not hand out the live lists.
      */
     public static GrugGeometry close() {
+        if (frame) {
+            throw Grug.fatal(
+                    "A block entity render pass was closed as a chunk pass while it was a frame"
+                            + " pass.");
+        }
         GrugGeometry geometry = new GrugGeometry(new ArrayList<>(BOXES), new ArrayList<>(QUADS));
+        finish();
+        return geometry;
+    }
+
+    /**
+     * Closes a frame pass and returns the stacks it drew, in the order it drew them.
+     *
+     * <p>Copies for the same reason as {@link #close()}.
+     */
+    public static GrugFrameGeometry closeFrame() {
+        if (!frame) {
+            throw Grug.fatal(
+                    "A block entity render pass was closed as a frame pass while it was a chunk"
+                            + " pass.");
+        }
+        GrugFrameGeometry geometry = new GrugFrameGeometry(new ArrayList<>(ITEMS));
+        finish();
+        return geometry;
+    }
+
+    private static void finish() {
         BOXES.clear();
         QUADS.clear();
+        ITEMS.clear();
+        frame = false;
+        partialTick = 0.0;
+        cameraYaw = 0.0;
         open = false;
-        return geometry;
     }
 
     /**
@@ -86,7 +160,7 @@ public final class GrugRenderPass {
             double dx,
             double dy,
             double dz) {
-        if (!open) {
+        if (!open || frame) {
             return "It can only be called while a block entity's render() is drawing.";
         }
         if (!isQuarterTurns(xDegrees) || !isQuarterTurns(yDegrees) || !isQuarterTurns(zDegrees)) {
@@ -137,13 +211,14 @@ public final class GrugRenderPass {
      * to be: visibly wrong, and undiagnosed, since the caller's report of a pass that drew nothing
      * cannot catch it either, a reversed box being a box and the pass having recorded something.
      *
-     * @return false when there is no open pass, or when the box is the wrong way round. The caller
-     *     reports that rather than this class, and nothing is recorded either way. Refusing does
-     *     not silence the caller's other report: a pass whose only box was refused records nothing,
-     *     so the author reads about the refusal and about the empty result, and both are true.
+     * @return false when there is no open chunk pass, or when the box is the wrong way round. The
+     *     caller reports that rather than this class, and nothing is recorded either way. Refusing
+     *     does not silence the caller's other report: a pass whose only box was refused records
+     *     nothing, so the author reads about the refusal and about the empty result, and both are
+     *     true.
      */
     public static boolean record(double x1, double y1, double z1, double x2, double y2, double z2) {
-        if (!open) {
+        if (!open || frame) {
             return false;
         }
 
@@ -153,6 +228,22 @@ public final class GrugRenderPass {
         }
 
         BOXES.add(box);
+        return true;
+    }
+
+    /**
+     * Records one stack for the frame pass to draw.
+     *
+     * @return false when no frame pass is open. The caller reports that rather than this class, so
+     *     the message names the call and where it is legal.
+     */
+    public static boolean recordItem(
+            Object item, int damage, int count, double x, double y, double z) {
+        if (!isFrame()) {
+            return false;
+        }
+
+        ITEMS.add(new GrugItemDraw(item, damage, count, x, y, z));
         return true;
     }
 
