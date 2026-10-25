@@ -13,6 +13,8 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.render.block.BlockRenderer;
 import net.minecraft.world.WorldView;
 
+import org.lwjgl.opengl.GL11;
+
 /**
  * Draws the boxes a grug block entity's render pass recorded, through Alpha's own block
  * tesselation.
@@ -152,7 +154,8 @@ public final class GrugBoxRenderer {
      * takes no metadata or brightness, because it has no block metadata or item brightness to give
      * it.
      */
-    public static void drawBlockAsItem(Block block, int damage) {
+    public static void drawBlockAsItem(Block block, int damage, float brightness) {
+        GL11.glColor3f(brightness, brightness, brightness);
         BLOCK_ITEM_RENDERER.renderAsItem(block);
     }
 }

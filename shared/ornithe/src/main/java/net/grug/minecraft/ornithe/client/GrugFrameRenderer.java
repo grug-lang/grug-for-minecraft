@@ -29,8 +29,9 @@ import org.lwjgl.opengl.GL11;
  * the player, as BuildCraft's travelling items do, cannot go there, so it is drawn here instead,
  * through the same block entity renderer this version draws signs and chests with. The hook gets
  * the block's position relative to the camera, which is where the frame pass's block-local draws
- * start from, and it runs with the block's own lightmap already set, so nothing here has to work
- * out the brightness.
+ * start from. Beta's dispatcher sets the block's brightness as the colour rather than through the
+ * lightmap, and the block-as-item renderer would otherwise leave it white, so the frame pass reads
+ * the brightness itself and applies it to both the cube and the sprite.
  *
  * <p>The stack itself is drawn the way the reference's {@code RenderPipe.doRenderItem} draws it: a
  * block as a small cube lifted a quarter of a block, anything else as one flat sprite lifted a
@@ -84,8 +85,11 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
                         | GL11.GL_LIGHTING_BIT);
         GL11.glDisable(GL11.GL_LIGHTING);
         try {
+            float brightness =
+                    grugBlockEntity.world.getBrightness(
+                            grugBlockEntity.x, grugBlockEntity.y, grugBlockEntity.z);
             for (GrugItemDraw draw : geometry.items()) {
-                drawItem(draw, dx + draw.x(), dy + draw.y(), dz + draw.z(), yaw);
+                drawItem(draw, dx + draw.x(), dy + draw.y(), dz + draw.z(), yaw, brightness);
             }
         } finally {
             GL11.glPopAttrib();
@@ -111,7 +115,8 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
      * Draws one stack at a camera-relative position, the way the reference's {@code doRenderItem}
      * draws a travelling item.
      */
-    private void drawItem(GrugItemDraw draw, double x, double y, double z, float yaw) {
+    private void drawItem(
+            GrugItemDraw draw, double x, double y, double z, float yaw, float brightness) {
         // A mod may name a block rather than its item, which this version's item lookup answers
         // with the block itself. Drawing its item form is what the name means here, so both are
         // accepted.
@@ -154,13 +159,14 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
                             (float) (scatter[1] * 0.2 / scale),
                             (float) (scatter[2] * 0.2 / scale));
                 }
-                GrugBoxRenderer.drawBlockAsItem(block, draw.damage());
+                GrugBoxRenderer.drawBlockAsItem(block, draw.damage(), brightness);
                 GL11.glPopMatrix();
             }
         } else {
             double lift = 0.1;
             double scale = 0.5;
             int icon = stack.getSprite();
+            GL11.glColor3f(brightness, brightness, brightness);
             GL11.glTranslatef(0.0F, (float) lift, 0.0F);
             GL11.glScalef((float) scale, (float) scale, (float) scale);
             textures.bind(textures.load(block != null ? TERRAIN_ATLAS : ITEMS_ATLAS));
