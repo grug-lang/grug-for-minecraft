@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 public class GrugBlockEntity extends BlockEntity
-        implements Inventory, GrugSavedNumbers.Holder, GrugPower.Holder {
+        implements Inventory, GrugSavedNumbers.Holder, GrugSavedLists.Holder, GrugPower.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;

@@ -32,7 +32,7 @@ import java.util.Map;
  * the world. The backing array therefore starts empty and is sized lazily from the block.
  */
 public class GrugBlockEntity extends TileEntity
-        implements IInventory, GrugSavedNumbers.Holder, GrugPower.Holder {
+        implements IInventory, GrugSavedNumbers.Holder, GrugSavedLists.Holder, GrugPower.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;

@@ -6,6 +6,7 @@ import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
 import net.grug.minecraft.grug.GrugPower;
+import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugPowerNbt;
@@ -24,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GrugBlockEntity extends BlockEntity
-        implements Inventory, GrugSavedNumbers.Holder, GrugPower.Holder {
+        implements Inventory, GrugSavedNumbers.Holder, GrugSavedLists.Holder, GrugPower.Holder {
     private long entityHandle = 0;
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
