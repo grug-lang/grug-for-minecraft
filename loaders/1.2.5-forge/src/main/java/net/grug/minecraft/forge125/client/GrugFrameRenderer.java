@@ -161,10 +161,18 @@ public class GrugFrameRenderer extends TileEntitySpecialRenderer {
                 ForgeHooksClient.overrideTexture(item);
             }
 
-            float u0 = (float) (icon % 16 * 16) / 256.0F;
-            float u1 = (float) (icon % 16 * 16 + 16) / 256.0F;
-            float v0 = (float) (icon / 16 * 16) / 256.0F;
-            float v1 = (float) (icon / 16 * 16 + 16) / 256.0F;
+            // The sprite index is a slot in the bound atlas. The atlas is 256x256 here, but ask
+            // it rather than assume, so a pack that stitches a larger one still samples the sprite
+            // the index names instead of a 2x2 group of its neighbours.
+            int atlasWidth =
+                    GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
+            int atlasHeight =
+                    GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
+            int columns = Math.max(1, atlasWidth / 16);
+            float u0 = (float) (icon % columns * 16) / atlasWidth;
+            float u1 = (float) (icon % columns * 16 + 16) / atlasWidth;
+            float v0 = (float) (icon / columns * 16) / atlasHeight;
+            float v1 = (float) (icon / columns * 16 + 16) / atlasHeight;
             for (int copy = 0; copy < copies; copy++) {
                 GL11.glPushMatrix();
                 if (copy > 0) {
