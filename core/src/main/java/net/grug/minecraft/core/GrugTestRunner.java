@@ -26,7 +26,7 @@ import java.util.function.LongSupplier;
  */
 public class GrugTestRunner {
     /** How many ticks a single test may run for before we give up on it. */
-    // TODO: Allow individual tests to override this budget.
+    // A test raises its own budget from its init export, with TestInitContext.set_max_ticks.
     public static final int DEFAULT_MAX_TEST_TICKS = 200; // 10 seconds at 20 ticks/sec
 
     /**
@@ -39,6 +39,15 @@ public class GrugTestRunner {
         long getExportFnId(String entityType, String fnName);
 
         boolean callExportFn(long entityHandle, long exportFnId);
+
+        /**
+         * Calls the test's init export, which is passed the context its own calls live on. A script
+         * without the export answers false, like one that aborted, so the caller tells the two
+         * apart by the errors raised.
+         */
+        default boolean callInitFn(long entityHandle, long exportFnId) {
+            return true;
+        }
 
         void destroyEntity(long entityHandle);
     }
@@ -57,7 +66,12 @@ public class GrugTestRunner {
 
                 @Override
                 public boolean callExportFn(long entityHandle, long exportFnId) {
-                    return GrugTestState.callRun(entityHandle, exportFnId);
+                    return GrugTestState.callTick(entityHandle, exportFnId);
+                }
+
+                @Override
+                public boolean callInitFn(long entityHandle, long exportFnId) {
+                    return GrugTestState.callInit(entityHandle, exportFnId);
                 }
 
                 @Override
@@ -410,14 +424,15 @@ public class GrugTestRunner {
         if (GrugTestState.testNotDone) {
             // currentTick is this invocation's tick, so asking for one more means asking for
             // currentTick + 1. Refusing that once it reaches the cap is what bounds a test to
-            // DEFAULT_MAX_TEST_TICKS tick() calls, on ticks 0 through DEFAULT_MAX_TEST_TICKS - 1.
-            if (currentTick + 1 >= DEFAULT_MAX_TEST_TICKS) {
+            // the test's budget of tick() calls, which is DEFAULT_MAX_TEST_TICKS unless its init
+            // raised it, on ticks 0 through the budget - 1.
+            if (currentTick + 1 >= GrugTestState.maxTestTicks) {
                 // Deliberately loud: a test that keeps asking for more ticks should hang for the
                 // whole budget and then say so, rather than quietly passing or running forever.
                 fail(
                         path,
                         "Test exceeded "
-                                + DEFAULT_MAX_TEST_TICKS
+                                + GrugTestState.maxTestTicks
                                 + " ticks without finishing (did it forget to stop calling"
                                 + " ctx.not_done()?)");
                 return;
@@ -561,7 +576,7 @@ public class GrugTestRunner {
 
             currentTickFnId = ops.getExportFnId("Test", "tick");
             if (currentTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                throw new RuntimeException("Test entity missing 'run' export function.");
+                throw new RuntimeException("Test entity missing 'tick' export function.");
             }
         } catch (Exception e) {
             String msg = e.getMessage();
@@ -575,6 +590,21 @@ public class GrugTestRunner {
         // one.
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
+        GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
+
+        // Before the first tick, so the budget it sets is the one the whole test runs under.
+        long initFnId = ops.getExportFnId("Test", "init");
+        if (initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+            int errorsBefore = GrugTestState.runtimeErrorCount;
+            ops.callInitFn(currentEntityHandle, initFnId);
+            if (GrugTestState.runtimeErrorCount != errorsBefore) {
+                fail(
+                        path,
+                        "The test's init reported a runtime error and stopped early. "
+                                + "See the error above for the reason.");
+                return false;
+            }
+        }
 
         // Before the test's first tick, so a fixture it places at tick 0 lands inside the room. A
         // test whose fixture reaches further than the default room calls Test.set_box_radius at the
@@ -615,6 +645,7 @@ public class GrugTestRunner {
         // captured origin is cleared for the same reason: the next test has to capture its own.
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
+        GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
         if (currentEntityHandle != 0) {
             // In the tick the test ends, whether it passed, expected its error or failed, so the
             // last items it dropped are gone before any gap can let the player pick them up. The

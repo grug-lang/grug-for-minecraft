@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugExactPorts;
+import net.grug.minecraft.core.GrugTestRunner;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -23,11 +24,18 @@ public final class GrugTestState {
      * test that saves the context in a member variable and uses it in a later tick is refused.
      */
     public static final class TickContext {
-        @GrugGenerated("marker: only a run call makes one")
+        @GrugGenerated("marker: only a tick call makes one")
         private TickContext() {}
     }
 
+    /** The same for the context the test's {@code init()} call was passed. */
+    public static final class InitContext {
+        @GrugGenerated("marker: only an init call makes one")
+        private InitContext() {}
+    }
+
     private static TickContext tickContext = null;
+    private static InitContext initContext = null;
 
     /** Opens the context of one {@code tick()} call. */
     static TickContext openTickContext() {
@@ -45,6 +53,22 @@ public final class GrugTestState {
         return tickContext;
     }
 
+    /** Opens the context of the test's {@code init()} call. */
+    static InitContext openInitContext() {
+        initContext = new InitContext();
+        return initContext;
+    }
+
+    /** Closes it again, so a saved context no longer matches. */
+    static void closeInitContext() {
+        initContext = null;
+    }
+
+    /** The context of the {@code init()} call that is open right now, or null otherwise. */
+    public static InitContext initContext() {
+        return initContext;
+    }
+
     /**
      * Calls a test's {@code tick()} export with a fresh context, which is removed again when the
      * call returns.
@@ -54,7 +78,34 @@ public final class GrugTestState {
      */
     @GrugGenerated(
             "the call into the VM and its context entity: exercising it needs a live grug entity")
-    public static boolean callRun(long entityHandle, long exportFnId) {
+    public static boolean callTick(long entityHandle, long exportFnId) {
+        return callWithContext(
+                entityHandle,
+                exportFnId,
+                GrugEntityType.TestTickContext,
+                GrugTestState::openTickContext,
+                GrugTestState::closeTickContext);
+    }
+
+    /** Calls a test's {@code init()} export the same way, with the context that has its calls. */
+    @GrugGenerated(
+            "the call into the VM and its context entity: exercising it needs a live grug entity")
+    public static boolean callInit(long entityHandle, long exportFnId) {
+        return callWithContext(
+                entityHandle,
+                exportFnId,
+                GrugEntityType.TestInitContext,
+                GrugTestState::openInitContext,
+                GrugTestState::closeInitContext);
+    }
+
+    @GrugGenerated("the call into the VM: exercising it needs a live grug entity")
+    private static boolean callWithContext(
+            long entityHandle,
+            long exportFnId,
+            GrugEntityType contextType,
+            Supplier<Object> open,
+            Runnable close) {
         boolean[] completed = new boolean[1];
         // The root list is process-global, and a render pass on another thread swaps it under the
         // state lock, so this swap has to be made under the same lock. See createEntityWithOwner.
@@ -62,21 +113,33 @@ public final class GrugTestState {
                 () ->
                         GrugEntities.withFreshOwner(
                                 () -> {
-                                    TickContext context = openTickContext();
                                     long contextHandle =
-                                            GrugEntities.addEntity(
-                                                    GrugEntityType.TestTickContext, context);
+                                            GrugEntities.addEntity(contextType, open.get());
                                     try {
                                         completed[0] =
                                                 Grug.callExportFn(
                                                         entityHandle, exportFnId, contextHandle);
                                     } finally {
                                         GrugEntities.removeEntity(contextHandle);
-                                        closeTickContext();
+                                        close.run();
                                     }
                                 }));
         return completed[0];
     }
+
+    /**
+     * How many ticks the running test may take before the runner gives up on it. The runner resets
+     * it to the default before every test, and the test's {@code init()} can raise it through
+     * {@code TestInitContext.set_max_ticks}.
+     */
+    public static int maxTestTicks = GrugTestRunner.DEFAULT_MAX_TEST_TICKS;
+
+    /**
+     * How many runtime errors have been raised so far. The runner compares it across a call to tell
+     * a script that aborted from one that simply has no such export, which the engine answers the
+     * same way.
+     */
+    public static int runtimeErrorCount = 0;
 
     // Set by GrugTestRunner immediately before each Test.tick() call; read by the context's tick().
     public static int currentTestTick = 0;

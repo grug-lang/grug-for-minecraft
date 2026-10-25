@@ -76,6 +76,15 @@ class GrugTestRunnerTest {
             return completed;
         }
 
+        /** What the test's init does when the runner calls it; null for a test without one. */
+        Runnable onInit;
+
+        @Override
+        public boolean callInitFn(long entityHandle, long exportFnId) {
+            if (onInit != null) onInit.run();
+            return true;
+        }
+
         @Override
         public void destroyEntity(long entityHandle) {
             destroyed++;
@@ -89,6 +98,8 @@ class GrugTestRunnerTest {
         GrugTestState.currentTestTick = 0;
         GrugTestState.currentTestMod = null;
         GrugTestState.testOrigin = null;
+        GrugTestState.maxTestTicks = GrugTestRunner.DEFAULT_MAX_TEST_TICKS;
+        GrugTestState.runtimeErrorCount = 0;
         GrugErrors.printQueue.clear();
         GrugErrors.runtimeErrorQueue.clear();
         GrugTestState.testRuntimeErrors.clear();
@@ -365,7 +376,7 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void failsWhenTheRunFunctionIsMissing() {
+    void failsWhenTheTickFunctionIsMissing() {
         FakeOps ops = new FakeOps();
         ops.exportFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
@@ -373,7 +384,7 @@ class GrugTestRunnerTest {
         assertTrue(runner.isFinished());
         assertTrue(
                 GrugErrors.runtimeErrorQueue.stream()
-                        .anyMatch(m -> m.contains("missing 'run' export function")));
+                        .anyMatch(m -> m.contains("missing 'tick' export function")));
     }
 
     @Test
@@ -400,6 +411,83 @@ class GrugTestRunnerTest {
                                         m.contains(
                                                 "exceeded "
                                                         + GrugTestRunner.DEFAULT_MAX_TEST_TICKS)));
+    }
+
+    @Test
+    void aTestCanRaiseItsBudgetFromItsInit() {
+        FakeOps ops = new FakeOps();
+        int raised = GrugTestRunner.DEFAULT_MAX_TEST_TICKS * 2;
+        ops.onInit = () -> GrugTestState.maxTestTicks = raised;
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    calls[0]++;
+                    GrugTestState.testNotDone = calls[0] < raised - 1;
+                };
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        for (int i = 0; i < raised + 5 && !runner.isFinished(); i++) {
+            runner.tick(null);
+        }
+        assertTrue(runner.isFinished());
+        assertTrue(
+                GrugErrors.runtimeErrorQueue.stream().noneMatch(m -> m.contains("FAIL")),
+                "A raised budget lets the test run past the default.");
+        assertEquals(raised - 1, calls[0]);
+    }
+
+    @Test
+    void aRaisedBudgetStillEndsATestThatNeverStops() {
+        FakeOps ops = new FakeOps();
+        int raised = GrugTestRunner.DEFAULT_MAX_TEST_TICKS * 2;
+        ops.onInit = () -> GrugTestState.maxTestTicks = raised;
+        ops.onCall = () -> GrugTestState.testNotDone = true;
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        for (int i = 0; i < raised + 5 && !runner.isFinished(); i++) {
+            runner.tick(null);
+        }
+        assertTrue(runner.isFinished());
+        assertTrue(
+                GrugErrors.runtimeErrorQueue.stream()
+                        .anyMatch(m -> m.contains("exceeded " + raised + " ticks")),
+                "The message names the budget the test had.");
+    }
+
+    @Test
+    void theBudgetGoesBackToTheDefaultForTheNextTest() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        ops.pathsAre(files);
+        int raised = GrugTestRunner.DEFAULT_MAX_TEST_TICKS * 2;
+        List<Integer> budgets = new ArrayList<>();
+        ops.onInit =
+                () -> {
+                    budgets.add(GrugTestState.maxTestTicks);
+                    if (ops.activePath.startsWith("mymod/code/a")) {
+                        GrugTestState.maxTestTicks = raised;
+                    }
+                };
+        GrugTestRunner runner = runner(ops, files);
+        runToEnd(runner);
+        assertEquals(
+                List.of(
+                        GrugTestRunner.DEFAULT_MAX_TEST_TICKS,
+                        GrugTestRunner.DEFAULT_MAX_TEST_TICKS),
+                budgets,
+                "Each test starts from the default, whatever the one before it raised.");
+    }
+
+    @Test
+    void failsATestWhoseInitRaisedAnError() {
+        FakeOps ops = new FakeOps();
+        ops.onInit = () -> GrugTestState.runtimeErrorCount++;
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        runToEnd(runner);
+        assertTrue(runner.isFinished());
+        assertTrue(
+                GrugErrors.runtimeErrorQueue.stream()
+                        .anyMatch(m -> m.contains("init reported a runtime error")));
     }
 
     @Test
