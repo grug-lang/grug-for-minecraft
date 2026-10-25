@@ -456,7 +456,36 @@ public class Grug125Adapter implements ModLoaderAdapter {
         Object vanillaItem = matchVanillaItem(path);
         if (vanillaItem != null) return vanillaItem;
 
-        return matchVanillaBlock(path);
+        Object vanillaBlock = matchVanillaBlock(path);
+        if (vanillaBlock != null) return vanillaBlock;
+
+        return matchItemName(path);
+    }
+
+    /**
+     * A reference run's items, by the name the item set for itself, as resolveBlock does for
+     * blocks: 1.2.5 predates registry names. BuildCraft names its wrench "wrenchItem", which Item
+     * stores as "item.wrenchItem", and a pipe item after its class, "item.PipeItemsWood". An item
+     * with no name of its own names its stack instead, which is how ItemEngine's metadata 0 is
+     * "tile.engineWood".
+     */
+    private Object matchItemName(String path) {
+        String itemName = "item." + path;
+        String tileName = "tile." + path;
+        for (Item item : Item.itemsList) {
+            if (item == null) {
+                continue;
+            }
+            String own = item.getItemName();
+            String stack = item.getItemNameIS(new ItemStack(item));
+            if (itemName.equals(own)
+                    || tileName.equals(own)
+                    || itemName.equals(stack)
+                    || tileName.equals(stack)) {
+                return item;
+            }
+        }
+        return null;
     }
 
     @GrugGenerated("declared registry match: a no-match fallback cannot be forced per entry")
