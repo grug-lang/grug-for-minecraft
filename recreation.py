@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Reference artifacts handling for the recreation fields of a mod's first derived_from entry.
 
-A grug port is verified against committed goldens, which needs nothing but the port. The
-reference's own run and regenerating those goldens need the reference artifacts, so they are a
-separate tier: losing the artifacts degrades the reference run and regeneration, never the port's
-verification.
+A grug port is verified against committed goldens, which needs nothing but the port. Only the
+reference's own run needs the reference artifacts, so losing them degrades that run, never the
+port's verification.
 
 Each artifact's ``sha256`` is the authority, not its ``url``. A moved url, a mirror, or a re-upload
 is fine as long as the bytes hash the same, so this downloads and hashes rather than trusting
@@ -202,12 +201,11 @@ def stage_command(entry: dict, args) -> int:
     for path in created:
         print(f"Staged {path}")
     print(
-        "Run the reference with GRUG_REFERENCE=1, GRUG_MODS_DIR pointing at a harness-only"
-        f" mods directory and GRUG_REFERENCE_MODS_DIR at {args.destination}:"
+        "Run the reference as the `reference` CI job does, with GRUG_REFERENCE=1, GRUG_MODS_DIR"
+        f" at a harness-only mods directory and GRUG_REFERENCE_MODS_DIR at {args.destination}:"
         f" .github/scripts/run-loader.sh {runtime['loader']} run"
         f" (Minecraft {runtime['minecraft']}, loader version {runtime['loader_version']},"
-        f" Java {runtime['java']}). The normal reference run is the `reference` CI job; this local"
-        " launch is for developing a fixture."
+        f" Java {runtime['java']})."
     )
     return 0
 
@@ -235,8 +233,8 @@ def verify_artifacts(entry: dict, output: Path) -> list:
         try:
             download_artifact(artifact, target)
         except Exception as error:
-            # A missing or moved artifact degrades regenerating the goldens, never verifying the
-            # port, so this reports and exits rather than tracing back.
+            # A missing or moved artifact degrades the reference run, never verifying the port,
+            # so this reports and exits rather than tracing back.
             failures.append((artifact["url"], f"could not download it: {error}"))
             continue
 

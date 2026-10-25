@@ -100,11 +100,12 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   `gh api repos/<repo>/actions/jobs/<id>/logs`.
 - The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile makes it
   hang until the timeout instead (#366), so check grug syntax before pushing.
-- `update-goldens` replaces only that loader's own reference. Take every accepted golden from the
-  failing CI job's artifact, GUI or world, so the golden is the pixels the job compared:
-  `gh run download <run-id> --name loader-<loader>-screenshots`. `update-goldens` is only for a new
-  screenshot directory, which a normal CI run refuses to bootstrap; the reference job's failure
-  artifacts carry the reference's 1.2.5 captures. Look at every PNG before committing it.
+- Accepted goldens come from GitHub's runners, never a local run: a world capture differs slightly.
+  A failing job uploads its capture (`gh run download <run-id> --name loader-<loader>-screenshots`).
+  The suite fails fast, so when many goldens change, push the commit to a throwaway branch whose
+  loader jobs run `update-goldens` and upload `mods/*/screenshots`, and dispatch it once.
+  `update-goldens` writes every unmatched capture under the running loader's name. Look at every
+  PNG before committing it.
 - Coverage stays at 100% on `core`. Cover a host function from a committed mod's own path first,
   then a grug test in `mods/coverage/`, then a Java test, and `@GrugGenerated` only as a last
   resort. "A grug test cannot reach this" is not "no test can reach this".
@@ -203,10 +204,9 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   shipped for Alpha or Beta, so outside GUI elements nothing there says how a port should render:
   choose what players and modders would prefer, keep it the same across loaders where you can, and
   say what you chose in the pull request.
-- The reference run is the `reference` CI job: it verifies and stages the pinned artifacts and
-  launches the runtime loader with a harness-only `GRUG_MODS_DIR` and `GRUG_REFERENCE=1`. The same
-  launch locally, with `GRUG_REFERENCE_MODS_DIR` at the staged reference mods, is how the next
-  reference fixture is developed.
+- The reference run is the `reference` CI job. To develop a fixture, launch it the same way
+  locally: `GRUG_REFERENCE=1`, a harness-only `GRUG_MODS_DIR`, and `GRUG_REFERENCE_MODS_DIR` at the
+  mods `recreation.py stage` staged.
 
 ## Instrumenting the game
 
