@@ -18,6 +18,7 @@ export output_taken(amount: number)
 export render()
 export tick()
 .add_item(item: Item, damage: number, count: number, from_side: number, add: bool) number
+.append_saved_list_record(name: string) number
 .ask_extract_item(from_side: number) number
 .block_pos() BlockPos
 .consume_crafting_ingredients(start_slot: number)
@@ -32,20 +33,26 @@ export tick()
 .get_item_count_in_slot(slot: number) number
 .get_item_damage_in_slot(slot: number) number
 .get_item_in_slot(slot: number) Option[Item]
+.get_saved_list_item(name: string, index: number) Option[Item]
+.get_saved_list_number(name: string, index: number, key: string) number
+.get_saved_list_size(name: string) number
 .get_saved_number(name: string) number
-.insert_item_into_inventory(item: Item, damage: number, amount: number) number
+.insert_item_into_inventory(item: Item, damage: number, amount: number, insert: bool) number
 .is_power_receiver() bool
 .is_slot_extractable(slot: number) bool
 .is_slot_insertable(slot: number) bool
 .level() Level
 .receive_energy(amount: number) number
 .redraw()
+.remove_saved_list_record(name: string, index: number)
 .set_extractable_slots(first: number, last: number)
 .set_insertable_slots(first: number, last: number)
 .set_item_count_in_slot(slot: number, count: number)
 .set_item_damage_in_slot(slot: number, damage: number)
 .set_item_in_slot(slot: number, item: Item, count: number)
 .set_power_receiver(max_stored: number)
+.set_saved_list_item(name: string, index: number, item: Item)
+.set_saved_list_number(name: string, index: number, key: string, value: number)
 .set_saved_number(name: string, value: number)
 .take_crafting_result(amount: number) number
 .take_item_from_slot(slot: number, amount: number) number
@@ -125,6 +132,9 @@ Color.rgb(r: number, g: number, b: number) Color
 .has_neighbor_signal(x: number, y: number, z: number) bool
 .is_air(x: number, y: number, z: number) bool
 .place_block(x: number, y: number, z: number, block_name: string)
+.random_float() number
+.random_gaussian() number
+.random_int(bound: number) number
 
 ## Math
 Math.floor(value: number) number
@@ -171,4 +181,5 @@ set_flat_lighting()
 set_hardness(value: number)
 set_inventory_size(size: number)
 set_material(material_name: string)
+vec3(x: number, y: number, z: number) Vec3
 vec3_zero() Vec3

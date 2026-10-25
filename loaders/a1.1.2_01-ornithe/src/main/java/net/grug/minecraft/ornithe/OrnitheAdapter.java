@@ -206,7 +206,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public double insertItemIntoInventory(
-            Object blockEntityObj, Object itemObj, double damage, double amount) {
+            Object blockEntityObj, Object itemObj, double damage, double amount, boolean insert) {
         Inventory inv = (Inventory) blockEntityObj;
         Item item = (Item) itemObj;
         int meta = (int) damage;
@@ -215,7 +215,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
         // Top up existing stacks first, then use empty slots, like a player's inventory fills. A
         // block entity that declares a rule only has its insertable slots filled, which for an
-        // inventory declaring none is all of them.
+        // inventory declaring none is all of them. With insert false the count that would fit is
+        // answered and nothing is changed, which is how a caller asks whether the inventory has
+        // room.
         for (int i = 0; i < inv.getSize() && remaining > 0; i++) {
             if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getItem(i);
@@ -223,7 +225,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 int room = maxSize - stack.size;
                 if (room > 0) {
                     int add = Math.min(room, remaining);
-                    stack.size += add;
+                    if (insert) {
+                        stack.size += add;
+                    }
                     remaining -= add;
                 }
             }
@@ -233,9 +237,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             if (inv.getItem(i) == null) {
                 int add = Math.min(maxSize, remaining);
-                ItemStack stack = new ItemStack(item, add);
-                stack.metadata = meta;
-                inv.setItem(i, stack);
+                if (insert) {
+                    ItemStack stack = new ItemStack(item, add);
+                    stack.metadata = meta;
+                    inv.setItem(i, stack);
+                }
                 remaining -= add;
             }
         }
@@ -514,6 +520,21 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public long getWorldTime(Object levelObj) {
         return ((World) levelObj).ticks;
+    }
+
+    @Override
+    public int nextRandomInt(Object levelObj, int bound) {
+        return ((World) levelObj).random.nextInt(bound);
+    }
+
+    @Override
+    public double nextRandomFloat(Object levelObj) {
+        return ((World) levelObj).random.nextFloat();
+    }
+
+    @Override
+    public double nextRandomGaussian(Object levelObj) {
+        return ((World) levelObj).random.nextGaussian();
     }
 
     @Override

@@ -2,7 +2,22 @@ export init() {
     set_hardness(0.5)
     set_material("wood")
     set_block_entity(e"wooden_pipe_entity")
+    # The reference's pipe has no inventory slots. The port keeps one as the extraction inbox:
+    # extract_item_into has to name a slot for the stack a machine hands over, and the block entity
+    # moves it into a travelling record and empties the slot again on the same tick. See the block
+    # entity.
     set_inventory_size(1)
+}
+
+# Pipe.dropContents, which BlockGenericPipe calls when the pipe breaks: every travelling item is
+# dropped where the pipe stands, at a random point inside the block, as Utils.dropItems does. The
+# block entity's own helper cannot be called from here, because a block and its block entity are
+# separate grug entities.
+export on_break(world: Level, x: number, y: number, z: number) {
+    pipe_opt: Option[BlockEntity] = world.get_block_entity(x, y, z)
+    if pipe_opt.has() {
+        _drop_travelling(world, x, y, z, pipe_opt.unwrap())
+    }
 }
 
 # PipeLogicWood.blockActivated: a right click with the wrench makes the pipe extract from the next
@@ -21,4 +36,30 @@ export use(world: Level, x: number, y: number, z: number, player: Player) {
         }
     }
     decline_use()
+}
+
+local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: BlockEntity) {
+    index: number = 0
+    while index < pipe.get_saved_list_size("traveling") {
+        item_opt: Option[Item] = pipe.get_saved_list_item("traveling", index)
+        count: number = pipe.get_saved_list_number("traveling", index, "count")
+        if item_opt.has() and count > 0 {
+            damage: number = pipe.get_saved_list_number("traveling", index, "damage")
+            # Utils.dropItems: each axis a random 0.15 to 0.85 into the block, no velocity.
+            # item_stack makes a stack of one, so until #473 this is one entity per item, all at
+            # that same point.
+            dx: number = world.random_float() * 0.7 + 0.15
+            dy: number = world.random_float() * 0.7 + 0.15
+            dz: number = world.random_float() * 0.7 + 0.15
+            remaining: number = count
+            while remaining > 0 {
+                stack: ItemStack = item_stack(item_opt.unwrap(), damage)
+                dropped: ItemEntity = item_entity(world, x + dx, y + dy, z + dz, stack)
+                dropped.entity().set_delta_movement(vec3_zero())
+                dropped.entity().spawn(world)
+                remaining = remaining - 1
+            }
+        }
+        index = index + 1
+    }
 }

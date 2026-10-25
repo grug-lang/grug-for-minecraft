@@ -356,13 +356,14 @@ public class HostFunctions {
     }
 
     public static double BlockEntity_insert_item_into_inventory(
-            long blockEntityId, long itemId, double damage, double amount) {
+            long blockEntityId, long itemId, double damage, double amount, boolean insert) {
         return GrugCore.getAdapter()
                 .insertItemIntoInventory(
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId),
                         GrugEntities.entityData.get(itemId).object,
                         damage,
-                        amount);
+                        amount,
+                        insert);
     }
 
     public static long BlockEntity_level(long blockEntityId) {
@@ -443,6 +444,78 @@ public class HostFunctions {
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId), name, value)) {
             reportNotSaving("set_saved_number");
         }
+    }
+
+    public static double BlockEntity_get_saved_list_size(long blockEntityId, String name) {
+        Object blockEntity = listHolder("get_saved_list_size", blockEntityId);
+        if (blockEntity == null) return 0;
+        return GrugSavedLists.size(blockEntity, name);
+    }
+
+    public static double BlockEntity_append_saved_list_record(long blockEntityId, String name) {
+        Object blockEntity = listHolder("append_saved_list_record", blockEntityId);
+        if (blockEntity == null) return 0;
+        return GrugSavedLists.append(blockEntity, name);
+    }
+
+    public static void BlockEntity_remove_saved_list_record(
+            long blockEntityId, String name, double index) {
+        Object blockEntity = listHolder("remove_saved_list_record", blockEntityId);
+        if (blockEntity == null) return;
+        if (recordOrReport("remove_saved_list_record", blockEntity, name, index) != null) {
+            GrugSavedLists.remove(blockEntity, name, (int) index);
+        }
+    }
+
+    public static double BlockEntity_get_saved_list_number(
+            long blockEntityId, String name, double index, String key) {
+        Object blockEntity = listHolder("get_saved_list_number", blockEntityId);
+        if (blockEntity == null) return 0;
+        GrugSavedLists.Record record =
+                recordOrReport("get_saved_list_number", blockEntity, name, index);
+        if (record == null) {
+            return 0;
+        }
+        Double value = record.numbers().get(key);
+        return value != null ? value : 0;
+    }
+
+    public static void BlockEntity_set_saved_list_number(
+            long blockEntityId, String name, double index, String key, double value) {
+        Object blockEntity = listHolder("set_saved_list_number", blockEntityId);
+        if (blockEntity == null) return;
+        GrugSavedLists.Record record =
+                recordOrReport("set_saved_list_number", blockEntity, name, index);
+        if (record == null) {
+            return;
+        }
+        GrugSavedLists.setNumber(blockEntity, record, key, value);
+    }
+
+    public static long BlockEntity_get_saved_list_item(
+            long blockEntityId, String name, double index) {
+        Object blockEntity = listHolder("get_saved_list_item", blockEntityId);
+        if (blockEntity == null) return emptyItemOption();
+        GrugSavedLists.Record record =
+                recordOrReport("get_saved_list_item", blockEntity, name, index);
+        if (record == null) {
+            return emptyItemOption();
+        }
+        Object item = record.item();
+        Object handle = item != null ? GrugEntities.addEntity(GrugEntityType.Item, item) : null;
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(handle));
+    }
+
+    public static void BlockEntity_set_saved_list_item(
+            long blockEntityId, String name, double index, long itemId) {
+        Object blockEntity = listHolder("set_saved_list_item", blockEntityId);
+        if (blockEntity == null) return;
+        GrugSavedLists.Record record =
+                recordOrReport("set_saved_list_item", blockEntity, name, index);
+        if (record == null) {
+            return;
+        }
+        GrugSavedLists.setItem(blockEntity, record, GrugEntities.entityData.get(itemId).object);
     }
 
     public static void BlockEntity_set_power_receiver(long blockEntityId, double maxStored) {
@@ -720,6 +793,30 @@ public class HostFunctions {
 
     public static double Level_get_time(long levelId) {
         return GrugCore.getAdapter().getWorldTime(GrugEntities.entityData.get(levelId).object);
+    }
+
+    public static double Level_random_int(long levelId, double bound) {
+        if (bound < 1 || bound > Integer.MAX_VALUE || bound != Math.floor(bound)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "random_int: The bound has to be a whole number from 1 to "
+                            + Integer.MAX_VALUE
+                            + ", and was "
+                            + bound
+                            + ".");
+            return 0;
+        }
+        return GrugCore.getAdapter()
+                .nextRandomInt(GrugEntities.entityData.get(levelId).object, (int) bound);
+    }
+
+    public static double Level_random_float(long levelId) {
+        return GrugCore.getAdapter().nextRandomFloat(GrugEntities.entityData.get(levelId).object);
+    }
+
+    public static double Level_random_gaussian(long levelId) {
+        return GrugCore.getAdapter()
+                .nextRandomGaussian(GrugEntities.entityData.get(levelId).object);
     }
 
     public static String Level_get_block(long levelId, double x, double y, double z) {
@@ -1063,6 +1160,78 @@ public class HostFunctions {
                         + " one.");
     }
 
+    /**
+     * A saved list on a block entity that does not save lists. Same reason as {@link
+     * #reportNotSaving}: only a grug block entity writes them into its NBT.
+     */
+    private static void reportNotSavingList(String hostFunction) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                hostFunction
+                        + ": Only a grug block entity saves lists, and this block entity is not"
+                        + " one.");
+    }
+
+    /**
+     * The block entity a saved-list call is about, or null after reporting that it is not one.
+     * Shared by every saved-list host function so the not-a-holder report has one place to live,
+     * and a function that calls it can answer its own default.
+     */
+    private static Object listHolder(String hostFunction, long blockEntityId) {
+        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        if (!GrugSavedLists.isHolder(blockEntity)) {
+            reportNotSavingList(hostFunction);
+            return null;
+        }
+        return blockEntity;
+    }
+
+    /**
+     * Why {@code index} is not a record index at all, or null when it is one. An index has to be a
+     * whole number, because a list has no record between two of them, and a caller that computed a
+     * fraction has a bug worth reporting rather than a record worth rounding to.
+     */
+    private static String checkIndex(double index) {
+        if (index < 0 || index > Integer.MAX_VALUE || index != Math.floor(index)) {
+            return "The index has to be a whole number from 0 to "
+                    + Integer.MAX_VALUE
+                    + ", and was "
+                    + index
+                    + ".";
+        }
+        return null;
+    }
+
+    /**
+     * The record {@code index} names, or null after reporting why it names none. Every saved-list
+     * function that reads or writes a record goes through here, so a bad index is refused the same
+     * way wherever it is passed.
+     */
+    private static GrugSavedLists.Record recordOrReport(
+            String hostFunction, Object blockEntity, String name, double index) {
+        String problem = checkIndex(index);
+        if (problem == null) {
+            GrugSavedLists.Record record = GrugSavedLists.record(blockEntity, name, (int) index);
+            if (record != null) {
+                return record;
+            }
+            problem = "There is no record at index " + (int) index + ".";
+        }
+        reportRecordProblem(hostFunction, name, problem);
+        return null;
+    }
+
+    /** Reports a host function call that named a record it could not use, and the list it is in. */
+    private static void reportRecordProblem(String hostFunction, String name, String problem) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, hostFunction + ": Saved list \"" + name + "\": " + problem);
+    }
+
+    /** An empty {@code Option[Item]}, which a saved-list read answers when it finds no item. */
+    private static long emptyItemOption() {
+        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+    }
+
     public static void set_custom_render() {
         if (GrugDeclarations.currentlyInitializingBlock == null) {
             Grug.hostFunctionErrorHappened(
@@ -1146,5 +1315,18 @@ public class HostFunctions {
 
     public static long vec3_zero() {
         return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
+    }
+
+    public static long vec3(double x, double y, double z) {
+        double[] values = {x, y, z};
+        String[] names = {"x", "y", "z"};
+        for (int i = 0; i < values.length; i++) {
+            if (!Double.isFinite(values[i])) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr, "vec3: " + names[i] + " must be finite, got " + values[i]);
+                return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
+            }
+        }
+        return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(x, y, z));
     }
 }

@@ -1,11 +1,13 @@
 package net.grug.minecraft.stationapi.block.entity;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugObject;
 import net.grug.minecraft.grug.GrugPower;
+import net.grug.minecraft.grug.GrugSavedLists;
 import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.minecraft.block.Block;
@@ -342,6 +344,7 @@ public class GrugBlockEntity extends BlockEntity
     public void readNbt(NbtCompound nbt) {
         super.readNbt(nbt);
         readSavedNumbers(nbt);
+        readSavedLists(nbt);
         GrugPower.load(this, nbt.getDouble("GrugEnergy"));
 
         // Recover the size from NBT before attempting to load items,
@@ -371,6 +374,7 @@ public class GrugBlockEntity extends BlockEntity
     public void writeNbt(NbtCompound nbt) {
         super.writeNbt(nbt);
         writeSavedNumbers(nbt);
+        writeSavedLists(nbt);
         nbt.putDouble("GrugEnergy", GrugPower.stored(this));
         ensureSized();
 
@@ -417,5 +421,67 @@ public class GrugBlockEntity extends BlockEntity
             numbers.put(number.getString("Name"), number.getDouble("Value"));
         }
         GrugSavedNumbers.replace(this, numbers);
+    }
+
+    /**
+     * The saved lists, as a list of named lists of records, the same layout the Ornithe loaders
+     * write: numbers as name and value pairs, and an item as the version's own stack NBT.
+     */
+    private void writeSavedLists(NbtCompound nbt) {
+        NbtList lists = new NbtList();
+        for (Map.Entry<String, List<GrugSavedLists.Record>> entry :
+                GrugSavedLists.snapshot(this).entrySet()) {
+            NbtCompound list = new NbtCompound();
+            list.putString("Name", entry.getKey());
+            NbtList records = new NbtList();
+            for (GrugSavedLists.Record record : entry.getValue()) {
+                NbtCompound recordTag = new NbtCompound();
+                NbtList numbers = new NbtList();
+                for (Map.Entry<String, Double> number : record.numbers().entrySet()) {
+                    NbtCompound numberTag = new NbtCompound();
+                    numberTag.putString("Name", number.getKey());
+                    numberTag.putDouble("Value", number.getValue());
+                    numbers.add(numberTag);
+                }
+                recordTag.put("Numbers", numbers);
+                if (record.item() != null) {
+                    ItemStack stack =
+                            (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0);
+                    recordTag.put("Item", stack.writeNbt(new NbtCompound()));
+                }
+                records.add(recordTag);
+            }
+            list.put("Records", records);
+            lists.add(list);
+        }
+        nbt.put("GrugLists", lists);
+    }
+
+    private void readSavedLists(NbtCompound nbt) {
+        Map<String, List<GrugSavedLists.Record>> lists = new HashMap<>();
+        NbtList listTags = nbt.getList("GrugLists");
+        for (int i = 0; i < listTags.size(); i++) {
+            NbtCompound listTag = (NbtCompound) listTags.get(i);
+            List<GrugSavedLists.Record> records = new ArrayList<>();
+            NbtList recordTags = listTag.getList("Records");
+            for (int j = 0; j < recordTags.size(); j++) {
+                NbtCompound recordTag = (NbtCompound) recordTags.get(j);
+                Map<String, Double> numbers = new HashMap<>();
+                NbtList numberTags = recordTag.getList("Numbers");
+                for (int k = 0; k < numberTags.size(); k++) {
+                    NbtCompound numberTag = (NbtCompound) numberTags.get(k);
+                    numbers.put(numberTag.getString("Name"), numberTag.getDouble("Value"));
+                }
+                Object item = null;
+                if (recordTag.contains("Item")) {
+                    item =
+                            GrugCore.getAdapter()
+                                    .getStackItem(new ItemStack(recordTag.getCompound("Item")));
+                }
+                records.add(new GrugSavedLists.Record(numbers, item));
+            }
+            lists.put(listTag.getString("Name"), records);
+        }
+        GrugSavedLists.replace(this, lists);
     }
 }

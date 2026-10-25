@@ -52,7 +52,9 @@ local _drop_check() {
     z: number = origin.z()
 
     source_count: number = pipe_drop_source.unwrap().get_item_count_in_slot(0)
+    travelling: number = pipe_drop_self.unwrap().get_saved_list_size("traveling")
     Test.assert(source_count == 0, "The source chest should be empty.")
+    Test.assert(travelling == 0, "The pipe should have dropped its travelling item.")
 
     # A wide radius, because the dropped item is not held in place.
     found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
@@ -64,11 +66,11 @@ local _drop_check() {
     }
 }
 
-# The pipe has finished with the item once it has left the source chest and the pipe's own one-slot
-# buffer. Nothing accepts the item here, so that also means it is on the ground, which is what _check
+# The pipe has finished with the item once it has left the source chest and the pipe's travelling
+# list. Nothing accepts the item here, so that also means it is on the ground, which is what _check
 # asserts, damage and all. See #173.
 local _drop_pipe_has_moved() bool {
     source_empty: bool = pipe_drop_source.unwrap().get_item_count_in_slot(0) == 0
-    pipe_empty: bool = pipe_drop_self.unwrap().get_item_count_in_slot(0) == 0
+    pipe_empty: bool = pipe_drop_self.unwrap().get_saved_list_size("traveling") == 0
     return source_empty and pipe_empty
 }

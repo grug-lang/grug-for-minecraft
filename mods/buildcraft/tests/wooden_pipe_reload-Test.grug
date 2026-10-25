@@ -1,0 +1,65 @@
+# Covers a travelling item surviving its block entity's NBT: the pipe pulls a diamond, its state is
+# serialised and read straight back, and the item then finishes its journey. This is the save and load
+# path PipeTransportItems.writeToNBT and readFromNBT take, without the chunk unload a test cannot do.
+reload_pipe: Option[BlockEntity] = Option.new()
+reload_source: Option[BlockEntity] = Option.new()
+reload_target: Option[BlockEntity] = Option.new()
+
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    level.place_block(x + 1, y, z, "minecraft:chest")
+
+    source: BlockEntity = _entity(level, x - 1, y, z)
+    pipe: BlockEntity = _entity(level, x, y, z)
+    target: BlockEntity = _entity(level, x + 1, y, z)
+    reload_source.set(source)
+    reload_pipe.set(pipe)
+    reload_target.set(target)
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    source.set_item_in_slot(0, diamond, 1)
+
+    pipe.receive_energy(1)
+    Test.tick_block_entity(pipe, 1)
+    Test.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+
+    # Move it 20 ticks in, then reload, so the record is not at the face where it started.
+    Test.tick_block_entity(pipe, 20)
+    before: number = pipe.get_saved_list_number("traveling", 0, "x")
+    Test.assert(_hundredths(before - x) == 20, "20 moves should put the item a fifth of the way into the pipe.")
+
+    Test.round_trip_nbt(pipe)
+
+    Test.assert(pipe.get_saved_list_size("traveling") == 1, "The reload should keep the travelling item.")
+    Test.assert(pipe.get_saved_list_number("traveling", 0, "x") == before, "The reload should keep the item's position.")
+    Test.assert(pipe.get_saved_list_number("traveling", 0, "count") == 1, "The reload should keep the item's count.")
+    Test.assert(pipe.get_saved_list_item("traveling", 0).has(), "The reload should keep the item itself.")
+    if pipe.get_saved_list_item("traveling", 0).has() {
+        Test.assert(equals(pipe.get_saved_list_item("traveling", 0).unwrap(), diamond), "The reload should keep the diamond.")
+    }
+
+    # 20 moves are done, so 29 more reach the centre and 51 more reach the far face.
+    Test.tick_block_entity(pipe, 90)
+    Test.assert(pipe.get_saved_list_size("traveling") == 0, "The item should have finished its journey after the reload.")
+    Test.assert(target.get_item_count_in_slot(0) == 1, "The east chest should hold the reloaded diamond.")
+    Test.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
+}
+
+local _entity(level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+# Accumulated float64 steps are a rounding error away from the double nearest the decimal, so the
+# distance is rounded to hundredths before it is compared.
+local _hundredths(value: number) number {
+    return Math.floor(value * 100 + 0.5)
+}

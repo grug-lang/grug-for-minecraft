@@ -460,8 +460,156 @@
 						}
 					]
 				},
+				"get_saved_list_size": {
+					"description": "The number of records in the list a block entity saved under a name, or 0 when it never saved one, which is the default a fresh save answers too. A record has named numbers and an optional item, and the whole list is saved with the block entity, so it survives its chunk being unloaded and loaded again. Only a grug block entity saves lists; asking any other block entity is reported.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"append_saved_list_record": {
+					"description": "Adds an empty record at the end of the list a block entity saves under a name, creating the list when it has none, and answers the record's index, which is the list's size before the call. The record starts with no numbers and no item, so get_saved_list_number answers 0 for every key and get_saved_list_item answers an empty Option until they are set. Only a grug block entity saves lists; any other block entity is reported.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"remove_saved_list_record": {
+					"description": "Drops the record at an index of a saved list, moving every later record one place down, so the records keep their order and the list is one shorter. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_saved_list_number": {
+					"description": "The number a record of a saved list stores under a key, or 0 when it stores none, which is the default a fresh record answers. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "key",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"set_saved_list_number": {
+					"description": "Saves a number under a key in a record of a saved list, creating the key when the record has none. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "key",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_saved_list_item": {
+					"description": "The Item a record of a saved list holds, if it holds one. A record read back whose item no longer exists holds none, the way an inventory slot does, so the script drops the record rather than the host reporting it. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_saved_list_item": {
+					"description": "Puts an Item in a record of a saved list, replacing the item the record held. The item's count and damage are ordinary saved numbers the caller names, because a record stores the item's identity and nothing else, which is what makes one list serve a pipe's travelling stacks and a tank's contents alike. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
 				"insert_item_into_inventory": {
-					"description": "Inserts up to amount of an item with the given damage into a block entity's inventory, returning how many were actually inserted. Only the slots the block entity lets another block insert into are filled, which for an inventory declaring no such rule is all of them.",
+					"description": "Inserts up to amount of an item with the given damage into a block entity's inventory, returning how many were actually inserted. Only the slots the block entity lets another block insert into are filled, which for an inventory declaring no such rule is all of them. insert is false when the caller only wants to know how many would fit, and true when the host is about to move the items, so a caller choosing where to send a stack asks first instead of filling a slot it then has to empty.",
 					"return_type": {
 						"name": "number"
 					},
@@ -482,6 +630,12 @@
 							"name": "amount",
 							"type": {
 								"name": "number"
+							}
+						},
+						{
+							"name": "insert",
+							"type": {
+								"name": "bool"
 							}
 						}
 					]
@@ -1347,6 +1501,32 @@
 						"name": "number"
 					}
 				},
+				"random_int": {
+					"description": "Draws a whole number from the level's own random, from 0 up to but not including bound, which is what Java's Random.nextInt(bound) answers. It is the same random the game uses for everything else, so drawing from it changes what the game does on that seed exactly as the reference does, and a caller that wants a repeatable pick has to account for every other draw from the level. Bound has to be a whole number from 1 to 2147483647.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "bound",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"random_float": {
+					"description": "Draws a number from the level's own random from 0 up to but not including 1, which is what Java's Random.nextFloat answers. It is the same random the game uses for everything else, so it advances the sequence random_int and random_gaussian draw from.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"random_gaussian": {
+					"description": "Draws a number from the level's own random with mean 0 and standard deviation 1, which is what Java's Random.nextGaussian answers. It is the same random the game uses for everything else, so it advances the sequence random_int and random_float draw from.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"get_block": {
 					"description": "The name of the block at the specified coordinates, e.g. \"minecraft:stone\" or \"grug:wooden_pipe\".",
 					"return_type": {
@@ -2125,6 +2305,32 @@
 			"return_type": {
 				"name": "Vec3"
 			}
+		},
+		"vec3": {
+			"description": "Creates a new Vec3 from its three coordinates, which is what Entity.set_delta_movement takes to give a spawned entity a velocity. A coordinate has to be finite.",
+			"return_type": {
+				"name": "Vec3"
+			},
+			"parameters": [
+				{
+					"name": "x",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "y",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "z",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
 		},
 		"decline_use": {
 			"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Calling it outside a use export does nothing."

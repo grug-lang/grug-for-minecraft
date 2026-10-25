@@ -105,9 +105,9 @@
 					"tracking_issue": 102
 				},
 				{
-					"what": "The wooden pipe moves items one slot at a time instead of via travelling item entities.",
-					"why": "The port starts with the observable chest-to-chest behaviour; the reference routes through a connection matrix.",
-					"tracking_issue": 339
+					"what": "The wooden pipe's travelling items are not drawn, so an item is invisible while it moves through a pipe.",
+					"why": "The transport model is the reference's travelling items, but drawing them needs a per-frame render hook: a flat item sprite turns with the camera every frame, which the chunk mesh render() builds once per redraw cannot do.",
+					"tracking_issue": 474
 				},
 				{
 					"what": "A wooden pipe drops a stack that no inventory accepts as one item entity per item, instead of as one entity holding the stack.",

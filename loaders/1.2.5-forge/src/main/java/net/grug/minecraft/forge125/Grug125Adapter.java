@@ -338,7 +338,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public double insertItemIntoInventory(
-            Object blockEntityObj, Object itemObj, double damage, double amount) {
+            Object blockEntityObj, Object itemObj, double damage, double amount, boolean insert) {
         IInventory inventory = (IInventory) blockEntityObj;
         Item item = (Item) itemObj;
         int meta = (int) damage;
@@ -347,7 +347,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
         // Top up matching stacks first, then fill empty slots, like a player's inventory fills. A
         // block entity that declares a rule only has its insertable slots filled, which for an
-        // inventory declaring none is all of them.
+        // inventory declaring none is all of them. With insert false the count that would fit is
+        // answered and nothing is changed, which is how a caller asks whether the inventory has
+        // room.
         for (int i = 0; i < inventory.getSizeInventory() && remaining > 0; i++) {
             if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             ItemStack stack = inventory.getStackInSlot(i);
@@ -355,7 +357,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
                 int room = maxStack - stack.stackSize;
                 if (room > 0) {
                     int add = Math.min(room, remaining);
-                    stack.stackSize += add;
+                    if (insert) {
+                        stack.stackSize += add;
+                    }
                     remaining -= add;
                 }
             }
@@ -365,9 +369,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
             if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             if (inventory.getStackInSlot(i) == null) {
                 int add = Math.min(maxStack, remaining);
-                ItemStack stack = new ItemStack(item, add);
-                stack.setItemDamage(meta);
-                inventory.setInventorySlotContents(i, stack);
+                if (insert) {
+                    ItemStack stack = new ItemStack(item, add);
+                    stack.setItemDamage(meta);
+                    inventory.setInventorySlotContents(i, stack);
+                }
                 remaining -= add;
             }
         }
@@ -749,6 +755,21 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public long getWorldTime(Object levelObj) {
         return ((World) levelObj).getWorldTime();
+    }
+
+    @Override
+    public int nextRandomInt(Object levelObj, int bound) {
+        return ((World) levelObj).rand.nextInt(bound);
+    }
+
+    @Override
+    public double nextRandomFloat(Object levelObj) {
+        return ((World) levelObj).rand.nextFloat();
+    }
+
+    @Override
+    public double nextRandomGaussian(Object levelObj) {
+        return ((World) levelObj).rand.nextGaussian();
     }
 
     @Override

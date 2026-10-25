@@ -223,7 +223,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public double insertItemIntoInventory(
-            Object blockEntityObj, Object itemObj, double damage, double amount) {
+            Object blockEntityObj, Object itemObj, double damage, double amount, boolean insert) {
         Container inv = (Container) blockEntityObj;
         Item item = (Item) itemObj;
         int meta = (int) damage;
@@ -232,7 +232,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
         // Top up existing stacks first, then use empty slots, like a player's inventory fills. A
         // block entity that declares a rule only has its insertable slots filled, which for an
-        // inventory declaring none is all of them.
+        // inventory declaring none is all of them. With insert false the count that would fit is
+        // answered and nothing is changed, which is how a caller asks whether the inventory has
+        // room.
         for (int i = 0; i < inv.getContainerSize() && remaining > 0; i++) {
             if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             ItemStack stack = inv.getItem(i);
@@ -240,7 +242,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 int room = maxSize - stack.getCount();
                 if (room > 0) {
                     int add = Math.min(room, remaining);
-                    stack.grow(add);
+                    if (insert) {
+                        stack.grow(add);
+                    }
                     remaining -= add;
                 }
             }
@@ -250,9 +254,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
             if (!GrugSlotAccess.isInsertable(blockEntityObj, i)) continue;
             if (inv.getItem(i).isEmpty()) {
                 int add = Math.min(maxSize, remaining);
-                ItemStack stack = new ItemStack(item, add);
-                stack.setDamageValue(meta);
-                inv.setItem(i, stack);
+                if (insert) {
+                    ItemStack stack = new ItemStack(item, add);
+                    stack.setDamageValue(meta);
+                    inv.setItem(i, stack);
+                }
                 remaining -= add;
             }
         }
@@ -640,6 +646,21 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public long getWorldTime(Object levelObj) {
         return ((Level) levelObj).getDayTime();
+    }
+
+    @Override
+    public int nextRandomInt(Object levelObj, int bound) {
+        return ((Level) levelObj).random.nextInt(bound);
+    }
+
+    @Override
+    public double nextRandomFloat(Object levelObj) {
+        return ((Level) levelObj).random.nextFloat();
+    }
+
+    @Override
+    public double nextRandomGaussian(Object levelObj) {
+        return ((Level) levelObj).random.nextGaussian();
     }
 
     @Override

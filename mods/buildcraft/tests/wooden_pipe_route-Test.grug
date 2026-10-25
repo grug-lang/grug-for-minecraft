@@ -1,0 +1,58 @@
+# Covers the pick at the pipe's centre when more than one exit can take the item. Two chests, north
+# and south, are placed only after the pull, so that the pipe's source scan cannot pick one of them
+# as the extraction side: the source is the west chest, the item travels east, and north and south are
+# the two exits that remain. The pick is the level's own random, as PipeTransportItems.resolveDestination
+# draws it in singleplayer, so the test asserts what does not depend on it: exactly one of the two
+# chests receives the item, and the other stays empty.
+route_pipe: Option[BlockEntity] = Option.new()
+route_source: Option[BlockEntity] = Option.new()
+route_north: Option[BlockEntity] = Option.new()
+route_south: Option[BlockEntity] = Option.new()
+
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+
+    source: BlockEntity = _entity(level, x - 1, y, z)
+    pipe: BlockEntity = _entity(level, x, y, z)
+    route_source.set(source)
+    route_pipe.set(pipe)
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    source.set_item_in_slot(0, diamond, 1)
+
+    pipe.receive_energy(1)
+    Test.tick_block_entity(pipe, 1)
+    Test.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+
+    # The source is the west chest now, so the two chests placed here can only be exits.
+    level.place_block(x, y, z - 1, "minecraft:chest")
+    level.place_block(x, y, z + 1, "minecraft:chest")
+    north: BlockEntity = _entity(level, x, y, z - 1)
+    south: BlockEntity = _entity(level, x, y, z + 1)
+    route_north.set(north)
+    route_south.set(south)
+
+    # 49 moves to the centre and 51 more to a horizontal exit, with a margin for the ticks after.
+    Test.tick_block_entity(pipe, 110)
+
+    north_count: number = north.get_item_count_in_slot(0)
+    south_count: number = south.get_item_count_in_slot(0)
+
+    Test.assert(pipe.get_saved_list_size("traveling") == 0, "The item should have left the pipe.")
+    Test.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
+    Test.assert(north_count + south_count == 1, "Exactly one of the two exits should have received the diamond.")
+    Test.assert(level.count_item_entities(x, y, z, 10) == 0, "The pipe should not have dropped the item.")
+}
+
+local _entity(level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    Test.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}

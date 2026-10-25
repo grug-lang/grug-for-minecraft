@@ -1,0 +1,15 @@
+# A saved list is something only a grug block entity writes into its NBT, so asking a vanilla chest
+# must report an error rather than answer 0 for a list that would be lost with its chunk.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    chest: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    me.expect_error("Only a grug block entity saves lists")
+    size: number = chest.get_saved_list_size("things")
+}
