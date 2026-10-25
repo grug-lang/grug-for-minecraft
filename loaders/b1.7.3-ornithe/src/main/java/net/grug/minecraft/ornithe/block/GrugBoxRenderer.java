@@ -150,7 +150,7 @@ public final class GrugBoxRenderer {
     }
 
     /** Draws {@code block} as an item at the origin, with the terrain atlas bound. */
-    public static void drawBlockAsItem(Block block, int damage) {
-        BLOCK_ITEM_RENDERER.renderAsItem(block, damage, 1.0F);
+    public static void drawBlockAsItem(Block block, int damage, float brightness) {
+        BLOCK_ITEM_RENDERER.renderAsItem(block, damage, brightness);
     }
 }

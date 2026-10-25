@@ -10,7 +10,6 @@ import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
@@ -37,8 +36,9 @@ import net.minecraft.world.level.block.state.BlockState;
  * <p>The stack is drawn the way this version draws a dropped item: a block through the item
  * renderer's own model, which is the block's inventory model, and anything else as the item's icon
  * on one flat quad turned to face the camera. The reference's size and lift are applied here so the
- * port reads the same on every loader, and the vertex light is the full-bright value so the stack
- * is not darkened by the world's light, which is the reference's lighting off.
+ * port reads the same on every loader. The vertex light is the light at the block entity, which is
+ * what the reference's lighting off leaves applied: BuildCraft disables GL lighting around the item
+ * loop but the tile entity renderer's lightmap still darkens the pipe's items.
  *
  * <p>Excluded from coverage because the class carries {@link GrugGenerated}: it draws into the
  * game's renderer. What it draws is decided by core's {@code GrugItemDraw}, which is measured
@@ -74,7 +74,7 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
         if (geometry.items().isEmpty()) return;
 
         for (GrugItemDraw draw : geometry.items()) {
-            drawItem(blockEntity, draw, poseStack, buffer, yaw);
+            drawItem(blockEntity, draw, poseStack, buffer, packedLight, yaw);
         }
     }
 
@@ -87,6 +87,7 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
             GrugItemDraw draw,
             PoseStack poseStack,
             MultiBufferSource buffer,
+            int packedLight,
             float yaw) {
         // A mod may name a block rather than its item. This version's lookup always answers with
         // the item, but a block is accepted and drawn as its item form rather than ignored.
@@ -126,7 +127,7 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
                         .renderStatic(
                                 stack,
                                 ItemDisplayContext.NONE,
-                                LightTexture.FULL_BRIGHT,
+                                packedLight,
                                 OverlayTexture.NO_OVERLAY,
                                 poseStack,
                                 buffer,
@@ -156,23 +157,29 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
             }
             poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - yaw));
             PoseStack.Pose pose = poseStack.last();
-            vertex(vertices, pose, -0.5F, -0.25F, sprite.getU0(), sprite.getV1());
-            vertex(vertices, pose, 0.5F, -0.25F, sprite.getU1(), sprite.getV1());
-            vertex(vertices, pose, 0.5F, 0.75F, sprite.getU1(), sprite.getV0());
-            vertex(vertices, pose, -0.5F, 0.75F, sprite.getU0(), sprite.getV0());
+            vertex(vertices, pose, packedLight, -0.5F, -0.25F, sprite.getU0(), sprite.getV1());
+            vertex(vertices, pose, packedLight, 0.5F, -0.25F, sprite.getU1(), sprite.getV1());
+            vertex(vertices, pose, packedLight, 0.5F, 0.75F, sprite.getU1(), sprite.getV0());
+            vertex(vertices, pose, packedLight, -0.5F, 0.75F, sprite.getU0(), sprite.getV0());
             poseStack.popPose();
         }
         poseStack.popPose();
     }
 
-    /** One corner of the sprite's quad, full bright, with its front towards positive z. */
+    /** One corner of the sprite's quad, at the block entity's light, front towards positive z. */
     private static void vertex(
-            VertexConsumer vertices, PoseStack.Pose pose, float x, float y, float u, float v) {
+            VertexConsumer vertices,
+            PoseStack.Pose pose,
+            int packedLight,
+            float x,
+            float y,
+            float u,
+            float v) {
         vertices.vertex(pose, x, y, 0.0F)
                 .color(255, 255, 255, 255)
                 .uv(u, v)
                 .overlayCoords(OverlayTexture.NO_OVERLAY)
-                .uv2(LightTexture.FULL_BRIGHT)
+                .uv2(packedLight)
                 .normal(0.0F, 0.0F, 1.0F)
                 .endVertex();
     }
