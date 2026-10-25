@@ -3,7 +3,7 @@ export init() {
     set_material("wood")
     set_block_entity(e"wooden_pipe_entity")
     # The reference's pipe is not a full cube: it is a centre with arms, so light reaches the items
-    # travelling inside it. Until #102 models that shape, the block draws its cube through the hook,
+    # travelling inside it. The block entity's render() draws that shape through the chunk hook,
     # which is also what keeps the block non-opaque and the items inside it lit.
     set_custom_render()
     # The reference's pipe has no inventory slots. The port keeps one as the extraction inbox:

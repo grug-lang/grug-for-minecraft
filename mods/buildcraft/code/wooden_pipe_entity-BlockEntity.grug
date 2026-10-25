@@ -48,11 +48,18 @@ export init() {
     me.extract_energy(64)
 }
 
-# Until #102 replaces it, the pipe's own shape is the cube its model describes. Drawing it here
-# rather than leaving it to the model is what makes the block non-opaque, so the items inside it are
-# lit rather than sitting in an opaque block's darkness, as they are in the reference's open cage.
+# RenderPipe.renderWorldBlock: the quarter-block centre, then an arm on every side the pipe connects
+# to. Drawing the shape here rather than leaving it to the model is what makes the block
+# non-opaque, so the items inside it are lit rather than sitting in an opaque block's darkness, as
+# they are in the reference's open cage.
 export render(ctx: RenderContext) {
-    ctx.draw_box(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+    ctx.draw_box(0.25, 0.25, 0.25, 0.75, 0.75, 0.75)
+    _draw_arm(ctx, 0)
+    _draw_arm(ctx, 1)
+    _draw_arm(ctx, 2)
+    _draw_arm(ctx, 3)
+    _draw_arm(ctx, 4)
+    _draw_arm(ctx, 5)
 }
 
 # RenderPipe.renderSolids: every travelling item is drawn where its record stands, every frame,
@@ -105,6 +112,49 @@ local _draw_travelling(ctx: RenderFrameContext, index: number) {
     py: number = me.get_saved_list_number("traveling", index, "y") - y + 0.5
     pz: number = me.get_saved_list_number("traveling", index, "z") - z + 0.5
     ctx.draw_item(item_opt.unwrap(), damage, count, px, py, pz)
+}
+
+# One arm of the centre-and-arms shape, if this side has a connection. The source side's arm is the
+# plain texture, which is prepareTextureFor's switch away from the base pipe texture.
+local _draw_arm(ctx: RenderContext, side: number) {
+    if not _is_inventory(side) {
+        return
+    }
+    if side == _meta() {
+        _draw_source_arm(ctx, side)
+        return
+    }
+    if side == 0 {
+        ctx.draw_box(0.25, 0.0, 0.25, 0.75, 0.25, 0.75)
+    } else if side == 1 {
+        ctx.draw_box(0.25, 0.75, 0.25, 0.75, 1.0, 0.75)
+    } else if side == 2 {
+        ctx.draw_box(0.25, 0.25, 0.0, 0.75, 0.75, 0.25)
+    } else if side == 3 {
+        ctx.draw_box(0.25, 0.25, 0.75, 0.75, 0.75, 1.0)
+    } else if side == 4 {
+        ctx.draw_box(0.0, 0.25, 0.25, 0.25, 0.75, 0.75)
+    } else if side == 5 {
+        ctx.draw_box(0.75, 0.25, 0.25, 1.0, 0.75, 0.75)
+    }
+}
+
+# The source side's arm, drawn from the plain-texture model turned so its base west arm lands on
+# this side. draw_model turns about the block's centre, which is the centre the arm grows out of.
+local _draw_source_arm(ctx: RenderContext, side: number) {
+    if side == 0 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 0.0, 270.0, 0.0, 0.0, 0.0)
+    } else if side == 1 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 0.0, 90.0, 0.0, 0.0, 0.0)
+    } else if side == 2 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 90.0, 0.0, 0.0, 0.0, 0.0)
+    } else if side == 3 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 270.0, 0.0, 0.0, 0.0, 0.0)
+    } else if side == 4 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    } else if side == 5 {
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 180.0, 0.0, 0.0, 0.0, 0.0)
+    }
 }
 
 local _move_items() {

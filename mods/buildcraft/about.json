@@ -100,11 +100,6 @@
 			},
 			"deviations": [
 				{
-					"what": "The wooden pipe renders as a cube instead of a centre with arms.",
-					"why": "The block-entity rendering hook (set_custom_render) draws the pipe's cube on all five loaders, so the block is not opaque and the items inside it are lit, but the reference's centre-and-arms shape is not modelled yet.",
-					"tracking_issue": 102
-				},
-				{
 					"what": "A wooden pipe drops a stack that no inventory accepts as one item entity per item, instead of as one entity holding the stack.",
 					"why": "item_stack in mod_api.json makes a stack of one and has no count, so the pipe spawns an entity for each item it carries.",
 					"tracking_issue": 473
