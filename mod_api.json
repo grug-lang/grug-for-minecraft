@@ -1044,6 +1044,69 @@
 				"force_gc": {
 					"description": "Test only: asks the JVM for a full garbage collection, so a test can make a collected host entity deterministic instead of waiting for GC timing to line up."
 				},
+				"set_nbt_number": {
+					"description": "Test only: stages a number in a block entity's own NBT, the data it saves and loads, so a test can set up state that has no grug saved data, such as a recreation test's reference branch setting the real mod's block entity to what the port sets through its saved data. The path is the keys from the block entity's compound to the one set, joined by dots; a part of only digits is an index into a list of compounds, a list's size appends a new compound, an index is always followed by a key, and a missing key on the way is created. The number is stored as the NBT type named: byte, short, int, long, float or double, an integer type taking only a whole number in its range. Nothing changes until Test.load_nbt.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "type",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_nbt_item": {
+					"description": "Test only: stages a stack of one of the item, undamaged, in a block entity's own NBT, as the compound the game itself saves a stack as, at a path as for Test.set_nbt_number. Nothing changes until Test.load_nbt.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"load_nbt": {
+					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the block entity read the result back through its own load, in one go, because a load can rebuild what it reads. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is read.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				},
 				"is_reference": {
 					"description": "Whether the test harness is driving the reference mod rather than this port, so a recreation test can take the reference branch. Set by the GRUG_REFERENCE environment variable, so one test file runs against both.",
 					"return_type": {

@@ -1,0 +1,17 @@
+# A path that walks into a number as if it were a compound is reported. Some versions' typed getters
+# answer an empty compound for a key of another type, which would drop the edit without a word, so
+# this checks every loader's NBT refuses it instead.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_init_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    Test.set_nbt_number(be, "GrugNumbers.0.Value.x", "double", 1)
+    me.expect_error("does not hold a compound.")
+    Test.load_nbt(be)
+}

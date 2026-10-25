@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
@@ -17,6 +18,7 @@ import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.ornithe.block.GrugBlock;
+import net.grug.minecraft.ornithe.block.GrugBlockEntityNbtAccess;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.inventory.DummyCraftingInventory;
@@ -742,6 +744,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         NbtCompound nbt = new NbtCompound();
         be.writeNbt(nbt);
         be.readNbt(nbt);
+    }
+
+    private final GrugBlockEntityNbtAccess blockEntityNbt = new GrugBlockEntityNbtAccess();
+
+    @Override
+    public GrugBlockEntityNbt.Access blockEntityNbt() {
+        return blockEntityNbt;
     }
 
     @Override

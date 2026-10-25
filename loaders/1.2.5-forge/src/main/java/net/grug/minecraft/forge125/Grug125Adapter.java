@@ -17,6 +17,7 @@ import net.grug.minecraft.forge125.item.GrugItem;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
+import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemData;
@@ -926,6 +927,13 @@ public class Grug125Adapter implements ModLoaderAdapter {
         NBTTagCompound nbt = new NBTTagCompound();
         be.writeToNBT(nbt);
         be.readFromNBT(nbt);
+    }
+
+    private final GrugBlockEntityNbtAccess blockEntityNbt = new GrugBlockEntityNbtAccess();
+
+    @Override
+    public GrugBlockEntityNbt.Access blockEntityNbt() {
+        return blockEntityNbt;
     }
 
     @Override

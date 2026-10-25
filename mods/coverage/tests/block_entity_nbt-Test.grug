@@ -1,0 +1,40 @@
+# Covers Test.set_nbt_number, Test.set_nbt_item and Test.load_nbt on every loader, through a grug
+# block entity's own NBT, which holds its saved numbers as GrugNumbers, a list of Name and Value
+# compounds sorted by name, and its saved lists as GrugLists, each a Name and a list of Records with
+# their Numbers and Item. Reading the edits back through the saved data proves the loader's NBT walk
+# found, created and appended what the paths name, and that the block entity read the result.
+# The GrugExtra and GrugNew keys are nothing a grug block entity reads, so they are dropped by the
+# load; they are there so every numeric type, a missing compound and a missing list are written.
+export run() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_init_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    # init() saved "inited", so "zz" is the second of the sorted numbers.
+    be.set_saved_number("zz", 1)
+    record: number = be.append_saved_list_record("things")
+    be.set_saved_list_number("things", record, "n", 1)
+    stick: Item = item(resource_location("minecraft:stick"))
+
+    Test.set_nbt_number(be, "GrugNumbers.1.Value", "double", 5)
+    Test.set_nbt_number(be, "GrugLists.0.Records.0.Numbers.0.Value", "double", 9)
+    Test.set_nbt_item(be, "GrugLists.0.Records.1.Item", stick)
+    Test.set_nbt_number(be, "GrugExtra.b", "byte", 1)
+    Test.set_nbt_number(be, "GrugExtra.s", "short", 2)
+    Test.set_nbt_number(be, "GrugExtra.i", "int", 3)
+    Test.set_nbt_number(be, "GrugExtra.l", "long", 4)
+    Test.set_nbt_number(be, "GrugExtra.f", "float", 0.5)
+    Test.set_nbt_number(be, "GrugNew.0.d", "double", 6)
+    Test.load_nbt(be)
+
+    Test.assert(be.get_saved_number("zz") == 5, "The edited saved number should read back.")
+    Test.assert(be.get_saved_number("inited") == 1, "The saved number that was not edited should be unchanged.")
+    Test.assert(be.get_saved_list_number("things", 0, "n") == 9, "The edited record number should read back.")
+    Test.assert(be.get_saved_list_size("things") == 2, "The appended record should read back.")
+    Test.assert(equals(be.get_saved_list_item("things", 1).unwrap(), stick), "The appended record should hold the item.")
+}
