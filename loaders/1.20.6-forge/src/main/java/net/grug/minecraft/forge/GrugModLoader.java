@@ -9,6 +9,7 @@ import net.grug.minecraft.forge.block.GrugBakedModel;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.GrugItemBakedModel;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
+import net.grug.minecraft.forge.block.entity.GrugBlockEntityRenderer;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.forge.resource.GrugPackResources;
@@ -30,6 +31,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.block.BlockModelShaper;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.client.tutorial.TutorialSteps;
@@ -436,6 +438,8 @@ public class GrugModLoader {
                                 GRUG_MENU.get(),
                                 (GrugMenu menu, Inventory inv, Component title) ->
                                         new GrugScreen(menu, inv, title, menu.layout));
+                        BlockEntityRenderers.register(
+                                GRUG_BLOCK_ENTITY.get(), context -> new GrugBlockEntityRenderer());
                     });
         }
 

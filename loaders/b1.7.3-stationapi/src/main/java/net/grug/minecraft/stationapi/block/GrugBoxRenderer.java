@@ -123,4 +123,33 @@ public final class GrugBoxRenderer {
                 (float) box.y2(),
                 (float) box.z2());
     }
+
+    /**
+     * Whether {@code block} has a 3D inventory shape rather than a flat icon.
+     *
+     * <p>The same switch this version's {@code BlockRenderManager} uses, written out here so it
+     * does not depend on the mapping's name for a static method that answers one question.
+     */
+    public static boolean isFullItem(Block block) {
+        int renderType = block.getRenderType();
+        return renderType == 0
+                || renderType == 13
+                || renderType == 10
+                || renderType == 11
+                || renderType == 16;
+    }
+
+    /**
+     * Whether {@code block}'s inventory shape fills an inventory slot, which the reference draws at
+     * twice the size of the other blocks: render types 1, 19, 12 and 2.
+     */
+    public static boolean isFullSizeItemRenderType(Block block) {
+        int renderType = block.getRenderType();
+        return renderType == 1 || renderType == 19 || renderType == 12 || renderType == 2;
+    }
+
+    /** Draws {@code block} as an item at the origin, with the terrain atlas bound. */
+    public static void drawBlockAsItem(BlockRenderManager renderer, Block block, int damage) {
+        renderer.render(block, damage, 1.0F);
+    }
 }

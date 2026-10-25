@@ -41,6 +41,8 @@ public class GrugBlockEntity extends BlockEntity
     private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private long renderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean renderFnIdResolved = false;
+    private long frameRenderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private boolean frameRenderFnIdResolved = false;
     private boolean initStarted = false;
 
     /**
@@ -95,7 +97,15 @@ public class GrugBlockEntity extends BlockEntity
         initGrug();
     }
 
-    private void initGrug() {
+    /**
+     * Creates this block entity's grug entity.
+     *
+     * <p>Synchronized because 1.20.6 compiles chunks on worker threads: the chunk mesher asks for
+     * the handle while the render thread's frame renderer can ask for it at the same time, and two
+     * unsynchronized calls would both find no handle, create one each, and leak the first. The
+     * other loaders compile and draw on one thread, so only this one needs it.
+     */
+    private synchronized void initGrug() {
         if (entityHandle != 0 || initStarted) return;
 
         initStarted = true;
@@ -187,6 +197,22 @@ public class GrugBlockEntity extends BlockEntity
         return renderFnId;
     }
 
+    /**
+     * The id of the {@code render_frame} export, looked up once and remembered, because this is
+     * asked for every frame the block is in view.
+     *
+     * <p>A block entity whose script has no {@code render_frame} is asked anyway, and the engine
+     * declines the call without reporting, so a machine with nothing that moves between frames
+     * needs no branch of its own.
+     */
+    public long getFrameRenderFnId() {
+        if (!frameRenderFnIdResolved) {
+            frameRenderFnId = Grug.getExportFnId("BlockEntity", "render_frame");
+            frameRenderFnIdResolved = true;
+        }
+        return frameRenderFnId;
+    }
+
     @Override
     public void setRemoved() {
         super.setRemoved();
@@ -198,6 +224,7 @@ public class GrugBlockEntity extends BlockEntity
         // Reset with the handle, so a tile that is re-inited after a hot reload resolves its render
         // function again rather than answering from a cache the destroyed entity left behind.
         renderFnIdResolved = false;
+        frameRenderFnIdResolved = false;
     }
 
     // --- Container Implementation ---

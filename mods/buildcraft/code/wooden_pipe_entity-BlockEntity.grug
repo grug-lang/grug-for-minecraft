@@ -48,6 +48,20 @@ export init() {
     me.extract_energy(64)
 }
 
+# RenderPipe.renderSolids: every travelling item is drawn where its record stands, every frame,
+# because an item that is not a block is a sprite turned to face the player and cannot be baked into
+# the chunk's geometry. The record's x, y and z are world coordinates, and draw_item's are measured
+# from the block's minimum corner, so the half block between the member centre and that corner comes
+# off each axis.
+export render_frame() {
+    index: number = 0
+    records: number = me.get_saved_list_size("traveling")
+    while index < records {
+        _draw_travelling(index)
+        index = index + 1
+    }
+}
+
 export tick() {
     # BlockEngine's twin for the pipe is PipeLogicWood.blockActivated, which the block's use export
     # answers by setting "rotate". The reference also checks the side when the pipe is initialised and
@@ -69,6 +83,23 @@ export tick() {
 
 # grug wants a helper defined after the first place it is called, so the helpers below are ordered
 # by their callers rather than grouped by topic.
+
+# One travelling record, if it still holds an item, drawn the way the reference's doRenderItem draws
+# a travelling item: a block as a small cube, anything else as a flat sprite facing the player.
+local _draw_travelling(index: number) {
+    item_opt: Option[Item] = me.get_saved_list_item("traveling", index)
+    count: number = me.get_saved_list_number("traveling", index, "count")
+    if not item_opt.has() or count <= 0 {
+        return
+    }
+
+    damage: number = me.get_saved_list_number("traveling", index, "damage")
+    px: number = me.get_saved_list_number("traveling", index, "x") - x + 0.5
+    py: number = me.get_saved_list_number("traveling", index, "y") - y + 0.5
+    pz: number = me.get_saved_list_number("traveling", index, "z") - z + 0.5
+    draw_item(item_opt.unwrap(), damage, count, px, py, pz)
+}
+
 local _move_items() {
     index: number = 0
     remaining: number = me.get_saved_list_size("traveling")

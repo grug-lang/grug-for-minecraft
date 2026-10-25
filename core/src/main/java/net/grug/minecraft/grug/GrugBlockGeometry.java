@@ -32,6 +32,41 @@ public final class GrugBlockGeometry {
     private GrugBlockGeometry() {}
 
     /**
+     * Draws {@code entityHandle}'s frame render function and returns the stacks it drew.
+     *
+     * <p>A frame pass runs every frame the block is in view, so it reports nothing when it drew
+     * nothing: a machine with no item in flight has nothing to draw, and that is not a defect. The
+     * partial tick and the camera direction are the loader's, not the script's, because only the
+     * loader knows how much of the frame's tick has elapsed and where its camera looks.
+     *
+     * <p>The pass runs under the state lock for the same reason as {@link #draw(long, long,
+     * String)}: two concurrent passes would interleave the static bookkeeping and draw one block's
+     * stacks into another's frame.
+     *
+     * @param partialTick how much of the current tick has already elapsed, from 0 up to but not
+     *     including 1
+     * @param cameraYaw the direction the camera looks in, in degrees
+     */
+    public static GrugFrameGeometry drawFrame(
+            long entityHandle, long frameRenderFnId, double partialTick, double cameraYaw) {
+        GrugStateLock.lock();
+        try {
+            GrugRenderPass.openFrame(partialTick, cameraYaw);
+            GrugFrameGeometry geometry;
+            try {
+                if (entityHandle != 0) {
+                    callExport(entityHandle, frameRenderFnId);
+                }
+            } finally {
+                geometry = GrugRenderPass.closeFrame();
+            }
+            return geometry;
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
      * Draws {@code entityHandle}'s render function and returns the boxes it drew.
      *
      * @param blockDescription what to call this block in a report, which is how its author finds it
@@ -71,7 +106,7 @@ public final class GrugBlockGeometry {
                 // native side a null entity pointer.
                 ranRender = false;
                 if (entityHandle != 0) {
-                    ranRender = callRender(entityHandle, renderFnId);
+                    ranRender = callExport(entityHandle, renderFnId);
                 }
             } finally {
                 geometry = GrugRenderPass.close();
@@ -88,7 +123,7 @@ public final class GrugBlockGeometry {
     }
 
     /**
-     * Calls the render function, and answers whether it did.
+     * Calls an engine-called export, and answers whether it did.
      *
      * <p>The invalid-id check lives in here rather than in the caller because it cannot be false
      * today: grug builds its table of export ids from {@code mod_api.json}, so the id for {@code
@@ -102,13 +137,13 @@ public final class GrugBlockGeometry {
      */
     @GrugGenerated(
             "the call into the VM, and the guard on an id that cannot be invalid while mod_api.json"
-                    + " declares render: exercising either needs a live grug entity")
-    private static boolean callRender(long entityHandle, long renderFnId) {
-        if (renderFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                + " declares render and render_frame: exercising either needs a live grug entity")
+    private static boolean callExport(long entityHandle, long exportFnId) {
+        if (exportFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
             return false;
         }
 
-        Grug.callExportFn(entityHandle, renderFnId);
+        Grug.callExportFn(entityHandle, exportFnId);
         return true;
     }
 

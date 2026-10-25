@@ -1164,6 +1164,74 @@ public class HostFunctions {
     }
 
     /**
+     * Draws one stack the way the game draws a dropped item, on top of the chunk geometry, during a
+     * block entity's frame pass.
+     *
+     * <p>A stack has to be drawn this way rather than with draw_box because a dropped item's flat
+     * sprite turns to face the camera every frame, and a chunk pass bakes its geometry once. The
+     * loader decides what the item looks like, because that is the game's own dropped-item drawing;
+     * what is decided here is that the call is legal and that its numbers are usable. See the
+     * {@code mod_api.json} description for what is drawn.
+     */
+    public static void draw_item(
+            long itemId, double damage, double count, double x, double y, double z) {
+        if (!GrugRenderPass.isFrame()) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "draw_item: It can only be called while a block entity's render_frame() is"
+                            + " drawing, never from render(): what render() records is baked into"
+                            + " the chunk's geometry, and a stack drawn there could not turn to"
+                            + " face the player every frame.");
+            return;
+        }
+
+        String problem = GrugItemDraw.problem(damage, count, x, y, z);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "draw_item: " + problem);
+            return;
+        }
+
+        GrugRenderPass.recordItem(
+                GrugEntities.entityData.get(itemId).object, (int) damage, (int) count, x, y, z);
+    }
+
+    /**
+     * How much of the current tick has already elapsed, from 0 up to but not including 1, during a
+     * block entity's frame pass.
+     *
+     * <p>Only legal in {@code render_frame()}: a chunk pass runs once per rebuild rather than once
+     * per frame, so there is no frame fraction for it to mean.
+     */
+    public static double partial_tick() {
+        if (!GrugRenderPass.isFrame()) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "partial_tick: It can only be called while a block entity's render_frame() is"
+                            + " drawing.");
+            return 0.0;
+        }
+        return GrugRenderPass.partialTick();
+    }
+
+    /**
+     * The direction the camera looks in, in degrees, during a block entity's frame pass: the game's
+     * own yaw, so 0 looks towards positive z, 90 towards negative x, and it increases clockwise
+     * seen from above.
+     *
+     * <p>Only legal in {@code render_frame()}, for the same reason as {@link #partial_tick()}.
+     */
+    public static double camera_yaw() {
+        if (!GrugRenderPass.isFrame()) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "camera_yaw: It can only be called while a block entity's render_frame() is"
+                            + " drawing.");
+            return 0.0;
+        }
+        return GrugRenderPass.cameraYaw();
+    }
+
+    /**
      * A saved number on a block entity that does not save them. Only a grug block entity writes
      * them into its NBT, so a number on a vanilla one would be lost with its chunk without a word.
      */

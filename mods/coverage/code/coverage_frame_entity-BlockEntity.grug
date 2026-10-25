@@ -1,0 +1,38 @@
+# The per-frame hook's two kinds of stack: a block, which the game draws as a cube, and an item,
+# which it draws as one flat sprite turned to face the player. The positions are block-local, the
+# same as draw_box's, and the pedestal is drawn once into the chunk so the two stacks are visibly on
+# top of it rather than floating in the room.
+
+# Hoisted to member scope so the frame does not create a new Item every frame.
+log: Item = item(resource_location("minecraft:log"))
+stick: Item = item(resource_location("minecraft:stick"))
+
+# Read every frame, because a reference that interpolates needs the tick and a part that aims
+# itself needs the direction. Nothing here uses either value, but this is the only place their
+# success path is reachable from.
+frame_tick: number = 0
+frame_yaw: number = 0
+
+# One bad call, so the refusal path a frame pass alone can reach is exercised. The count is not a
+# whole number, which is reported and not drawn. The frame carries on afterwards, as a contained
+# script error, so the run is unaffected.
+refused_bad_count: bool = false
+
+export render() {
+    draw_box(0.2, 0.0, 0.4, 0.8, 0.15, 0.6)
+}
+
+export render_frame() {
+    frame_tick = partial_tick()
+    frame_yaw = camera_yaw()
+
+    # A log is a block item, so it is a cube a quarter of a block across, lifted a quarter. The
+    # stick is one flat sprite half a block across, lifted a tenth, turned to face the camera.
+    draw_item(log, 0, 1, 0.3, 0.2, 0.5)
+    draw_item(stick, 0, 1, 0.7, 0.2, 0.5)
+
+    if not refused_bad_count {
+        refused_bad_count = true
+        draw_item(stick, 0, 1.5, 0.5, 0.5, 0.5)
+    }
+}
