@@ -115,11 +115,11 @@ public final class GrugSavedLists {
 
     /**
      * The record at {@code index}, or null when the block entity has no such list or no record at
-     * that index.
+     * that index. The caller has rejected a negative index before asking, as the host functions do.
      */
     public static synchronized Record record(Object blockEntity, String name, int index) {
         List<Record> records = list(blockEntity, name);
-        if (records == null || index < 0 || index >= records.size()) {
+        if (records == null || index >= records.size()) {
             return null;
         }
         return records.get(index);
