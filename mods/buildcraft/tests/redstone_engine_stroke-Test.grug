@@ -13,14 +13,14 @@
 # waits for a time 5 to 15 ticks past a multiple of 20, so no tick it gives lands on one, even if the
 # integrated server thread advances a few ticks during the call, and the engine gains nothing while it
 # is ticked. The energy the test expects therefore changes only when the pipe takes 1 from the engine.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
 
     # Waits for a time 5 to 15 ticks past a multiple of 20. See the header: the clock stays put while
     # the engine is ticked, so this is the time every tick below sees.
     phase: number = Math.remainder(level.get_time(), 20)
     if phase < 5 or phase > 15 {
-        me.not_done()
+        ctx.not_done()
         return
     }
 
@@ -29,67 +29,67 @@ export run() {
     y: number = origin.y() + 15
     z: number = origin.z()
 
-    engine: BlockEntity = _place(level, x - 4, y, z, true)
+    engine: BlockEntity = _place(ctx, level, x - 4, y, z, true)
     pipe: BlockEntity = level.get_block_entity(x - 4, y + 1, z).unwrap()
     engine.set_saved_number("energy", 0)
     Test.tick_block_entity(engine, 19)
-    Test.assert(pipe.get_energy_stored() == 0, "An engine with no energy should hand the pipe nothing.")
-    Test.assert(engine.get_saved_number("progress") == 0, "An engine with no energy should not move its piston.")
+    ctx.assert(pipe.get_energy_stored() == 0, "An engine with no energy should hand the pipe nothing.")
+    ctx.assert(engine.get_saved_number("progress") == 0, "An engine with no energy should not move its piston.")
 
-    _stroke(level, x, y, z, 100, 51, 101)
-    _stroke(level, x + 4, y, z, 400, 26, 51)
-    _stroke(level, x + 8, y, z, 600, 14, 26)
-    _stroke(level, x + 12, y, z, 900, 8, 14)
+    _stroke(ctx, level, x, y, z, 100, 51, 101)
+    _stroke(ctx, level, x + 4, y, z, 400, 26, 51)
+    _stroke(ctx, level, x + 8, y, z, 600, 14, 26)
+    _stroke(ctx, level, x + 12, y, z, 900, 8, 14)
 
     # Without a redstone signal the engine never starts a stroke.
-    engine = _place(level, x + 16, y, z, false)
+    engine = _place(ctx, level, x + 16, y, z, false)
     pipe = level.get_block_entity(x + 16, y + 1, z).unwrap()
     engine.set_saved_number("energy", 100)
     Test.tick_block_entity(engine, 120)
-    Test.assert(pipe.get_energy_stored() == 0, "An engine with no redstone signal should hand the pipe nothing.")
-    Test.assert(engine.get_saved_number("progress") == 0, "An engine with no redstone signal should not move its piston.")
+    ctx.assert(pipe.get_energy_stored() == 0, "An engine with no redstone signal should hand the pipe nothing.")
+    ctx.assert(engine.get_saved_number("progress") == 0, "An engine with no redstone signal should not move its piston.")
 }
 
 # Runs two strokes of an engine holding the given energy, with delivery_tick and rest_tick as the
 # tick numbers described above.
-local _stroke(level: Level, x: number, y: number, z: number, energy: number, delivery_tick: number, rest_tick: number) {
-    engine: BlockEntity = _place(level, x, y, z, true)
+local _stroke(ctx: TestRunContext, level: Level, x: number, y: number, z: number, energy: number, delivery_tick: number, rest_tick: number) {
+    engine: BlockEntity = _place(ctx, level, x, y, z, true)
     pipe: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
     engine.set_saved_number("energy", energy)
 
     # The start tick.
     expected: number = energy
     _tick(engine, 1)
-    Test.assert(engine.get_saved_number("progress") == 0, "The start tick should add nothing to progress.")
-    Test.assert(engine.get_saved_number("energy") == expected, "Starting a stroke should not take energy.")
+    ctx.assert(engine.get_saved_number("progress") == 0, "The start tick should add nothing to progress.")
+    ctx.assert(engine.get_saved_number("energy") == expected, "Starting a stroke should not take energy.")
 
     _tick(engine, delivery_tick - 2)
-    Test.assert(pipe.get_energy_stored() == 0, "The pipe should have nothing the tick before the delivery.")
-    Test.assert(engine.get_saved_number("energy") == expected, "The engine should still hold all its energy the tick before the delivery.")
-    Test.assert(engine.get_saved_number("progress") > 0, "The piston should be moving.")
+    ctx.assert(pipe.get_energy_stored() == 0, "The pipe should have nothing the tick before the delivery.")
+    ctx.assert(engine.get_saved_number("energy") == expected, "The engine should still hold all its energy the tick before the delivery.")
+    ctx.assert(engine.get_saved_number("progress") > 0, "The piston should be moving.")
 
     _tick(engine, 1)
     expected = expected - 1
-    Test.assert(pipe.get_energy_stored() == 1, "The pipe should hold 1 energy after the delivery tick.")
-    Test.assert(engine.get_saved_number("energy") == expected, "The engine should have lost exactly 1 energy at the delivery.")
+    ctx.assert(pipe.get_energy_stored() == 1, "The pipe should hold 1 energy after the delivery tick.")
+    ctx.assert(engine.get_saved_number("energy") == expected, "The engine should have lost exactly 1 energy at the delivery.")
 
     _tick(engine, rest_tick - delivery_tick - 1)
-    Test.assert(engine.get_saved_number("progress") > 0.9, "Progress should be nearly 1 the tick before the piston rests.")
+    ctx.assert(engine.get_saved_number("progress") > 0.9, "Progress should be nearly 1 the tick before the piston rests.")
 
     _tick(engine, 1)
-    Test.assert(engine.get_saved_number("progress") == 0, "Progress should be 0 on the tick the piston rests.")
-    Test.assert(pipe.get_energy_stored() == 1, "The pipe should still hold 1 energy, as only one stroke has delivered.")
+    ctx.assert(engine.get_saved_number("progress") == 0, "Progress should be 0 on the tick the piston rests.")
+    ctx.assert(pipe.get_energy_stored() == 1, "The pipe should still hold 1 energy, as only one stroke has delivered.")
 
     # The second stroke starts on the tick after the rest tick: it adds nothing there, and adds the
     # speed on the tick after that.
     _tick(engine, 1)
-    Test.assert(engine.get_saved_number("progress") == 0, "The second stroke's start tick should add nothing to progress.")
+    ctx.assert(engine.get_saved_number("progress") == 0, "The second stroke's start tick should add nothing to progress.")
     _tick(engine, 1)
-    Test.assert(engine.get_saved_number("progress") > 0, "The second stroke should be moving the tick after it started.")
+    ctx.assert(engine.get_saved_number("progress") > 0, "The second stroke should be moving the tick after it started.")
 
     _tick(engine, delivery_tick - 2)
-    Test.assert(pipe.get_energy_stored() == 2, "The second stroke should have delivered 1 more energy.")
-    Test.assert(engine.get_saved_number("energy") == expected - 1, "The engine should have lost 1 more energy.")
+    ctx.assert(pipe.get_energy_stored() == 2, "The second stroke should have delivered 1 more energy.")
+    ctx.assert(engine.get_saved_number("energy") == expected - 1, "The engine should have lost 1 more energy.")
 }
 
 # Ticks the engine the given number of times in a row, within the test's one game tick.
@@ -100,7 +100,7 @@ local _tick(engine: BlockEntity, ticks: number) {
 # Places a pipe at y + 1 and an engine at y with the redstone torch right under it (stone
 # under the torch), or none when powered is false, and returns the engine's block entity after
 # checking its signal. A torch powers the block above it, but not the block it is attached to.
-local _place(level: Level, x: number, y: number, z: number, powered: bool) BlockEntity {
+local _place(ctx: TestRunContext, level: Level, x: number, y: number, z: number, powered: bool) BlockEntity {
     if powered {
         level.place_block(x, y - 2, z, "minecraft:stone")
         level.place_block(x, y - 1, z, "minecraft:redstone_torch")
@@ -110,8 +110,8 @@ local _place(level: Level, x: number, y: number, z: number, powered: bool) Block
 
     engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y + 1, z)
-    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
-    Test.assert(pipe_opt.has(), "The wooden pipe should have a block entity.")
-    Test.assert(level.has_neighbor_signal(x, y, z) == powered, "The engine's redstone signal should match what the test set up.")
+    ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    ctx.assert(pipe_opt.has(), "The wooden pipe should have a block entity.")
+    ctx.assert(level.has_neighbor_signal(x, y, z) == powered, "The engine's redstone signal should match what the test set up.")
     return engine_opt.unwrap()
 }

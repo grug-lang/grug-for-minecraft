@@ -34,10 +34,10 @@ settled_ticks: number = 0
 remeshed: bool = false
 remesh_ticks: number = 0
 
-export run() {
-    if me.tick() == 0 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
         _setup()
-        me.not_done()
+        ctx.not_done()
         return
     }
 
@@ -45,8 +45,8 @@ export run() {
     # particles that torch gave off live for up to 40 ticks after it is cleared away. One of them in
     # the crop is a few pixels that are never in the same place twice, so wait out the longest life
     # with some to spare. The world has no way to say how many particles are left.
-    if me.tick() < 60 {
-        me.not_done()
+    if ctx.tick() < 60 {
+        ctx.not_done()
         return
     }
 
@@ -56,23 +56,23 @@ export run() {
     # the change only a settle is waited for: on the port only the engine's own redraw can put the
     # change on screen, and on the reference RenderEngine draws the loaded engine on the next frame.
     if not changed {
-        if not _ready() {
-            me.not_done()
+        if not _ready(ctx) {
+            ctx.not_done()
             return
         }
         if capture == 0 {
-            _show_progresses()
+            _show_progresses(ctx)
         } else {
-            _show_facings()
+            _show_facings(ctx)
         }
         changed = true
         settled_ticks = 0
-        me.not_done()
+        ctx.not_done()
         return
     }
 
     if not _settled() {
-        me.not_done()
+        ctx.not_done()
         return
     }
 
@@ -87,7 +87,7 @@ export run() {
         }
         capture = 1
         changed = false
-        me.not_done()
+        ctx.not_done()
         return
     }
 
@@ -133,10 +133,10 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
 # Faces every engine up, with the progress for its place in the row. The port's engine is drawn again
 # by its own tick, which is what a stroke does every tick; the reference's is loaded from its NBT. The facing is given directly, as
 # redstone_engine_facings-Test.grug does, rather than by a receptor next to the engine.
-local _show_progresses() {
+local _show_progresses(ctx: TestRunContext) {
     i: number = 0
     while i < 6 {
-        engine: BlockEntity = _engine(i)
+        engine: BlockEntity = _engine(ctx, i)
         if Test.is_reference() {
             Test.set_nbt_number(engine, "orientation", "int", 1)
             Test.set_nbt_number(engine, "progress", "float", _progress(i))
@@ -171,19 +171,19 @@ local _progress(i: number) number {
 }
 
 # The engine i blocks along the row.
-local _engine(i: number) BlockEntity {
+local _engine(ctx: TestRunContext, i: number) BlockEntity {
     level: Level = Test.get_client_level()
     engine_opt: Option[BlockEntity] = level.get_block_entity(ex + i, ey, ez)
-    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     return engine_opt.unwrap()
 }
 
 # Turns the engine in each place to the facing of the same number, all at their farthest. The
 # facing changes the drawing without the progress changing, so it is drawn again directly.
-local _show_facings() {
+local _show_facings(ctx: TestRunContext) {
     i: number = 0
     while i < 6 {
-        engine: BlockEntity = _engine(i)
+        engine: BlockEntity = _engine(ctx, i)
         if Test.is_reference() {
             Test.set_nbt_number(engine, "orientation", "int", i)
             Test.set_nbt_number(engine, "progress", "float", 0.5)
@@ -199,7 +199,7 @@ local _show_facings() {
 
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
 # light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
-local _ready() bool {
+local _ready(ctx: TestRunContext) bool {
     if not Test.world_settled() {
         settled_ticks = 0
         return false
@@ -209,7 +209,7 @@ local _ready() bool {
         return false
     }
     if not remeshed {
-        _force_remesh()
+        _force_remesh(ctx)
         remeshed = true
         return false
     }
@@ -237,7 +237,7 @@ local _settled() bool {
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
 # the capture's mesh is built from the settled light. See coverage_render-Test.grug.
-local _force_remesh() {
+local _force_remesh(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -245,7 +245,7 @@ local _force_remesh() {
     z: number = origin.z()
     level.place_block(x - 6, y + 3, z + 10, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 10, "minecraft:stone")
-    Test.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }
 
 # Places the engine as a player does, because the reference's BlockEngine.c, which faces a new

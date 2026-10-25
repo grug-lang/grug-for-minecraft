@@ -17,13 +17,68 @@ import java.util.function.Supplier;
 public final class GrugTestState {
     private GrugTestState() {}
 
-    // Set by GrugTestRunner immediately before each Test.run() call; read by me.tick().
+    /**
+     * The context the open {@code run()} call was passed, which is what the context's methods check
+     * before they act. A new one is made for every call and cleared when it returns, so a test that
+     * saves the context in a member variable and uses it in a later tick is refused.
+     */
+    public static final class RunContext {
+        @GrugGenerated("marker: only a run call makes one")
+        private RunContext() {}
+    }
+
+    private static RunContext runContext = null;
+
+    /** Opens the context of one {@code run()} call. */
+    static RunContext openRunContext() {
+        runContext = new RunContext();
+        return runContext;
+    }
+
+    /** Closes it again, so a saved context no longer matches. */
+    static void closeRunContext() {
+        runContext = null;
+    }
+
+    /** The context of the {@code run()} call that is open right now, or null between calls. */
+    public static RunContext runContext() {
+        return runContext;
+    }
+
+    /**
+     * Calls a test's {@code run()} export with a fresh context, which is removed again when the
+     * call returns.
+     *
+     * <p>The context and every host entity the call creates are rooted for this call only, as for a
+     * render pass.
+     */
+    @GrugGenerated(
+            "the call into the VM and its context entity: exercising it needs a live grug entity")
+    public static boolean callRun(long entityHandle, long exportFnId) {
+        boolean[] completed = new boolean[1];
+        GrugEntities.withFreshOwner(
+                () -> {
+                    RunContext context = openRunContext();
+                    long contextHandle =
+                            GrugEntities.addEntity(GrugEntityType.TestRunContext, context);
+                    try {
+                        completed[0] = Grug.callExportFn(entityHandle, exportFnId, contextHandle);
+                    } finally {
+                        GrugEntities.removeEntity(contextHandle);
+                        closeRunContext();
+                    }
+                });
+        return completed[0];
+    }
+
+    // Set by GrugTestRunner immediately before each Test.run() call; read by the context's tick().
     public static int currentTestTick = 0;
-    // Set by me.not_done(); reset to false by GrugTestRunner immediately before each
+    // Set by the context's not_done(); reset to false by GrugTestRunner immediately before each
     // Test.run() call.
     public static boolean testNotDone = false;
 
-    // Set by me.expect_error(); cleared by GrugTestRunner when a test starts and when it ends, so
+    // Set by the context's expect_error(); cleared by GrugTestRunner when a test starts and when it
+    // ends, so
     // it cannot outlive the test that asked for it. While non-null, an export function that aborts
     // on a host error whose message contains this text counts as a pass, which is how the error
     // branches get exercised. It also gates whether onRuntimeError records into testRuntimeErrors,

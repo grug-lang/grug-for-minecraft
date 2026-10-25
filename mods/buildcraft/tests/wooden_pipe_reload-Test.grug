@@ -5,7 +5,7 @@ reload_pipe: Option[BlockEntity] = Option.new()
 reload_source: Option[BlockEntity] = Option.new()
 reload_target: Option[BlockEntity] = Option.new()
 
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -17,9 +17,9 @@ export run() {
     level.place_block(x, y, z, "grug:wooden_pipe")
     level.place_block(x + 1, y, z, "minecraft:chest")
 
-    source: BlockEntity = _entity(level, x - 1, y, z)
-    pipe: BlockEntity = _entity(level, x, y, z)
-    target: BlockEntity = _entity(level, x + 1, y, z)
+    source: BlockEntity = _entity(ctx, level, x - 1, y, z)
+    pipe: BlockEntity = _entity(ctx, level, x, y, z)
+    target: BlockEntity = _entity(ctx, level, x + 1, y, z)
     reload_source.set(source)
     reload_pipe.set(pipe)
     reload_target.set(target)
@@ -29,34 +29,34 @@ export run() {
 
     pipe.receive_energy(1)
     Test.tick_block_entity(pipe, 1)
-    Test.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
 
     # Move it 20 ticks in, then reload, so the record is not at the face where it started.
     Test.tick_block_entity(pipe, 20)
     before: number = pipe.get_saved_list_number("traveling", 0, "x")
-    Test.assert(_hundredths(before - bx) == 20, "20 moves should put the item a fifth of the way into the pipe.")
+    ctx.assert(_hundredths(before - bx) == 20, "20 moves should put the item a fifth of the way into the pipe.")
 
     Test.round_trip_nbt(pipe)
 
-    Test.assert(pipe.get_saved_list_size("traveling") == 1, "The reload should keep the travelling item.")
-    Test.assert(pipe.get_saved_list_number("traveling", 0, "x") == before, "The reload should keep the item's position.")
-    Test.assert(pipe.get_saved_list_number("traveling", 0, "count") == 1, "The reload should keep the item's count.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The reload should keep the travelling item.")
+    ctx.assert(pipe.get_saved_list_number("traveling", 0, "x") == before, "The reload should keep the item's position.")
+    ctx.assert(pipe.get_saved_list_number("traveling", 0, "count") == 1, "The reload should keep the item's count.")
     saved_item: Option[Item] = pipe.get_saved_list_item("traveling", 0)
-    Test.assert(saved_item.has(), "The reload should keep the item itself.")
+    ctx.assert(saved_item.has(), "The reload should keep the item itself.")
     if saved_item.has() {
-        Test.assert(equals(saved_item.unwrap(), diamond), "The reload should keep the diamond.")
+        ctx.assert(equals(saved_item.unwrap(), diamond), "The reload should keep the diamond.")
     }
 
     # 20 moves are done, so 29 more reach the centre and 51 more reach the far face.
     Test.tick_block_entity(pipe, 90)
-    Test.assert(pipe.get_saved_list_size("traveling") == 0, "The item should have finished its journey after the reload.")
-    Test.assert(target.get_item_count_in_slot(0) == 1, "The east chest should hold the reloaded diamond.")
-    Test.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The item should have finished its journey after the reload.")
+    ctx.assert(target.get_item_count_in_slot(0) == 1, "The east chest should hold the reloaded diamond.")
+    ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
 }
 
-local _entity(level: Level, x: number, y: number, z: number) BlockEntity {
+local _entity(ctx: TestRunContext, level: Level, x: number, y: number, z: number) BlockEntity {
     block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(block_entity.has(), "The fixture should have a block entity.")
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
     return block_entity.unwrap()
 }
 

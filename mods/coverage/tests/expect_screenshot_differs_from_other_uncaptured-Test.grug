@@ -3,9 +3,9 @@
 # Here it is the ARGUMENT that was never read, with the one doing the comparing captured: the other
 # half of the same check is the receiver being the unread one, and both halves need a test of their own
 # because a check written as "either one" has two ways to be true.
-export run() {
-    if me.tick() == 0 {
-        me.expect_error("have to be captured first")
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        ctx.expect_error("have to be captured first")
         never_read: Screenshot = Test.screenshot()
         captured: Screenshot = Test.screenshot().capture(590, 310, 690, 410)
         captured.differs_from(never_read, 50)

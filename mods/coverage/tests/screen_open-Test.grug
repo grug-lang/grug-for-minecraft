@@ -1,7 +1,7 @@
 # Covers the closed answer of Test.screen_open. The GUI tests only ask it while waiting for a panel, and
 # on every loader except 1.20.6 the panel is already open by the first time they ask, so none of them
 # sees it say false. An earlier test may have left a screen open, so the test closes it first. See #418.
-export run() {
+export run(ctx: TestRunContext) {
     Test.close_screen()
-    Test.assert(not Test.screen_open(), "Test.close_screen should leave no screen open.")
+    ctx.assert(not Test.screen_open(), "Test.close_screen should leave no screen open.")
 }

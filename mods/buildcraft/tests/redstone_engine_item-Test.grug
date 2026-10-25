@@ -5,20 +5,20 @@
 # It runs after redstone_engine-Test.grug, which closes any screen an earlier test left open, and it
 # closes the GUI it opens for the same reason. See #195.
 
-export run() {
-    if me.tick() == 0 {
-        _setup()
-        me.not_done()
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
     } else if not Test.screen_open() {
         # On 1.20.6 the screen is opened by a packet from the server, so it is not open yet when
         # use_block returns, and a settled world does not say the packet has arrived: the world
         # can answer settled from its first tick, which is how the capture was once taken of the
         # world instead of the panel. See #418.
-        me.not_done()
+        ctx.not_done()
     } else if not Test.world_settled() {
         # The same wait as autocrafting_table-Test.grug: the panel is only on screen once a frame
         # holding it has been drawn.
-        me.not_done()
+        ctx.not_done()
     } else {
         # The item in the middle slot of the crafting grid, at the panel's 1280x720 scale of 3: the
         # slot's item is drawn at (48, 35) in the panel, whose top left is at (376, 111). See
@@ -28,7 +28,7 @@ export run() {
     }
 }
 
-local _setup() {
+local _setup(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.setup_graphics_camera()
     x: number = origin.x()
@@ -43,7 +43,7 @@ local _setup() {
         level.place_block(x, y, z, "grug:autocrafting_table")
     }
     table_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(table_opt.has(), "The autocrafting table should have a block entity.")
+    ctx.assert(table_opt.has(), "The autocrafting table should have a block entity.")
     table: BlockEntity = table_opt.unwrap()
 
     if Test.is_reference() {

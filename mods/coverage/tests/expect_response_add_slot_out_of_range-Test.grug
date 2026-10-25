@@ -1,5 +1,5 @@
 # A block entity that names a slot its inventory does not have is an err, not a write past the end.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -11,6 +11,6 @@ export run() {
     diamond: Item = item(resource_location("minecraft:diamond"))
     be.set_saved_number("add_mode", 1)
     be.set_saved_number("slot", 9)
-    me.expect_error("named slot 9")
+    ctx.expect_error("named slot 9")
     be.add_item(diamond, 0, 1, 0, true)
 }

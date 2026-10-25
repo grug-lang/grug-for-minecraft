@@ -1,5 +1,5 @@
 # An add_item export that returns without answering is an err raised by the host that asked, because silence is not a refusal.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -11,6 +11,6 @@ export run() {
     diamond: Item = item(resource_location("minecraft:diamond"))
     be.set_saved_number("add_mode", 5)
 
-    me.expect_error("returned without answering")
+    ctx.expect_error("returned without answering")
     be.add_item(diamond, 0, 1, 0, true)
 }

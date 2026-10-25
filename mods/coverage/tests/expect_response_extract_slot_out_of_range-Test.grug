@@ -1,5 +1,5 @@
 # A block entity that names a slot its inventory does not have is an err, not a read past the end.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -12,6 +12,6 @@ export run() {
     be.set_saved_number("extract_mode", 1)
     be.set_saved_number("slot", 7)
     be.set_saved_number("amount", 1)
-    me.expect_error("named slot 7")
+    ctx.expect_error("named slot 7")
     be.ask_extract_item(0)
 }

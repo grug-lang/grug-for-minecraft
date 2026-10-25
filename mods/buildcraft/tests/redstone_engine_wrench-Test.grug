@@ -9,7 +9,7 @@
 step: number = 0
 waited: number = 0
 
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -22,52 +22,52 @@ export run() {
         level.place_block(x, y, z - 1, "grug:wooden_pipe")
         level.place_block(x + 1, y, z, "grug:wooden_pipe")
         level.place_block(x, y, z, "grug:redstone_engine")
-        Test.tick_block_entity(_engine(level, x, y, z), 1)
-        Test.assert(_facing(level, x, y, z) == 2, "The engine should start facing the pipe at z - 1.")
+        Test.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        ctx.assert(_facing(ctx, level, x, y, z) == 2, "The engine should start facing the pipe at z - 1.")
         Test.set_held_item(player, wrench)
         Test.use_block(level, x, y, z)
         step = 1
-        me.not_done()
+        ctx.not_done()
     } else if step == 1 {
-        Test.tick_block_entity(_engine(level, x, y, z), 1)
-        if _facing(level, x, y, z) == 5 {
+        Test.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        if _facing(ctx, level, x, y, z) == 5 {
             Test.use_block(level, x, y, z)
             step = 2
         }
-        _wait()
+        _wait(ctx)
     } else if step == 2 {
-        Test.tick_block_entity(_engine(level, x, y, z), 1)
-        if _facing(level, x, y, z) == 2 {
+        Test.tick_block_entity(_engine(ctx, level, x, y, z), 1)
+        if _facing(ctx, level, x, y, z) == 2 {
             Test.clear_held_item(player)
             Test.use_block(level, x, y, z)
             step = 3
             waited = 0
         }
-        _wait()
+        _wait(ctx)
     } else {
-        Test.tick_block_entity(_engine(level, x, y, z), 1)
+        Test.tick_block_entity(_engine(ctx, level, x, y, z), 1)
         waited = waited + 1
         if waited < 20 {
-            me.not_done()
+            ctx.not_done()
             return
         }
-        Test.assert(_facing(level, x, y, z) == 2, "A click without the wrench should leave the engine facing 2.")
+        ctx.assert(_facing(ctx, level, x, y, z) == 2, "A click without the wrench should leave the engine facing 2.")
     }
 }
 
 # A step that has not seen what it waits for yet keeps the test alive.
-local _wait() {
+local _wait(ctx: TestRunContext) {
     waited = waited + 1
-    Test.assert(waited < 200, "The wrench did not turn the engine.")
-    me.not_done()
+    ctx.assert(waited < 200, "The wrench did not turn the engine.")
+    ctx.not_done()
 }
 
-local _engine(level: Level, x: number, y: number, z: number) BlockEntity {
+local _engine(ctx: TestRunContext, level: Level, x: number, y: number, z: number) BlockEntity {
     engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     return engine_opt.unwrap()
 }
 
-local _facing(level: Level, x: number, y: number, z: number) number {
-    return _engine(level, x, y, z).get_saved_number("orientation")
+local _facing(ctx: TestRunContext, level: Level, x: number, y: number, z: number) number {
+    return _engine(ctx, level, x, y, z).get_saved_number("orientation")
 }

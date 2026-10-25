@@ -6,7 +6,7 @@
 # the result replaced the old one, which is why the test gets the block entity again.
 # The GrugExtra and GrugNew keys are nothing a grug block entity reads, so they are dropped by the
 # load; they are there so every numeric type, a missing compound and a missing list are written.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -34,9 +34,9 @@ export run() {
     Test.load_nbt(be)
     be = level.get_block_entity(x, y, z).unwrap()
 
-    Test.assert(be.get_saved_number("zz") == 5, "The edited saved number should read back.")
-    Test.assert(be.get_saved_number("inited") == 1, "The saved number that was not edited should be unchanged.")
-    Test.assert(be.get_saved_list_number("things", 0, "n") == 9, "The edited record number should read back.")
-    Test.assert(be.get_saved_list_size("things") == 2, "The appended record should read back.")
-    Test.assert(equals(be.get_saved_list_item("things", 1).unwrap(), stick), "The appended record should hold the item.")
+    ctx.assert(be.get_saved_number("zz") == 5, "The edited saved number should read back.")
+    ctx.assert(be.get_saved_number("inited") == 1, "The saved number that was not edited should be unchanged.")
+    ctx.assert(be.get_saved_list_number("things", 0, "n") == 9, "The edited record number should read back.")
+    ctx.assert(be.get_saved_list_size("things") == 2, "The appended record should read back.")
+    ctx.assert(equals(be.get_saved_list_item("things", 1).unwrap(), stick), "The appended record should hold the item.")
 }

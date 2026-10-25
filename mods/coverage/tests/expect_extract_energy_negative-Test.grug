@@ -1,5 +1,5 @@
 # Energy is never negative, so a negative most to take is reported rather than treated as 0.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -8,6 +8,6 @@ export run() {
 
     level.place_block(x, y, z, "grug:coverage_power_block")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
-    me.expect_error("has to be a whole number from 0 to")
+    ctx.expect_error("has to be a whole number from 0 to")
     be.extract_energy(-1)
 }

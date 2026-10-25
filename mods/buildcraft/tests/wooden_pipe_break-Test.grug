@@ -4,7 +4,7 @@
 # travelling when the block is replaced with air, which is what fires the block's on_break.
 break_damage: number = 7
 
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -23,19 +23,19 @@ export run() {
 
     pipe.receive_energy(1)
     Test.tick_block_entity(pipe, 1)
-    Test.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
 
     # Placing air is how a test breaks a block; every loader calls the old block's removal there.
     level.place_block(x, y, z, "minecraft:air")
-    Test.assert(level.is_air(x, y, z), "The pipe should be gone.")
+    ctx.assert(level.is_air(x, y, z), "The pipe should be gone.")
 
     dropped: number = level.count_item_entities(x, y, z, 10)
-    Test.assert(dropped == 1, "The broken pipe should have dropped its one travelling item.")
+    ctx.assert(dropped == 1, "The broken pipe should have dropped its one travelling item.")
 
     found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
-    Test.assert(found.has(), "The dropped item should be on the ground.")
+    ctx.assert(found.has(), "The dropped item should be on the ground.")
     if found.has() {
-        Test.assert(found.unwrap().damage() == break_damage, "The dropped item should keep its damage.")
+        ctx.assert(found.unwrap().damage() == break_damage, "The dropped item should keep its damage.")
     }
-    Test.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
+    ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
 }

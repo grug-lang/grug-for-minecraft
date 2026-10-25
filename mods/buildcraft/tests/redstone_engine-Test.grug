@@ -28,10 +28,10 @@ ex: number = 0
 ey: number = 0
 ez: number = 0
 
-export run() {
-    if me.tick() == 0 {
-        _setup()
-        me.not_done()
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
         return
     }
 
@@ -39,14 +39,14 @@ export run() {
         if Test.is_reference() {
             gain_phase = 3
         } else {
-            _check_gain()
+            _check_gain(ctx)
         }
-        me.not_done()
+        ctx.not_done()
         return
     }
 
-    if not _ready() {
-        me.not_done()
+    if not _ready(ctx) {
+        ctx.not_done()
         return
     }
 
@@ -55,14 +55,14 @@ export run() {
     # at random and they drift up past the underside.
     if stage == 0 {
         Test.screenshot().equals(r"screenshots/redstone_engine_blue", 550, 150, 770, 305)
-        _power()
-        _draw_stage(251, 1)
+        _power(ctx)
+        _draw_stage(ctx, 251, 1)
     } else if stage == 1 {
         Test.screenshot().equals(r"screenshots/redstone_engine_green", 550, 150, 770, 305)
-        _draw_stage(501, 2)
+        _draw_stage(ctx, 501, 2)
     } else if stage == 2 {
         Test.screenshot().equals(r"screenshots/redstone_engine_yellow", 550, 150, 770, 305)
-        _draw_stage(751, 3)
+        _draw_stage(ctx, 751, 3)
     } else {
         Test.screenshot().equals(r"screenshots/redstone_engine_red", 550, 150, 770, 305)
         return
@@ -72,10 +72,10 @@ export run() {
     settled_ticks = 0
     remeshed = false
     remesh_ticks = 0
-    me.not_done()
+    ctx.not_done()
 }
 
-local _setup() {
+local _setup(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
 
     Test.set_box_radius(6)
@@ -87,7 +87,7 @@ local _setup() {
 
     _place_engine(level)
     engine_opt: Option[BlockEntity] = level.get_block_entity(ex, ey, ez)
-    Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     engine.set(engine_opt.unwrap())
 
     _wall(level, origin.x() - 6, origin.y() - 9, origin.z() + 6)
@@ -97,7 +97,7 @@ local _setup() {
     level.place_block(ex, ey - 2, ez, "minecraft:stone")
 
     if not Test.is_reference() {
-        _check_thresholds()
+        _check_thresholds(ctx)
     }
 }
 
@@ -116,30 +116,30 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
 
 # Each stage boundary, the energy just below it, at it and just above it. Nothing ticks the engine
 # within one call of run(), so the energy set here is the energy the stage is read from.
-local _check_thresholds() {
-    Test.assert(_energy() == 0, "A new engine should have no energy.")
+local _check_thresholds(ctx: TestRunContext) {
+    ctx.assert(_energy() == 0, "A new engine should have no energy.")
 
     _set_energy(249)
-    Test.assert(_stage(_energy()) == 0, "249 energy should still be blue.")
+    ctx.assert(_stage(_energy()) == 0, "249 energy should still be blue.")
     _set_energy(250)
-    Test.assert(_stage(_energy()) == 0, "250 energy should still be blue.")
+    ctx.assert(_stage(_energy()) == 0, "250 energy should still be blue.")
     _set_energy(251)
-    Test.assert(_stage(_energy()) == 1, "251 energy should be green.")
+    ctx.assert(_stage(_energy()) == 1, "251 energy should be green.")
 
     _set_energy(500)
-    Test.assert(_stage(_energy()) == 1, "500 energy should still be green.")
+    ctx.assert(_stage(_energy()) == 1, "500 energy should still be green.")
     _set_energy(501)
-    Test.assert(_stage(_energy()) == 2, "501 energy should be yellow.")
+    ctx.assert(_stage(_energy()) == 2, "501 energy should be yellow.")
 
     _set_energy(750)
-    Test.assert(_stage(_energy()) == 2, "750 energy should still be yellow.")
+    ctx.assert(_stage(_energy()) == 2, "750 energy should still be yellow.")
     _set_energy(751)
-    Test.assert(_stage(_energy()) == 3, "751 energy should be red.")
+    ctx.assert(_stage(_energy()) == 3, "751 energy should be red.")
 
     # The energy is saved data, so it has to survive the block entity being saved and loaded again.
     block_entity: BlockEntity = engine.unwrap()
     Test.round_trip_nbt(block_entity)
-    Test.assert(_energy() == 751, "The engine's energy should survive an NBT round trip.")
+    ctx.assert(_energy() == 751, "The engine's energy should survive an NBT round trip.")
 
     _set_energy(0)
 }
@@ -152,9 +152,9 @@ local _check_thresholds() {
 # crosses between the two samples, so the gain must equal the number of multiples crossed, however
 # many ticks the server ran between two of the test's calls. The check starts when the torch is
 # placed. Then it leaves the engine unpowered at 0 energy for the first capture.
-local _check_gain() {
+local _check_gain(ctx: TestRunContext) {
     if gain_phase == 0 {
-        _power()
+        _power(ctx)
         gain_phase = 1
         return
     }
@@ -179,9 +179,9 @@ local _check_gain() {
 
     gained: number = _energy() - energy_at_gain
     crossed: number = Math.floor(now / 20) - Math.floor(time_at_gain / 20)
-    Test.assert(gained != 0, "A powered engine should gain energy when the world's time crosses a multiple of 20, but it gained none.")
-    Test.assert(gained == crossed, "A powered engine should gain one energy for each multiple of 20 the world's time crosses, but it gained a different number.")
-    _unpower()
+    ctx.assert(gained != 0, "A powered engine should gain energy when the world's time crosses a multiple of 20, but it gained none.")
+    ctx.assert(gained == crossed, "A powered engine should gain one energy for each multiple of 20 the world's time crosses, but it gained a different number.")
+    _unpower(ctx)
     _set_energy(0)
     gain_phase = 3
 }
@@ -200,7 +200,7 @@ local _set_energy(energy: number) {
 # rebuilt when it is asked to be. The energy has to give the stage the capture is of. The reference's
 # RenderEngine reads the energy on every frame, so loading it is enough there. The torch keeps it
 # from draining, as it does the port's.
-local _draw_stage(energy: number, expected_stage: number) {
+local _draw_stage(ctx: TestRunContext, energy: number, expected_stage: number) {
     if Test.is_reference() {
         Test.set_nbt_number(engine.unwrap(), "energy", "int", energy)
         Test.load_nbt(engine.unwrap())
@@ -211,26 +211,26 @@ local _draw_stage(energy: number, expected_stage: number) {
     _set_energy(energy)
     block_entity: BlockEntity = engine.unwrap()
     block_entity.redraw()
-    Test.assert(_stage(_energy()) == expected_stage, "The engine should have reached the next stage.")
+    ctx.assert(_stage(_energy()) == expected_stage, "The engine should have reached the next stage.")
 }
 
 # A redstone torch powers the block above it on every loader, so the torch goes right under the
 # engine, standing on a stone block.
-local _power() {
+local _power(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     level.place_block(ex, ey - 1, ez, "minecraft:redstone_torch")
-    Test.assert(level.has_neighbor_signal(ex, ey, ez), "The torch under the engine should power it.")
+    ctx.assert(level.has_neighbor_signal(ex, ey, ez), "The torch under the engine should power it.")
 }
 
-local _unpower() {
+local _unpower(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     level.place_block(ex, ey - 1, ez, "minecraft:air")
-    Test.assert(not level.has_neighbor_signal(ex, ey, ez), "The engine should be unpowered once the torch is gone.")
+    ctx.assert(not level.has_neighbor_signal(ex, ey, ez), "The engine should be unpowered once the torch is gone.")
 }
 
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
 # light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
-local _ready() bool {
+local _ready(ctx: TestRunContext) bool {
     if not Test.world_settled() {
         settled_ticks = 0
         return false
@@ -240,7 +240,7 @@ local _ready() bool {
         return false
     }
     if not remeshed {
-        _force_remesh()
+        _force_remesh(ctx)
         remeshed = true
         return false
     }
@@ -253,7 +253,7 @@ local _ready() bool {
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
 # the capture's mesh is built from the settled light. See coverage_render-Test.grug.
-local _force_remesh() {
+local _force_remesh(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -261,7 +261,7 @@ local _force_remesh() {
     z: number = origin.z()
     level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
-    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }
 
 # The thresholds of Engine.computeEnergyStage for EngineWood's maxEnergy of 1000, which are the ones

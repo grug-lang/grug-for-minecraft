@@ -1,16 +1,16 @@
 # Covers the Option.set overloads for number, bool and string.
-export run() {
-    if me.tick() == 0 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
         number_opt: Option[number] = Option.new()
         number_opt.set(1)
-        Test.assert(number_opt.unwrap() == 1, "number set should round-trip.")
+        ctx.assert(number_opt.unwrap() == 1, "number set should round-trip.")
 
         bool_opt: Option[bool] = Option.new()
         bool_opt.set(true)
-        Test.assert(bool_opt.unwrap(), "bool set should round-trip.")
+        ctx.assert(bool_opt.unwrap(), "bool set should round-trip.")
 
         string_opt: Option[string] = Option.new()
         string_opt.set("value")
-        Test.assert(string_opt.unwrap() == "value", "string set should round-trip.")
+        ctx.assert(string_opt.unwrap() == "value", "string set should round-trip.")
     }
 }

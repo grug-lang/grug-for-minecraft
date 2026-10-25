@@ -8,7 +8,7 @@
 # The result is a count of 2 rather than 1, so the assertions can tell this recipe's own output from
 # whatever else might answer a grid, and the wrong-multiset grid has to answer nothing at all.
 # Band 10 is free: the coverage tests use 0, 20 and 30 and the pipe tests 25, 35, 40, 45 and 50.
-export run() {
+export run(ctx: TestRunContext) {
     # A loader that registers no mod recipe and one that failed to register this recipe both answer
     # the grid with nothing, so the loader is asked rather than assumed. Every loader registers a
     # mod's recipes now: 1.2.5 parses the tree itself and 1.20.6 through Forge's own recipe manager.
@@ -28,34 +28,34 @@ export run() {
     ingot: Item = item(resource_location("minecraft:iron_ingot"))
 
     # Slots 0 and 1 are neighbours, in the order the recipe file lists its ingredients.
-    adjacent: BlockEntity = _grid(level, x, y, z)
+    adjacent: BlockEntity = _grid(ctx, level, x, y, z)
     adjacent.set_item_in_slot(0, stick, 1)
     adjacent.set_item_in_slot(1, ingot, 1)
     adjacent.update_recipe_output(0)
-    Test.assert(adjacent.take_crafting_result(2) == 2, "The adjacent ingredients should craft the shapeless recipe's two results.")
-    Test.assert(adjacent.take_crafting_result(1) == 0, "The shapeless recipe should have nothing left to give.")
+    ctx.assert(adjacent.take_crafting_result(2) == 2, "The adjacent ingredients should craft the shapeless recipe's two results.")
+    ctx.assert(adjacent.take_crafting_result(1) == 0, "The shapeless recipe should have nothing left to give.")
 
     # Slots 4 and 8 are diagonal, and the items are the other way round.
-    diagonal: BlockEntity = _grid(level, x + 3, y, z)
+    diagonal: BlockEntity = _grid(ctx, level, x + 3, y, z)
     diagonal.set_item_in_slot(4, ingot, 1)
     diagonal.set_item_in_slot(8, stick, 1)
     diagonal.update_recipe_output(0)
-    Test.assert(diagonal.take_crafting_result(2) == 2, "The diagonal ingredients should craft the same two results.")
+    ctx.assert(diagonal.take_crafting_result(2) == 2, "The diagonal ingredients should craft the same two results.")
 
     # Two sticks are not the stick and iron ingot the recipe names, so nothing matches: a grid answers
     # only when it holds exactly the ingredients the recipe lists, each as often as it lists them.
-    wrong: BlockEntity = _grid(level, x + 6, y, z)
+    wrong: BlockEntity = _grid(ctx, level, x + 6, y, z)
     wrong.set_item_in_slot(0, stick, 1)
     wrong.set_item_in_slot(1, stick, 1)
     wrong.update_recipe_output(0)
-    Test.assert(wrong.take_crafting_result(1) == 0, "Two sticks should not match a recipe naming a stick and an iron ingot.")
+    ctx.assert(wrong.take_crafting_result(1) == 0, "Two sticks should not match a recipe naming a stick and an iron ingot.")
 }
 
 # The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
 # the block to place rather than a chest or the autocrafting table.
-local _grid(level: Level, x: number, y: number, z: number) BlockEntity {
+local _grid(ctx: TestRunContext, level: Level, x: number, y: number, z: number) BlockEntity {
     level.place_block(x, y, z, "grug:coverage_block")
     found: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(found.has(), "The coverage block should have a block entity after being placed.")
+    ctx.assert(found.has(), "The coverage block should have a block entity after being placed.")
     return found.unwrap()
 }

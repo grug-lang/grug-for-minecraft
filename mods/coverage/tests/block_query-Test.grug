@@ -1,6 +1,6 @@
 # Covers Level.get_block() and Level.is_air(), the block queries the wooden pipe needs to decide its
 # connections and its output.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -15,13 +15,13 @@ export run() {
         steps = steps + 1
     }
 
-    Test.assert(level.is_air(x, y, z), "The test spot should start as air.")
-    Test.assert(level.get_block(x, y, z) == "minecraft:air", "Air should be named minecraft:air.")
+    ctx.assert(level.is_air(x, y, z), "The test spot should start as air.")
+    ctx.assert(level.get_block(x, y, z) == "minecraft:air", "Air should be named minecraft:air.")
 
     level.place_block(x, y, z, "minecraft:stone")
-    Test.assert(level.get_block(x, y, z) == "minecraft:stone", "Stone should be named minecraft:stone.")
-    Test.assert(not level.is_air(x, y, z), "A placed block should not be air.")
+    ctx.assert(level.get_block(x, y, z) == "minecraft:stone", "Stone should be named minecraft:stone.")
+    ctx.assert(not level.is_air(x, y, z), "A placed block should not be air.")
 
     level.place_block(x, y, z, "grug:coverage_block")
-    Test.assert(level.get_block(x, y, z) == "grug:coverage_block", "A grug block should keep its grug name.")
+    ctx.assert(level.get_block(x, y, z) == "grug:coverage_block", "A grug block should keep its grug name.")
 }

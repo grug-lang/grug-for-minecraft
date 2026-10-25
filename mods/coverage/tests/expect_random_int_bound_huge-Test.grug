@@ -1,8 +1,8 @@
 # random_int draws below its bound, and a bound beyond a Java int names no size, so it is reported
 # rather than truncated to a bound the caller did not ask for.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
 
-    me.expect_error("The bound has to be a whole number from 1 to")
+    ctx.expect_error("The bound has to be a whole number from 1 to")
     value: number = level.random_int(2147483648.0)
 }

@@ -1,5 +1,5 @@
 # extract_item_into puts the items in a slot that has to be empty, so a taken slot is an err and nothing is lost.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -12,6 +12,6 @@ export run() {
     level.place_block(x + 1, y, z, "grug:coverage_block")
     destination: BlockEntity = level.get_block_entity(x + 1, y, z).unwrap()
     destination.set_item_in_slot(0, diamond, 1)
-    me.expect_error("is not empty")
+    ctx.expect_error("is not empty")
     be.extract_item_into(destination, 0, 0)
 }

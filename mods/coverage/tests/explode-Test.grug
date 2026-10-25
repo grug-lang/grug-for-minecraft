@@ -3,7 +3,7 @@
 # the test area for the next test. The explosion is at the middle of the air block between the two
 # near panes; the far pane is twelve blocks away, well outside a power 3 explosion's reach of about
 # five blocks.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -16,9 +16,9 @@ export run() {
 
     level.explode(x + 0.5, y + 0.5, z + 0.5, 3)
 
-    Test.assert(level.is_air(x + 1, y, z), "The glass next to the explosion should be destroyed.")
-    Test.assert(level.is_air(x - 1, y, z), "The glass on the other side should be destroyed.")
-    Test.assert(not level.is_air(x + 12, y, z), "The glass out of reach should survive.")
+    ctx.assert(level.is_air(x + 1, y, z), "The glass next to the explosion should be destroyed.")
+    ctx.assert(level.is_air(x - 1, y, z), "The glass on the other side should be destroyed.")
+    ctx.assert(not level.is_air(x + 12, y, z), "The glass out of reach should survive.")
 
     level.place_block(x + 12, y, z, "minecraft:air")
 }

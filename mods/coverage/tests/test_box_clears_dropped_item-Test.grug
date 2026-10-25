@@ -6,8 +6,8 @@
 # (#427). A chest's drop is the simplest inventory that leaves items behind, so this makes one and
 # checks the next build's sweep is rid of it.
 
-export run() {
-    if me.tick() == 0 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         # Eight blocks out, so the fixture is outside the default room but inside the test area the
@@ -18,26 +18,26 @@ export run() {
 
         level.place_block(x, y, z, "minecraft:chest")
         chest_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-        Test.assert(chest_opt.has(), "The chest should have a block entity.")
+        ctx.assert(chest_opt.has(), "The chest should have a block entity.")
         chest_opt.unwrap().set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
 
         # Drops the chest's contents as an item entity, the same way the build's own block clearing
         # drops whatever inventory a fixture left behind.
         drop_inventory(level, x, y, z)
         dropped: Option[ItemEntity] = level.find_item_entity(x, y, z, 3)
-        Test.assert(dropped.has(), "Dropping the chest should have left an item entity.")
-        me.not_done()
-    } else if me.tick() == 1 {
+        ctx.assert(dropped.has(), "Dropping the chest should have left an item entity.")
+        ctx.not_done()
+    } else if ctx.tick() == 1 {
         # Forces a build, and so a sweep, while the dropped item is still in the area.
         Test.set_box_radius(4)
-        me.not_done()
+        ctx.not_done()
     } else {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x() + 8
         y: number = origin.y()
         z: number = origin.z()
-        Test.assert(level.count_item_entities(x, y, z, 3) == 0, "The build's sweep should have removed the dropped item.")
-        Test.assert(not level.find_item_entity(x, y, z, 3).has(), "The build's sweep should have removed the dropped item.")
+        ctx.assert(level.count_item_entities(x, y, z, 3) == 0, "The build's sweep should have removed the dropped item.")
+        ctx.assert(not level.find_item_entity(x, y, z, 3).has(), "The build's sweep should have removed the dropped item.")
     }
 }

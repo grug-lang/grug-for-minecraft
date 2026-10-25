@@ -1,6 +1,6 @@
 # The energy a receiver holds is saved with its block entity, so it is still there after the block
 # entity is written out and read back, as it is when its chunk is unloaded and loaded again.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -14,6 +14,6 @@ export run() {
 
     Test.round_trip_nbt(be)
 
-    Test.assert(be.get_energy_stored() == 6, "The energy should survive an NBT round trip.")
-    Test.assert(be.get_saved_number("energy") == 3, "A saved number should survive it beside the energy.")
+    ctx.assert(be.get_energy_stored() == 6, "The energy should survive an NBT round trip.")
+    ctx.assert(be.get_saved_number("energy") == 3, "A saved number should survive it beside the energy.")
 }

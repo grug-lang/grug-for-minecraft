@@ -17,7 +17,8 @@ public class HostFunctions {
 
     // Entities
 
-    public static void Test_assert(boolean condition, String message) {
+    public static void TestRunContext_assert(long contextId, boolean condition, String message) {
+        if (!requireRunContext("TestRunContext.assert", contextId)) return;
         if (!condition) {
             // A runtime error, not Grug.fatal: a failed assertion should fail just the test, not
             // take the whole game down.
@@ -304,15 +305,18 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Screenshot, new GrugScreenshot(0));
     }
 
-    public static double Test_tick(long testId) {
+    public static double TestRunContext_tick(long contextId) {
+        if (!requireRunContext("TestRunContext.tick", contextId)) return 0.0;
         return (double) GrugTestState.currentTestTick;
     }
 
-    public static void Test_not_done(long testId) {
+    public static void TestRunContext_not_done(long contextId) {
+        if (!requireRunContext("TestRunContext.not_done", contextId)) return;
         GrugTestState.testNotDone = true;
     }
 
-    public static void Test_expect_error(long testId, String message) {
+    public static void TestRunContext_expect_error(long contextId, String message) {
+        if (!requireRunContext("TestRunContext.expect_error", contextId)) return;
         GrugTestState.testExpectedError = message;
     }
 
@@ -1157,13 +1161,25 @@ public class HostFunctions {
      * and the rule, and the run fails on it.
      */
     private static boolean requireContext(String method, long contextId) {
+        return requireContext(method, "render", contextId, GrugRenderPass.context());
+    }
+
+    /** The same rule for the context a test's {@code run()} was passed. */
+    private static boolean requireRunContext(String method, long contextId) {
+        return requireContext(method, "run", contextId, GrugTestState.runContext());
+    }
+
+    private static boolean requireContext(
+            String method, String kind, long contextId, Object openContext) {
         GrugObject object = GrugEntities.entityData.get(contextId);
-        if (object != null && object.object == GrugRenderPass.context()) {
+        if (object != null && openContext != null && object.object == openContext) {
             return true;
         }
         GrugModTreeDefect.report(
                 method
-                        + ": A render context is only valid while the export it was passed to is"
+                        + ": A "
+                        + kind
+                        + " context is only valid while the export it was passed to is"
                         + " running. A context saved in a member variable and used later is"
                         + " refused.");
         return false;

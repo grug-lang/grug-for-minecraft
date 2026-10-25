@@ -1,5 +1,5 @@
 # An ExtractResponse kept past the call it was passed to is stale, and using it is an err.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -13,7 +13,7 @@ export run() {
     be.ask_extract_item(0)
     # Some loaders notify the neighbours when a block is placed and some do not, so the error is
     # expected before the placing and the explicit notify below covers the loaders that stay quiet.
-    me.expect_error("only valid during")
+    ctx.expect_error("only valid during")
     level.place_block(x + 1, y, z, "minecraft:stone")
     Test.notify_neighbors(level, x + 1, y, z)
 }

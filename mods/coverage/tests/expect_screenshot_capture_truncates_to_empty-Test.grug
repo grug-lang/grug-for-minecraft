@@ -4,9 +4,9 @@
 # zero-width image rather than naming the coordinate responsible. The width is computed from the
 # truncated values, so those are what the check compares and what the message prints, and all three
 # now agree. Screenshot.equals shares the same check, so it reaches the same report.
-export run() {
-    if me.tick() == 0 {
-        me.expect_error("the rectangle is empty")
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        ctx.expect_error("the rectangle is empty")
         Test.screenshot().capture(590, 310, 590.5, 410)
     }
 }

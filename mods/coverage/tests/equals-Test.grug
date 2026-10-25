@@ -1,7 +1,7 @@
 # Covers equals' non-entity branch.
-export run() {
-    if me.tick() == 0 {
-        Test.assert(equals("a", "a"), "equals should compare two strings.")
-        Test.assert(not equals("a", "b"), "equals should tell different strings apart.")
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        ctx.assert(equals("a", "a"), "equals should compare two strings.")
+        ctx.assert(not equals("a", "b"), "equals should tell different strings apart.")
     }
 }
