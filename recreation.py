@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Reference artifacts handling for the recreation fields of a mod's first derived_from entry.
 
-A grug port is verified against committed goldens, which needs nothing but the port. Regenerating
-those goldens is the only part that needs the reference artifacts, and that is deliberately a
-separate, best-effort tier: losing the artifacts degrades regenerating, never verifying.
+A grug port is verified against committed goldens, which needs nothing but the port. The
+reference's own run and regenerating those goldens need the reference artifacts, so they are a
+separate tier: losing the artifacts degrades the reference run and regeneration, never the port's
+verification.
 
 Each artifact's ``sha256`` is the authority, not its ``url``. A moved url, a mirror, or a re-upload
 is fine as long as the bytes hash the same, so this downloads and hashes rather than trusting
@@ -201,8 +202,9 @@ def stage_command(entry: dict, args) -> int:
     for path in created:
         print(f"Staged {path}")
     print(
-        "Run the reference with GRUG_REFERENCE=1 and GRUG_MODS_DIR pointing at a harness-only"
-        f" mods directory: .github/scripts/run-loader.sh {runtime['loader']} run"
+        "Run the reference with GRUG_REFERENCE=1, GRUG_MODS_DIR pointing at a harness-only"
+        f" mods directory and GRUG_REFERENCE_MODS_DIR at {args.destination}:"
+        f" .github/scripts/run-loader.sh {runtime['loader']} run"
         f" (Minecraft {runtime['minecraft']}, loader version {runtime['loader_version']},"
         f" Java {runtime['java']})."
     )

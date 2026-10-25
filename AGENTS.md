@@ -202,7 +202,10 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   shipped for Alpha or Beta, so outside GUI elements nothing there says how a port should render:
   choose what players and modders would prefer, keep it the same across loaders where you can, and
   say what you chose in the pull request.
-- The reference run is manual: `GRUG_REFERENCE=1` plus a harness-only mods directory.
+- The reference run is the `reference` CI job: it verifies and stages the pinned artifacts and
+  launches the runtime loader with a harness-only `GRUG_MODS_DIR` and `GRUG_REFERENCE=1`. The same
+  launch locally, with `GRUG_REFERENCE_MODS_DIR` at the staged reference mods, is how the next
+  reference fixture is developed.
 
 ## Instrumenting the game
 

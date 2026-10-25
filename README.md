@@ -150,5 +150,7 @@ copying a file out of the artifacts directory by hand:
 The tests pass and every unmatched capture is written into the mod's reference directory under the
 running loader's name, replacing that loader's own reference when its rendering changed, so the new
 PNG turns up in `git status` for you to review and commit. Running the reference itself with the
-same phase (with `GRUG_REFERENCE=1` and a harness-only `GRUG_MODS_DIR`) accepts the reference's own
-pixels rather than the port's.
+same phase (with `GRUG_REFERENCE=1`, a harness-only `GRUG_MODS_DIR` and
+`GRUG_REFERENCE_MODS_DIR` at the staged reference mods) accepts the reference's own pixels rather
+than the port's. The reference's normal run is the `reference` CI job, which compares its captures
+with the committed PNGs; the local launch is how the next reference fixture is developed.
