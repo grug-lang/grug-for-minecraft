@@ -502,7 +502,23 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public Object getItemFromRegistry(Object resourceLocationObj) {
-        return ItemRegistry.INSTANCE.get((Identifier) resourceLocationObj);
+        Identifier id = (Identifier) resourceLocationObj;
+        Object item = ItemRegistry.INSTANCE.get(id);
+        if (item != null) return item;
+
+        // A canonical block name is also the name a mod expects its item form under, and the other
+        // four loaders answer it with the block the name places. StationAPI's item registry spells
+        // vanilla block items with this version's own name, so consult the block table the same way
+        // place_block does before giving up.
+        if (isVanilla(id.getNamespace() + ":" + id.getPath())) {
+            Block block =
+                    BlockRegistry.INSTANCE.get(
+                            Identifier.of("minecraft:" + localName(id.getPath())));
+            if (block != null) {
+                return Item.ITEMS[block.id];
+            }
+        }
+        return null;
     }
 
     @Override

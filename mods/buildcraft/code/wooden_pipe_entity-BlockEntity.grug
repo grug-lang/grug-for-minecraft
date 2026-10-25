@@ -48,6 +48,13 @@ export init() {
     me.extract_energy(64)
 }
 
+# Until #102 replaces it, the pipe's own shape is the cube its model describes. Drawing it here
+# rather than leaving it to the model is what makes the block non-opaque, so the items inside it are
+# lit rather than sitting in an opaque block's darkness, as they are in the reference's open cage.
+export render() {
+    draw_box(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+}
+
 # RenderPipe.renderSolids: every travelling item is drawn where its record stands, every frame,
 # because an item that is not a block is a sprite turned to face the player and cannot be baked into
 # the chunk's geometry. The record's x, y and z are world coordinates, and draw_item's are measured
