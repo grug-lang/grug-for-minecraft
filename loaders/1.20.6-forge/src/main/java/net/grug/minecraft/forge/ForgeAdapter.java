@@ -468,7 +468,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public Object getItemFromRegistry(Object resourceLocationObj) {
-        return ForgeRegistries.ITEMS.getValue((ResourceLocation) resourceLocationObj);
+        ResourceLocation id = (ResourceLocation) resourceLocationObj;
+
+        // Forge answers a key it does not have with air, which would make a typo look like a real
+        // item and differ from the other four loaders, so ask whether the key exists first. A real
+        // minecraft:air still resolves.
+        return ForgeRegistries.ITEMS.containsKey(id) ? ForgeRegistries.ITEMS.getValue(id) : null;
     }
 
     @Override
