@@ -135,6 +135,9 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   Prefer names that resolve to items everywhere.
 - `unwrap()` on an empty `Option` is a runtime error; probe with `.has()`. Host function errors
   carry a grug source position, so read it before guessing.
+- A `while` or `if` condition is evaluated every time it is reached, so a host function or helper
+  call in one runs again on every iteration or every record. Hoist a value that cannot change into
+  a local variable.
 
 ## Writing tests
 
