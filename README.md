@@ -142,7 +142,8 @@ which is `screenshots/` or any directory nested under it in the mod, each PNG na
 loader that produced it, so a rendering that none of them represents yet has to be accepted
 explicitly, from a CI runner's capture: a world capture from a local run can differ slightly. A
 failing job uploads its unmatched capture as `loader-<loader>-screenshots` (the reference job as
-`reference-1.2.5-forge-screenshots`); copy that loader's PNG into the reference directory.
+`reference-1.2.5-forge-screenshots`), also for a test with no reference yet; copy that loader's PNG
+into the reference directory.
 
 The `update-goldens` phase writes every unmatched capture into the reference directory under the
 running loader's name instead of failing, so the new PNGs turn up in `git status` to review:
@@ -151,5 +152,5 @@ running loader's name instead of failing, so the new PNGs turn up in `git status
 .github/scripts/run-loader.sh <loader-dir-name> update-goldens
 ```
 
-Use it for a screenshot test with no reference yet, which a normal CI run refuses to bootstrap, or
-on CI when many references change at once, since the suite stops at its first failure.
+Use it locally for a GUI capture, or on CI when many references change at once, since the suite
+stops at its first failure.

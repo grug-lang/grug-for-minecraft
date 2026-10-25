@@ -120,15 +120,21 @@ public final class GrugScreenshots {
         // store an empty one, so on a CI run an empty directory means the golden was never
         // committed: fail and name it instead of certifying the run's own capture. A reference run
         // on CI is included: its job checks the committed goldens, so a missing one is a failure,
-        // not a first capture. An update-goldens phase, and a local author, may still bootstrap.
+        // not a first capture. The capture still goes to the artifacts, which CI uploads, so the
+        // golden to commit can be taken from the failing job. An update-goldens phase, and a local
+        // author, may still bootstrap.
         if (references.isEmpty()) {
             if (!GrugReference.isUpdateGoldens() && GrugReference.isCiRun()) {
+                File artifact = writeArtifact(capture, referencePath, artifactsRoot, loaderName);
                 throw Grug.fatal(
                         "Screenshot.equals: no committed reference image for "
                                 + referencePath
                                 + " in "
                                 + referenceDirectory
-                                + "; a golden must be committed, not captured during the run.");
+                                + "; a golden must be committed, not captured during the run. The"
+                                + " capture was written to "
+                                + artifact
+                                + ".");
             }
             addReference(capture, referenceDirectory, referencePath, loaderName);
             return;

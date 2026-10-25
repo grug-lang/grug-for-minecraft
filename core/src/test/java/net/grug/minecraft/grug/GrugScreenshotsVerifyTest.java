@@ -222,7 +222,9 @@ class GrugScreenshotsVerifyTest {
         assertFalse(
                 Files.exists(references.resolve(LOADER_NAME + ".png")),
                 "a CI run never writes the golden it is meant to verify against");
-        assertFalse(Files.exists(artifacts), "the missing golden is reported before anything else");
+        assertTrue(
+                Files.exists(artifacts.resolve(REFERENCE_PATH).resolve(LOADER_NAME + ".png")),
+                "the capture goes to the artifacts, so the golden can be taken from the job");
     }
 
     @Test
@@ -251,6 +253,9 @@ class GrugScreenshotsVerifyTest {
         assertFalse(
                 Files.exists(references.resolve(LOADER_NAME + ".png")),
                 "a reference CI job never writes the golden it is meant to verify against");
+        assertTrue(
+                Files.exists(artifacts.resolve(REFERENCE_PATH).resolve(LOADER_NAME + ".png")),
+                "the reference's capture goes to the artifacts for the job to upload");
     }
 
     @Test
