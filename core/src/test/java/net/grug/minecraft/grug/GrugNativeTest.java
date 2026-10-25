@@ -21,6 +21,38 @@ class GrugNativeTest {
     }
 
     @Test
+    void jinputDoesNotProbeTheInputDevices() {
+        String saved = System.getProperty(GrugNative.JINPUT_DEFAULT_PLUGIN);
+        try {
+            System.clearProperty(GrugNative.JINPUT_DEFAULT_PLUGIN);
+            GrugNative.disableControllerProbe();
+            assertEquals("false", System.getProperty(GrugNative.JINPUT_DEFAULT_PLUGIN));
+        } finally {
+            restore(saved);
+        }
+    }
+
+    @Test
+    void aPlayersOwnJinputChoiceWins() {
+        String saved = System.getProperty(GrugNative.JINPUT_DEFAULT_PLUGIN);
+        try {
+            System.setProperty(GrugNative.JINPUT_DEFAULT_PLUGIN, "true");
+            GrugNative.disableControllerProbe();
+            assertEquals("true", System.getProperty(GrugNative.JINPUT_DEFAULT_PLUGIN));
+        } finally {
+            restore(saved);
+        }
+    }
+
+    private static void restore(String saved) {
+        if (saved == null) {
+            System.clearProperty(GrugNative.JINPUT_DEFAULT_PLUGIN);
+        } else {
+            System.setProperty(GrugNative.JINPUT_DEFAULT_PLUGIN, saved);
+        }
+    }
+
+    @Test
     void linuxLoadsTheSharedObject() {
         assertEquals("libadapter.so", GrugNative.nativeFileName("Linux", "amd64"));
         assertEquals("libadapter.so", GrugNative.nativeFileName("Linux", "x86_64"));

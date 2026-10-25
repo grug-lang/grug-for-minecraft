@@ -136,6 +136,21 @@ class ReportNativeAbortTest(unittest.TestCase):
         self.assertNotIn("panic message:", result.stdout)
         self.assertIn("Last test progress: [GRUG CI] Running 50 tests...", result.stdout)
 
+    def test_the_watcher_closedir_panic_names_562_and_not_123(self):
+        # The same abort shape as #123 but another cause, which the report has to tell apart so
+        # nobody opens the raw log to learn which one a failed installed job was.
+        log = self.write_log(
+            "closedir.log",
+            "[GRUG CI] CI mode active & player loaded after 1 ms. Firing tests!\n"
+            "thread '<unnamed>' (2831) panicked at library/std/src/sys/fs/unix.rs:995:9:\n"
+            'unexpected error during closedir: Os { code: 9, kind: Uncategorized, message: "Bad file descriptor" }\n',
+        )
+        result = run_report(str(log), "1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("closedir panic", result.stdout)
+        self.assertIn("#562", result.stdout)
+        self.assertNotIn("#123", result.stdout)
+
     def test_log_without_progress_lines(self):
         log = self.write_log(
             "early.log",

@@ -27,7 +27,27 @@ final class GrugNative {
 
     /** Loads the native adapter library and initializes it, at most once per process. */
     static synchronized void load() {
+        disableControllerProbe();
         loaded = nativeLibraryLoaded();
+    }
+
+    /** The system property that tells jinput, LWJGL 2's controller library, to skip its Linux probe. */
+    static final String JINPUT_DEFAULT_PLUGIN = "jinput.useDefaultPlugin";
+
+    /**
+     * Keeps jinput from probing {@code /dev/input} on the Alpha and Beta games, which use it
+     * (#562). On a machine that cannot open those devices its native {@code nClose} runs on a device
+     * that never opened, and closes descriptor 0 whatever that is by then. The first such close
+     * frees stdin, so the next descriptor any thread opens is 0, and the second one closes it
+     * under that thread. The file watcher's directory stream is the usual victim, and Rust's {@code
+     * closedir} panics on the {@code EBADF}, which aborts the game. No version of Minecraft grug
+     * supports reads a game controller, so nothing is lost. A player who set the property
+     * themselves keeps their value.
+     */
+    static void disableControllerProbe() {
+        if (System.getProperty(JINPUT_DEFAULT_PLUGIN) == null) {
+            System.setProperty(JINPUT_DEFAULT_PLUGIN, "false");
+        }
     }
 
     /** The natives the jar holds, as the file name each platform loads. */
