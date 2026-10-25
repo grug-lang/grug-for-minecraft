@@ -149,7 +149,7 @@ class ReportNativeAbortTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("closedir panic", result.stdout)
         self.assertIn("#562", result.stdout)
-        self.assertIn("a different closer", result.stdout)
+        self.assertIn("needs investigation to identify the closer", result.stdout)
         self.assertNotIn("#123", result.stdout)
 
     def test_log_without_progress_lines(self):
