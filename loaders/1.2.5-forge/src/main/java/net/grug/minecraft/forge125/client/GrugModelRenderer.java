@@ -12,6 +12,7 @@ import net.grug.minecraft.grug.GrugResourceIndex;
 import net.minecraft.src.Block;
 import net.minecraft.src.IBlockAccess;
 import net.minecraft.src.ModLoader;
+import net.minecraft.src.RenderBlocks;
 import net.minecraft.src.RenderEngine;
 import net.minecraft.src.Tessellator;
 import net.minecraft.src.forge.ForgeHooksClient;
@@ -45,11 +46,16 @@ import javax.imageio.ImageIO;
  * the render engine to load it, so registering the uploaded texture there under a name of grug's
  * own is what lets a texture from the mods tree go through it.
  *
- * <p>A face is lit the way the game lights a block face with its smooth lighting off: by the light
- * of the block the face looks towards, scaled by the game's per-side shade. The light at the
- * block's own position is not used, because a grug block is opaque and its own position is dark. A
- * block that declared set_flat_lighting is not opaque, so every face gets the light of its own
- * position and no shade, the way BuildCraft's engine renderer draws with GL lighting off.
+ * <p>A face is lit by the game itself: the block's bounds are set to the box the face covers,
+ * {@code renderStandardBlock} draws that box into a Tessellator that only records, and each corner
+ * of the face takes the colour and brightness the game gave the same corner of the box's face. That
+ * is the smooth lighting a block of the reference draws with, a light per corner from the blocks
+ * around it, or the flat light per face when smooth lighting is off, with no second lighting rule
+ * to keep in step with the game's. A face the game would not draw for that box, or one that is not
+ * an axis-aligned rectangle, has no recorded corners, and falls back to the light of the block the
+ * face looks towards, scaled by the game's per-side shade. A block that declared set_flat_lighting
+ * is not opaque, so every face gets the light of its own position and no shade, the way
+ * BuildCraft's engine renderer draws with GL lighting off.
  *
  * <p>Excluded from coverage because the class carries {@link GrugGenerated}: it draws into the
  * game's renderer. What it draws is core's {@code GrugModels}, which is measured there.
@@ -82,9 +88,34 @@ public final class GrugModelRenderer {
     @GrugGenerated("utility class: never instantiated")
     private GrugModelRenderer() {}
 
-    /** Draws {@code quads} for the block at x, y and z into the chunk being compiled. */
+    /**
+     * How far RenderBlocks pulls a block face's larger u and larger v in, as a fraction of the
+     * texture: every face method there takes 0.01 of a terrain texel, which is 0.01 of a model's 16
+     * units, off both. Where a texel edge lands on a pixel's centre, that decides which texel the
+     * pixel shows, so a model face lit as a block face is pulled in the same way. A flat-lit face
+     * is drawn the way BuildCraft's engine renderer draws its ModelRenderer boxes, which has no
+     * inset.
+     */
+    private static final double BLOCK_FACE_INSET = 0.01 / 16.0;
+
+    /** How far apart a recorded corner and a face's corner may be and still be the same corner. */
+    private static final double SAME_CORNER = 1.0E-5;
+
+    /** Where renderStandardBlock's corners go when a face is lit. See {@link FaceRecorder}. */
+    private static final FaceRecorder RECORDER = new FaceRecorder();
+
+    /**
+     * Draws {@code quads} for the block at x, y and z into the chunk being compiled, lit by {@code
+     * renderer}, which must be the one compiling the chunk so that the light is that world's.
+     */
     public static void drawInWorld(
-            IBlockAccess world, Block block, int x, int y, int z, List<GrugQuad> quads) {
+            RenderBlocks renderer,
+            IBlockAccess world,
+            Block block,
+            int x,
+            int y,
+            int z,
+            List<GrugQuad> quads) {
         boolean flat = block instanceof GrugBlock && ((GrugBlock) block).drawsFlatLighting();
         for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
             String name = register(group.getKey());
@@ -105,10 +136,11 @@ public final class GrugModelRenderer {
                                 cull)) {
                     continue;
                 }
+                float[][] lit = flat ? null : litCorners(renderer, block, x, y, z, quad);
                 if (flat) {
                     tessellator.setBrightness(block.getMixedBrightnessForBlock(world, x, y, z));
                     tessellator.setColorOpaque_F(1.0F, 1.0F, 1.0F);
-                } else {
+                } else if (lit == null) {
                     tessellator.setBrightness(
                             block.getMixedBrightnessForBlock(
                                     world,
@@ -117,16 +149,149 @@ public final class GrugModelRenderer {
                                     z + OFFSET[side][2]));
                     tessellator.setColorOpaque_F(SHADE[side], SHADE[side], SHADE[side]);
                 }
+                double maxU =
+                        Math.max(Math.max(quad.u(0), quad.u(1)), Math.max(quad.u(2), quad.u(3)));
+                double maxV =
+                        Math.max(Math.max(quad.v(0), quad.v(1)), Math.max(quad.v(2), quad.v(3)));
+                double inset = flat ? 0.0 : BLOCK_FACE_INSET;
                 for (int corner = 0; corner < 4; corner++) {
+                    if (lit != null) {
+                        tessellator.setColorOpaque_F(
+                                lit[corner][0], lit[corner][1], lit[corner][2]);
+                        tessellator.setBrightness((int) lit[corner][3]);
+                    }
                     tessellator.addVertexWithUV(
                             x + quad.x(corner),
                             y + quad.y(corner),
                             z + quad.z(corner),
-                            quad.u(corner),
-                            quad.v(corner));
+                            quad.u(corner) == maxU ? quad.u(corner) - inset : quad.u(corner),
+                            quad.v(corner) == maxV ? quad.v(corner) - inset : quad.v(corner));
                 }
             }
             MinecraftForgeClient.unbindTexture();
+        }
+    }
+
+    /**
+     * The colour and brightness the game gives each corner of {@code quad}, as red, green, blue and
+     * brightness, or null when the game draws no face with the same corners.
+     *
+     * <p>The block's bounds are set to the quad's own box, which is flat along the quad's normal,
+     * and {@code renderStandardBlock} draws it into {@link #RECORDER}. A flat box gives two faces
+     * in the quad's plane, one each way, so the face is told apart by the way it winds: the game
+     * winds every face counter-clockwise seen from outside, which makes its normal point the way it
+     * faces. The bounds go back to a full cube before this returns, as GrugBoxRenderer's do.
+     */
+    private static float[][] litCorners(
+            RenderBlocks renderer, Block block, int x, int y, int z, GrugQuad quad) {
+        double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, minZ = Double.MAX_VALUE;
+        double maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
+        for (int corner = 0; corner < 4; corner++) {
+            minX = Math.min(minX, quad.x(corner));
+            minY = Math.min(minY, quad.y(corner));
+            minZ = Math.min(minZ, quad.z(corner));
+            maxX = Math.max(maxX, quad.x(corner));
+            maxY = Math.max(maxY, quad.y(corner));
+            maxZ = Math.max(maxZ, quad.z(corner));
+        }
+
+        Tessellator drawing = Tessellator.instance;
+        RECORDER.corners.clear();
+        Tessellator.instance = RECORDER;
+        try {
+            block.setBlockBounds(
+                    (float) minX,
+                    (float) minY,
+                    (float) minZ,
+                    (float) maxX,
+                    (float) maxY,
+                    (float) maxZ);
+            renderer.renderStandardBlock(block, x, y, z);
+        } finally {
+            Tessellator.instance = drawing;
+            block.setBlockBounds(0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F);
+        }
+
+        int[] normal = OFFSET[quad.side()];
+        List<double[]> recorded = RECORDER.corners;
+        for (int face = 0; face + 3 < recorded.size(); face += 4) {
+            double[] a = recorded.get(face);
+            double[] b = recorded.get(face + 1);
+            double[] c = recorded.get(face + 2);
+            // (b - a) x (c - b), the face's normal for a counter-clockwise winding.
+            double nx = (b[1] - a[1]) * (c[2] - b[2]) - (b[2] - a[2]) * (c[1] - b[1]);
+            double ny = (b[2] - a[2]) * (c[0] - b[0]) - (b[0] - a[0]) * (c[2] - b[2]);
+            double nz = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+            if (nx * normal[0] + ny * normal[1] + nz * normal[2] <= 0) continue;
+
+            float[][] lit = new float[4][];
+            for (int corner = 0; corner < 4; corner++) {
+                lit[corner] =
+                        recordedAt(
+                                recorded,
+                                face,
+                                x + quad.x(corner),
+                                y + quad.y(corner),
+                                z + quad.z(corner));
+                if (lit[corner] == null) return null;
+            }
+            return lit;
+        }
+        return null;
+    }
+
+    /** The light of the corner of the recorded face starting at {@code face} that is at x, y, z. */
+    private static float[] recordedAt(
+            List<double[]> recorded, int face, double x, double y, double z) {
+        for (int i = face; i < face + 4; i++) {
+            double[] corner = recorded.get(i);
+            if (Math.abs(corner[0] - x) < SAME_CORNER
+                    && Math.abs(corner[1] - y) < SAME_CORNER
+                    && Math.abs(corner[2] - z) < SAME_CORNER) {
+                return new float[] {
+                    (float) corner[3], (float) corner[4], (float) corner[5], (float) corner[6]
+                };
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A Tessellator that keeps the corners RenderBlocks hands it instead of drawing them: each
+     * one's position, and the colour and brightness set before it, which are only what
+     * RenderBlocks' face methods call. Only the chunk compile thread draws, so one is enough.
+     */
+    @GrugGenerated("stands in for the game's Tessellator inside a chunk compile")
+    private static final class FaceRecorder extends Tessellator {
+
+        /** x, y, z, red, green, blue and brightness of every corner since the last clear. */
+        final List<double[]> corners = new ArrayList<double[]>();
+
+        // Named apart from Tessellator's own private fields, such as its brightness: the
+        // reobfuscation
+        // renames a field by its name through the class hierarchy, which would point these at the
+        // game's fields, which this class cannot reach.
+        private float cornerRed;
+        private float cornerGreen;
+        private float cornerBlue;
+        private int cornerBrightness;
+
+        @Override
+        public void setColorOpaque_F(float red, float green, float blue) {
+            cornerRed = red;
+            cornerGreen = green;
+            cornerBlue = blue;
+        }
+
+        @Override
+        public void setBrightness(int brightness) {
+            cornerBrightness = brightness;
+        }
+
+        @Override
+        public void addVertexWithUV(double x, double y, double z, double u, double v) {
+            corners.add(
+                    new double[] {x, y, z, cornerRed, cornerGreen, cornerBlue, cornerBrightness});
         }
     }
 
