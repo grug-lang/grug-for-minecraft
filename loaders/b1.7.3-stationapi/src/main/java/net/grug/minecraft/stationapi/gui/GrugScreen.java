@@ -43,7 +43,7 @@ public class GrugScreen extends HandledScreen {
     @Override
     protected void drawForeground() {
         for (GrugGuiBuilder.TextDef textDef : layout.texts) {
-            textRenderer.drawWithShadow(textDef.text(), textDef.x(), textDef.y(), textDef.color());
+            textRenderer.draw(textDef.text(), textDef.x(), textDef.y(), textDef.color());
         }
     }
 }
