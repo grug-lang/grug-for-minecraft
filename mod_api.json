@@ -1097,7 +1097,7 @@
 					]
 				},
 				"load_nbt": {
-					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the block entity read the result back through its own load, in one go, because a load can rebuild what it reads. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is read.",
+					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the world load a block entity from the result as a chunk load does: the old block entity is removed, and a new one is created from the NBT before it enters the world, so a mod whose block entity depends on that order loads as it would from a save. The handle names the removed block entity afterwards, so get the block entity at its position again. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is replaced.",
 					"parameters": [
 						{
 							"name": "block_entity",

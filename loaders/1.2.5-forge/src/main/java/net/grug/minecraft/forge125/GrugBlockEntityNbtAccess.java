@@ -8,6 +8,7 @@ import net.minecraft.src.NBTBase;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.NBTTagList;
 import net.minecraft.src.TileEntity;
+import net.minecraft.src.World;
 
 /** 1.2.5's NBT, for {@link GrugBlockEntityNbt}'s test-only edits. */
 public final class GrugBlockEntityNbtAccess implements GrugBlockEntityNbt.Access {
@@ -21,9 +22,20 @@ public final class GrugBlockEntityNbtAccess implements GrugBlockEntityNbt.Access
         return nbt;
     }
 
+    /**
+     * As a chunk unload and load: the old tile is removed, and the new one is created from the NBT
+     * and then set in the world, which validates it. The block is then drawn again, as a loaded
+     * chunk is, because a renderer only knows the block entities its section held when it was last
+     * built.
+     */
     @Override
-    public void read(Object blockEntity, Object compound) {
-        ((TileEntity) blockEntity).readFromNBT((NBTTagCompound) compound);
+    public void replace(Object blockEntity, Object compound) {
+        TileEntity old = (TileEntity) blockEntity;
+        World world = old.worldObj;
+        world.removeBlockTileEntity(old.xCoord, old.yCoord, old.zCoord);
+        TileEntity loaded = TileEntity.createAndLoadEntity((NBTTagCompound) compound);
+        world.setBlockTileEntity(old.xCoord, old.yCoord, old.zCoord, loaded);
+        GrugCore.getAdapter().redraw(loaded);
     }
 
     @Override
