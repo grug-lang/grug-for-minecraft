@@ -1,0 +1,23 @@
+{
+    "parent": "minecraft:block/block",
+    "render_type": "minecraft:cutout",
+    "textures": {
+        "all": "grug:block/wooden_pipe_plain",
+        "particle": "grug:block/wooden_pipe_plain"
+    },
+    "elements": [
+        {
+            "name": "source_arm",
+            "from": [4, 4, 12],
+            "to": [12, 12, 16],
+            "faces": {
+                "west": {"uv": [12, 4, 16, 12], "texture": "#all"},
+                "east": {"uv": [12, 4, 16, 12], "texture": "#all"},
+                "down": {"uv": [4, 16, 12, 12], "texture": "#all"},
+                "up": {"uv": [4, 12, 12, 16], "texture": "#all"},
+                "north": {"uv": [4, 4, 12, 12], "texture": "#all"},
+                "south": {"uv": [4, 4, 12, 12], "texture": "#all", "cullface": "south"}
+            }
+        }
+    ]
+}

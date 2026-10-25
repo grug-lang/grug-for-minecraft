@@ -139,21 +139,25 @@ local _draw_arm(ctx: RenderContext, side: number) {
     }
 }
 
-# The source side's arm, drawn from the plain-texture model turned so its base west arm lands on
-# this side. draw_model turns about the block's centre, which is the centre the arm grows out of.
+# The source side's arm, drawn from the plain-texture model for that side. Each side has its own
+# model rather than one turned into place, because a face takes its texture from where it sits before
+# draw_model turns it, which mirrors the texture. The models' uvs are the ones 1.2.5's RenderBlocks
+# gives the reference's renderStandardBlock: each face's texture clipped to the arm's bounds and
+# measured from their low corner, where a block model's default measures the north, east and down
+# faces from the high one.
 local _draw_source_arm(ctx: RenderContext, side: number) {
     if side == 0 {
-        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 0.0, 270.0, 0.0, 0.0, 0.0)
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_down.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     } else if side == 1 {
-        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 0.0, 90.0, 0.0, 0.0, 0.0)
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_up.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     } else if side == 2 {
-        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 90.0, 0.0, 0.0, 0.0, 0.0)
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_north.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     } else if side == 3 {
-        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 270.0, 0.0, 0.0, 0.0, 0.0)
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_south.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     } else if side == 4 {
-        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_west.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     } else if side == 5 {
-        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm.json", 0.0, 180.0, 0.0, 0.0, 0.0, 0.0)
+        ctx.draw_model(r"assets/grug/models/block/wooden_pipe_source_arm_east.json", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }
 }
 
