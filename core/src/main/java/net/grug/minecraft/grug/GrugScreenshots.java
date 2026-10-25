@@ -106,15 +106,23 @@ public final class GrugScreenshots {
             double tolerancePercent) {
         List<File> references = listReferences(referenceDirectory);
 
+        // A reference run checks that the reference's own pixels are the golden, so it compares
+        // only
+        // the PNG named after the loader it runs as. The port's other loaders' references would
+        // otherwise let a difference in the reference runtime's rendering pass because some other
+        // version happened to match.
+        if (GrugReference.isReferenceRun()) {
+            references.removeIf(reference -> !reference.getName().equals(loaderName + ".png"));
+        }
+
         // No accepted rendering yet, so this is a brand-new screenshot test or the first local run
         // of an existing one. A committed directory always has at least one PNG, since git cannot
-        // store an empty one, so on a normal CI run an empty directory means the golden was never
+        // store an empty one, so on a CI run an empty directory means the golden was never
         // committed: fail and name it instead of certifying the run's own capture. A reference run
-        // may still capture its first reference, and a local author may still bootstrap.
+        // on CI is included: its job checks the committed goldens, so a missing one is a failure,
+        // not a first capture. An update-goldens phase, and a local author, may still bootstrap.
         if (references.isEmpty()) {
-            if (!GrugReference.isUpdateGoldens()
-                    && GrugReference.isCiRun()
-                    && !GrugReference.isReferenceRun()) {
+            if (!GrugReference.isUpdateGoldens() && GrugReference.isCiRun()) {
                 throw Grug.fatal(
                         "Screenshot.equals: no committed reference image for "
                                 + referencePath
