@@ -454,7 +454,7 @@ public class HostFunctions {
                 "get_saved_list_size",
                 blockEntityId,
                 blockEntity -> (double) GrugSavedLists.size(blockEntity, name),
-                () -> 0.0);
+                ZERO);
     }
 
     public static double BlockEntity_append_saved_list_record(long blockEntityId, String name) {
@@ -462,7 +462,7 @@ public class HostFunctions {
                 "append_saved_list_record",
                 blockEntityId,
                 blockEntity -> (double) GrugSavedLists.append(blockEntity, name),
-                () -> 0.0);
+                ZERO);
     }
 
     public static void BlockEntity_remove_saved_list_record(
@@ -476,7 +476,7 @@ public class HostFunctions {
                     GrugSavedLists.remove(blockEntity, name, (int) index);
                     return null;
                 },
-                () -> null);
+                NO_RESULT);
     }
 
     public static double BlockEntity_get_saved_list_number(
@@ -490,7 +490,7 @@ public class HostFunctions {
                     Double value = record.numbers().get(key);
                     return value != null ? value : 0.0;
                 },
-                () -> 0.0);
+                ZERO);
     }
 
     public static void BlockEntity_set_saved_list_number(
@@ -504,7 +504,7 @@ public class HostFunctions {
                     GrugSavedLists.setNumber(blockEntity, record, key, value);
                     return null;
                 },
-                () -> null);
+                NO_RESULT);
     }
 
     public static long BlockEntity_get_saved_list_item(
@@ -515,7 +515,7 @@ public class HostFunctions {
                 name,
                 index,
                 (blockEntity, record) -> itemOption(record.item()),
-                () -> itemOption(null));
+                EMPTY_ITEM_OPTION);
     }
 
     public static void BlockEntity_set_saved_list_item(
@@ -530,7 +530,7 @@ public class HostFunctions {
                             blockEntity, record, GrugEntities.entityData.get(itemId).object);
                     return null;
                 },
-                () -> null);
+                NO_RESULT);
     }
 
     public static void BlockEntity_set_power_receiver(long blockEntityId, double maxStored) {
@@ -1241,6 +1241,17 @@ public class HostFunctions {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, hostFunction + ": Saved list \"" + name + "\": " + problem);
     }
+
+    /** The saved-list default for a call that answers a number. */
+    private static final Supplier<Double> ZERO = () -> 0.0;
+
+    /** The saved-list default for a call that answers nothing. */
+    private static final Supplier<Object> NO_RESULT = () -> null;
+
+    /**
+     * The saved-list default for a call that answers an Option[Item], which has to be a new one.
+     */
+    private static final Supplier<Long> EMPTY_ITEM_OPTION = () -> itemOption(null);
 
     /**
      * Runs a saved-list call, answering the default after reporting a block entity that saves no
