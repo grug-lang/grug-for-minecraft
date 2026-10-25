@@ -102,7 +102,7 @@ class ReportNativeAbortTest(unittest.TestCase):
         self.assertIn("RefCell already borrowed", result.stdout)
         # It has to name this as an abort rather than a test failure, or the next occurrence gets
         # filed as an infrastructure problem.
-        self.assertIn("aborted inside the grug VM", result.stdout)
+        self.assertIn("aborted inside grug-rs", result.stdout)
         self.assertIn("exited with code 134", result.stdout)
         # The thread that could not unwind is the line that proves the abort came from the panic.
         self.assertIn("thread caused non-unwinding panic", result.stdout)
