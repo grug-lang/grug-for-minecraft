@@ -12,6 +12,7 @@
   "client": [
     "BlockItemMixin",
     "BlockRenderManagerMixin",
+    "TessellatorMixin",
     "InGameHudMixin",
     "MinecraftMixin",
     "ResourcePackManagerMixin",

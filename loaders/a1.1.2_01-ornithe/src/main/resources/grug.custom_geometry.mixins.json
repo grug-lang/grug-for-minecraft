@@ -6,6 +6,7 @@
   "client": [
     "BlockEntityRenderDispatcherMixin",
     "BlockRendererMixin",
+    "TesselatorMixin",
     "ItemRendererMixin"
   ],
   "injectors": {
