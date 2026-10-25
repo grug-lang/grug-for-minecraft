@@ -13,6 +13,7 @@ import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
@@ -417,6 +418,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
         Level level = be.getLevel();
         CompoundTag tag = be.saveWithoutMetadata(level.registryAccess());
         be.loadWithComponents(tag, level.registryAccess());
+    }
+
+    private final GrugBlockEntityNbtAccess blockEntityNbt = new GrugBlockEntityNbtAccess();
+
+    @Override
+    public GrugBlockEntityNbt.Access blockEntityNbt() {
+        return blockEntityNbt;
     }
 
     @Override

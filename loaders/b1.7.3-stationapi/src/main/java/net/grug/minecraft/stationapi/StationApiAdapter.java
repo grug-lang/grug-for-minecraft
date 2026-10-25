@@ -9,6 +9,7 @@ import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
@@ -455,6 +456,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
         net.minecraft.nbt.NbtCompound nbt = new net.minecraft.nbt.NbtCompound();
         be.writeNbt(nbt);
         be.readNbt(nbt);
+    }
+
+    private final GrugBlockEntityNbtAccess blockEntityNbt = new GrugBlockEntityNbtAccess();
+
+    @Override
+    public GrugBlockEntityNbt.Access blockEntityNbt() {
+        return blockEntityNbt;
     }
 
     @Override

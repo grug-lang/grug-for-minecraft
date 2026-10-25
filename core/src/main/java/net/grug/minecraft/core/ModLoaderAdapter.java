@@ -2,6 +2,7 @@ package net.grug.minecraft.core;
 
 import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.Vec3;
 
@@ -313,6 +314,12 @@ public interface ModLoaderAdapter {
      * paths without the game actually saving and reloading a world.
      */
     void roundTripNbt(Object blockEntityObj);
+
+    /**
+     * This version's NBT, for the test-only edits of a block entity's own saved data that {@link
+     * GrugBlockEntityNbt} stages and loads.
+     */
+    GrugBlockEntityNbt.Access blockEntityNbt();
 
     /**
      * Runs a grug block entity's tick once, as the game would on its next tick, so a test can reach

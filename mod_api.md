@@ -76,6 +76,7 @@ Test.get_origin() Vec3
 Test.get_player() Player
 Test.hot_reload_count(relative_path: string) number
 Test.is_reference() bool
+Test.load_nbt(block_entity: BlockEntity)
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
@@ -85,6 +86,8 @@ Test.screenshot() Screenshot
 Test.set_box_radius(radius: number)
 Test.set_held_item(player: Player, item: Item)
 Test.set_mod_file_state(relative_path: string, state: string)
+Test.set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
+Test.set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
 Test.setup_graphics_camera() Vec3
 Test.tick_block_entity(block_entity: BlockEntity, ticks: number)
 Test.use_block(level: Level, x: number, y: number, z: number)

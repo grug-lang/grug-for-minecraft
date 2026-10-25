@@ -181,6 +181,32 @@ public class HostFunctions {
         System.gc();
     }
 
+    /** Test only: stages a number in a block entity's own NBT. See {@link GrugBlockEntityNbt}. */
+    public static void Test_set_nbt_number(
+            long blockEntityId, String path, String type, double value) {
+        GrugBlockEntityNbt.report(
+                "Test.set_nbt_number",
+                GrugBlockEntityNbt.stageNumber(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId), path, type, value));
+    }
+
+    /** Test only: stages an item in a block entity's own NBT. See {@link GrugBlockEntityNbt}. */
+    public static void Test_set_nbt_item(long blockEntityId, String path, long itemId) {
+        GrugBlockEntityNbt.report(
+                "Test.set_nbt_item",
+                GrugBlockEntityNbt.stageItem(
+                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                        path,
+                        GrugEntities.entityData.get(itemId).object));
+    }
+
+    /** Test only: loads a block entity's staged NBT edits. See {@link GrugBlockEntityNbt}. */
+    public static void Test_load_nbt(long blockEntityId) {
+        GrugBlockEntityNbt.report(
+                "Test.load_nbt",
+                GrugBlockEntityNbt.load(HostFunctionHelpers.resolveBlockEntity(blockEntityId)));
+    }
+
     public static boolean Test_is_reference() {
         return GrugReference.isReferenceRun();
     }
