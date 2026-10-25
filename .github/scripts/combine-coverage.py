@@ -55,6 +55,8 @@ EXCLUDED_CLASSES = {
     "ResourcePackManagerMixin",
     "CraftingManagerMixin",
     "BlockRendererMixin",
+    "TesselatorMixin",
+    "TessellatorMixin",
     "ItemRendererMixin",
     "BlockRenderManagerMixin",
     "WorldChunkMixin",

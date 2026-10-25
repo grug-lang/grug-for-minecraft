@@ -107,8 +107,7 @@ public final class GrugModsWatcher {
      * that had just accepted one until it timed out.
      */
     private static boolean isScreenshotReference(String resource) {
-        String[] parts = resource.replace('\\', '/').split("/");
-        return parts.length > 1 && parts[1].equals("screenshots");
+        return resource.replace('\\', '/').matches("[^/]+/screenshots(/.*)?");
     }
 
     /**
