@@ -29,6 +29,7 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.ParticleStatus;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.block.BlockModelShaper;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
@@ -668,6 +669,7 @@ public class GrugModLoader {
                         if (WINDOW.beginRun()) {
                             stopTutorialForRun(mc);
                             shrinkViewForRun(mc);
+                            minimiseParticlesForRun(mc);
                             grug$testRunner = new GrugTestRunner();
                             grug$testRunnerFromCI = true;
                             advanceTestRunner(mc);
@@ -694,6 +696,7 @@ public class GrugModLoader {
                     WINDOW.endRun();
                     restoreTutorialAfterRun(mc);
                     restoreViewAfterRun(mc);
+                    restoreParticlesAfterRun(mc);
                 }
 
                 updateCursorReadout(mc);
@@ -752,6 +755,7 @@ public class GrugModLoader {
             if (WINDOW.tick(KEYS)) {
                 stopTutorialForRun(mc);
                 shrinkViewForRun(mc);
+                minimiseParticlesForRun(mc);
                 grug$testRunner = new GrugTestRunner();
                 grug$testRunnerFromCI = false;
                 advanceTestRunner(mc);
@@ -811,6 +815,32 @@ public class GrugModLoader {
             if (savedRenderDistance != null) {
                 mc.options.renderDistance().set(savedRenderDistance);
                 savedRenderDistance = null;
+            }
+        }
+
+        /** The particle setting a run found, put back when the run ends. */
+        private static ParticleStatus savedParticles = null;
+
+        /**
+         * Sets particles to minimal before a run starts, which drops every ordinary particle.
+         * Particles come from the world's random, so a capture with one in it is a different
+         * picture on every run, and a reference mod's particles, such as the redstone engine's
+         * (#581), would fail its screenshots at random.
+         */
+        @GrugGenerated("dev-only: particles are turned down for a run")
+        private static void minimiseParticlesForRun(Minecraft mc) {
+            if (savedParticles == null) {
+                savedParticles = mc.options.particles().get();
+                mc.options.particles().set(ParticleStatus.MINIMAL);
+            }
+        }
+
+        /** Puts the particle setting back, and only if a run changed it. */
+        @GrugGenerated("dev-only: particles are turned down for a run")
+        private static void restoreParticlesAfterRun(Minecraft mc) {
+            if (savedParticles != null) {
+                mc.options.particles().set(savedParticles);
+                savedParticles = null;
             }
         }
 
