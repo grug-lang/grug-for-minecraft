@@ -742,7 +742,15 @@ public class Grug125Adapter implements ModLoaderAdapter {
         if (targetBlock == null) {
             String blockName = "tile." + path;
             for (Block block : Block.blocksList) {
-                if (block != null && blockName.equals(block.getBlockName())) {
+                if (block == null) {
+                    continue;
+                }
+                // A block may have no name of its own but an item that names it, which is how
+                // BuildCraft's BlockEngine is reachable: ItemEngine names metadata 0
+                // tile.engineWood.
+                Item item = Item.itemsList[block.blockID];
+                String itemName = item == null ? null : item.getItemNameIS(new ItemStack(block));
+                if (blockName.equals(block.getBlockName()) || blockName.equals(itemName)) {
                     targetBlock = block;
                     break;
                 }
