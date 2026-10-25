@@ -168,7 +168,7 @@ public class GrugScreen extends InventoryMenuScreen {
     @Override
     protected void renderLabels() {
         for (GrugGuiBuilder.TextDef text : layout.texts) {
-            textRenderer.draw(text.text(), text.x(), text.y(), text.color());
+            textRenderer.drawWithShadow(text.text(), text.x(), text.y(), text.color());
         }
     }
 

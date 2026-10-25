@@ -75,12 +75,7 @@ public class GrugScreen extends AbstractContainerScreen<GrugMenu> {
         if (layout != null && layout.texts != null) {
             for (GrugGuiBuilder.TextDef textDef : layout.texts) {
                 guiGraphics.drawString(
-                        this.font,
-                        textDef.text(),
-                        textDef.x(),
-                        textDef.y(),
-                        textDef.color(),
-                        false);
+                        this.font, textDef.text(), textDef.x(), textDef.y(), textDef.color(), true);
             }
         }
     }

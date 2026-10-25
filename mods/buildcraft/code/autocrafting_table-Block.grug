@@ -17,7 +17,7 @@ export use(world: Level, x: number, y: number, z: number, player: Player) {
     gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
 
     text_color: Color = Color.rgb(64, 64, 64)
-    gui_layout.add_text("Autocrafting Table", 30, 6, text_color)
+    gui_layout.add_text("Crafting", 28, 6, text_color)
     gui_layout.add_text("Inventory", 8, 72, text_color)
 
     # Add a 3x3 crafting grid starting at inventory slot 0
