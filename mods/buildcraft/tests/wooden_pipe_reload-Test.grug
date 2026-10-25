@@ -11,6 +11,7 @@ export run() {
     x: number = origin.x()
     y: number = origin.y() + 20
     z: number = origin.z()
+    bx: number = Math.floor(x)
 
     level.place_block(x - 1, y, z, "minecraft:chest")
     level.place_block(x, y, z, "grug:wooden_pipe")
@@ -33,7 +34,7 @@ export run() {
     # Move it 20 ticks in, then reload, so the record is not at the face where it started.
     Test.tick_block_entity(pipe, 20)
     before: number = pipe.get_saved_list_number("traveling", 0, "x")
-    Test.assert(_hundredths(before - x) == 20, "20 moves should put the item a fifth of the way into the pipe.")
+    Test.assert(_hundredths(before - bx) == 20, "20 moves should put the item a fifth of the way into the pipe.")
 
     Test.round_trip_nbt(pipe)
 
