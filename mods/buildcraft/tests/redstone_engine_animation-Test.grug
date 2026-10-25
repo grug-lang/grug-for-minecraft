@@ -2,8 +2,8 @@
 # the plate slides out along the facing by a step of up to 7.99 pixels, at its farthest at a progress
 # of 0.5, and a chamber box is stacked every two pixels under it. The progress is set directly
 # here, because what the engine does to it each tick is covered where it is advanced.
-# Each capture first lets the engines at rest settle and be meshed, then changes them, so the capture
-# shows the change only if the engine had itself drawn again.
+# Each capture first lets the engines at rest settle and be meshed, then changes them, so on the port
+# the capture shows the change only if the engine had itself drawn again.
 # The first capture shows six engines facing up at progress 0.1, 0.25, 0.4, 0.5, 0.75 and 0.9, with
 # +x on the left, so the plate goes out and comes back in from right to left. It is the engine's
 # own tick that has them drawn again, as it does for every tick of a stroke. The second capture shows
@@ -13,8 +13,10 @@
 # every loader but 1.2.5, and that readout grows to ten lines of 27 pixels once a repeat has run, so
 # anything below about y=250 holds text in a later repeat.
 # The reference run has no grug saved data, so it sets the real TileEngine's "orientation" and
-# "progress" through its NBT instead. Its RenderEngine reads both on every frame, and an unpowered
-# engine at rest leaves its progress alone, so the loaded numbers are what it draws.
+# "progress" through its NBT instead, and Test.load_nbt replaces the engine with one loaded from it
+# and redraws the block. RenderEngine is a tile entity renderer that reads both on every frame, and
+# an unpowered engine at rest leaves its progress alone, so the loaded numbers are what it draws. The
+# reference therefore needs no redraw of the engine's own, and the capture checks only its drawing.
 # Where the leftmost engine is, which is where the row starts, one block apart towards +x.
 ex: number = 0
 ey: number = 0
@@ -51,7 +53,8 @@ export run() {
     # The scene is settled and meshed once, with every engine at rest and facing up, before anything
     # changes. _force_remesh builds the whole section again from whatever the engines then say, so a
     # change made before it would be drawn by it whether or not the engine asked for a redraw. After
-    # the change only the engine's own redraw can put it on screen, and only a settle is waited for.
+    # the change only a settle is waited for: on the port only the engine's own redraw can put the
+    # change on screen, and on the reference RenderEngine draws the loaded engine on the next frame.
     if not changed {
         if not _ready() {
             me.not_done()
@@ -127,8 +130,8 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     }
 }
 
-# Faces every engine up, with the progress for its place in the row, and has the engine's own tick
-# draw it again, which is what a stroke does every tick. The facing is given directly, as
+# Faces every engine up, with the progress for its place in the row. The port's engine is drawn again
+# by its own tick, which is what a stroke does every tick; the reference's is loaded from its NBT. The facing is given directly, as
 # redstone_engine_facings-Test.grug does, rather than by a receptor next to the engine.
 local _show_progresses() {
     i: number = 0
@@ -217,8 +220,8 @@ local _ready() bool {
     return Test.world_settled()
 }
 
-# Whether the frame is settled for a capture after a change, without meshing anything again: the
-# change has to reach the screen through the engine's own redraw. Five settled ticks in a row, as in
+# Whether the frame is settled for a capture after a change, without meshing anything again: on the
+# port the change has to reach the screen through the engine's own redraw. Five settled ticks in a row, as in
 # _ready, then the frame itself.
 local _settled() bool {
     if not Test.world_settled() {
