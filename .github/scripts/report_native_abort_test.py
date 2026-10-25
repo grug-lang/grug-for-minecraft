@@ -149,8 +149,7 @@ class ReportNativeAbortTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("closedir panic", result.stdout)
         self.assertIn("#562", result.stdout)
-        # The cause jinput gave in the runs examined is an observation, not a verdict on every match.
-        self.assertIn("In the runs examined", result.stdout)
+        self.assertIn("a different closer", result.stdout)
         self.assertNotIn("#123", result.stdout)
 
     def test_log_without_progress_lines(self):
