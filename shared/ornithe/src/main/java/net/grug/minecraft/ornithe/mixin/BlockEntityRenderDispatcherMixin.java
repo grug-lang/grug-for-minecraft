@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.mixin;
 
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.client.GrugFrameRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderDispatcher;
@@ -27,6 +28,9 @@ import java.util.Map;
  * declined by the engine without a report, which is why the renderer can ask all of them rather
  * than deciding for itself which blocks have a frame hook.
  */
+@GrugGenerated(
+        "a mixin into the game's block entity dispatcher: the game constructs it, and no JUnit test"
+                + " can")
 @Mixin(BlockEntityRenderDispatcher.class)
 public class BlockEntityRenderDispatcherMixin {
 
