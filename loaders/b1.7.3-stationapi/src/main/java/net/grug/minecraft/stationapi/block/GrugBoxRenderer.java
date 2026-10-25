@@ -77,7 +77,7 @@ public final class GrugBoxRenderer {
 
         // After the boxes, with the bounding box back to a full cube, because a model face's
         // cullface asks the block whether the neighbour hides a full face.
-        GrugModelRenderer.drawInWorld(world, block, x, y, z, geometry.quads());
+        GrugModelRenderer.drawInWorld(renderer, world, block, x, y, z, geometry.quads());
 
         return true;
     }
