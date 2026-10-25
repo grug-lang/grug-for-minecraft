@@ -70,15 +70,15 @@ public class GrugScreen extends GuiContainer {
         // 1.2.5 leaves GL_LIGHTING enabled from the item render that precedes this, so text drawn
         // here is modulated by that light. A declared (64, 64, 64) then reaches the framebuffer as
         // (86, 86, 86), brighter than the block asked for, and a different colour from the one the
-        // same GUI produces on the other loaders. Vanilla labels use the same colour and never
-        // notice, because their shadow hides a few units of drift.
+        // same GUI produces on the other loaders. The labels use the shadow, as the reference's
+        // GuiAutoCrafting and the vanilla container labels do.
         boolean lighting = GL11.glIsEnabled(GL11.GL_LIGHTING);
         if (lighting) {
             GL11.glDisable(GL11.GL_LIGHTING);
         }
 
         for (GrugGuiBuilder.TextDef text : layout.texts) {
-            this.fontRenderer.drawString(text.text(), text.x(), text.y(), text.color());
+            this.fontRenderer.drawStringWithShadow(text.text(), text.x(), text.y(), text.color());
         }
 
         if (lighting) {
