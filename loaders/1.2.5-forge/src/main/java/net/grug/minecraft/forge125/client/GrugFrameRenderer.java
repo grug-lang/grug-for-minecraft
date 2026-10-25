@@ -161,18 +161,19 @@ public class GrugFrameRenderer extends TileEntitySpecialRenderer {
                 ForgeHooksClient.overrideTexture(item);
             }
 
-            // The sprite index is a slot in the bound atlas. The atlas is 256x256 here, but ask
-            // it rather than assume, so a pack that stitches a larger one still samples the sprite
-            // the index names instead of a 2x2 group of its neighbours.
+            // The sprite index is a slot in a 16-column grid. A texture pack may scale every
+            // sprite, so the tile size comes from the bound atlas rather than being 16 pixels:
+            // one sixteenth of each axis, with the grid still 16 columns.
             int atlasWidth =
                     GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
             int atlasHeight =
                     GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
-            int columns = Math.max(1, atlasWidth / 16);
-            float u0 = (float) (icon % columns * 16) / atlasWidth;
-            float u1 = (float) (icon % columns * 16 + 16) / atlasWidth;
-            float v0 = (float) (icon / columns * 16) / atlasHeight;
-            float v1 = (float) (icon / columns * 16 + 16) / atlasHeight;
+            int tileWidth = atlasWidth / 16;
+            int tileHeight = atlasHeight / 16;
+            float u0 = (float) (icon % 16 * tileWidth) / atlasWidth;
+            float u1 = (float) (icon % 16 * tileWidth + tileWidth) / atlasWidth;
+            float v0 = (float) (icon / 16 * tileHeight) / atlasHeight;
+            float v1 = (float) (icon / 16 * tileHeight + tileHeight) / atlasHeight;
             for (int copy = 0; copy < copies; copy++) {
                 GL11.glPushMatrix();
                 if (copy > 0) {
