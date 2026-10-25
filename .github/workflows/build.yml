@@ -491,6 +491,141 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The reference run (#574): BuildCraft 2.2.14 itself on its runtime, 1.2.5 Forge, driven by the
+  # mod's screenshot tests and compared with the committed 1.2.5-forge.png goldens. Only the
+  # reference's runtime is a strict graphical reference, so a mismatch here means the port's 1.2.5
+  # golden is not what BuildCraft draws, and it fails like any loader job. GrugScreenshots compares a
+  # reference run only with the PNG named after its own loader, so it cannot pass on another
+  # loader's golden.
+  reference:
+    name: reference (1.2.5-forge)
+    needs: grug-rs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        id: java21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # The game boots on Java 8, as in the loader job.
+      - name: Set up JDK 8
+        id: java8
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Restore JDK 21 for Gradle
+        run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
+
+      - name: Download the grug-rs static library
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-rs-library
+          path: .grug-ci
+
+      # The same entries the 1.2.5-forge loader job restores, so neither job resolves its Gradle
+      # dependencies or clones the MCP snapshot again. See the loader job for why each is keyed so.
+      - name: Cache the Gradle distributions and dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches/modules-2
+          key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+
+      - name: Cache the 1.2.5 MCP snapshot
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: loaders/1.2.5-forge/build/mcp125
+          key: grug-mcp125-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
+
+      # The reference's jars are pinned by sha256 in about.json, so the entry is keyed on it: a
+      # changed pin misses and downloads again, and verify checks every hash either way.
+      - name: Cache the reference artifacts
+        id: reference-artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: reference-artifacts
+          key: grug-reference-${{ hashFiles('mods/buildcraft/about.json') }}
+
+      - name: Download and verify the reference artifacts
+        if: steps.reference-artifacts.outputs.cache-hit != 'true'
+        run: python3 recreation.py verify mods/buildcraft/about.json --output reference-artifacts
+
+      # stage hashes every artifact again before it copies it, so a restored cache is checked too.
+      - name: Stage the reference install
+        run: |
+          python3 recreation.py stage mods/buildcraft/about.json \
+            --artifacts reference-artifacts \
+            --destination loaders/1.2.5-forge/run/reference-mods
+          echo "The reference run loads:"
+          (cd loaders/1.2.5-forge/run/reference-mods && sha256sum *)
+
+      # The harness is the mod's screenshot tests, about.json, LICENSE and goldens without its code,
+      # so the real BuildCraft provides every block and the harness only drives the tests. The game
+      # dies before the tests without the LICENSE.
+      - name: Assemble the reference harness
+        run: |
+          harness="$GITHUB_WORKSPACE/reference-harness"
+          mkdir -p "$harness/buildcraft/tests"
+          cp mods/buildcraft/about.json mods/buildcraft/LICENSE "$harness/buildcraft/"
+          cp -r mods/buildcraft/screenshots "$harness/buildcraft/"
+          for test in $(grep -l "Test.screenshot" mods/buildcraft/tests/*-Test.grug); do
+            cp "$test" "$harness/buildcraft/tests/"
+          done
+          echo "The reference harness is $harness:"
+          (cd "$harness" && find . -type f -not -name '*.png' | sort)
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth x11-xserver-utils \
+            libgl1 libgl1-mesa-dri libglx-mesa0 \
+            libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+
+      - name: Run the reference (1.2.5-forge)
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh 1.2.5-forge run
+        env:
+          GRUG_REFERENCE: '1'
+          GRUG_MODS_DIR: ${{ github.workspace }}/reference-harness
+          GRUG_REFERENCE_MODS_DIR: ${{ github.workspace }}/loaders/1.2.5-forge/run/reference-mods
+          GRUG_JAVA8: ${{ steps.java8.outputs.path }}
+          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
+          GRUG_CI_RUN_TIMEOUT: '600'
+
+      - name: Upload logs and crash reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reference-1.2.5-forge-logs
+          path: |
+            loaders/1.2.5-forge/run/logs
+            loaders/1.2.5-forge/run/crash-reports
+            loaders/1.2.5-forge/run/ci-run-loader.log
+            loaders/1.2.5-forge/run/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # The reference's capture and diff for the golden it missed. The capture is the reference's own
+      # rendering, so it is what that 1.2.5-forge.png should hold once the port draws the same.
+      - name: Upload unmatched screenshot captures
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reference-1.2.5-forge-screenshots
+          path: loaders/1.2.5-forge/run/grug-screenshot-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Loaders on Windows (#530, #531): a1.1.2_01-ornithe, whose Windows setup is least like the others,
   # and the other four, so the DLL, JNI, and core's
   # Windows paths are exercised by a game that really starts, in each loader's own adapter.
