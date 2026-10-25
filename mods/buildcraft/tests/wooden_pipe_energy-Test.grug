@@ -5,66 +5,66 @@
 # receive_energy, and Test.tick_block_entity runs the pipe's tick right after, before the game's own
 # tick can take the pipe's power loss. Each case gets its own pipe, 4 blocks apart in x so that the
 # chests of one never touch another.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
     y: number = origin.y() + 15
     z: number = origin.z()
 
-    pipe: BlockEntity = _place(level, x, y, z)
+    pipe: BlockEntity = _place(ctx, level, x, y, z)
     source: BlockEntity = level.get_block_entity(x - 1, y, z).unwrap()
     Test.tick_block_entity(pipe, 1)
-    Test.assert(pipe.get_saved_list_size("traveling") == 0, "A pipe with no energy should pull nothing.")
-    Test.assert(source.get_item_count_in_slot(0) == 5, "The chest should still hold its 5.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 0, "A pipe with no energy should pull nothing.")
+    ctx.assert(source.get_item_count_in_slot(0) == 5, "The chest should still hold its 5.")
 
-    pipe = _place(level, x + 4, y, z)
+    pipe = _place(ctx, level, x + 4, y, z)
     source = level.get_block_entity(x + 3, y, z).unwrap()
     pipe.receive_energy(1)
     Test.tick_block_entity(pipe, 1)
-    Test.assert(pipe.get_saved_list_size("traveling") == 1, "A pipe with 1 energy should start 1 travelling stack.")
-    Test.assert(_travelling_count(pipe) == 1, "The travelling stack should hold 1 item.")
-    Test.assert(pipe.get_item_count_in_slot(0) == 0, "The extraction inbox should be empty again.")
-    Test.assert(source.get_item_count_in_slot(0) == 4, "The chest should have given 1.")
-    Test.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its energy.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "A pipe with 1 energy should start 1 travelling stack.")
+    ctx.assert(_travelling_count(pipe) == 1, "The travelling stack should hold 1 item.")
+    ctx.assert(pipe.get_item_count_in_slot(0) == 0, "The extraction inbox should be empty again.")
+    ctx.assert(source.get_item_count_in_slot(0) == 4, "The chest should have given 1.")
+    ctx.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its energy.")
 
-    pipe = _place(level, x + 8, y, z)
+    pipe = _place(ctx, level, x + 8, y, z)
     source = level.get_block_entity(x + 7, y, z).unwrap()
     pipe.receive_energy(3)
     Test.tick_block_entity(pipe, 1)
-    Test.assert(pipe.get_saved_list_size("traveling") == 1, "A pipe with 3 energy should start 1 travelling stack.")
-    Test.assert(_travelling_count(pipe) == 3, "The travelling stack should hold 3 items.")
-    Test.assert(source.get_item_count_in_slot(0) == 2, "The chest should have given 3.")
-    Test.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its 3.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "A pipe with 3 energy should start 1 travelling stack.")
+    ctx.assert(_travelling_count(pipe) == 3, "The travelling stack should hold 3 items.")
+    ctx.assert(source.get_item_count_in_slot(0) == 2, "The chest should have given 3.")
+    ctx.assert(pipe.get_energy_stored() == 0, "The pipe should have spent its 3.")
 
-    pipe = _place(level, x + 12, y, z)
+    pipe = _place(ctx, level, x + 12, y, z)
     source = level.get_block_entity(x + 11, y, z).unwrap()
     target: BlockEntity = level.get_block_entity(x + 13, y, z).unwrap()
     pipe.receive_energy(64)
     Test.tick_block_entity(pipe, 1)
-    Test.assert(pipe.get_saved_list_size("traveling") == 1, "A pipe with 64 energy should start 1 travelling stack.")
-    Test.assert(_travelling_count(pipe) == 5, "The travelling stack should hold the slot's whole stack of 5, not 64.")
-    Test.assert(source.get_item_count_in_slot(0) == 0, "The chest should be empty.")
-    Test.assert(pipe.get_energy_stored() == 0, "The pipe should have spent 5 and lost the rest.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "A pipe with 64 energy should start 1 travelling stack.")
+    ctx.assert(_travelling_count(pipe) == 5, "The travelling stack should hold the slot's whole stack of 5, not 64.")
+    ctx.assert(source.get_item_count_in_slot(0) == 0, "The chest should be empty.")
+    ctx.assert(pipe.get_energy_stored() == 0, "The pipe should have spent 5 and lost the rest.")
 
     # The stack then has to travel the whole pipe before it reaches the chest on the other side.
     # 100 ticks is the reference's 49 moves to the centre and 51 to the far face, with a margin.
     Test.tick_block_entity(pipe, 110)
-    Test.assert(target.get_item_count_in_slot(0) == 5, "The whole stack should have moved on to the east chest.")
-    Test.assert(pipe.get_saved_list_size("traveling") == 0, "The pipe should have nothing left to carry.")
+    ctx.assert(target.get_item_count_in_slot(0) == 5, "The whole stack should have moved on to the east chest.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The pipe should have nothing left to carry.")
 }
 
 # Places a pipe at x with a chest of 5 diamonds on its west side and an empty chest on its east side,
 # and returns the pipe's block entity.
-local _place(level: Level, x: number, y: number, z: number) BlockEntity {
+local _place(ctx: TestRunContext, level: Level, x: number, y: number, z: number) BlockEntity {
     level.place_block(x - 1, y, z, "minecraft:chest")
     level.place_block(x, y, z, "grug:wooden_pipe")
     level.place_block(x + 1, y, z, "minecraft:chest")
 
     source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
     pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(source_opt.has(), "The chest should have a block entity.")
-    Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    ctx.assert(source_opt.has(), "The chest should have a block entity.")
+    ctx.assert(pipe_opt.has(), "The pipe should have a block entity.")
 
     diamond: Item = item(resource_location("minecraft:diamond"))
     source_opt.unwrap().set_item_in_slot(0, diamond, 5)

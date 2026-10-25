@@ -1,15 +1,15 @@
 # Covers the registry lookup's declared grug item and block matches, the multi-word vanilla
 # reflection fallback, and the unknown-name null return.
-export run() {
-    if me.tick() == 0 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
         declared_item: Item = item(resource_location("grug:coverage_item"))
-        Test.assert(equals(declared_item, declared_item), "a declared grug item resolves.")
+        ctx.assert(equals(declared_item, declared_item), "a declared grug item resolves.")
 
         declared_block: Item = item(resource_location("grug:coverage_block"))
-        Test.assert(equals(declared_block, declared_block), "a declared grug block resolves.")
+        ctx.assert(equals(declared_block, declared_block), "a declared grug block resolves.")
 
         vanilla_item: Item = item(resource_location("minecraft:diamond_sword"))
-        Test.assert(equals(vanilla_item, vanilla_item), "a multi-word vanilla item resolves.")
+        ctx.assert(equals(vanilla_item, vanilla_item), "a multi-word vanilla item resolves.")
 
         unknown_item: Item = item(resource_location("grug:does_not_exist"))
 
@@ -28,18 +28,18 @@ export run() {
         # read back and fail here.
         level.place_block(x, y, z, "grug:coverage_init_block")
         be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-        Test.assert(be_opt.has(), "the coverage init block should have a block entity.")
+        ctx.assert(be_opt.has(), "the coverage init block should have a block entity.")
         be: BlockEntity = be_opt.unwrap()
 
         unknown_record: number = be.append_saved_list_record("lookup")
         be.set_saved_list_item("lookup", unknown_record, unknown_item)
-        Test.assert(not be.get_saved_list_item("lookup", unknown_record).has(), "an unknown item resolves to null.")
+        ctx.assert(not be.get_saved_list_item("lookup", unknown_record).has(), "an unknown item resolves to null.")
 
         unknown_vanilla_record: number = be.append_saved_list_record("lookup")
         be.set_saved_list_item("lookup", unknown_vanilla_record, unknown_vanilla_item)
-        Test.assert(not be.get_saved_list_item("lookup", unknown_vanilla_record).has(), "an unknown vanilla item resolves to null.")
+        ctx.assert(not be.get_saved_list_item("lookup", unknown_vanilla_record).has(), "an unknown vanilla item resolves to null.")
 
         level.place_block(x, y, z, "minecraft:crafting_table")
-        Test.assert(true, "a multi-word vanilla block places.")
+        ctx.assert(true, "a multi-word vanilla block places.")
     }
 }

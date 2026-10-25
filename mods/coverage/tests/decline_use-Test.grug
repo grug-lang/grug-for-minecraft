@@ -2,7 +2,7 @@
 # use export declines, so right-clicking it must run the export and the call must not be an error. That the
 # game then treats the click as unhandled is in each loader's GrugBlock and shows in how the wooden pipe
 # lets a block be placed against it.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

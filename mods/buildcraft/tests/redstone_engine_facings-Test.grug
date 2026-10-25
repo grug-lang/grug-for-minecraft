@@ -24,20 +24,20 @@ ez: number = 0
 placed_time: number = 0
 faced: bool = false
 
-export run() {
-    if me.tick() == 0 {
-        _setup()
-        me.not_done()
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
         return
     }
 
     if Test.is_reference() and not faced {
         level: Level = Test.get_client_level()
         if level.get_time() > placed_time {
-            _face_reference()
+            _face_reference(ctx)
             faced = true
         }
-        me.not_done()
+        ctx.not_done()
         return
     }
 
@@ -45,20 +45,20 @@ export run() {
     # red particles that torch gave off live for up to 40 ticks after it is cleared away. One of them
     # in the crop is a few pixels that are never in the same place twice, so wait out the longest
     # life with some to spare. The world has no way to say how many particles are left.
-    if me.tick() < 60 {
-        me.not_done()
+    if ctx.tick() < 60 {
+        ctx.not_done()
         return
     }
 
-    if not _ready() {
-        me.not_done()
+    if not _ready(ctx) {
+        ctx.not_done()
         return
     }
 
     Test.screenshot().equals(r"screenshots/redstone_engine_facings", 400, 100, 880, 230)
 }
 
-local _setup() {
+local _setup(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
 
     Test.set_box_radius(10)
@@ -74,7 +74,7 @@ local _setup() {
     while facing < 6 {
         _place_engine(level, ex + facing, ey, ez)
         engine_opt: Option[BlockEntity] = level.get_block_entity(ex + facing, ey, ez)
-        Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+        ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
         engine: BlockEntity = engine_opt.unwrap()
         if not Test.is_reference() {
             engine.set_saved_number("orientation", facing)
@@ -87,12 +87,12 @@ local _setup() {
 }
 
 # Gives each of the reference's engines the facing of its place in the row through its NBT.
-local _face_reference() {
+local _face_reference(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     facing: number = 0
     while facing < 6 {
         engine_opt: Option[BlockEntity] = level.get_block_entity(ex + facing, ey, ez)
-        Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+        ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
         engine: BlockEntity = engine_opt.unwrap()
         Test.set_nbt_number(engine, "orientation", "int", facing)
         Test.load_nbt(engine)
@@ -115,7 +115,7 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
 
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
 # light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
-local _ready() bool {
+local _ready(ctx: TestRunContext) bool {
     if not Test.world_settled() {
         settled_ticks = 0
         return false
@@ -125,7 +125,7 @@ local _ready() bool {
         return false
     }
     if not remeshed {
-        _force_remesh()
+        _force_remesh(ctx)
         remeshed = true
         return false
     }
@@ -138,7 +138,7 @@ local _ready() bool {
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
 # the capture's mesh is built from the settled light. See coverage_render-Test.grug.
-local _force_remesh() {
+local _force_remesh(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -146,7 +146,7 @@ local _force_remesh() {
     z: number = origin.z()
     level.place_block(x - 6, y + 3, z + 10, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 10, "minecraft:stone")
-    Test.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }
 
 # Places the engine as a player does, because the reference's BlockEngine.c, which faces a new

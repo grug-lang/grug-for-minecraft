@@ -1,5 +1,5 @@
 # receive_energy needs a receiver, so sending to a vanilla chest is reported rather than lost without a word.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -8,6 +8,6 @@ export run() {
 
     level.place_block(x, y, z, "minecraft:chest")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
-    me.expect_error("is not an energy receiver")
+    ctx.expect_error("is not an energy receiver")
     be.receive_energy(1)
 }

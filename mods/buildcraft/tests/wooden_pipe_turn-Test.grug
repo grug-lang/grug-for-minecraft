@@ -3,19 +3,19 @@ pipe_turn_source: Option[BlockEntity] = Option.new()
 pipe_turn_target: Option[BlockEntity] = Option.new()
 pipe_turn_self: Option[BlockEntity] = Option.new()
 
-export run() {
-    if me.tick() == 0 {
-        _turn_setup()
-        me.not_done()
-    } else if not _turn_pipe_has_moved() or me.tick() < 20 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        _turn_setup(ctx)
+        ctx.not_done()
+    } else if not _turn_pipe_has_moved() or ctx.tick() < 20 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
-        me.not_done()
+        ctx.not_done()
     } else {
-        _turn_check()
+        _turn_check(ctx)
     }
 }
 
-local _turn_setup() {
+local _turn_setup(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -37,9 +37,9 @@ local _turn_setup() {
     source_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
     target_opt: Option[BlockEntity] = level.get_block_entity(x, y, z - 1)
     self_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(source_opt.has(), "The source chest should have a block entity.")
-    Test.assert(target_opt.has(), "The target chest should have a block entity.")
-    Test.assert(self_opt.has(), "The pipe should have a block entity.")
+    ctx.assert(source_opt.has(), "The source chest should have a block entity.")
+    ctx.assert(target_opt.has(), "The target chest should have a block entity.")
+    ctx.assert(self_opt.has(), "The pipe should have a block entity.")
 
     pipe_turn_source.set(source_opt.unwrap())
     pipe_turn_target.set(target_opt.unwrap())
@@ -49,15 +49,15 @@ local _turn_setup() {
     pipe_turn_source.unwrap().set_item_in_slot(0, diamond, 1)
 }
 
-local _turn_check() {
+local _turn_check(ctx: TestRunContext) {
     source_count: number = pipe_turn_source.unwrap().get_item_count_in_slot(0)
     target_count: number = pipe_turn_target.unwrap().get_item_count_in_slot(0)
     pipe_travelling: number = pipe_turn_self.unwrap().get_saved_list_size("traveling")
 
-    Test.assert(source_count + target_count + pipe_travelling == 1, "The diamond should exist exactly once.")
-    Test.assert(source_count == 0, "The source chest should be empty.")
-    Test.assert(target_count == 1, "The north chest should hold the diamond.")
-    Test.assert(pipe_travelling == 0, "The pipe should not still be carrying the diamond.")
+    ctx.assert(source_count + target_count + pipe_travelling == 1, "The diamond should exist exactly once.")
+    ctx.assert(source_count == 0, "The source chest should be empty.")
+    ctx.assert(target_count == 1, "The north chest should hold the diamond.")
+    ctx.assert(pipe_travelling == 0, "The pipe should not still be carrying the diamond.")
 }
 
 # Same wait as wooden_pipe-Test.grug: the pipe has finished handling the item once it has left the

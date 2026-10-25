@@ -1,6 +1,6 @@
 # Covers the add_item export and AddResponse: a block entity that answers for itself names the slot per
 # item, asking changes nothing, and the host fills the named slot and asks again with the rest.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -13,39 +13,39 @@ export run() {
     plain: BlockEntity = level.get_block_entity(x + 1, y, z).unwrap()
     diamond: Item = item(resource_location("minecraft:diamond"))
 
-    Test.assert(target.add_item(diamond, 0, 5, 4, true) == 0, "A refusing block entity should take nothing.")
-    Test.assert(target.get_saved_number("seen_side") == 4, "The export should be told the side.")
-    Test.assert(target.get_saved_number("seen_add") == 1, "Adding should not be a dry run.")
-    Test.assert(target.get_item_count_in_slot(2) == 0, "A refusal should put nothing in.")
+    ctx.assert(target.add_item(diamond, 0, 5, 4, true) == 0, "A refusing block entity should take nothing.")
+    ctx.assert(target.get_saved_number("seen_side") == 4, "The export should be told the side.")
+    ctx.assert(target.get_saved_number("seen_add") == 1, "Adding should not be a dry run.")
+    ctx.assert(target.get_item_count_in_slot(2) == 0, "A refusal should put nothing in.")
 
     target.set_saved_number("add_mode", 1)
     target.set_saved_number("slot", 2)
 
     # Asking reports how many would fit and changes nothing.
-    Test.assert(target.add_item(diamond, 0, 5, 4, false) == 5, "The dry run should report what fits.")
-    Test.assert(target.get_saved_number("seen_add") == 0, "Asking should be a dry run.")
-    Test.assert(target.get_item_count_in_slot(2) == 0, "The dry run should put nothing in.")
+    ctx.assert(target.add_item(diamond, 0, 5, 4, false) == 5, "The dry run should report what fits.")
+    ctx.assert(target.get_saved_number("seen_add") == 0, "Asking should be a dry run.")
+    ctx.assert(target.get_item_count_in_slot(2) == 0, "The dry run should put nothing in.")
 
-    Test.assert(target.add_item(diamond, 0, 5, 4, true) == 5, "The items should go into the named slot.")
-    Test.assert(target.get_item_count_in_slot(2) == 5, "The named slot should hold them.")
+    ctx.assert(target.add_item(diamond, 0, 5, 4, true) == 5, "The items should go into the named slot.")
+    ctx.assert(target.get_item_count_in_slot(2) == 5, "The named slot should hold them.")
 
     # The named slot holds 64 at most. The host asks again with the rest, the block entity names the
     # same full slot, and the host stops there instead of asking forever.
-    Test.assert(target.add_item(diamond, 0, 100, 4, true) == 59, "Only what fits in the named slot should go in.")
-    Test.assert(target.get_item_count_in_slot(2) == 64, "The named slot should be full.")
-    Test.assert(target.add_item(diamond, 0, 1, 4, false) == 0, "A full slot should fit nothing.")
+    ctx.assert(target.add_item(diamond, 0, 100, 4, true) == 59, "Only what fits in the named slot should go in.")
+    ctx.assert(target.get_item_count_in_slot(2) == 64, "The named slot should be full.")
+    ctx.assert(target.add_item(diamond, 0, 1, 4, false) == 0, "A full slot should fit nothing.")
 
     # The named slot only takes the same item at the same damage.
     stick: Item = item(resource_location("minecraft:stick"))
-    Test.assert(target.add_item(stick, 0, 1, 4, true) == 0, "A different item should not go into a taken slot.")
-    Test.assert(target.add_item(diamond, 1, 1, 4, false) == 0, "A different damage should not go into a taken slot.")
+    ctx.assert(target.add_item(stick, 0, 1, 4, true) == 0, "A different item should not go into a taken slot.")
+    ctx.assert(target.add_item(diamond, 1, 1, 4, false) == 0, "A different damage should not go into a taken slot.")
 
     # A vanilla chest has no grug script at all, so it decides nothing for itself either.
     level.place_block(x + 2, y, z, "minecraft:chest")
     chest: BlockEntity = level.get_block_entity(x + 2, y, z).unwrap()
-    Test.assert(chest.add_item(diamond, 0, 1, 4, true) == -1, "A chest should answer -1.")
+    ctx.assert(chest.add_item(diamond, 0, 1, 4, true) == -1, "A chest should answer -1.")
 
     # A block entity without the export decides nothing for itself.
-    Test.assert(plain.add_item(diamond, 0, 5, 4, true) == -1, "A block entity without the export should answer -1.")
-    Test.assert(plain.get_item_count_in_slot(0) == 0, "A block entity without the export should be left alone.")
+    ctx.assert(plain.add_item(diamond, 0, 5, 4, true) == -1, "A block entity without the export should answer -1.")
+    ctx.assert(plain.get_item_count_in_slot(0) == 0, "A block entity without the export should be left alone.")
 }

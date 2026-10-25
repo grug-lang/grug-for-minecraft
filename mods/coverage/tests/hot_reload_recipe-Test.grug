@@ -6,15 +6,15 @@
 change_baseline: number = -1
 path: string = "coverage/data/grug/recipes/crafting/shapeless_recipe.json"
 
-export run() {
-    if me.tick() == 0 {
-        me.not_done()
-    } else if me.tick() == 1 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        ctx.not_done()
+    } else if ctx.tick() == 1 {
         change_baseline = Test.hot_reload_count(path)
         Test.set_mod_file_state(path, "no_trailing_newline")
-        me.not_done()
+        ctx.not_done()
     } else if Test.hot_reload_count(path) <= change_baseline {
-        me.not_done()
+        ctx.not_done()
     } else {
         Test.set_mod_file_state(path, "normal")
     }

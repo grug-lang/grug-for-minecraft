@@ -1,9 +1,9 @@
 # A negative power is a defect in the caller, which the game would silently treat as no explosion at
 # all, so explode reports it.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
 
-    me.expect_error("explode: power must be from 0 to")
+    ctx.expect_error("explode: power must be from 0 to")
     level.explode(origin.x(), origin.y() + 20, origin.z(), -1)
 }

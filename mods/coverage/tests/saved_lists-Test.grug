@@ -1,7 +1,7 @@
 # The saved lists a block entity keeps: records of named numbers plus an item, appended, read,
 # written, removed and carried through the block entity's NBT. A record with no item answers an empty
 # Option, and a key a record never stored answers 0, which are the defaults a fresh record has.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -11,48 +11,48 @@ export run() {
     level.place_block(x, y, z, "grug:coverage_init_block")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
 
-    Test.assert(be.get_saved_list_size("things") == 0, "A list that was never saved should be empty.")
+    ctx.assert(be.get_saved_list_size("things") == 0, "A list that was never saved should be empty.")
 
     first: number = be.append_saved_list_record("things")
-    Test.assert(first == 0, "The first record should be at index 0.")
-    Test.assert(be.get_saved_list_size("things") == 1, "Appending should grow the list.")
-    Test.assert(be.get_saved_list_number("things", 0, "speed") == 0, "A fresh record should answer 0 for every key.")
-    Test.assert(not be.get_saved_list_item("things", 0).has(), "A fresh record should hold no item.")
+    ctx.assert(first == 0, "The first record should be at index 0.")
+    ctx.assert(be.get_saved_list_size("things") == 1, "Appending should grow the list.")
+    ctx.assert(be.get_saved_list_number("things", 0, "speed") == 0, "A fresh record should answer 0 for every key.")
+    ctx.assert(not be.get_saved_list_item("things", 0).has(), "A fresh record should hold no item.")
 
     # A record with no item has to come back with none, which is the branch the write and the read
     # take when a record holds no item at all.
     Test.round_trip_nbt(be)
-    Test.assert(be.get_saved_list_size("things") == 1, "The reload should keep a record with no item.")
-    Test.assert(not be.get_saved_list_item("things", 0).has(), "A record with no item should reload with none.")
+    ctx.assert(be.get_saved_list_size("things") == 1, "The reload should keep a record with no item.")
+    ctx.assert(not be.get_saved_list_item("things", 0).has(), "A record with no item should reload with none.")
 
     be.set_saved_list_number("things", 0, "speed", 0.5)
-    Test.assert(be.get_saved_list_number("things", 0, "speed") == 0.5, "A saved number should read back.")
+    ctx.assert(be.get_saved_list_number("things", 0, "speed") == 0.5, "A saved number should read back.")
 
     diamond: Item = item(resource_location("minecraft:diamond"))
     be.set_saved_list_item("things", 0, diamond)
     item_opt: Option[Item] = be.get_saved_list_item("things", 0)
-    Test.assert(item_opt.has(), "A saved item should read back.")
+    ctx.assert(item_opt.has(), "A saved item should read back.")
     if item_opt.has() {
-        Test.assert(equals(item_opt.unwrap(), diamond), "The record should hold the item that was saved.")
+        ctx.assert(equals(item_opt.unwrap(), diamond), "The record should hold the item that was saved.")
     }
 
     second: number = be.append_saved_list_record("things")
-    Test.assert(second == 1, "The second record should be at index 1.")
+    ctx.assert(second == 1, "The second record should be at index 1.")
     be.set_saved_list_number("things", 1, "speed", 0.75)
-    Test.assert(be.get_saved_list_size("things") == 2, "The list should hold both records.")
+    ctx.assert(be.get_saved_list_size("things") == 2, "The list should hold both records.")
 
     be.remove_saved_list_record("things", 0)
-    Test.assert(be.get_saved_list_size("things") == 1, "Removing a record should shorten the list.")
-    Test.assert(be.get_saved_list_number("things", 0, "speed") == 0.75, "The later record should move into the removed one's index.")
+    ctx.assert(be.get_saved_list_size("things") == 1, "Removing a record should shorten the list.")
+    ctx.assert(be.get_saved_list_number("things", 0, "speed") == 0.75, "The later record should move into the removed one's index.")
 
     # The whole list, numbers and item, has to survive the block entity's own NBT.
     be.set_saved_list_item("things", 0, diamond)
     Test.round_trip_nbt(be)
-    Test.assert(be.get_saved_list_size("things") == 1, "The reload should keep the list.")
-    Test.assert(be.get_saved_list_number("things", 0, "speed") == 0.75, "The reload should keep the record's numbers.")
+    ctx.assert(be.get_saved_list_size("things") == 1, "The reload should keep the list.")
+    ctx.assert(be.get_saved_list_number("things", 0, "speed") == 0.75, "The reload should keep the record's numbers.")
     reloaded: Option[Item] = be.get_saved_list_item("things", 0)
-    Test.assert(reloaded.has(), "The reload should keep the record's item.")
+    ctx.assert(reloaded.has(), "The reload should keep the record's item.")
     if reloaded.has() {
-        Test.assert(equals(reloaded.unwrap(), diamond), "The reload should keep the diamond.")
+        ctx.assert(equals(reloaded.unwrap(), diamond), "The reload should keep the diamond.")
     }
 }

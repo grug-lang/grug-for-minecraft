@@ -1,6 +1,6 @@
 # Covers the extract_item export and ExtractResponse: a block entity that answers for itself is asked
 # per side, asking takes nothing, and the host performs the move when it is told to.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -15,45 +15,45 @@ export run() {
     source.set_item_in_slot(1, diamond, 10)
 
     # A refusal offers nothing and moves nothing.
-    Test.assert(source.ask_extract_item(3) == 0, "A refusing block entity should offer nothing.")
-    Test.assert(source.get_saved_number("seen_side") == 3, "The export should be told the side.")
-    Test.assert(source.get_saved_number("seen_remove") == 0, "Asking should be a dry run.")
-    Test.assert(source.extract_item_into(destination, 0, 3) == 0, "A refusing block entity should move nothing.")
-    Test.assert(source.get_saved_number("seen_remove") == 1, "Moving should not be a dry run.")
-    Test.assert(source.get_item_count_in_slot(1) == 10, "A refusal should leave the slot alone.")
+    ctx.assert(source.ask_extract_item(3) == 0, "A refusing block entity should offer nothing.")
+    ctx.assert(source.get_saved_number("seen_side") == 3, "The export should be told the side.")
+    ctx.assert(source.get_saved_number("seen_remove") == 0, "Asking should be a dry run.")
+    ctx.assert(source.extract_item_into(destination, 0, 3) == 0, "A refusing block entity should move nothing.")
+    ctx.assert(source.get_saved_number("seen_remove") == 1, "Moving should not be a dry run.")
+    ctx.assert(source.get_item_count_in_slot(1) == 10, "A refusal should leave the slot alone.")
 
     # An answer names a slot and an amount. Asking reports it and takes nothing.
     source.set_saved_number("extract_mode", 1)
     source.set_saved_number("slot", 1)
     source.set_saved_number("amount", 4)
-    Test.assert(source.ask_extract_item(2) == 4, "The dry run should report the amount offered.")
-    Test.assert(source.get_item_count_in_slot(1) == 10, "The dry run should take nothing.")
-    Test.assert(destination.get_item_count_in_slot(0) == 0, "The dry run should put nothing in.")
+    ctx.assert(source.ask_extract_item(2) == 4, "The dry run should report the amount offered.")
+    ctx.assert(source.get_item_count_in_slot(1) == 10, "The dry run should take nothing.")
+    ctx.assert(destination.get_item_count_in_slot(0) == 0, "The dry run should put nothing in.")
 
     # The real request moves what the block entity named, and the item with its damage.
-    Test.assert(source.extract_item_into(destination, 0, 2) == 4, "The move should report the amount moved.")
-    Test.assert(source.get_item_count_in_slot(1) == 6, "The source should have lost 4.")
-    Test.assert(destination.get_item_count_in_slot(0) == 4, "The destination should hold the 4.")
-    Test.assert(equals(destination.get_item_in_slot(0).unwrap(), diamond), "The destination should hold diamonds.")
+    ctx.assert(source.extract_item_into(destination, 0, 2) == 4, "The move should report the amount moved.")
+    ctx.assert(source.get_item_count_in_slot(1) == 6, "The source should have lost 4.")
+    ctx.assert(destination.get_item_count_in_slot(0) == 4, "The destination should hold the 4.")
+    ctx.assert(equals(destination.get_item_in_slot(0).unwrap(), diamond), "The destination should hold diamonds.")
 
     # An amount above what the slot holds is capped by the slot.
     destination.set_item_count_in_slot(0, 0)
     source.set_saved_number("amount", 100)
-    Test.assert(source.ask_extract_item(2) == 6, "The offer should be capped by the slot.")
+    ctx.assert(source.ask_extract_item(2) == 6, "The offer should be capped by the slot.")
 
     # A crafting result a block entity does not have is nothing to give.
     source.set_saved_number("extract_mode", 2)
-    Test.assert(source.ask_extract_item(2) == 0, "A missing crafting result should offer nothing.")
-    Test.assert(source.extract_item_into(destination, 0, 2) == 0, "A missing crafting result should move nothing.")
+    ctx.assert(source.ask_extract_item(2) == 0, "A missing crafting result should offer nothing.")
+    ctx.assert(source.extract_item_into(destination, 0, 2) == 0, "A missing crafting result should move nothing.")
 
     # A block entity without the export decides nothing for itself.
     plain: BlockEntity = destination
-    Test.assert(plain.ask_extract_item(0) == -1, "A block entity without the export should answer -1.")
-    Test.assert(plain.extract_item_into(source, 2, 0) == -1, "A block entity without the export should move nothing.")
+    ctx.assert(plain.ask_extract_item(0) == -1, "A block entity without the export should answer -1.")
+    ctx.assert(plain.extract_item_into(source, 2, 0) == -1, "A block entity without the export should move nothing.")
 
     # A vanilla chest has no grug script at all, so it decides nothing for itself either.
     level.place_block(x + 2, y, z, "minecraft:chest")
     chest: BlockEntity = level.get_block_entity(x + 2, y, z).unwrap()
-    Test.assert(chest.ask_extract_item(0) == -1, "A chest should answer -1.")
-    Test.assert(chest.extract_item_into(source, 2, 0) == -1, "A chest should move nothing.")
+    ctx.assert(chest.ask_extract_item(0) == -1, "A chest should answer -1.")
+    ctx.assert(chest.extract_item_into(source, 2, 0) == -1, "A chest should move nothing.")
 }

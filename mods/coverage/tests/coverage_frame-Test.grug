@@ -17,36 +17,36 @@ remesh_ticks: number = 0
 # How many runner ticks in a row the world has answered settled. See the hold in run().
 settled_ticks: number = 0
 
-export run() {
-    if me.tick() == 0 {
-        _setup()
-        me.not_done()
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
     } else if not Test.world_settled() {
         # The mesh below has to read the settled light, so the wait comes first. See coverage_render
         # and #257 for why one settled answer is not enough.
         settled_ticks = 0
-        me.not_done()
+        ctx.not_done()
     } else if settled_ticks < 5 {
         settled_ticks = settled_ticks + 1
-        me.not_done()
+        ctx.not_done()
     } else if not remeshed {
-        _force_remesh()
+        _force_remesh(ctx)
         remeshed = true
-        me.not_done()
+        ctx.not_done()
     } else if remesh_ticks < 5 {
         # The loaders that mesh synchronously answer settled immediately, so their capture could be
         # taken before the swap's mesh has been rendered.
         remesh_ticks = remesh_ticks + 1
-        me.not_done()
+        ctx.not_done()
     } else if not Test.world_settled() {
         # Waiting for the mesh the swap scheduled. See coverage_render and #259.
-        me.not_done()
+        ctx.not_done()
     } else {
-        _check()
+        _check(ctx)
     }
 }
 
-local _setup() {
+local _setup(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
 
     # The default room is small and this fixture sits at its far edge, so ask for a room that holds
@@ -69,7 +69,7 @@ local _setup() {
     _wall(level, x - 6, y - 9, z + 6)
 
     be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
-    Test.assert(be_opt.has(), "The frame-rendered block should have a block entity.")
+    ctx.assert(be_opt.has(), "The frame-rendered block should have a block entity.")
     frame_block.set(be_opt.unwrap())
 }
 
@@ -88,10 +88,10 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     }
 }
 
-local _check() {
+local _check(ctx: TestRunContext) {
     # The block entity is what the hook drew through, so a missing one would make the screenshot
     # below a picture of nothing that happens to match an empty reference.
-    Test.assert(frame_block.has(), "The frame-rendered block lost its block entity.")
+    ctx.assert(frame_block.has(), "The frame-rendered block lost its block entity.")
 
     # The block item's cube and the item's sprite against the stone wall. Pixel-exact: the stacks'
     # own pixels are the same set on every loader, and the stone background differs per version
@@ -103,7 +103,7 @@ local _check() {
 # Meshes the crop's section again from the settled light by changing a block state and putting it
 # back. The swapped block is outside the crop, and dirt and stone are both opaque and unlit, so the
 # swap changes no light and no compared pixel; it dirties the wall's sections and their neighbours.
-local _force_remesh() {
+local _force_remesh(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -111,5 +111,5 @@ local _force_remesh() {
     z: number = origin.z()
     level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
-    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }

@@ -20,31 +20,31 @@ remesh_ticks: number = 0
 # How many runner ticks in a row the world has answered settled. See the hold in run().
 settled_ticks: number = 0
 
-export run() {
-    if me.tick() == 0 {
-        _setup()
-        me.not_done()
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
     } else if not Test.world_settled() {
         settled_ticks = 0
-        me.not_done()
+        ctx.not_done()
     } else if settled_ticks < 5 {
         settled_ticks = settled_ticks + 1
-        me.not_done()
+        ctx.not_done()
     } else if not remeshed {
-        _force_remesh()
+        _force_remesh(ctx)
         remeshed = true
-        me.not_done()
+        ctx.not_done()
     } else if remesh_ticks < 5 {
         remesh_ticks = remesh_ticks + 1
-        me.not_done()
+        ctx.not_done()
     } else if not Test.world_settled() {
-        me.not_done()
+        ctx.not_done()
     } else {
-        _check()
+        _check(ctx)
     }
 }
 
-local _setup() {
+local _setup(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
 
     # The default room is small and this fixture sits at its far edge, so ask for a room that holds
@@ -62,7 +62,7 @@ local _setup() {
     _wall(level, x - 6, y - 9, z + 6)
 
     be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
-    Test.assert(be_opt.has(), "The pipe should have a block entity.")
+    ctx.assert(be_opt.has(), "The pipe should have a block entity.")
     pipe.set(be_opt.unwrap())
 
     # One of each kind, side by side in the middle of the pipe so a capture shows the cube and the
@@ -152,12 +152,12 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     }
 }
 
-local _check() {
+local _check(ctx: TestRunContext) {
     # The pipe is what the hook drew through, so a missing one would make the screenshot a picture of
     # nothing that happens to match an empty reference.
-    Test.assert(pipe.has(), "The pipe lost its block entity.")
+    ctx.assert(pipe.has(), "The pipe lost its block entity.")
     if not Test.is_reference() {
-        Test.assert(pipe.unwrap().get_saved_list_size("traveling") == 2, "The pipe should still hold both travelling items.")
+        ctx.assert(pipe.unwrap().get_saved_list_size("traveling") == 2, "The pipe should still hold both travelling items.")
     }
 
     # The cube and the sprite seen through the pipe's cage. Pixel-exact: the items' own pixels are
@@ -168,7 +168,7 @@ local _check() {
 
 # Meshes the crop's section again from the settled light by changing a block state and putting it
 # back, as coverage_frame does.
-local _force_remesh() {
+local _force_remesh(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -176,5 +176,5 @@ local _force_remesh() {
     z: number = origin.z()
     level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
-    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+    ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
 }

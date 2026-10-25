@@ -1,6 +1,6 @@
 # A record index is a position in a list, so a fraction names nothing between two records and must be
 # reported rather than rounded to a record the caller did not mean.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -10,6 +10,6 @@ export run() {
     level.place_block(x, y, z, "grug:coverage_init_block")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
 
-    me.expect_error("The index has to be a whole number from 0 to")
+    ctx.expect_error("The index has to be a whole number from 0 to")
     value: number = be.get_saved_list_number("things", 0.5, "speed")
 }

@@ -27,11 +27,11 @@ reload_baseline: number = -1
 path: string = "coverage/assets/grug/textures/block/coverage_block.png"
 before: Option[Screenshot] = Option.new()
 
-export run() {
-    if me.tick() == 0 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
         origin: Vec3 = Test.setup_graphics_camera()
         _wall_in_front_of(origin)
-        me.not_done()
+        ctx.not_done()
     } else if not Test.world_settled() {
         # How long a placed block takes to reach the framebuffer is a condition rather than a tick
         # count: the wall dirties the renderer, and this stays false until the frame that drained
@@ -39,7 +39,7 @@ export run() {
         # texture before anything of it is drawn, and the old fixed 40-tick wait raced a slower
         # runner doing that. The autocrafting table GUI test measures the same wait against the same
         # camera. See #257.
-        me.not_done()
+        ctx.not_done()
     } else if not swapped {
         # The shipped texture, read once the frame has settled so the wall is really in it, which
         # the comparison below needs: a capture of a frame from before the wall was drawn would
@@ -50,7 +50,7 @@ export run() {
         reload_baseline = Test.reload_count(path)
         Test.set_mod_file_state(path, "swapped")
         swapped = true
-        me.not_done()
+        ctx.not_done()
     } else if not reload_seen {
         # Waiting for the engine to report the write, rather than for a fixed number of ticks, is
         # what makes this independent of filesystem timestamp granularity and of the engine's
@@ -58,19 +58,19 @@ export run() {
         if Test.hot_reload_count(path) > change_baseline {
             reload_seen = true
         }
-        me.not_done()
+        ctx.not_done()
     } else if Test.reload_count(path) <= reload_baseline {
         # The report only says the engine saw the file. The loader still has to answer it, and
         # StationAPI's resource reload runs off-thread, so this waits for the loader to say it
         # finished instead of guessing a number of ticks. Loaders report the finish after the
         # tick's own run() call, so the capture below lands on a later tick than the finish.
-        me.not_done()
+        ctx.not_done()
     } else if not Test.world_settled() {
         # The loader finishes its reload inside a game tick, and the next test call can come before
         # a single frame has been drawn with the new texture, so a capture right after the count
         # rose read the old frame. The loader forgets its settled frames when a reload finishes, so
         # this holds until frames drawn after the reload have ended idle. See #324.
-        me.not_done()
+        ctx.not_done()
     } else {
         reloaded: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
         reloaded.differs_from(before.unwrap(), 90)

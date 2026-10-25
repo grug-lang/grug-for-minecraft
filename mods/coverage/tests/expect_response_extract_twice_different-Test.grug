@@ -1,5 +1,5 @@
 # ExtractResponse answered twice with different answers is an err, because the export has two paths that both think they decide.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -11,6 +11,6 @@ export run() {
     diamond: Item = item(resource_location("minecraft:diamond"))
     be.set_saved_number("extract_mode", 3)
 
-    me.expect_error("has already been answered")
+    ctx.expect_error("has already been answered")
     be.ask_extract_item(0)
 }

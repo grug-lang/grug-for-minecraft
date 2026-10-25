@@ -1,5 +1,5 @@
 # Covers insert_item_into_inventory(), which the wooden pipe uses to push an item into a neighbour.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -8,7 +8,7 @@ export run() {
 
     level.place_block(x, y, z, "grug:coverage_block")
     block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(block_opt.has(), "The coverage block should have a block entity.")
+    ctx.assert(block_opt.has(), "The coverage block should have a block entity.")
     be: BlockEntity = block_opt.unwrap()
 
     diamond: Item = item(resource_location("minecraft:diamond"))
@@ -16,41 +16,41 @@ export run() {
     # A dry run answers what would fit and changes nothing, which is how the pipe asks whether a
     # neighbour has room before it chooses it as an exit.
     dry: number = be.insert_item_into_inventory(diamond, 0, 100, false)
-    Test.assert(dry == 100, "A dry run should say all 100 would fit.")
-    Test.assert(be.get_item_count_in_slot(0) == 0, "A dry run should insert nothing.")
+    ctx.assert(dry == 100, "A dry run should say all 100 would fit.")
+    ctx.assert(be.get_item_count_in_slot(0) == 0, "A dry run should insert nothing.")
 
     # The coverage block has 9 slots, so 100 diamonds fill one 64 stack and part of the next.
     inserted: number = be.insert_item_into_inventory(diamond, 0, 100, true)
-    Test.assert(inserted == 100, "All 100 diamonds should fit.")
-    Test.assert(be.get_item_count_in_slot(0) == 64, "The first slot should be full.")
-    Test.assert(be.get_item_count_in_slot(1) == 36, "The second slot should hold the rest.")
+    ctx.assert(inserted == 100, "All 100 diamonds should fit.")
+    ctx.assert(be.get_item_count_in_slot(0) == 64, "The first slot should be full.")
+    ctx.assert(be.get_item_count_in_slot(1) == 36, "The second slot should hold the rest.")
 
     # A dry run counts a partial stack's room as well as empty slots, and changes neither, which is
     # the branch the pipe takes when it asks whether a neighbour has room.
     dry_topped: number = be.insert_item_into_inventory(diamond, 0, 100, false)
-    Test.assert(dry_topped == 100, "A dry run should count the partial stack and the empty slots.")
-    Test.assert(be.get_item_count_in_slot(1) == 36, "A dry run should not fill the partial stack.")
+    ctx.assert(dry_topped == 100, "A dry run should count the partial stack and the empty slots.")
+    ctx.assert(be.get_item_count_in_slot(1) == 36, "A dry run should not fill the partial stack.")
 
     # Topping up exactly the partial stack's remaining room consumes the whole amount, so the insert
     # loop exits on remaining == 0 rather than only ever running out of slots.
     topped: number = be.insert_item_into_inventory(diamond, 0, 28, true)
-    Test.assert(topped == 28, "The partial stack should take exactly its remaining room.")
-    Test.assert(be.get_item_count_in_slot(1) == 64, "The second slot should then be full.")
+    ctx.assert(topped == 28, "The partial stack should take exactly its remaining room.")
+    ctx.assert(be.get_item_count_in_slot(1) == 64, "The second slot should then be full.")
 
     # Filling the rest reports exactly the remaining capacity: 9 * 64 - 128.
     inserted_rest: number = be.insert_item_into_inventory(diamond, 0, 1000, true)
-    Test.assert(inserted_rest == 448, "Only the remaining capacity should accept diamonds.")
-    Test.assert(be.get_item_count_in_slot(8) == 64, "The last slot should be full.")
+    ctx.assert(inserted_rest == 448, "Only the remaining capacity should accept diamonds.")
+    ctx.assert(be.get_item_count_in_slot(8) == 64, "The last slot should be full.")
 
     # A full inventory takes nothing more.
     inserted_full: number = be.insert_item_into_inventory(diamond, 0, 10, true)
-    Test.assert(inserted_full == 0, "A full inventory should take nothing.")
+    ctx.assert(inserted_full == 0, "A full inventory should take nothing.")
 
     # A different item, or the same item at a different damage, is not the stack to top up, so the
     # adapters' non-matching comparison branches are exercised rather than only the matching path.
     other: Item = item(resource_location("grug:coverage_item"))
-    Test.assert(be.insert_item_into_inventory(other, 0, 1, true) == 0, "A different item should not top up.")
+    ctx.assert(be.insert_item_into_inventory(other, 0, 1, true) == 0, "A different item should not top up.")
 
     damaged: Item = item(resource_location("minecraft:diamond"))
-    Test.assert(be.insert_item_into_inventory(damaged, 1, 1, true) == 0, "A different damage should not top up.")
+    ctx.assert(be.insert_item_into_inventory(damaged, 1, 1, true) == 0, "A different damage should not top up.")
 }

@@ -2,19 +2,19 @@
 pipe_drop_source: Option[BlockEntity] = Option.new()
 pipe_drop_self: Option[BlockEntity] = Option.new()
 
-export run() {
-    if me.tick() == 0 {
-        _drop_setup()
-        me.not_done()
-    } else if not _drop_pipe_has_moved() or me.tick() < 15 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
+        _drop_setup(ctx)
+        ctx.not_done()
+    } else if not _drop_pipe_has_moved() or ctx.tick() < 15 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
-        me.not_done()
+        ctx.not_done()
     } else {
-        _drop_check()
+        _drop_check(ctx)
     }
 }
 
-local _drop_setup() {
+local _drop_setup(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -34,8 +34,8 @@ local _drop_setup() {
 
     source_opt: Option[BlockEntity] = level.get_block_entity(x - 1, y, z)
     self_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-    Test.assert(source_opt.has(), "The source chest should have a block entity.")
-    Test.assert(self_opt.has(), "The pipe should have a block entity.")
+    ctx.assert(source_opt.has(), "The source chest should have a block entity.")
+    ctx.assert(self_opt.has(), "The pipe should have a block entity.")
     pipe_drop_source.set(source_opt.unwrap())
     pipe_drop_self.set(self_opt.unwrap())
 
@@ -44,7 +44,7 @@ local _drop_setup() {
     pipe_drop_source.unwrap().set_item_damage_in_slot(0, 7)
 }
 
-local _drop_check() {
+local _drop_check(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -53,16 +53,16 @@ local _drop_check() {
 
     source_count: number = pipe_drop_source.unwrap().get_item_count_in_slot(0)
     travelling: number = pipe_drop_self.unwrap().get_saved_list_size("traveling")
-    Test.assert(source_count == 0, "The source chest should be empty.")
-    Test.assert(travelling == 0, "The pipe should have dropped its travelling item.")
+    ctx.assert(source_count == 0, "The source chest should be empty.")
+    ctx.assert(travelling == 0, "The pipe should have dropped its travelling item.")
 
     # A wide radius, because the dropped item is not held in place.
     found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
-    Test.assert(found.has(), "The pipe should have dropped the sword.")
+    ctx.assert(found.has(), "The pipe should have dropped the sword.")
 
     if found.has() {
         dropped: ItemEntity = found.unwrap()
-        Test.assert(dropped.damage() == 7, "The dropped sword should keep its damage.")
+        ctx.assert(dropped.damage() == 7, "The dropped sword should keep its damage.")
     }
 }
 

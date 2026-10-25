@@ -1,5 +1,5 @@
 # An add_item export that errors when the host asks again with the rest ends the loop with what already went in, and the err is reported.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -12,6 +12,6 @@ export run() {
     be.set_saved_number("add_mode", 7)
     be.set_saved_number("slot", 2)
     be.set_item_in_slot(2, diamond, 63)
-    me.expect_error("unwrap an empty Option")
+    ctx.expect_error("unwrap an empty Option")
     be.add_item(diamond, 0, 100, 0, true)
 }

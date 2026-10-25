@@ -1,6 +1,6 @@
 # An index past the end of an existing list names no record, so reading it is reported rather than
 # answered with a fresh record's defaults.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -11,6 +11,6 @@ export run() {
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
     be.append_saved_list_record("things")
 
-    me.expect_error("There is no record at index 1")
+    ctx.expect_error("There is no record at index 1")
     value: number = be.get_saved_list_number("things", 1, "speed")
 }

@@ -1,6 +1,6 @@
 # Exercises the inventory host functions across filled, empty, whole-stack and zero-count cases.
-export run() {
-    if me.tick() == 0 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x()
@@ -9,50 +9,50 @@ export run() {
 
         level.place_block(x, y, z, "grug:coverage_block")
         block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-        Test.assert(block_opt.has(), "block has no block entity after being placed.")
+        ctx.assert(block_opt.has(), "block has no block entity after being placed.")
         block: BlockEntity = block_opt.unwrap()
         diamond: Item = item(resource_location("minecraft:diamond"))
 
         block.set_item_in_slot(0, diamond, 5)
-        Test.assert(block.get_item_count_in_slot(0) == 5, "Expected 5 diamonds in slot 0.")
-        Test.assert(block.get_item_in_slot(0).has(), "Slot 0 should report an item.")
+        ctx.assert(block.get_item_count_in_slot(0) == 5, "Expected 5 diamonds in slot 0.")
+        ctx.assert(block.get_item_in_slot(0).has(), "Slot 0 should report an item.")
 
         # Damage is only observable on a damageable item: newer versions clamp it to the item's
         # max damage, which is 0 for a diamond, so a sword is used instead.
         sword: Item = item(resource_location("minecraft:diamond_sword"))
         block.set_item_in_slot(0, sword, 1)
         block.set_item_damage_in_slot(0, 3)
-        Test.assert(block.get_item_damage_in_slot(0) == 3, "Expected damage 3 on the sword.")
+        ctx.assert(block.get_item_damage_in_slot(0) == 3, "Expected damage 3 on the sword.")
 
         # An empty slot takes the null branches.
-        Test.assert(block.get_item_count_in_slot(1) == 0, "Slot 1 should be empty.")
-        Test.assert(block.get_item_damage_in_slot(1) == 0, "An empty slot should report no damage.")
+        ctx.assert(block.get_item_count_in_slot(1) == 0, "Slot 1 should be empty.")
+        ctx.assert(block.get_item_damage_in_slot(1) == 0, "An empty slot should report no damage.")
         block.set_item_damage_in_slot(1, 4)
-        Test.assert(not block.get_item_in_slot(1).has(), "Slot 1 should report no item.")
+        ctx.assert(not block.get_item_in_slot(1).has(), "Slot 1 should report no item.")
 
         # Taking more than the stack holds empties the slot.
         block.set_item_in_slot(0, diamond, 5)
-        Test.assert(block.take_item_from_slot(0, 10) == 5, "Taking 10 should remove the 5 present.")
-        Test.assert(block.get_item_count_in_slot(0) == 0, "Slot 0 should now be empty.")
+        ctx.assert(block.take_item_from_slot(0, 10) == 5, "Taking 10 should remove the 5 present.")
+        ctx.assert(block.get_item_count_in_slot(0) == 0, "Slot 0 should now be empty.")
 
         # A zero count clears the slot; a positive count leaves a partial stack.
         block.set_item_in_slot(0, diamond, 3)
         block.set_item_count_in_slot(0, 0)
-        Test.assert(block.get_item_count_in_slot(0) == 0, "A zero count should clear the slot.")
+        ctx.assert(block.get_item_count_in_slot(0) == 0, "A zero count should clear the slot.")
         block.set_item_in_slot(0, diamond, 3)
         block.set_item_count_in_slot(0, 1)
-        Test.assert(block.get_item_count_in_slot(0) == 1, "A count of 1 should leave 1.")
+        ctx.assert(block.get_item_count_in_slot(0) == 1, "A count of 1 should leave 1.")
 
         # Counting and extracting across the inventory.
         block.set_item_in_slot(0, diamond, 4)
-        Test.assert(block.count_item_in_inventory(diamond, 0) == 4, "Expected 4 diamonds.")
-        Test.assert(block.extract_item_from_inventory(diamond, 0, 2) == 2, "Expected to extract 2.")
-        Test.assert(block.count_item_in_inventory(diamond, 0) == 2, "Expected 2 diamonds left.")
+        ctx.assert(block.count_item_in_inventory(diamond, 0) == 4, "Expected 4 diamonds.")
+        ctx.assert(block.extract_item_from_inventory(diamond, 0, 2) == 2, "Expected to extract 2.")
+        ctx.assert(block.count_item_in_inventory(diamond, 0) == 2, "Expected 2 diamonds left.")
 
         # Out-of-range slots must be ignored rather than crash.
-        Test.assert(block.get_item_count_in_slot(999) == 0, "An out-of-range slot should read as empty.")
-        Test.assert(not block.get_item_in_slot(999).has(), "An out-of-range slot should have no item.")
-        Test.assert(block.take_item_from_slot(999, 1) == 0, "Taking from an out-of-range slot should remove nothing.")
+        ctx.assert(block.get_item_count_in_slot(999) == 0, "An out-of-range slot should read as empty.")
+        ctx.assert(not block.get_item_in_slot(999).has(), "An out-of-range slot should have no item.")
+        ctx.assert(block.take_item_from_slot(999, 1) == 0, "Taking from an out-of-range slot should remove nothing.")
         block.set_item_count_in_slot(999, 1)
         block.set_item_in_slot(999, diamond, 1)
         block.set_item_damage_in_slot(999, 1)

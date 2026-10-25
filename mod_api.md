@@ -63,11 +63,7 @@ export tick()
 export init()
 
 ## Test
-export run()
-.expect_error(message: string)
-.not_done()
-.tick() number
-Test.assert(condition: bool, message: string)
+export run(ctx: TestRunContext)
 Test.clear_held_item(player: Player)
 Test.close_screen()
 Test.force_gc()
@@ -167,6 +163,12 @@ Option.new() Option[$Value]
 .differs_from(other: Screenshot, percent: number)
 .equals(reference: resource, x1: number, y1: number, x2: number, y2: number)
 .tolerance(percent: number) Screenshot
+
+## TestRunContext
+.assert(condition: bool, message: string)
+.expect_error(message: string)
+.not_done()
+.tick() number
 
 ## Vec3
 .x() number

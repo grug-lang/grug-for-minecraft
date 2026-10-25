@@ -2,8 +2,8 @@
 # this waits for that spawn rather than for a fixed number of runner ticks: Test.tick() counts runner
 # ticks, which are rendered frames, and how many game ticks that is depends on how loaded the machine
 # is. See #173.
-export run() {
-    if me.tick() == 0 {
+export run(ctx: TestRunContext) {
+    if ctx.tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x()
@@ -12,14 +12,14 @@ export run() {
 
         level.place_block(x, y, z, "grug:foo_block")
         block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-        Test.assert(block_opt.has(), "foo_block has no block entity after being placed.")
+        ctx.assert(block_opt.has(), "foo_block has no block entity after being placed.")
 
-        me.not_done()
-    } else if not _diamond_has_spawned() or me.tick() < 15 {
+        ctx.not_done()
+    } else if not _diamond_has_spawned() or ctx.tick() < 15 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
-        me.not_done()
+        ctx.not_done()
     } else {
-        Test.assert(true, "The block entity spawned its diamond.")
+        ctx.assert(true, "The block entity spawned its diamond.")
     }
 }
 

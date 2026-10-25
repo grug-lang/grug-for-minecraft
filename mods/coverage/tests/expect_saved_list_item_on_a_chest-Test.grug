@@ -1,7 +1,7 @@
 # A saved list is something only a grug block entity writes into its NBT, so asking a vanilla chest
 # for a record's item reports the list error and answers an empty Option rather than a value that
 # would be lost with the chest's chunk.
-export run() {
+export run(ctx: TestRunContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -11,6 +11,6 @@ export run() {
     level.place_block(x, y, z, "minecraft:chest")
     chest: BlockEntity = level.get_block_entity(x, y, z).unwrap()
 
-    me.expect_error("Only a grug block entity saves lists")
+    ctx.expect_error("Only a grug block entity saves lists")
     item_opt: Option[Item] = chest.get_saved_list_item("things", 0)
 }
