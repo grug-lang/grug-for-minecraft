@@ -121,7 +121,7 @@ fi
 # directory stream owns (#562). The panic is std's, not grug's VM, so it is not #123.
 if printf '%s\n' "$PANIC_MESSAGE" | grep -q "unexpected error during closedir"; then
   echo "==> This is the file watcher's closedir panic: another library closed a descriptor the watcher's"
-  echo "==> directory stream owned, which is not a bug in the grug VM. Tracked as"
+  echo "==> directory stream owned, which is not a bug in grug-rs. Tracked as"
   echo "==> grug-lang/grug-for-minecraft#562; a re-run of the job passes."
 else
   echo "==> The panic itself is in grug-lang/grug-rs; this repository only sees the abort."
