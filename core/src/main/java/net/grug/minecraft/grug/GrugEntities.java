@@ -130,4 +130,42 @@ public final class GrugEntities {
             GrugStateLock.unlock();
         }
     }
+
+    /**
+     * Runs {@code task} with a fresh root list, then restores the previous one.
+     *
+     * <p>An export that runs every frame creates host entities through calls such as {@code item}
+     * and {@code vec3}. Rooting them in the list the call found would keep the previous frame's
+     * entities alive forever, so an export that owns its entities for the whole call creates the
+     * context, runs the export and cleans the context up inside here. The caller holds {@link
+     * GrugStateLock}: the swap is process-global state and has to be in the same critical section
+     * as the call, for the reason {@link #createEntityWithOwner} gives.
+     */
+    static void withFreshOwner(Runnable task) {
+        List<GrugObject> oldFnEntities = fnEntities;
+        fnEntities = new ArrayList<>();
+        try {
+            task.run();
+        } finally {
+            fnEntities = oldFnEntities;
+        }
+    }
+
+    /**
+     * Runs {@code task} under the state lock, for a caller that has to take the state lock before a
+     * monitor of its own.
+     *
+     * <p>{@link GrugStateLock} is package-private because every entry into the native state lives
+     * here. A loader's block entity still has to serialize its first initialization against both
+     * the game's threads and a script export that already holds the state lock, and taking the
+     * state lock first there keeps its order the same as every host call's.
+     */
+    public static void runLocked(Runnable task) {
+        GrugStateLock.lock();
+        try {
+            task.run();
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
 }

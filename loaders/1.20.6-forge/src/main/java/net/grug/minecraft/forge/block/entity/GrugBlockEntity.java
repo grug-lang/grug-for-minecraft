@@ -100,12 +100,21 @@ public class GrugBlockEntity extends BlockEntity
     /**
      * Creates this block entity's grug entity.
      *
-     * <p>Synchronized because 1.20.6 compiles chunks on worker threads: the chunk mesher asks for
-     * the handle while the render thread's frame renderer can ask for it at the same time, and two
+     * <p>Serialized because 1.20.6 compiles chunks on worker threads: the chunk mesher asks for the
+     * handle while the render thread's frame renderer can ask for it at the same time, and two
      * unsynchronized calls would both find no handle, create one each, and leak the first. The
      * other loaders compile and draw on one thread, so only this one needs it.
+     *
+     * <p>The state lock is taken before this entity's monitor, which is a method of its own so the
+     * order is the same as every host call's. A script export holds the state lock and can reach
+     * {@code initGrug} through an uninitialized block entity, so taking the monitor first would let
+     * a mesher holding the monitor wait for the state lock while the export waits for the monitor.
      */
-    private synchronized void initGrug() {
+    private void initGrug() {
+        GrugEntities.runLocked(this::initGrugLocked);
+    }
+
+    private synchronized void initGrugLocked() {
         if (entityHandle != 0 || initStarted) return;
 
         initStarted = true;
