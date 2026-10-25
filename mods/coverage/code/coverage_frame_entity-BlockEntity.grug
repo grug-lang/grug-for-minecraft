@@ -4,7 +4,7 @@
 # top of it rather than floating in the room.
 
 # Hoisted to member scope so the frame does not create a new Item every frame.
-log: Item = item(resource_location("minecraft:log"))
+log: Item = item(resource_location("minecraft:oak_log"))
 stick: Item = item(resource_location("minecraft:stick"))
 
 # Read every frame, because a reference that interpolates needs the tick and a part that aims

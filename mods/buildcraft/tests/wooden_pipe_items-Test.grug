@@ -63,9 +63,9 @@ local _setup() {
     pipe.set(be_opt.unwrap())
 
     # One of each kind, side by side in the middle of the pipe so a capture shows the cube and the
-    # sprite together. `minecraft:log` is a block, which the reference draws as a cube, and
+    # sprite together. `minecraft:oak_log` is a block, which the reference draws as a cube, and
     # `minecraft:stick` is an item, which it draws as a flat sprite.
-    _hold(pipe.unwrap(), item(resource_location("minecraft:log")), -0.2)
+    _hold(pipe.unwrap(), item(resource_location("minecraft:oak_log")), -0.2)
     _hold(pipe.unwrap(), item(resource_location("minecraft:stick")), 0.2)
 }
 
