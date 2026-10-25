@@ -1,0 +1,125 @@
+# Covers the wooden pipe's centre-and-arms shape: a straight run, where the arms leave two opposite
+# sides, and a corner, where they leave two perpendicular ones. The arms are the reference's
+# RenderPipe.renderWorldBlock boxes drawn from the block entity's chunk render, and the source side's
+# arm uses the plain texture prepareTextureFor switches to. The screenshots are the assertion.
+pipe: Option[BlockEntity] = Option.new()
+
+# Whether the pedestal and the wall have been meshed again from the settled light yet.
+remeshed: bool = false
+
+# How many runner ticks have passed since the swap. See the wait in run().
+remesh_ticks: number = 0
+
+# How many runner ticks in a row the world has answered settled. See the hold in run().
+settled_ticks: number = 0
+
+# 0 while the straight run is on screen, 1 after the corner has replaced it.
+phase: number = 0
+
+export run() {
+    if me.tick() == 0 {
+        _setup()
+        me.not_done()
+    } else if not Test.world_settled() {
+        # The mesh below has to read the settled light, so the wait comes first. See coverage_render
+        # and #257 for why one settled answer is not enough.
+        settled_ticks = 0
+        me.not_done()
+    } else if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        me.not_done()
+    } else if not remeshed {
+        _force_remesh()
+        remeshed = true
+        me.not_done()
+    } else if remesh_ticks < 5 {
+        # The loaders that mesh synchronously answer settled immediately, so their capture could be
+        # taken before the swap's mesh has been rendered.
+        remesh_ticks = remesh_ticks + 1
+        me.not_done()
+    } else if not Test.world_settled() {
+        # Waiting for the mesh the swap scheduled. See coverage_render and #259.
+        me.not_done()
+    } else {
+        if phase == 0 {
+            Test.assert(pipe.has(), "The pipe should have a block entity.")
+            Test.screenshot().equals(r"screenshots/wooden_pipe_straight", 400, 120, 880, 360)
+            phase = 1
+            _make_corner()
+            remeshed = false
+            remesh_ticks = 0
+            settled_ticks = 0
+            me.not_done()
+        } else {
+            Test.screenshot().equals(r"screenshots/wooden_pipe_corner", 400, 120, 880, 360)
+        }
+    }
+}
+
+local _setup() {
+    level: Level = Test.get_client_level()
+
+    # The default room is small and this fixture sits at its far edge, so ask for a room that holds
+    # the pipe, its two chests and the wall behind them.
+    Test.set_box_radius(6)
+
+    origin: Vec3 = Test.setup_graphics_camera()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    _wall(level, x - 6, y - 9, z + 6)
+
+    level.place_block(x, y - 1.88, z + 4, "grug:wooden_pipe")
+    level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
+    level.place_block(x - 1, y - 1.88, z + 4, "minecraft:chest")
+
+    pipe_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
+    pipe.set(pipe_opt.unwrap())
+
+    # The source side is the east chest, so its arm is the plain-texture arm. The saved number is
+    # the side plus one, like the reference's metadata; side 5 is east.
+    pipe.unwrap().set_saved_number("source", 6)
+}
+
+# Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
+# spare. Kept small on purpose: every block placed re-lights the columns around it for several ticks
+# afterwards.
+local _wall(level: Level, x0: number, y0: number, z: number) {
+    wy: number = y0
+    while wy < y0 + 13 {
+        wx: number = x0
+        while wx < x0 + 13 {
+            level.place_block(wx, wy, z, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+}
+
+# Replaces the west chest with one to the south, so the arms leave adjacent sides instead of
+# opposite ones. The east chest stays the source, and the pipe's own shape is rebuilt by the swap.
+local _make_corner() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level.place_block(x - 1, y - 1.88, z + 4, "minecraft:air")
+    level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
+}
+
+# Meshes the crop's section again from the settled light by changing a block state and putting it
+# back. The swapped block is outside the crop, and dirt and stone are both opaque and unlit, so the
+# swap changes no light and no compared pixel; it dirties the wall's sections and their neighbours.
+local _force_remesh() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
+    level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
+    Test.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}
