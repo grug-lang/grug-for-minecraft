@@ -19,6 +19,11 @@ import net.minecraft.entity.player.ClientPlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.BlockView;
+import net.modificationstation.stationapi.api.client.StationRenderAPI;
+import net.modificationstation.stationapi.api.client.texture.Sprite;
+import net.modificationstation.stationapi.api.client.texture.SpriteAtlasTexture;
+import net.modificationstation.stationapi.api.client.texture.atlas.Atlases;
+import net.modificationstation.stationapi.api.client.texture.atlas.CustomAtlasProvider;
 
 import org.lwjgl.opengl.GL11;
 
@@ -47,10 +52,7 @@ import org.lwjgl.opengl.GL11;
         "draws during the game's frame, so it is coupled to the renderer rather than to grug")
 public class GrugFrameRenderer extends BlockEntityRenderer {
 
-    /** The atlas an item that is not a block draws its sprite from. */
-    private static final String ITEMS_ATLAS = "/gui/items.png";
-
-    /** The atlas a block that is not a cube draws its sprite from. */
+    /** The atlas a block item drawn as a cube samples its faces from. */
     private static final String TERRAIN_ATLAS = "/terrain.png";
 
     /** The world the cached block renderer belongs to, or null before the first frame. */
@@ -187,22 +189,21 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
             int icon = stack.getTextureId();
             GL11.glTranslatef(0.0F, (float) lift, 0.0F);
             GL11.glScalef((float) scale, (float) scale, (float) scale);
-            textures.bindTexture(
-                    textures.getTextureId(block != null ? TERRAIN_ATLAS : ITEMS_ATLAS));
 
-            // The sprite index is a slot in the bound atlas, whose size is not always the
-            // 256x256 a vanilla items.png is: StationAPI stitches the pack's items into a larger
-            // atlas, so the fixed 16 columns sampled a 2x2 group of the wrong sprites. Ask the
-            // bound texture how wide it is and divide by the 16-pixel sprite size.
-            int atlasWidth =
-                    GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
-            int atlasHeight =
-                    GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
-            int columns = Math.max(1, atlasWidth / 16);
-            float u0 = (float) (icon % columns * 16) / atlasWidth;
-            float u1 = (float) (icon % columns * 16 + 16) / atlasWidth;
-            float v0 = (float) (icon / columns * 16) / atlasHeight;
-            float v1 = (float) (icon / columns * 16 + 16) / atlasHeight;
+            // StationAPI stitches the pack's sprites into one game atlas, so an item's texture
+            // index is not a slot in a 256x256 items.png. Ask the same atlas the reference's item
+            // entity renderer asks for the sprite the index names, rather than recomputing UVs
+            // from the index.
+            SpriteAtlasTexture atlas =
+                    StationRenderAPI.getBakedModelManager().getAtlas(Atlases.GAME_ATLAS_TEXTURE);
+            atlas.bindTexture();
+            Sprite sprite =
+                    atlas.getSprite(
+                            ((CustomAtlasProvider) item).getAtlas().getTexture(icon).getId());
+            float u0 = sprite.getMinU();
+            float u1 = sprite.getMaxU();
+            float v0 = sprite.getMinV();
+            float v1 = sprite.getMaxV();
             for (int copy = 0; copy < copies; copy++) {
                 GL11.glPushMatrix();
                 if (copy > 0) {
