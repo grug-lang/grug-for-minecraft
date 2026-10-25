@@ -190,10 +190,19 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
             textures.bindTexture(
                     textures.getTextureId(block != null ? TERRAIN_ATLAS : ITEMS_ATLAS));
 
-            float u0 = (float) (icon % 16 * 16) / 256.0F;
-            float u1 = (float) (icon % 16 * 16 + 16) / 256.0F;
-            float v0 = (float) (icon / 16 * 16) / 256.0F;
-            float v1 = (float) (icon / 16 * 16 + 16) / 256.0F;
+            // The sprite index is a slot in the bound atlas, whose size is not always the
+            // 256x256 a vanilla items.png is: StationAPI stitches the pack's items into a larger
+            // atlas, so the fixed 16 columns sampled a 2x2 group of the wrong sprites. Ask the
+            // bound texture how wide it is and divide by the 16-pixel sprite size.
+            int atlasWidth =
+                    GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
+            int atlasHeight =
+                    GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
+            int columns = Math.max(1, atlasWidth / 16);
+            float u0 = (float) (icon % columns * 16) / atlasWidth;
+            float u1 = (float) (icon % columns * 16 + 16) / atlasWidth;
+            float v0 = (float) (icon / columns * 16) / atlasHeight;
+            float v1 = (float) (icon / columns * 16 + 16) / atlasHeight;
             for (int copy = 0; copy < copies; copy++) {
                 GL11.glPushMatrix();
                 if (copy > 0) {

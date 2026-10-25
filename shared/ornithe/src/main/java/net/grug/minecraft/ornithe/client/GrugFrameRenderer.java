@@ -165,10 +165,19 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
             GL11.glScalef((float) scale, (float) scale, (float) scale);
             textures.bind(textures.load(block != null ? TERRAIN_ATLAS : ITEMS_ATLAS));
 
-            float u0 = (float) (icon % 16 * 16) / 256.0F;
-            float u1 = (float) (icon % 16 * 16 + 16) / 256.0F;
-            float v0 = (float) (icon / 16 * 16) / 256.0F;
-            float v1 = (float) (icon / 16 * 16 + 16) / 256.0F;
+            // The sprite index is a slot in the bound atlas, whose size is not guaranteed to be
+            // the 256x256 a vanilla items.png is. Ask the bound texture for its size and divide by
+            // the 16-pixel sprite size, so a loader that stitches a larger atlas does not sample a
+            // 2x2 group of the wrong sprites.
+            int atlasWidth =
+                    GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
+            int atlasHeight =
+                    GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
+            int columns = Math.max(1, atlasWidth / 16);
+            float u0 = (float) (icon % columns * 16) / atlasWidth;
+            float u1 = (float) (icon % columns * 16 + 16) / atlasWidth;
+            float v0 = (float) (icon / columns * 16) / atlasHeight;
+            float v1 = (float) (icon / columns * 16 + 16) / atlasHeight;
             for (int copy = 0; copy < copies; copy++) {
                 GL11.glPushMatrix();
                 if (copy > 0) {

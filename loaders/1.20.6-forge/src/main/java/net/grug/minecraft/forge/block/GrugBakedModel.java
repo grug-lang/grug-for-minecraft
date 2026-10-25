@@ -179,13 +179,15 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
         List<BakedQuad> quads = new ArrayList<>();
         for (Direction direction : Direction.values()) {
             BlockPos neighbour = pos.relative(direction);
-            boolean hidden = Block.shouldRenderFace(state, level, pos, direction, neighbour);
+            // shouldRenderFace answers whether the face is visible, not whether it is hidden: the
+            // game drops the face of a full cube here when the neighbour hides it.
+            boolean visible = Block.shouldRenderFace(state, level, pos, direction, neighbour);
             Face face = face(state, direction, rand, data, renderType);
             for (GrugBox box : geometry.boxes()) {
                 // The game would hide the whole face of a full cube here. Hiding the box's face
                 // only when the box reaches this boundary is what keeps an inset arm visible
                 // against the neighbour, the same as Alpha's shape-per-box tesselation.
-                if (hidden && reaches(box, direction)) continue;
+                if (!visible && reaches(box, direction)) continue;
                 quads.add(quad(box, direction, face, flat));
             }
         }
