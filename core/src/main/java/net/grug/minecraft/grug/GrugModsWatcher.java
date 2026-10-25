@@ -85,7 +85,9 @@ public final class GrugModsWatcher {
 
         for (String resource : updatedResources) {
             noteReportedChange(resource);
-            reloadTriggers.add(resource);
+            if (!isScreenshotReference(resource)) {
+                reloadTriggers.add(resource);
+            }
         }
 
         // Every path this batch triggers a reload for, so the loader can take them as the batch
@@ -95,6 +97,18 @@ public final class GrugModsWatcher {
         }
 
         return reloadTriggers.toArray(new String[0]);
+    }
+
+    /**
+     * Whether {@code resource} is under a mod's {@code screenshots/} directory, which holds the
+     * golden references a test's screenshots are compared with. The game never loads them, so a
+     * change to one is not a reason to reload the game's resources. An update-goldens run writes
+     * them while its tests are running, and on 1.20.6 the reload that followed stalled the test
+     * that had just accepted one until it timed out.
+     */
+    private static boolean isScreenshotReference(String resource) {
+        String[] parts = resource.replace('\\', '/').split("/");
+        return parts.length > 1 && parts[1].equals("screenshots");
     }
 
     /**
