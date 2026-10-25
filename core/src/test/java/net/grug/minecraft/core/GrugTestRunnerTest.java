@@ -33,6 +33,10 @@ class GrugTestRunnerTest {
     private static class FakeOps implements GrugTestRunner.TestEntityOps {
         long nextHandle = 100;
         long exportFnId = 1;
+
+        /** What the runner is told for the init export; invalid for a test without one. */
+        long initFnId = 1;
+
         boolean completed = true;
         RuntimeException throwOnCall;
         RuntimeException throwOnCreate;
@@ -66,7 +70,7 @@ class GrugTestRunnerTest {
 
         @Override
         public long getExportFnId(String entityType, String fnName) {
-            return exportFnId;
+            return fnName.equals("init") ? initFnId : exportFnId;
         }
 
         @Override
@@ -476,6 +480,23 @@ class GrugTestRunnerTest {
                         GrugTestRunner.DEFAULT_MAX_TEST_TICKS),
                 budgets,
                 "Each test starts from the default, whatever the one before it raised.");
+    }
+
+    @Test
+    void aTestWithoutAnInitIsNeverAskedForOne() {
+        FakeOps ops = new FakeOps();
+        ops.initFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+        int[] inits = {0};
+        ops.onInit = () -> inits[0]++;
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+        runToEnd(runner);
+        assertTrue(runner.isFinished());
+        assertEquals(0, inits[0]);
+        assertEquals(
+                GrugTestRunner.DEFAULT_MAX_TEST_TICKS,
+                GrugTestState.maxTestTicks,
+                "Without an init the test keeps the default budget.");
+        assertTrue(GrugErrors.runtimeErrorQueue.stream().noneMatch(m -> m.contains("FAIL")));
     }
 
     @Test

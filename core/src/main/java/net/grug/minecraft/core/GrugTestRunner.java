@@ -45,9 +45,7 @@ public class GrugTestRunner {
          * without the export answers false, like one that aborted, so the caller tells the two
          * apart by the errors raised.
          */
-        default boolean callInitFn(long entityHandle, long exportFnId) {
-            return true;
-        }
+        boolean callInitFn(long entityHandle, long exportFnId);
 
         void destroyEntity(long entityHandle);
     }
