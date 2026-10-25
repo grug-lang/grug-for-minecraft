@@ -119,7 +119,9 @@ if [ "$PHASE" = build ]; then
   exit
 fi
 
-EXPECTED_TESTS=$(find "${REPO_ROOT}/mods" -name "*-Test.grug" | wc -l | tr -d ' ')
+# The tests the run is about to load. A reference run points GRUG_MODS_DIR at a harness-only
+# directory, so its count comes from there rather than from every mod in the repository.
+EXPECTED_TESTS=$(find "${GRUG_MODS_DIR:-${REPO_ROOT}/mods}" -name "*-Test.grug" | wc -l | tr -d ' ')
 SUCCESS_MSG="[GRUG CI] ALL ${EXPECTED_TESTS} TESTS PASSED"
 BOOT_MSG="[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL"
 GRUG_LOADED_MSG="[GRUG CI] GRUG LOADED"
