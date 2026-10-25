@@ -21,10 +21,11 @@ import javax.imageio.ImageIO;
 /**
  * Covers {@link GrugScreenshots#verify}: the any-reference match, a match at the smallest tolerance
  * that passes, a miss below it, a tolerance higher than the capture needs, bootstrapping a
- * directory that has no references yet (locally and on a reference run), refusing to bootstrap on a
- * normal CI run, accepting a miss under the loader's own name (locally, replacing a previous
- * reference of the same loader) and declining to add one when another loader's reference already
- * matches, the mismatch path (artifact + magick-style diff), and the exact diff colors.
+ * directory that has no references yet locally, refusing to bootstrap on a CI run, a reference run
+ * comparing only its own loader's reference, accepting a miss under the loader's own name (locally,
+ * replacing a previous reference of the same loader) and declining to add one when another loader's
+ * reference already matches, the mismatch path (artifact + magick-style diff), and the exact diff
+ * colors.
  */
 class GrugScreenshotsVerifyTest {
 
@@ -225,8 +226,7 @@ class GrugScreenshotsVerifyTest {
     }
 
     @Test
-    void bootstrapsInAReferenceRunEvenInCi() throws Exception {
-        System.setProperty(GrugReference.CI_PROPERTY, "1");
+    void bootstrapsInAReferenceRunLocally() throws Exception {
         System.setProperty(GrugReference.PROPERTY, "1");
 
         BufferedImage capture = solid(2, 2, GREEN);
@@ -234,9 +234,36 @@ class GrugScreenshotsVerifyTest {
 
         assertTrue(
                 Files.exists(references.resolve(LOADER_NAME + ".png")),
-                "a reference run still captures its first reference");
+                "a local reference run still captures its first reference");
         assertEquals(
                 capture.getRGB(0, 0), read(references.resolve(LOADER_NAME + ".png")).getRGB(0, 0));
+    }
+
+    @Test
+    void refusesToBootstrapInAReferenceRunOnCi() {
+        System.setProperty(GrugReference.CI_PROPERTY, "1");
+        System.setProperty(GrugReference.PROPERTY, "1");
+
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(solid(2, 2, GREEN)));
+
+        assertTrue(error.getMessage().contains("no committed reference image"), error.getMessage());
+        assertFalse(
+                Files.exists(references.resolve(LOADER_NAME + ".png")),
+                "a reference CI job never writes the golden it is meant to verify against");
+    }
+
+    @Test
+    void aReferenceRunComparesOnlyItsOwnLoaderReference() throws Exception {
+        System.setProperty(GrugReference.PROPERTY, "1");
+        write(references.resolve(LOADER_NAME + ".png"), solid(2, 2, RED));
+        write(references.resolve(OTHER_LOADER + ".png"), solid(2, 2, GREEN));
+
+        // The normal path would match the other loader's reference. A reference run has to use the
+        // runtime loader's own pixels, or another version could hide a difference in the reference.
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> verify(solid(2, 2, GREEN)));
+        assertTrue(error.getMessage().contains("none of the 1 reference"), error.getMessage());
     }
 
     @Test
