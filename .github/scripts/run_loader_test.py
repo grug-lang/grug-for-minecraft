@@ -3,7 +3,7 @@
 
 A Rust panic in grug-rs aborts the JVM, which takes the runClient process down with it, so the
 game process exiting is not on its own a diagnosis: the same "the process exited" line covers a
-grug VM abort, an infrastructure crash and a plain test failure. run-loader.sh therefore reads the
+grug-rs abort, an infrastructure crash and a plain test failure. run-loader.sh therefore reads the
 log as well as the exit status, and it has to keep doing both, because the failure mode this guards
 is one where the classification is the only thing anyone sees.
 
@@ -157,7 +157,7 @@ class RunLoaderTest(unittest.TestCase):
         result = self.run_script(PANIC_LOG, 1)
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("aborted inside the grug VM", result.stderr)
+        self.assertIn("aborted inside grug-rs", result.stderr)
         self.assertIn("panicked at gruggers/src/backend/bytecode.rs:1162:21", result.stderr)
         self.assertIn("RefCell already borrowed", result.stderr)
         # An abort report with no code in it reads like any other dead process, and one with
@@ -167,7 +167,7 @@ class RunLoaderTest(unittest.TestCase):
         # point: the run must not be reported as a bare exit.
         self.assertNotIn("build/game process exited", result.stderr)
         # The panic belongs in the job summary, not only in the raw log.
-        self.assertIn("aborted inside the grug VM", result.summary)
+        self.assertIn("aborted inside grug-rs", result.summary)
         self.assertIn("RefCell already borrowed", result.summary)
 
     def test_plain_exit_still_reports_the_exit_code(self):
@@ -176,7 +176,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("build/game process exited (exit code 3)", result.stderr)
         # No panic in the log, so nothing should claim there was one.
-        self.assertNotIn("grug VM", result.stderr)
+        self.assertNotIn("inside grug-rs", result.stderr)
         self.assertEqual(result.summary, "")
 
     def test_boot_only_succeeds_once_grug_has_loaded_without_the_tests(self):
@@ -204,7 +204,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("tests failed", result.stderr)
         self.assertIn("FAIL coverage/code/block_pos-Test.grug", result.stderr)
-        self.assertNotIn("grug VM", result.stderr)
+        self.assertNotIn("inside grug-rs", result.stderr)
 
     def test_a_panic_after_a_failed_test_is_still_reported(self):
         result = self.run_script(FAIL_THEN_PANIC_LOG, 1)
@@ -216,7 +216,7 @@ class RunLoaderTest(unittest.TestCase):
         # ...but the panic must not go unread just because the FAIL line came first.
         self.assertIn("panicked at gruggers/src/backend/bytecode.rs:1162:21", result.stderr)
         self.assertIn("RefCell already borrowed", result.stderr)
-        self.assertIn("aborted inside the grug VM", result.summary)
+        self.assertIn("aborted inside grug-rs", result.summary)
 
     def test_a_passing_run_succeeds_and_writes_no_summary(self):
         result = self.run_script(PASSING_LOG, 0)

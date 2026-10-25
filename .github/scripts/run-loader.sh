@@ -248,7 +248,7 @@ done
 [ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
 tail_pid=""
 
-# Prints the grug VM abort report for the log, if it holds one, and puts the same text in the job
+# Prints the grug-rs abort report for the log, if it holds one, and puts the same text in the job
 # summary so the panic is readable from the checks list instead of only from the raw log.
 report_native_abort() {
   local report
@@ -259,7 +259,7 @@ report_native_abort() {
 
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     {
-      echo "### $LOADER aborted inside the grug VM"
+      echo "### $LOADER aborted inside grug-rs"
       echo
       echo 'A Rust panic in grug-rs cannot unwind out of an \`extern "C"\` frame, so it aborts the'
       echo 'JVM rather than failing a test.'
@@ -308,9 +308,9 @@ case "$status" in
       exit_code=$?
     fi
     if [ "$reached_title" = true ]; then
-      echo "==> $LOADER's game process aborted inside the grug VM after reaching the title screen." >&2
+      echo "==> $LOADER's game process aborted inside grug-rs after reaching the title screen." >&2
     else
-      echo "==> $LOADER's game process aborted inside the grug VM before reaching the title screen." >&2
+      echo "==> $LOADER's game process aborted inside grug-rs before reaching the title screen." >&2
     fi
     report_native_abort "$exit_code"
     ;;

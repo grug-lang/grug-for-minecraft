@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # report-native-abort.sh <log-file> [exit-code]
 #
-# Explains a game process that died inside the grug VM instead of failing a test. A Rust panic in
+# Explains a game process that died inside grug-rs instead of failing a test. A Rust panic in
 # grug-rs has to unwind out of an extern "C" frame, which cannot unwind, so the panic handler
 # aborts the process (SIGABRT, exit 134). Gradle's output only says "finished with non-zero exit
 # value 134": there is no [GRUG CI] FAIL line, and the panic text only appears among tens of
@@ -67,7 +67,7 @@ if [ -z "$PANIC_LINE" ] && [ "${EXIT_CODE:-}" != "134" ]; then
 fi
 
 if [ -n "$PANIC_LINE" ]; then
-  echo "==> The game aborted inside the grug VM: a Rust panic in grug-rs killed the JVM."
+  echo "==> The game aborted inside grug-rs: a Rust panic in grug-rs killed the JVM."
   echo "==> A panic cannot unwind out of an extern \"C\" frame, so this aborted the whole process"
   echo "==> rather than failing a test, which is why no [GRUG CI] FAIL line was printed."
   echo "==> panicked at ${PANIC_LOCATION:-an unknown location}"
@@ -76,7 +76,7 @@ if [ -n "$PANIC_LINE" ]; then
   fi
 else
   echo "==> The game aborted with exit code ${EXIT_CODE} and printed no Rust panic, so this is not the"
-  echo "==> grug VM panic: treat it as a native crash in the game, the JVM or the adapter."
+  echo "==> grug-rs panic: treat it as a native crash in the game, the JVM or the adapter."
 fi
 if [ -n "$ABORT_LINE" ]; then
   echo "==> ${ABORT_LINE}"
@@ -118,7 +118,7 @@ if [ -e "${crash_reports[0]}" ]; then
 fi
 
 # The file watcher's thread panics when something else in the process closed the descriptor its
-# directory stream owns (#562). The panic is std's, not grug's VM, so it is not #123.
+# directory stream owns (#562). The panic is std's, raised on the watcher thread, so it is not #123.
 if printf '%s\n' "$PANIC_MESSAGE" | grep -q "unexpected error during closedir"; then
   echo "==> This is the file watcher's closedir panic: another library closed a descriptor the watcher's"
   echo "==> directory stream owned, which is not a bug in grug-rs. Tracked as"
