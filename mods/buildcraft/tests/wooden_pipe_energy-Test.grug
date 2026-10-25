@@ -5,7 +5,7 @@
 # receive_energy, and Test.tick_block_entity runs the pipe's tick right after, before the game's own
 # tick can take the pipe's power loss. Each case gets its own pipe, 4 blocks apart in x so that the
 # chests of one never touch another.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -56,7 +56,7 @@ export run(ctx: TestRunContext) {
 
 # Places a pipe at x with a chest of 5 diamonds on its west side and an empty chest on its east side,
 # and returns the pipe's block entity.
-local _place(ctx: TestRunContext, level: Level, x: number, y: number, z: number) BlockEntity {
+local _place(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
     level.place_block(x - 1, y, z, "minecraft:chest")
     level.place_block(x, y, z, "grug:wooden_pipe")
     level.place_block(x + 1, y, z, "minecraft:chest")

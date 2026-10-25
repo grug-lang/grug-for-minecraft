@@ -14,14 +14,14 @@ pipe: Option[BlockEntity] = Option.new()
 # Whether the pipe's chunk geometry and the wall have been meshed again from the settled light yet.
 remeshed: bool = false
 
-# How many runner ticks have passed since the swap. See the wait in run().
+# How many runner ticks have passed since the swap. See the wait in tick().
 remesh_ticks: number = 0
 
-# How many runner ticks in a row the world has answered settled. See the hold in run().
+# How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
     } else if not Test.world_settled() {
@@ -44,7 +44,7 @@ export run(ctx: TestRunContext) {
     }
 }
 
-local _setup(ctx: TestRunContext) {
+local _setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
 
     # The default room is small and this fixture sits at its far edge, so ask for a room that holds
@@ -152,7 +152,7 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     }
 }
 
-local _check(ctx: TestRunContext) {
+local _check(ctx: TestTickContext) {
     # The pipe is what the hook drew through, so a missing one would make the screenshot a picture of
     # nothing that happens to match an empty reference.
     ctx.assert(pipe.has(), "The pipe lost its block entity.")
@@ -168,7 +168,7 @@ local _check(ctx: TestRunContext) {
 
 # Meshes the crop's section again from the settled light by changing a block state and putting it
 # back, as coverage_frame does.
-local _force_remesh(ctx: TestRunContext) {
+local _force_remesh(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

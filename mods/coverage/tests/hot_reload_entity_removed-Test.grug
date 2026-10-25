@@ -4,15 +4,15 @@
 change_baseline: number = -1
 path: string = "examplemod/code/foo_block_entity-BlockEntity.grug"
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
 
         # A block whose script roots host entities in its members.
         level.place_block(origin.x() + 9, origin.y(), origin.z(), "grug:foo_block")
         ctx.not_done()
-    } else if ctx.tick() == 1 {
+    } else if ctx.current_tick() == 1 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
 

@@ -1,6 +1,6 @@
 # Covers the extract_item export and ExtractResponse: a block entity that answers for itself is asked
 # per side, asking takes nothing, and the host performs the move when it is told to.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

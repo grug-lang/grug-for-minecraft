@@ -12,41 +12,41 @@ import java.util.function.Supplier;
  * errors it raised, its owning mod, whether it is an exact port and its captured origin.
  *
  * <p>grug runs one test at a time, so this is one at a time too: GrugTestRunner sets the fields
- * around each Test.run() call, and the Test host functions set and read them inside it.
+ * around each Test.tick() call, and the Test host functions set and read them inside it.
  */
 public final class GrugTestState {
     private GrugTestState() {}
 
     /**
-     * The context the open {@code run()} call was passed, which is what the context's methods check
-     * before they act. A new one is made for every call and cleared when it returns, so a test that
-     * saves the context in a member variable and uses it in a later tick is refused.
+     * The context the open {@code tick()} call was passed, which is what the context's methods
+     * check before they act. A new one is made for every call and cleared when it returns, so a
+     * test that saves the context in a member variable and uses it in a later tick is refused.
      */
-    public static final class RunContext {
+    public static final class TickContext {
         @GrugGenerated("marker: only a run call makes one")
-        private RunContext() {}
+        private TickContext() {}
     }
 
-    private static RunContext runContext = null;
+    private static TickContext tickContext = null;
 
-    /** Opens the context of one {@code run()} call. */
-    static RunContext openRunContext() {
-        runContext = new RunContext();
-        return runContext;
+    /** Opens the context of one {@code tick()} call. */
+    static TickContext openTickContext() {
+        tickContext = new TickContext();
+        return tickContext;
     }
 
     /** Closes it again, so a saved context no longer matches. */
-    static void closeRunContext() {
-        runContext = null;
+    static void closeTickContext() {
+        tickContext = null;
     }
 
-    /** The context of the {@code run()} call that is open right now, or null between calls. */
-    public static RunContext runContext() {
-        return runContext;
+    /** The context of the {@code tick()} call that is open right now, or null between calls. */
+    public static TickContext tickContext() {
+        return tickContext;
     }
 
     /**
-     * Calls a test's {@code run()} export with a fresh context, which is removed again when the
+     * Calls a test's {@code tick()} export with a fresh context, which is removed again when the
      * call returns.
      *
      * <p>The context and every host entity the call creates are rooted for this call only, as for a
@@ -62,26 +62,26 @@ public final class GrugTestState {
                 () ->
                         GrugEntities.withFreshOwner(
                                 () -> {
-                                    RunContext context = openRunContext();
+                                    TickContext context = openTickContext();
                                     long contextHandle =
                                             GrugEntities.addEntity(
-                                                    GrugEntityType.TestRunContext, context);
+                                                    GrugEntityType.TestTickContext, context);
                                     try {
                                         completed[0] =
                                                 Grug.callExportFn(
                                                         entityHandle, exportFnId, contextHandle);
                                     } finally {
                                         GrugEntities.removeEntity(contextHandle);
-                                        closeRunContext();
+                                        closeTickContext();
                                     }
                                 }));
         return completed[0];
     }
 
-    // Set by GrugTestRunner immediately before each Test.run() call; read by the context's tick().
+    // Set by GrugTestRunner immediately before each Test.tick() call; read by the context's tick().
     public static int currentTestTick = 0;
     // Set by the context's not_done(); reset to false by GrugTestRunner immediately before each
-    // Test.run() call.
+    // Test.tick() call.
     public static boolean testNotDone = false;
 
     // Set by the context's expect_error(); cleared by GrugTestRunner when a test starts and when it
@@ -95,7 +95,7 @@ public final class GrugTestState {
     // The runtime errors the running test produced, which is what testExpectedError is matched
     // against. Filled by recordTestRuntimeError, which the engine reaches from inside the host
     // function that failed, so the write happens on the thread running the test and is in place by
-    // the time Test.run() returns. GrugTestRunner clears it immediately before each Test.run()
+    // the time Test.tick() returns. GrugTestRunner clears it immediately before each Test.tick()
     // call, so it only ever holds what the running test itself raised.
     //
     // It is a separate queue from runtimeErrorQueue because that one is the chat channel, and a

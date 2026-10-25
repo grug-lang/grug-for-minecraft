@@ -35,7 +35,7 @@ public final class GrugErrors {
      * reads {@link GrugTestState#testRuntimeErrors} and only while {@link
      * GrugTestState#testExpectedError} is set, so an error raised with no test waiting for one is
      * dropped rather than kept for the rest of the session. The engine calls this from inside the
-     * host function that failed, so a test's own Test.run() call has the record in place by the
+     * host function that failed, so a test's own Test.tick() call has the record in place by the
      * time it returns to the runner.
      *
      * <p>Visible for tests: they drive the record without the adapter onRuntimeError logs to.

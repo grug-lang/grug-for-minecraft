@@ -1,7 +1,7 @@
 # Covers the registry lookup's declared grug item and block matches, the multi-word vanilla
 # reflection fallback, and the unknown-name null return.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         declared_item: Item = item(resource_location("grug:coverage_item"))
         ctx.assert(equals(declared_item, declared_item), "a declared grug item resolves.")
 

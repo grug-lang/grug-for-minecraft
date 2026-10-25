@@ -306,7 +306,7 @@ public class GrugClientHooks {
             }
         }
 
-        // The runner does one Test.run() call per real tick, so that real ticks (and real rendered
+        // The runner does one Test.tick() call per real tick, so that real ticks (and real rendered
         // frames) elapse between a test's own invocations.
         if (testRunner != null) {
             testRunner.tick(minecraft.player);

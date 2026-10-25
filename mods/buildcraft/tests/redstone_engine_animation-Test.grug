@@ -34,8 +34,8 @@ settled_ticks: number = 0
 remeshed: bool = false
 remesh_ticks: number = 0
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _setup()
         ctx.not_done()
         return
@@ -45,7 +45,7 @@ export run(ctx: TestRunContext) {
     # particles that torch gave off live for up to 40 ticks after it is cleared away. One of them in
     # the crop is a few pixels that are never in the same place twice, so wait out the longest life
     # with some to spare. The world has no way to say how many particles are left.
-    if ctx.tick() < 60 {
+    if ctx.current_tick() < 60 {
         ctx.not_done()
         return
     }
@@ -133,7 +133,7 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
 # Faces every engine up, with the progress for its place in the row. The port's engine is drawn again
 # by its own tick, which is what a stroke does every tick; the reference's is loaded from its NBT. The facing is given directly, as
 # redstone_engine_facings-Test.grug does, rather than by a receptor next to the engine.
-local _show_progresses(ctx: TestRunContext) {
+local _show_progresses(ctx: TestTickContext) {
     i: number = 0
     while i < 6 {
         engine: BlockEntity = _engine(ctx, i)
@@ -171,7 +171,7 @@ local _progress(i: number) number {
 }
 
 # The engine i blocks along the row.
-local _engine(ctx: TestRunContext, i: number) BlockEntity {
+local _engine(ctx: TestTickContext, i: number) BlockEntity {
     level: Level = Test.get_client_level()
     engine_opt: Option[BlockEntity] = level.get_block_entity(ex + i, ey, ez)
     ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
@@ -180,7 +180,7 @@ local _engine(ctx: TestRunContext, i: number) BlockEntity {
 
 # Turns the engine in each place to the facing of the same number, all at their farthest. The
 # facing changes the drawing without the progress changing, so it is drawn again directly.
-local _show_facings(ctx: TestRunContext) {
+local _show_facings(ctx: TestTickContext) {
     i: number = 0
     while i < 6 {
         engine: BlockEntity = _engine(ctx, i)
@@ -199,7 +199,7 @@ local _show_facings(ctx: TestRunContext) {
 
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
 # light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
-local _ready(ctx: TestRunContext) bool {
+local _ready(ctx: TestTickContext) bool {
     if not Test.world_settled() {
         settled_ticks = 0
         return false
@@ -237,7 +237,7 @@ local _settled() bool {
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
 # the capture's mesh is built from the settled light. See coverage_render-Test.grug.
-local _force_remesh(ctx: TestRunContext) {
+local _force_remesh(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

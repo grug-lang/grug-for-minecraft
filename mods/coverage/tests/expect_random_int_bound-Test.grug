@@ -1,6 +1,6 @@
 # random_int draws from 0 up to but not including its bound, so a bound below 1 cannot name a number
 # and must be reported rather than hand the level's random an argument Java's Random.nextInt refuses.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
 

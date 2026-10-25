@@ -1,7 +1,7 @@
 # Serialises a block entity's NBT and reads it back, covering the save/load paths without a real
 # world save.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x()

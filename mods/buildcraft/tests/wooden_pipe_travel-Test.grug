@@ -2,7 +2,7 @@
 # it: 49 moves from the face it entered on to the block's centre, then 51 from the centre to the far
 # face of a horizontal exit, which is where it is handed on. The pipe is ticked by hand, after one
 # dose of energy, so no engine timing or loaded machine can shift the counts.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -59,7 +59,7 @@ export run(ctx: TestRunContext) {
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The west chest should be empty.")
 }
 
-local _entity(ctx: TestRunContext, level: Level, x: number, y: number, z: number) BlockEntity {
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
     block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
     ctx.assert(block_entity.has(), "The fixture should have a block entity.")
     return block_entity.unwrap()

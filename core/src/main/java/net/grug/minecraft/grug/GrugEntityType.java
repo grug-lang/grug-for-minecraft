@@ -18,7 +18,7 @@ public enum GrugEntityType {
     RenderContext,
     ResourceLocation,
     Screenshot,
-    TestRunContext,
+    TestTickContext,
     Vec3;
 
     private static final GrugEntityType[] values = GrugEntityType.values();

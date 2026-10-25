@@ -1,6 +1,6 @@
 # Covers drop_inventory and get_item_in_slot's empty-slot branch on a fresh chest.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         x: number = origin.x() + 2

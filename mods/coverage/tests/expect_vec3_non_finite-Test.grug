@@ -1,7 +1,7 @@
 # vec3 gives a spawned entity a velocity, and a NaN coordinate would make the entity's motion
 # meaningless, so it is reported rather than spawned.
 # Squaring 10000000000.0 five times overflows a double to infinity, and infinity minus infinity is NaN.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     infinity: number = 10000000000.0
     infinity = infinity * infinity
     infinity = infinity * infinity

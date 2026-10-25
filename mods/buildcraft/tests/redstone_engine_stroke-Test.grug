@@ -7,13 +7,13 @@
 # and 14th, counting the start tick as the first. Progress is added in doubles here, where the
 # reference adds floats, which is why Blue delivers a tick earlier than 2.2.14 (#406).
 
-# Only the engine is ticked, with Test.tick_block_entity, and everything happens inside one run()
+# Only the engine is ticked, with Test.tick_block_entity, and everything happens inside one tick()
 # call, so the game's own tick cannot run the pipe and take the energy it received. Test.tick_block_entity
 # leaves the clock alone, so the time Level.get_time reads stays where the test found it. The test
 # waits for a time 5 to 15 ticks past a multiple of 20, so no tick it gives lands on one, even if the
 # integrated server thread advances a few ticks during the call, and the engine gains nothing while it
 # is ticked. The energy the test expects therefore changes only when the pipe takes 1 from the engine.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
 
     # Waits for a time 5 to 15 ticks past a multiple of 20. See the header: the clock stays put while
@@ -52,7 +52,7 @@ export run(ctx: TestRunContext) {
 
 # Runs two strokes of an engine holding the given energy, with delivery_tick and rest_tick as the
 # tick numbers described above.
-local _stroke(ctx: TestRunContext, level: Level, x: number, y: number, z: number, energy: number, delivery_tick: number, rest_tick: number) {
+local _stroke(ctx: TestTickContext, level: Level, x: number, y: number, z: number, energy: number, delivery_tick: number, rest_tick: number) {
     engine: BlockEntity = _place(ctx, level, x, y, z, true)
     pipe: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
     engine.set_saved_number("energy", energy)
@@ -100,7 +100,7 @@ local _tick(engine: BlockEntity, ticks: number) {
 # Places a pipe at y + 1 and an engine at y with the redstone torch right under it (stone
 # under the torch), or none when powered is false, and returns the engine's block entity after
 # checking its signal. A torch powers the block above it, but not the block it is attached to.
-local _place(ctx: TestRunContext, level: Level, x: number, y: number, z: number, powered: bool) BlockEntity {
+local _place(ctx: TestTickContext, level: Level, x: number, y: number, z: number, powered: bool) BlockEntity {
     if powered {
         level.place_block(x, y - 2, z, "minecraft:stone")
         level.place_block(x, y - 1, z, "minecraft:redstone_torch")

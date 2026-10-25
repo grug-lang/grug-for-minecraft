@@ -1,6 +1,6 @@
 # random_int draws below a whole-number bound, so a fractional bound is reported rather than rounded
 # to a size the caller did not ask for.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
 
     ctx.expect_error("The bound has to be a whole number from 1 to")

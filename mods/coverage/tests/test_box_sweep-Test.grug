@@ -8,8 +8,8 @@
 # The sweep at the end of every test is not checked here: a test cannot observe the sweep that ends
 # it, and the next test's room build sweeps too, so a following test could not tell the two apart.
 # GrugTestRunnerTest covers it. See #323.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
 
@@ -32,10 +32,10 @@ export run(ctx: TestRunContext) {
         edge: ItemEntity = item_entity(level, px + 16.5, origin.y(), pz + 0.5, edge_stack)
         edge.entity().set_delta_movement(vec3_zero())
         edge.entity().spawn(level)
-        # Without this the test ends here, since a run() that returns without not_done() is over,
+        # Without this the test ends here, since a tick() that returns without not_done() is over,
         # and the sweep below was never checked.
         ctx.not_done()
-    } else if ctx.tick() == 1 {
+    } else if ctx.current_tick() == 1 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()
         # Both items have to exist before the rebuild, or the assertions after it pass without the

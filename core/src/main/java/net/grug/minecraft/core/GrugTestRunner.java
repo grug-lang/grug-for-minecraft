@@ -112,7 +112,7 @@ public class GrugTestRunner {
     /** 0 when no test is active, meaning "start the next one". */
     private long currentEntityHandle = 0;
 
-    private long currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+    private long currentTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private int currentTick = 0;
 
     /** When the running test started, so its duration can be worked out when it ends. */
@@ -222,7 +222,7 @@ public class GrugTestRunner {
         // Anything already queued was reported during startup, before any test ran, so clearing it
         // here keeps the chat from showing the same message a second time. An expect_error test
         // matches testRuntimeErrors instead, which only a test that set an expectation can write
-        // to and which the runner clears before each Test.run() call, so a startup message cannot
+        // to and which the runner clears before each Test.tick() call, so a startup message cannot
         // answer a test.
         synchronized (GrugErrors.runtimeErrorQueue) {
             GrugErrors.runtimeErrorQueue.clear();
@@ -273,7 +273,7 @@ public class GrugTestRunner {
 
     /**
      * Does exactly one unit of work: starts the next test if none is active, then makes exactly one
-     * {@code Test.run()} call for it. Meant to be called once per real Minecraft tick.
+     * {@code Test.tick()} call for it. Meant to be called once per real Minecraft tick.
      */
     public void tick(Object player) {
         if (finished) return;
@@ -343,7 +343,7 @@ public class GrugTestRunner {
 
         boolean completed;
         try {
-            completed = ops.callExportFn(currentEntityHandle, currentRunFnId);
+            completed = ops.callExportFn(currentEntityHandle, currentTickFnId);
         } catch (Exception e) {
             // Same fail-fast behavior as before: the first failing test aborts the whole run.
             String msg = e.getMessage();
@@ -410,7 +410,7 @@ public class GrugTestRunner {
         if (GrugTestState.testNotDone) {
             // currentTick is this invocation's tick, so asking for one more means asking for
             // currentTick + 1. Refusing that once it reaches the cap is what bounds a test to
-            // DEFAULT_MAX_TEST_TICKS run() calls, on ticks 0 through DEFAULT_MAX_TEST_TICKS - 1.
+            // DEFAULT_MAX_TEST_TICKS tick() calls, on ticks 0 through DEFAULT_MAX_TEST_TICKS - 1.
             if (currentTick + 1 >= DEFAULT_MAX_TEST_TICKS) {
                 // Deliberately loud: a test that keeps asking for more ticks should hang for the
                 // whole budget and then say so, rather than quietly passing or running forever.
@@ -559,8 +559,8 @@ public class GrugTestRunner {
                 throw new RuntimeException("Failed to create an entity for the test.");
             }
 
-            currentRunFnId = ops.getExportFnId("Test", "run");
-            if (currentRunFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
+            currentTickFnId = ops.getExportFnId("Test", "tick");
+            if (currentTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
                 throw new RuntimeException("Test entity missing 'run' export function.");
             }
         } catch (Exception e) {
@@ -623,7 +623,7 @@ public class GrugTestRunner {
             boxBuilder.sweepItems();
             ops.destroyEntity(currentEntityHandle);
             currentEntityHandle = 0;
-            currentRunFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+            currentTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
         }
         // Every test ending passes through here, whether it passed, failed, or aborted on a host
         // function error, so the camera a test moved is put back without the test having to ask.

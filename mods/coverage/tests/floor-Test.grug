@@ -1,7 +1,7 @@
 # Math.floor turns a position, which has a fraction, into the block coordinate it is in. The
 # negative cases are the ones an implementation that truncates instead gets wrong.
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         ctx.assert(Math.floor(2.5) == 2, "Math.floor(2.5) should be 2.")
         ctx.assert(Math.floor(2) == 2, "Math.floor(2) should be 2.")
         ctx.assert(Math.floor(0) == 0, "Math.floor(0) should be 0.")

@@ -28,8 +28,8 @@ ex: number = 0
 ey: number = 0
 ez: number = 0
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
         return
@@ -75,7 +75,7 @@ export run(ctx: TestRunContext) {
     ctx.not_done()
 }
 
-local _setup(ctx: TestRunContext) {
+local _setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
 
     Test.set_box_radius(6)
@@ -115,8 +115,8 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
 }
 
 # Each stage boundary, the energy just below it, at it and just above it. Nothing ticks the engine
-# within one call of run(), so the energy set here is the energy the stage is read from.
-local _check_thresholds(ctx: TestRunContext) {
+# within one call of tick(), so the energy set here is the energy the stage is read from.
+local _check_thresholds(ctx: TestTickContext) {
     ctx.assert(_energy() == 0, "A new engine should have no energy.")
 
     _set_energy(249)
@@ -152,7 +152,7 @@ local _check_thresholds(ctx: TestRunContext) {
 # crosses between the two samples, so the gain must equal the number of multiples crossed, however
 # many ticks the server ran between two of the test's calls. The check starts when the torch is
 # placed. Then it leaves the engine unpowered at 0 energy for the first capture.
-local _check_gain(ctx: TestRunContext) {
+local _check_gain(ctx: TestTickContext) {
     if gain_phase == 0 {
         _power(ctx)
         gain_phase = 1
@@ -200,7 +200,7 @@ local _set_energy(energy: number) {
 # rebuilt when it is asked to be. The energy has to give the stage the capture is of. The reference's
 # RenderEngine reads the energy on every frame, so loading it is enough there. The torch keeps it
 # from draining, as it does the port's.
-local _draw_stage(ctx: TestRunContext, energy: number, expected_stage: number) {
+local _draw_stage(ctx: TestTickContext, energy: number, expected_stage: number) {
     if Test.is_reference() {
         Test.set_nbt_number(engine.unwrap(), "energy", "int", energy)
         Test.load_nbt(engine.unwrap())
@@ -216,13 +216,13 @@ local _draw_stage(ctx: TestRunContext, energy: number, expected_stage: number) {
 
 # A redstone torch powers the block above it on every loader, so the torch goes right under the
 # engine, standing on a stone block.
-local _power(ctx: TestRunContext) {
+local _power(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     level.place_block(ex, ey - 1, ez, "minecraft:redstone_torch")
     ctx.assert(level.has_neighbor_signal(ex, ey, ez), "The torch under the engine should power it.")
 }
 
-local _unpower(ctx: TestRunContext) {
+local _unpower(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     level.place_block(ex, ey - 1, ez, "minecraft:air")
     ctx.assert(not level.has_neighbor_signal(ex, ey, ez), "The engine should be unpowered once the torch is gone.")
@@ -230,7 +230,7 @@ local _unpower(ctx: TestRunContext) {
 
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
 # light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
-local _ready(ctx: TestRunContext) bool {
+local _ready(ctx: TestTickContext) bool {
     if not Test.world_settled() {
         settled_ticks = 0
         return false
@@ -253,7 +253,7 @@ local _ready(ctx: TestRunContext) bool {
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
 # the capture's mesh is built from the settled light. See coverage_render-Test.grug.
-local _force_remesh(ctx: TestRunContext) {
+local _force_remesh(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

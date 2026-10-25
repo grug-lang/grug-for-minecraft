@@ -6,10 +6,10 @@ dir_path: string = "coverage/data/grug/recipes/crafting"
 file_baseline: number = -1
 dir_baseline: number = -1
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         ctx.not_done()
-    } else if ctx.tick() == 1 {
+    } else if ctx.current_tick() == 1 {
         file_baseline = Test.hot_reload_count(file_path)
         dir_baseline = Test.hot_reload_count(dir_path)
         Test.set_mod_file_state(file_path, "deleted")

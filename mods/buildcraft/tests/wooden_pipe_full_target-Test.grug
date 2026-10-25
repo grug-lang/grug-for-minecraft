@@ -12,11 +12,11 @@ full_target_pipe: Option[BlockEntity] = Option.new()
 # undamaged means a merge into the target would also change its damage and be caught.
 sword_damage: number = 7
 
-export run(ctx: TestRunContext) {
-    if ctx.tick() == 0 {
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
         _full_target_setup(ctx)
         ctx.not_done()
-    } else if not _full_target_pipe_has_moved() or ctx.tick() < 25 {
+    } else if not _full_target_pipe_has_moved() or ctx.current_tick() < 25 {
         # Same floor as wooden_pipe-Test.grug, for the same reason (#262).
         ctx.not_done()
     } else {
@@ -24,7 +24,7 @@ export run(ctx: TestRunContext) {
     }
 }
 
-local _full_target_setup(ctx: TestRunContext) {
+local _full_target_setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -83,7 +83,7 @@ local _full_target_setup(ctx: TestRunContext) {
     ctx.assert(full_target_source.unwrap().get_item_count_in_slot(0) == 1, "The source chest should have been given the sword.")
 }
 
-local _full_target_check(ctx: TestRunContext) {
+local _full_target_check(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

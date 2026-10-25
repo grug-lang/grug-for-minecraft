@@ -3,7 +3,7 @@
 # starts after the engine's orientation of 1 and wraps round, so it visits 2, 3, 4, 5, 0, 1 and stops
 # at the first side that has a power receptor next to it: a wooden pipe or another engine. Each case
 # gets its own engine, 4 blocks apart in x so that the neighbours of one never touch another.
-export run(ctx: TestRunContext) {
+export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
@@ -30,7 +30,7 @@ export run(ctx: TestRunContext) {
 }
 
 # Places an engine, runs its first tick and returns the orientation it picked.
-local _facing(ctx: TestRunContext, level: Level, x: number, y: number, z: number) number {
+local _facing(ctx: TestTickContext, level: Level, x: number, y: number, z: number) number {
     level.place_block(x, y, z, "grug:redstone_engine")
     engine_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
