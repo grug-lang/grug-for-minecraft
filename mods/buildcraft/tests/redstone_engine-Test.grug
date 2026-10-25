@@ -34,7 +34,11 @@ export run() {
     }
 
     if gain_phase != 3 {
-        _check_gain()
+        if Test.is_reference() {
+            gain_phase = 3
+        } else {
+            _check_gain()
+        }
         me.not_done()
         return
     }
@@ -49,6 +53,9 @@ export run() {
     # at random and they drift up past the underside.
     if stage == 0 {
         Test.screenshot().equals(r"screenshots/redstone_engine_blue", 550, 150, 770, 305)
+        if Test.is_reference() {
+            return
+        }
         _power()
         _draw_stage(251, 1)
     } else if stage == 1 {
@@ -79,7 +86,7 @@ local _setup() {
     ey = origin.y() - 1.88
     ez = origin.z() + 4
 
-    level.place_block(ex, ey, ez, "grug:redstone_engine")
+    level.place_block(ex, ey, ez, _redstone_engine())
     engine_opt: Option[BlockEntity] = level.get_block_entity(ex, ey, ez)
     Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     engine.set(engine_opt.unwrap())
@@ -90,7 +97,9 @@ local _setup() {
     # but the torch itself.
     level.place_block(ex, ey - 2, ez, "minecraft:stone")
 
-    _check_thresholds()
+    if not Test.is_reference() {
+        _check_thresholds()
+    }
 }
 
 # Thirteen blocks square of stone two blocks behind the engine, as in coverage_render-Test.grug.
@@ -260,4 +269,13 @@ local _stage(energy: number) number {
         return 2
     }
     return 3
+}
+
+# The reference's BlockEngine never calls setBlockName, so its item is the only handle the reference
+# loader has; ItemEngine names metadata 0 tile.engineWood.
+local _redstone_engine() string {
+    if Test.is_reference() {
+        return "buildcraft:engineWood"
+    }
+    return "grug:redstone_engine"
 }
