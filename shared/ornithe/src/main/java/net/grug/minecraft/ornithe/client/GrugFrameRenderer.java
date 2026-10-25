@@ -171,19 +171,19 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
             GL11.glScalef((float) scale, (float) scale, (float) scale);
             textures.bind(textures.load(block != null ? TERRAIN_ATLAS : ITEMS_ATLAS));
 
-            // The sprite index is a slot in the bound atlas, whose size is not guaranteed to be
-            // the 256x256 a vanilla items.png is. Ask the bound texture for its size and divide by
-            // the 16-pixel sprite size, so a loader that stitches a larger atlas does not sample a
-            // 2x2 group of the wrong sprites.
+            // The sprite index is a slot in a 16-column grid. A texture pack may scale every
+            // sprite, so the tile size comes from the bound atlas rather than being 16 pixels:
+            // one sixteenth of each axis, with the grid still 16 columns.
             int atlasWidth =
                     GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
             int atlasHeight =
                     GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
-            int columns = Math.max(1, atlasWidth / 16);
-            float u0 = (float) (icon % columns * 16) / atlasWidth;
-            float u1 = (float) (icon % columns * 16 + 16) / atlasWidth;
-            float v0 = (float) (icon / columns * 16) / atlasHeight;
-            float v1 = (float) (icon / columns * 16 + 16) / atlasHeight;
+            int tileWidth = atlasWidth / 16;
+            int tileHeight = atlasHeight / 16;
+            float u0 = (float) (icon % 16 * tileWidth) / atlasWidth;
+            float u1 = (float) (icon % 16 * tileWidth + tileWidth) / atlasWidth;
+            float v0 = (float) (icon / 16 * tileHeight) / atlasHeight;
+            float v1 = (float) (icon / 16 * tileHeight + tileHeight) / atlasHeight;
             for (int copy = 0; copy < copies; copy++) {
                 GL11.glPushMatrix();
                 if (copy > 0) {
