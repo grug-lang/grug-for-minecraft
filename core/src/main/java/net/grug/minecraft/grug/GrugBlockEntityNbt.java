@@ -16,14 +16,17 @@ import java.util.function.Consumer;
  * <p>A recreation test sets up the port's state through its grug saved data, which the reference
  * mod's block entities do not have. What every block entity keeps, on every loader and in every
  * mod, is the NBT it writes and reads, which holds everything a player sees after the world is
- * loaded again. So a reference branch names keys of that NBT, and the block entity reads the edited
- * NBT back through its own load, which keeps whatever the mod derives from a key consistent with
- * it. A grug block entity's NBT is edited the same way, which is how every loader's side of this is
- * tested without a reference.
+ * loaded again. So a reference branch names keys of that NBT, and the world then loads the block
+ * entity from the edited NBT as it does when a chunk is loaded: the old block entity is removed,
+ * and a new one is created from the NBT and only then enters the world. That keeps whatever the mod
+ * derives from a key consistent with it, and keeps the order a load runs in, which mods depend on:
+ * BuildCraft's pipe only gets its world when its tile enters the world, so reading NBT into a tile
+ * already in it would leave the new pipe without one. The test's handle names the old block entity
+ * afterwards, so a test gets the block entity at its position again. A grug block entity's NBT is
+ * edited the same way, which is how every loader's side of this is tested without a reference.
  *
- * <p>The edits are staged rather than each loaded on its own, because a load can rebuild what it
- * reads: BuildCraft's pipe makes a new transport and only adopts the loaded items on its next tick,
- * so a second load in the same tick would write the tile without them.
+ * <p>The edits are staged rather than each loaded on its own, so the block entity is loaded once
+ * from all of them, as it is from a saved world.
  *
  * <p>A path is the keys from the block entity's compound to the one set, joined by dots. A part
  * made only of digits is an index into a list, a list's size appends a new compound to it, and an
@@ -40,7 +43,12 @@ public final class GrugBlockEntityNbt {
     public interface Access {
         Object write(Object blockEntity);
 
-        void read(Object blockEntity, Object compound);
+        /**
+         * Replaces the block entity with a new one the version creates from the compound, through
+         * the factory a chunk load uses, so the new one is loaded and then enters the world, and
+         * removes the old one as an unload does.
+         */
+        void replace(Object blockEntity, Object compound);
 
         Object newCompound();
 
@@ -125,8 +133,9 @@ public final class GrugBlockEntityNbt {
     }
 
     /**
-     * Writes the block entity's NBT, applies every staged edit in order and has the block entity
-     * read the result, or returns why an edit does not fit. Nothing is read when one does not.
+     * Writes the block entity's NBT, applies every staged edit in order and replaces the block
+     * entity with one loaded from the result, or returns why an edit does not fit. Nothing is
+     * replaced when one does not.
      */
     static synchronized String load(Object blockEntity, Access nbt) {
         List<Edit> edits = STAGED.remove(blockEntity);
@@ -140,7 +149,7 @@ public final class GrugBlockEntityNbt {
                 return problem;
             }
         }
-        nbt.read(blockEntity, root);
+        nbt.replace(blockEntity, root);
         return null;
     }
 

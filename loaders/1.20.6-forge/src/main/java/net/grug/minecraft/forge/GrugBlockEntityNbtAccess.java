@@ -7,6 +7,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
@@ -23,12 +24,25 @@ public final class GrugBlockEntityNbtAccess implements GrugBlockEntityNbt.Access
     public Object write(Object blockEntity) {
         BlockEntity be = (BlockEntity) blockEntity;
         registries = be.getLevel().registryAccess();
-        return be.saveWithoutMetadata(registries);
+        return be.saveWithId(registries);
     }
 
+    /**
+     * As a chunk load: the new block entity is created from the NBT through loadStatic, then set in
+     * the level, which marks the one it replaces removed. The block is then drawn again, as a
+     * loaded chunk is, because a renderer only knows the block entities its section held when it
+     * was last built.
+     */
     @Override
-    public void read(Object blockEntity, Object compound) {
-        ((BlockEntity) blockEntity).loadWithComponents((CompoundTag) compound, registries);
+    public void replace(Object blockEntity, Object compound) {
+        BlockEntity old = (BlockEntity) blockEntity;
+        Level level = old.getLevel();
+        level.removeBlockEntity(old.getBlockPos());
+        BlockEntity loaded =
+                BlockEntity.loadStatic(
+                        old.getBlockPos(), old.getBlockState(), (CompoundTag) compound, registries);
+        level.setBlockEntity(loaded);
+        GrugCore.getAdapter().redraw(loaded);
     }
 
     @Override

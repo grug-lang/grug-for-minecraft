@@ -2,7 +2,8 @@
 # block entity's own NBT, which holds its saved numbers as GrugNumbers, a list of Name and Value
 # compounds sorted by name, and its saved lists as GrugLists, each a Name and a list of Records with
 # their Numbers and Item. Reading the edits back through the saved data proves the loader's NBT walk
-# found, created and appended what the paths name, and that the block entity read the result.
+# found, created and appended what the paths name, and that the block entity the world loaded from
+# the result replaced the old one, which is why the test gets the block entity again.
 # The GrugExtra and GrugNew keys are nothing a grug block entity reads, so they are dropped by the
 # load; they are there so every numeric type, a missing compound and a missing list are written.
 export run() {
@@ -31,6 +32,7 @@ export run() {
     Test.set_nbt_number(be, "GrugExtra.f", "float", 0.5)
     Test.set_nbt_number(be, "GrugNew.0.d", "double", 6)
     Test.load_nbt(be)
+    be = level.get_block_entity(x, y, z).unwrap()
 
     Test.assert(be.get_saved_number("zz") == 5, "The edited saved number should read back.")
     Test.assert(be.get_saved_number("inited") == 1, "The saved number that was not edited should be unchanged.")

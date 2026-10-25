@@ -7,6 +7,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.world.World;
 
 /** StationAPI's b1.7.3 NBT, for {@link GrugBlockEntityNbt}'s test-only edits. */
 public final class GrugBlockEntityNbtAccess implements GrugBlockEntityNbt.Access {
@@ -17,9 +18,20 @@ public final class GrugBlockEntityNbtAccess implements GrugBlockEntityNbt.Access
         return nbt;
     }
 
+    /**
+     * As a chunk unload and load: the old block entity is removed first, because setBlockEntity
+     * does not mark the one it replaces removed, and would leave it ticking beside the new one. The
+     * block is then drawn again, as a loaded chunk is, because a renderer only knows the block
+     * entities its section held when it was last built.
+     */
     @Override
-    public void read(Object blockEntity, Object compound) {
-        ((BlockEntity) blockEntity).readNbt((NbtCompound) compound);
+    public void replace(Object blockEntity, Object compound) {
+        BlockEntity old = (BlockEntity) blockEntity;
+        World world = old.world;
+        world.removeBlockEntity(old.x, old.y, old.z);
+        BlockEntity loaded = BlockEntity.createFromNbt((NbtCompound) compound);
+        world.setBlockEntity(old.x, old.y, old.z, loaded);
+        GrugCore.getAdapter().redraw(loaded);
     }
 
     @Override

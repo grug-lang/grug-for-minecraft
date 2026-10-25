@@ -31,7 +31,7 @@ class GrugBlockEntityNbtTest {
     }
 
     @Test
-    void aLoadAppliesEveryEditInOrderAndReadsOnce() {
+    void aLoadAppliesEveryEditInOrderAndReplacesOnce() {
         List<Object> records = new ArrayList<>();
         records.add(new LinkedHashMap<String, Object>());
         nbt.saved.put("travelingEntities", records);
@@ -66,7 +66,7 @@ class GrugBlockEntityNbtTest {
     }
 
     @Test
-    void anEditThatDoesNotFitIsReturnedAndNothingIsRead() {
+    void anEditThatDoesNotFitIsReturnedAndNothingIsReplaced() {
         nbt.saved.put("energy", "int 1.0");
         GrugBlockEntityNbt.stageNumber(blockEntity, "energy.x", "int", 1);
         assertEquals(
@@ -165,7 +165,7 @@ class GrugBlockEntityNbtTest {
         }
 
         @Override
-        public void read(Object blockEntity, Object compound) {
+        public void replace(Object blockEntity, Object compound) {
             read = (Map<String, Object>) compound;
             reads++;
         }
