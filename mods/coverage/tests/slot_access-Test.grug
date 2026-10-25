@@ -45,7 +45,7 @@ export run() {
         Test.assert(be.is_slot_insertable(4), "The last slot of a declared range should be insertable.")
         Test.assert(not be.is_slot_insertable(5), "A slot above a declared range should not be insertable.")
 
-        inserted: number = be.insert_item_into_inventory(diamond, 0, 1)
+        inserted: number = be.insert_item_into_inventory(diamond, 0, 1, true)
         Test.assert(inserted == 1, "The declared slot should have taken the diamond.")
         Test.assert(be.get_item_count_in_slot(3) == 2, "Only the declared slot should have grown.")
         Test.assert(be.get_item_count_in_slot(2) == 1, "A slot below the declared range should be untouched.")
@@ -54,7 +54,7 @@ export run() {
         # An inventory with no slot another block may use takes nothing at all.
         be.set_insertable_slots(8, 7)
         Test.assert(not be.is_slot_insertable(8), "A last below the first should declare no slot.")
-        Test.assert(be.insert_item_into_inventory(diamond, 0, 1) == 0, "A denied inventory should take nothing.")
+        Test.assert(be.insert_item_into_inventory(diamond, 0, 1, true) == 0, "A denied inventory should take nothing.")
 
         # Extraction is gated the same way as insertion, and this is the transfer a machine's rule
         # exists for: a bulk scan for an item must not reach into the slots the block has closed off.

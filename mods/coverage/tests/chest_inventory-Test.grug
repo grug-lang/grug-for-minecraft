@@ -17,11 +17,11 @@ export run() {
 
     diamond: Item = item(resource_location("minecraft:diamond"))
 
-    inserted: number = chest.insert_item_into_inventory(diamond, 0, 1)
+    inserted: number = chest.insert_item_into_inventory(diamond, 0, 1, true)
     Test.assert(inserted == 1, "Inserting one item into a chest should report one.")
     Test.assert(chest.get_item_count_in_slot(0) == 1, "The chest should then hold one item.")
 
-    inserted_again: number = chest.insert_item_into_inventory(diamond, 0, 1)
+    inserted_again: number = chest.insert_item_into_inventory(diamond, 0, 1, true)
     Test.assert(inserted_again == 1, "Inserting into the same stack should report one.")
     Test.assert(chest.get_item_count_in_slot(0) == 2, "The chest should then hold two items.")
 
