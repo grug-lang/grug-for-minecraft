@@ -397,6 +397,15 @@ tasks.register('prepareRunDir') {
             from finalJar
             into runModsDir
         }
+        // A reference run stages the real mod's jars separately, because this task owns run/mods
+        // and deletes it every launch. GRUG_REFERENCE_MODS_DIR is that staged directory.
+        def referenceMods = System.getenv('GRUG_REFERENCE_MODS_DIR')
+        if (referenceMods != null && !referenceMods.isEmpty()) {
+            copy {
+                from new File(referenceMods)
+                into runModsDir
+            }
+        }
         new File(runDir, 'assets').mkdirs()
     }
 }
@@ -468,8 +477,9 @@ tasks.register('runClient', Exec) {
     dependsOn 'prepareRunDir', 'obfuscateRuntime', 'extractNatives'
     workingDir = runDir
     // GRUG_CI comes from the environment: run-loader.sh exports it, so CI runs the tests while a
-    // plain runClient just launches the game to play.
-    environment 'GRUG_MODS_DIR', modsDir.absolutePath
+    // plain runClient just launches the game to play. A reference run points GRUG_MODS_DIR at a
+    // harness-only directory so no grug port loads; a normal dev run uses the repository's mods.
+    environment 'GRUG_MODS_DIR', System.getenv('GRUG_MODS_DIR') ?: modsDir.absolutePath
     doFirst {
         def assetsDir = System.getenv('GRUG_ASSETS_DIR')
         def assets = (assetsDir != null && !assetsDir.isEmpty())
