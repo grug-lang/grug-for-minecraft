@@ -70,7 +70,12 @@ local _setup() {
 
     _wall(level, x - 6, y - 9, z + 6)
 
-    level.place_block(x, y - 1.88, z + 4, "grug:wooden_pipe")
+    _place_pipe(level, x, y - 1.88, z + 4)
+
+    # The source side is the east chest, so its arm is the plain-texture arm. The reference keeps its
+    # source in the block's metadata, and on a neighbour change keeps a source that still holds an
+    # inventory or else takes the first from YNeg on, which is west before east. So the east chest
+    # goes in first, while it is the only one, and the reference keeps it when the west one follows.
     level.place_block(x + 1, y - 1.88, z + 4, "minecraft:chest")
     level.place_block(x - 1, y - 1.88, z + 4, "minecraft:chest")
 
@@ -78,9 +83,27 @@ local _setup() {
     Test.assert(pipe_opt.has(), "The pipe should have a block entity.")
     pipe.set(pipe_opt.unwrap())
 
-    # The source side is the east chest, so its arm is the plain-texture arm. The saved number is
-    # the side plus one, like the reference's metadata; side 5 is east.
-    pipe.unwrap().set_saved_number("source", 6)
+    # The port's saved number is the side plus one, like the reference's metadata; side 5 is east.
+    if not Test.is_reference() {
+        pipe.unwrap().set_saved_number("source", 6)
+    }
+}
+
+# The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
+# right-clicking the top of a block under it with the pipe held, and that block is cleared again so
+# both scenes hold the same blocks. ItemPipe names the item after its pipe class.
+local _place_pipe(level: Level, x: number, y: number, z: number) {
+    if not Test.is_reference() {
+        level.place_block(x, y, z, "grug:wooden_pipe")
+        return
+    }
+    level.place_block(x, y - 1, z, "minecraft:stone")
+    player: Player = Test.get_player()
+    held: Item = item(resource_location("buildcraft:PipeItemsWood"))
+    Test.set_held_item(player, held)
+    Test.use_block(level, x, y - 1, z)
+    Test.clear_held_item(player)
+    level.place_block(x, y - 1, z, "minecraft:air")
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to

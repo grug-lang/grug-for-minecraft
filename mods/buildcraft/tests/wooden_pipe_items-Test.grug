@@ -6,6 +6,9 @@
 # settles. A record that moved would be at a different place on every run, and a capture taken after
 # an unknown number of settle ticks would not be the same picture twice. The negative step count
 # keeps the transport's snap-to-centre and hand-over thresholds out of reach for the whole run.
+# The reference's PipeTransportItems saves its items as travelingEntities, and loads a record with
+# no speed to stand still for good, since middleReached compares the distance with the speed. So the
+# reference run loads the same two records through the real pipe's NBT.
 pipe: Option[BlockEntity] = Option.new()
 
 # Whether the pipe's chunk geometry and the wall have been meshed again from the settled light yet.
@@ -55,7 +58,7 @@ local _setup() {
 
     # The same place coverage_frame's block sits: four blocks in front of the camera, which looks
     # towards +z, so the pipe's centre is in the crop below.
-    level.place_block(x, y - 1.88, z + 4, "grug:wooden_pipe")
+    _place_pipe(level, x, y - 1.88, z + 4)
     _wall(level, x - 6, y - 9, z + 6)
 
     be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
@@ -65,8 +68,56 @@ local _setup() {
     # One of each kind, side by side in the middle of the pipe so a capture shows the cube and the
     # sprite together. `minecraft:oak_log` is a block, which the reference draws as a cube, and
     # `minecraft:stick` is an item, which it draws as a flat sprite.
+    if Test.is_reference() {
+        _hold_reference(pipe.unwrap(), item(resource_location("minecraft:oak_log")), 0, -0.2)
+        _hold_reference(pipe.unwrap(), item(resource_location("minecraft:stick")), 1, 0.2)
+        Test.load_nbt(pipe.unwrap())
+        pipe.set(level.get_block_entity(x, y - 1.88, z + 4).unwrap())
+        return
+    }
     _hold(pipe.unwrap(), item(resource_location("minecraft:oak_log")), -0.2)
     _hold(pipe.unwrap(), item(resource_location("minecraft:stick")), 0.2)
+}
+
+# The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
+# right-clicking the top of a block under it with the pipe held, and that block is cleared again so
+# both scenes hold the same blocks. ItemPipe names the item after its pipe class.
+local _place_pipe(level: Level, x: number, y: number, z: number) {
+    if not Test.is_reference() {
+        level.place_block(x, y, z, "grug:wooden_pipe")
+        return
+    }
+    level.place_block(x, y - 1, z, "minecraft:stone")
+    player: Player = Test.get_player()
+    held: Item = item(resource_location("buildcraft:PipeItemsWood"))
+    Test.set_held_item(player, held)
+    Test.use_block(level, x, y - 1, z)
+    Test.clear_held_item(player)
+    level.place_block(x, y - 1, z, "minecraft:air")
+}
+
+# Stages the reference's record at the index, the same record _hold adds: EntityPassiveItem's world
+# position and speed, and EntityData's toCenter and orientation, 3 being ZPos as the port's
+# direction 3 is.
+local _hold_reference(pipe_entity: BlockEntity, held: Item, index: number, dx: number) {
+    center: Vec3 = pipe_entity.block_pos().center()
+    if index == 0 {
+        Test.set_nbt_item(pipe_entity, "travelingEntities.0.Item", held)
+        Test.set_nbt_number(pipe_entity, "travelingEntities.0.x", "double", center.x() + dx)
+        Test.set_nbt_number(pipe_entity, "travelingEntities.0.y", "double", center.y() - 0.25)
+        Test.set_nbt_number(pipe_entity, "travelingEntities.0.z", "double", center.z())
+        Test.set_nbt_number(pipe_entity, "travelingEntities.0.speed", "float", 0)
+        Test.set_nbt_number(pipe_entity, "travelingEntities.0.toCenter", "byte", 1)
+        Test.set_nbt_number(pipe_entity, "travelingEntities.0.orientation", "int", 3)
+        return
+    }
+    Test.set_nbt_item(pipe_entity, "travelingEntities.1.Item", held)
+    Test.set_nbt_number(pipe_entity, "travelingEntities.1.x", "double", center.x() + dx)
+    Test.set_nbt_number(pipe_entity, "travelingEntities.1.y", "double", center.y() - 0.25)
+    Test.set_nbt_number(pipe_entity, "travelingEntities.1.z", "double", center.z())
+    Test.set_nbt_number(pipe_entity, "travelingEntities.1.speed", "float", 0)
+    Test.set_nbt_number(pipe_entity, "travelingEntities.1.toCenter", "byte", 1)
+    Test.set_nbt_number(pipe_entity, "travelingEntities.1.orientation", "int", 3)
 }
 
 # Adds one travelling record that stands still at the pipe floor, offset dx along x from the pipe's
@@ -105,7 +156,9 @@ local _check() {
     # The pipe is what the hook drew through, so a missing one would make the screenshot a picture of
     # nothing that happens to match an empty reference.
     Test.assert(pipe.has(), "The pipe lost its block entity.")
-    Test.assert(pipe.unwrap().get_saved_list_size("traveling") == 2, "The pipe should still hold both travelling items.")
+    if not Test.is_reference() {
+        Test.assert(pipe.unwrap().get_saved_list_size("traveling") == 2, "The pipe should still hold both travelling items.")
+    }
 
     # The cube and the sprite seen through the pipe's cage. Pixel-exact: the items' own pixels are
     # the same set on every loader, and the stone background differs per version because each shades

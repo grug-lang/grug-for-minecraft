@@ -35,13 +35,24 @@ local _setup() {
     y: number = origin.y()
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:autocrafting_table")
+    # The reference's table names itself autoWorkbenchBlock, and ItemEngine names its metadata 0
+    # tile.engineWood. Its grid is the same nine slots, so the middle one is 4 there too.
+    if Test.is_reference() {
+        level.place_block(x, y, z, "buildcraft:autoWorkbenchBlock")
+    } else {
+        level.place_block(x, y, z, "grug:autocrafting_table")
+    }
     table_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
     Test.assert(table_opt.has(), "The autocrafting table should have a block entity.")
     table: BlockEntity = table_opt.unwrap()
 
-    engine_item: Item = item(resource_location("grug:redstone_engine"))
-    table.set_item_in_slot(4, engine_item, 1)
+    if Test.is_reference() {
+        reference_item: Item = item(resource_location("buildcraft:engineWood"))
+        table.set_item_in_slot(4, reference_item, 1)
+    } else {
+        port_item: Item = item(resource_location("grug:redstone_engine"))
+        table.set_item_in_slot(4, port_item, 1)
+    }
 
     Test.use_block(level, x, y, z)
 }

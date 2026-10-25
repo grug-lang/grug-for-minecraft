@@ -7,16 +7,36 @@
 # The capture stops high on the screen because the runner prints each test's name to the chat on
 # every loader but 1.2.5, and that readout grows to ten lines of 27 pixels once a repeat has run, so
 # anything below about y=250 holds text in a later repeat. Each engine is given its facing directly,
-# rather than by a receptor next to it, which redstone_engine_facing-Test.grug covers.
+# rather than by a receptor next to it, which redstone_engine_facing-Test.grug covers. The reference
+# run has no grug saved data, so it gives the real TileEngine its "orientation" through its NBT.
 # How many runner ticks in a row the world has answered settled, and the waits before the capture, as
 # coverage_render-Test.grug explains them. See _ready.
 settled_ticks: number = 0
 remeshed: bool = false
 remesh_ticks: number = 0
 
+# Where the row starts, and on the reference the world's time the engines were placed at and whether
+# they have been turned yet. The real TileEngine only makes the engine its NBT is written from on its
+# first tick, so the reference's engines are turned once the world has ticked past their placement.
+ex: number = 0
+ey: number = 0
+ez: number = 0
+placed_time: number = 0
+faced: bool = false
+
 export run() {
     if me.tick() == 0 {
         _setup()
+        me.not_done()
+        return
+    }
+
+    if Test.is_reference() and not faced {
+        level: Level = Test.get_client_level()
+        if level.get_time() > placed_time {
+            _face_reference()
+            faced = true
+        }
         me.not_done()
         return
     }
@@ -44,21 +64,38 @@ local _setup() {
     Test.set_box_radius(10)
 
     origin: Vec3 = Test.setup_graphics_camera()
-    ex: number = origin.x() - 3
-    ey: number = origin.y() + 0.12
-    ez: number = origin.z() + 8
+    ex = origin.x() - 3
+    ey = origin.y() + 0.12
+    ez = origin.z() + 8
 
     _wall(level, origin.x() - 8, origin.y() - 9, origin.z() + 10)
 
     facing: number = 0
     while facing < 6 {
-        level.place_block(ex + facing, ey, ez, "grug:redstone_engine")
+        _place_engine(level, ex + facing, ey, ez)
         engine_opt: Option[BlockEntity] = level.get_block_entity(ex + facing, ey, ez)
         Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
         engine: BlockEntity = engine_opt.unwrap()
-        engine.set_saved_number("orientation", facing)
-        engine.set_saved_number("oriented", 1)
-        engine.redraw()
+        if not Test.is_reference() {
+            engine.set_saved_number("orientation", facing)
+            engine.set_saved_number("oriented", 1)
+            engine.redraw()
+        }
+        facing = facing + 1
+    }
+    placed_time = level.get_time()
+}
+
+# Gives each of the reference's engines the facing of its place in the row through its NBT.
+local _face_reference() {
+    level: Level = Test.get_client_level()
+    facing: number = 0
+    while facing < 6 {
+        engine_opt: Option[BlockEntity] = level.get_block_entity(ex + facing, ey, ez)
+        Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+        engine: BlockEntity = engine_opt.unwrap()
+        Test.set_nbt_number(engine, "orientation", "int", facing)
+        Test.load_nbt(engine)
         facing = facing + 1
     }
 }
@@ -110,4 +147,23 @@ local _force_remesh() {
     level.place_block(x - 6, y + 3, z + 10, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 10, "minecraft:stone")
     Test.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}
+
+# Places the engine as a player does, because the reference's BlockEngine.c, which faces a new
+# engine up and looks for a receptor to face, is only called for a player's placement. The port does
+# the same on its first tick, so placing its block is enough. The reference's engine is placed by
+# right-clicking the top of a block under it with the engine held, and that block is cleared again
+# so both scenes hold the same blocks. See redstone_engine-Test.grug.
+local _place_engine(level: Level, x: number, y: number, z: number) {
+    if not Test.is_reference() {
+        level.place_block(x, y, z, "grug:redstone_engine")
+        return
+    }
+    level.place_block(x, y - 1, z, "minecraft:stone")
+    player: Player = Test.get_player()
+    held: Item = item(resource_location("buildcraft:engineWood"))
+    Test.set_held_item(player, held)
+    Test.use_block(level, x, y - 1, z)
+    Test.clear_held_item(player)
+    level.place_block(x, y - 1, z, "minecraft:air")
 }
