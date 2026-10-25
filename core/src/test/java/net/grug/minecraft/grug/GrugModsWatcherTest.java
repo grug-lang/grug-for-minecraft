@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import net.grug.minecraft.core.GrugCore;
@@ -106,8 +107,26 @@ class GrugModsWatcherTest {
     @Test
     void aResourceIsCountedOnce() {
         String path = "watcher_test/assets/texture.png";
-        GrugModsWatcher.applyReport(new FileInfo[0], new String[] {path}, errors::add);
+        String[] triggers =
+                GrugModsWatcher.applyReport(new FileInfo[0], new String[] {path}, errors::add);
 
         assertEquals(1, GrugModsWatcher.reportedChangeCount(path));
+        assertArrayEquals(new String[] {path}, triggers);
+    }
+
+    /**
+     * An update-goldens run writes a golden into the mods tree while its tests run, and a reload of
+     * the game's resources for it stalled 1.20.6's test until it timed out.
+     */
+    @Test
+    void aScreenshotReferenceIsCountedButReloadsNothing() {
+        String directory = "watcher_test/screenshots/engine";
+        String golden = directory + "/1.20.6-forge.png";
+        String[] triggers =
+                GrugModsWatcher.applyReport(
+                        new FileInfo[0], new String[] {directory, golden}, errors::add);
+
+        assertEquals(1, GrugModsWatcher.reportedChangeCount(golden));
+        assertArrayEquals(new String[0], triggers);
     }
 }
