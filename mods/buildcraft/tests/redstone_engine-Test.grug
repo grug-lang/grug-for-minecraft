@@ -5,6 +5,8 @@
 # so the test needs no ticks for them. The gain of one energy per 20 game ticks is waited for in real
 # game ticks, which takes at most 40 of them. The rest of the test then photographs the engine in each
 # of its four stages, setting its energy into each stage first.
+# The reference run has no grug saved data, so it skips the threshold and gain checks and sets the
+# real TileEngine's energy through its NBT instead, which is what it saves as "energy".
 engine: Option[BlockEntity] = Option.new()
 
 # Which stage the next capture is of: 0 blue, 1 green, 2 yellow and 3 red.
@@ -53,9 +55,6 @@ export run() {
     # at random and they drift up past the underside.
     if stage == 0 {
         Test.screenshot().equals(r"screenshots/redstone_engine_blue", 550, 150, 770, 305)
-        if Test.is_reference() {
-            return
-        }
         _power()
         _draw_stage(251, 1)
     } else if stage == 1 {
@@ -86,7 +85,7 @@ local _setup() {
     ey = origin.y() - 1.88
     ez = origin.z() + 4
 
-    level.place_block(ex, ey, ez, _redstone_engine())
+    _place_engine(level)
     engine_opt: Option[BlockEntity] = level.get_block_entity(ex, ey, ez)
     Test.assert(engine_opt.has(), "The redstone engine should have a block entity.")
     engine.set(engine_opt.unwrap())
@@ -198,8 +197,17 @@ local _set_energy(energy: number) {
 }
 
 # Sets the energy the engine is drawn from, then has the game draw it again, since its trunk is only
-# rebuilt when it is asked to be. The energy has to give the stage the capture is of.
+# rebuilt when it is asked to be. The energy has to give the stage the capture is of. The reference's
+# RenderEngine reads the energy on every frame, so loading it is enough there. The torch keeps it
+# from draining, as it does the port's.
 local _draw_stage(energy: number, expected_stage: number) {
+    if Test.is_reference() {
+        Test.set_nbt_number(engine.unwrap(), "energy", "int", energy)
+        Test.load_nbt(engine.unwrap())
+        level: Level = Test.get_client_level()
+        engine.set(level.get_block_entity(ex, ey, ez).unwrap())
+        return
+    }
     _set_energy(energy)
     block_entity: BlockEntity = engine.unwrap()
     block_entity.redraw()
@@ -271,11 +279,22 @@ local _stage(energy: number) number {
     return 3
 }
 
-# The reference's BlockEngine never calls setBlockName, so its item is the only handle the reference
-# loader has; ItemEngine names metadata 0 tile.engineWood.
-local _redstone_engine() string {
-    if Test.is_reference() {
-        return "buildcraft:engineWood"
+# Places the engine as a player does, because the reference's BlockEngine.c, which faces a new
+# engine up and looks for a receptor to face, is only called for a player's placement. The port does
+# the same on its first tick, so placing its block is enough. The reference's engine is placed by
+# right-clicking the top of a block under it with the engine held, and that block is cleared again
+# so both scenes hold the same blocks. ItemEngine names metadata 0 tile.engineWood, which is how
+# the reference's engine item is found.
+local _place_engine(level: Level) {
+    if not Test.is_reference() {
+        level.place_block(ex, ey, ez, "grug:redstone_engine")
+        return
     }
-    return "grug:redstone_engine"
+    level.place_block(ex, ey - 1, ez, "minecraft:stone")
+    player: Player = Test.get_player()
+    held: Item = item(resource_location("buildcraft:engineWood"))
+    Test.set_held_item(player, held)
+    Test.use_block(level, ex, ey - 1, ez)
+    Test.clear_held_item(player)
+    level.place_block(ex, ey - 1, ez, "minecraft:air")
 }

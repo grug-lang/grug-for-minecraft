@@ -12,6 +12,9 @@
 # The capture stops high on the screen because the runner prints each test's name to the chat on
 # every loader but 1.2.5, and that readout grows to ten lines of 27 pixels once a repeat has run, so
 # anything below about y=250 holds text in a later repeat.
+# The reference run has no grug saved data, so it sets the real TileEngine's "orientation" and
+# "progress" through its NBT instead. Its RenderEngine reads both on every frame, and an unpowered
+# engine at rest leaves its progress alone, so the loaded numbers are what it draws.
 # Where the leftmost engine is, which is where the row starts, one block apart towards +x.
 ex: number = 0
 ey: number = 0
@@ -70,15 +73,26 @@ export run() {
         return
     }
 
+    # The reference's float32 transforms put a few plate-edge pixels on the other side of a pixel's
+    # centre from the port's float64 ones, so its captures take the smallest tolerance that passes.
+    # The port's stay pixel-exact on every loader. See #582.
     if capture == 0 {
-        Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
+        if Test.is_reference() {
+            Test.screenshot().tolerance(12).equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
+        } else {
+            Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
+        }
         capture = 1
         changed = false
         me.not_done()
         return
     }
 
-    Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
+    if Test.is_reference() {
+        Test.screenshot().tolerance(6).equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
+    } else {
+        Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
+    }
 }
 
 local _setup() {
@@ -95,7 +109,7 @@ local _setup() {
 
     i: number = 0
     while i < 6 {
-        level.place_block(ex + i, ey, ez, "grug:redstone_engine")
+        _place_engine(level, ex + i, ey, ez)
         i = i + 1
     }
 }
@@ -120,10 +134,16 @@ local _show_progresses() {
     i: number = 0
     while i < 6 {
         engine: BlockEntity = _engine(i)
-        engine.set_saved_number("orientation", 1)
-        engine.set_saved_number("oriented", 1)
-        engine.set_saved_number("progress", _progress(i))
-        Test.tick_block_entity(engine, 1)
+        if Test.is_reference() {
+            Test.set_nbt_number(engine, "orientation", "int", 1)
+            Test.set_nbt_number(engine, "progress", "float", _progress(i))
+            Test.load_nbt(engine)
+        } else {
+            engine.set_saved_number("orientation", 1)
+            engine.set_saved_number("oriented", 1)
+            engine.set_saved_number("progress", _progress(i))
+            Test.tick_block_entity(engine, 1)
+        }
         i = i + 1
     }
 }
@@ -161,9 +181,15 @@ local _show_facings() {
     i: number = 0
     while i < 6 {
         engine: BlockEntity = _engine(i)
-        engine.set_saved_number("orientation", i)
-        engine.set_saved_number("progress", 0.5)
-        engine.redraw()
+        if Test.is_reference() {
+            Test.set_nbt_number(engine, "orientation", "int", i)
+            Test.set_nbt_number(engine, "progress", "float", 0.5)
+            Test.load_nbt(engine)
+        } else {
+            engine.set_saved_number("orientation", i)
+            engine.set_saved_number("progress", 0.5)
+            engine.redraw()
+        }
         i = i + 1
     }
 }
@@ -217,4 +243,23 @@ local _force_remesh() {
     level.place_block(x - 6, y + 3, z + 10, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 10, "minecraft:stone")
     Test.assert(level.get_block(x - 6, y + 3, z + 10) == "minecraft:stone", "The remesh swap should have put the wall block back.")
+}
+
+# Places the engine as a player does, because the reference's BlockEngine.c, which faces a new
+# engine up and looks for a receptor to face, is only called for a player's placement. The port does
+# the same on its first tick, so placing its block is enough. The reference's engine is placed by
+# right-clicking the top of a block under it with the engine held, and that block is cleared again
+# so both scenes hold the same blocks. See redstone_engine-Test.grug.
+local _place_engine(level: Level, x: number, y: number, z: number) {
+    if not Test.is_reference() {
+        level.place_block(x, y, z, "grug:redstone_engine")
+        return
+    }
+    level.place_block(x, y - 1, z, "minecraft:stone")
+    player: Player = Test.get_player()
+    held: Item = item(resource_location("buildcraft:engineWood"))
+    Test.set_held_item(player, held)
+    Test.use_block(level, x, y - 1, z)
+    Test.clear_held_item(player)
+    level.place_block(x, y - 1, z, "minecraft:air")
 }
