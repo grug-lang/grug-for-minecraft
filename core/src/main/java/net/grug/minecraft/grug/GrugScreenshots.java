@@ -107,10 +107,9 @@ public final class GrugScreenshots {
         List<File> references = listReferences(referenceDirectory);
 
         // A reference run checks that the reference's own pixels are the golden, so it compares
-        // only
-        // the PNG named after the loader it runs as. The port's other loaders' references would
-        // otherwise let a difference in the reference runtime's rendering pass because some other
-        // version happened to match.
+        // only the PNG named after the loader it runs as. The port's other loaders' references
+        // would otherwise let a difference in the reference runtime's rendering pass because some
+        // other version happened to match.
         if (GrugReference.isReferenceRun()) {
             references.removeIf(reference -> !reference.getName().equals(loaderName + ".png"));
         }
