@@ -206,7 +206,8 @@ def stage_command(entry: dict, args) -> int:
         f" mods directory and GRUG_REFERENCE_MODS_DIR at {args.destination}:"
         f" .github/scripts/run-loader.sh {runtime['loader']} run"
         f" (Minecraft {runtime['minecraft']}, loader version {runtime['loader_version']},"
-        f" Java {runtime['java']})."
+        f" Java {runtime['java']}). The normal reference run is the `reference` CI job; this local"
+        " launch is for developing a fixture."
     )
     return 0
 

@@ -100,10 +100,11 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   `gh api repos/<repo>/actions/jobs/<id>/logs`.
 - The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile makes it
   hang until the timeout instead (#366), so check grug syntax before pushing.
-- `update-goldens` replaces only that loader's own reference. A GUI capture may come from it, but a
-  world capture differs slightly between local runs and CI, so take it from the failing CI job:
-  `gh run download <run-id> --name loader-<loader>-screenshots`. Look at every PNG before
-  committing it.
+- `update-goldens` replaces only that loader's own reference. Take every accepted golden from the
+  failing CI job's artifact, GUI or world, so the golden is the pixels the job compared:
+  `gh run download <run-id> --name loader-<loader>-screenshots`. `update-goldens` is only for a new
+  screenshot directory, which a normal CI run refuses to bootstrap; the reference job's failure
+  artifacts carry the reference's 1.2.5 captures. Look at every PNG before committing it.
 - Coverage stays at 100% on `core`. Cover a host function from a committed mod's own path first,
   then a grug test in `mods/coverage/`, then a Java test, and `@GrugGenerated` only as a last
   resort. "A grug test cannot reach this" is not "no test can reach this".
