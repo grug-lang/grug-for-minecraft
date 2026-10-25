@@ -9,8 +9,6 @@ import net.minecraft.src.GuiContainer;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.ModLoader;
 
-import org.lwjgl.opengl.GL11;
-
 import java.awt.image.BufferedImage;
 import java.io.File;
 
@@ -67,22 +65,12 @@ public class GrugScreen extends GuiContainer {
 
     @Override
     protected void drawGuiContainerForegroundLayer() {
-        // 1.2.5 leaves GL_LIGHTING enabled from the item render that precedes this, so text drawn
-        // here is modulated by that light. A declared (64, 64, 64) then reaches the framebuffer as
-        // (86, 86, 86), brighter than the block asked for, and a different colour from the one the
-        // same GUI produces on the other loaders. The labels use the shadow, as the reference's
-        // GuiAutoCrafting and the vanilla container labels do.
-        boolean lighting = GL11.glIsEnabled(GL11.GL_LIGHTING);
-        if (lighting) {
-            GL11.glDisable(GL11.GL_LIGHTING);
-        }
-
+        // 1.2.5 leaves GL_LIGHTING enabled from the item render that precedes this, so a declared
+        // (64, 64, 64) reaches the framebuffer as (86, 86, 86). The reference's GuiAutoCrafting and
+        // vanilla's own container labels draw through that light without a shadow, so the port
+        // does the same rather than restoring the declared colour.
         for (GrugGuiBuilder.TextDef text : layout.texts) {
-            this.fontRenderer.drawStringWithShadow(text.text(), text.x(), text.y(), text.color());
-        }
-
-        if (lighting) {
-            GL11.glEnable(GL11.GL_LIGHTING);
+            this.fontRenderer.drawString(text.text(), text.x(), text.y(), text.color());
         }
     }
 
