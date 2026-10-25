@@ -32,8 +32,8 @@ export run(ctx: TestRunContext) {
     corner.entity().spawn(level)
 
     found: Option[ItemEntity] = level.find_item_entity(cx, y, cz, 2)
-    # The condition is a local because grug-rs passes 0 for ctx when an `or` that short-circuits is
-    # written inside the call's arguments.
+    # The condition is a local because grug-rs corrupts the arguments before an `and` or `or` whose
+    # right operand runs, here ctx (https://github.com/grug-lang/grug-rs/issues/45).
     corner_ok: bool = found.has() or level.count_item_entities(cx, y, cz, 2) > -1
     ctx.assert(corner_ok, "A corner item is at most the one in the box.")
 }
