@@ -133,7 +133,7 @@ val grugRsDir = layout.buildDirectory.dir("grug-rs").get().asFile
 val grugRsUrl = "https://github.com/grug-lang/grug-rs.git"
 
 // Pinned for stability. Bump this every so often.
-val grugRsRevision = "290f5a94cf4eaac7bdef4176777b0f41b6c84304"
+val grugRsRevision = "f7ca6a7ca0d117a5ef0455c85e52de046b6d4028"
 
 // Where the adapter links grug-rs from. cloneGrugRs and buildGrugRs both write this one file.
 val libGruggers = grugRsDir.resolve(
