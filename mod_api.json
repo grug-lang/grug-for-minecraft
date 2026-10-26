@@ -95,8 +95,16 @@
 			"export_functions": [
 				{
 					"name": "init",
-					"description": "Called once when this block entity's grug entity is created, which is before its first tick. Member scope runs first and can only declare, so this is the first point at which a block entity can call anything: it is where an inventory declares which of its slots another block may use, and where anything else a block entity has to set up once belongs.",
-					"engine_called": true
+					"description": "Called once when this block entity's grug entity is created, which is before its first tick. Member scope runs first and can only declare, so this is the first point at which a block entity can call anything: it is where a block entity declares through `ctx` that it receives energy and which of its slots another block may use, and where anything else a block entity has to set up once belongs.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "BlockEntityInitContext"
+							}
+						}
+					]
 				},
 				{
 					"name": "on_neighbor_change",
@@ -732,40 +740,6 @@
 				"redraw": {
 					"description": "Has the game build a block's geometry again, so a render function that draws from state the world does not know changed, such as a saved number, draws the new state. The game already rebuilds a block's geometry when a neighbouring block changes, so this is only for state the block entity keeps itself. A rebuild costs a chunk's worth of work, so call it when what render draws changes, not every tick. On a version whose client keeps its own copy of the block entity, this also sends that copy the block entity's saved numbers, since they are what the client's render function reads. Only a grug block entity has a render function; any other block entity is reported."
 				},
-				"set_extractable_slots": {
-					"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it.",
-					"parameters": [
-						{
-							"name": "first",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "last",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_insertable_slots": {
-					"description": "Declares the slots of this block entity's inventory another block may put into, the first and the last inclusive. A last below the first declares no slot at all. This is a permission rather than a lock: insert_item_into_inventory fills only these slots and set_item_in_slot still writes to any of them, so a block managing its own slots is unaffected. A block entity that declares nothing is insertable everywhere, and declaring again replaces the earlier range rather than adding to it.",
-					"parameters": [
-						{
-							"name": "first",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "last",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
 				"set_item_count_in_slot": {
 					"description": "Changes the amount of items in a specific slot.",
 					"parameters": [
@@ -817,17 +791,6 @@
 						},
 						{
 							"name": "count",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_power_receiver": {
-					"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. Call it from the block entity's init(), since the declaration is not saved and has to be made again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, separately from its saved numbers, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only a grug block entity can receive energy; any other block entity is reported.",
-					"parameters": [
-						{
-							"name": "max_stored",
 							"type": {
 								"name": "number"
 							}
@@ -2279,6 +2242,56 @@
 			"methods": {
 				"decline_use": {
 					"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Only legal on the context use() was passed, while that call is running: a context saved for later is refused."
+				}
+			}
+		},
+		"BlockEntityInitContext": {
+			"description": "The context of a block entity's init(), passed to it. What a block entity declares about itself once, when it is created, goes through it: whether it receives energy, and which of its slots another block may use. A declaration is not saved, so init() makes it again whenever the block entity is created. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"set_power_receiver": {
+					"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. The declaration is not saved, so init() makes it again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, separately from its saved numbers, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "max_stored",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_extractable_slots": {
+					"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "first",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "last",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_insertable_slots": {
+					"description": "Declares the slots of this block entity's inventory another block may put into, the first and the last inclusive. A last below the first declares no slot at all. This is a permission rather than a lock: insert_item_into_inventory fills only these slots and set_item_in_slot still writes to any of them, so a block managing its own slots is unaffected. A block entity that declares nothing is insertable everywhere, and declaring again replaces the earlier range rather than adding to it. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "first",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "last",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		}

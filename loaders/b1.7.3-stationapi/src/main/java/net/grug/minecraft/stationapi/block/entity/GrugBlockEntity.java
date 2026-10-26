@@ -91,20 +91,9 @@ public class GrugBlockEntity extends BlockEntity
             tickFnId = Grug.getExportFnId("BlockEntity", "tick");
             long initFnId = Grug.getExportFnId("BlockEntity", "init");
             if (initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                callExportFn(initFnId);
+                GrugEntities.callBlockEntityInit(entityHandle, initFnId, childEntities, this);
             }
         }
-    }
-
-    /**
-     * Runs one export function on this block entity's grug entity, with its host entities rooted
-     * and {@code me} resolving to this block entity.
-     *
-     * <p>{@code me} is bound for the call because init is where a script first reaches for it: a
-     * block entity whose member scope only declares has nothing bound yet.
-     */
-    private void callExportFn(long fnId) {
-        GrugEntities.callExportFnWithOwner(entityHandle, fnId, childEntities, this);
     }
 
     @GrugGenerated(

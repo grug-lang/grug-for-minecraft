@@ -27,8 +27,8 @@ progress_part: number = 0
 # the provider holds is lost when its chunk unloads. The energy host functions save what a receiver
 # holds, so the engine reproduces that by emptying its store whenever its grug entity is created,
 # which is every time its chunk is loaded, as the wooden pipe does.
-export init() {
-    me.set_power_receiver(1000)
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_power_receiver(1000)
     me.extract_energy(1000)
 }
 

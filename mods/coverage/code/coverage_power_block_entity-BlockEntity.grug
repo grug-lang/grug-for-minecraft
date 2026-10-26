@@ -2,6 +2,6 @@
 # the member scope registers the block entity's me handle, which a later host call needs.
 level: Level = me.level()
 
-export init() {
-    me.set_power_receiver(10)
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_power_receiver(10)
 }

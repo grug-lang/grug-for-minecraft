@@ -4,6 +4,7 @@ public enum GrugEntityType {
     AddResponse,
     Block,
     BlockEntity,
+    BlockEntityInitContext,
     BlockInitContext,
     BlockPos,
     Color,

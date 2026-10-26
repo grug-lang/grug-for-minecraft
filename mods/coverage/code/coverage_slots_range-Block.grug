@@ -1,0 +1,7 @@
+# A block whose block entity declares its slot access in init(), for slot_access-Test.grug.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_inventory_size(9)
+    ctx.set_block_entity(e"coverage_slots_range_entity")
+}

@@ -5,6 +5,6 @@ level: Level = me.level()
 # Saves a number so a test can observe, without waiting for a tick, that init() has run. A block
 # entity whose grug entity is only created on its first tick leaves this at the 0 default until
 # then. See #187.
-export init() {
+export init(ctx: BlockEntityInitContext) {
     me.set_saved_number("inited", 1)
 }

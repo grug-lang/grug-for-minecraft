@@ -40,12 +40,6 @@ class GrugPowerTest {
     }
 
     @Test
-    void onlyAGrugBlockEntityCanBeAReceiver() {
-        assertNull(GrugPower.checkCanDeclare(new Receiver()));
-        assertNotNull(GrugPower.checkCanDeclare(new Object()));
-    }
-
-    @Test
     void aBlockEntityIsAReceiverOnlyOnceItDeclaredItself() {
         Receiver receiver = new Receiver();
 
