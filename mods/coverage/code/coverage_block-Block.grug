@@ -10,7 +10,7 @@ export init(ctx: BlockInitContext) {
 # grid, with its result slot, which use_block_same_tick-Test.grug needs because the result slot is the part of a
 # menu that cannot be built without the block entity. The GUI is opened by the server from this export, which is
 # how a player opening the block gets it, so the menu its slots belong to is the block entity's own.
-export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player) {
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
     gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
     gui_layout.add_crafting_grid(0, 30, 17)
     gui_layout.add_crafting_result(124, 35)

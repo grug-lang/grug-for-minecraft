@@ -7,6 +7,7 @@ public enum GrugEntityType {
     BlockEntityInitContext,
     BlockInitContext,
     BlockPos,
+    BlockUseContext,
     Color,
     Entity,
     ExtractResponse,
@@ -22,7 +23,6 @@ public enum GrugEntityType {
     Screenshot,
     TestInitContext,
     TestTickContext,
-    UseContext,
     Vec3;
 
     private static final GrugEntityType[] values = GrugEntityType.values();

@@ -13,7 +13,7 @@ export on_break(world: Level, x: number, y: number, z: number) {
     drop_inventory(world, x, y, z)
 }
 
-export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player) {
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
     gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
 
     text_color: Color = Color.rgb(64, 64, 64)

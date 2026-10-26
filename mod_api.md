@@ -5,7 +5,7 @@ Generated from mod_api.json by mod_api_catalog.py; do not edit. Descriptions are
 ## Block
 export init(ctx: BlockInitContext)
 export on_break(world: Level, x: number, y: number, z: number)
-export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player)
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player)
 
 ## BlockEntity
 export add_item(item: Item, damage: number, count: number, from_side: number, add: bool, response: AddResponse)
@@ -110,6 +110,9 @@ Test.world_settled() bool
 .above_n(n: number) BlockPos
 .center() Vec3
 
+## BlockUseContext
+.decline_use()
+
 ## Color
 Color.rgb(r: number, g: number, b: number) Color
 
@@ -183,9 +186,6 @@ Option.new() Option[$Value]
 .current_tick() number
 .expect_error(message: string)
 .not_done()
-
-## UseContext
-.decline_use()
 
 ## Vec3
 .x() number

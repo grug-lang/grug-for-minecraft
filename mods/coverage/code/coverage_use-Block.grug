@@ -3,6 +3,6 @@ export init(ctx: BlockInitContext) {
     ctx.set_material("stone")
 }
 
-export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player) {
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
     held: Option[Item] = player.get_held_item()
 }
