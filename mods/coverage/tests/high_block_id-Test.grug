@@ -1,0 +1,17 @@
+# Covers a block with the highest id any grug block gets (#599). Alpha stores an id in one byte per cell, and from
+# 128 up the game read it back negative: placing the block indexed the opacity table out of bounds and ended the
+# run. Placing it, reading it back, and replacing it with another block goes through the reads the loader masks.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:zz_coverage_high_id")
+    ctx.assert(level.get_block(x, y, z) == "grug:zz_coverage_high_id", "The block with the highest id should keep its name.")
+    ctx.assert(not level.is_air(x, y, z), "The block with the highest id should not be air.")
+
+    level.place_block(x, y, z, "minecraft:stone")
+    ctx.assert(level.get_block(x, y, z) == "minecraft:stone", "Replacing the block with the highest id should leave stone.")
+}
