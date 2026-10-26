@@ -44,8 +44,7 @@ export tick(ctx: TestTickContext) {
         ctx.assert(chest.get_crafting_result_damage() == 0, "A chest's result damage should be 0.")
 
         _check_range(ctx, level, x + 3, y, z, diamond)
-        _check_none(ctx, level, x + 5, y, z, diamond)
-        _check_result(ctx, level, x + 7, y, z)
+        _check_closed(ctx, level, x + 5, y, z, diamond)
     }
 }
 
@@ -93,20 +92,15 @@ local _check_range(ctx: TestTickContext, level: Level, x: number, y: number, z: 
     ctx.assert(be.count_item_in_inventory(diamond, 0) == 7, "Counting should still see every slot.")
 }
 
-# The block declared a last below the first for insertion in its init().
-local _check_none(ctx: TestTickContext, level: Level, x: number, y: number, z: number, diamond: Item) {
-    level.place_block(x, y, z, "grug:coverage_slots_none")
+# The block declared a last below the first for insertion, and the result slot alone for extraction,
+# in its init(), which is what a machine does.
+local _check_closed(ctx: TestTickContext, level: Level, x: number, y: number, z: number, diamond: Item) {
+    level.place_block(x, y, z, "grug:coverage_slots_closed")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
 
     # An inventory with no slot another block may use takes nothing at all.
     ctx.assert(not be.is_slot_insertable(8), "A last below the first should declare no slot.")
     ctx.assert(be.insert_item_into_inventory(diamond, 0, 1, true) == 0, "A denied inventory should take nothing.")
-}
-
-# The block granted the result slot alone in its init(), which is what a machine does.
-local _check_result(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    level.place_block(x, y, z, "grug:coverage_slots_result")
-    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
 
     # Granting the result slot alone keeps its grid out of reach.
     ctx.assert(not be.is_slot_extractable(0), "A grid slot outside the declared range should be denied.")

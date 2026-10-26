@@ -1,4 +1,4 @@
-# A block whose block entity declares its slot access in init(), for slot_access-Test.grug.
+# A block whose block entity declares its slot access in init(), for slot_access-Test.grug and power_declare_again-Test.grug.
 export init(ctx: BlockInitContext) {
     ctx.set_hardness(1)
     ctx.set_material("stone")

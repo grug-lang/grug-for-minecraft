@@ -1,5 +1,0 @@
-export init(ctx: BlockInitContext) {
-    ctx.set_hardness(1)
-    ctx.set_material("stone")
-    ctx.set_block_entity(e"coverage_power_redeclare_entity")
-}
