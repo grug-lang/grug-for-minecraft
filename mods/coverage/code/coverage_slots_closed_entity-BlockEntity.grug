@@ -1,0 +1,8 @@
+# Takes nothing in and gives out only its crafting result, declared in init(), for
+# slot_access-Test.grug.
+level: Level = me.level()
+
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_insertable_slots(8, 7)
+    ctx.set_extractable_slots(9, 9)
+}

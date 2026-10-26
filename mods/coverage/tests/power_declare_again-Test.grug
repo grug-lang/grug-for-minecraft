@@ -1,5 +1,5 @@
 # Declaring again replaces the limit and keeps the energy, cut down to the new limit when that is
-# lower. The block entity declares itself three times in its init(), and saves what each declaration
+# lower. The block entity declares itself three times in its init(), beside the slot ranges slot_access-Test.grug uses, and saves what each declaration
 # left behind.
 export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
@@ -8,7 +8,7 @@ export tick(ctx: TestTickContext) {
     y: number = origin.y() + 20
     z: number = origin.z()
 
-    level.place_block(x, y, z, "grug:coverage_power_redeclare")
+    level.place_block(x, y, z, "grug:coverage_slots_range")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
 
     ctx.assert(be.get_saved_number("same_limit") == 8, "Declaring again with the same limit should keep the energy.")
