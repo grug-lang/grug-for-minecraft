@@ -190,6 +190,35 @@ class RunLoaderTest(unittest.TestCase):
         # Without the setting the same log is a game that exited before the tests passed.
         self.assertNotEqual(self.run_script(boot, 1).returncode, 0)
 
+    def test_boot_only_game_that_exits_between_the_log_reads_and_the_liveness_check_succeeds(self):
+        # A boot-only game prints GRUG LOADED and exits at once, so it can do both between the
+        # poll's last read of the log and its liveness test (#597). The fake gradlew writes at
+        # 0.5s and exits; the grep shim holds the first poll for 1.5s after its last grep, which is
+        # the window. The script must not report the exit it then sees as a bare exit.
+        shim = self.tmp / "shim"
+        shim.mkdir()
+        grep = shim / "grep"
+        grep.write_text(
+            "#!/usr/bin/env bash\n"
+            '/usr/bin/grep "$@"; status=$?\n'
+            'case "$*" in *"panicked at"*) sleep 1.5 ;; esac\n'
+            "exit $status\n"
+        )
+        grep.chmod(0o755)
+
+        result = self.run_script(
+            "[GRUG CI] GRUG LOADED\n",
+            0,
+            {
+                "GRUG_CI_BOOT_ONLY": "1",
+                "FAKE_GRADLE_SLEEP": "0",
+                "PATH": f"{shim}:/usr/bin:/bin:/usr/local/bin",
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("build/game process exited", result.stderr)
+
     def test_boot_only_still_fails_a_crash_before_grug_has_loaded(self):
         crash = "Broken grug invariant: no native\n"
 

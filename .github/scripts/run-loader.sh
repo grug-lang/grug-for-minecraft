@@ -224,6 +224,14 @@ status=timeout
 reached_title=false
 deadline=$((SECONDS + timeout_secs))
 while [ "$SECONDS" -lt "$deadline" ]; do
+  # Sampled before the log is read, never after: a process that dies between the reads and a
+  # liveness test written last would leave its final line unread and be reported as a bare exit.
+  # A game that was already dead here wrote everything it ever will before this point, so the
+  # reads below see all of it. A boot-only game prints GRUG LOADED and exits at once, so it hit
+  # exactly that window (#597).
+  alive=true
+  kill -0 "$gradle_pid" 2>/dev/null || alive=false
+
   if [ "$reached_title" = false ] && grep -q -F "$BOOT_MSG" "$LOG_FILE"; then
     echo "==> $LOADER reached the title screen. Waiting for tests to complete..."
     reached_title=true
@@ -240,7 +248,7 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   # before the process dies: on the poll that sees both, the liveness test would report a bare
   # "exited" and the panic, which is the whole diagnosis, would go unread.
   if grep -q -E "$ABORT_RE" "$LOG_FILE"; then status=aborted; break; fi
-  if ! kill -0 "$gradle_pid" 2>/dev/null; then status=exited; break; fi
+  if [ "$alive" = false ]; then status=exited; break; fi
   sleep 1
 done
 
