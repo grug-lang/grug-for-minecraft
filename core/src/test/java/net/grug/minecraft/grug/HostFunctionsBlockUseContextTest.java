@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Covers the one method a block's {@code use()} reaches through the context it is handed. */
-class HostFunctionsUseContextTest {
+class HostFunctionsBlockUseContextTest {
 
     @BeforeEach
     @AfterEach
@@ -32,9 +32,9 @@ class HostFunctionsUseContextTest {
     @Test
     void theOpenContextDeclinesTheClick() {
         long context =
-                GrugEntities.addEntity(GrugEntityType.UseContext, GrugBlockUse.openContext());
+                GrugEntities.addEntity(GrugEntityType.BlockUseContext, GrugBlockUse.openContext());
 
-        HostFunctions.UseContext_decline_use(context);
+        HostFunctions.BlockUseContext_decline_use(context);
 
         assertTrue(drain().isEmpty(), "A legal call reports nothing.");
     }
@@ -42,13 +42,13 @@ class HostFunctionsUseContextTest {
     @Test
     void aContextKeptPastItsCallIsRefused() {
         long context =
-                GrugEntities.addEntity(GrugEntityType.UseContext, GrugBlockUse.openContext());
+                GrugEntities.addEntity(GrugEntityType.BlockUseContext, GrugBlockUse.openContext());
         GrugBlockUse.closeContext();
 
-        HostFunctions.UseContext_decline_use(context);
+        HostFunctions.BlockUseContext_decline_use(context);
 
         List<String> reports = drain();
         assertEquals(1, reports.size());
-        assertTrue(reports.get(0).contains("UseContext.decline_use"), reports.get(0));
+        assertTrue(reports.get(0).contains("BlockUseContext.decline_use"), reports.get(0));
     }
 }

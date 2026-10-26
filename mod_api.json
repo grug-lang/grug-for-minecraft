@@ -53,7 +53,7 @@
 						{
 							"name": "ctx",
 							"type": {
-								"name": "UseContext"
+								"name": "BlockUseContext"
 							}
 						},
 						{
@@ -2237,7 +2237,7 @@
 				}
 			}
 		},
-		"UseContext": {
+		"BlockUseContext": {
 			"description": "The context of a block's use(), passed to it. A context is only valid while its use() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
 				"decline_use": {

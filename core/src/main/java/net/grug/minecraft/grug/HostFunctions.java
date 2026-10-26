@@ -47,8 +47,9 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Level, level);
     }
 
-    public static void UseContext_decline_use(long contextId) {
-        if (!requireContext("UseContext.decline_use", "use", contextId, GrugBlockUse.context())) {
+    public static void BlockUseContext_decline_use(long contextId) {
+        if (!requireContext(
+                "BlockUseContext.decline_use", "use", contextId, GrugBlockUse.context())) {
             return;
         }
         GrugBlockUse.decline();

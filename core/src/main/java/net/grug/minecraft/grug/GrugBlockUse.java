@@ -39,7 +39,7 @@ public final class GrugBlockUse {
         context = null;
     }
 
-    /** Called by the {@code UseContext.decline_use} host function. */
+    /** Called by the {@code BlockUseContext.decline_use} host function. */
     static void decline() {
         declined = true;
     }
@@ -48,7 +48,7 @@ public final class GrugBlockUse {
     public static boolean use(
             long blockHandle, long worldId, double x, double y, double z, long playerId) {
         declined = false;
-        long contextHandle = GrugEntities.addEntity(GrugEntityType.UseContext, openContext());
+        long contextHandle = GrugEntities.addEntity(GrugEntityType.BlockUseContext, openContext());
         try {
             boolean handled =
                     ExportFns.Block_use(blockHandle, contextHandle, worldId, x, y, z, playerId);
