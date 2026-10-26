@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 
 public class InitListener {
     static {
@@ -64,8 +65,9 @@ public class InitListener {
     public static final Namespace NAMESPACE = Namespace.resolve();
     public static final Logger LOGGER = NAMESPACE.getLogger();
 
-    public static final Map<String, Long> itemFiles = new HashMap<>();
-    private static final Map<String, Long> blockFiles = new HashMap<>();
+    // Sorted by name, so the registries get their entries in the same order on every run (#599).
+    public static final Map<String, Long> itemFiles = new TreeMap<>();
+    private static final Map<String, Long> blockFiles = new TreeMap<>();
 
     /**
      * Every registered grug block, so the client can reach the ones that draw their own geometry
