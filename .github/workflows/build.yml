@@ -551,16 +551,17 @@ jobs:
           echo "The reference run loads:"
           (cd loaders/1.2.5-forge/run/reference-mods && sha256sum *)
 
-      # The harness is the mod's screenshot tests, about.json, LICENSE and goldens without its code,
-      # so the real BuildCraft provides every block and the harness only drives the tests. The game
-      # dies before the tests without the LICENSE.
+      # The harness is the mod's tests that have a reference side, the ones that capture a screenshot
+      # or branch on Test.is_reference(), plus about.json, LICENSE and goldens without its code, so the
+      # real BuildCraft provides every block and the harness only drives the tests. The game dies
+      # before the tests without the LICENSE.
       - name: Assemble the reference harness
         run: |
           harness="$GITHUB_WORKSPACE/reference-harness"
           mkdir -p "$harness/buildcraft/tests"
           cp mods/buildcraft/about.json mods/buildcraft/LICENSE "$harness/buildcraft/"
           cp -r mods/buildcraft/screenshots "$harness/buildcraft/"
-          for test in $(grep -l "Test.screenshot" mods/buildcraft/tests/*-Test.grug); do
+          for test in $(grep -l -e "Test.screenshot" -e "Test.is_reference" mods/buildcraft/tests/*-Test.grug); do
             cp "$test" "$harness/buildcraft/tests/"
           done
           echo "The reference harness is $harness:"
