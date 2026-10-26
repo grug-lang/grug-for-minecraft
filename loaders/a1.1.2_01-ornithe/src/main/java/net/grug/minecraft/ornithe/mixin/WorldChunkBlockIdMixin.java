@@ -6,6 +6,7 @@ import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 
+import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.world.chunk.WorldChunk;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,6 +21,9 @@ import org.spongepowered.asm.mixin.injection.At;
  * why its range already reaches 254. The save format does not change: the {@code Blocks} tag holds
  * the same bytes either way. The sixth read is in {@link WorldBlockIdMixin}. See #599.
  */
+@GrugGenerated(
+        "a mixin into the game's chunk and world code: the game runs it, and"
+            + " high_block_id-Test.grug fails on Alpha without it")
 @Mixin(WorldChunk.class)
 public abstract class WorldChunkBlockIdMixin {
     /** {@code getBlockAt} returns the raw byte, so every caller sees the negative id. */
