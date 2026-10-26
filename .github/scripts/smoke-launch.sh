@@ -205,9 +205,13 @@ settle() {
 }
 
 if [ "$EXPECT" = error ]; then
-  until grep -q -F -e "$GRUG_ERROR" "$LOG"; do
+  while true; do
+    # Sampled before the log is read, so a game that printed the error and exited is not missed.
+    alive=true
+    kill -0 "$GAME_PID" 2>/dev/null || alive=false
+    grep -q -F -e "$GRUG_ERROR" "$LOG" && break
     if [ -n "$(problems)" ]; then fail "$(problems)"; fi
-    if ! kill -0 "$GAME_PID" 2>/dev/null; then fail "the game exited without grug's error"; fi
+    if [ "$alive" = false ]; then fail "the game exited without grug's error"; fi
     if [ "$SECONDS" -ge "$deadline" ]; then fail "grug's error did not appear within the timeout"; fi
     sleep 2
   done
@@ -219,9 +223,12 @@ if [ "$EXPECT" = error ]; then
   exit 0
 fi
 
-until grep -E -q -e "$READY" "$LOG"; do
+while true; do
+  alive=true
+  kill -0 "$GAME_PID" 2>/dev/null || alive=false
+  grep -E -q -e "$READY" "$LOG" && break
   if [ -n "$(problems)" ]; then fail "$(problems)"; fi
-  if ! kill -0 "$GAME_PID" 2>/dev/null; then fail "the game exited before loading ended"; fi
+  if [ "$alive" = false ]; then fail "the game exited before loading ended"; fi
   if [ "$SECONDS" -ge "$deadline" ]; then fail "loading did not end within the timeout"; fi
   sleep 2
 done
