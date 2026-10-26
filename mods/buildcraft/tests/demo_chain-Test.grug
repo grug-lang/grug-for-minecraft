@@ -1,0 +1,100 @@
+# THROWAWAY: prints what the reference does with the chain, so the real assertions can be written.
+act1: Option[BlockEntity] = Option.new()
+act2: Option[BlockEntity] = Option.new()
+chest_logs: Option[BlockEntity] = Option.new()
+chest_sticks: Option[BlockEntity] = Option.new()
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(4000)
+}
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+        return
+    }
+    if ctx.current_tick() % 100 == 0 {
+        print3(ctx.current_tick(), chest_logs.unwrap().get_item_count_in_slot(0), chest_sticks.unwrap().get_item_count_in_slot(0))
+    }
+    if ctx.current_tick() < 3500 {
+        ctx.not_done()
+        return
+    }
+    slot: number = 0
+    while slot < 9 {
+        a: number = act1.unwrap().get_item_count_in_slot(slot)
+        b: number = act2.unwrap().get_item_count_in_slot(slot)
+        print3(slot, a, b)
+        slot = slot + 1
+    }
+    print(chest_sticks.unwrap().get_item_count_in_slot(0))
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    level.place_block(x + 1, y, z, _table())
+    level.place_block(x + 3, y, z, _table())
+    level.place_block(x + 5, y, z, "minecraft:chest")
+
+    chest_logs.set(level.get_block_entity(x, y, z).unwrap())
+    act1.set(level.get_block_entity(x + 1, y, z).unwrap())
+    act2.set(level.get_block_entity(x + 3, y, z).unwrap())
+    chest_sticks.set(level.get_block_entity(x + 5, y, z).unwrap())
+
+    log: Item = item(resource_location("minecraft:oak_log"))
+    plank: Item = item(resource_location("minecraft:oak_planks"))
+    chest_logs.unwrap().set_item_in_slot(0, log, 2)
+    act1.unwrap().set_item_in_slot(0, log, 1)
+    act2.unwrap().set_item_in_slot(0, plank, 1)
+    act2.unwrap().set_item_in_slot(3, plank, 1)
+
+    _place_pipe(level, x + 2, y)
+    _place_pipe(level, x + 4, y)
+    _place_engine(level, x + 2, y - 1, z)
+    _place_engine(level, x + 4, y - 1, z)
+}
+
+local _table() string {
+    if Test.is_reference() {
+        return "buildcraft:autoWorkbenchBlock"
+    }
+    return "grug:autocrafting_table"
+}
+
+local _place_pipe(level: Level, x: number, y: number) {
+    z: number = Test.get_origin().z()
+    if not Test.is_reference() {
+        level.place_block(x, y, z, "grug:wooden_pipe")
+        return
+    }
+    level.place_block(x, y - 1, z, "minecraft:stone")
+    player: Player = Test.get_player()
+    held: Item = item(resource_location("buildcraft:PipeItemsWood"))
+    Test.set_held_item(player, held)
+    Test.use_block(level, x, y - 1, z)
+    Test.clear_held_item(player)
+    level.place_block(x, y - 1, z, "minecraft:air")
+}
+
+local _place_engine(level: Level, x: number, y: number, z: number) {
+    level.place_block(x, y - 2, z, "minecraft:stone")
+    if not Test.is_reference() {
+        level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+        level.place_block(x, y, z, "grug:redstone_engine")
+        return
+    }
+    level.place_block(x, y - 1, z, "minecraft:stone")
+    player: Player = Test.get_player()
+    held: Item = item(resource_location("buildcraft:engineWood"))
+    Test.set_held_item(player, held)
+    Test.use_block(level, x, y - 1, z)
+    Test.clear_held_item(player)
+    level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+}
