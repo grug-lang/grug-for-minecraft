@@ -1,11 +1,11 @@
-export init() {
-    set_hardness(2.5)
-    set_material("wood")
-    set_block_entity(e"autocrafting_table_entity")
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(2.5)
+    ctx.set_material("wood")
+    ctx.set_block_entity(e"autocrafting_table_entity")
 
     # 9 slots for the 3x3 crafting grid. The result is not an inventory slot: the block entity
     # keeps it in a dedicated container, matching BuildCraft's 9-slot TileAutoWorkbench.
-    set_inventory_size(9)
+    ctx.set_inventory_size(9)
 }
 
 # TODO: Rename to `export break` once https://github.com/grug-lang/grug-rs/issues/14 is fixed
@@ -13,7 +13,7 @@ export on_break(world: Level, x: number, y: number, z: number) {
     drop_inventory(world, x, y, z)
 }
 
-export use(world: Level, x: number, y: number, z: number, player: Player) {
+export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player) {
     gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
 
     text_color: Color = Color.rgb(64, 64, 64)

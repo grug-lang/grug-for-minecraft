@@ -1,5 +1,0 @@
-# set_material is only legal during a Block's init(), so calling it here must report an error.
-export tick(ctx: TestTickContext) {
-    ctx.expect_error("set_material")
-    set_material("stone")
-}

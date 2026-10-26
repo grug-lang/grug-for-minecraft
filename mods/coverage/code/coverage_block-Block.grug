@@ -1,16 +1,16 @@
 # Covers the success branches of the host functions that are only legal while a Block's init() runs.
-export init() {
-    set_hardness(1)
-    set_material("stone")
-    set_inventory_size(9)
-    set_block_entity(e"coverage_block_entity")
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_inventory_size(9)
+    ctx.set_block_entity(e"coverage_block_entity")
 }
 
 # Opens the 3x3 crafting grid the item icon test captures, laid out the way the autocrafting table lays out its
 # grid, with its result slot, which use_block_same_tick-Test.grug needs because the result slot is the part of a
 # menu that cannot be built without the block entity. The GUI is opened by the server from this export, which is
 # how a player opening the block gets it, so the menu its slots belong to is the block entity's own.
-export use(world: Level, x: number, y: number, z: number, player: Player) {
+export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player) {
     gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
     gui_layout.add_crafting_grid(0, 30, 17)
     gui_layout.add_crafting_result(124, 35)

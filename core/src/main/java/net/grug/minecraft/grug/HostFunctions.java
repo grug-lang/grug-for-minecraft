@@ -47,7 +47,10 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Level, level);
     }
 
-    public static void decline_use() {
+    public static void UseContext_decline_use(long contextId) {
+        if (!requireContext("UseContext.decline_use", "use", contextId, GrugBlockUse.context())) {
+            return;
+        }
         GrugBlockUse.decline();
     }
 
@@ -1157,22 +1160,25 @@ public class HostFunctions {
                 GrugCore.getAdapter().createResourceLocation(resourceLocationString));
     }
 
-    public static void set_block_entity(String entityString) {
+    public static void BlockInitContext_set_block_entity(long contextId, String entityString) {
+        GrugBlockData block =
+                requireBlockInitContext("BlockInitContext.set_block_entity", contextId);
+        if (block == null) return;
+
         String cleanName = entityString.substring(entityString.lastIndexOf(':') + 1);
 
         if (!GrugEntities.entityFileIdsByName.containsKey(cleanName)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "set_block_entity: Block entity script '" + entityString + "' does not exist.");
+            // A bounded defect: the block still loads, without a block entity, and the report
+            // names the block and the script it asked for.
+            GrugModTreeDefect.report(
+                    block.id
+                            + ": set_block_entity: Block entity script '"
+                            + entityString
+                            + "' does not exist.");
             return;
         }
 
-        if (GrugDeclarations.currentlyInitializingBlock != null) {
-            GrugDeclarations.currentlyInitializingBlock.blockEntityString = entityString;
-        } else {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "set_block_entity: Can only be called during a Block's init().");
-        }
+        block.blockEntityString = entityString;
     }
 
     /**
@@ -1451,27 +1457,21 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(handle));
     }
 
-    public static void set_custom_render() {
-        if (GrugDeclarations.currentlyInitializingBlock == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "set_custom_render: Can only be called during a Block's init().");
-            return;
-        }
+    public static void BlockInitContext_set_custom_render(long contextId) {
+        GrugBlockData block =
+                requireBlockInitContext("BlockInitContext.set_custom_render", contextId);
+        if (block == null) return;
 
         // Every loader implements the render hook, so the declaration is unconditional. This
         // line is measured: a block that declares custom rendering reaches it on every loader.
-        GrugDeclarations.currentlyInitializingBlock.customRender = true;
+        block.customRender = true;
     }
 
-    public static void set_flat_lighting() {
-        GrugBlockData block = GrugDeclarations.currentlyInitializingBlock;
-        if (block == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "set_flat_lighting: Can only be called during a Block's init().");
-            return;
-        }
+    public static void BlockInitContext_set_flat_lighting(long contextId) {
+        GrugBlockData block =
+                requireBlockInitContext("BlockInitContext.set_flat_lighting", contextId);
+        if (block == null) return;
+
         if (!block.customRender) {
             // A bounded defect: the block still loads, drawing its model the way every block is
             // lit, and the report names the block and what to call first.
@@ -1485,29 +1485,37 @@ public class HostFunctions {
         block.flatLighting = true;
     }
 
-    public static void set_hardness(double value) {
-        if (GrugDeclarations.currentlyInitializingBlock != null)
-            GrugDeclarations.currentlyInitializingBlock.hardness = (float) value;
-        else
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "set_hardness: Can only be called during a Block's init().");
+    public static void BlockInitContext_set_hardness(long contextId, double value) {
+        GrugBlockData block = requireBlockInitContext("BlockInitContext.set_hardness", contextId);
+        if (block == null) return;
+
+        block.hardness = (float) value;
     }
 
-    public static void set_inventory_size(double size) {
-        if (GrugDeclarations.currentlyInitializingBlock != null)
-            GrugDeclarations.currentlyInitializingBlock.inventorySize = (int) size;
-        else
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "set_inventory_size: Can only be called during a Block's init().");
+    public static void BlockInitContext_set_inventory_size(long contextId, double size) {
+        GrugBlockData block =
+                requireBlockInitContext("BlockInitContext.set_inventory_size", contextId);
+        if (block == null) return;
+
+        block.inventorySize = (int) size;
     }
 
-    public static void set_material(String materialName) {
-        if (GrugDeclarations.currentlyInitializingBlock != null)
-            GrugDeclarations.currentlyInitializingBlock.material = materialName;
-        else
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "set_material: Can only be called during a Block's init().");
+    public static void BlockInitContext_set_material(long contextId, String materialName) {
+        GrugBlockData block = requireBlockInitContext("BlockInitContext.set_material", contextId);
+        if (block == null) return;
+
+        block.material = materialName;
+    }
+
+    /**
+     * The block whose {@code init()} {@code contextId} was passed to, or null, after a report, when
+     * that call is not the one running now.
+     */
+    private static GrugBlockData requireBlockInitContext(String method, long contextId) {
+        if (!requireContext(method, "init", contextId, GrugDeclarations.initContext())) {
+            return null;
+        }
+        return GrugDeclarations.initContext().block;
     }
 
     /**

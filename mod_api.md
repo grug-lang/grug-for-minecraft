@@ -3,9 +3,9 @@ Generated from mod_api.json by mod_api_catalog.py; do not edit. Descriptions are
 # Entities
 
 ## Block
-export init()
+export init(ctx: BlockInitContext)
 export on_break(world: Level, x: number, y: number, z: number)
-export use(world: Level, x: number, y: number, z: number, player: Player)
+export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player)
 
 ## BlockEntity
 export add_item(item: Item, damage: number, count: number, from_side: number, add: bool, response: AddResponse)
@@ -96,6 +96,14 @@ Test.world_settled() bool
 .accept_into_slot(slot: number)
 .refuse()
 
+## BlockInitContext
+.set_block_entity(entity_string: entity)
+.set_custom_render()
+.set_flat_lighting()
+.set_hardness(value: number)
+.set_inventory_size(size: number)
+.set_material(material_name: string)
+
 ## BlockPos
 .above_n(n: number) BlockPos
 .center() Vec3
@@ -174,6 +182,9 @@ Option.new() Option[$Value]
 .expect_error(message: string)
 .not_done()
 
+## UseContext
+.decline_use()
+
 ## Vec3
 .x() number
 .y() number
@@ -181,7 +192,6 @@ Option.new() Option[$Value]
 
 # Host functions
 
-decline_use()
 drop_inventory(level: Level, x: number, y: number, z: number)
 equals(a: $Type, b: $Type) bool
 gui(texture_path: resource) GUI
@@ -192,11 +202,5 @@ print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)
 resource_location(resource_location_string: string) ResourceLocation
-set_block_entity(entity_string: entity)
-set_custom_render()
-set_flat_lighting()
-set_hardness(value: number)
-set_inventory_size(size: number)
-set_material(material_name: string)
 vec3(x: number, y: number, z: number) Vec3
 vec3_zero() Vec3

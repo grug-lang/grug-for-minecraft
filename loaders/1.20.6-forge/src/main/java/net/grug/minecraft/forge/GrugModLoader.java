@@ -346,22 +346,10 @@ public class GrugModLoader {
             long blockFileId = entry.getValue();
 
             GrugBlockData blockData = new GrugBlockData(MODID + ":" + cleanName);
-            GrugDeclarations.currentlyInitializingBlock = blockData;
-
-            long tempEntityHandle = Grug.createEntity(blockFileId);
-            long initFnId = Grug.getExportFnId("Block", "init");
-
-            if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                Grug.callExportFn(tempEntityHandle, initFnId);
-            }
-
-            if (tempEntityHandle != 0) {
-                Grug.destroyEntity(tempEntityHandle);
-            }
+            GrugDeclarations.initializeBlock(blockData, blockFileId);
 
             GrugDeclarations.declaredBlocks.put(blockData.id, blockData);
             GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
-            GrugDeclarations.currentlyInitializingBlock = null;
 
             var blockReg =
                     BLOCKS.register(

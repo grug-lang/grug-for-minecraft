@@ -206,18 +206,7 @@ public final class GrugModsWatcher {
         blockData.customRender = false;
         blockData.flatLighting = false;
 
-        GrugDeclarations.currentlyInitializingBlock = blockData;
-        long tempEntityHandle = Grug.createEntity(fileId);
-        long initFnId = Grug.getExportFnId("Block", "init");
-
-        if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-            Grug.callExportFn(tempEntityHandle, initFnId);
-        }
-
-        if (tempEntityHandle != 0) {
-            Grug.destroyEntity(tempEntityHandle);
-        }
-        GrugDeclarations.currentlyInitializingBlock = null;
+        GrugDeclarations.initializeBlock(blockData, fileId);
 
         reloadTriggers.add(path);
     }

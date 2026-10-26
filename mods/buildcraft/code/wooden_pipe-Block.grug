@@ -1,16 +1,16 @@
-export init() {
-    set_hardness(0.5)
-    set_material("wood")
-    set_block_entity(e"wooden_pipe_entity")
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(0.5)
+    ctx.set_material("wood")
+    ctx.set_block_entity(e"wooden_pipe_entity")
     # The reference's pipe is not a full cube: it is a centre with arms, so light reaches the items
     # travelling inside it. The block entity's render() draws that shape through the chunk hook,
     # which is also what keeps the block non-opaque and the items inside it lit.
-    set_custom_render()
+    ctx.set_custom_render()
     # The reference's pipe has no inventory slots. The port keeps one as the extraction inbox:
     # extract_item_into has to name a slot for the stack a machine hands over, and the block entity
     # moves it into a travelling record and empties the slot again on the same tick. See the block
     # entity.
-    set_inventory_size(1)
+    ctx.set_inventory_size(1)
 }
 
 # Pipe.dropContents, which BlockGenericPipe calls when the pipe breaks: every travelling item is
@@ -28,7 +28,7 @@ export on_break(world: Level, x: number, y: number, z: number) {
 # side that has an inventory. The block entity does it on its next tick, because only it knows its
 # own side. Any other click is declined, as the reference returns false for it, so the held item is
 # used or placed as usual.
-export use(world: Level, x: number, y: number, z: number, player: Player) {
+export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player) {
     held: Option[Item] = player.get_held_item()
     if held.has() {
         if equals(held.unwrap(), item(resource_location("grug:wrench"))) {
@@ -39,7 +39,7 @@ export use(world: Level, x: number, y: number, z: number, player: Player) {
             return
         }
     }
-    decline_use()
+    ctx.decline_use()
 }
 
 local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: BlockEntity) {

@@ -6,7 +6,15 @@
 				{
 					"name": "init",
 					"description": "Called once at registration time to declare the block's assets.",
-					"engine_called": true
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "BlockInitContext"
+							}
+						}
+					]
 				},
 				{
 					"name": "on_break",
@@ -42,6 +50,12 @@
 					"name": "use",
 					"description": "Called when a player right-clicks the block.",
 					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "UseContext"
+							}
+						},
 						{
 							"name": "world",
 							"type": {
@@ -2203,6 +2217,70 @@
 					]
 				}
 			}
+		},
+		"BlockInitContext": {
+			"description": "The context of a block's init(), passed to it. Everything a block declares about itself goes through it: how hard it is to mine, what it is made of, how many slots it has, which block entity it has, and how it draws. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused, because the declarations were read when init() returned.",
+			"methods": {
+				"set_hardness": {
+					"description": "Sets the mining hardness of the block. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_material": {
+					"description": "Sets the material of the block (e.g., 'wood', 'stone'). Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "material_name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"set_inventory_size": {
+					"description": "Declares how many item slots this block's block entity has. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "size",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_block_entity": {
+					"description": "Declares the block entity script used by this block. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "entity_string",
+							"type": {
+								"name": "entity",
+								"entity_type": "BlockEntity"
+							}
+						}
+					]
+				},
+				"set_custom_render": {
+					"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+				},
+				"set_flat_lighting": {
+					"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
+				}
+			}
+		},
+		"UseContext": {
+			"description": "The context of a block's use(), passed to it. A context is only valid while its use() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"decline_use": {
+					"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Only legal on the context use() was passed, while that call is running: a context saved for later is refused."
+				}
+			}
 		}
 	},
 	"host_functions": {
@@ -2436,57 +2514,6 @@
 				}
 			]
 		},
-		"set_block_entity": {
-			"description": "Declares the block entity script used by this block.",
-			"parameters": [
-				{
-					"name": "entity_string",
-					"type": {
-						"name": "entity",
-						"entity_type": "BlockEntity"
-					}
-				}
-			]
-		},
-		"set_custom_render": {
-			"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all."
-		},
-		"set_flat_lighting": {
-			"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal during a Block's init(), after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
-		},
-		"set_hardness": {
-			"description": "Sets the mining hardness of the block.",
-			"parameters": [
-				{
-					"name": "value",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"set_inventory_size": {
-			"description": "Declares how many item slots this block's block entity has.",
-			"parameters": [
-				{
-					"name": "size",
-					"type": {
-						"name": "number"
-					}
-				}
-			]
-		},
-		"set_material": {
-			"description": "Sets the material of the block (e.g., 'wood', 'stone').",
-			"parameters": [
-				{
-					"name": "material_name",
-					"type": {
-						"name": "string"
-					}
-				}
-			]
-		},
 		"vec3_zero": {
 			"description": "Creates a new Vec3, initialized with all zeros.",
 			"return_type": {
@@ -2518,9 +2545,6 @@
 					}
 				}
 			]
-		},
-		"decline_use": {
-			"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Calling it outside a use export does nothing."
 		}
 	}
 }

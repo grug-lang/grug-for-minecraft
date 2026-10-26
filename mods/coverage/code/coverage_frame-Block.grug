@@ -2,9 +2,9 @@
 # pedestal, every frame. The pedestal is chunk geometry from render(); the two stacks are the
 # per-frame hook's job, because a sprite turned towards the player cannot be baked into a chunk.
 # The coverage_frame test compares what lands on screen.
-export init() {
-    set_hardness(1)
-    set_material("stone")
-    set_block_entity(e"coverage_frame_entity")
-    set_custom_render()
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_frame_entity")
+    ctx.set_custom_render()
 }
