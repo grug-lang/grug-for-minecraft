@@ -82,10 +82,10 @@ import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -137,8 +137,9 @@ public class GrugModLoader {
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
-    private static final Map<String, Long> blockFiles = new HashMap<>();
-    private static final Map<String, Long> itemFiles = new HashMap<>();
+    // Sorted by name, so the registries get their entries in the same order on every run (#599).
+    private static final Map<String, Long> blockFiles = new TreeMap<>();
+    private static final Map<String, Long> itemFiles = new TreeMap<>();
     private static final List<RegistryObject<GrugBlock>> registeredGrugBlocks = new ArrayList<>();
     private static final List<RegistryObject<? extends Item>> registeredGrugItems =
             new ArrayList<>();
