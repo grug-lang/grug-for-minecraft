@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.At;
  */
 @GrugGenerated(
         "a mixin into the game's chunk and world code: the game runs it, and"
-            + " high_block_id-Test.grug fails on Alpha without it")
+                + " high_block_id-Test.grug fails on Alpha without it")
 @Mixin(World.class)
 public abstract class WorldBlockIdMixin {
     @Definition(id = "ticksRandomly", field = "Lnet/minecraft/block/Block;TICKS_RANDOMLY:[Z")

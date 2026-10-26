@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.At;
  */
 @GrugGenerated(
         "a mixin into the game's chunk and world code: the game runs it, and"
-            + " high_block_id-Test.grug fails on Alpha without it")
+                + " high_block_id-Test.grug fails on Alpha without it")
 @Mixin(WorldChunk.class)
 public abstract class WorldChunkBlockIdMixin {
     /** {@code getBlockAt} returns the raw byte, so every caller sees the negative id. */
