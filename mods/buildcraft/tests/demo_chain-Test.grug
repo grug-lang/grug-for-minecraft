@@ -3,6 +3,7 @@ act1: Option[BlockEntity] = Option.new()
 act2: Option[BlockEntity] = Option.new()
 chest_logs: Option[BlockEntity] = Option.new()
 chest_sticks: Option[BlockEntity] = Option.new()
+next_print: number = 100
 
 export init(ctx: TestInitContext) {
     ctx.set_max_ticks(4000)
@@ -14,7 +15,8 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    if ctx.current_tick() % 100 == 0 {
+    if ctx.current_tick() >= next_print {
+        next_print = next_print + 100
         print3(ctx.current_tick(), chest_logs.unwrap().get_item_count_in_slot(0), chest_sticks.unwrap().get_item_count_in_slot(0))
     }
     if ctx.current_tick() < 3500 {
