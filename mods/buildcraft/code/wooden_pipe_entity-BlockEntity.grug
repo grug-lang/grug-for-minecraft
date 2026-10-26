@@ -43,8 +43,8 @@ z: number = center.z()
 # lost when its chunk unloads. The energy host functions save what a receiver holds, so the pipe
 # reproduces that bug itself by emptying its store whenever its grug entity is created, which is
 # every time its chunk is loaded.
-export init() {
-    me.set_power_receiver(64)
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_power_receiver(64)
     me.extract_energy(64)
 }
 

@@ -1,0 +1,6 @@
+# Declares its slot access in init(), for slot_access-Test.grug.
+level: Level = me.level()
+
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_insertable_slots(8, 7)
+}

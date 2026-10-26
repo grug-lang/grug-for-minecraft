@@ -66,20 +66,12 @@ public final class GrugPower {
                 + ".";
     }
 
-    /** Why this block entity cannot be a receiver, or null when it can. */
-    public static String checkCanDeclare(Object blockEntity) {
-        if (!(blockEntity instanceof Holder)) {
-            return "Only a grug block entity can receive energy, and this block entity is not one.";
-        }
-        return null;
-    }
-
     /** Why this block entity is not a receiver, or null when it is. */
     public static String checkIsReceiver(Object blockEntity) {
         if (!isReceiver(blockEntity)) {
             return "This block entity is not an energy receiver. Declare it with"
-                    + " set_power_receiver in its init(), and ask is_power_receiver before using a"
-                    + " block entity that is not your own.";
+                    + " BlockEntityInitContext.set_power_receiver in its init(), and ask"
+                    + " is_power_receiver before using a block entity that is not your own.";
         }
         return null;
     }

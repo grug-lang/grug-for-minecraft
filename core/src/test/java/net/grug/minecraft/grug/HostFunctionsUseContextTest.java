@@ -31,7 +31,8 @@ class HostFunctionsUseContextTest {
 
     @Test
     void theOpenContextDeclinesTheClick() {
-        long context = GrugEntities.addEntity(GrugEntityType.UseContext, GrugBlockUse.openContext());
+        long context =
+                GrugEntities.addEntity(GrugEntityType.UseContext, GrugBlockUse.openContext());
 
         HostFunctions.UseContext_decline_use(context);
 
@@ -40,7 +41,8 @@ class HostFunctionsUseContextTest {
 
     @Test
     void aContextKeptPastItsCallIsRefused() {
-        long context = GrugEntities.addEntity(GrugEntityType.UseContext, GrugBlockUse.openContext());
+        long context =
+                GrugEntities.addEntity(GrugEntityType.UseContext, GrugBlockUse.openContext());
         GrugBlockUse.closeContext();
 
         HostFunctions.UseContext_decline_use(context);

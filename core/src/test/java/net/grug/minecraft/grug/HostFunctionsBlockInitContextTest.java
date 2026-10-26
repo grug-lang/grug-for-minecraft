@@ -89,7 +89,8 @@ class HostFunctionsBlockInitContextTest {
         List<String> reports = drain();
         assertEquals(1, reports.size(), "One report, for the author to fix.");
         assertTrue(reports.get(0).contains(BLOCK), "It names the block: " + reports.get(0));
-        assertTrue(reports.get(0).contains("grug:missing"), "It names the script: " + reports.get(0));
+        assertTrue(
+                reports.get(0).contains("grug:missing"), "It names the script: " + reports.get(0));
     }
 
     @Test

@@ -1,7 +1,8 @@
 # Covers the slot-access rules and the crafting-result reads: a block entity that declares no rule is
-# accessible everywhere, a declared range is reported by is_slot_extractable and is_slot_insertable and
-# is what insert_item_into_inventory fills, an empty range denies everything, and a crafting result
-# reads as an item and a damage while there is one and as an empty Option and a zero without.
+# accessible everywhere, a range declared in its init() is reported by is_slot_extractable and
+# is_slot_insertable and is what insert_item_into_inventory fills, an empty range denies everything, and a
+# crafting result reads as an item and a damage while there is one and as an empty Option and a zero
+# without. A rule can only be declared in init(), so each rule has a block of its own.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
@@ -13,12 +14,12 @@ export tick(ctx: TestTickContext) {
         x: number = origin.x() + 12
         y: number = origin.y() + 15
         z: number = origin.z()
+        diamond: Item = item(resource_location("minecraft:diamond"))
 
         level.place_block(x, y, z, "grug:coverage_block")
         be_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
         ctx.assert(be_opt.has(), "The coverage block should have a block entity.")
         be: BlockEntity = be_opt.unwrap()
-        diamond: Item = item(resource_location("minecraft:diamond"))
 
         # Nothing declared, so every slot is open, including the slot one past the last, which is where a
         # crafting result lives.
@@ -31,81 +32,8 @@ export tick(ctx: TestTickContext) {
         ctx.assert(not be.get_crafting_result_item().has(), "An uncrafted grid should have no result.")
         ctx.assert(be.get_crafting_result_damage() == 0, "An uncrafted grid's result damage should be 0.")
 
-        slot: number = 0
-        while slot < 9 {
-            be.set_item_in_slot(slot, diamond, 1)
-            slot = slot + 1
-        }
-
-        # Declaring an insert range narrows what insert_item_into_inventory fills, and the top-up pass is
-        # narrowed as well as the empty-slot pass: slot 3 already holds a diamond, and only it grows.
-        be.set_insertable_slots(3, 4)
-        ctx.assert(not be.is_slot_insertable(2), "A slot below a declared range should not be insertable.")
-        ctx.assert(be.is_slot_insertable(3), "The first slot of a declared range should be insertable.")
-        ctx.assert(be.is_slot_insertable(4), "The last slot of a declared range should be insertable.")
-        ctx.assert(not be.is_slot_insertable(5), "A slot above a declared range should not be insertable.")
-
-        inserted: number = be.insert_item_into_inventory(diamond, 0, 1, true)
-        ctx.assert(inserted == 1, "The declared slot should have taken the diamond.")
-        ctx.assert(be.get_item_count_in_slot(3) == 2, "Only the declared slot should have grown.")
-        ctx.assert(be.get_item_count_in_slot(2) == 1, "A slot below the declared range should be untouched.")
-        ctx.assert(be.get_item_count_in_slot(0) == 1, "A slot below the declared range should be untouched.")
-
-        # An inventory with no slot another block may use takes nothing at all.
-        be.set_insertable_slots(8, 7)
-        ctx.assert(not be.is_slot_insertable(8), "A last below the first should declare no slot.")
-        ctx.assert(be.insert_item_into_inventory(diamond, 0, 1, true) == 0, "A denied inventory should take nothing.")
-
-        # Extraction is gated the same way as insertion, and this is the transfer a machine's rule
-        # exists for: a bulk scan for an item must not reach into the slots the block has closed off.
-        be.set_extractable_slots(3, 4)
-        ctx.assert(not be.is_slot_extractable(0), "A slot below a declared range should be denied.")
-        ctx.assert(be.is_slot_extractable(3), "The first slot of a declared range should be extractable.")
-        ctx.assert(not be.is_slot_extractable(5), "A slot above a declared range should be denied.")
-
-        # Five diamonds are asked for. Only the two declared slots are scanned, and between them
-        # they hold 2 and 1, so 3 of the 5 come out and the denied slots are never looked at.
-        extracted: number = be.extract_item_from_inventory(diamond, 0, 5)
-        ctx.assert(extracted == 3, "Only the two declared slots should have been drained.")
-        ctx.assert(be.get_item_count_in_slot(3) == 0, "A declared slot should have been emptied.")
-        ctx.assert(be.get_item_count_in_slot(4) == 0, "A declared slot should have been emptied.")
-        ctx.assert(be.get_item_count_in_slot(0) == 1, "A denied slot should be left alone.")
-        ctx.assert(be.get_item_count_in_slot(8) == 1, "A denied slot should be left alone.")
-
-        # Reading is not a transfer, so counting still sees every slot: only the two bulk transfer
-        # functions consult the rule. Ten diamonds went in and three came out.
-        ctx.assert(be.count_item_in_inventory(diamond, 0) == 7, "Counting should still see every slot.")
-
-        # Granting the result slot alone, which is what a machine does, keeps its grid out of reach.
-        be.set_extractable_slots(9, 9)
-        ctx.assert(not be.is_slot_extractable(0), "A grid slot outside the declared range should be denied.")
-        ctx.assert(be.is_slot_extractable(9), "The declared result slot should be extractable.")
-
-        # Three wheat in the top row craft one bread. Wheat and bread are items rather than blocks on
-        # every loader, so the result can be named and compared, unlike a grid of diamonds, whose 3x3
-        # recipe is the diamond block.
-        wheat: Item = item(resource_location("minecraft:wheat"))
-        slot = 3
-        while slot < 9 {
-            be.set_item_count_in_slot(slot, 0)
-            slot = slot + 1
-        }
-        slot = 0
-        while slot < 3 {
-            be.set_item_in_slot(slot, wheat, 1)
-            slot = slot + 1
-        }
-        be.update_recipe_output(0)
-
-        result_opt: Option[Item] = be.get_crafting_result_item()
-        ctx.assert(result_opt.has(), "The three wheat should have crafted a result.")
-        if result_opt.has() {
-            ctx.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
-        }
-        ctx.assert(be.get_crafting_result_damage() == 0, "A crafted bread should be undamaged.")
-
         # The permissive default is per block entity, so a chest that declared nothing is untouched by
-        # the rule the coverage block just declared.
+        # the rules the coverage blocks below declare.
         level.place_block(x + 1, y, z, "minecraft:chest")
         chest_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
         ctx.assert(chest_opt.has(), "The chest should have a block entity.")
@@ -114,5 +42,91 @@ export tick(ctx: TestTickContext) {
         ctx.assert(chest.is_slot_insertable(0), "A chest that declared nothing should be insertable.")
         ctx.assert(not chest.get_crafting_result_item().has(), "A chest should have no crafting result.")
         ctx.assert(chest.get_crafting_result_damage() == 0, "A chest's result damage should be 0.")
+
+        _check_range(ctx, level, x + 3, y, z, diamond)
+        _check_none(ctx, level, x + 5, y, z, diamond)
+        _check_result(ctx, level, x + 7, y, z)
     }
+}
+
+# The block declared 3 to 4 for insertion and for extraction in its init().
+local _check_range(ctx: TestTickContext, level: Level, x: number, y: number, z: number, diamond: Item) {
+    level.place_block(x, y, z, "grug:coverage_slots_range")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    slot: number = 0
+    while slot < 9 {
+        be.set_item_in_slot(slot, diamond, 1)
+        slot = slot + 1
+    }
+
+    # Declaring an insert range narrows what insert_item_into_inventory fills, and the top-up pass is
+    # narrowed as well as the empty-slot pass: slot 3 already holds a diamond, and only it grows.
+    ctx.assert(not be.is_slot_insertable(2), "A slot below a declared range should not be insertable.")
+    ctx.assert(be.is_slot_insertable(3), "The first slot of a declared range should be insertable.")
+    ctx.assert(be.is_slot_insertable(4), "The last slot of a declared range should be insertable.")
+    ctx.assert(not be.is_slot_insertable(5), "A slot above a declared range should not be insertable.")
+
+    inserted: number = be.insert_item_into_inventory(diamond, 0, 1, true)
+    ctx.assert(inserted == 1, "The declared slot should have taken the diamond.")
+    ctx.assert(be.get_item_count_in_slot(3) == 2, "Only the declared slot should have grown.")
+    ctx.assert(be.get_item_count_in_slot(2) == 1, "A slot below the declared range should be untouched.")
+    ctx.assert(be.get_item_count_in_slot(0) == 1, "A slot below the declared range should be untouched.")
+
+    # Extraction is gated the same way as insertion, and this is the transfer a machine's rule
+    # exists for: a bulk scan for an item must not reach into the slots the block has closed off.
+    ctx.assert(not be.is_slot_extractable(0), "A slot below a declared range should be denied.")
+    ctx.assert(be.is_slot_extractable(3), "The first slot of a declared range should be extractable.")
+    ctx.assert(not be.is_slot_extractable(5), "A slot above a declared range should be denied.")
+
+    # Five diamonds are asked for. Only the two declared slots are scanned, and between them
+    # they hold 2 and 1, so 3 of the 5 come out and the denied slots are never looked at.
+    extracted: number = be.extract_item_from_inventory(diamond, 0, 5)
+    ctx.assert(extracted == 3, "Only the two declared slots should have been drained.")
+    ctx.assert(be.get_item_count_in_slot(3) == 0, "A declared slot should have been emptied.")
+    ctx.assert(be.get_item_count_in_slot(4) == 0, "A declared slot should have been emptied.")
+    ctx.assert(be.get_item_count_in_slot(0) == 1, "A denied slot should be left alone.")
+    ctx.assert(be.get_item_count_in_slot(8) == 1, "A denied slot should be left alone.")
+
+    # Reading is not a transfer, so counting still sees every slot: only the two bulk transfer
+    # functions consult the rule. Ten diamonds went in and three came out.
+    ctx.assert(be.count_item_in_inventory(diamond, 0) == 7, "Counting should still see every slot.")
+}
+
+# The block declared a last below the first for insertion in its init().
+local _check_none(ctx: TestTickContext, level: Level, x: number, y: number, z: number, diamond: Item) {
+    level.place_block(x, y, z, "grug:coverage_slots_none")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    # An inventory with no slot another block may use takes nothing at all.
+    ctx.assert(not be.is_slot_insertable(8), "A last below the first should declare no slot.")
+    ctx.assert(be.insert_item_into_inventory(diamond, 0, 1, true) == 0, "A denied inventory should take nothing.")
+}
+
+# The block granted the result slot alone in its init(), which is what a machine does.
+local _check_result(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    level.place_block(x, y, z, "grug:coverage_slots_result")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    # Granting the result slot alone keeps its grid out of reach.
+    ctx.assert(not be.is_slot_extractable(0), "A grid slot outside the declared range should be denied.")
+    ctx.assert(be.is_slot_extractable(9), "The declared result slot should be extractable.")
+
+    # Three wheat in the top row craft one bread. Wheat and bread are items rather than blocks on
+    # every loader, so the result can be named and compared, unlike a grid of diamonds, whose 3x3
+    # recipe is the diamond block.
+    wheat: Item = item(resource_location("minecraft:wheat"))
+    slot: number = 0
+    while slot < 3 {
+        be.set_item_in_slot(slot, wheat, 1)
+        slot = slot + 1
+    }
+    be.update_recipe_output(0)
+
+    result_opt: Option[Item] = be.get_crafting_result_item()
+    ctx.assert(result_opt.has(), "The three wheat should have crafted a result.")
+    if result_opt.has() {
+        ctx.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
+    }
+    ctx.assert(be.get_crafting_result_damage() == 0, "A crafted bread should be undamaged.")
 }

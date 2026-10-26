@@ -594,17 +594,30 @@ public class HostFunctions {
                 NO_RESULT);
     }
 
-    public static void BlockEntity_set_power_receiver(long blockEntityId, double maxStored) {
-        Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
-        String problem = GrugPower.checkCanDeclare(blockEntity);
-        if (problem == null) {
-            problem = GrugPower.checkEnergy("The most a receiver holds", maxStored);
-        }
+    public static void BlockEntityInitContext_set_power_receiver(long contextId, double maxStored) {
+        Object blockEntity =
+                requireBlockEntityInitContext(
+                        "BlockEntityInitContext.set_power_receiver", contextId);
+        if (blockEntity == null) return;
+
+        String problem = GrugPower.checkEnergy("The most a receiver holds", maxStored);
         if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "set_power_receiver: " + problem);
+            // A bounded defect: the block entity stays what it was, and the report names the call.
+            GrugModTreeDefect.report("BlockEntityInitContext.set_power_receiver: " + problem);
             return;
         }
         GrugPower.declare(blockEntity, maxStored);
+    }
+
+    /**
+     * The block entity whose {@code init()} {@code contextId} was passed to, or null, after a
+     * report, when that call is not the one running now.
+     */
+    private static Object requireBlockEntityInitContext(String method, long contextId) {
+        if (!requireContext(method, "init", contextId, GrugEntities.blockEntityInitContext())) {
+            return null;
+        }
+        return GrugEntities.blockEntityInitContext().blockEntity;
     }
 
     public static boolean BlockEntity_is_power_receiver(long blockEntityId) {
@@ -682,16 +695,24 @@ public class HostFunctions {
                         count);
     }
 
-    public static void BlockEntity_set_extractable_slots(
-            long blockEntityId, double first, double last) {
-        GrugSlotAccess.declareExtractable(
-                HostFunctionHelpers.resolveBlockEntity(blockEntityId), first, last);
+    public static void BlockEntityInitContext_set_extractable_slots(
+            long contextId, double first, double last) {
+        Object blockEntity =
+                requireBlockEntityInitContext(
+                        "BlockEntityInitContext.set_extractable_slots", contextId);
+        if (blockEntity == null) return;
+
+        GrugSlotAccess.declareExtractable(blockEntity, first, last);
     }
 
-    public static void BlockEntity_set_insertable_slots(
-            long blockEntityId, double first, double last) {
-        GrugSlotAccess.declareInsertable(
-                HostFunctionHelpers.resolveBlockEntity(blockEntityId), first, last);
+    public static void BlockEntityInitContext_set_insertable_slots(
+            long contextId, double first, double last) {
+        Object blockEntity =
+                requireBlockEntityInitContext(
+                        "BlockEntityInitContext.set_insertable_slots", contextId);
+        if (blockEntity == null) return;
+
+        GrugSlotAccess.declareInsertable(blockEntity, first, last);
     }
 
     public static double BlockEntity_take_crafting_result(long blockEntityId, double amount) {

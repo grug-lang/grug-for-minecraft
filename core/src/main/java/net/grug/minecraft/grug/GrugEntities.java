@@ -132,6 +132,78 @@ public final class GrugEntities {
     }
 
     /**
+     * The context a block entity's {@code init()} was passed, which is what the context's methods
+     * check before they act. It holds the block entity being initialized.
+     */
+    public static final class BlockEntityInitContext {
+        final Object blockEntity;
+
+        private BlockEntityInitContext(Object blockEntity) {
+            this.blockEntity = blockEntity;
+        }
+    }
+
+    private static BlockEntityInitContext blockEntityInitContext = null;
+
+    /**
+     * Opens the context of one block entity {@code init()} call, remembering the one it nests in.
+     */
+    static BlockEntityInitContext openBlockEntityInitContext(Object blockEntity) {
+        blockEntityInitContext = new BlockEntityInitContext(blockEntity);
+        return blockEntityInitContext;
+    }
+
+    /** Closes it again, so a saved context no longer matches, and reopens the enclosing one. */
+    static void closeBlockEntityInitContext(BlockEntityInitContext enclosing) {
+        blockEntityInitContext = enclosing;
+    }
+
+    /** The context of the block entity {@code init()} call open right now, or null otherwise. */
+    public static BlockEntityInitContext blockEntityInitContext() {
+        return blockEntityInitContext;
+    }
+
+    /**
+     * Calls a block entity's {@code init()} with a fresh context, with the host entities the call
+     * creates rooted in {@code owner} and {@code me} resolving to {@code blockEntity}. The swap has
+     * the same hazard and the same fix as {@link #createEntityWithOwner}. {@code me} is bound for
+     * the call because init is where a script first reaches for it: a block entity whose member
+     * scope only declares has nothing bound yet.
+     *
+     * <p>The context is a grug entity of its own for exactly the duration of the call, so a script
+     * that saves it in a member variable holds an entity that no longer exists, and the context's
+     * methods refuse it. It is removed in the finally so a fatal raised inside the script cannot
+     * leave it behind.
+     */
+    @GrugGenerated(
+            "the call into the VM and its context entity: exercising it needs a live grug entity")
+    public static void callBlockEntityInit(
+            long entityHandle, long exportFnId, List<GrugObject> owner, Object blockEntity) {
+        GrugStateLock.lock();
+        try {
+            List<GrugObject> oldFnEntities = fnEntities;
+            Object oldInitializingBlockEntity = currentlyInitializingBlockEntity;
+            BlockEntityInitContext enclosing = blockEntityInitContext;
+            fnEntities = owner;
+            currentlyInitializingBlockEntity = blockEntity;
+            long contextHandle =
+                    addEntity(
+                            GrugEntityType.BlockEntityInitContext,
+                            openBlockEntityInitContext(blockEntity));
+            try {
+                Grug.callExportFn(entityHandle, exportFnId, contextHandle);
+            } finally {
+                removeEntity(contextHandle);
+                closeBlockEntityInitContext(enclosing);
+                currentlyInitializingBlockEntity = oldInitializingBlockEntity;
+                fnEntities = oldFnEntities;
+            }
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
      * Runs {@code task} with a fresh root list, then restores the previous one.
      *
      * <p>An export that runs every frame creates host entities through calls such as {@code item}

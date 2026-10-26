@@ -10,7 +10,7 @@ export use(ctx: UseContext, world: Level, x: number, y: number, z: number, playe
 ## BlockEntity
 export add_item(item: Item, damage: number, count: number, from_side: number, add: bool, response: AddResponse)
 export extract_item(from_side: number, remove: bool, response: ExtractResponse)
-export init()
+export init(ctx: BlockEntityInitContext)
 export item_extracted(slot: number, amount: number)
 export item_inserted(slot: number, amount: number)
 export on_neighbor_change()
@@ -46,12 +46,9 @@ export tick()
 .receive_energy(amount: number) number
 .redraw()
 .remove_saved_list_record(name: string, index: number)
-.set_extractable_slots(first: number, last: number)
-.set_insertable_slots(first: number, last: number)
 .set_item_count_in_slot(slot: number, count: number)
 .set_item_damage_in_slot(slot: number, damage: number)
 .set_item_in_slot(slot: number, item: Item, count: number)
-.set_power_receiver(max_stored: number)
 .set_saved_list_item(name: string, index: number, item: Item)
 .set_saved_list_number(name: string, index: number, key: string, value: number)
 .set_saved_number(name: string, value: number)
@@ -95,6 +92,11 @@ Test.world_settled() bool
 ## AddResponse
 .accept_into_slot(slot: number)
 .refuse()
+
+## BlockEntityInitContext
+.set_extractable_slots(first: number, last: number)
+.set_insertable_slots(first: number, last: number)
+.set_power_receiver(max_stored: number)
 
 ## BlockInitContext
 .set_block_entity(entity_string: entity)
