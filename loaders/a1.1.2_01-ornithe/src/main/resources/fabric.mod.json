@@ -23,7 +23,8 @@
         "grug.mixins.json",
         "grug.shapeless.mixins.json",
         "grug.custom_geometry.mixins.json",
-        "grug.world_settle.mixins.json"
+        "grug.world_settle.mixins.json",
+        "grug.block_ids.mixins.json"
     ],
     "depends": {
         "minecraft": "1.0.0-alpha.1.2.1",

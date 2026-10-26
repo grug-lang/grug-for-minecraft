@@ -32,10 +32,12 @@ public final class GrugBlocks {
     public static final int START_BLOCK_ID = 86;
 
     /**
-     * Alpha stores a block id in a signed byte, so an id of 128 or more reads back negative and
-     * crashes the chunk when the block is placed. The search stops here for that reason.
+     * Alpha stores a block id in one byte per cell, and the game reads it sign-extended in six
+     * places, so an id of 128 or more used to crash the chunk when the block was placed.
+     * WorldChunkBlockIdMixin and WorldBlockIdMixin mask those reads (#599), which leaves the whole
+     * byte usable, and Block.BY_ID has 256 slots.
      */
-    public static final int LAST_BLOCK_ID = 127;
+    public static final int LAST_BLOCK_ID = 255;
 
     /** First id searched for an item. */
     public static final int START_ITEM_ID = 400;

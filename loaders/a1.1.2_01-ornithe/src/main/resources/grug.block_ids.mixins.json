@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.grug.minecraft.ornithe.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "WorldChunkBlockIdMixin",
+    "WorldBlockIdMixin"
+  ],
+  "mixinextras": {
+    "minVersion": "0.5.5"
+  },
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

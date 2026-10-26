@@ -1,0 +1,6 @@
+# Fixture block for coverage. Its name sorts after every other block's, and ids are handed out in name order,
+# so a loader that limits block ids gives it the highest id any block gets: on Alpha the first one above 127,
+# which the game used to read back negative (#599). Every other loader gives it an ordinary id.
+export init(ctx: BlockInitContext) {
+    ctx.set_material("stone")
+}

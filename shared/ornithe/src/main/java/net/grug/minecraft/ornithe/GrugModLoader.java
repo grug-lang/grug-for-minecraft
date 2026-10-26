@@ -18,13 +18,19 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class GrugModLoader implements ModInitializer {
 
     public static final String MOD_ID = "grug";
     public static final Logger LOGGER = LogManager.getLogger("grug");
 
-    public static final Map<String, Long> blockFiles = new HashMap<>();
+    /**
+     * Sorted by name, because ids are handed out in this order: the same mods then get the same ids
+     * on every run, where a HashMap's order shifted whenever a mod was added (#599).
+     */
+    public static final Map<String, Long> blockFiles = new TreeMap<>();
+
     public static final Map<String, Long> itemFiles = new HashMap<>();
 
     /**
