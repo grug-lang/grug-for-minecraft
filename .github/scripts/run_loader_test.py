@@ -70,6 +70,9 @@ GRADLE = """\
 #!/usr/bin/env bash
 printf '%s\\n' "$*" >> "$FAKE_GRADLE_ARGS"
 sleep "${FAKE_GRADLE_START_DELAY:-0.5}"
+# A test that needs the log written at an exact point in the script's poll names a file here, and the
+# fake game writes nothing until that file exists.
+while [ -n "${FAKE_GRADLE_WAIT_FOR:-}" ] && [ ! -e "$FAKE_GRADLE_WAIT_FOR" ]; do sleep 0.05; done
 cat "$FAKE_GRADLE_LOG"
 sleep "${FAKE_GRADLE_SLEEP:-2}"
 exit "${FAKE_GRADLE_EXIT:-0}"
@@ -192,16 +195,18 @@ class RunLoaderTest(unittest.TestCase):
 
     def test_boot_only_game_that_exits_between_the_log_reads_and_the_liveness_check_succeeds(self):
         # A boot-only game prints GRUG LOADED and exits at once, so it can do both between the
-        # poll's last read of the log and its liveness test (#597). The fake gradlew writes at
-        # 0.5s and exits; the grep shim holds the first poll for 1.5s after its last grep, which is
-        # the window. The script must not report the exit it then sees as a bare exit.
+        # poll's last read of the log and its liveness test (#597). The grep shim creates a file
+        # once the poll has made its last read (the panic marker's) and then holds the poll for
+        # 1.5s, and the fake game writes its line and exits only after that file exists. The
+        # script must not report the exit it then sees as a bare exit.
+        signal = self.tmp / "last-read-done"
         shim = self.tmp / "shim"
         shim.mkdir()
         grep = shim / "grep"
         grep.write_text(
             "#!/usr/bin/env bash\n"
             '/usr/bin/grep "$@"; status=$?\n'
-            'case "$*" in *"panicked at"*) sleep 1.5 ;; esac\n'
+            f'case "$*" in *"panicked at"*) touch "{signal}"; sleep 1.5 ;; esac\n'
             "exit $status\n"
         )
         grep.chmod(0o755)
@@ -212,6 +217,7 @@ class RunLoaderTest(unittest.TestCase):
             {
                 "GRUG_CI_BOOT_ONLY": "1",
                 "FAKE_GRADLE_SLEEP": "0",
+                "FAKE_GRADLE_WAIT_FOR": str(signal),
                 "PATH": f"{shim}:/usr/bin:/bin:/usr/local/bin",
             },
         )
