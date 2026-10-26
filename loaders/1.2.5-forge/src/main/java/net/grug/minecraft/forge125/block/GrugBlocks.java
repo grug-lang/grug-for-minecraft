@@ -100,22 +100,10 @@ public final class GrugBlocks {
 
             String fullId = "grug:" + cleanName;
             GrugBlockData blockData = new GrugBlockData(fullId);
-            GrugDeclarations.currentlyInitializingBlock = blockData;
-
-            long tempEntityHandle = Grug.createEntity(blockFileId);
-            long initFnId = Grug.getExportFnId("Block", "init");
-
-            if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                Grug.callExportFn(tempEntityHandle, initFnId);
-            }
-
-            if (tempEntityHandle != 0) {
-                Grug.destroyEntity(tempEntityHandle);
-            }
+            GrugDeclarations.initializeBlock(blockData, blockFileId);
 
             GrugDeclarations.declaredBlocks.put(fullId, blockData);
             GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
-            GrugDeclarations.currentlyInitializingBlock = null;
 
             int blockId = ids.take();
             Material mat = stringToMaterial(blockData.material);

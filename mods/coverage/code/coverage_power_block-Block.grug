@@ -1,5 +1,5 @@
-export init() {
-    set_hardness(1)
-    set_material("stone")
-    set_block_entity(e"coverage_power_block_entity")
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_power_block_entity")
 }

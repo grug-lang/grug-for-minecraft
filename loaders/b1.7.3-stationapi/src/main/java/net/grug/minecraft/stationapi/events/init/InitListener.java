@@ -188,22 +188,10 @@ public class InitListener {
             long blockFileId = entry.getValue();
 
             GrugBlockData blockData = new GrugBlockData(blockId.toString());
-            GrugDeclarations.currentlyInitializingBlock = blockData;
-
-            long tempEntityHandle = Grug.createEntity(blockFileId);
-            long initFnId = Grug.getExportFnId("Block", "init");
-
-            if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                Grug.callExportFn(tempEntityHandle, initFnId);
-            }
-
-            if (tempEntityHandle != 0) {
-                Grug.destroyEntity(tempEntityHandle);
-            }
+            GrugDeclarations.initializeBlock(blockData, blockFileId);
 
             GrugDeclarations.declaredBlocks.put(blockId.toString(), blockData);
             GrugDeclarations.blockDataByFileId.put(blockFileId, blockData);
-            GrugDeclarations.currentlyInitializingBlock = null;
 
             Material mat = stringToMaterial(blockData.material);
             GrugBlock block = new GrugBlock(blockId, blockFileId, mat, blockData.hardness);

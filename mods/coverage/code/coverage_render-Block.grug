@@ -2,10 +2,10 @@
 # is the same block, so one block draws a straight run, a corner or a cross depending on what it is
 # joined to. The shape lives in the block entity's render(); this file only declares that there is
 # one.
-export init() {
-    set_hardness(1)
-    set_material("stone")
-    set_block_entity(e"coverage_render_entity")
-    set_inventory_size(1)
-    set_custom_render()
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_render_entity")
+    ctx.set_inventory_size(1)
+    ctx.set_custom_render()
 }

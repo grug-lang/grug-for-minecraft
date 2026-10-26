@@ -1,5 +1,0 @@
-# set_flat_lighting is only legal during a Block's init(), so calling it here must report an error.
-export tick(ctx: TestTickContext) {
-    ctx.expect_error("set_flat_lighting")
-    set_flat_lighting()
-}

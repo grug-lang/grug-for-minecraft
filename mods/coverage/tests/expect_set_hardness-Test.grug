@@ -1,5 +1,0 @@
-# set_hardness is only legal during a Block's init(), so calling it here must report an error.
-export tick(ctx: TestTickContext) {
-    ctx.expect_error("set_hardness")
-    set_hardness(1)
-}

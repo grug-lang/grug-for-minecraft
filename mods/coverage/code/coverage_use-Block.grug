@@ -1,8 +1,8 @@
 # Fixture block for coverage: its use export handles the click and does not decline it, as the redstone engine's does.
-export init() {
-    set_material("stone")
+export init(ctx: BlockInitContext) {
+    ctx.set_material("stone")
 }
 
-export use(world: Level, x: number, y: number, z: number, player: Player) {
+export use(ctx: UseContext, world: Level, x: number, y: number, z: number, player: Player) {
     held: Option[Item] = player.get_held_item()
 }

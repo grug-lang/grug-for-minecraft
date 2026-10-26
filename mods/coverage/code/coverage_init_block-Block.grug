@@ -1,8 +1,8 @@
 # A block whose block entity records in init() that its grug entity was created, so a test can tell
 # whether the loader created it when the block was placed rather than on its first tick. See #187.
-export init() {
-    set_hardness(1)
-    set_material("stone")
-    set_block_entity(e"coverage_init_block_entity")
-    set_inventory_size(1)
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_init_block_entity")
+    ctx.set_inventory_size(1)
 }
