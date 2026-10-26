@@ -24,6 +24,7 @@ import net.minecraft.src.RenderBlocks;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Logger;
 
 /**
@@ -39,8 +40,13 @@ public class mod_Grug extends BaseMod {
     public static final String VERSION = GrugVersion.VERSION;
     public static final Logger LOGGER = Logger.getLogger("grug");
 
-    public static final Map<String, Long> blockFiles = new HashMap<>();
-    public static final Map<String, Long> itemFiles = new HashMap<>();
+    /**
+     * Sorted by name, because ids are handed out in this order: the same mods then get the same ids
+     * on every run, where a HashMap's order shifted whenever a mod was added (#599).
+     */
+    public static final Map<String, Long> blockFiles = new TreeMap<>();
+
+    public static final Map<String, Long> itemFiles = new TreeMap<>();
 
     /**
      * The mod each registered block and item comes from, by the name the maps above key it by, so a

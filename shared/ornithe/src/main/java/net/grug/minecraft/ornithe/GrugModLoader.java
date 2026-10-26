@@ -31,7 +31,7 @@ public class GrugModLoader implements ModInitializer {
      */
     public static final Map<String, Long> blockFiles = new TreeMap<>();
 
-    public static final Map<String, Long> itemFiles = new HashMap<>();
+    public static final Map<String, Long> itemFiles = new TreeMap<>();
 
     /**
      * The mod each registered block and item comes from, by the name the maps above key it by, so a
