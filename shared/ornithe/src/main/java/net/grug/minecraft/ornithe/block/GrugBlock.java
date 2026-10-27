@@ -51,6 +51,16 @@ public class GrugBlock extends BlockWithBlockEntity {
     }
 
     /**
+     * Like {@link #drawsCustomGeometry}, but for the {@code Block} constructor, which asks about
+     * the block's solidity before {@code blockFileId} is set, when there is no data to read yet. A
+     * missing entry answers false, so the block is an ordinary cube until it is declared.
+     */
+    public boolean drawsCustomGeometryOnceDeclared() {
+        GrugBlockData data = GrugDeclarations.blockDataByFileId.get(this.blockFileId);
+        return data != null && data.customRender;
+    }
+
+    /**
      * Whether the custom geometry is drawn flat, declared by set_flat_lighting: every face at the
      * light of the block's own position, with no per-side shade.
      */
