@@ -1,0 +1,44 @@
+# Covers give_crafting_result_consumed (#602): a block entity that pays for a pipe's take itself. Asking is a
+# dry run that changes nothing. The take hands the pipe the result as it was when the pipe asked, even though
+# the export has crafted the next one into the holder by then, and the host takes nothing and does not call
+# output_taken, which would pay for the same craft twice.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_consumed")
+    level.place_block(x + 1, y, z, "grug:coverage_block")
+    source: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    destination: BlockEntity = level.get_block_entity(x + 1, y, z).unwrap()
+
+    # Three wheat in the top row craft one bread, and two of each leave enough for a second.
+    wheat: Item = item(resource_location("minecraft:wheat"))
+    bread: Item = item(resource_location("minecraft:bread"))
+    slot: number = 0
+    while slot < 3 {
+        source.set_item_in_slot(slot, wheat, 2)
+        slot = slot + 1
+    }
+    source.update_recipe_output(0)
+
+    # Asking offers the bread and pays for nothing.
+    ctx.assert(source.ask_extract_item(2) == 1, "The dry run should offer the one bread.")
+    ctx.assert(source.get_item_count_in_slot(0) == 2, "The dry run should leave the grid alone.")
+
+    # The first take pays one wheat per slot, hands over the bread, and the next bread is already crafted.
+    ctx.assert(source.extract_item_into(destination, 0, 2) == 1, "The first take should move the one bread.")
+    ctx.assert(equals(destination.get_item_in_slot(0).unwrap(), bread), "The pipe should get the bread.")
+    ctx.assert(source.get_item_count_in_slot(0) == 1, "The take should have paid one wheat.")
+    ctx.assert(source.get_crafting_result_item().has(), "The next bread should be crafted from what is left.")
+    ctx.assert(source.get_saved_number("output_taken_calls") == 0, "The host should not call output_taken for a consumed answer.")
+
+    # The second take pays the last wheat and leaves no result, so there is nothing more to offer.
+    ctx.assert(source.extract_item_into(destination, 1, 2) == 1, "The second take should move the second bread.")
+    ctx.assert(not source.get_crafting_result_item().has(), "An empty grid should craft nothing.")
+    ctx.assert(source.get_item_count_in_slot(0) == 0, "The second take should have paid the last wheat.")
+    ctx.assert(source.get_saved_number("output_taken_calls") == 0, "output_taken should still not have been called.")
+    ctx.assert(source.ask_extract_item(2) == 0, "Nothing is left to offer.")
+}

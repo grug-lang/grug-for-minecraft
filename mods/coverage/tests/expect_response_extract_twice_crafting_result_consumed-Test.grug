@@ -1,0 +1,21 @@
+# Every answering method is wired to the answered-once rule, including give_crafting_result_consumed.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_consumed")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    wheat: Item = item(resource_location("minecraft:wheat"))
+    slot: number = 0
+    while slot < 3 {
+        be.set_item_in_slot(slot, wheat, 1)
+        slot = slot + 1
+    }
+    be.update_recipe_output(0)
+    be.set_saved_number("extract_mode", 1)
+    ctx.expect_error("has already been answered")
+    be.ask_extract_item(0)
+}

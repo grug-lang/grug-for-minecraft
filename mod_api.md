@@ -122,6 +122,7 @@ Color.rgb(r: number, g: number, b: number) Color
 
 ## ExtractResponse
 .give_crafting_result()
+.give_crafting_result_consumed()
 .give_from_slot(slot: number, amount: number)
 .refuse()
 

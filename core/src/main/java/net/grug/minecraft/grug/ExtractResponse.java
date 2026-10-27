@@ -5,7 +5,8 @@ public final class ExtractResponse extends GrugResponse {
     public enum Kind {
         REFUSED,
         SLOT,
-        CRAFTING_RESULT
+        CRAFTING_RESULT,
+        CRAFTING_RESULT_CONSUMED
     }
 
     private Kind kind = null;
@@ -33,6 +34,12 @@ public final class ExtractResponse extends GrugResponse {
     public void giveCraftingResult() {
         if (beginAnswer("ExtractResponse.give_crafting_result")) {
             kind = Kind.CRAFTING_RESULT;
+        }
+    }
+
+    public void giveCraftingResultConsumed() {
+        if (beginAnswer("ExtractResponse.give_crafting_result_consumed")) {
+            kind = Kind.CRAFTING_RESULT_CONSUMED;
         }
     }
 

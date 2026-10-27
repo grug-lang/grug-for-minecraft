@@ -749,6 +749,11 @@ public class HostFunctions {
         ((ExtractResponse) GrugEntities.entityData.get(responseId).object).giveCraftingResult();
     }
 
+    public static void ExtractResponse_give_crafting_result_consumed(long responseId) {
+        ((ExtractResponse) GrugEntities.entityData.get(responseId).object)
+                .giveCraftingResultConsumed();
+    }
+
     public static void AddResponse_refuse(long responseId) {
         ((AddResponse) GrugEntities.entityData.get(responseId).object).refuse();
     }
