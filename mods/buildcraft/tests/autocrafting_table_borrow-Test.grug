@@ -1,0 +1,52 @@
+# A pipe's take from the autocrafting table borrows the last item of each recipe slot from a neighbouring
+# inventory, and only from slots that neighbour lets anyone extract from (#602). The neighbour is a block
+# that declares slots 3 and 4 as the only extractable ones. Wheat in its slot 0 is out of reach, so the take
+# is refused and nothing moves, where counting every slot would approve it and hand over the bread unpaid.
+# Wheat in slot 3 can be borrowed, so the take happens, the grid keeps its last wheat, and the three
+# borrowed wheat leave the neighbour.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:autocrafting_table")
+    level.place_block(x - 1, y, z, "grug:coverage_slots_range")
+    level.place_block(x + 1, y, z, "minecraft:chest")
+    table: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    lender: BlockEntity = level.get_block_entity(x - 1, y, z).unwrap()
+    chest: BlockEntity = level.get_block_entity(x + 1, y, z).unwrap()
+
+    # One wheat in each slot of the top row is one bread, and the last wheat is not the pipe's to take.
+    wheat: Item = item(resource_location("minecraft:wheat"))
+    slot: number = 0
+    while slot < 3 {
+        table.set_item_in_slot(slot, wheat, 1)
+        slot = slot + 1
+    }
+    table.update_recipe_output(0)
+    ctx.assert(table.get_crafting_result_item().has(), "Three wheat in a row should craft a bread.")
+
+    # Wheat the neighbour does not let anyone take is not wheat to borrow.
+    lender.set_item_in_slot(0, wheat, 3)
+    ctx.assert(table.ask_extract_item(5) == 0, "Wheat in a slot nobody may take from should not pay for the bread.")
+    ctx.assert(table.extract_item_into(chest, 0, 5) == 0, "The take should be refused.")
+    ctx.assert(chest.get_item_count_in_slot(0) == 0, "No bread should have moved.")
+    ctx.assert(lender.get_item_count_in_slot(0) == 3, "The neighbour should keep its wheat.")
+    ctx.assert(table.get_item_count_in_slot(0) == 1, "The grid should keep its wheat.")
+
+    # Wheat in a slot it does let anyone take from is.
+    lender.set_item_count_in_slot(0, 0)
+    lender.set_item_in_slot(3, wheat, 3)
+    ctx.assert(table.ask_extract_item(5) == 1, "Wheat in an extractable slot should pay for the bread.")
+    ctx.assert(table.extract_item_into(chest, 0, 5) == 1, "The take should move the one bread.")
+    ctx.assert(lender.get_item_count_in_slot(3) == 0, "The three wheat should have been borrowed.")
+    slot = 0
+    while slot < 3 {
+        # (A call's arguments have to stay on one line in grug, hence the local.)
+        count: number = table.get_item_count_in_slot(slot)
+        ctx.assert(count == 1, "The grid should keep the last wheat of each recipe slot.")
+        slot = slot + 1
+    }
+}
