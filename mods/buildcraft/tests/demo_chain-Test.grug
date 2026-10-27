@@ -27,6 +27,8 @@ export tick(ctx: TestTickContext) {
         _setup(ctx)
         if not Test.is_reference() {
             _run_port()
+            print3(chest_sticks.unwrap().get_item_count_in_slot(0), chest_logs.unwrap().get_item_count_in_slot(0), pipe1.unwrap().get_saved_list_size("traveling"))
+            print3(act1.unwrap().get_item_count_in_slot(0), act2.unwrap().get_item_count_in_slot(0), act2.unwrap().get_item_count_in_slot(3))
             _check(ctx)
             return
         }
