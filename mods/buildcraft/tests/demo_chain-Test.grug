@@ -1,36 +1,86 @@
-# THROWAWAY: prints what the reference does with the chain, so the real assertions can be written.
+# The BuildCraft demo chain: Chest(logs) -> ACT1 -> wooden pipe -> ACT2 -> wooden pipe -> Chest(sticks),
+# each pipe driven by a wood engine under it. The numbers are what BuildCraft 2.2.14 gives for this
+# layout: a pipe's take from a table leaves one item in each slot (TileAutoWorkbench.extractItem with
+# itemsToLeave 1) and borrows it from a neighbouring chest, so 2 logs and a prefilled grid end as 16
+# sticks, with 1 log left in ACT1 and 1 plank in each of ACT2's two slots. The reference cannot
+# fast-forward, so its side waits for real ticks until the stick chest has held 16 for a while. The
+# port ticks its own pipes and engines in a plain loop inside one test tick.
 act1: Option[BlockEntity] = Option.new()
 act2: Option[BlockEntity] = Option.new()
 chest_logs: Option[BlockEntity] = Option.new()
 chest_sticks: Option[BlockEntity] = Option.new()
-next_print: number = 100
+pipe1: Option[BlockEntity] = Option.new()
+pipe2: Option[BlockEntity] = Option.new()
+engine1: Option[BlockEntity] = Option.new()
+engine2: Option[BlockEntity] = Option.new()
+
+# How many runner ticks in a row the stick chest has held 16 on the reference side.
+stable_ticks: number = 0
 
 export init(ctx: TestInitContext) {
+    # The reference runs in real time: the last stick arrives around tick 600.
     ctx.set_max_ticks(4000)
 }
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
+        if not Test.is_reference() {
+            _run_port()
+            _check(ctx)
+            return
+        }
         ctx.not_done()
         return
     }
-    if ctx.current_tick() >= next_print {
-        next_print = next_print + 100
-        print3(ctx.current_tick(), chest_logs.unwrap().get_item_count_in_slot(0), chest_sticks.unwrap().get_item_count_in_slot(0))
+    if chest_sticks.unwrap().get_item_count_in_slot(0) == 16 {
+        stable_ticks = stable_ticks + 1
+    } else {
+        stable_ticks = 0
     }
-    if ctx.current_tick() < 3500 {
+    if stable_ticks < 150 {
         ctx.not_done()
         return
     }
+    _check(ctx)
+}
+
+# Engines and pipes in rounds until the chain has settled. The final numbers do not depend on the
+# order.
+local _run_port() {
+    round: number = 0
+    while round < 200 {
+        Test.tick_block_entity(engine1.unwrap(), 10)
+        Test.tick_block_entity(pipe1.unwrap(), 10)
+        Test.tick_block_entity(engine2.unwrap(), 10)
+        Test.tick_block_entity(pipe2.unwrap(), 10)
+        round = round + 1
+    }
+}
+
+local _check(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    ctx.assert(chest_sticks.unwrap().get_item_count_in_slot(0) == 16, "The stick chest should hold 16 sticks.")
+    ctx.assert(chest_logs.unwrap().get_item_count_in_slot(0) == 0, "The log chest should be empty.")
+    ctx.assert(act1.unwrap().get_item_count_in_slot(0) == 1, "ACT1 should keep 1 log in slot 0.")
+    ctx.assert(act2.unwrap().get_item_count_in_slot(0) == 1, "ACT2 should keep 1 plank in slot 0.")
+    ctx.assert(act2.unwrap().get_item_count_in_slot(3) == 1, "ACT2 should keep 1 plank in slot 3.")
     slot: number = 0
     while slot < 9 {
-        a: number = act1.unwrap().get_item_count_in_slot(slot)
-        b: number = act2.unwrap().get_item_count_in_slot(slot)
-        print3(slot, a, b)
+        if slot != 0 {
+            ctx.assert(act1.unwrap().get_item_count_in_slot(slot) == 0, "ACT1 should hold nothing else.")
+        }
+        if slot != 0 and slot != 3 {
+            ctx.assert(act2.unwrap().get_item_count_in_slot(slot) == 0, "ACT2 should hold nothing else.")
+        }
         slot = slot + 1
     }
-    print(chest_sticks.unwrap().get_item_count_in_slot(0))
+    ctx.assert(level.count_item_entities(origin.x() + 3, origin.y() + 20, origin.z(), 10) == 0, "Nothing should have been dropped.")
+    if not Test.is_reference() {
+        ctx.assert(pipe1.unwrap().get_saved_list_size("traveling") == 0, "The first pipe should be empty.")
+        ctx.assert(pipe2.unwrap().get_saved_list_size("traveling") == 0, "The second pipe should be empty.")
+    }
 }
 
 local _setup(ctx: TestTickContext) {
@@ -61,6 +111,13 @@ local _setup(ctx: TestTickContext) {
     _place_pipe(level, x + 4, y)
     _place_engine(level, x + 2, y - 1, z)
     _place_engine(level, x + 4, y - 1, z)
+
+    if not Test.is_reference() {
+        pipe1.set(level.get_block_entity(x + 2, y, z).unwrap())
+        pipe2.set(level.get_block_entity(x + 4, y, z).unwrap())
+        engine1.set(level.get_block_entity(x + 2, y - 1, z).unwrap())
+        engine2.set(level.get_block_entity(x + 4, y - 1, z).unwrap())
+    }
 }
 
 local _table() string {
