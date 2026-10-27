@@ -6,6 +6,11 @@
 #   1 gives the result as consumed and then as an ordinary result, which is an err
 #   2 gives the result as an ordinary result, for comparison
 # What the last call found is saved under "seen_result": 1 when the block entity had a crafting result.
+# Member scope has to use me for the script to be able to use it in its exports: the host only learns which block
+# entity me is while the grug entity is being created, so a script that leaves it alone there finds no block
+# entity behind me in extract_item and sees no crafting result.
+level: Level = me.level()
+
 export output_taken(amount: number) {
     me.set_saved_number("output_taken_calls", me.get_saved_number("output_taken_calls") + 1)
 }
