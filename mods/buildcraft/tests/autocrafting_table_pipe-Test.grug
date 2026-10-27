@@ -76,9 +76,7 @@ local _setup_table(ctx: TestTickContext) {
 
     result_opt: Option[Item] = table.get_crafting_result_item()
     ctx.assert(result_opt.has(), "The three wheat should have crafted a result.")
-    if result_opt.has() {
-        ctx.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
-    }
+    ctx.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
     ctx.assert(table.get_crafting_result_damage() == 0, "A crafted bread should be undamaged.")
 }
 
@@ -142,9 +140,7 @@ local _check(ctx: TestTickContext) {
     ctx.assert(chest.get_item_count_in_slot(0) == 1, "The chest should hold exactly 1 bread.")
     chest_item: Option[Item] = chest.get_item_in_slot(0)
     ctx.assert(chest_item.has(), "The chest's slot 0 should hold an item.")
-    if chest_item.has() {
-        ctx.assert(equals(chest_item.unwrap(), item(resource_location("minecraft:bread"))), "The chest should hold the crafted bread, not a wheat.")
-    }
+    ctx.assert(equals(chest_item.unwrap(), item(resource_location("minecraft:bread"))), "The chest should hold the crafted bread, not a wheat.")
 
     ctx.assert(pipe.get_item_count_in_slot(0) == 0, "The pipe should not still be holding the bread.")
     # The bread was paid for with one wheat from each slot of the recipe, and the last wheat stays: the

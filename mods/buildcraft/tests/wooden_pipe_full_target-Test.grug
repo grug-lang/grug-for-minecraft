@@ -105,9 +105,7 @@ local _full_target_check(ctx: TestTickContext) {
     # the underlying game item.
     target_item: Option[Item] = full_target_target.unwrap().get_item_in_slot(0)
     ctx.assert(target_item.has(), "The target chest slot 0 should still hold an item.")
-    if target_item.has() {
-        ctx.assert(equals(target_item.unwrap(), item(resource_location("minecraft:diamond"))), "The target chest should still hold diamonds, not the sword.")
-    }
+    ctx.assert(equals(target_item.unwrap(), item(resource_location("minecraft:diamond"))), "The target chest should still hold diamonds, not the sword.")
 
     # Counting the item entities, not merely finding one, is what makes this an accounting test: a
     # pipe that both inserted and dropped, or dropped twice, would still pass a find-one assertion.
@@ -116,10 +114,8 @@ local _full_target_check(ctx: TestTickContext) {
 
     found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
     ctx.assert(found.has(), "The pipe should have dropped the sword.")
-    if found.has() {
-        dropped: ItemEntity = found.unwrap()
-        ctx.assert(dropped.damage() == sword_damage, "The dropped sword should keep its damage.")
-    }
+    dropped: ItemEntity = found.unwrap()
+    ctx.assert(dropped.damage() == sword_damage, "The dropped sword should keep its damage.")
 }
 
 # The pipe has finished with the item once it has left the source chest and the pipe's travelling

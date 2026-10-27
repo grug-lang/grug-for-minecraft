@@ -34,8 +34,6 @@ export tick(ctx: TestTickContext) {
 
     found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
     ctx.assert(found.has(), "The dropped item should be on the ground.")
-    if found.has() {
-        ctx.assert(found.unwrap().damage() == break_damage, "The dropped item should keep its damage.")
-    }
+    ctx.assert(found.unwrap().damage() == break_damage, "The dropped item should keep its damage.")
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
 }
