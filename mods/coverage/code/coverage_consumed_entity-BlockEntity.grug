@@ -4,6 +4,10 @@
 # it, which a take answered that way must not do. The mode saved under "extract_mode" is
 #   0 pays and gives the result as consumed
 #   1 gives the result as consumed and then as an ordinary result, which is an err
+export output_taken(amount: number) {
+    me.set_saved_number("output_taken_calls", me.get_saved_number("output_taken_calls") + 1)
+}
+
 export extract_item(from_side: number, remove: bool, response: ExtractResponse) {
     if not me.get_crafting_result_item().has() {
         response.refuse()
@@ -26,8 +30,4 @@ export extract_item(from_side: number, remove: bool, response: ExtractResponse) 
     if me.get_saved_number("extract_mode") == 1 {
         response.give_crafting_result()
     }
-}
-
-export output_taken(amount: number) {
-    me.set_saved_number("output_taken_calls", me.get_saved_number("output_taken_calls") + 1)
 }
