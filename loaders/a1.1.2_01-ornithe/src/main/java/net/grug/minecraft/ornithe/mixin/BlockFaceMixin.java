@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.mixin;
 
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.minecraft.block.Block;
 import net.minecraft.world.WorldView;
@@ -24,6 +25,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * instead: when the block the face looks at draws its own geometry, the face is visible, which is
  * what {@code shouldRenderFace} gives for any non-solid neighbour.
  */
+@GrugGenerated(
+        "a mixin into the game's block code: the game runs it, and the wooden_pipe_shapes"
+                + " captures fail without it")
 @Mixin(Block.class)
 public class BlockFaceMixin {
 
