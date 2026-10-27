@@ -93,6 +93,20 @@ public class GrugBlock extends TemplateBlockWithEntity {
         return GrugDeclarations.blockDataByFileId.get(this.blockFileId);
     }
 
+    /**
+     * A block that draws its own geometry is not a full cube, so it does not hide its neighbours'
+     * faces. The game culls a face by asking the world, which asks this method, and the {@code
+     * BLOCKS_OPAQUE} table the init listener clears is not what it reads (#577).
+     *
+     * <p>The Block constructor calls this before {@code blockFileId} is set, when there is no data
+     * to read yet, so a missing entry answers as an ordinary opaque cube.
+     */
+    @Override
+    public boolean isOpaque() {
+        GrugBlockData data = GrugDeclarations.blockDataByFileId.get(this.blockFileId);
+        return data == null || !data.customRender;
+    }
+
     @Override
     public boolean onUse(World world, int x, int y, int z, PlayerEntity player) {
         long blockHandle = Grug.createEntity(this.blockFileId);
