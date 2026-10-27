@@ -41,4 +41,16 @@ export tick(ctx: TestTickContext) {
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The second take should have paid the last wheat.")
     ctx.assert(source.get_saved_number("output_taken_calls") == 0, "output_taken should still not have been called.")
     ctx.assert(source.ask_extract_item(2) == 0, "Nothing is left to offer.")
+
+    # An ordinary crafting result answer is still taken by the host, which reports it to output_taken. Three
+    # more wheat make a bread again, and the fixture pays for nothing in this mode.
+    slot = 0
+    while slot < 3 {
+        source.set_item_in_slot(slot, wheat, 1)
+        slot = slot + 1
+    }
+    source.update_recipe_output(0)
+    source.set_saved_number("extract_mode", 2)
+    ctx.assert(source.extract_item_into(destination, 2, 2) == 1, "An ordinary answer should still move the one bread.")
+    ctx.assert(source.get_saved_number("output_taken_calls") == 1, "The host should call output_taken for an ordinary answer.")
 }

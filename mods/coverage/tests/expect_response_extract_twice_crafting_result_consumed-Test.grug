@@ -1,4 +1,5 @@
-# Every answering method is wired to the answered-once rule, including give_crafting_result_consumed.
+# Every answering method is wired to the answered-once rule, including give_crafting_result_consumed, which
+# here is the second answer.
 export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
@@ -16,17 +17,8 @@ export tick(ctx: TestTickContext) {
     }
     be.update_recipe_output(0)
     ctx.assert(be.get_crafting_result_item().has(), "Three wheat in a row should craft a bread for the export to hand over.")
-    be.set_saved_number("extract_mode", 2)
-    plain: number = be.ask_extract_item(0)
-    ctx.assert(be.get_saved_number("seen_result") == 1, "The export should have found the crafting result.")
-    ctx.assert(plain == 1, "An ordinary crafting result answer should offer the one bread.")
-    be.set_saved_number("extract_mode", 0)
-    offered: number = be.ask_extract_item(0)
-    ctx.assert(offered != -1, "The block entity should have run its extract_item export.")
-    ctx.assert(offered != 0, "The export should not have refused a bread that exists.")
-    ctx.assert(offered == 1, "The export should have offered the one bread.")
+    ctx.assert(be.ask_extract_item(0) == 1, "The export should offer the one bread when it answers once.")
     be.set_saved_number("extract_mode", 1)
-    ctx.assert(be.get_saved_number("extract_mode") == 1, "The mode should have been saved.")
     ctx.expect_error("has already been answered")
     be.ask_extract_item(0)
 }
