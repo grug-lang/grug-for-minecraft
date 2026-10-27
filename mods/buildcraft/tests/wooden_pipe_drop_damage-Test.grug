@@ -59,11 +59,8 @@ local _drop_check(ctx: TestTickContext) {
     # A wide radius, because the dropped item is not held in place.
     found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
     ctx.assert(found.has(), "The pipe should have dropped the sword.")
-
-    if found.has() {
-        dropped: ItemEntity = found.unwrap()
-        ctx.assert(dropped.damage() == 7, "The dropped sword should keep its damage.")
-    }
+    dropped: ItemEntity = found.unwrap()
+    ctx.assert(dropped.damage() == 7, "The dropped sword should keep its damage.")
 }
 
 # The pipe has finished with the item once it has left the source chest and the pipe's travelling

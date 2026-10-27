@@ -119,8 +119,6 @@ local _check_closed(ctx: TestTickContext, level: Level, x: number, y: number, z:
 
     result_opt: Option[Item] = be.get_crafting_result_item()
     ctx.assert(result_opt.has(), "The three wheat should have crafted a result.")
-    if result_opt.has() {
-        ctx.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
-    }
+    ctx.assert(equals(result_opt.unwrap(), item(resource_location("minecraft:bread"))), "The result should be a bread.")
     ctx.assert(be.get_crafting_result_damage() == 0, "A crafted bread should be undamaged.")
 }

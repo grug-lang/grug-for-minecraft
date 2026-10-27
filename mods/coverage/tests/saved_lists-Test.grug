@@ -32,9 +32,7 @@ export tick(ctx: TestTickContext) {
     be.set_saved_list_item("things", 0, diamond)
     item_opt: Option[Item] = be.get_saved_list_item("things", 0)
     ctx.assert(item_opt.has(), "A saved item should read back.")
-    if item_opt.has() {
-        ctx.assert(equals(item_opt.unwrap(), diamond), "The record should hold the item that was saved.")
-    }
+    ctx.assert(equals(item_opt.unwrap(), diamond), "The record should hold the item that was saved.")
 
     second: number = be.append_saved_list_record("things")
     ctx.assert(second == 1, "The second record should be at index 1.")
@@ -52,7 +50,5 @@ export tick(ctx: TestTickContext) {
     ctx.assert(be.get_saved_list_number("things", 0, "speed") == 0.75, "The reload should keep the record's numbers.")
     reloaded: Option[Item] = be.get_saved_list_item("things", 0)
     ctx.assert(reloaded.has(), "The reload should keep the record's item.")
-    if reloaded.has() {
-        ctx.assert(equals(reloaded.unwrap(), diamond), "The reload should keep the diamond.")
-    }
+    ctx.assert(equals(reloaded.unwrap(), diamond), "The reload should keep the diamond.")
 }
