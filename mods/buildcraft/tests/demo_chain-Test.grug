@@ -61,6 +61,11 @@ local _check(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     ctx.assert(chest_sticks.unwrap().get_item_count_in_slot(0) == 16, "The stick chest should hold 16 sticks.")
+    sticks: Option[Item] = chest_sticks.unwrap().get_item_in_slot(0)
+    ctx.assert(sticks.has(), "The stick chest's slot 0 should hold an item.")
+    if sticks.has() {
+        ctx.assert(equals(sticks.unwrap(), item(resource_location("minecraft:stick"))), "The stick chest should hold sticks.")
+    }
     ctx.assert(chest_logs.unwrap().get_item_count_in_slot(0) == 0, "The log chest should be empty.")
     ctx.assert(act1.unwrap().get_item_count_in_slot(0) == 1, "ACT1 should keep 1 log in slot 0.")
     ctx.assert(act2.unwrap().get_item_count_in_slot(0) == 1, "ACT2 should keep 1 plank in slot 0.")
