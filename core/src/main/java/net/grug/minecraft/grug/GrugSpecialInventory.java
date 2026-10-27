@@ -21,11 +21,12 @@ final class GrugSpecialInventory {
 
     /** How many items a pipe on {@code fromSide} would get, without taking any. */
     static double askExtract(Object blockEntity, double fromSide) {
+        Result offered = Result.of(blockEntity);
         ExtractResponse response = callExtract(blockEntity, fromSide, false);
         if (response == null) {
             return NO_EXPORT;
         }
-        return available(blockEntity, response);
+        return available(blockEntity, response, offered);
     }
 
     /**
@@ -43,11 +44,12 @@ final class GrugSpecialInventory {
                             + " of the destination is not empty.");
             return 0;
         }
+        Result offered = Result.of(blockEntity);
         ExtractResponse response = callExtract(blockEntity, fromSide, true);
         if (response == null) {
             return NO_EXPORT;
         }
-        double count = available(blockEntity, response);
+        double count = available(blockEntity, response, offered);
         if (count == 0) {
             return 0;
         }
@@ -55,7 +57,14 @@ final class GrugSpecialInventory {
         Object item;
         double damage;
         double taken;
-        if (response.kind() == ExtractResponse.Kind.CRAFTING_RESULT) {
+        if (response.kind() == ExtractResponse.Kind.CRAFTING_RESULT_CONSUMED) {
+            // The export already used up the ingredients, and may have crafted the next result into
+            // the holder, so the pipe gets the result as it was when the pipe asked and the host
+            // takes nothing and runs no output_taken.
+            item = offered.item;
+            damage = offered.damage;
+            taken = offered.count;
+        } else if (response.kind() == ExtractResponse.Kind.CRAFTING_RESULT) {
             Object stack = adapter.getResultStack(blockEntity);
             item = adapter.getStackItem(stack);
             damage = adapter.getStackDamage(stack);
@@ -108,7 +117,36 @@ final class GrugSpecialInventory {
         return total;
     }
 
-    private static double available(Object blockEntity, ExtractResponse response) {
+    /**
+     * The crafting result a block entity held when it was asked, copied out because the export may
+     * change the holder: a block entity that consumes the ingredients itself crafts the next result
+     * before it answers.
+     */
+    private static final class Result {
+        final Object item;
+        final double damage;
+        final double count;
+
+        private Result(Object item, double damage, double count) {
+            this.item = item;
+            this.damage = damage;
+            this.count = count;
+        }
+
+        static Result of(Object blockEntity) {
+            ModLoaderAdapter adapter = GrugCore.getAdapter();
+            Object stack = adapter.getResultStack(blockEntity);
+            if (stack == null) {
+                return new Result(null, 0, 0);
+            }
+            return new Result(
+                    adapter.getStackItem(stack),
+                    adapter.getStackDamage(stack),
+                    adapter.getStackCount(stack));
+        }
+    }
+
+    private static double available(Object blockEntity, ExtractResponse response, Result offered) {
         ModLoaderAdapter adapter = GrugCore.getAdapter();
         switch (response.kind()) {
             case SLOT:
@@ -121,6 +159,8 @@ final class GrugSpecialInventory {
             case CRAFTING_RESULT:
                 Object stack = adapter.getResultStack(blockEntity);
                 return stack == null ? 0 : adapter.getStackCount(stack);
+            case CRAFTING_RESULT_CONSUMED:
+                return offered.count;
             default:
                 return 0;
         }

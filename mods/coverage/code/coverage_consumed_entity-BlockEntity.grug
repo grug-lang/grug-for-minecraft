@@ -1,0 +1,33 @@
+# Answers a pipe by paying for the craft itself, as BuildCraft's autocrafting table does: when the pipe is about
+# to take the result, one item comes off every filled slot and the result is crafted again for what is left,
+# and then the export answers with give_crafting_result_consumed. output_taken counts how often the host called
+# it, which a take answered that way must not do. The mode saved under "extract_mode" is
+#   0 pays and gives the result as consumed
+#   1 gives the result as consumed and then as an ordinary result, which is an err
+export extract_item(from_side: number, remove: bool, response: ExtractResponse) {
+    if not me.get_crafting_result_item().has() {
+        response.refuse()
+        return
+    }
+
+    if remove {
+        slot: number = 0
+        while slot < 9 {
+            count: number = me.get_item_count_in_slot(slot)
+            if count > 0 {
+                me.set_item_count_in_slot(slot, count - 1)
+            }
+            slot = slot + 1
+        }
+        me.update_recipe_output(0)
+    }
+
+    response.give_crafting_result_consumed()
+    if me.get_saved_number("extract_mode") == 1 {
+        response.give_crafting_result()
+    }
+}
+
+export output_taken(amount: number) {
+    me.set_saved_number("output_taken_calls", me.get_saved_number("output_taken_calls") + 1)
+}

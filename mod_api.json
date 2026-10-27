@@ -161,7 +161,7 @@
 				},
 				{
 					"name": "extract_item",
-					"description": "Called when a pipe asks this block entity for an item, which is BuildCraft's ISpecialInventory.extractItem. The block entity decides what it hands out, per side, and answers through the response: give_from_slot, give_crafting_result or refuse. from_side is the side of this block entity the pipe is on, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east. remove is false when the pipe only wants to know what it would get, and true when the host is about to move the items, which it does itself after the export returns. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err. A block entity without this export is asked by its declared extractable slots instead.",
+					"description": "Called when a pipe asks this block entity for an item, which is BuildCraft's ISpecialInventory.extractItem. The block entity decides what it hands out, per side, and answers through the response: give_from_slot, give_crafting_result, give_crafting_result_consumed or refuse. from_side is the side of this block entity the pipe is on, numbered as BuildCraft's Orientations: 0 is down, 1 up, 2 north, 3 south, 4 west and 5 east. remove is false when the pipe only wants to know what it would get, and true when the host is about to move the items, which it does itself after the export returns, except for give_crafting_result_consumed, where the export has already accounted for them. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err. A block entity without this export is asked by its declared extractable slots instead.",
 					"parameters": [
 						{
 							"name": "from_side",
@@ -1929,6 +1929,9 @@
 			"methods": {
 				"give_crafting_result": {
 					"description": "Hands the pipe this block entity's whole crafting result, whatever its stack size, as BuildCraft's autocrafting table does. When the block entity has no result, nothing is given."
+				},
+				"give_crafting_result_consumed": {
+					"description": "Hands the pipe this block entity's whole crafting result, as it was when the pipe asked, and says that the export has already used up the ingredients itself: the host takes nothing from the block entity afterwards and does not call output_taken. This is how BuildCraft's autocrafting table answers a pipe, whose ISpecialInventory.extractItem does its own accounting, where a player taking the result from the GUI is accounted for by the slot's pickup hook, which is output_taken. The export has to consume only when remove is true, and may update the crafting result for what is left in the grid before it answers. When the block entity had no result, nothing is given."
 				},
 				"give_from_slot": {
 					"description": "Hands the pipe up to amount items from one inventory slot.",

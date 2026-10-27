@@ -2,6 +2,11 @@
 # the wheat in its recipe grid. The table answers the pipe through its extract_item export, so this
 # is what proves the answer reaches the pipe: without it the pipe would drain the grid into the chest
 # one wheat per tick instead of moving a single crafted bread.
+# Each slot of the grid holds two wheat, and exactly one bread moves: a pipe's take leaves one item in
+# every slot, as the reference's extractItem(doRemove, false) does with itemsToLeave 1, and borrows the
+# item from a neighbouring chest when a slot has only one, which the chest here cannot give. With one
+# wheat per slot the pipe could take nothing, and a pipe that took the last wheat too would move a
+# second bread (#602).
 pipe_table_table: Option[BlockEntity] = Option.new()
 pipe_table_chest: Option[BlockEntity] = Option.new()
 pipe_table_pipe: Option[BlockEntity] = Option.new()
@@ -44,9 +49,9 @@ export tick(ctx: TestTickContext) {
     }
 }
 
-# Three wheat in the top row craft one bread. Wheat and bread are items rather than blocks on every
-# loader, so the recipe's result can be named and compared, unlike a grid of diamonds, whose 3x3
-# recipe is the diamond block.
+# Three wheat in the top row craft one bread, and two of each leave one wheat in each slot behind.
+# Wheat and bread are items rather than blocks on every loader, so the recipe's result can be named
+# and compared, unlike a grid of diamonds, whose 3x3 recipe is the diamond block.
 local _setup_table(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
@@ -64,7 +69,7 @@ local _setup_table(ctx: TestTickContext) {
     wheat: Item = item(resource_location("minecraft:wheat"))
     slot: number = 0
     while slot < 3 {
-        table.set_item_in_slot(slot, wheat, 1)
+        table.set_item_in_slot(slot, wheat, 2)
         slot = slot + 1
     }
     table.update_recipe_output(0)
@@ -91,7 +96,7 @@ local _check_rule(ctx: TestTickContext) {
     ctx.assert(table.get_crafting_result_item().has(), "Asking must not take the result.")
     ctx.assert(table.add_item(wheat, 0, 1, 1, false) == 1, "The table should take a wheat its grid already holds.")
     ctx.assert(table.add_item(diamond, 0, 1, 1, false) == 0, "The table should refuse an item its grid does not hold.")
-    ctx.assert(table.get_item_count_in_slot(0) == 1, "Asking must not put anything in.")
+    ctx.assert(table.get_item_count_in_slot(0) == 2, "Asking must not put anything in.")
 }
 
 # The table sits to the pipe's west and the chest to its east, so the side scan reaches the table
@@ -142,12 +147,18 @@ local _check(ctx: TestTickContext) {
     }
 
     ctx.assert(pipe.get_item_count_in_slot(0) == 0, "The pipe should not still be holding the bread.")
-    ctx.assert(not table.get_crafting_result_item().has(), "The table should have no result left.")
+    # The bread was paid for with one wheat from each slot of the recipe, and the last wheat stays: the
+    # result is still crafted, but the pipe may not take it, because the chest has no wheat to lend.
+    ctx.assert(table.get_crafting_result_item().has(), "The table should still craft a bread from the wheat left.")
     slot: number = 0
     while slot < 9 {
         # (A call's arguments have to stay on one line in grug, hence the local.)
         count: number = table.get_item_count_in_slot(slot)
-        ctx.assert(count == 0, "The crafted wheat should be gone from the grid.")
+        expected: number = 0
+        if slot < 3 {
+            expected = 1
+        }
+        ctx.assert(count == expected, "The pipe should have taken one wheat from each recipe slot and left the last.")
         slot = slot + 1
     }
 

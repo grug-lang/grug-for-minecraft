@@ -29,12 +29,29 @@ export output_taken(amount: number) {
 # it is crafting from (TileAutoWorkbench.extractItem), and it takes an item only into the slot that
 # already holds the same item with the fewest of them, so a recipe grid is filled by hand and topped
 # up by pipes (TileAutoWorkbench.addItem).
+# A pipe's take is accounted for here, not in output_taken, because that is what the reference does:
+# ISpecialInventory.extractItem(doRemove, from) calls extractItem(doRemove, false), which keeps one item
+# in every slot (itemsToLeave is 1) and borrows that item from a neighbouring inventory when a slot has
+# only one, or crafts nothing. The GUI's result slot is the output_taken path instead, which calls
+# extractItem(true, true) and leaves nothing (#602).
 export extract_item(from_side: number, remove: bool, response: ExtractResponse) {
-    if me.get_crafting_result_item().has() {
-        response.give_crafting_result()
-    } else {
+    if not me.get_crafting_result_item().has() {
         response.refuse()
+        return
     }
+    if not _can_craft_for_pipe() {
+        response.refuse()
+        return
+    }
+
+    if not remove {
+        response.give_crafting_result()
+        return
+    }
+
+    _consume_for_pipe()
+    me.update_recipe_output(0)
+    response.give_crafting_result_consumed()
 }
 
 export add_item(item: Item, damage: number, count: number, from_side: number, add: bool, response: AddResponse) {
@@ -60,6 +77,48 @@ export add_item(item: Item, damage: number, count: number, from_side: number, ad
         response.refuse()
     } else {
         response.accept_into_slot(best)
+    }
+}
+
+# Whether a pipe's take can be paid for: every slot holding more than one item gives one up, and every
+# slot holding one needs a matching item in a neighbouring inventory, one per slot. The reference checks
+# the same thing by taking them and putting them back when one is missing.
+local _can_craft_for_pipe() bool {
+    slot: number = 0
+    while slot < 9 {
+        if me.get_item_count_in_slot(slot) == 1 {
+            item_opt: Option[Item] = me.get_item_in_slot(slot)
+            if item_opt.has() {
+                item: Item = item_opt.unwrap()
+                damage: number = me.get_item_damage_in_slot(slot)
+                if _count_in_neighbors(item, damage) < _count_required(item, damage) {
+                    return false
+                }
+            }
+        }
+        slot = slot + 1
+    }
+    return true
+}
+
+# Pays for a pipe's take: a slot holding more than one item gives one up, and a slot holding one keeps it
+# and one matching item comes out of the first neighbour that has one, in TileAutoWorkbench.getNearbyItem's
+# order.
+local _consume_for_pipe() {
+    slot: number = 0
+    while slot < 9 {
+        count: number = me.get_item_count_in_slot(slot)
+        if count > 1 {
+            me.set_item_count_in_slot(slot, count - 1)
+        } else if count == 1 {
+            item_opt: Option[Item] = me.get_item_in_slot(slot)
+            if item_opt.has() {
+                item: Item = item_opt.unwrap()
+                damage: number = me.get_item_damage_in_slot(slot)
+                _extract_from_neighbors(item, damage, 1)
+            }
+        }
+        slot = slot + 1
     }
 }
 

@@ -1,0 +1,8 @@
+# Fixture block for coverage: a nine-slot grid, so it has a crafting result, whose block entity answers a pipe
+# with give_crafting_result_consumed (#602).
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_consumed_entity")
+    ctx.set_inventory_size(9)
+}
