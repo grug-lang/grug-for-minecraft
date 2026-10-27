@@ -4,7 +4,7 @@
   "package": "net.grug.minecraft.ornithe.mixin",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
-    "BlockSolidMixin"
+    "BlockFaceMixin"
   ],
   "client": [
     "BlockEntityRenderDispatcherMixin",
