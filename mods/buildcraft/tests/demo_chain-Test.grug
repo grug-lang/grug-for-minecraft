@@ -11,8 +11,6 @@ chest_logs: Option[BlockEntity] = Option.new()
 chest_sticks: Option[BlockEntity] = Option.new()
 pipe1: Option[BlockEntity] = Option.new()
 pipe2: Option[BlockEntity] = Option.new()
-engine1: Option[BlockEntity] = Option.new()
-engine2: Option[BlockEntity] = Option.new()
 
 # How many runner ticks in a row the stick chest has held 16 on the reference side.
 stable_ticks: number = 0
@@ -27,8 +25,6 @@ export tick(ctx: TestTickContext) {
         _setup(ctx)
         if not Test.is_reference() {
             _run_port()
-            print3(chest_sticks.unwrap().get_item_count_in_slot(0), chest_logs.unwrap().get_item_count_in_slot(0), pipe1.unwrap().get_saved_list_size("traveling"))
-            print3(act1.unwrap().get_item_count_in_slot(0), act2.unwrap().get_item_count_in_slot(0), act2.unwrap().get_item_count_in_slot(3))
             _check(ctx)
             return
         }
@@ -47,15 +43,16 @@ export tick(ctx: TestTickContext) {
     _check(ctx)
 }
 
-# Engines and pipes in rounds until the chain has settled. The final numbers do not depend on the
-# order.
+# An engine pays a pipe one energy every 20 game ticks, but its gain comes from the world's clock,
+# which Test.tick_block_entity leaves alone. So the pipes are paid by hand at the same rate and the
+# engines stay as the layout's. The final numbers do not depend on the order.
 local _run_port() {
     round: number = 0
     while round < 200 {
-        Test.tick_block_entity(engine1.unwrap(), 10)
-        Test.tick_block_entity(pipe1.unwrap(), 10)
-        Test.tick_block_entity(engine2.unwrap(), 10)
-        Test.tick_block_entity(pipe2.unwrap(), 10)
+        pipe1.unwrap().receive_energy(1)
+        pipe2.unwrap().receive_energy(1)
+        Test.tick_block_entity(pipe1.unwrap(), 20)
+        Test.tick_block_entity(pipe2.unwrap(), 20)
         round = round + 1
     }
 }
@@ -117,8 +114,6 @@ local _setup(ctx: TestTickContext) {
     if not Test.is_reference() {
         pipe1.set(level.get_block_entity(x + 2, y, z).unwrap())
         pipe2.set(level.get_block_entity(x + 4, y, z).unwrap())
-        engine1.set(level.get_block_entity(x + 2, y - 1, z).unwrap())
-        engine2.set(level.get_block_entity(x + 4, y - 1, z).unwrap())
     }
 }
 
