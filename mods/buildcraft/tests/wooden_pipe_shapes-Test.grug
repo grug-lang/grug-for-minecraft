@@ -13,6 +13,13 @@ remesh_ticks: number = 0
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
+# The camera's origin from _setup, which the later steps build from. Test.get_origin() is not the
+# same point on every loader: 1.20.6 answers from the player's feet and the camera's origin is
+# measured from the eye, 1.62 higher, so a step that asked again would build a block too low there.
+origin_x: number = 0
+origin_y: number = 0
+origin_z: number = 0
+
 # 0 while the straight run is on screen, 1 after the corner has replaced it.
 phase: number = 0
 
@@ -67,6 +74,9 @@ local _setup(ctx: TestTickContext) {
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
+    origin_x = x
+    origin_y = y
+    origin_z = z
 
     _wall(level, x - 6, y - 9, z + 6)
 
@@ -125,10 +135,9 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
 # opposite ones. The east chest stays the source, and the pipe's own shape is rebuilt by the swap.
 local _make_corner() {
     level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
-    x: number = origin.x()
-    y: number = origin.y()
-    z: number = origin.z()
+    x: number = origin_x
+    y: number = origin_y
+    z: number = origin_z
     level.place_block(x - 1, y - 1.88, z + 4, "minecraft:air")
     level.place_block(x, y - 1.88, z + 5, "minecraft:chest")
 }
@@ -138,10 +147,9 @@ local _make_corner() {
 # swap changes no light and no compared pixel; it dirties the wall's sections and their neighbours.
 local _force_remesh(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
-    x: number = origin.x()
-    y: number = origin.y()
-    z: number = origin.z()
+    x: number = origin_x
+    y: number = origin_y
+    z: number = origin_z
     level.place_block(x - 6, y + 3, z + 6, "minecraft:dirt")
     level.place_block(x - 6, y + 3, z + 6, "minecraft:stone")
     ctx.assert(level.get_block(x - 6, y + 3, z + 6) == "minecraft:stone", "The remesh swap should have put the wall block back.")
