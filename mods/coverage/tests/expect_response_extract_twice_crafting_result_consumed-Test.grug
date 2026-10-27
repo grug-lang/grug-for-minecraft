@@ -16,6 +16,11 @@ export tick(ctx: TestTickContext) {
     }
     be.update_recipe_output(0)
     ctx.assert(be.get_crafting_result_item().has(), "Three wheat in a row should craft a bread for the export to hand over.")
+    be.set_saved_number("extract_mode", 2)
+    plain: number = be.ask_extract_item(0)
+    ctx.assert(be.get_saved_number("seen_result") == 1, "The export should have found the crafting result.")
+    ctx.assert(plain == 1, "An ordinary crafting result answer should offer the one bread.")
+    be.set_saved_number("extract_mode", 0)
     offered: number = be.ask_extract_item(0)
     ctx.assert(offered != -1, "The block entity should have run its extract_item export.")
     ctx.assert(offered != 0, "The export should not have refused a bread that exists.")
