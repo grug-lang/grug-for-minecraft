@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.mixin;
 
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.minecraft.block.Block;
 
@@ -21,6 +22,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * against more than one version and the method is named differently in each, so the answer is given
  * from here.
  */
+@GrugGenerated(
+        "a mixin into the game's block code: the game runs it, and the wooden_pipe_shapes"
+                + " captures fail without it")
 @Mixin(Block.class)
 public class BlockSolidMixin {
 
