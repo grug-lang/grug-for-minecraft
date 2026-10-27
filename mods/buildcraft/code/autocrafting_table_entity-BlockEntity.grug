@@ -82,7 +82,9 @@ export add_item(item: Item, damage: number, count: number, from_side: number, ad
 
 # Whether a pipe's take can be paid for: every slot holding more than one item gives one up, and every
 # slot holding one needs a matching item in a neighbouring inventory, one per slot. The reference checks
-# the same thing by taking them and putting them back when one is missing.
+# the same thing by taking them and putting them back when one is missing. The count only includes the slots
+# the neighbour lets anyone extract from, because those are the ones the borrowing can take from: a count
+# of every slot could approve a take whose borrow then fails, and the bread would go unpaid.
 local _can_craft_for_pipe() bool {
     slot: number = 0
     while slot < 9 {
@@ -91,7 +93,7 @@ local _can_craft_for_pipe() bool {
             if item_opt.has() {
                 item: Item = item_opt.unwrap()
                 damage: number = me.get_item_damage_in_slot(slot)
-                if _count_in_neighbors(item, damage) < _count_required(item, damage) {
+                if _count_extractable_in_neighbors(item, damage) < _count_required(item, damage) {
                     return false
                 }
             }
@@ -258,4 +260,39 @@ local _extract_from_neighbor(nx: number, ny: number, nz: number, item: Item, dam
         return neighbor_opt.unwrap().extract_item_from_inventory(item, damage, amount)
     }
     return 0
+}
+
+local _count_extractable_in_neighbors(item: Item, damage: number) number {
+    total: number = 0
+    total = total + _count_extractable_in_neighbor(x - 1, y, z, item, damage)
+    total = total + _count_extractable_in_neighbor(x + 1, y, z, item, damage)
+    total = total + _count_extractable_in_neighbor(x, y - 1, z, item, damage)
+    total = total + _count_extractable_in_neighbor(x, y + 1, z, item, damage)
+    total = total + _count_extractable_in_neighbor(x, y, z - 1, item, damage)
+    total = total + _count_extractable_in_neighbor(x, y, z + 1, item, damage)
+    return total
+}
+
+local _count_extractable_in_neighbor(nx: number, ny: number, nz: number, item: Item, damage: number) number {
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return 0
+    }
+
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    size: number = neighbor.get_inventory_size()
+    total: number = 0
+    slot: number = 0
+    while slot < size {
+        if neighbor.is_slot_extractable(slot) {
+            slot_item: Option[Item] = neighbor.get_item_in_slot(slot)
+            if slot_item.has() {
+                if equals(slot_item.unwrap(), item) and neighbor.get_item_damage_in_slot(slot) == damage {
+                    total = total + neighbor.get_item_count_in_slot(slot)
+                }
+            }
+        }
+        slot = slot + 1
+    }
+    return total
 }
