@@ -208,6 +208,7 @@ jobs:
         run: |
           python3 .github/scripts/report_native_abort_test.py
           python3 .github/scripts/run_loader_test.py
+          python3 .github/scripts/ci_timing_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
@@ -1140,3 +1141,27 @@ jobs:
           name: coverage-report
           path: coverage/report
           retention-days: 7
+
+  # Writes where this run's time went to the run's summary page, from ci_timing.py, which anyone can
+  # run on an older run too. It needs only the jobs nothing else waits for, since the rest finish
+  # before them, and it also runs when one of them failed. The job is cheap on purpose: a sparse
+  # checkout of the script and one API call, so what it adds to the run stays within seconds.
+  timing:
+    name: timing report
+    needs: [reference, windows, windows-installed, production, coexistence, smoke, coverage]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out the script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts/ci_timing.py
+
+      - name: Report the time
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I .github/scripts/ci_timing.py "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"
