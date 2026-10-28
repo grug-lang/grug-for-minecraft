@@ -16,7 +16,9 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # A newer run on a pull request or a throwaway branch makes the older one pointless. A push to main
+  # never cancels the run before it: that run is the one the release gate needs for its own commit.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Emits one matrix entry per loaders/* directory.
