@@ -1,0 +1,19 @@
+# The second half of the pair that covers what the runner does between two tests (see #583). The runner
+# has cleared the area for this test, and the client may still hold the blocks of the test before it with
+# a rebuild of them under way. A rebuild draws a block entity on a worker thread, and the draw of a
+# coverage_render block entity reports an err the first time. Test.close_screen waits for the client
+# thread with the state lock released, which is the moment a worker can enter grug, so a draw of a block
+# the previous test left lands in the middle of this test's own call and stops it. Asking over and over
+# for the first ticks makes that moment as likely as it can be. Nothing here is asserted but that the
+# calls come back: a draw that is not this test's must not stop them.
+export tick(ctx: TestTickContext) {
+    i: number = 0
+    while i < 30 {
+        Test.close_screen()
+        i = i + 1
+    }
+    ctx.assert(not Test.screen_open(), "Test.close_screen should leave no screen open.")
+    if ctx.current_tick() < 5 {
+        ctx.not_done()
+    }
+}
