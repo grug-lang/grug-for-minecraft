@@ -25,8 +25,9 @@ are by members only (#617).
 - **Merging.** The orchestrator merges by rebase (`gh pr merge <n> --rebase`) once every job of the
   pull request has passed (a skipped job counts as a pass) and it has read the diff against the
   issue. Nothing is pushed to `main`. A quick edit to markdown only (an AGENTS.md fix, say) may be
-  merged without waiting for any CI. Before merging a base pull request that another one is stacked
-  on, retarget the other to `main`, or `--delete-branch` closes it.
+  merged without waiting for any CI, and neither its pull request run nor the push-to-`main` run
+  after it needs checking. Before merging a base pull request that another one is stacked on,
+  retarget the other to `main`, or `--delete-branch` closes it.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
