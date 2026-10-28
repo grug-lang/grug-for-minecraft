@@ -24,9 +24,9 @@ are by members only (#617).
   CI result, measurements, surprises) and never merges.
 - **Merging.** The orchestrator merges by rebase (`gh pr merge <n> --rebase`) once every job of the
   pull request has passed (a skipped job counts as a pass) and it has read the diff against the
-  issue. Nothing is pushed to `main`. A markdown-only pull request waits only for the Pre-commit
-  workflow. Before merging a base pull request that another one is stacked on, retarget the other to
-  `main`, or `--delete-branch` closes it.
+  issue. Nothing is pushed to `main`. A quick edit to markdown only (an AGENTS.md fix, say) may be
+  merged without waiting for any CI. Before merging a base pull request that another one is stacked
+  on, retarget the other to `main`, or `--delete-branch` closes it.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
@@ -55,9 +55,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 - Before pushing, check locally what can be checked: `pre-commit run --all-files`, the grug compile
   check, the Python tests. Wait with `.github/scripts/watch-run.sh <run-id>` in the background,
   never a fixed sleep: it exits 1 at the first failed job with the last 80 lines of its failed step,
-  0 when all are green. Get the id from `gh api 'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`;
-  `gh pr checks --watch` fails right after a push and reads stale runs after a force-push. Read a
-  job's whole log with `gh api
+  0 when all are green. Get the id from `gh api
+  'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`; `gh pr checks --watch` fails right
+  after a push and reads stale runs after a force-push. Read a job's whole log with `gh api
   repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a pipeline is
   fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json mergeable`).
 - `python3 .github/scripts/ci_timing.py <run-id>` shows where a run's time went, with queue time.
