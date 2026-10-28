@@ -15,7 +15,7 @@ are by members only (#617).
   holds the issue and its acceptance points, the rules of this file that apply, the exact steps,
   that Minecraft runs only in CI, and how to report. After merging it removes the task's worktree
   and branch: `git worktree remove --force <path>`, check `git cherry origin/main <branch>` (all
-  lines start with `-` after a rebase merge), `git branch -D <branch>`.
+  lines start with `-` after a rebase merge), `git branch -D <branch>`, `git worktree prune`.
 - **Subagent.** Implements one issue in its own worktree from a fresh `origin/main`: `git worktree
   add ~/agent-workspaces/grug-for-minecraft-<task> -b <branch> origin/main`, and works only there.
   It opens the pull request in the same sitting with `Closes #<n>` (a draft if unfinished; the
@@ -34,7 +34,7 @@ are by members only (#617).
   If `main` goes red after a merge, stop merging and fix forward or revert, through a pull request.
 - **Never, unattended:** publish outside the repository (for example a container image), change the
   ruleset or any repository setting (required status checks are #638), or delete anything you did
-  not create.
+  not create (the worktree and branch of a task you just merged excepted).
 - **Report for the maintainer, when they return:** the pull request links to ctrl-click, what
   merged, what is still open, the questions as issues, and images to look at in one directory.
 
@@ -58,6 +58,7 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   right after a push and reads stale runs after a force-push. Read a job's log with `gh api
   repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a pipeline is
   fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json mergeable`).
+- `python3 .github/scripts/ci_timing.py <run-id>` shows where a run's time went, with queue time.
 - After a merge that touches `.github/workflows/build.yml`, wait for the push-to-main run to pass
   before the next task that depends on it: the cache keys hash `build.yml`, so that run is cold.
 
@@ -228,6 +229,9 @@ bump commands are in #369.
   `~/.gradle/caches/forge_gradle/maven_downloader/org/vineflower/vineflower/1.10.1/vineflower-1.10.1.jar`.
   1.2.5 is decompiled under `loaders/1.2.5-forge/build/mcp125`; for other versions, decompile the
   exact jar from the Gradle caches rather than trusting memory.
+- The reference run is the `reference` CI job: `GRUG_REFERENCE=1`, a harness-only `GRUG_MODS_DIR`
+  and `GRUG_REFERENCE_MODS_DIR` at the mods `recreation.py stage` staged. Develop a reference
+  fixture there, on a throwaway branch, never by launching the game locally.
 - Mods ship copies of vanilla textures on purpose (preservation, and the running version often lacks
   them). Do not flag them as a licensing problem; a report about them from Mojang or Microsoft goes
   to the maintainer, and an agent never closes it.
