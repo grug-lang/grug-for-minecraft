@@ -15,8 +15,10 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parent / "watch-run.sh"
 
 FAKE_GH = """#!/usr/bin/env bash
-if [ "$3" = "--job" ]; then
+if [ "$1" = "api" ]; then
   seq 1 100 | sed 's/^/log line /'
+  echo "##[error]Process completed with exit code 1."
+  seq 101 120 | sed 's/^/post step /'
   exit 0
 fi
 dir="$FAKE_GH_DIR"
@@ -67,14 +69,17 @@ class WatchRunTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("1.20.6-forge", result.stdout)
         self.assertIn("log line 100", result.stdout)
-        self.assertIn("log line 21", result.stdout)
-        self.assertNotIn("log line 20\n", result.stdout)
+        self.assertIn("##[error]", result.stdout)
+        self.assertIn("log line 22", result.stdout)
+        self.assertNotIn("log line 21\n", result.stdout)
+        self.assertNotIn("post step", result.stdout)
 
     def test_green_run_exits_zero_and_skipped_counts_as_pass(self):
         result = self.run_script(
             [
                 {
                     "status": "completed",
+                    "conclusion": "success",
                     "jobs": [
                         job(1, "a", "completed", "success"),
                         job(2, "b", "completed", "skipped"),
@@ -88,11 +93,20 @@ class WatchRunTest(unittest.TestCase):
         result = self.run_script(
             [
                 {"status": "in_progress", "jobs": [job(1, "a", "in_progress", None)]},
-                {"status": "completed", "jobs": [job(1, "a", "completed", "success")]},
+                {
+                    "status": "completed",
+                    "conclusion": "success",
+                    "jobs": [job(1, "a", "completed", "success")],
+                },
             ]
         )
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("1 job(s) not finished", result.stdout)
+
+    def test_completed_run_without_jobs_is_not_green_unless_it_succeeded(self):
+        result = self.run_script([{"status": "completed", "conclusion": "cancelled", "jobs": []}])
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("cancelled", result.stdout)
 
 
 if __name__ == "__main__":
