@@ -173,6 +173,8 @@ if [ "$PHASE" != build ] && grep -q "net.minecraftforge.gradle" "${LOADER_DIR}/b
 fi
 
 timeout_secs="${GRUG_CI_RUN_TIMEOUT:-120}"
+# Each pass after the first adds this many seconds, so the watch scales with GRUG_CI_REPEATS.
+timeout_secs=$((timeout_secs + ${GRUG_CI_RUN_TIMEOUT_PER_EXTRA_REPEAT:-0} * (${GRUG_CI_REPEATS:-1} - 1)))
 # Fabric Loader runs the Alpha and Beta init entrypoints, and the block registration they trigger, on
 # the applet's AWT thread, so a mod that fails there leaves the game thread waiting rather than
 # crashing it. A broken grug invariant (Grug.fatal) is a crash wherever it is thrown.
