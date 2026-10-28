@@ -98,8 +98,8 @@ xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" \
   is rare needs, push the same commit to throwaway branches and dispatch each (the runners are
   GitHub's, so this costs your machine nothing). Delete them when done. Read a job's log with
   `gh api repos/<repo>/actions/jobs/<id>/logs`.
-- The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile makes it
-  hang until the timeout instead (#366), so check grug syntax before pushing.
+- The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile is
+  reported the same way, but check grug syntax before pushing anyway.
 - Accepted goldens come from GitHub's runners, never a local run: a world capture differs slightly.
   A failing job uploads its capture (`gh run download <run-id> --name loader-<loader>-screenshots`).
   The suite fails fast, so when many goldens change, push the commit to a throwaway branch whose
@@ -226,6 +226,22 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   in a comment: the body is what the next reader reads first.
 - Merge only with the maintainer's authorization, by rebase. Nothing is pushed to `main`. A pull
   request that changes only markdown merges without waiting for CI.
+- Every job of a pull request must pass before it merges; a skipped job counts as a pass. A pull
+  request runs only part of `build.yml`: the jar, installed, smoke and Windows jobs and two steps of
+  core tests run only on `main` and `workflow_dispatch`, so a green pull request says nothing about
+  them. `gh workflow run build.yml --ref <branch>` gives a branch the full pipeline.
+- A flake the pull request did not cause is fixed first, in its own pull request with the test that
+  fails without the fix. Then rebase the original onto `main` and merge once its CI passes on that
+  commit; a rerun that goes green does not count. It is not the pull request's flake when the failing
+  job exercises code it does not touch, or the same failure shows on another pull request or `main`.
+- When `main` is red, find the pull request of the commit
+  (`gh api repos/grug-lang/grug-for-minecraft/commits/<sha>/pulls`) and compare its last run with
+  the one on `main`. A job that failed on `main` and was missing or skipped on the pull request is
+  the expected case; one that failed on the pull request too was merged red. Rerun the failed jobs
+  once to tell a flake from a real failure, then fix forward or revert, through an issue and a pull
+  request.
+- Pushing freely to check a pipeline, and to throwaway branches, is fine: a push restarting the
+  pipeline is no reason to batch commits.
 - Do not add repository documentation beyond this file.
 - When the user has to look at images, copy them into one directory you choose and give its path.
 - Wait with a tool that watches, never a fixed sleep: run `gh run watch <id> --repo
