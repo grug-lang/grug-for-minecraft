@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Emits one matrix entry per loaders/* directory.
@@ -107,6 +107,7 @@ jobs:
   # library is built for one OS and the Linux jobs hand theirs around as an artifact.
   native-windows:
     name: adapter.dll (Windows)
+    if: github.event_name != 'pull_request'
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
@@ -215,11 +216,13 @@ jobs:
       # would resolve the right jar and nothing would notice. This is the check that says otherwise,
       # against a miniature repository and real Gradle.
       - name: Test the core hand-off
+        if: github.event_name != 'pull_request'
         run: python3 .github/scripts/grug_core_handoff_test.py
 
       # Every invariant check the universal job runs on the real jar, each shown to catch the defect
       # it is for on a miniature jar, so a check that stopped looking fails here.
       - name: Test the universal jar's assembly and checks
+        if: github.event_name != 'pull_request'
         run: python3 .github/scripts/universal_jar_test.py
 
       # The coverage job used to ask Gradle for this path, which cost it a cold Gradle start (~35s)
@@ -265,6 +268,7 @@ jobs:
   # does not wait for core's tests (#570).
   core-release:
     name: core release jar
+    if: github.event_name != 'pull_request'
     needs: grug-rs
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -313,6 +317,7 @@ jobs:
   # the two jobs start together.
   layer:
     name: layer ${{ matrix.dir }}
+    if: github.event_name != 'pull_request'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -615,6 +620,7 @@ jobs:
   # Windows paths are exercised by a game that really starts, in each loader's own adapter.
   windows:
     name: ${{ matrix.dir }} (Windows)
+    if: github.event_name != 'pull_request'
     runs-on: windows-2025
     timeout-minutes: 45
     strategy:
@@ -721,6 +727,7 @@ jobs:
   # Boot-only for the reason the job above gives.
   windows-installed:
     name: ${{ matrix.dir }} installed (Windows)
+    if: github.event_name != 'pull_request'
     needs: [universal]
     runs-on: windows-2025
     timeout-minutes: 30
@@ -819,6 +826,7 @@ jobs:
   # suites are still running (#570).
   universal:
     name: universal jar
+    if: github.event_name != 'pull_request'
     needs: [core-release, layer, native-windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -860,6 +868,7 @@ jobs:
   # See #487 and #488.
   production:
     name: ${{ matrix.dir }} installed
+    if: github.event_name != 'pull_request'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -961,6 +970,7 @@ jobs:
   # The production jobs keep grug as the game's only mod. See #501.
   coexistence:
     name: 1.20.6-forge installed beside JEI
+    if: github.event_name != 'pull_request'
     needs: [universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -1039,6 +1049,7 @@ jobs:
   # asks for another game of its mechanism. See #493.
   smoke:
     name: ${{ matrix.game }} without a layer
+    if: github.event_name != 'pull_request'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
