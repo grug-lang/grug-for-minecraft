@@ -881,19 +881,26 @@ class GrugTestRunnerTest {
         int[] ticks = {0};
         ops.onCall = () -> ticks[0]++;
         boolean[] stale = {true};
+        long[] now = {0};
         GrugTestRunner runner =
                 new GrugTestRunner(
-                        files, List.of(), ops, System::nanoTime, staleBlockEntities(stale), 1);
+                        files, List.of(), ops, () -> now[0], staleBlockEntities(stale), 1);
 
+        // A short wait is routine and says nothing.
         String held = capture(() -> runner.tick(null));
         assertTrue(held.contains("Executing test: mymod/code/a-Test.grug"), held);
-        assertTrue(held.contains("Waiting for the client to drop"), held);
-        assertTrue(held.contains("mymod/code/a-Test.grug"), held);
+        assertFalse(held.contains("Waiting for the client to drop"), held);
         assertEquals(0, ticks[0]);
 
-        // Said once per wait, and the test is not started a second time.
-        String stillHeld = capture(() -> runner.tick(null));
-        assertEquals("", stillHeld);
+        now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS;
+        assertEquals("", capture(() -> runner.tick(null)));
+
+        // A long one says so, once, and the test is not started a second time.
+        now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS + 1;
+        String reported = capture(() -> runner.tick(null));
+        assertTrue(reported.contains("Waiting for the client to drop"), reported);
+        assertTrue(reported.contains("mymod/code/a-Test.grug"), reported);
+        assertEquals("", capture(() -> runner.tick(null)));
         assertEquals(0, ticks[0]);
         assertEquals(1, ops.created);
 
@@ -921,7 +928,7 @@ class GrugTestRunnerTest {
         capture(() -> runner.tick(null));
 
         now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_DEADLINE_NANOS;
-        assertEquals("", capture(() -> runner.tick(null)));
+        capture(() -> runner.tick(null));
         assertFalse(runner.isFinished());
 
         now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_DEADLINE_NANOS + 1;

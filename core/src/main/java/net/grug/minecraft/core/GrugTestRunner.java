@@ -174,6 +174,12 @@ public class GrugTestRunner {
      */
     private long staleWaitStartNanos = -1;
 
+    /** Whether the current wait has been said, so a long one says so once. */
+    private boolean staleWaitReported = false;
+
+    /** How long a wait has to last before it is worth a line, since a short one is routine. */
+    static final long STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS = 1_000_000_000L;
+
     public GrugTestRunner() {
         this(
                 GrugModsWatcher.fileIds,
@@ -604,22 +610,29 @@ public class GrugTestRunner {
     private boolean holdForStaleBlockEntities(String path) {
         if (!boxBuilder.staleBlockEntitiesRemain()) {
             staleWaitStartNanos = -1;
+            staleWaitReported = false;
             return false;
         }
         long now = clock.getAsLong();
         if (staleWaitStartNanos < 0) {
             staleWaitStartNanos = now;
-            System.out.println(
-                    "[GRUG CI] Waiting for the client to drop the last test's block entities"
-                            + " before the first tick of "
-                            + path);
         } else if (now - staleWaitStartNanos > STALE_BLOCK_ENTITY_DEADLINE_NANOS) {
             staleWaitStartNanos = -1;
+            staleWaitReported = false;
             fail(
                     path,
                     "The client still held a block entity of an earlier test after "
                             + (STALE_BLOCK_ENTITY_DEADLINE_NANOS / 1_000_000_000L)
                             + " seconds, so this test was not started.");
+        } else if (!staleWaitReported
+                && now - staleWaitStartNanos > STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS) {
+            // Not on the first tick, which every test takes: a loader may need one tick to find
+            // out.
+            staleWaitReported = true;
+            System.out.println(
+                    "[GRUG CI] Waiting for the client to drop the last test's block entities"
+                            + " before the first tick of "
+                            + path);
         }
         return true;
     }
