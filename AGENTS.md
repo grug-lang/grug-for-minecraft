@@ -233,5 +233,5 @@ locations and bump commands, and why dynamic selectors and checksums were pinned
   no turns. Get the id from `gh api 'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`;
   `gh pr checks --watch` fails right after a push and reads stale runs after a force-push.
 - A push that shows no CI run usually means a conflict: check `gh pr view <n> --json mergeable`.
-- To see where a run's time went, queue time included, run `python3 .github/scripts/ci_timing.py <run-id>`, or `gh workflow run timing.yml -f run-id=<id>` for a summary page you can link.
+- To see where a run's time went, queue time included, run `python3 .github/scripts/ci_timing.py <run-id>`.
 - `pre-commit run --all-files` only sees tracked files, so re-run it after `git add` of a new file.
