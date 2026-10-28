@@ -418,7 +418,8 @@ jobs:
           # The watch covers the whole run: 300s for one pass (the slowest loader measured under 190s
           # of game time) plus 60s per extra pass. 1.2.5's twenty passes measured 1068s, the slowest
           # of the loaders, against 1440s here. See #291.
-          GRUG_CI_RUN_TIMEOUT: ${{ 300 + 60 * (fromJSON(inputs.repeats || vars.GRUG_CI_REPEATS || '1') - 1) }}
+          GRUG_CI_RUN_TIMEOUT: '300'
+          GRUG_CI_RUN_TIMEOUT_PER_EXTRA_REPEAT: '60'
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
