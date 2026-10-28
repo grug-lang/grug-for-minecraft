@@ -857,6 +857,81 @@ class GrugTestRunnerTest {
         assertTrue(runner.isFinished());
     }
 
+    /** A room builder whose client holds stale block entities for as long as the test says. */
+    private static GrugTestRunner.TestBoxBuilder staleBlockEntities(boolean[] stale) {
+        return new GrugTestRunner.TestBoxBuilder() {
+            @Override
+            public void build(int radius) {}
+
+            @Override
+            public void sweepItems() {}
+
+            @Override
+            public boolean staleBlockEntitiesRemain() {
+                return stale[0];
+            }
+        };
+    }
+
+    @Test
+    void holdsTheFirstTickWhileTheClientStillHoldsABlockEntityOfTheLastTest() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+        ops.pathsAre(files);
+        int[] ticks = {0};
+        ops.onCall = () -> ticks[0]++;
+        boolean[] stale = {true};
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files, List.of(), ops, System::nanoTime, staleBlockEntities(stale), 1);
+
+        String held = capture(() -> runner.tick(null));
+        assertTrue(held.contains("Executing test: mymod/code/a-Test.grug"), held);
+        assertTrue(held.contains("Waiting for the client to drop"), held);
+        assertTrue(held.contains("mymod/code/a-Test.grug"), held);
+        assertEquals(0, ticks[0]);
+
+        // Said once per wait, and the test is not started a second time.
+        String stillHeld = capture(() -> runner.tick(null));
+        assertEquals("", stillHeld);
+        assertEquals(0, ticks[0]);
+        assertEquals(1, ops.created);
+
+        stale[0] = false;
+        capture(() -> runner.tick(null));
+        assertEquals(1, ticks[0]);
+        assertEquals(1, ops.created);
+        assertFalse(runner.isFinished());
+    }
+
+    @Test
+    void failsTheRunWhenTheClientNeverDropsTheLastTestsBlockEntities() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+        ops.pathsAre(files);
+        long[] now = {0};
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        () -> now[0],
+                        staleBlockEntities(new boolean[] {true}),
+                        1);
+        capture(() -> runner.tick(null));
+
+        now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_DEADLINE_NANOS;
+        assertEquals("", capture(() -> runner.tick(null)));
+        assertFalse(runner.isFinished());
+
+        now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_DEADLINE_NANOS + 1;
+        String failed = capture(() -> runner.tick(null));
+        assertTrue(failed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"), failed);
+        assertTrue(failed.contains("still held a block entity"), failed);
+        assertTrue(runner.isFinished());
+        assertEquals(1, ops.destroyed);
+    }
+
     private static List<String> runWithSweepLog(FakeOps ops, Map<String, Long> files) {
         List<String> log = new ArrayList<>();
         ops.pathsAre(files);

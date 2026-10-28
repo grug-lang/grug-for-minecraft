@@ -47,6 +47,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.loading.FMLEnvironment;
@@ -802,6 +804,62 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public boolean isLoaderReloading() {
         return GrugModLoader.isReloading();
+    }
+
+    /**
+     * Whether the client's chunks still hold a grug block entity inside the test area that the room
+     * build has cleared on the server. The server's packets about the clearing reach the client a
+     * tick or more after the build, and until it has processed them a rebuild of one of its
+     * sections draws the old block entity on a chunk worker thread. That draw enters the VM while
+     * the test's first call waits on the client thread with the state lock released, and an err it
+     * reports there stops the test's own call. See #583.
+     *
+     * <p>Read on the client thread, because the chunks' block entity maps are the client thread's
+     * to change and iterating one from another thread can fail halfway.
+     */
+    @Override
+    @GrugGenerated(
+            "client plumbing: the answer depends on how far the client is behind the server, which"
+                    + " a run cannot choose")
+    public boolean hasStaleTestBlockEntities() {
+        if (FMLEnvironment.dist != Dist.CLIENT) return false;
+        Player player = (Player) testPlayer();
+        if (player == null) return false;
+        double feetX = player.getX();
+        double feetY = player.getY();
+        double feetZ = player.getZ();
+        boolean[] stale = {false};
+        onClientThread(() -> stale[0] = clientHoldsBlockEntityInTestArea(feetX, feetY, feetZ));
+        return stale[0];
+    }
+
+    @GrugGenerated("client plumbing: see hasStaleTestBlockEntities")
+    private static boolean clientHoldsBlockEntityInTestArea(
+            double feetX, double feetY, double feetZ) {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) return false;
+        int radius = GrugTestBox.areaRadius();
+        int minChunkX = ((int) Math.floor(feetX) - radius) >> 4;
+        int maxChunkX = ((int) Math.floor(feetX) + radius) >> 4;
+        int minChunkZ = ((int) Math.floor(feetZ) - radius) >> 4;
+        int maxChunkZ = ((int) Math.floor(feetZ) + radius) >> 4;
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                LevelChunk chunk =
+                        level.getChunkSource().getChunk(chunkX, chunkZ, ChunkStatus.FULL, false);
+                if (chunk == null) continue;
+                for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+                    net.minecraft.core.BlockPos at = blockEntity.getBlockPos();
+                    if (blockEntity instanceof GrugBlockEntity
+                            && !blockEntity.isRemoved()
+                            && GrugTestBox.inClearedArea(
+                                    feetX, feetY, feetZ, at.getX(), at.getY(), at.getZ())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     @Override

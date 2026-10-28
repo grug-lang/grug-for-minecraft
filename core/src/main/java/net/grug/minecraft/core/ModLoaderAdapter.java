@@ -404,6 +404,18 @@ public interface ModLoaderAdapter {
         return false;
     }
 
+    /**
+     * Whether the client still holds a block entity of an earlier test inside the test area, after
+     * the room build cleared the area. Only 1.20.6 has a client that is separate from the server
+     * and learns of a change from a packet, so only there can the client be behind the room build,
+     * and a rebuild of its stale sections draw a block entity the test never placed. The runner
+     * waits this out before a test's first tick, and every other loader keeps the default. See
+     * #583.
+     */
+    default boolean hasStaleTestBlockEntities() {
+        return false;
+    }
+
     void useBlockForTest(Object levelObj, double x, double y, double z);
 
     /**

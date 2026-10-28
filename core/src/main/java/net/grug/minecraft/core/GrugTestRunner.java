@@ -95,6 +95,15 @@ public class GrugTestRunner {
         default boolean loaderReloading() {
             return false;
         }
+
+        /**
+         * Whether the client still holds a block entity of an earlier test inside the area the room
+         * build cleared, because it has not yet processed the packets that removed it. The runner
+         * holds the test back until it is gone. See #583.
+         */
+        default boolean staleBlockEntitiesRemain() {
+            return false;
+        }
     }
 
     /** The builder of a runner with no game: there is no room and no item to sweep. */
@@ -151,6 +160,20 @@ public class GrugTestRunner {
      */
     private long reloadWaitStartNanos = -1;
 
+    /**
+     * A guard against a client that never processes the removal of the last test's block entities,
+     * which takes a few ticks at most, so a client still holding one after this long has lost the
+     * packet and the run fails with that said rather than timing out. See #583.
+     */
+    static final long STALE_BLOCK_ENTITY_DEADLINE_NANOS = 30_000_000_000L;
+
+    /**
+     * When the current wait for the client to drop the last test's block entities began, or -1 when
+     * the runner is not waiting. A test that is waiting has its entity, its init and its room, and
+     * has only not made its first Test.tick() call yet.
+     */
+    private long staleWaitStartNanos = -1;
+
     public GrugTestRunner() {
         this(
                 GrugModsWatcher.fileIds,
@@ -172,6 +195,11 @@ public class GrugTestRunner {
                     @Override
                     public boolean loaderReloading() {
                         return GrugCore.getAdapter().isLoaderReloading();
+                    }
+
+                    @Override
+                    public boolean staleBlockEntitiesRemain() {
+                        return GrugCore.getAdapter().hasStaleTestBlockEntities();
                     }
                 },
                 repeatsFromEnv());
@@ -302,7 +330,10 @@ public class GrugTestRunner {
         }
         reloadWaitStartNanos = -1;
 
-        if (currentEntityHandle == 0 && !startNextTest()) {
+        // True when a test is starting in this very call, so its room has just been built. It stays
+        // true past the check below only when that start succeeded: a failed one returns.
+        boolean justStarted = currentEntityHandle == 0;
+        if (justStarted && !startNextTest()) {
             // Nothing left to run.
             if (repeatsRemaining > 1) {
                 // A repeat is another sample of the same suite, for a flake that passes most runs
@@ -341,6 +372,12 @@ public class GrugTestRunner {
         }
 
         String path = tests.get(nextTestIndex).getKey();
+
+        // The room is built, but the client may not have caught up with the clearing that came with
+        // it. See holdForStaleBlockEntities.
+        if ((justStarted || staleWaitStartNanos >= 0) && holdForStaleBlockEntities(path)) {
+            return;
+        }
 
         GrugTestState.currentTestTick = currentTick;
         GrugTestState.testNotDone = false;
@@ -549,6 +586,42 @@ public class GrugTestRunner {
                             + (RELOAD_DEADLINE_NANOS / 1_000_000_000L)
                             + " seconds, so this test was not started.");
         }
+    }
+
+    /**
+     * Holds the test back, after its room is built and before its first tick, while the client
+     * still holds a block entity the room build cleared, and answers whether it did.
+     *
+     * <p>The room build clears the area on the server, and the client learns of it from packets
+     * that reach it a tick or more later, while the test's first calls go straight to the client
+     * thread. A rebuild of a section the client still has the old block entities in draws them on a
+     * chunk worker thread, and that draw enters the VM in the middle of whichever call the test has
+     * suspended on the client thread. The engine's error flag is not per call, so a draw that
+     * reports an err stops the test's own call, and the run fails a test for an err that is an
+     * earlier test's. Waiting until the client has dropped them means a rebuild can no longer draw
+     * them. See #583.
+     */
+    private boolean holdForStaleBlockEntities(String path) {
+        if (!boxBuilder.staleBlockEntitiesRemain()) {
+            staleWaitStartNanos = -1;
+            return false;
+        }
+        long now = clock.getAsLong();
+        if (staleWaitStartNanos < 0) {
+            staleWaitStartNanos = now;
+            System.out.println(
+                    "[GRUG CI] Waiting for the client to drop the last test's block entities"
+                            + " before the first tick of "
+                            + path);
+        } else if (now - staleWaitStartNanos > STALE_BLOCK_ENTITY_DEADLINE_NANOS) {
+            staleWaitStartNanos = -1;
+            fail(
+                    path,
+                    "The client still held a block entity of an earlier test after "
+                            + (STALE_BLOCK_ENTITY_DEADLINE_NANOS / 1_000_000_000L)
+                            + " seconds, so this test was not started.");
+        }
+        return true;
     }
 
     /** Starts the next pending test, or returns false if there are none left. */
