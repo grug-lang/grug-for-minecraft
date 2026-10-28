@@ -54,7 +54,7 @@ jobs:
   grug-rs:
     name: build grug-rs
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -154,7 +154,7 @@ jobs:
     name: core tests
     needs: grug-rs
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -273,7 +273,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: grug-rs
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -322,7 +322,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -356,7 +356,7 @@ jobs:
     name: ${{ matrix.dir }}
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: ${{ (inputs.repeats || vars.GRUG_CI_REPEATS || '1') == '1' && 15 || 45 }}
     strategy:
       fail-fast: false
       matrix:
@@ -415,10 +415,10 @@ jobs:
           # repository variable GRUG_CI_REPEATS, then 1, which is what pull request runs use
           # because their inputs context is empty. See #268.
           GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
-          # The watch covers the whole run, so a repeats=2 run needs about twice the default 120s
-          # before its two passes have both finished. 1800 covers a repeats=20 dispatch too: 1.2.5's
-          # twenty passes measured 1068s, the slowest of the loaders. See #291.
-          GRUG_CI_RUN_TIMEOUT: '1800'
+          # The watch covers the whole run: 300s for one pass (the slowest loader measured under 190s
+          # of game time) plus 60s per extra pass. 1.2.5's twenty passes measured 1068s, the slowest
+          # of the loaders, against 1440s here. See #291.
+          GRUG_CI_RUN_TIMEOUT: ${{ 300 + 60 * (fromJSON(inputs.repeats || vars.GRUG_CI_REPEATS || '1') - 1) }}
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
@@ -489,7 +489,7 @@ jobs:
     name: reference (1.2.5-forge)
     needs: grug-rs
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -591,7 +591,7 @@ jobs:
           GRUG_REFERENCE_MODS_DIR: ${{ github.workspace }}/loaders/1.2.5-forge/run/reference-mods
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
-          GRUG_CI_RUN_TIMEOUT: '600'
+          GRUG_CI_RUN_TIMEOUT: '360'
 
       - name: Upload logs and crash reports
         if: always()
@@ -624,7 +624,7 @@ jobs:
     name: ${{ matrix.dir }} (Windows)
     if: github.event_name != 'pull_request'
     runs-on: windows-2025
-    timeout-minutes: 45
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -700,7 +700,7 @@ jobs:
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_CI_BOOT_ONLY: '1'
           GALLIUM_DRIVER: llvmpipe
-          GRUG_CI_RUN_TIMEOUT: '900'
+          GRUG_CI_RUN_TIMEOUT: '600'
 
       - name: Upload logs and crash reports
         if: always()
@@ -732,7 +732,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [universal]
     runs-on: windows-2025
-    timeout-minutes: 30
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -803,7 +803,7 @@ jobs:
           GRUG_CI_BOOT_ONLY: '1'
           GALLIUM_DRIVER: llvmpipe
           # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
-          GRUG_CI_RUN_TIMEOUT: '900'
+          GRUG_CI_RUN_TIMEOUT: '480'
 
       - name: Upload logs and crash reports
         if: always()
@@ -831,7 +831,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [core-release, layer, native-windows]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -873,7 +873,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -942,7 +942,7 @@ jobs:
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
           # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
-          GRUG_CI_RUN_TIMEOUT: '900'
+          GRUG_CI_RUN_TIMEOUT: '480'
 
       - name: Upload logs and crash reports
         if: always()
@@ -975,7 +975,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [universal]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1006,7 +1006,7 @@ jobs:
         env:
           GRUG_BESIDE: jei
           GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
-          GRUG_CI_RUN_TIMEOUT: '900'
+          GRUG_CI_RUN_TIMEOUT: '480'
 
       # JEI builds its ingredient list from every registered item before it logs this line, so an item
       # of grug's that JEI cannot read shows up here as an error or as JEI never starting.
@@ -1054,7 +1054,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -1111,7 +1111,7 @@ jobs:
     name: coverage report
     needs: [core, build]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
