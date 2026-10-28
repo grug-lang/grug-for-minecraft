@@ -212,6 +212,7 @@ jobs:
           python3 .github/scripts/report_native_abort_test.py
           python3 .github/scripts/run_loader_test.py
           python3 .github/scripts/ci_timing_test.py
+          python3 .github/scripts/watch_run_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
@@ -454,6 +455,26 @@ jobs:
           path: coverage-classes
           if-no-files-found: error
           retention-days: 7
+
+      # The first failure with its context, on the run's summary page, so nobody opens a log of
+      # thousands of lines to find it. run-loader.sh tees the game log to ci-run-loader.log; a
+      # failure before the game starts (a compile error) is not in it, so fall back to its tail.
+      - name: Summarize the failure
+        if: failure()
+        run: |
+          log="loaders/${{ matrix.dir }}/run/ci-run-loader.log"
+          {
+            echo "### ${{ matrix.dir }}"
+            echo '```'
+            if [ -f "$log" ] && grep -q '\[GRUG CI\] FAIL' "$log"; then
+              grep -m1 -B 20 -A 20 '\[GRUG CI\] FAIL' "$log"
+            elif [ -f "$log" ]; then
+              tail -n 40 "$log"
+            else
+              echo "No game log; see the failed step (a build or compile error)."
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload logs and crash reports
         if: always()
