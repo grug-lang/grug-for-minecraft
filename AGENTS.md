@@ -52,10 +52,12 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
   done. The plan allows 20 concurrent jobs, shared by all runs: do not dispatch a full `build.yml`
   while another run is going.
-- Wait with a tool that watches, never a fixed sleep: run `gh run watch <id> --repo
-  grug-lang/grug-for-minecraft --exit-status --interval 20` in the background. Get the id from `gh
-  api 'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`; `gh pr checks --watch` fails
-  right after a push and reads stale runs after a force-push. Read a job's log with `gh api
+- Before pushing, check locally what can be checked: `pre-commit run --all-files`, the grug compile
+  check, the Python tests. Wait with `.github/scripts/watch-run.sh <run-id>` in the background,
+  never a fixed sleep: it exits 1 at the first failed job with the last 80 lines of its failed step,
+  0 when all are green. Get the id from `gh api 'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`;
+  `gh pr checks --watch` fails right after a push and reads stale runs after a force-push. Read a
+  job's whole log with `gh api
   repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a pipeline is
   fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json mergeable`).
 - `python3 .github/scripts/ci_timing.py <run-id>` shows where a run's time went, with queue time.
