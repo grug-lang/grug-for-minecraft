@@ -181,6 +181,28 @@ public final class GrugTestBox {
                 pz + AREA_RADIUS);
     }
 
+    /**
+     * Whether the block at {@code (x, y, z)} is inside the area the room build clears around a
+     * player whose feet are at the given position, which is where a test starts with nothing of an
+     * earlier test's. The bottom is the lowest the room's walls can reach, as in {@link
+     * #sweepItems}, since this does not know which radius the room was built with. See #583.
+     */
+    public static boolean inClearedArea(
+            double feetX, double feetY, double feetZ, int x, int y, int z) {
+        int px = (int) Math.floor(feetX);
+        int py = (int) Math.floor(feetY);
+        int pz = (int) Math.floor(feetZ);
+        return Math.abs(x - px) <= AREA_RADIUS
+                && Math.abs(z - pz) <= AREA_RADIUS
+                && y >= py - AREA_RADIUS - 1
+                && y <= py + AREA_TOP;
+    }
+
+    /** The area's half-size in blocks, for a caller that walks the chunks it covers. */
+    public static int areaRadius() {
+        return AREA_RADIUS;
+    }
+
     /** Removes the item entities from the area whose last cleared block is the max corner. */
     private static void clearItems(
             ModLoaderAdapter adapter,
