@@ -62,8 +62,11 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a pipeline is
   fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json mergeable`).
 - `python3 .github/scripts/ci_timing.py <run-id>` shows where a run's time went, with queue time.
-- After a merge that touches `.github/workflows/build.yml`, wait for the push-to-main run to pass
-  before the next task that depends on it: the cache keys hash `build.yml`, so that run is cold.
+- Do not idle while the push-to-`main` run of a merged pull request goes: start the next task at
+  once and watch that run in the background, so it is checked while the next subagent works. Only a
+  task that depends on the merged change waits for it, and after a merge that touches
+  `.github/workflows/build.yml` that run is cold (the cache keys hash `build.yml`). If it fails,
+  deal with it before merging anything else.
 
 ### A red main or a flake
 
