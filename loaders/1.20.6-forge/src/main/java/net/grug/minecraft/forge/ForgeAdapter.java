@@ -806,6 +806,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return GrugModLoader.isReloading();
     }
 
+    private static final int SCAN_IDLE = 0;
+    private static final int SCAN_PENDING = 1;
+    private static final int SCAN_DONE = 2;
+
+    /** Where the scan for {@link #hasStaleTestBlockEntities} is, and what it found when done. */
+    private volatile int staleScan = SCAN_IDLE;
+
+    private volatile boolean staleScanFound = false;
+
     /**
      * Whether the client's chunks still hold a grug block entity inside the test area that the room
      * build has cleared on the server. The server's packets about the clearing reach the client a
@@ -814,8 +823,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * the test's first call waits on the client thread with the state lock released, and an err it
      * reports there stops the test's own call. See #583.
      *
-     * <p>Read on the client thread, because the chunks' block entity maps are the client thread's
-     * to change and iterating one from another thread can fail halfway.
+     * <p>The chunks' block entity maps are the client thread's to change, and iterating one from
+     * another thread can fail halfway, so the scan runs on the client thread. The runner asks from
+     * the server thread, and a wait for the client thread there would hold the server up for as
+     * long as the client is busy, which after a resource reload is seconds, and the server then
+     * ticks in a burst to catch up and runs a test's waits out before the client has done anything.
+     * So the scan is posted and not waited for: this answers true while it has not come back, and
+     * asks again after a scan that found one.
      */
     @Override
     @GrugGenerated(
@@ -825,12 +839,22 @@ public class ForgeAdapter implements ModLoaderAdapter {
         if (FMLEnvironment.dist != Dist.CLIENT) return false;
         Player player = (Player) testPlayer();
         if (player == null) return false;
+        if (staleScan == SCAN_PENDING) return true;
+        if (staleScan == SCAN_DONE) {
+            staleScan = SCAN_IDLE;
+            if (!staleScanFound) return false;
+        }
         double feetX = player.getX();
         double feetY = player.getY();
         double feetZ = player.getZ();
-        boolean[] stale = {false};
-        onClientThread(() -> stale[0] = clientHoldsBlockEntityInTestArea(feetX, feetY, feetZ));
-        return stale[0];
+        staleScan = SCAN_PENDING;
+        Minecraft.getInstance()
+                .execute(
+                        () -> {
+                            staleScanFound = clientHoldsBlockEntityInTestArea(feetX, feetY, feetZ);
+                            staleScan = SCAN_DONE;
+                        });
+        return true;
     }
 
     @GrugGenerated("client plumbing: see hasStaleTestBlockEntities")
