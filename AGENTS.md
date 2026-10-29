@@ -72,6 +72,11 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a pipeline is
   fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json mergeable`).
 - `python3 .github/scripts/ci_timing.py <run-id>` shows where a run's time went, with queue time.
+- Any time saving is welcome, but the smaller it is, the more firmly it has to be proven: a job
+  varies by up to a minute between runs, so run the control and the variant many times each (10 or
+  more per arm for a few seconds), interleaved on throwaway branches, record every sample, and
+  report the means, the spread and a significance test. There is no fixed number of seconds below
+  which a saving is dropped; one that is not shown significant is not claimed.
 - Do not idle while the push-to-`main` run of a merged pull request goes: start the next task at
   once and watch that run in the background, so it is checked while the next subagent works. Only a
   task that depends on the merged change waits for it, and after a merge that touches
