@@ -696,6 +696,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
 
         world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
+        // The client learns of the block from a packet it has not read yet, so the frames drawn
+        // before this call say nothing about it. See redraw.
+        RENDER_SETTLE.noteBusy();
 
         // A placement that reports false because the block was already there is not a failure,
         // so the block's presence is the check rather than the return value. A y outside the
