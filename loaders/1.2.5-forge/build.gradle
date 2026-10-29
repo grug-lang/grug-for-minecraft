@@ -507,3 +507,5 @@ tasks.register('runProduction', Exec) {
         commandLine launchCommand(configurations.gameLibs.files, gameDir, assets)
     }
 }
+
+// proof
