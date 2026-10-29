@@ -8,7 +8,9 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Covers {@link GrugTestBox#sweepItems}, which the runner calls in the tick a test ends. */
 class GrugTestBoxTest {
@@ -47,5 +49,158 @@ class GrugTestBoxTest {
         assertFalse(GrugTestBox.inClearedArea(10.5, 64.0, -20.5, 10, 64, -4));
         assertFalse(GrugTestBox.inClearedArea(10.5, 64.0, -20.5, 10, 46, -21));
         assertFalse(GrugTestBox.inClearedArea(10.5, 64.0, -20.5, 10, 121, -21));
+    }
+
+    /**
+     * A world of named blocks that counts what the room build does to it. {@code canTell} is
+     * whether the loader answers {@link ModLoaderAdapter#isBlock}, as 1.2.5 does and the others do
+     * not.
+     */
+    private static final class FakeWorld {
+        final Map<String, String> blocks = new HashMap<>();
+        int placements = 0;
+        final boolean canTell;
+        final ModLoaderAdapter adapter;
+
+        FakeWorld(boolean canTell) {
+            this.canTell = canTell;
+            this.adapter =
+                    (ModLoaderAdapter)
+                            Proxy.newProxyInstance(
+                                    ModLoaderAdapter.class.getClassLoader(),
+                                    new Class<?>[] {ModLoaderAdapter.class},
+                                    (proxy, method, args) -> {
+                                        switch (method.getName()) {
+                                            case "isAir":
+                                                return !blocks.containsKey(key(args, 1));
+                                            case "isBlock":
+                                                return FakeWorld.this.canTell
+                                                        && args[4].equals(blocks.get(key(args, 1)));
+                                            case "placeBlock":
+                                                placements++;
+                                                if (args[4].equals("minecraft:air")) {
+                                                    blocks.remove(key(args, 1));
+                                                } else {
+                                                    blocks.put(key(args, 1), (String) args[4]);
+                                                }
+                                                return null;
+                                            default:
+                                                return null;
+                                        }
+                                    });
+        }
+
+        private static String key(Object[] args, int first) {
+            return (int) Math.floor((double) args[first])
+                    + " "
+                    + (int) Math.floor((double) args[first + 1])
+                    + " "
+                    + (int) Math.floor((double) args[first + 2]);
+        }
+
+        void build(int radius) {
+            placements = 0;
+            GrugTestBox.build(adapter, "level", 10.5, 64.0, -20.5, radius);
+        }
+
+        void put(int x, int y, int z, String block) {
+            blocks.put(x + " " + y + " " + z, block);
+        }
+    }
+
+    @Test
+    void aRoomThatIsWholeIsLeftInPlaceWhenTheLoaderCanTell() {
+        FakeWorld world = new FakeWorld(true);
+        world.build(3);
+        Map<String, String> room = new HashMap<>(world.blocks);
+        assertFalse(room.isEmpty());
+
+        world.build(3);
+
+        assertEquals(0, world.placements);
+        assertEquals(room, world.blocks);
+    }
+
+    @Test
+    void whatIsNotTheRoomIsClearedFromAWholeRoom() {
+        FakeWorld world = new FakeWorld(true);
+        world.build(3);
+        Map<String, String> room = new HashMap<>(world.blocks);
+        // The feet block is (10, 64, -21): one block inside the room, one far outside it but
+        // inside the test area, and one at the top of the area.
+        world.put(10, 65, -21, "minecraft:dirt");
+        world.put(20, 70, -21, "minecraft:dirt");
+        world.put(10, 120, -21, "minecraft:dirt");
+
+        world.build(3);
+
+        assertEquals(3, world.placements);
+        assertEquals(room, world.blocks);
+    }
+
+    @Test
+    void aRoomMissingABlockIsRebuiltInFull() {
+        FakeWorld world = new FakeWorld(true);
+        world.build(3);
+        Map<String, String> room = new HashMap<>(world.blocks);
+        // A torch on the floor, as an explosion would take it.
+        assertEquals("minecraft:torch", world.blocks.remove("11 61 -21"));
+
+        world.build(3);
+
+        assertEquals(room, world.blocks);
+        // Every block of the room was cleared and put back, not only the missing one.
+        assertTrue(world.placements >= 2 * room.size() - 1);
+    }
+
+    @Test
+    void aRoomOfTheWrongBlockIsRebuilt() {
+        FakeWorld world = new FakeWorld(true);
+        world.build(3);
+        Map<String, String> room = new HashMap<>(world.blocks);
+        world.put(10, 63, -21, "minecraft:dirt");
+
+        world.build(3);
+
+        assertEquals(room, world.blocks);
+    }
+
+    @Test
+    void aLoaderThatCannotTellBuildsTheRoomFromScratchEveryTime() {
+        FakeWorld world = new FakeWorld(false);
+        world.build(3);
+        Map<String, String> room = new HashMap<>(world.blocks);
+        int placedFirst = world.placements;
+
+        world.build(3);
+
+        assertEquals(room, world.blocks);
+        // The room cleared, then placed again.
+        assertEquals(placedFirst + room.size(), world.placements);
+    }
+
+    @Test
+    void theRoomIsTheSameWhetherOrNotTheLoaderCanTell() {
+        FakeWorld telling = new FakeWorld(true);
+        FakeWorld blind = new FakeWorld(false);
+        telling.build(3);
+        blind.build(3);
+        assertEquals(blind.blocks, telling.blocks);
+
+        // A bigger room after a smaller one, as Test.set_box_radius asks for.
+        telling.build(5);
+        blind.build(5);
+        assertEquals(blind.blocks, telling.blocks);
+        FakeWorld fresh = new FakeWorld(true);
+        fresh.build(5);
+        assertEquals(fresh.blocks, telling.blocks);
+        // The walls of a bigger room reach lower than the area a smaller one clears, so a smaller
+        // room after it has always left the lowest rows of those walls, which is no business of a
+        // test: both ways of building leave the same world.
+
+        // And a smaller one after a bigger one, which is the next test's default room.
+        telling.build(3);
+        blind.build(3);
+        assertEquals(blind.blocks, telling.blocks);
     }
 }

@@ -177,6 +177,17 @@ public interface ModLoaderAdapter {
     boolean isAir(Object levelObj, double x, double y, double z);
 
     /**
+     * Whether the block at the position is the one {@link #placeBlock} would put there for {@code
+     * blockName}, ignoring its state. The room build leaves a room that is already whole in place
+     * when every one of its blocks answers true, and rebuilds it otherwise, so a loader whose block
+     * placement is expensive (1.2.5 relights the world for each one) answers it and the others keep
+     * the default, which makes every test's room be built from scratch as it always was.
+     */
+    default boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
+        return false;
+    }
+
+    /**
      * Removes every item entity inside the box, which is how the items a fixture drops stop the
      * player from picking them up and carrying them into a later capture. The room builder calls it
      * before every test, so an item an earlier test left on the ground is gone before the next one

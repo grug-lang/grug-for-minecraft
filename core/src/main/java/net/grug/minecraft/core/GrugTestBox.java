@@ -99,12 +99,38 @@ public final class GrugTestBox {
         int areaMinZ = pz - AREA_RADIUS;
         int areaMaxZ = pz + AREA_RADIUS;
         int areaTopY = py + AREA_TOP;
+        //
+        // A room that is already whole is left in place and only what is not the room is cleared,
+        // for a loader that can tell (see ModLoaderAdapter#isBlock), because rebuilding a room is
+        // the cost of a test there. The end state is the one the full rebuild reaches.
+        Room room =
+                new Room(
+                        px,
+                        py,
+                        pz,
+                        minX,
+                        maxX,
+                        minZ,
+                        maxZ,
+                        torchFloorY,
+                        torchY,
+                        wallBottomY,
+                        ceilingY);
+        boolean roomIsWhole = room.isWhole(adapter, level);
         for (int y = areaTopY; y >= wallBottomY; y--) {
             for (int z = areaMinZ; z <= areaMaxZ; z++) {
                 for (int x = areaMinX; x <= areaMaxX; x++) {
+                    if (roomIsWhole && room.blockAt(x, y, z) != null) {
+                        continue;
+                    }
                     clearBlock(adapter, level, x, y, z);
                 }
             }
+        }
+        if (roomIsWhole) {
+            clearItems(
+                    adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
+            return;
         }
 
         // The torch floor, and the single block the player stands on. The floor goes in below the
@@ -218,6 +244,90 @@ public final class GrugTestBox {
         // coordinate and the sweep would leave it behind. The lower bounds need no adjustment,
         // because a block's interior starts at its coordinate.
         adapter.clearItemEntities(level, minX, minY, minZ, maxX + 1, maxY + 1, maxZ + 1);
+    }
+
+    /**
+     * Where the room's blocks are, as a function of a position, so a room that is already there can
+     * be recognised without being rebuilt. It mirrors the order {@link #build} places them in: the
+     * floor and the player's block, a torch on every floor tile but the player's column, the shell
+     * and the ceiling.
+     */
+    private static final class Room {
+        private static final String STONE = "minecraft:stone";
+        private static final String TORCH = "minecraft:torch";
+
+        private final int px;
+        private final int py;
+        private final int pz;
+        private final int minX;
+        private final int maxX;
+        private final int minZ;
+        private final int maxZ;
+        private final int torchFloorY;
+        private final int torchY;
+        private final int wallBottomY;
+        private final int ceilingY;
+
+        Room(
+                int px,
+                int py,
+                int pz,
+                int minX,
+                int maxX,
+                int minZ,
+                int maxZ,
+                int torchFloorY,
+                int torchY,
+                int wallBottomY,
+                int ceilingY) {
+            this.px = px;
+            this.py = py;
+            this.pz = pz;
+            this.minX = minX;
+            this.maxX = maxX;
+            this.minZ = minZ;
+            this.maxZ = maxZ;
+            this.torchFloorY = torchFloorY;
+            this.torchY = torchY;
+            this.wallBottomY = wallBottomY;
+            this.ceilingY = ceilingY;
+        }
+
+        /**
+         * The block the room has at the position, or null where the room has none. Both callers
+         * stay at or above the bottom of the walls, so only the top is checked.
+         */
+        String blockAt(int x, int y, int z) {
+            if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+                if (y == torchFloorY || y == ceilingY) {
+                    return STONE;
+                }
+                if (y == py - 1 && x == px && z == pz) {
+                    return STONE;
+                }
+                if (y == torchY && (x != px || z != pz)) {
+                    return TORCH;
+                }
+                return null;
+            }
+            boolean inShell = x >= minX - 1 && x <= maxX + 1 && z >= minZ - 1 && z <= maxZ + 1;
+            return inShell && y <= ceilingY ? STONE : null;
+        }
+
+        /** Whether every block of the room is in place, which a loader that cannot tell denies. */
+        boolean isWhole(ModLoaderAdapter adapter, Object level) {
+            for (int y = wallBottomY; y <= ceilingY; y++) {
+                for (int z = minZ - 1; z <= maxZ + 1; z++) {
+                    for (int x = minX - 1; x <= maxX + 1; x++) {
+                        String block = blockAt(x, y, z);
+                        if (block != null && !adapter.isBlock(level, x, y, z, block)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
     }
 
     /** Clears one block to air, unless it is already air. */

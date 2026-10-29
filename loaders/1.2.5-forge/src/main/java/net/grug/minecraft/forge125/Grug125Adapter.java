@@ -862,6 +862,16 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
+        String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
+        Block block = resolveBlock(path);
+        World world = (World) levelObj;
+        return block != null
+                && world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))
+                        == block.blockID;
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
