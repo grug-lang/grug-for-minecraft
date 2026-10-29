@@ -17,17 +17,18 @@ local _check_random_int(ctx: TestTickContext, level: Level) {
     huge: number = level.random_int(2147483647)
     ctx.assert(huge >= 0 and huge < 2147483647 and Math.floor(huge) == huge, "random_int(2147483647) should be a whole number below its bound.")
 
-    seen_nonzero: bool = false
+    first: number = level.random_int(10)
+    moved: bool = false
     draws: number = 0
     while draws < 500 {
         value: number = level.random_int(10)
         ctx.assert(value >= 0 and value < 10 and Math.floor(value) == value, "random_int(10) should be a whole number from 0 to 9.")
-        if value > 0 {
-            seen_nonzero = true
+        if value != first {
+            moved = true
         }
         draws = draws + 1
     }
-    ctx.assert(seen_nonzero, "500 draws of random_int(10) should not all be 0.")
+    ctx.assert(moved, "500 draws of random_int(10) should not all equal the first.")
 }
 
 local _check_random_float(ctx: TestTickContext, level: Level) {

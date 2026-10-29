@@ -19,9 +19,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # A newer run on a pull request or a throwaway branch makes the older one pointless. A push to main
-  # never cancels the run before it: that run is the one the release gate needs for its own commit.
+  # Every run on main is its own group. A group holds one running and one pending run, and a newer
+  # run cancels the pending one even with cancel-in-progress off, so two pushes to main in quick
+  # succession would have lost the first commit's run: the one the release gate needs for it.
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  # A newer run on a pull request or a throwaway branch makes the older one pointless.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -33,6 +35,19 @@ jobs:
       smoke: ${{ steps.smoke.outputs.matrix }}
       mods: ${{ steps.mods.outputs.mods }}
     steps:
+      # The run timeout of a repeats run is 300 s plus 200 s per extra pass (see the loader job), and
+      # the job's own limit is 90 minutes, so 26 passes is the most whose deadline the script reaches
+      # before GitHub cancels the job. A larger value is refused here, before anything runs.
+      - name: Check the number of passes
+        env:
+          REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS }}
+        run: |
+          case "$REPEATS" in
+            '') ;;
+            *[!0-9]*) echo "::error::repeats must be a whole number, got '$REPEATS'"; exit 1 ;;
+            *) [ "$REPEATS" -ge 1 ] && [ "$REPEATS" -le 26 ] || { echo "::error::repeats must be from 1 to 26, got '$REPEATS'"; exit 1; } ;;
+          esac
+
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -592,6 +607,7 @@ jobs:
             ~/.gradle/wrapper
             ~/.gradle/caches/modules-2
           key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          restore-keys: grug-gradle-${{ runner.os }}-1.2.5-forge-
 
       - name: Cache the 1.2.5 MCP snapshot
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -996,6 +1012,7 @@ jobs:
             ~/.gradle/wrapper
             ~/.gradle/caches/modules-2
           key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          restore-keys: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-
 
       - name: Restore the 1.2.5 MCP snapshot (1.2.5-forge only)
         if: matrix.dir == '1.2.5-forge'
