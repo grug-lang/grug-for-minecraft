@@ -54,6 +54,35 @@ public final class GrugRenderSettle {
     }
 
     /**
+     * Notes that work for the renderer has just been made, which the next frames have not seen yet,
+     * so the frame a capture would read is not settled until two frames after it have ended idle.
+     *
+     * <p>A frame's own sample describes the work that frame found, and a change made after it is
+     * invisible to it. The game runs up to 10 ticks for one frame and the runner runs every test at
+     * that speed, so a test can make a change and ask whether the world is settled before any frame
+     * has been drawn since, and the answer from the frames before the change would let a capture
+     * through that reads the scene without it.
+     */
+    public synchronized void noteBusy() {
+        lastBusyFrame = frames;
+    }
+
+    /**
+     * {@link #settled}, also asking the renderer now: a change that left rebuilds pending is not
+     * settled however idle the last frames were, and the frames after it are the ones that count.
+     *
+     * @param workPendingNow whether the renderer has work for a frame that has not been drawn yet,
+     *     which the loader reads at the moment of the question.
+     */
+    public synchronized boolean settledNow(boolean workPendingNow) {
+        if (workPendingNow) {
+            noteBusy();
+            return false;
+        }
+        return settled();
+    }
+
+    /**
      * Whether the client has no light work left, given the two places it can be waiting: the light
      * engine's own queues, and the separate queue of light packets the client has received and not
      * applied yet (1.20.6's {@code ClientLevel.isLightUpdateQueueEmpty}, which drains at a capped

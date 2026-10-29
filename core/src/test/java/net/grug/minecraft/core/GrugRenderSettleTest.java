@@ -9,6 +9,35 @@ import org.junit.jupiter.api.Test;
 class GrugRenderSettleTest {
 
     @Test
+    void aChangeMadeAfterTheLastFrameNeedsTwoFramesAfterIt() {
+        GrugRenderSettle settle = new GrugRenderSettle();
+        settle.onFrame(false);
+        settle.onFrame(false);
+        assertTrue(settle.settled());
+
+        settle.noteBusy();
+
+        assertFalse(settle.settled(), "The frames drawn before the change say nothing about it.");
+        settle.onFrame(false);
+        assertFalse(settle.settled());
+        settle.onFrame(false);
+        assertTrue(settle.settled());
+    }
+
+    @Test
+    void pendingWorkAtTheMomentOfTheQuestionIsNotSettledAndCountsAsBusy() {
+        GrugRenderSettle settle = new GrugRenderSettle();
+        settle.onFrame(false);
+        settle.onFrame(false);
+
+        assertFalse(settle.settledNow(true));
+        assertFalse(settle.settledNow(false), "No frame has been drawn since the pending work.");
+        settle.onFrame(false);
+        settle.onFrame(false);
+        assertTrue(settle.settledNow(false));
+    }
+
+    @Test
     void noFrameDrawnYetIsNotSettled() {
         GrugRenderSettle settle = new GrugRenderSettle();
 
