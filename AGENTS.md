@@ -30,8 +30,9 @@ are by members only (#617).
   on a finished one), and think of an empty, odd or failing input; a subagent's check of the easy
   case proves nothing about the real one. Nothing is pushed to `main`. A quick edit to markdown
   only (an AGENTS.md fix, say) may be merged without waiting for any CI, and neither its pull
-  request run nor the push-to-`main` run after it needs checking. Before merging a base pull request that another one is stacked on,
-  retarget the other to `main`, or `--delete-branch` closes it.
+  request run nor the push-to-`main` run after it needs checking. Before merging a base pull
+  request that another one is stacked on, retarget the other to `main`, or `--delete-branch` closes
+  it.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
