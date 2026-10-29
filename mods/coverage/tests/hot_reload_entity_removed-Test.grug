@@ -1,8 +1,8 @@
-# Removes a foo_block's block entity, forces the host entities it rooted to be collected, then
+# Removes a coverage_fixture's block entity, forces the host entities it rooted to be collected, then
 # hot-reloads the block entity script. Without a removal hook the engine still tracks the removed
 # entity and re-inits it on the reload, which reads members Java has already collected and crashes.
 change_baseline: number = -1
-path: string = "examplemod/code/foo_block_entity-BlockEntity.grug"
+path: string = "coverage/code/coverage_fixture_entity-BlockEntity.grug"
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
@@ -10,7 +10,7 @@ export tick(ctx: TestTickContext) {
         origin: Vec3 = Test.get_origin()
 
         # A block whose script roots host entities in its members.
-        level.place_block(origin.x() + 9, origin.y(), origin.z(), "grug:foo_block")
+        level.place_block(origin.x() + 9, origin.y(), origin.z(), "grug:coverage_fixture")
         ctx.not_done()
     } else if ctx.current_tick() == 1 {
         level: Level = Test.get_client_level()

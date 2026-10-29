@@ -7,9 +7,9 @@ export tick(ctx: TestTickContext) {
         y: number = origin.y()
         z: number = origin.z()
 
-        level.place_block(x, y, z, "grug:foo_block")
+        level.place_block(x, y, z, "grug:coverage_fixture")
         block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
-        ctx.assert(block_opt.has(), "foo_block has no block entity after being placed.")
+        ctx.assert(block_opt.has(), "coverage_fixture has no block entity after being placed.")
 
         above: BlockPos = block_opt.unwrap().block_pos().above_n(2)
         ctx.assert(above.center().y() > origin.y(), "above_n did not move the position up.")

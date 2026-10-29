@@ -1,4 +1,5 @@
 {
     "block.grug.coverage_block": "Coverage Block",
+    "block.grug.coverage_fixture": "Coverage Fixture",
     "item.grug.coverage_item": "Coverage Item"
 }

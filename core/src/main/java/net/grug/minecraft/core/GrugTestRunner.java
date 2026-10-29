@@ -104,6 +104,14 @@ public class GrugTestRunner {
         default boolean staleBlockEntitiesRemain() {
             return false;
         }
+
+        /**
+         * Closes whatever screen the client has open, once, before the run's first test starts. A
+         * client that was left alone while the world and the resources loaded can have put its
+         * in-game menu up over the world, and that menu pauses the world until something closes it,
+         * which only a test that opens and closes a GUI otherwise does. See #655.
+         */
+        default void closeScreenBeforeFirstTest() {}
     }
 
     /** The builder of a runner with no game: there is no room and no item to sweep. */
@@ -146,6 +154,9 @@ public class GrugTestRunner {
     private final Map<String, Long> testNanos = new LinkedHashMap<>();
 
     private boolean finished = false;
+
+    /** Whether the screen the client may have open has been closed for the first test yet. */
+    private boolean screenClosedForRun = false;
 
     /**
      * A guard against a reload that will never finish, not a wait for one that will: the reloads
@@ -206,6 +217,11 @@ public class GrugTestRunner {
                     @Override
                     public boolean staleBlockEntitiesRemain() {
                         return GrugCore.getAdapter().hasStaleTestBlockEntities();
+                    }
+
+                    @Override
+                    public void closeScreenBeforeFirstTest() {
+                        GrugCore.getAdapter().closeOpenScreenForTest();
                     }
                 },
                 repeatsFromEnv());
@@ -323,6 +339,13 @@ public class GrugTestRunner {
      */
     public void tick(Object player) {
         if (finished) return;
+
+        // Before anything else, so no test starts under a screen that is still open from before the
+        // run, and the world it builds in is not paused behind one. See #655.
+        if (!screenClosedForRun) {
+            screenClosedForRun = true;
+            boxBuilder.closeScreenBeforeFirstTest();
+        }
 
         // A reload that a test late in a pass started is still running when the next pass starts,
         // and it keeps the client from processing what the server sent for seconds. A test that

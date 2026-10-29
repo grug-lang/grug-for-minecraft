@@ -817,6 +817,47 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void closesTheOpenScreenOnceBeforeTheFirstTestStarts() {
+        // A client left alone while the world loaded can have put its menu up over the world, which
+        // pauses the world. The runner closes it before the first test and not again after, since a
+        // test that opens a screen is the one that closes it. See #655.
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files =
+                new java.util.TreeMap<>(
+                        Map.of("mymod/code/a-Test.grug", 1L, "mymod/code/b-Test.grug", 2L));
+        ops.pathsAre(files);
+        List<String> log = new java.util.ArrayList<>();
+        ops.onCall = () -> log.add("tick");
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {
+                                log.add("build");
+                            }
+
+                            @Override
+                            public void sweepItems() {}
+
+                            @Override
+                            public void closeScreenBeforeFirstTest() {
+                                log.add("close");
+                            }
+                        },
+                        1);
+
+        capture(() -> runToEnd(runner));
+
+        assertEquals("close", log.get(0), log.toString());
+        assertEquals(1, log.stream().filter("close"::equals).count(), log.toString());
+        assertTrue(log.indexOf("close") < log.indexOf("build"), log.toString());
+    }
+
+    @Test
     void failsTheRunWhenTheLoaderNeverFinishesItsReload() {
         FakeOps ops = new FakeOps();
         Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
