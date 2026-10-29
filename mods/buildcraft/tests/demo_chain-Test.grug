@@ -2,9 +2,10 @@
 # each pipe driven by a wood engine under it. The numbers are what BuildCraft 2.2.14 gives for this
 # layout: a pipe's take from a table leaves one item in each slot (TileAutoWorkbench.extractItem with
 # itemsToLeave 1) and borrows it from a neighbouring chest, so 2 logs and a prefilled grid end as 16
-# sticks, with 1 log left in ACT1 and 1 plank in each of ACT2's two slots. The reference cannot
-# fast-forward, so its side waits for real ticks until the stick chest has held 16 for a while. The
-# port ticks its own pipes and engines in a plain loop inside one test tick.
+# sticks, with 1 log left in ACT1 and 1 plank in each of ACT2's two slots. The reference side waits
+# for game ticks until the stick chest has held 16 for a while, on a clock that runs faster than real
+# time, since the wait reads no frame. The port ticks its own pipes and engines in a plain loop
+# inside one test tick.
 act1: Option[BlockEntity] = Option.new()
 act2: Option[BlockEntity] = Option.new()
 chest_logs: Option[BlockEntity] = Option.new()
@@ -16,7 +17,10 @@ pipe2: Option[BlockEntity] = Option.new()
 stable_ticks: number = 0
 
 export init(ctx: TestInitContext) {
-    # The reference runs in real time: the last stick arrives around tick 600.
+    # The reference runs the real engines and pipes on the game's own clock: the last stick arrives
+    # around tick 600, which takes half a minute at 20 ticks per second. Waiting for the game and
+    # reading no frame is what set_game_speed is for, and the port finishes inside its first tick.
+    ctx.set_game_speed(10)
     ctx.set_max_ticks(4000)
 }
 
