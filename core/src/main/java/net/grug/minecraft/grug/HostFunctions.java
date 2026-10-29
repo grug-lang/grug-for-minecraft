@@ -259,8 +259,8 @@ public class HostFunctions {
         sleepUninterrupted((long) milliseconds);
     }
 
-    @GrugGenerated("an interrupt only arrives when the game is being shut down mid-test")
-    private static void sleepUninterrupted(long milliseconds) {
+    /** Sleeps, and keeps the interrupt of a thread that was told to stop for whoever runs next. */
+    static void sleepUninterrupted(long milliseconds) {
         try {
             Thread.sleep(milliseconds);
         } catch (InterruptedException e) {
