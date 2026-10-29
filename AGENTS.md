@@ -56,10 +56,11 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   full pipeline, with `-f repeats=<n>` to repeat the suite in one session.
 - Build's concurrency cancels an older run of the same ref, except on `main`. To run several
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
-  done. An experiment that changes only `.github/scripts/` keeps the caches warm; one that edits
-  `build.yml` or `.github/actions/setup-loader-build/action.yml` starts cold. The plan allows 20
-  concurrent jobs, shared by all runs: do not dispatch a full `build.yml`
-  while another run is going.
+  done. An experiment that changes only `.github/scripts/` keeps the caches warm. Editing
+  `build.yml` or `.github/actions/setup-loader-build/action.yml` misses the exact cache keys: the
+  Gradle dependencies fall back to the loader's previous entry (`restore-keys`), but the Minecraft
+  toolchain has no fallback, so that run is slow. The plan allows 20 concurrent jobs, shared by
+  all runs: do not dispatch a full `build.yml` while another run is going.
 - Before pushing, check locally what can be checked: `pre-commit run --all-files`, the grug compile
   check, the Python tests. Wait with `.github/scripts/watch-run.sh <run-id>` in the background,
   never a fixed sleep: it exits 1 at the first failed job with the last 80 lines of its failed step,
@@ -72,8 +73,8 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 - Do not idle while the push-to-`main` run of a merged pull request goes: start the next task at
   once and watch that run in the background, so it is checked while the next subagent works. Only a
   task that depends on the merged change waits for it, and after a merge that touches
-  `.github/workflows/build.yml` that run is cold (the cache keys hash `build.yml`). If it fails,
-  deal with it before merging anything else.
+  `.github/workflows/build.yml` that run is slow (the cache keys hash `build.yml`, so the
+  Minecraft toolchain is fetched again). If it fails, deal with it before merging anything else.
 
 ### A red main or a flake
 
