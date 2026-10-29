@@ -1,0 +1,30 @@
+# Spawns a diamond 2 blocks above this block after 10 game ticks, then every 10 game ticks, so that a test can wait
+# for the diamond to find out that the script's module-level calls and its tick export ran. The script is the same
+# shape as examplemod's foo_block_entity, which the tests that use this block used to depend on.
+pos: BlockPos = me.block_pos().above_n(2)
+level: Level = me.level()
+resource_location: ResourceLocation = resource_location("diamond")
+item: Item = item(resource_location)
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# How often tick() has been called
+tick: number = 0
+
+export tick() {
+    tick = tick + 1
+    if tick != 10 {
+        return
+    }
+    tick = 0
+
+    item_stack: ItemStack = item_stack(item, 0)
+    item_entity: ItemEntity = item_entity(level, x, y, z, item_stack)
+
+    # Remove the random velocity that spawned items are given
+    item_entity.entity().set_delta_movement(vec3_zero())
+
+    item_entity.entity().spawn(level)
+}

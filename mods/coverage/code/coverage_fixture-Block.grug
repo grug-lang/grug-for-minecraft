@@ -1,0 +1,7 @@
+# Fixture block for the tests that need a block entity with a script that does something every few ticks (the
+# coverage mod must load alone, so it cannot borrow examplemod's foo_block). It ties a block entity to the block,
+# like coverage_block does, but unlike coverage_block's quiet entity this one spawns a diamond, so a test can tell
+# that the entity's script runs. Do not use it in the walls the screenshot tests build (see #254).
+export init(ctx: BlockInitContext) {
+    ctx.set_block_entity(e"coverage_fixture_entity")
+}

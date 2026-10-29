@@ -1,7 +1,7 @@
 # Hot-reloads a BlockEntity script, so Grug.update's BlockEntity entity-linking branch runs, then
 # restores it.
 change_baseline: number = -1
-path: string = "examplemod/code/foo_block_entity-BlockEntity.grug"
+path: string = "coverage/code/coverage_fixture_entity-BlockEntity.grug"
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
