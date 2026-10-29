@@ -309,6 +309,96 @@ class RunLoaderTest(unittest.TestCase):
         # the library it was handed.
         self.assertEqual(result.gradle_args, "")
 
+    def add_mod(self, name: str, tests: int) -> None:
+        code = self.tmp / "mods" / name / "code"
+        code.mkdir(parents=True)
+        for index in range(tests):
+            (code / f"t{index}-Test.grug").write_text("export run() {}\n")
+
+    def selected_log(self, count: int) -> str:
+        return f"[GRUG CI] Running {count} tests...\n[GRUG CI] ALL {count} TESTS PASSED\n"
+
+    def test_selecting_mods_counts_only_their_tests(self):
+        # fake has 1 test, other 2 and empty none: the full run is 3 and the run of other is 2, which
+        # is the number the game prints, so a count that ignored the selection would time out.
+        self.add_mod("other", 2)
+        self.add_mod("empty", 0)
+
+        result = self.run_script(self.selected_log(2), 0, {"GRUG_CI_MODS": "other"})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        self.assertIn("(2 tests)", result.stdout)
+
+    def test_an_unset_empty_or_blank_selection_counts_every_test(self):
+        self.add_mod("other", 2)
+
+        for extra in ({}, {"GRUG_CI_MODS": ""}, {"GRUG_CI_MODS": " \t "}):
+            result = self.run_script(self.selected_log(3), 0, extra)
+
+            self.assertEqual(result.returncode, 0, (extra, result.stderr))
+            self.assertNotIn("GRUG_CI_MODS selects", result.stdout)
+
+    def test_a_selection_is_trimmed_and_counts_a_repeated_mod_once(self):
+        self.add_mod("other", 2)
+
+        result = self.run_script(self.selected_log(3), 0, {"GRUG_CI_MODS": " other , fake,other"})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("(3 tests)", result.stdout)
+
+    def test_a_selected_mod_without_tests_expects_none(self):
+        self.add_mod("empty", 0)
+
+        result = self.run_script(self.selected_log(0), 0, {"GRUG_CI_MODS": "empty"})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_the_selection_reaches_the_game_through_the_environment(self):
+        # The game is a child of the script, so an exported variable is all it takes; a fake gradlew
+        # that prints what it sees stands in for the game.
+        self.add_mod("other", 2)
+        gradlew = self.tmp / "gradlew"
+        gradlew.write_text(
+            GRADLE.replace(
+                'cat "$FAKE_GRADLE_LOG"',
+                'cat "$FAKE_GRADLE_LOG"; echo "mods=[${GRUG_CI_MODS-unset}]"',
+            )
+        )
+
+        result = self.run_script(self.selected_log(2), 0, {"GRUG_CI_MODS": "other"})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("mods=[other]", result.stdout)
+
+    def test_a_selected_name_that_is_no_mod_fails_before_the_game_starts(self):
+        # The full count is 1 and the log below would pass it: only the early refusal says the typo
+        # ran nothing.
+        for value in ("typo", "fake,typo", "Fake", "fak"):
+            result = self.run_script(PASSING_LOG, 0, {"GRUG_CI_MODS": value})
+
+            self.assertEqual(result.returncode, 2, (value, result.stderr))
+            self.assertIn("GRUG_CI_MODS names the mod", result.stderr)
+            self.assertIn("The mods are: fake", result.stderr)
+            self.assertEqual(result.gradle_args, "")
+            (self.tmp / "gradle-args.txt").unlink(missing_ok=True)
+
+    def test_an_empty_or_path_like_entry_fails_before_the_game_starts(self):
+        for value, message in (
+            ("fake,", "empty entry"),
+            (",fake", "empty entry"),
+            ("fake,,fake", "empty entry"),
+            (",", "empty entry"),
+            ("fake/code", "not a mod directory name"),
+            ("..", "not a mod directory name"),
+            (".", "not a mod directory name"),
+        ):
+            result = self.run_script(PASSING_LOG, 0, {"GRUG_CI_MODS": value})
+
+            self.assertEqual(result.returncode, 2, (value, result.stderr))
+            self.assertIn(message, result.stderr)
+            self.assertEqual(result.gradle_args, "")
+
 
 if __name__ == "__main__":
     unittest.main()

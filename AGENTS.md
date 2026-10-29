@@ -88,6 +88,9 @@ only `build` is light enough.
 - `run-loader.sh` is the only supported way: it resets `run/saves`, sets `GRUG_CI=true`, and
   publishes `grug-core` to `build/maven` first, which the four standalone loaders resolve. The 1.2.5
   loader clones a 170 MB MCP snapshot per worktree; pass `-Pgrug.mcpSnapshot=<path>` to reuse one.
+- `GRUG_CI_MODS=a,b` (the `mods` input of `gh workflow run build.yml`) loads every mod but runs only
+  the tests of those mods, in the usual path order; an unknown name fails before the game starts. A
+  selection without `coverage` leaves the coverage gate short, so use it to try a mod, not to merge.
 - The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile is reported
   the same way, but check grug syntax before pushing: `~/agent-workspaces/grug-check.sh <worktree>`
   compiles every `.grug` file with `grugc`.

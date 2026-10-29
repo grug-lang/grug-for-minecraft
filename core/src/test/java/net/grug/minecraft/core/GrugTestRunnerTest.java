@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -631,6 +632,227 @@ class GrugTestRunnerTest {
         runToEnd(runnerWithCoverage(ops, Map.of("coverage/tests/a-Test.grug", 1L), 1, coverage));
 
         assertEquals(List.of("starting coverage"), coverage.events);
+    }
+
+    /**
+     * Drains the fatal a test provoked: {@code Grug.fatal} remembers the first error per thread and
+     * rethrows it at the next native call boundary, which would fail an unrelated test.
+     */
+    @AfterEach
+    void drainPendingFatal() {
+        try {
+            GrugErrors.throwPendingFatal();
+        } catch (IllegalStateException expected) {
+            // The fatal the test provoked, cleared so it cannot outlive the test.
+        }
+    }
+
+    @Test
+    void parsesTheModSelection() {
+        // Unset, empty and blank all select every mod, which is the empty set.
+        assertEquals(Set.of(), GrugTestRunner.parseMods(null));
+        assertEquals(Set.of(), GrugTestRunner.parseMods(""));
+        assertEquals(Set.of(), GrugTestRunner.parseMods("  \t "));
+        assertEquals(List.of("coverage"), List.copyOf(GrugTestRunner.parseMods("coverage")));
+        // Order as given, whitespace trimmed, duplicates dropped.
+        assertEquals(
+                List.of("buildcraft", "coverage"),
+                List.copyOf(GrugTestRunner.parseMods(" buildcraft , coverage,buildcraft")));
+    }
+
+    @Test
+    void refusesAModSelectionWithAnEmptyEntry() {
+        for (String value : new String[] {",", "coverage,", ",coverage", "a,,b", "a, ,b"}) {
+            IllegalStateException e =
+                    assertThrows(
+                            IllegalStateException.class, () -> GrugTestRunner.parseMods(value));
+            assertTrue(e.getMessage().contains("GRUG_CI_MODS has an empty entry"), e.getMessage());
+        }
+    }
+
+    private static Map<String, Long> threeMods() {
+        // Not in path order, so the order the tests run in is the runner's own sort.
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("coverage/tests/b-Test.grug", 1L);
+        files.put("buildcraft/code/a-Test.grug", 2L);
+        files.put("coverage/tests/a-Test.grug", 3L);
+        files.put("jei/code/a-Test.grug", 4L);
+        files.put("examplemod/code/foo-Block.grug", 5L);
+        files.put("buildcraft/code/b-Test.grug", 6L);
+        return files;
+    }
+
+    private GrugTestRunner selectingRunner(
+            FakeOps ops, Map<String, Long> files, int repeats, Set<String> mods, CoverageLog log) {
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                new SweepLog(new ArrayList<>()),
+                repeats,
+                log,
+                mods);
+    }
+
+    private static List<String> executedTests(String printed) {
+        return printed.lines()
+                .filter(line -> line.startsWith("[GRUG CI] Executing test: "))
+                .map(line -> line.substring("[GRUG CI] Executing test: ".length()))
+                .collect(Collectors.toList());
+    }
+
+    @Test
+    void runsEveryModsTestsWhenNoModIsSelected() {
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        selectingRunner(
+                                                new FakeOps(),
+                                                threeMods(),
+                                                1,
+                                                Set.of(),
+                                                new CoverageLog())));
+
+        assertEquals(
+                List.of(
+                        "buildcraft/code/a-Test.grug",
+                        "buildcraft/code/b-Test.grug",
+                        "coverage/tests/a-Test.grug",
+                        "coverage/tests/b-Test.grug",
+                        "jei/code/a-Test.grug"),
+                executedTests(printed));
+        assertTrue(printed.contains("Running 5 tests..."), printed);
+        assertTrue(printed.contains("ALL 5 TESTS PASSED"), printed);
+        assertFalse(printed.contains("Only the tests of these mods run"), printed);
+    }
+
+    @Test
+    void runsOnlyTheSelectedModsTestsInTheSamePathOrderAndCountsOnlyThem() {
+        FakeOps ops = new FakeOps();
+        // The selection lists jei first, and the run still goes by path.
+        Set<String> mods = GrugTestRunner.parseMods("jei,buildcraft");
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        selectingRunner(
+                                                ops, threeMods(), 1, mods, new CoverageLog())));
+
+        assertEquals(
+                List.of(
+                        "buildcraft/code/a-Test.grug",
+                        "buildcraft/code/b-Test.grug",
+                        "jei/code/a-Test.grug"),
+                executedTests(printed));
+        assertEquals(3, ops.created);
+        assertTrue(printed.contains("Only the tests of these mods run: jei, buildcraft"), printed);
+        assertTrue(printed.contains("Running 3 tests..."), printed);
+        assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aSelectedModWithoutTestsIsKnownAndRunsNothing() {
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        selectingRunner(
+                                                new FakeOps(),
+                                                threeMods(),
+                                                1,
+                                                Set.of("examplemod"),
+                                                new CoverageLog())));
+
+        assertEquals(List.of(), executedTests(printed));
+        assertTrue(printed.contains("ALL 0 TESTS PASSED"), printed);
+    }
+
+    @Test
+    void repeatsOnlyTheSelectedTests() {
+        FakeOps ops = new FakeOps();
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        selectingRunner(
+                                                ops,
+                                                threeMods(),
+                                                3,
+                                                Set.of("jei"),
+                                                new CoverageLog())));
+
+        assertEquals(3, ops.created);
+        assertEquals(
+                List.of("jei/code/a-Test.grug", "jei/code/a-Test.grug", "jei/code/a-Test.grug"),
+                executedTests(printed));
+        assertEquals(1, printed.split("ALL 1 TESTS PASSED", -1).length - 1);
+    }
+
+    @Test
+    void failsLoudlyOnASelectedModThatWasNotLoaded() {
+        FakeOps ops = new FakeOps();
+        IllegalStateException e =
+                assertThrows(
+                        IllegalStateException.class,
+                        () ->
+                                selectingRunner(
+                                        ops,
+                                        threeMods(),
+                                        1,
+                                        GrugTestRunner.parseMods("jei,buildcrft"),
+                                        new CoverageLog()));
+
+        assertTrue(e.getMessage().contains("'buildcrft'"), e.getMessage());
+        // The message says which mods there are, so a typo is a one-line fix.
+        assertTrue(
+                e.getMessage().contains("buildcraft, coverage, examplemod, jei"), e.getMessage());
+        assertEquals(0, ops.created);
+    }
+
+    @Test
+    void aModNameIsMatchedWholeNotAsAPrefixOrAPathSegment() {
+        for (String name : new String[] {"cover", "coverage/tests", "Coverage", "code"}) {
+            assertThrows(
+                    IllegalStateException.class,
+                    () ->
+                            selectingRunner(
+                                    new FakeOps(),
+                                    threeMods(),
+                                    1,
+                                    Set.of(name),
+                                    new CoverageLog()));
+        }
+    }
+
+    @Test
+    void theCoverageRecorderHearsOnlyTheSelectedMods() {
+        CoverageLog coverage = new CoverageLog();
+        runToEnd(
+                selectingRunner(
+                        new FakeOps(),
+                        threeMods(),
+                        1,
+                        GrugTestRunner.parseMods("coverage,jei"),
+                        coverage));
+
+        assertEquals(
+                List.of("starting coverage", "starting coverage", "starting jei", "passed"),
+                coverage.events);
+    }
+
+    @Test
+    void theCoverageRecorderStillWorksWhenTheCountedModIsNotSelected() {
+        CoverageLog coverage = new CoverageLog();
+        GrugTestRunner runner =
+                selectingRunner(
+                        new FakeOps(), threeMods(), 1, GrugTestRunner.parseMods("jei"), coverage);
+        runToEnd(runner);
+
+        assertTrue(runner.isFinished());
+        assertEquals(List.of("starting jei", "passed"), coverage.events);
     }
 
     @Test

@@ -9,10 +9,14 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.LongSupplier;
 
 /**
@@ -252,7 +256,8 @@ public class GrugTestRunner {
                     }
                 },
                 repeatsFromEnv(),
-                GrugCoverage.fromEnvironment());
+                GrugCoverage.fromEnvironment(),
+                modsFromEnv());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -301,6 +306,30 @@ public class GrugTestRunner {
             TestBoxBuilder boxBuilder,
             int repeats,
             CoverageRecorder coverage) {
+        this(
+                fileIds,
+                referenceErrors,
+                ops,
+                clock,
+                boxBuilder,
+                repeats,
+                coverage,
+                Collections.emptySet());
+    }
+
+    /**
+     * Visible for tests: the same, running only the tests of {@code selectedMods}, where an empty
+     * set selects every mod. See {@link #parseMods}.
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock,
+            TestBoxBuilder boxBuilder,
+            int repeats,
+            CoverageRecorder coverage,
+            Set<String> selectedMods) {
         this.ops = ops;
         this.coverage = coverage;
         this.clock = clock;
@@ -334,19 +363,29 @@ public class GrugTestRunner {
         synchronized (GrugErrors.runtimeErrorQueue) {
             GrugErrors.runtimeErrorQueue.clear();
         }
+        checkSelectedModsExist(selectedMods, fileIds);
         for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
-            if (entry.getKey().endsWith(GrugFileIndex.TEST_SUFFIX)) {
+            if (entry.getKey().endsWith(GrugFileIndex.TEST_SUFFIX)
+                    && (selectedMods.isEmpty()
+                            || selectedMods.contains(owningMod(entry.getKey())))) {
                 tests.add(entry);
             }
         }
         // Tests share one world, so run them in a stable order. Otherwise a logic test's placed
         // blocks and spawned entities can land in a screenshot test's frame, and HashMap iteration
-        // order would decide whether the run passes.
+        // order would decide whether the run passes. A selection only removes tests from this list,
+        // never reorders it: the order decides the world state a screenshot test meets, so a test
+        // that runs must meet the one it meets in the full run. See #262.
         tests.sort(Map.Entry.comparingByKey());
         this.totalCount = tests.size();
 
         String startMsg =
                 "Running " + totalCount + " " + (totalCount == 1 ? "test" : "tests") + "...";
+        if (!selectedMods.isEmpty()) {
+            System.out.println(
+                    "[GRUG CI] Only the tests of these mods run: "
+                            + String.join(", ", selectedMods));
+        }
         System.out.println("[GRUG CI] " + startMsg);
 
         synchronized (GrugErrors.printQueue) {
@@ -376,6 +415,61 @@ public class GrugTestRunner {
 
     private static int repeatsFromEnv() {
         return parseRepeats(System.getenv("GRUG_CI_REPEATS"));
+    }
+
+    /**
+     * The mods whose tests {@code GRUG_CI_MODS} asks for: a comma separated list of mod directory
+     * names, in the order given with duplicates dropped. Unset, empty or only whitespace selects
+     * every mod, which is returned as the empty set.
+     *
+     * <p>Every mod is still loaded whatever is selected, so a clash in the shared {@code grug:}
+     * namespace still shows at boot; only the tests of the others are skipped.
+     *
+     * <p>A list that is not empty but has an empty entry, such as {@code coverage,} or {@code
+     * a,,b}, is fatal: it is what a shell variable that expanded to nothing leaves behind, and
+     * running fewer tests than the author meant while reporting green is the one outcome to avoid.
+     */
+    static Set<String> parseMods(String value) {
+        Set<String> mods = new LinkedHashSet<>();
+        if (value == null || value.trim().isEmpty()) return mods;
+        for (String name : value.split(",", -1)) {
+            String mod = name.trim();
+            if (mod.isEmpty()) {
+                throw Grug.fatal(
+                        "GRUG_CI_MODS has an empty entry, but each has to name a mod: '"
+                                + value
+                                + "'");
+            }
+            mods.add(mod);
+        }
+        return mods;
+    }
+
+    private static Set<String> modsFromEnv() {
+        return parseMods(System.getenv("GRUG_CI_MODS"));
+    }
+
+    /**
+     * Fails when a selected mod is not among the mods that were loaded, because the run would
+     * otherwise pass having run nothing for it. A mod is known by the first path segment of any
+     * file it holds, a test or not, so a mod without tests can be selected and runs none.
+     */
+    private static void checkSelectedModsExist(
+            Set<String> selectedMods, Map<String, Long> fileIds) {
+        if (selectedMods.isEmpty()) return;
+        Set<String> loaded = new TreeSet<>();
+        for (String path : fileIds.keySet()) {
+            loaded.add(owningMod(path));
+        }
+        for (String mod : selectedMods) {
+            if (!loaded.contains(mod)) {
+                throw Grug.fatal(
+                        "GRUG_CI_MODS names the mod '"
+                                + mod
+                                + "', but the mods loaded are: "
+                                + String.join(", ", loaded));
+            }
+        }
     }
 
     /**
