@@ -465,6 +465,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return blockEntityNbt;
     }
 
+    @Override
+    public double maxGameSpeed() {
+        return CLIENT_TICKS_PER_FRAME;
+    }
+
     @GrugGenerated(
             "the game's private tick timer: CI sees the scale only as how long a test takes, and"
                     + " a dedicated server, which has no client timer, is never launched")

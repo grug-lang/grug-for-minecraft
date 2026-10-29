@@ -63,6 +63,7 @@ EXCLUDED_CLASSES = {
     "GenericHostFunctions",
     "MinecraftMixin",
     "MinecraftTimerMixin",
+    "MinecraftServerTickMixin",
     "TitleScreenMixin",
     "ResourcePackManagerMixin",
     "CraftingManagerMixin",

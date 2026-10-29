@@ -232,11 +232,10 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
 - Wait for a condition rather than a fixed tick count. A fixed count is right only when the thing
   waited for is itself a duration, such as an item travelling along a pipe. A GUI opening, a chunk
   arriving or a world settling has a condition, so wait on it even when it is awkward to name.
-- A test that only waits for the game (an item travelling along a pipe) and reads no frame asks for
-  a faster clock with `ctx.set_game_speed(10)` in its `init`: the same game ticks in a tenth of the
-  seconds (#633). One that takes a screenshot, reads an animation or waits for a frame to settle
-  must not, because a loader runs at most 10 ticks per frame. `GRUG_CI_MAX_GAME_SPEED=1` puts every
-  test back at real time.
+- The runner runs every test on the game's clock at the loader's maximum speed (#677): up to 10
+  ticks pass in one frame, and a tick budget (200, or `set_max_ticks`) is multiplied by the speed.
+  So a test never waits a tick count for something drawn or sent (a frame, a packet, the camera):
+  wait for its condition. `GRUG_CI_MAX_GAME_SPEED=1` puts every test back at real time.
 - `tolerance()` is a last resort for a rendering difference that cannot be fixed, never for a flaky
   capture. Each call needs a comment linking its tracking issue.
 - Every response class in `mod_api.json` (a class the host passes to an export so it can answer,

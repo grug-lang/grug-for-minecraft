@@ -984,6 +984,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
         throw Grug.fatal("Minecraft has no Timer field");
     }
 
+    @Override
+    public double maxGameSpeed() {
+        return CLIENT_TICKS_PER_FRAME;
+    }
+
     /**
      * Scales the timer, which 1.2.5's single-process game ticks the world from: there is no
      * integrated server before 1.3, so the world, the tile entities and the test runner all run

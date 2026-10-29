@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -18,11 +19,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * second while the world ran many times faster, and a test would count fewer ticks than the game
  * ran. Dividing the answer keeps the two on one clock. The timer still hands out at most 10 ticks
  * for a frame.
+ *
+ * <p>It also counts the client's ticks for the lockstep that holds the integrated server to them,
+ * at the start of {@code tick()} so the count is made before the runner is queued from the same
+ * tick.
  */
 @Mixin(Minecraft.class)
 public class MinecraftTimerMixin {
     @Inject(method = "getTickTargetMillis(F)F", at = @At("RETURN"), cancellable = true)
     private void grug$scaleTickLength(float millis, CallbackInfoReturnable<Float> cir) {
         cir.setReturnValue(cir.getReturnValueF() / GrugGameClock.speed);
+    }
+
+    @Inject(method = "tick()V", at = @At("HEAD"))
+    private void grug$countClientTick(CallbackInfo ci) {
+        GrugGameClock.LOCKSTEP.clientTicked();
     }
 }
