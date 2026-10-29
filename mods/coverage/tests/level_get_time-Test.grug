@@ -1,0 +1,22 @@
+# Covers Level.get_time(), the world clock a machine reads to pace itself. It is a whole number of ticks that
+# is never negative and keeps counting up while the game runs, so the test reads it once and waits for a later
+# read to be larger, which is a condition rather than a fixed number of ticks.
+# The first reading, or -1 before it has been taken.
+first: number = -1
+
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    now: number = level.get_time()
+
+    ctx.assert(now >= 0, "The world time should never be negative.")
+    ctx.assert(Math.floor(now) == now, "The world time should be a whole number of ticks.")
+
+    if first < 0 {
+        first = now
+        ctx.not_done()
+    } else if now < first {
+        ctx.assert(false, "The world time should never go backwards.")
+    } else if now == first {
+        ctx.not_done()
+    }
+}

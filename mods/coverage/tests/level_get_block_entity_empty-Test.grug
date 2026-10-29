@@ -1,0 +1,16 @@
+# Covers the empty answer of Level.get_block_entity(): a position without a block entity answers an empty
+# Option rather than an error, which is how a pipe asks whether its neighbour is a machine. A vanilla block
+# answers empty, while a grug block that has one answers full.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:stone")
+    ctx.assert(not level.get_block_entity(x, y, z).has(), "Stone has no block entity.")
+
+    level.place_block(x + 1, y, z, "grug:coverage_block")
+    ctx.assert(level.get_block_entity(x + 1, y, z).has(), "A coverage block has a block entity.")
+}
