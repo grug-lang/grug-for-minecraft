@@ -1,0 +1,6 @@
+# Test.stall blocks the game for at most ten seconds, so a longer time is reported and the game is not stalled,
+# rather than a mistake in the number hanging the run.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("The time has to be from 0 to 10000 milliseconds")
+    Test.stall(10001)
+}

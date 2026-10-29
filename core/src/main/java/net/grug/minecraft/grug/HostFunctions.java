@@ -233,6 +233,41 @@ public class HostFunctions {
                 GrugEntityType.Vec3, GrugCore.getAdapter().setupGraphicsTestCamera());
     }
 
+    /** The longest {@code Test.stall} may block the game, in milliseconds. */
+    static final double MAX_STALL_MILLISECONDS = 10_000;
+
+    /**
+     * Test only: blocks the thread the test runs on for a while, the way a garbage collection pause
+     * or a world save does.
+     *
+     * <p>On 1.20.6 the runner is queued on the integrated server's thread from the client's tick,
+     * and the client keeps ticking while that thread is busy, so a stall leaves a backlog of runner
+     * ticks that then run back to back with no frame drawn and no packet read between them. A test
+     * that counts its own ticks while it waits for a packet is wrong after one. See #688.
+     */
+    public static void Test_stall(double milliseconds) {
+        if (!(milliseconds >= 0 && milliseconds <= MAX_STALL_MILLISECONDS)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.stall: The time has to be from 0 to "
+                            + (long) MAX_STALL_MILLISECONDS
+                            + " milliseconds, and was "
+                            + milliseconds
+                            + ".");
+            return;
+        }
+        sleepUninterrupted((long) milliseconds);
+    }
+
+    @GrugGenerated("an interrupt only arrives when the game is being shut down mid-test")
+    private static void sleepUninterrupted(long milliseconds) {
+        try {
+            Thread.sleep(milliseconds);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     /**
      * Whether the client had a screen open the last time {@link #Test_screen_open()} asked, so that
      * call can tell a screen that has just appeared from one that was already up.

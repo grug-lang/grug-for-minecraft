@@ -1110,6 +1110,17 @@
 				"close_screen": {
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
+				"stall": {
+					"description": "Blocks the thread the test runs on for the given number of milliseconds, the way a garbage collection pause or a world save does, and returns once they have passed. On 1.20.6 the game keeps ticking its client while the integrated server's thread is blocked, so the test's ticks queue up and run back to back afterwards with no frame drawn and no packet read between them. A test that waits for a packet or a frame calls this to prove it waits for the condition and not for a number of ticks. The time has to be from 0 to 10000, and anything else is reported without stalling.",
+					"parameters": [
+						{
+							"name": "milliseconds",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"screen_open": {
 					"description": "Whether the client has a screen open. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418.",
 					"return_type": {

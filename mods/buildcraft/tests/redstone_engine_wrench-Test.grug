@@ -55,10 +55,9 @@ export tick(ctx: TestTickContext) {
     }
 }
 
-# A step that has not seen what it waits for yet keeps the test alive.
+# A step that has not seen what it waits for yet keeps the test alive. It counts no ticks of its own, because a
+# tick is not a unit of time on 1.20.6 (#688): the runner's budget ends a click that never arrives.
 local _wait(ctx: TestTickContext) {
-    waited = waited + 1
-    ctx.assert(waited < 200, "The wrench did not turn the engine.")
     ctx.not_done()
 }
 
