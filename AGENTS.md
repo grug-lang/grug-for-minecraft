@@ -119,10 +119,10 @@ only `build` is light enough.
   with a grug test there first, then a Java test, and `@GrugGenerated` only as a last resort.
   The gate counts only the unit tests, each game run's boot and `mods/coverage/`'s tests, so
   another mod's tests cannot be what reaches it (what still depends on them is #652 to #655); a
-  class initializer counts wherever it ran, since it runs once per JVM. A hit that depends on
-  timing (a poll landing while the client is behind the server) is not covered by two passing runs:
-  mark that branch `@GrugGenerated` at once, keep the test as the stimulus, and do not let the gate
-  flake.
+  class initializer counts wherever it ran, since it runs once per JVM. A test that
+  hits a branch only when its timing happens to fall right (a poll landing while the client is
+  behind the server) does not cover it, however many runs passed: the gate flakes. Make the hit
+  deterministic; only if no test can force it, `@GrugGenerated` with a reason that says so (#664).
   "A grug test cannot reach this" is not "no test can reach this".
 - A coverage failure prints only the counts: `gh run download <run> --name coverage-report`, then
   look in each runner's XML for a `<line>` with `mi` or `mb` above 0. The report sums every runner,
