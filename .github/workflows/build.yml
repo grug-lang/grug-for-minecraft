@@ -335,11 +335,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # Restores the loader's caches and never writes them: this job stops after the build, so what
+      # it would write lacks what the game resolves, and as the quicker job it would write first (#643).
       - name: Set up the loader build
         id: setup
         uses: ./.github/actions/setup-loader-build
         with:
           loader: ${{ matrix.dir }}
+          save: 'false'
 
       - name: Build (${{ matrix.dir }}) and its layer
         run: .github/scripts/run-loader.sh "${{ matrix.dir }}" build
@@ -555,7 +558,7 @@ jobs:
           path: |
             ~/.gradle/wrapper
             ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       - name: Cache the 1.2.5 MCP snapshot
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -681,6 +684,17 @@ jobs:
         if: matrix.dir == '1.2.5-forge'
         shell: bash
         run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
+
+      # The loader's dependencies, kept as the Linux jobs keep them (see
+      # .github/actions/setup-loader-build): cache: gradle above is one entry for the five loaders of
+      # this matrix, written by whichever leg finishes first, so four of five legs restored an entry
+      # without their dependencies and fetched them, repo.legacyfabric.net's LWJGL among them (#643).
+      - name: Cache the Gradle dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/modules-2
+          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          restore-keys: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-
 
       - name: Set up the MSVC toolchain
         uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
@@ -818,6 +832,14 @@ jobs:
           Get-ChildItem "$env:windir\System32\mesadrv.dll"
           reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL"
 
+      # Kept between runs for the reason the Linux production job gives.
+      - name: Cache the LWJGL launcher.sh downloads (b1.7.3-stationapi only)
+        if: matrix.dir == 'b1.7.3-stationapi'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/grug-production/lwjgl-*
+          key: grug-lwjgl-${{ runner.os }}-${{ hashFiles('.github/scripts/launcher.sh') }}
+
       # Relative, because the script reads it from Git Bash, where a Windows path with backslashes is
       # not one.
       - name: Load grug in an installed ${{ matrix.dir }}
@@ -938,7 +960,7 @@ jobs:
           path: |
             ~/.gradle/wrapper
             ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
 
       - name: Restore the 1.2.5 MCP snapshot (1.2.5-forge only)
         if: matrix.dir == '1.2.5-forge'
@@ -961,6 +983,16 @@ jobs:
         with:
           name: grug-universal
           path: universal
+
+      # Legacy Fabric's LWJGL, which launcher.sh downloads for Babric's launch into a directory that
+      # lived only as long as the job. Kept between runs, an outage of maven.legacyfabric.net (#643)
+      # does not reach this job.
+      - name: Cache the LWJGL launcher.sh downloads (b1.7.3-stationapi only)
+        if: matrix.dir == 'b1.7.3-stationapi'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/grug-production/lwjgl-*
+          key: grug-lwjgl-${{ runner.os }}-${{ hashFiles('.github/scripts/launcher.sh') }}
 
       - name: Run tests in an installed game (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" production
@@ -1111,6 +1143,14 @@ jobs:
         with:
           name: grug-universal
           path: universal
+
+      # Babric's launch downloads Legacy Fabric's LWJGL, so this game keeps it between runs.
+      - name: Cache the LWJGL launcher.sh downloads (Babric only)
+        if: matrix.recipe == 'babric-b1.7.3'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/grug-production/lwjgl-*
+          key: grug-lwjgl-${{ runner.os }}-${{ hashFiles('.github/scripts/launcher.sh') }}
 
       - name: Boot ${{ matrix.game }} with the universal jar as its only mod
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/smoke-launch.sh "${{ matrix.recipe }}" universal/grug.jar smoke

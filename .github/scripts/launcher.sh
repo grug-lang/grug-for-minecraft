@@ -62,7 +62,7 @@ cached_download() {
   local url="$1" file="$2"
   if [ ! -f "$file" ]; then
     mkdir -p "$(dirname "$file")"
-    curl --fail --silent --show-error --location "$url" -o "${file}.part"
+    curl --fail --silent --show-error --location --retry 3 --retry-delay 10 --retry-all-errors "$url" -o "${file}.part"
     mv "${file}.part" "$file"
   fi
 }
