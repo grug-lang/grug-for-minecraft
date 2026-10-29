@@ -257,6 +257,16 @@ tasks.named('compileJava', JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+// CI compiles from a fresh checkout, so incremental compilation has no previous output to be
+// incremental against and still snapshots its whole compile classpath, the MCP dev classes most of
+// all. A local build keeps it, where the previous output is still there. See #702. This covers the
+// two tool compiles as well, which run only once per build either way.
+tasks.withType(JavaCompile).configureEach {
+    if (System.getenv('GRUG_CI') == 'true') {
+        options.incremental = false
+    }
+}
+
 tasks.named('processResources') {
     dependsOn 'generateVanillaNames'
 }

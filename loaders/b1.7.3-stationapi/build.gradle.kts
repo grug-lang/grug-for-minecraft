@@ -106,6 +106,12 @@ tasks.withType<ProcessResources> {
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
+    // CI compiles from a fresh checkout, so incremental compilation has no previous output to be
+    // incremental against and still snapshots its whole compile classpath, the Minecraft jar most of
+    // all. A local build keeps it, where the previous output is still there. See #702.
+    if (System.getenv("GRUG_CI") == "true") {
+        options.isIncremental = false
+    }
 }
 
 java {

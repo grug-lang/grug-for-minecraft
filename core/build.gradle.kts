@@ -60,6 +60,15 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// CI compiles from a fresh checkout, so incremental compilation has no previous output to be
+// incremental against and still snapshots its whole compile classpath. A local build keeps it, where
+// the previous output is still there. See #702.
+tasks.withType<JavaCompile>().configureEach {
+    if (System.getenv("GRUG_CI") == "true") {
+        options.isIncremental = false
+    }
+}
+
 // Handy locally: ./gradlew :core:jacocoTestReport. CI generates the badges from the combined
 // per-runner report in .github/workflows/build.yml instead.
 tasks.jacocoTestReport {

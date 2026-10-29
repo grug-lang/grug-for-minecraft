@@ -102,6 +102,13 @@ tasks.withType(JavaCompile).configureEach {
     // instances accept Java 8 through 25. Java 8 bytecode loads on every one of them, and Java 17
     // bytecode would not load on Java 8. `--release` also pins the API to Java 8.
     options.release = 8
+
+    // CI compiles from a fresh checkout, so incremental compilation has no previous output to be
+    // incremental against and still snapshots its whole compile classpath, the Minecraft jar most of
+    // all. A local build keeps it, where the previous output is still there. See #702.
+    if (System.getenv('GRUG_CI') == 'true') {
+        options.incremental = false
+    }
 }
 
 // This loader's layer of the universal jar, which nests it under META-INF/jars/. Copied to

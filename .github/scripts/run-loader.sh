@@ -74,6 +74,12 @@ fi
 export GRUG_CI=true
 gradle_args=(-Dgrug.activeLoader="$LOADER" --stacktrace)
 
+# Gradle's parallel project execution, so core's tasks and the active loader's overlap in the one
+# invocation a loader job runs. It goes here and not in org.gradle.parallel in gradle.properties,
+# which has no way to be conditional on the environment: a plain local `./gradlew build` keeps
+# Gradle's sequential default. See #702.
+gradle_args+=(-Dorg.gradle.parallel=true)
+
 # CI builds the grug-rs static library once per run and passes it to every job as an artifact,
 # because it is the same file for all five loaders. Handing it over takes cloneGrugRs and buildGrugRs
 # out of the task graph, which is a git fetch plus a cargo build this job would otherwise repeat. Left
