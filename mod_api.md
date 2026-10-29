@@ -180,6 +180,7 @@ Option.new() Option[$Value]
 .tolerance(percent: number) Screenshot
 
 ## TestInitContext
+.set_game_speed(speed: number)
 .set_max_ticks(ticks: number)
 
 ## TestTickContext

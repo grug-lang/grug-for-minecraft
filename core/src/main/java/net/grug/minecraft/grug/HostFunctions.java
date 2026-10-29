@@ -337,6 +337,33 @@ public class HostFunctions {
         GrugTestState.maxTestTicks = (int) ticks;
     }
 
+    /**
+     * Asks for the game's clock to run faster than real time for the running test, which is how a
+     * test that waits for the game, such as an item travelling along a pipe a hundred game ticks at
+     * a time, takes seconds and not minutes. Only the test's {@code init()} is passed the context
+     * this lives on, so a test cannot change the speed in the middle of its run, and the runner
+     * puts real time back when the test ends.
+     *
+     * <p>The clock is the game's and not a mod's, so it speeds up a reference mod as well as a
+     * port. The speed is a hint that the test is correct at any speed, and a loader that cannot run
+     * its clock faster runs the test at 1x, which the log says. A whole number from 1 to {@link
+     * GrugTestRunner#MAX_GAME_SPEED} is the only thing that means anything, and anything else is a
+     * mistake in the mod, reported without changing the speed.
+     */
+    public static void TestInitContext_set_game_speed(long contextId, double speed) {
+        if (!requireInitContext("TestInitContext.set_game_speed", contextId)) return;
+        if (speed != Math.floor(speed) || speed < 1 || speed > GrugTestRunner.MAX_GAME_SPEED) {
+            GrugModTreeDefect.report(
+                    "TestInitContext.set_game_speed: The speed has to be a whole number from 1 to "
+                            + GrugTestRunner.MAX_GAME_SPEED
+                            + ", and was "
+                            + speed
+                            + ".");
+            return;
+        }
+        GrugTestState.gameSpeed = speed;
+    }
+
     public static double TestTickContext_current_tick(long contextId) {
         if (!requireTickContext("TestTickContext.current_tick", contextId)) return 0.0;
         return (double) GrugTestState.currentTestTick;

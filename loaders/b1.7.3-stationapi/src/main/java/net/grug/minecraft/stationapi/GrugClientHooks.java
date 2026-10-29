@@ -244,6 +244,20 @@ public class GrugClientHooks {
     /** The one client's hooks, which the render mixin reaches without a handle on the Minecraft. */
     private static GrugClientHooks instance;
 
+    /**
+     * Runs the game's clock at {@code speed} times real time and answers whether it did.
+     *
+     * <p>This version's single-process game ticks the world from the client's own tick, which
+     * {@code Minecraft.run} takes from a timer, so scaling that timer speeds the world, the block
+     * entities and the test runner up together. The timer hands out at most 10 ticks for a frame,
+     * so what a speed delivers is bounded by about ten times the frame rate.
+     */
+    public static boolean setGameSpeed(float speed) {
+        if (instance == null) return false;
+        instance.access.grug$setGameSpeed(speed);
+        return true;
+    }
+
     /** The static form of {@link #isTestRunActive()}, for {@code InGameHudMixin}. */
     public static boolean isRunActive() {
         return instance.isTestRunActive();

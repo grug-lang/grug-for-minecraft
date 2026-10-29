@@ -23,6 +23,7 @@ class HostFunctionsTestInitContextTest {
     void clearState() {
         GrugTestState.closeInitContext();
         GrugTestState.maxTestTicks = GrugTestRunner.DEFAULT_MAX_TEST_TICKS;
+        GrugTestState.gameSpeed = 1;
         GrugEntities.entityData.clear();
         drain();
     }
@@ -116,5 +117,60 @@ class HostFunctionsTestInitContextTest {
 
         assertEquals(1, drain().size());
         GrugTestState.closeTickContext();
+    }
+
+    @Test
+    void asksForAGameSpeed() {
+        long context = contextId();
+
+        HostFunctions.TestInitContext_set_game_speed(context, 10);
+        assertEquals(10, GrugTestState.gameSpeed);
+
+        HostFunctions.TestInitContext_set_game_speed(context, 1);
+        assertEquals(1, GrugTestState.gameSpeed);
+
+        HostFunctions.TestInitContext_set_game_speed(context, GrugTestRunner.MAX_GAME_SPEED);
+        assertEquals(GrugTestRunner.MAX_GAME_SPEED, GrugTestState.gameSpeed);
+        assertTrue(drain().isEmpty(), "A legal call reports nothing.");
+    }
+
+    @Test
+    void refusesAGameSpeedThatIsNotAWholeNumberFromOneToTheMaximum() {
+        long context = contextId();
+        double[] refused = {
+            0,
+            -1,
+            0.5,
+            2.5,
+            GrugTestRunner.MAX_GAME_SPEED + 1,
+            Double.NaN,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY
+        };
+
+        for (double speed : refused) {
+            HostFunctions.TestInitContext_set_game_speed(context, speed);
+        }
+
+        List<String> reports = drain();
+        assertEquals(refused.length, reports.size(), "Every refusal is reported.");
+        for (String report : reports) {
+            assertTrue(report.contains("TestInitContext.set_game_speed"), report);
+            assertTrue(report.contains("whole number from 1 to 100"), report);
+        }
+        assertEquals(1, GrugTestState.gameSpeed, "A refused value changes nothing.");
+    }
+
+    @Test
+    void aContextSavedAfterItsCallCannotSetAGameSpeed() {
+        long context = contextId();
+        GrugTestState.closeInitContext();
+
+        HostFunctions.TestInitContext_set_game_speed(context, 10);
+
+        List<String> reports = drain();
+        assertEquals(1, reports.size());
+        assertTrue(reports.get(0).contains("TestInitContext.set_game_speed"), reports.get(0));
+        assertEquals(1, GrugTestState.gameSpeed);
     }
 }

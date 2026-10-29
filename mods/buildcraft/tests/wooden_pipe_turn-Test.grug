@@ -3,6 +3,13 @@ pipe_turn_source: Option[BlockEntity] = Option.new()
 pipe_turn_target: Option[BlockEntity] = Option.new()
 pipe_turn_self: Option[BlockEntity] = Option.new()
 
+# Waiting for the pipe is waiting for the game's clock and nothing is drawn or read from a frame,
+# so the clock may run faster: the test counts the same game ticks and takes a fraction of the
+# seconds. See TestInitContext.set_game_speed.
+export init(ctx: TestInitContext) {
+    ctx.set_game_speed(10)
+}
+
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _turn_setup(ctx)

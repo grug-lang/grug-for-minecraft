@@ -329,6 +329,35 @@ public interface ModLoaderAdapter {
     void tickBlockEntity(Object blockEntityObj);
 
     /**
+     * Sets how fast the game's own clock runs, as a multiple of the 20 ticks per second it runs at
+     * in real time, and answers whether this loader did so. {@code 1} puts the real clock back.
+     *
+     * <p>The clock is the game's and not a mod's: a block entity of a grug mod, of a reference mod
+     * and of vanilla all tick faster, so a test that waits for the game (an item travelling along a
+     * pipe, an engine's stroke) takes less wall time without a mod knowing. What changes is only
+     * how long a test takes, because tests count ticks and wait for conditions, never seconds. The
+     * test runner's own ticks are the client's ticks, so on a loader that answers true they speed
+     * up with the world, and {@code TestTickContext.current_tick} still counts game ticks. What a
+     * speed-up cannot do is draw more frames: every loader caps the ticks it runs for one frame at
+     * 10, so the real gain is bounded by about ten times the frame rate, and a test that reads a
+     * rendered result must not ask for it.
+     *
+     * <p>{@code speed} is a whole number from 1 to {@link GrugTestRunner#MAX_GAME_SPEED}, which the
+     * runner has already checked. The runner puts 1 back when the test ends, whether it passed or
+     * failed, and never asks a loader to restore a speed it did not apply.
+     *
+     * <p>A loader that cannot speed up its clock keeps this default, which is a documented no-op
+     * and not an err. A test asks for a speed as a hint that it is correct at any speed, so running
+     * it at 1x is slower and not wrong, and an err would fail a correct test on a version only
+     * because of how that version keeps time. The runner says in the log which tests ran at 1x
+     * because of it, so it is never an accident. A dedicated server is such a loader for now: its
+     * clock is the server's own tick loop, and no CI run launches one (#163).
+     */
+    default boolean setGameSpeed(double speed) {
+        return false;
+    }
+
+    /**
      * Has the game build a block's geometry again, so a render function that reads state the world
      * does not know changed, such as a saved number, draws the new state. On a version whose client
      * keeps its own copy of the block entity this also sends that copy the block entity's saved

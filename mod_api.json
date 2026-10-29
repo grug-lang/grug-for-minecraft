@@ -2181,6 +2181,17 @@
 							}
 						}
 					]
+				},
+				"set_game_speed": {
+					"description": "Runs the game's own clock faster than its 20 ticks per second for this test, as a multiple of real time, and puts real time back when the test ends, whether it passed or failed. It is for a test that waits for the game and reads no rendered result, such as an item travelling along a pipe a hundred game ticks at a time: the wait is the same number of ticks and takes a fraction of the seconds. The clock is the game's and not a mod's, so a reference mod speeds up as well as a port. The speed is a hint that the test is correct at any speed: TestTickContext.current_tick still counts game ticks, and a loader that cannot run its clock faster runs the test at 1x, which the run's log says, so the test is slower there and still right. A loader draws no more frames at a higher speed and runs at most 10 ticks for one frame, so a test that takes a screenshot, reads an animation or waits for a frame to settle must not ask for it. The speed has to be a whole number from 1 to 100, and anything else is reported without changing it. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "speed",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},

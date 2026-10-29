@@ -39,6 +39,7 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.RenderGlobal;
 import net.minecraft.src.TileEntity;
+import net.minecraft.src.Timer;
 import net.minecraft.src.World;
 import net.minecraft.src.WorldRenderer;
 
@@ -963,6 +964,41 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public GrugBlockEntityNbt.Access blockEntityNbt() {
         return blockEntityNbt;
+    }
+
+    /**
+     * The client's tick timer, which decides how many ticks {@code Minecraft.run} takes for a
+     * frame. The field is private and the class is the game's own, so reflection is the only way
+     * in, and it is found by its type and not by the notch name {@code X}, so a name that moves
+     * with a snapshot cannot silently miss it: {@code Minecraft} holds exactly one {@code Timer}.
+     */
+    private static final Field TIMER = timerField();
+
+    private static Field timerField() {
+        for (Field field : Minecraft.class.getDeclaredFields()) {
+            if (field.getType() == Timer.class) {
+                field.setAccessible(true);
+                return field;
+            }
+        }
+        throw Grug.fatal("Minecraft has no Timer field");
+    }
+
+    /**
+     * Scales the timer, which 1.2.5's single-process game ticks the world from: there is no
+     * integrated server before 1.3, so the world, the tile entities and the test runner all run
+     * from the client's tick and speed up together. The timer hands out at most 10 ticks for a
+     * frame, so what a speed delivers is bounded by about ten times the frame rate.
+     */
+    @Override
+    public boolean setGameSpeed(double speed) {
+        try {
+            Timer timer = (Timer) TIMER.get(ModLoader.getMinecraftInstance());
+            timer.timerSpeed = (float) speed;
+            return true;
+        } catch (IllegalAccessException e) {
+            throw Grug.fatal("Minecraft's Timer field cannot be read", e);
+        }
     }
 
     @Override
