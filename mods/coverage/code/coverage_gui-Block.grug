@@ -1,0 +1,20 @@
+# A block whose GUI is built with the player's inventory and a line of text, which the builder calls
+# GUI.add_player_inventory and GUI.add_text need and no other coverage block uses. It reuses
+# coverage_block's crafting.png, whose texture already draws the slots of a player's inventory at the
+# positions below, so the slots the builder adds sit on the drawn ones. gui_builder-Test.grug checks the result.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_inventory_size(9)
+    ctx.set_block_entity(e"coverage_gui_entity")
+}
+
+export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player) {
+    gui_layout: GUI = gui(r"assets/grug/textures/gui/crafting.png")
+    gui_layout.add_player_inventory(8, 84, 8, 142)
+    gui_layout.add_text("Grug", 8, 6, Color.rgb(200, 0, 0))
+
+    block_entity: BlockEntity = world.get_block_entity(x, y, z).unwrap()
+
+    gui_layout.open(player, block_entity)
+}

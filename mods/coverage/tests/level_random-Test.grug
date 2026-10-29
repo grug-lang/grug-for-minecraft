@@ -1,0 +1,73 @@
+# Covers the draws from the level's own random: random_int, random_float and random_gaussian. The result of a
+# random draw cannot be compared with a fixed answer, so each is checked against what Java's Random promises
+# and against being a draw at all: random_int answers a whole number from 0 up to but not including its bound,
+# random_float a number from 0 up to but not including 1, and random_gaussian a finite number whose mean is
+# near 0 and whose mean square is near 1 over many draws. Each repeated draw must also move, because a
+# constant answer would pass every range check.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    _check_random_int(ctx, level)
+    _check_random_float(ctx, level)
+    _check_random_gaussian(ctx, level)
+}
+
+local _check_random_int(ctx: TestTickContext, level: Level) {
+    # A bound of 1 leaves only 0 to draw, and the largest bound there is must still stay below itself.
+    ctx.assert(level.random_int(1) == 0, "random_int(1) should answer 0.")
+    huge: number = level.random_int(2147483647)
+    ctx.assert(huge >= 0 and huge < 2147483647 and Math.floor(huge) == huge, "random_int(2147483647) should be a whole number below its bound.")
+
+    seen_nonzero: bool = false
+    draws: number = 0
+    while draws < 500 {
+        value: number = level.random_int(10)
+        ctx.assert(value >= 0 and value < 10 and Math.floor(value) == value, "random_int(10) should be a whole number from 0 to 9.")
+        if value > 0 {
+            seen_nonzero = true
+        }
+        draws = draws + 1
+    }
+    ctx.assert(seen_nonzero, "500 draws of random_int(10) should not all be 0.")
+}
+
+local _check_random_float(ctx: TestTickContext, level: Level) {
+    first: number = level.random_float()
+    moved: bool = false
+    draws: number = 0
+    while draws < 500 {
+        value: number = level.random_float()
+        ctx.assert(value >= 0 and value < 1, "random_float should answer from 0 up to but not including 1.")
+        if value != first {
+            moved = true
+        }
+        draws = draws + 1
+    }
+    ctx.assert(moved, "500 draws of random_float should not all equal the first.")
+}
+
+local _check_random_gaussian(ctx: TestTickContext, level: Level) {
+    first: number = level.random_gaussian()
+    moved: bool = false
+    sum: number = 0
+    squares: number = 0
+    draws: number = 0
+    while draws < 2000 {
+        value: number = level.random_gaussian()
+        # A finite number is the only kind that is smaller than a huge bound on both sides.
+        ctx.assert(value > -100 and value < 100, "random_gaussian should answer a finite number.")
+        if value != first {
+            moved = true
+        }
+        sum = sum + value
+        squares = squares + value * value
+        draws = draws + 1
+    }
+    ctx.assert(moved, "2000 draws of random_gaussian should not all equal the first.")
+
+    # The mean of 2000 draws has a standard deviation of 0.022 and the mean square one of 0.032, so these
+    # bounds are many standard deviations wide and a correct generator never fails them.
+    mean: number = sum / 2000
+    mean_square: number = squares / 2000
+    ctx.assert(mean > -0.2 and mean < 0.2, "The mean of random_gaussian should be near 0.")
+    ctx.assert(mean_square > 0.8 and mean_square < 1.2, "The mean square of random_gaussian should be near 1.")
+}

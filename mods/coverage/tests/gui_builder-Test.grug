@@ -1,0 +1,49 @@
+# Covers the GUI builder calls GUI.add_player_inventory and GUI.add_text, and Color.rgb which colours the text,
+# through coverage_gui's GUI, opened the way a player opens it. Neither can be read back from the game, so each
+# is checked by what the screen shows, comparing two rectangles of one frame instead of a reference image:
+# the panel is 176 by 166 at the 1280x720 scale of 3, so its top left is at (376, 111), as in item_icon-Test.
+# The text sits at (8, 6), where crafting.png is plain, so a rectangle around it has to differ from an equal
+# rectangle of the same plain strip further right. The player's inventory is checked with a diamond held in
+# the hotbar before the GUI opens: crafting.png draws the slots empty, so the row of the hotbar has to differ
+# from the row of the main inventory above it only if the builder put the player's slots there and the menu
+# drew the diamond in one of them.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not Test.screen_open() {
+        # On 1.20.6 the screen is opened by a packet, so wait for the screen itself. See item_icon-Test.
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else {
+        _check(ctx)
+        Test.close_screen()
+        Test.clear_held_item(Test.get_player())
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.setup_graphics_camera()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    Test.set_held_item(Test.get_player(), item(resource_location("minecraft:diamond")))
+
+    level.place_block(x, y, z, "grug:coverage_gui")
+    Test.use_block(level, x, y, z)
+}
+
+local _check(ctx: TestTickContext) {
+    # The text's strip of panel (8, 6) to (38, 14) against the plain strip of panel (100, 6) to (130, 14).
+    text: Screenshot = Test.screenshot().capture(400, 129, 490, 153)
+    plain: Screenshot = Test.screenshot().capture(676, 129, 766, 153)
+    text.differs_from(plain, 3)
+
+    # The main inventory's third row, panel (7, 119) to (169, 137), against the hotbar, panel (7, 141) to (169, 159).
+    main_row: Screenshot = Test.screenshot().capture(397, 468, 883, 522)
+    hotbar: Screenshot = Test.screenshot().capture(397, 534, 883, 588)
+    hotbar.differs_from(main_row, 1)
+}
