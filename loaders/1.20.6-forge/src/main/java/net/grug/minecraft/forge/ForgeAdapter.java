@@ -448,6 +448,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * <p>The client still runs at most 10 ticks for a frame, so what a speed delivers is bounded by
      * about ten times the frame rate, and the server skips ticks it cannot keep up with.
      */
+    @GrugGenerated(
+            "the game's private tick timer: CI sees the scale only as how long a test takes, and"
+                    + " a dedicated server and a client without a world are never reached")
     @Override
     public boolean setGameSpeed(double speed) {
         // A dedicated server has no client timer, and its tick rate is the server's own to set.
