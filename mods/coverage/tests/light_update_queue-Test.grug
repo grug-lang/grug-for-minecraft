@@ -1,0 +1,36 @@
+# Covers the settle check's answer while light updates are still waiting, which 1.20.6 meets when its
+# client holds light packets it has not applied yet (#424). Whether a poll lands in that window
+# depends on timing, and it used to be met by whichever test happened to poll right after the world
+# loaded or a room was built. The coverage gate counts only this mod's tests, so this test makes
+# the window itself: torches switched on and off in every tick, over sixteen columns spread across
+# the whole test area and so across several chunks and sections, make the server send light updates
+# in nearly every tick, and Test.world_settled() is asked in the same tick, before the client has
+# caught up. The answer is not asserted, because it depends on how far the client has got. What is
+# asserted is the end: once the switching stops, the world settles.
+# The torches stand on stone, which is valid on every loader, and the last tick switches them off.
+export tick(ctx: TestTickContext) {
+    # Switched for forty ticks, a duration of the stimulus rather than a wait for a condition.
+    if ctx.current_tick() < 40 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        # An even tick switches the torches on and an odd one off, so the last tick leaves them off.
+        torch: string = "minecraft:air"
+        if Math.remainder(ctx.current_tick(), 2) == 0 {
+            torch = "minecraft:torch"
+        }
+        across: number = -12
+        while across <= 12 {
+            along: number = -12
+            while along <= 12 {
+                level.place_block(origin.x() + across, origin.y() + 8, origin.z() + along, "minecraft:stone")
+                level.place_block(origin.x() + across, origin.y() + 9, origin.z() + along, torch)
+                along = along + 8
+            }
+            across = across + 8
+        }
+        Test.world_settled()
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    }
+}
