@@ -56,7 +56,7 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 - Before pushing, check locally what can be checked: `pre-commit run --all-files`, the grug compile
   check, the Python tests. Wait with `.github/scripts/watch-run.sh <run-id>` in the background,
   never a fixed sleep: it exits 1 at the first failed job with the last 80 lines of its failed step,
-  0 when all are green. Get the id from `gh api
+  0 when all are green, 3 when GitHub could not be reached (no verdict). Get the id from `gh api
   'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`; `gh pr checks --watch` fails right
   after a push and reads stale runs after a force-push. Read a job's whole log with `gh api
   repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a pipeline is
