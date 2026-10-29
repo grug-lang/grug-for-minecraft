@@ -85,4 +85,14 @@ class GrugRenderSettleTest {
 
         assertTrue(settle.settled());
     }
+
+    @Test
+    void lightIsSettledOnlyWhenNeitherTheEngineNorTheUpdateQueueHoldsWork() {
+        assertTrue(GrugRenderSettle.lightSettled(false, true));
+        // Work in the engine's own queues.
+        assertFalse(GrugRenderSettle.lightSettled(true, true));
+        // Light packets received and not applied yet, which the engine cannot see (#424).
+        assertFalse(GrugRenderSettle.lightSettled(false, false));
+        assertFalse(GrugRenderSettle.lightSettled(true, false));
+    }
 }

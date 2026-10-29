@@ -912,27 +912,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * answer built from them describes a world that is not there yet. See #328.
      */
     private static boolean clientSettled(Minecraft minecraft) {
-        return !GrugModLoader.isReloading() && lightSettled(minecraft) && RENDER_SETTLE.settled();
-    }
-
-    /**
-     * Whether the client has no light work left, in the light engine's own queues or in the queue
-     * of light packets it has not applied yet.
-     *
-     * <p>{@code ClientLevel.pollLightUpdates} drains a separate queue of runnables at a capped
-     * rate, so {@code hasLightWork} is exact for the light engine's own queues but says nothing
-     * about this one, which light packets from the integrated server fill. A capture taken while it
-     * is non-empty would read a frame lit with light that is still queued. See #424.
-     */
-    @GrugGenerated(
-            "settle: the not-yet-applied outcome needs a poll to land while the client holds light"
-                    + " packets it has not applied, which depends on how far a runner's client is"
-                    + " behind its server and which a run reaches but cannot force;"
-                    + " light_update_queue-Test.grug makes the window as likely as it can, and it"
-                    + " is still only met some runs")
-    private static boolean lightSettled(Minecraft minecraft) {
-        return !minecraft.level.getChunkSource().getLightEngine().hasLightWork()
-                && minecraft.level.isLightUpdateQueueEmpty();
+        // Both reads happen every time and the rule is GrugRenderSettle.lightSettled, a pure
+        // function
+        // that its unit test covers in every combination, so this method has no branch of its own
+        // that
+        // only a poll landing while light packets are queued could meet. See #424.
+        return !GrugModLoader.isReloading()
+                && GrugRenderSettle.lightSettled(
+                        minecraft.level.getChunkSource().getLightEngine().hasLightWork(),
+                        minecraft.level.isLightUpdateQueueEmpty())
+                && RENDER_SETTLE.settled();
     }
 
     /**

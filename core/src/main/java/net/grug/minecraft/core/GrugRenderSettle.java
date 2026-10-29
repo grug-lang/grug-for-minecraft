@@ -54,6 +54,19 @@ public final class GrugRenderSettle {
     }
 
     /**
+     * Whether the client has no light work left, given the two places it can be waiting: the light
+     * engine's own queues, and the separate queue of light packets the client has received and not
+     * applied yet (1.20.6's {@code ClientLevel.isLightUpdateQueueEmpty}, which drains at a capped
+     * rate). Both are read by the loader and passed in, so that the rule is a pure function that a
+     * unit test covers in every combination, instead of a branch that only a poll landing at the
+     * right moment meets. A capture taken while either holds work would read a frame lit with light
+     * that is still queued. See #424.
+     */
+    public static boolean lightSettled(boolean engineHasLightWork, boolean updateQueueEmpty) {
+        return !engineHasLightWork && updateQueueEmpty;
+    }
+
+    /**
      * Forgets every frame counted so far, so that the next answer can only be about frames drawn
      * after this call.
      *
