@@ -5,16 +5,32 @@
 #
 # Polls `gh run view --json status,conclusion,jobs` (WATCH_RUN_INTERVAL seconds apart, 15 by default).
 # Exits 1 at the first job that failed, after printing the 80 log lines before its first error, and 0
-# once the run has finished with a success or skipped conclusion. A skipped job is a pass. Only job names, conclusions and
-# log lines are printed.
+# once the run has finished with a success or skipped conclusion. A skipped job is a pass. A poll that
+# fails is tried again; WATCH_RUN_MAX_FAILED_POLLS (10) in a row end the watch with 3, which says that
+# GitHub could not be reached and nothing about the run. Only job names, conclusions and log lines
+# are printed.
 set -euo pipefail
 
 RUN_ID="${1:?usage: watch-run.sh <run-id> [OWNER/REPO]}"
 REPO="${2:-grug-lang/grug-for-minecraft}"
 INTERVAL="${WATCH_RUN_INTERVAL:-15}"
+MAX_FAILED_POLLS="${WATCH_RUN_MAX_FAILED_POLLS:-10}"
+FAILED_POLLS=0
 
 while true; do
-  JSON="$(gh run view "$RUN_ID" --repo "$REPO" --json status,conclusion,jobs)"
+  # A failed poll (a TLS timeout, a 502) says nothing about the run, so it is tried again; only a
+  # run of them in a row stops the watch, as an error and not as a verdict on the run.
+  if ! JSON="$(gh run view "$RUN_ID" --repo "$REPO" --json status,conclusion,jobs 2>&1)"; then
+    FAILED_POLLS=$((FAILED_POLLS + 1))
+    echo "==> poll failed ($FAILED_POLLS of $MAX_FAILED_POLLS): $(head -c 200 <<<"$JSON")"
+    if [ "$FAILED_POLLS" -ge "$MAX_FAILED_POLLS" ]; then
+      echo "==> Giving up on run $RUN_ID: GitHub could not be reached; this says nothing about the run." >&2
+      exit 3
+    fi
+    sleep "$INTERVAL"
+    continue
+  fi
+  FAILED_POLLS=0
   FAILED="$(jq -r '[.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled")][0] | if . then "\(.databaseId)\t\(.name)\t\(.conclusion)" else empty end' <<<"$JSON")"
   if [ -n "$FAILED" ]; then
     IFS=$'\t' read -r JOB_ID JOB_NAME CONCLUSION <<<"$FAILED"
