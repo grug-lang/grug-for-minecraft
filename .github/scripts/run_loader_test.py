@@ -12,6 +12,7 @@ replays a canned log and exits with a chosen code, and just enough of a loader f
 get as far as launching it.
 """
 
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -112,7 +113,11 @@ class RunLoaderTest(unittest.TestCase):
         gradlew.chmod(0o755)
 
     def run_script(
-        self, log: str, exit_code: int, extra_env: dict[str, str] | None = None
+        self,
+        log: str,
+        exit_code: int,
+        extra_env: dict[str, str] | None = None,
+        phase: str = "run",
     ) -> subprocess.CompletedProcess:
         log_file = self.tmp / "gradle.log"
         log_file.write_text(log)
@@ -139,7 +144,7 @@ class RunLoaderTest(unittest.TestCase):
             [
                 str(self.tmp / ".github" / "scripts" / "run-loader.sh"),
                 "fake-loader",
-                "run",
+                phase,
             ],
             cwd=self.tmp,
             env=env,
@@ -308,6 +313,175 @@ class RunLoaderTest(unittest.TestCase):
         # It has to fail before the game is launched, or the run would report a pass that never used
         # the library it was handed.
         self.assertEqual(result.gradle_args, "")
+
+    # build-run does the build and the game in one Gradle invocation (#678). The log is the build's
+    # output, then the line Gradle prints when it starts the runClient task, then the game's.
+    BUILD_LOG = "> Task :loaders:fake-loader:compileJava\n> Task :loaders:fake-loader:jar\n"
+    GAME_START = "> Task :loaders:fake-loader:runClient\n"
+
+    def test_build_run_builds_and_runs_in_one_gradle_invocation(self):
+        result = self.run_script(
+            self.BUILD_LOG + self.GAME_START + PASSING_LOG, 0, phase="build-run"
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        # One call, with the build tasks first and the game last: a failure in the build stops
+        # Gradle before runClient. The split phases are two calls (core publish aside).
+        calls = result.gradle_args.splitlines()
+        self.assertEqual(len([c for c in calls if "runClient" in c]), 1, calls)
+        game_call = next(c for c in calls if "runClient" in c)
+        self.assertIn(
+            ":loaders:fake-loader:build :loaders:fake-loader:layerJar :loaders:fake-loader:runClient -x test",
+            game_call,
+        )
+        self.assertIn("--no-daemon", game_call)
+
+    def test_build_run_in_a_standalone_loader_finds_the_game_start(self):
+        # A standalone loader has its own wrapper and its own build, where the task is :runClient
+        # and not :loaders:<loader>:runClient. The script runs that wrapper from the loader's
+        # directory, after publishing core through the root one.
+        loader = self.tmp / "loaders" / "fake-loader"
+        (loader / "root.gradle").write_text("// standalone\n")
+        shutil.copy(self.tmp / "gradlew", loader / "gradlew")
+
+        result = self.run_script(
+            "> Task :compileJava\n> Task :layerJar\n> Task :runClient\n" + PASSING_LOG,
+            0,
+            phase="build-run",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        calls = result.gradle_args.splitlines()
+        self.assertTrue(calls[0].startswith(":core:publishMavenJava"), calls)
+        self.assertEqual(len([c for c in calls if "runClient" in c]), 1, calls)
+        self.assertIn("build layerJar runClient -x test", calls[-1])
+
+    def test_the_run_phase_still_runs_only_the_game(self):
+        result = self.run_script(PASSING_LOG, 0)
+
+        game_call = next(c for c in result.gradle_args.splitlines() if "runClient" in c)
+        self.assertNotIn(":build", game_call)
+        self.assertNotIn("layerJar", game_call)
+
+    def test_the_build_phase_still_builds_the_layer_without_a_game(self):
+        # The layer job's phase: no display, no game, no log to poll.
+        result = self.run_script("BUILD SUCCESSFUL\n", 0, {"DISPLAY": ""}, phase="build")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = result.gradle_args.splitlines()
+        self.assertNotIn("runClient", result.gradle_args)
+        self.assertIn(":loaders:fake-loader:build :loaders:fake-loader:layerJar -x test", calls[-1])
+
+    def test_a_compile_error_in_build_run_is_a_failed_build_and_not_a_game_that_exited(self):
+        # Gradle ends with 1 and the game never starts. The build output has the words the game
+        # checks look for ("FAIL ", a crash line), because a compiler can print anything.
+        log = (
+            "> Task :loaders:fake-loader:compileJava FAILED\n"
+            "src/main/java/Broken.java:3: error: ';' expected\n"
+            "FAIL a compiler may print this\n"
+            "FAILURE: Build failed with an exception.\n"
+            "* What went wrong:\n"
+            "Execution failed for task ':loaders:fake-loader:compileJava'.\n"
+            "> Compilation failed; see the compiler output below.\n"
+        )
+
+        result = self.run_script(log, 1, phase="build-run")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Gradle failed to build fake-loader", result.stderr)
+        self.assertIn("the game was never launched", result.stderr)
+        self.assertIn("Broken.java:3: error: ';' expected", result.stderr)
+        self.assertIn("Execution failed for task", result.stderr)
+        self.assertNotIn("exited", result.stderr)
+        self.assertNotIn("tests failed", result.stderr)
+        self.assertNotIn("crashed", result.stderr)
+
+    def test_build_output_is_not_read_as_the_games(self):
+        # A line of the build that looks like a failed test must not fail a run whose game passes,
+        # and one that looks like a crash must not either.
+        log = (
+            self.BUILD_LOG
+            + "Warning: FAIL is a word in this dependency\n"
+            + "Game crashed! Crash report saved to: in a javadoc\n"
+            + self.GAME_START
+            + PASSING_LOG
+        )
+
+        result = self.run_script(log, 0, phase="build-run")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+
+    def test_a_game_failure_after_the_build_is_still_a_test_failure(self):
+        result = self.run_script(
+            self.BUILD_LOG + self.GAME_START + FAILING_LOG, 1, phase="build-run"
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tests failed", result.stderr)
+        self.assertIn("FAIL coverage/code/block_pos-Test.grug", result.stderr)
+        self.assertNotIn("Gradle failed to build", result.stderr)
+
+    def test_a_game_that_exits_after_the_build_is_an_exit_and_not_a_failed_build(self):
+        result = self.run_script(
+            self.BUILD_LOG + self.GAME_START + "[GRUG CI] Running 1 test...\n", 3, phase="build-run"
+        )
+
+        self.assertIn("build/game process exited (exit code 3)", result.stderr)
+        self.assertNotIn("Gradle failed to build", result.stderr)
+
+    def write_slow_build(self, build_seconds: float, game_seconds: float) -> None:
+        # A gradlew whose build takes build_seconds before it starts the game, and whose game then
+        # prints the passing log after game_seconds.
+        gradlew = self.tmp / "gradlew"
+        gradlew.write_text(
+            "#!/usr/bin/env bash\n"
+            'printf \'%s\\n\' "$*" >> "$FAKE_GRADLE_ARGS"\n'
+            'case "$*" in *runClient*) ;; *) exit 0 ;; esac\n'
+            f"printf %s {shlex.quote(self.BUILD_LOG)}\n"
+            f"sleep {build_seconds}\n"
+            f"printf %s {shlex.quote(self.GAME_START)}\n"
+            f"sleep {game_seconds}\n"
+            f"printf %s {shlex.quote(PASSING_LOG)}\n"
+            "sleep 1\n"
+        )
+
+    def test_the_run_timeout_starts_when_the_game_does(self):
+        # The build takes longer than the 3s limit and the game 1s, so a limit that started at the
+        # launch would time out and one that starts at the game's start passes.
+        self.write_slow_build(build_seconds=5, game_seconds=1)
+
+        result = self.run_script("", 0, {"GRUG_CI_RUN_TIMEOUT": "3"}, phase="build-run")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+
+    def test_the_run_timeout_still_covers_the_game(self):
+        self.write_slow_build(build_seconds=0, game_seconds=10)
+
+        result = self.run_script("", 0, {"GRUG_CI_RUN_TIMEOUT": "3"}, phase="build-run")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Timed out after 3s waiting for fake-loader to reach the title screen", result.stderr
+        )
+
+    def test_a_build_that_never_ends_times_out_as_a_build(self):
+        gradlew = self.tmp / "gradlew"
+        gradlew.write_text(
+            "#!/usr/bin/env bash\n"
+            'printf \'%s\\n\' "$*" >> "$FAKE_GRADLE_ARGS"\n'
+            'case "$*" in *runClient*) echo "> Task :loaders:fake-loader:compileJava"; sleep 30 ;; esac\n'
+        )
+
+        result = self.run_script("", 0, {"GRUG_CI_BUILD_TIMEOUT": "2"}, phase="build-run")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Timed out after 2s building fake-loader, before its game started", result.stderr
+        )
 
     def add_mod(self, name: str, tests: int) -> None:
         code = self.tmp / "mods" / name / "code"
