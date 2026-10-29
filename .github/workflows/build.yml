@@ -34,6 +34,7 @@ jobs:
       matrix: ${{ steps.discover.outputs.matrix }}
       smoke: ${{ steps.smoke.outputs.matrix }}
       mods: ${{ steps.mods.outputs.mods }}
+      reference: ${{ steps.reference.outputs.reference }}
     steps:
       # The run timeout of a repeats run is 300 s plus 200 s per extra pass (see the loader job), and
       # the job's own limit is 90 minutes, so 26 passes is the most whose deadline the script reaches
@@ -87,6 +88,27 @@ jobs:
             mods=$(python3 .github/scripts/affected-mods.py "$BASE_SHA" HEAD) || mods=
           fi
           echo "mods=$mods" >> "$GITHUB_OUTPUT"
+
+      # Whether the reference job runs (#631). Only a pull request can skip it, and only when its diff
+      # touches nothing the reference run observes: reference-needed.py explains its answer in this
+      # log. A push to main, a dispatch, an unreachable base and any error in the script answer true,
+      # and the job's own condition skips only on an explicit false, so a step that failed to write
+      # an output runs the job too.
+      - name: Choose whether the reference job runs
+        id: reference
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          reference=true
+          if [ "$EVENT" != pull_request ]; then
+            echo "Running the reference job: this is a $EVENT run, not a pull request."
+          elif [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
+            echo "Running the reference job: the pull request's base commit '$BASE_SHA' could not be fetched."
+          else
+            reference=$(python3 .github/scripts/reference-needed.py "$BASE_SHA" HEAD) || reference=true
+          fi
+          echo "reference=$reference" >> "$GITHUB_OUTPUT"
 
   # grug-rs builds once per run and the loader jobs link the very same libgruggers.a. It depends on
   # nothing in this repository except the revision core/build.gradle.kts pins, so before this job each
@@ -257,6 +279,7 @@ jobs:
           python3 .github/scripts/combine_coverage_test.py
           python3 .github/scripts/watch_run_test.py
           python3 .github/scripts/affected_mods_test.py
+          python3 .github/scripts/reference_needed_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
@@ -564,7 +587,11 @@ jobs:
   # loader's golden.
   reference:
     name: reference (1.2.5-forge)
-    needs: grug-rs
+    # A pull request that changes only other mods and other loaders skips it, which a required status
+    # check counts as passed. Only an explicit false skips (see the discover job), and a push to main
+    # and a dispatch always run it.
+    if: github.event_name != 'pull_request' || needs.discover.outputs.reference != 'false'
+    needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
