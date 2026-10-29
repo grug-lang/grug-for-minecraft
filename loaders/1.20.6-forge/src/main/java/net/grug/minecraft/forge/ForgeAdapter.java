@@ -494,6 +494,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public void redraw(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
+        // The client learns of the change from a packet it has not read yet, so no frame has seen
+        // it and the frames drawn before this call say nothing about it: the capture waits for two
+        // after it. Up to 10 ticks run for a frame, so the test's own wait cannot stand in for it.
+        RENDER_SETTLE.noteBusy();
         // On the server this sends the client the block entity's update packet, whose handler has
         // the client mesh the block again; on a client it marks the block's section for meshing.
         be.getLevel()

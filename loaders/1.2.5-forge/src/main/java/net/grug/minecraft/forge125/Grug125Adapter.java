@@ -1042,7 +1042,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public boolean isWorldSettled() {
-        return renderSettle.settled();
+        // Asked now as well as per frame: the runner runs up to 10 ticks for a frame, so a change a
+        // test just made has not been in a frame yet, and only the renderer's list knows it.
+        return renderSettle.settledNow(frameHadPendingWork(ModLoader.getMinecraftInstance()));
     }
 
     @Override
