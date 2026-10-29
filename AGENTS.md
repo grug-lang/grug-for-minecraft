@@ -91,6 +91,10 @@ only `build` is light enough.
 - `GRUG_CI_MODS=a,b` (the `mods` input of `gh workflow run build.yml`) loads every mod but runs only
   the tests of those mods, in the usual path order; an unknown name fails before the game starts. A
   selection without `coverage` leaves the coverage gate short, so use it to try a mod, not to merge.
+  A pull request's selection is chosen by `.github/scripts/affected-mods.py` from its diff (its CI log
+  says why): a change confined to some mods' `grug` namespace runs those mods, the mods that name
+  their files, and `coverage`; anything else, or a doubt, runs every mod. A dispatch (`mods` empty)
+  and every push to `main` run every mod, which is how to force them.
 - The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile is reported
   the same way, but check grug syntax before pushing: `~/agent-workspaces/grug-check.sh <worktree>`
   compiles every `.grug` file with `grugc`.
