@@ -24,7 +24,11 @@ are by members only (#617).
   CI result, measurements, surprises) and never merges.
 - **Merging.** The orchestrator merges by rebase (`gh pr merge <n> --rebase`) once every job of the
   pull request has passed (a skipped job counts as a pass) and it has read the diff against the
-  issue. Nothing is pushed to `main`. A quick edit to markdown only (an AGENTS.md fix, say) may be
+  issue. Never wait for CodeRabbit: it is slow and hits its review limit, so the review that counts
+  is yours. Read the issue, the pull request description and the whole diff, ask what the change
+  exists for and check that exact case (a watcher has to work while a run is still going, not only
+  on a finished one), and think of an empty, odd or failing input; a subagent's check of the easy
+  case proves nothing about the real one. Nothing is pushed to `main`. A quick edit to markdown only (an AGENTS.md fix, say) may be
   merged without waiting for any CI, and neither its pull request run nor the push-to-`main` run
   after it needs checking. Before merging a base pull request that another one is stacked on,
   retarget the other to `main`, or `--delete-branch` closes it.
@@ -51,7 +55,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   full pipeline, with `-f repeats=<n>` to repeat the suite in one session.
 - Build's concurrency cancels an older run of the same ref, except on `main`. To run several
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
-  done. The plan allows 20 concurrent jobs, shared by all runs: do not dispatch a full `build.yml`
+  done. An experiment that changes only `.github/scripts/` keeps the caches warm; one that edits
+  `build.yml` or `.github/actions/setup-loader-build/action.yml` starts cold. The plan allows 20
+  concurrent jobs, shared by all runs: do not dispatch a full `build.yml`
   while another run is going.
 - Before pushing, check locally what can be checked: `pre-commit run --all-files`, the grug compile
   check, the Python tests. Wait with `.github/scripts/watch-run.sh <run-id>` in the background,
@@ -70,6 +76,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 
 ### A red main or a flake
 
+- When a job fails, read the titles of the open issues (`gh issue list --state open`) before
+  anything else: it is often a known flake (the grug-rs abort of #123, say). A rerun that passes
+  still gets the occurrence added to that issue's body.
 - A flake the pull request did not cause (its failing job exercises code it does not touch, or the
   same failure shows on another pull request or `main`) is fixed first, in its own pull request with
   the test that fails without the fix. Then rebase the original onto `main` and merge once its CI
@@ -109,7 +118,10 @@ only `build` is light enough.
   with a grug test there first, then a Java test, and `@GrugGenerated` only as a last resort.
   The gate counts only the unit tests, each game run's boot and `mods/coverage/`'s tests, so
   another mod's tests cannot be what reaches it (what still depends on them is #652 to #655); a
-  class initializer counts wherever it ran, since it runs once per JVM.
+  class initializer counts wherever it ran, since it runs once per JVM. A hit that depends on
+  timing (a poll landing while the client is behind the server) is not covered by two passing runs:
+  mark that branch `@GrugGenerated` at once, keep the test as the stimulus, and do not let the gate
+  flake.
   "A grug test cannot reach this" is not "no test can reach this".
 - A coverage failure prints only the counts: `gh run download <run> --name coverage-report`, then
   look in each runner's XML for a `<line>` with `mi` or `mb` above 0. The report sums every runner,
@@ -177,7 +189,8 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 Every version is exact and bumped by hand, when there is a reason to; bumping grug-rs
 (`grugRsRevision` in `core/build.gradle.kts`) changes VM behaviour. The root Gradle wrapper is
 frozen at 8.14 (SpongePowered Mixin and ForgeGradle 6 do not support Gradle 9). Pin locations and
-bump commands are in #369.
+bump commands are in #369. `core/`'s main sources compile with `--release 8`, so no `Set.of`,
+`List.of` or `String.isBlank` there (the tests may use them).
 
 ## grug language rules that cost runs
 
@@ -209,6 +222,8 @@ bump commands are in #369.
   it does not reset state a previous test left, close its screen, or guard against a leak. A test
   that opens a GUI is the one that closes it.
 - A loader must name the level in its test save exactly, or the game generates a new random world.
+- Block ids are handed out in name order, so a new block can move another's id. `high_block_id`
+  depends on `zz_coverage_high_id` being last: name a new block in `mods/coverage/` to sort before it.
 - Wait for a condition rather than a fixed tick count. A fixed count is right only when the thing
   waited for is itself a duration, such as an item travelling along a pipe. A GUI opening, a chunk
   arriving or a world settling has a condition, so wait on it even when it is awkward to name.
