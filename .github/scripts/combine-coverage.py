@@ -15,6 +15,11 @@ coverage gate reads.
 Core is special: every loader run executes core's classes, so core's report unions every runner's
 exec data. Each loader's report only uses its own exec and its own class files. Classes listed in
 EXCLUDED_CLASSES are dropped from every report.
+
+A loader's exec files are not the whole game run. GrugCoverage cuts the run into segments and writes
+only the boot before the first test (000-boot.exec) and the segments of mods/coverage/'s tests
+(001-coverage.exec and on, one per stretch of that mod's tests, so a repeated suite has several), so
+the gate counts the unit tests, the boot and mods/coverage/ and no other mod's tests (#626).
 """
 
 from __future__ import annotations
@@ -279,7 +284,7 @@ def main() -> int:
             args.output / f"{runner}.xml",
         )
         csv_paths.append(csv_path)
-        print(f"reported {runner}")
+        print(f"reported {runner} from {len(execs)} exec files")
 
     combined = args.output / "combined.csv"
     sum_csvs(csv_paths, combined)
@@ -290,7 +295,9 @@ def main() -> int:
             + str(missed)
             + " instructions and "
             + str(branch_missed)
-            + " branches missed)",
+            + " branches missed). The gate counts the unit tests, each game run's boot and"
+            " mods/coverage/'s tests only, so a line that only another mod's test reaches is"
+            " missed here: cover it from mods/coverage/",
             file=sys.stderr,
         )
         return 1
