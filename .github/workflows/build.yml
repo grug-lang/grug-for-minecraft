@@ -31,6 +31,7 @@ jobs:
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
       smoke: ${{ steps.smoke.outputs.matrix }}
+      mods: ${{ steps.mods.outputs.mods }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,6 +50,28 @@ jobs:
       - name: Discover smoke games
         id: smoke
         run: echo "matrix=$(python3 .github/scripts/universal_jar.py smoke-matrix)" >> "$GITHUB_OUTPUT"
+
+      # The mods whose tests a pull request has to run, for the loader jobs' GRUG_CI_MODS (#628). Only
+      # a pull request narrows it, by its diff against the base it was opened on: a push to main, a
+      # dispatch and any event this step does not know run every mod, and so does a base that cannot
+      # be fetched or a diff that cannot be read. affected-mods.py explains its choice in this log.
+      # The checkout is the pull request merged into its base, a single commit, so only the base's
+      # commit is fetched, and a diff of two trees needs no more.
+      - name: Choose the mods whose tests run
+        id: mods
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mods=
+          if [ "$EVENT" != pull_request ]; then
+            echo "Selecting every mod: this is a $EVENT run, not a pull request."
+          elif [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
+            echo "Selecting every mod: the pull request's base commit '$BASE_SHA' could not be fetched."
+          else
+            mods=$(python3 .github/scripts/affected-mods.py "$BASE_SHA" HEAD) || mods=
+          fi
+          echo "mods=$mods" >> "$GITHUB_OUTPUT"
 
   # grug-rs builds once per run and the loader jobs link the very same libgruggers.a. It depends on
   # nothing in this repository except the revision core/build.gradle.kts pins, so before this job each
@@ -218,6 +241,7 @@ jobs:
           python3 .github/scripts/ci_timing_test.py
           python3 .github/scripts/combine_coverage_test.py
           python3 .github/scripts/watch_run_test.py
+          python3 .github/scripts/affected_mods_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
@@ -424,9 +448,11 @@ jobs:
           # repository variable GRUG_CI_REPEATS, then 1, which is what pull request runs use
           # because their inputs context is empty. See #268.
           GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
-          # Which mods' tests run, as the dispatch input says it. Empty on a pull request and a push,
-          # which run every mod. A name that is no mod fails the step before the game starts. See #627.
-          GRUG_CI_MODS: ${{ inputs.mods }}
+          # Which mods' tests run: the dispatch input if it names some, else what the discover job
+          # chose from the pull request's diff (#628). Empty on a push to main and on a dispatch
+          # without the input, which run every mod. A name that is no mod fails the step before the
+          # game starts. See #627.
+          GRUG_CI_MODS: ${{ inputs.mods || needs.discover.outputs.mods }}
           # The watch covers the whole run: 300s for one pass (the slowest loader measured under 190s
           # of game time) plus 200s per extra pass. 1.2.5 is the slowest loader and took about 150s
           # per pass in the repeats runs of #583 (1068s for twenty passes when #291 measured it, before
