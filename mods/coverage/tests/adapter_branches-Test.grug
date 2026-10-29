@@ -1,6 +1,6 @@
 # Drives the adapter's odd branches: an empty-slot damage read, a count/extract that never matches
 # (wrong item and wrong damage), consuming a crafting ingredient, taking from a vanilla (non-grug)
-# block entity, and dropping a non-empty inventory.
+# block entity, dropping a non-empty inventory, and filling a slot with a block's item.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
@@ -38,5 +38,11 @@ export tick(ctx: TestTickContext) {
         chest.set_item_in_slot(0, diamond, 3)
         drop_inventory(level, x, origin.y(), origin.z())
         ctx.assert(chest.get_item_count_in_slot(0) == 0, "the drop should empty the chest.")
+
+        # Some loaders resolve a block's name to the block itself rather than to an item, so a stack
+        # of one has its own path to fill a slot.
+        cobblestone: Item = item(resource_location("minecraft:cobblestone"))
+        chest.set_item_in_slot(1, cobblestone, 2)
+        ctx.assert(chest.get_item_count_in_slot(1) == 2, "two cobblestone should fill the slot.")
     }
 }

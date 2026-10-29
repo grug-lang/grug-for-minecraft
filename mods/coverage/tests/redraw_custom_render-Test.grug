@@ -1,0 +1,27 @@
+# BlockEntity.redraw makes the game draw a block entity's render function again. The block draws a
+# model, so this also reaches draw_model's accepted path. The wait is for the world to settle, which
+# is false until the chunk's mesh has been rebuilt, both after the placement and after the redraw.
+redrawn: bool = false
+block: Option[BlockEntity] = Option.new()
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+        level.place_block(origin.x(), origin.y() + 20, origin.z(), "grug:coverage_neighbor_block")
+        block_opt: Option[BlockEntity] = level.get_block_entity(origin.x(), origin.y() + 20, origin.z())
+        ctx.assert(block_opt.has(), "The neighbour-coverage block should have a block entity.")
+        block.set(block_opt.unwrap())
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else if not redrawn {
+        redrawn = true
+        block.unwrap().redraw()
+        ctx.not_done()
+    } else if ctx.current_tick() < 5 or not Test.world_settled() {
+        ctx.not_done()
+    } else {
+        ctx.assert(block.has(), "The block entity should survive the redraw.")
+    }
+}

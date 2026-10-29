@@ -8,3 +8,15 @@ export on_neighbor_change() {
     marker: Item = item(resource_location("minecraft:diamond"))
     me.set_item_in_slot(0, marker, 1)
 }
+
+# Counts every tick this block entity runs, whether the game ran it or Test.tick_block_entity did, so
+# tick_block_entity-Test.grug can see how many ticks a call ran.
+export tick() {
+    me.set_saved_number("ticks", me.get_saved_number("ticks") + 1)
+}
+
+# Draws one valid model, so a chunk pass reaches draw_model's accepted path from mods/coverage/
+# alone. The model is a small cube in the corner of the block, so nothing else depends on it.
+export render(ctx: RenderContext) {
+    ctx.draw_model(r"assets/grug/models/block/coverage_draw.json", 0, 0, 0, 0, 0, 0)
+}
