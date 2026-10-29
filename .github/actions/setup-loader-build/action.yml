@@ -92,6 +92,8 @@ runs:
         {
           echo "gradle-prefix=grug-gradle-${RUNNER_OS}-${LOADER}-"
           echo "gradle=grug-gradle-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
+          echo "home-prefix=grug-gradle-home-${RUNNER_OS}-${LOADER}-"
+          echo "home=grug-gradle-home-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
           echo "minecraft=grug-minecraft-${RUNNER_OS}-${LOADER}-${MINECRAFT_HASH}"
         } >> "$GITHUB_OUTPUT"
 
@@ -114,6 +116,46 @@ runs:
           ~/.gradle/caches/modules-2
         key: ${{ steps.keys.outputs.gradle }}
         restore-keys: ${{ steps.keys.outputs.gradle-prefix }}
+
+    # The rest of Gradle's user home, which the entry above leaves out: the artifact-transform outputs
+    # (the ASM instrumentation of the ForgeGradle plugin jars), the file-hash cache (the Minecraft and
+    # Forge jars), the Java compile classpath snapshots, the compiled build scripts and the generated
+    # Gradle API jars, in one directory per Gradle version (8.14 for the root build, 9.8 for the
+    # standalone loaders, which run both), plus jars-9 and journal-1. A fresh runner rebuilt all of it
+    # on every run, and restoring it took 9 to 23 s off the Gradle phase in 10 interleaved pairs per
+    # loader: 10.1 s on 1.20.6-forge, 9.2 s on a1.1.2_01-ornithe, 10.1 s on b1.7.3-ornithe and 22.9 s
+    # on b1.7.3-stationapi, each with a 95% interval well clear of 0 (#701).
+    #
+    # It is written by the same jobs as the entries around it, those that run the game, for the same
+    # reason: the layer job stops after the build and would write an entry the game's tasks never
+    # touched. Gradle does not trust what it finds here: everything is keyed by content hash or checked
+    # against the file on disk, so a stale entry costs the saving and never changes a result. Keyed and
+    # falling back like the dependency entry above, for the same reason.
+    #
+    # 1.2.5-forge is left out: it does not provision a Minecraft through ForgeGradle (see the snapshot
+    # below), so there is little here for it to reuse, and over 10 pairs it saved a CPU-adjusted 2.5 s
+    # of its Gradle phase with an interval that includes 0 (p 0.079) and its whole job did not move.
+    - name: Cache the rest of Gradle's user home
+      if: inputs.loader != '1.2.5-forge' && inputs.save == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches/[0-9]*
+          ~/.gradle/caches/jars-*
+          ~/.gradle/caches/journal-1
+        key: ${{ steps.keys.outputs.home }}
+        restore-keys: ${{ steps.keys.outputs.home-prefix }}
+
+    - name: Restore the rest of Gradle's user home
+      if: inputs.loader != '1.2.5-forge' && inputs.save != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches/[0-9]*
+          ~/.gradle/caches/jars-*
+          ~/.gradle/caches/journal-1
+        key: ${{ steps.keys.outputs.home }}
+        restore-keys: ${{ steps.keys.outputs.home-prefix }}
 
     # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
     # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
