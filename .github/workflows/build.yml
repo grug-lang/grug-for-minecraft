@@ -357,7 +357,7 @@ jobs:
     name: ${{ matrix.dir }}
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ (inputs.repeats || vars.GRUG_CI_REPEATS || '1') == '1' && 15 || 45 }}
+    timeout-minutes: ${{ (inputs.repeats || vars.GRUG_CI_REPEATS || '1') == '1' && 15 || 90 }}
     strategy:
       fail-fast: false
       matrix:
@@ -417,10 +417,11 @@ jobs:
           # because their inputs context is empty. See #268.
           GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
           # The watch covers the whole run: 300s for one pass (the slowest loader measured under 190s
-          # of game time) plus 60s per extra pass. 1.2.5's twenty passes measured 1068s, the slowest
-          # of the loaders, against 1440s here. See #291.
+          # of game time) plus 200s per extra pass. 1.2.5 is the slowest loader and took about 150s
+          # per pass in the repeats runs of #583 (1068s for twenty passes when #291 measured it, before
+          # the suite grew), so twenty passes get 4100s. See #291.
           GRUG_CI_RUN_TIMEOUT: '300'
-          GRUG_CI_RUN_TIMEOUT_PER_EXTRA_REPEAT: '60'
+          GRUG_CI_RUN_TIMEOUT_PER_EXTRA_REPEAT: '200'
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
