@@ -1,0 +1,5 @@
+# Test.stall cannot block for a negative time, so it is reported and the game is not stalled.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("The time has to be from 0 to 10000 milliseconds")
+    Test.stall(-1)
+}

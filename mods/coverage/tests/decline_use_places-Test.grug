@@ -4,8 +4,8 @@
 # cobblestone is still in hand for the block that declines, whose click places it on top of that block.
 # That the handling block places nothing has no condition to wait for, so it is checked once the declined
 # click's cobblestone has appeared, which came after it. On 1.20.6 the clicks reach the blocks by packets, so
-# the cobblestone is waited for.
-waited: number = 0
+# the cobblestone is waited for, with no count of ticks of its own: a tick is not a unit of time there (#688),
+# and the runner's budget ends a click that never arrives.
 
 export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
@@ -22,8 +22,6 @@ export tick(ctx: TestTickContext) {
         Test.use_block(level, x, y, z)
         ctx.not_done()
     } else if not _is_cobblestone(level, x, y + 1, z) {
-        waited = waited + 1
-        ctx.assert(waited < 100, "The declined click should have placed the held cobblestone on top of the block.")
         ctx.not_done()
     } else {
         ctx.assert(not _is_cobblestone(level, x + 4, y + 1, z), "A click the block handled should not place the held block.")
