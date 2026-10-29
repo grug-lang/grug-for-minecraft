@@ -98,9 +98,10 @@ only `build` is light enough.
   loader jobs run `update-goldens` and upload `mods/*/screenshots`, and dispatch it once.
   `update-goldens` writes every unmatched capture under the running loader's name. Look at every
   PNG before committing it.
-- Coverage stays at 100% on `core`. Cover a host function from a committed mod's own path first,
-  then a grug test in `mods/coverage/`, then a Java test, and `@GrugGenerated` only as a last
-  resort. "A grug test cannot reach this" is not "no test can reach this".
+- Coverage stays at 100% on `core`, and comes from `mods/coverage/` alone: cover a host function
+  with a grug test there first, then a Java test, and `@GrugGenerated` only as a last resort.
+  Another mod's tests must not be what reaches it (what still depends on them is #652 to #655).
+  "A grug test cannot reach this" is not "no test can reach this".
 - A coverage failure prints only the counts: `gh run download <run> --name coverage-report`, then
   look in each runner's XML for a `<line>` with `mi` or `mb` above 0. The report sums every runner,
   so a branch missed in one loader's adapter fails the gate even when another loader covers it.
