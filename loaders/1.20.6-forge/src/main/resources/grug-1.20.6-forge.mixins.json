@@ -12,6 +12,7 @@
             "GuiMixin",
             "LightTextureMixin",
             "LiquidBlockRendererMixin",
+            "MinecraftServerTickMixin",
             "MinecraftTimerMixin",
             "ModelBlockRendererMixin",
             "SectionBufferBuilderPoolMixin"

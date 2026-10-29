@@ -1,11 +1,9 @@
 # A test is capped at 200 ticks unless its init raises the budget with set_max_ticks, so this one
 # keeps asking for ticks past the default and has to finish instead of failing at 200. Waiting
 # 250 ticks is what a real duration costs: an item travelling along a pipe takes a hundred game
-# ticks a hop, with nothing to observe in between (#589). Nothing is drawn while it waits, so it also
-# asks for a faster clock, which keeps the 250 ticks and takes a tenth of the seconds (#633).
+# ticks a hop, with nothing to observe in between (#589).
 export init(ctx: TestInitContext) {
     ctx.set_max_ticks(300)
-    ctx.set_game_speed(10)
 }
 
 export tick(ctx: TestTickContext) {

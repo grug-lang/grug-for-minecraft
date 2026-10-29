@@ -329,6 +329,28 @@ public interface ModLoaderAdapter {
     void tickBlockEntity(Object blockEntityObj);
 
     /**
+     * How many ticks every loader's client runs for one rendered frame at most. A client draws no
+     * more frames when its clock runs faster, so the speed it delivers saturates at about this
+     * multiple of real time and a higher number only adds drift.
+     */
+    double CLIENT_TICKS_PER_FRAME = 10;
+
+    /**
+     * The speed the runner runs the game's clock at for every test, as a multiple of the 20 ticks
+     * per second it runs at in real time: the loader's own maximum, which is the speed at which its
+     * client takes all the ticks it can for a frame. The loader picks it because only the loader
+     * knows its cap, and {@code GRUG_CI_MAX_GAME_SPEED} can lower it, to 1 for real time.
+     *
+     * <p>A loader that cannot speed up its clock keeps this default of 1, which is a documented
+     * no-op and not an err: the game runs at the speed it always did, only slower to finish. A
+     * dedicated server is such a loader for now: its clock is the server's own tick loop, and no CI
+     * run launches one (#163).
+     */
+    default double maxGameSpeed() {
+        return 1;
+    }
+
+    /**
      * Sets how fast the game's own clock runs, as a multiple of the 20 ticks per second it runs at
      * in real time, and answers whether this loader did so. {@code 1} puts the real clock back.
      *
@@ -337,23 +359,15 @@ public interface ModLoaderAdapter {
      * pipe, an engine's stroke) takes less wall time without a mod knowing. What changes is only
      * how long a test takes, because tests count ticks and wait for conditions, never seconds. The
      * test runner's own ticks are the client's ticks, so on a loader that answers true they speed
-     * up with the world. Where the world ticks from the client they stay equal to it, and where it
-     * has a server of its own (1.20.6) the server may tick more often than the client does, so a
-     * test waits for a condition and never infers how much the world did from {@code
-     * TestTickContext.current_tick}. What a speed-up cannot do is draw more frames: every loader
-     * caps the ticks it runs for one frame at 10, so the real gain is bounded by about ten times
-     * the frame rate, and a test that reads a rendered result must not ask for it.
+     * up with the world. A loader keeps the world's ticks equal to the runner's: where the world
+     * ticks from the client they are the same ticks, and where it has a server of its own (1.20.6)
+     * the server follows the client's ticks. What a speed-up cannot do is draw more frames: every
+     * loader caps the ticks it runs for one frame at {@link #CLIENT_TICKS_PER_FRAME}, so a test
+     * that reads a rendered result waits for a condition of the picture and never for a tick count.
      *
-     * <p>{@code speed} is a whole number from 1 to {@link GrugTestRunner#MAX_GAME_SPEED}, which the
-     * runner has already checked. The runner puts 1 back when the test ends, whether it passed or
-     * failed, and never asks a loader to restore a speed it did not apply.
-     *
-     * <p>A loader that cannot speed up its clock keeps this default, which is a documented no-op
-     * and not an err. A test asks for a speed as a hint that it is correct at any speed, so running
-     * it at 1x is slower and not wrong, and an err would fail a correct test on a version only
-     * because of how that version keeps time. The runner says in the log which tests ran at 1x
-     * because of it, so it is never an accident. A dedicated server is such a loader for now: its
-     * clock is the server's own tick loop, and no CI run launches one (#163).
+     * <p>{@code speed} is {@link #maxGameSpeed()} or lower, which the runner has already checked.
+     * The runner puts 1 back when the test ends, whether it passed or failed, and never asks a
+     * loader to restore a speed it did not apply.
      */
     default boolean setGameSpeed(double speed) {
         return false;

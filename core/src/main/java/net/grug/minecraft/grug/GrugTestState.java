@@ -135,14 +135,6 @@ public final class GrugTestState {
     public static int maxTestTicks = GrugTestRunner.DEFAULT_MAX_TEST_TICKS;
 
     /**
-     * How fast the running test asked the game's clock to run, as a multiple of real time, or 1 for
-     * real time. The runner resets it before every test, and the test's {@code init()} can raise it
-     * through {@code TestInitContext.set_game_speed}. The runner reads it once, after the init has
-     * returned, so the speed a test asks for is the one it runs at from its first tick.
-     */
-    public static double gameSpeed = 1;
-
-    /**
      * How many runtime errors have been raised so far. The runner compares it across a call to tell
      * a script that aborted from one that simply has no such export, which the engine answers the
      * same way.

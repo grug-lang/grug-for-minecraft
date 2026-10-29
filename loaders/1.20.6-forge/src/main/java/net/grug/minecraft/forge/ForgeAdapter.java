@@ -7,6 +7,8 @@ import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
+import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.core.GrugTickLockstep;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
@@ -435,30 +437,52 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private static final float REAL_TIME_TICK_RATE = 20.0F;
 
     /**
+     * The tick rate of the integrated server while the clock runs fast: high enough that the
+     * schedule is never what holds a tick back, because the lockstep with the client is. See {@link
+     * GrugTickLockstep}.
+     */
+    private static final float FAST_TICK_RATE = REAL_TIME_TICK_RATE * GrugTestRunner.MAX_GAME_SPEED;
+
+    @Override
+    public double maxGameSpeed() {
+        return CLIENT_TICKS_PER_FRAME;
+    }
+
+    /**
      * Runs the world and the client's tick faster than real time, together.
      *
      * <p>Two clocks keep time here, and both are moved. The integrated server ticks the world, the
-     * block entities and the runner itself on its own thread at the tick rate its tick rate manager
-     * holds, which is what vanilla's {@code /tick rate} sets, and it tells the client. The client
-     * ticks from its own timer, and the timer never goes faster than 20 a second on the server's
-     * word, so {@code MinecraftTimerMixin} scales it from {@link GrugGameClock}. The runner is
-     * queued from the client's tick, so with only the server sped up it would run 20 times a second
-     * against a world that ran many times as fast.
+     * block entities and the runner itself on its own thread, and the client ticks from its own
+     * timer, which never goes faster than 20 a second on the server's word, so {@code
+     * MinecraftTimerMixin} scales it from {@link GrugGameClock}. The runner is queued from the
+     * client's tick, so with only the server sped up it would run 20 times a second against a world
+     * that ran many times as fast.
      *
-     * <p>The client still runs at most 10 ticks for a frame, so what a speed delivers is bounded by
-     * about ten times the frame rate, and the server skips ticks it cannot keep up with.
+     * <p>The client runs at most 10 ticks for a frame, so what a speed delivers is bounded by about
+     * ten times the frame rate, and a server left to its tick rate would run ahead of what the
+     * client can consume (1.64 times at 10x, 15 times at 100x). The server therefore gets a tick
+     * rate that is never the limit, and {@code MinecraftServerTickMixin} holds each of its ticks
+     * back until the client has made as many, so the world stays on the runner's clock.
      */
     @GrugGenerated(
-            "the game's private tick timer: CI sees the scale only as how long a test takes, and"
-                    + " a dedicated server and a client without a world are never reached")
+            "the game's private tick timer: a dedicated server and a client without a world are"
+                    + " never reached, and the rest is the scale, which CI sees only as how long a"
+                    + " test takes")
     @Override
     public boolean setGameSpeed(double speed) {
         // A dedicated server has no client timer, and its tick rate is the server's own to set.
         if (getSide() != GrugSide.CLIENT) return false;
         MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
         if (server == null) return false;
-        GrugGameClock.speed = (float) speed;
-        server.tickRateManager().setTickRate(REAL_TIME_TICK_RATE * (float) speed);
+        if (speed > 1) {
+            GrugGameClock.LOCKSTEP.start();
+            GrugGameClock.speed = (float) speed;
+            server.tickRateManager().setTickRate(FAST_TICK_RATE);
+        } else {
+            GrugGameClock.speed = 1.0F;
+            GrugGameClock.LOCKSTEP.stop();
+            server.tickRateManager().setTickRate(REAL_TIME_TICK_RATE);
+        }
         return true;
     }
 

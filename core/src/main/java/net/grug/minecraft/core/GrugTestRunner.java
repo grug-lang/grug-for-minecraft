@@ -29,14 +29,18 @@ import java.util.function.LongSupplier;
  * between those invocations via the normal game loop.
  */
 public class GrugTestRunner {
-    /** How many ticks a single test may run for before we give up on it. */
-    // A test raises its own budget from its init export, with TestInitContext.set_max_ticks.
+    /**
+     * How many ticks a single test may run for before we give up on it, counted in the ticks of a
+     * real-time clock: the runner multiplies it by the speed the game's clock runs at, so it stays
+     * the same length of time. A test raises its own budget from its init export, with
+     * TestInitContext.set_max_ticks.
+     */
     public static final int DEFAULT_MAX_TEST_TICKS = 200; // 10 seconds at 20 ticks/sec
 
     /**
-     * The fastest a test may ask the game's clock to run, as a multiple of real time. Every loader
-     * runs at most 10 ticks for one rendered frame, so a speed beyond about 10 times the frame rate
-     * gains nothing; this bounds what a test can ask for, not what a loader delivers.
+     * The upper bound {@code GRUG_CI_MAX_GAME_SPEED} accepts. Every loader runs at most 10 ticks
+     * for one rendered frame, so a speed beyond about 10 times the frame rate gains nothing; what a
+     * loader runs at is {@link ModLoaderAdapter#maxGameSpeed()}, and this only bounds the cap.
      */
     public static final int MAX_GAME_SPEED = 100;
 
@@ -125,9 +129,18 @@ public class GrugTestRunner {
         default void closeScreenBeforeFirstTest() {}
 
         /**
+         * The fastest the loader's clock usefully runs, as a multiple of real time, which every
+         * test runs at. 1 means the loader cannot run its clock faster. See {@link
+         * ModLoaderAdapter#maxGameSpeed}.
+         */
+        default double maxGameSpeed() {
+            return 1;
+        }
+
+        /**
          * Sets how fast the game's clock runs and answers whether the loader did, which the runner
-         * asks for a test that opted in and, with 1, to put real time back when it ends. A loader
-         * that cannot keeps the default. See {@link ModLoaderAdapter#setGameSpeed}.
+         * asks for at the start of every test and, with 1, to put real time back when it ends. A
+         * loader that cannot keeps the default. See {@link ModLoaderAdapter#setGameSpeed}.
          */
         default boolean setGameSpeed(double speed) {
             return false;
@@ -181,10 +194,17 @@ public class GrugTestRunner {
     private final int maxGameSpeed;
 
     /**
-     * Whether the loader's clock is running faster than real time for the running test, so the end
-     * of the test knows it has a speed to put back.
+     * The multiple of real time the loader's clock runs at for the running test, which is 1 when
+     * the test runs in real time. The end of the test puts real time back only when it is above 1,
+     * and the test's tick budget is scaled by it. See {@link #tickBudget}.
      */
-    private boolean gameSpeedApplied = false;
+    private double appliedGameSpeed = 1;
+
+    /**
+     * What the loader answered when the last test asked for a faster clock, so the log says it when
+     * it changes and not for every test. Starts as the answer the first test is not told.
+     */
+    private Boolean lastGameSpeedAnswer = null;
 
     private int nextTestIndex = 0;
     private int passedCount = 0;
@@ -278,6 +298,11 @@ public class GrugTestRunner {
                     @Override
                     public void closeScreenBeforeFirstTest() {
                         GrugCore.getAdapter().closeOpenScreenForTest();
+                    }
+
+                    @Override
+                    public double maxGameSpeed() {
+                        return GrugCore.getAdapter().maxGameSpeed();
                     }
 
                     @Override
@@ -718,14 +743,17 @@ public class GrugTestRunner {
             // currentTick + 1. Refusing that once it reaches the cap is what bounds a test to
             // the test's budget of tick() calls, which is DEFAULT_MAX_TEST_TICKS unless its init
             // raised it, on ticks 0 through the budget - 1.
-            if (currentTick + 1 >= GrugTestState.maxTestTicks) {
+            long budget = tickBudget();
+            if (currentTick + 1 >= budget) {
                 // Deliberately loud: a test that keeps asking for more ticks should hang for the
                 // whole budget and then say so, rather than quietly passing or running forever.
                 fail(
                         path,
                         "Test exceeded "
-                                + GrugTestState.maxTestTicks
-                                + " ticks without finishing (did it forget to stop calling"
+                                + budget
+                                + " ticks"
+                                + budgetExplanation()
+                                + " without finishing (did it forget to stop calling"
                                 + " ctx.not_done()?)");
                 return;
             }
@@ -753,6 +781,30 @@ public class GrugTestRunner {
         destroyCurrentEntity();
         nextTestIndex++;
         currentTick = 0;
+    }
+
+    /**
+     * How many of the runner's ticks the running test may take: its budget of ticks (200, or what
+     * its init raised it to) times the speed the game's clock runs at.
+     *
+     * <p>The budget guards a wait for work that takes real time, such as a packet from the server,
+     * a file watcher or a resource reload, so it is a budget of time that happens to be counted in
+     * the ticks of a real-time clock. A clock that runs N times faster ticks N times as often in
+     * the same seconds, so the same wait needs N times as many ticks, and a budget left unscaled
+     * would shrink to a Nth of the time the test was sized for.
+     */
+    private long tickBudget() {
+        return Math.round(GrugTestState.maxTestTicks * appliedGameSpeed);
+    }
+
+    /** Says how the budget came about when the clock was sped up, and nothing otherwise. */
+    private String budgetExplanation() {
+        if (appliedGameSpeed <= 1) return "";
+        return " ("
+                + GrugTestState.maxTestTicks
+                + " ticks of real time, at game speed "
+                + format(appliedGameSpeed)
+                + "x)";
     }
 
     /**
@@ -931,7 +983,6 @@ public class GrugTestRunner {
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
-        GrugTestState.gameSpeed = 1;
 
         // Before the first tick, so the budget it sets is the one the whole test runs under.
         long initFnId = ops.getExportFnId("Test", "init");
@@ -959,47 +1010,41 @@ public class GrugTestRunner {
     }
 
     /**
-     * Runs the game's clock at the speed the starting test's init asked for, unless {@code
-     * GRUG_CI_MAX_GAME_SPEED} lowers it, and says so in the log. A test that did not ask, or was
-     * capped to real time, leaves the clock alone.
+     * Runs the game's clock at the fastest speed the loader runs at, unless {@code
+     * GRUG_CI_MAX_GAME_SPEED} lowers it, and says so in the log. Every test runs this way: there is
+     * no opt-in and no opt-out, because a test waits for a condition and so is right at any speed,
+     * and one that was not has to be fixed.
      *
-     * <p>A loader that cannot speed up its clock answers false, and the test then runs at 1x. That
-     * is the decided behaviour and not an accident: a test asks for a speed as a hint that it is
-     * correct at any speed, so it is slower there and still right. The line says it, so a reader of
-     * the log can tell the speed-up from a run that never had one.
+     * <p>A loader that cannot speed up its clock reports 1 and the test runs at 1x without a line,
+     * since that is how the game runs anyway. A clock capped to real time by {@code
+     * GRUG_CI_MAX_GAME_SPEED} is likewise left alone.
      */
     private void applyGameSpeed(String path) {
-        double speed = Math.min(GrugTestState.gameSpeed, maxGameSpeed);
-        if (speed <= 1) {
-            if (GrugTestState.gameSpeed > 1) {
-                System.out.println(
-                        "[GRUG CI] "
-                                + path
-                                + " asked for game speed "
-                                + format(GrugTestState.gameSpeed)
-                                + "x, and GRUG_CI_MAX_GAME_SPEED keeps it at 1x");
-            }
-            return;
-        }
-        gameSpeedApplied = boxBuilder.setGameSpeed(speed);
-        if (gameSpeedApplied) {
-            System.out.println("[GRUG CI] Game speed " + format(speed) + "x for " + path);
-        } else {
+        double speed = Math.min(boxBuilder.maxGameSpeed(), maxGameSpeed);
+        if (speed <= 1) return;
+        boolean applied = boxBuilder.setGameSpeed(speed);
+        if (applied) appliedGameSpeed = speed;
+        // Said once for the run, since every test gets the same answer, and again for a test that
+        // gets a different one.
+        if (!Boolean.valueOf(applied).equals(lastGameSpeedAnswer)) {
+            lastGameSpeedAnswer = applied;
             System.out.println(
-                    "[GRUG CI] "
-                            + path
-                            + " asked for game speed "
-                            + format(speed)
-                            + "x, which this loader cannot run, so it runs at 1x");
+                    applied
+                            ? "[GRUG CI] Game speed " + format(speed) + "x from " + path
+                            : "[GRUG CI] "
+                                    + path
+                                    + " could not be run at game speed "
+                                    + format(speed)
+                                    + "x, so it runs at 1x");
         }
     }
 
     /** Puts the game's clock back to real time if this test sped it up. */
     private void restoreGameSpeed() {
-        if (!gameSpeedApplied) return;
+        if (appliedGameSpeed <= 1) return;
         // Cleared first, so a loader that throws while restoring is not asked again by the cleanup
         // of the failure that follows.
-        gameSpeedApplied = false;
+        appliedGameSpeed = 1;
         boxBuilder.setGameSpeed(1);
     }
 
@@ -1041,7 +1086,6 @@ public class GrugTestRunner {
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
-        GrugTestState.gameSpeed = 1;
         // Whether the test passed, expected its error or failed, because a clock left fast would
         // run the next test's room and any capture it takes at a speed it never asked for.
         restoreGameSpeed();
