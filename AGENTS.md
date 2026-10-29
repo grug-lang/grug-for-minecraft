@@ -28,9 +28,9 @@ are by members only (#617).
   is yours. Read the issue, the pull request description and the whole diff, ask what the change
   exists for and check that exact case (a watcher has to work while a run is still going, not only
   on a finished one), and think of an empty, odd or failing input; a subagent's check of the easy
-  case proves nothing about the real one. Nothing is pushed to `main`. A quick edit to markdown only (an AGENTS.md fix, say) may be
-  merged without waiting for any CI, and neither its pull request run nor the push-to-`main` run
-  after it needs checking. Before merging a base pull request that another one is stacked on,
+  case proves nothing about the real one. Nothing is pushed to `main`. A quick edit to markdown
+  only (an AGENTS.md fix, say) may be merged without waiting for any CI, and neither its pull
+  request run nor the push-to-`main` run after it needs checking. Before merging a base pull request that another one is stacked on,
   retarget the other to `main`, or `--delete-branch` closes it.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
@@ -223,7 +223,8 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
   that opens a GUI is the one that closes it.
 - A loader must name the level in its test save exactly, or the game generates a new random world.
 - Block ids are handed out in name order, so a new block can move another's id. `high_block_id`
-  depends on `zz_coverage_high_id` being last: name a new block in `mods/coverage/` to sort before it.
+  depends on `zz_coverage_high_id` being last: name a new block in `mods/coverage/` to sort before
+  it.
 - Wait for a condition rather than a fixed tick count. A fixed count is right only when the thing
   waited for is itself a duration, such as an item travelling along a pipe. A GUI opening, a chunk
   arriving or a world settling has a condition, so wait on it even when it is awkward to name.
