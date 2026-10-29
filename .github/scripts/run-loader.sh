@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# scripts/ci/run-loader.sh <loader-dir-name> <build|run|update-goldens|production>
+# scripts/ci/run-loader.sh <loader-dir-name> <build|build-run|run|update-goldens|production>
+#
+# build compiles the loader and writes its layer of the universal jar, without launching the game.
+# build-run is build followed by run in one Gradle invocation, so the job pays one Gradle start and
+# one configuration instead of two. The game's time limit starts when Gradle starts the runClient
+# task, not before, and a Gradle failure before that point is reported as a failed build.
 #
 # GRUG_CI_BOOT_ONLY, when set, makes the game stop itself with status 0 as soon as grug has compiled
 # its mods (GrugBootOnly in core prints GRUG_LOADED_MSG first), instead of waiting for the tests. It
@@ -13,8 +18,8 @@
 
 set -uo pipefail
 
-if [ "$#" -ne 2 ] || { [ "$2" != build ] && [ "$2" != run ] && [ "$2" != update-goldens ] && [ "$2" != production ]; }; then
-  echo "Usage: $0 <loader-dir-name> <build|run|update-goldens|production>" >&2
+if [ "$#" -ne 2 ] || { [ "$2" != build ] && [ "$2" != build-run ] && [ "$2" != run ] && [ "$2" != update-goldens ] && [ "$2" != production ]; }; then
+  echo "Usage: $0 <loader-dir-name> <build|build-run|run|update-goldens|production>" >&2
   exit 2
 fi
 LOADER="$1"
@@ -117,6 +122,13 @@ if [ "$PHASE" = build ]; then
   echo "==> Building $LOADER and its layer of the universal jar (no game launch)"
   ./gradlew "${task_prefix}build" "${task_prefix}layerJar" -x test "${gradle_args[@]}"
   exit
+fi
+
+# One invocation for both: the build tasks come first, so a Gradle failure in them stops the run
+# before runClient starts, and runClient follows. -x test is the same exclusion the build phase uses.
+run_tasks=("${task_prefix}runClient")
+if [ "$PHASE" = build-run ]; then
+  run_tasks=("${task_prefix}build" "${task_prefix}layerJar" "${task_prefix}runClient" -x test)
 fi
 
 # The tests the run is about to load. A reference run points GRUG_MODS_DIR at a harness-only
@@ -242,7 +254,11 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-echo "==> Launching $LOADER, waiting up to ${timeout_secs}s for the tests to pass..."
+if [ "$PHASE" = build-run ]; then
+  echo "==> Building and launching $LOADER in one Gradle invocation, waiting up to ${timeout_secs}s from the game's start for the tests to pass..."
+else
+  echo "==> Launching $LOADER, waiting up to ${timeout_secs}s for the tests to pass..."
+fi
 : > "$LOG_FILE"
 
 # Follow the log in the background so we get real-time output in the CI console
@@ -256,13 +272,37 @@ SETSID=setsid
 if [ "$PHASE" = production ]; then
   $SETSID "${REPO_ROOT}/.github/scripts/launch-production.sh" "$LOADER" "$GAME_DIR" "$UNIVERSAL_JAR" >"$LOG_FILE" 2>&1 &
 else
-  $SETSID ./gradlew "${task_prefix}runClient" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
+  $SETSID ./gradlew "${run_tasks[@]}" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
 fi
 gradle_pid=$!
 
+# Where the game's own output starts in the log, as a byte offset for tail -c. A run phase starts
+# with the game, so that is the whole log. In build-run the log first holds the build, whose output
+# (a compiler warning that mentions a failure, say) must not be read as the game's, so the game is
+# only looked for after the line Gradle prints when it starts the runClient task, and the time limit
+# starts there too: a slow build never eats the game's budget. The build has a limit of its own, a
+# guard against a hang that is well inside the job's.
+log_offset=1
+game_started=true
+# The task is :runClient in a standalone loader's own build, which has no task prefix.
+game_start_re="^> Task ${task_prefix:-:}runClient( |\$)"
+deadline=$((SECONDS + timeout_secs))
+if [ "$PHASE" = build-run ]; then
+  game_started=false
+  deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
+fi
+
+# grep over the game's part of the log.
+game_log_grep() {
+  if [ "$log_offset" -le 1 ]; then
+    grep "$@" "$LOG_FILE"
+  else
+    grep "$@" < <(tail -c "+${log_offset}" "$LOG_FILE")
+  fi
+}
+
 status=timeout
 reached_title=false
-deadline=$((SECONDS + timeout_secs))
 while [ "$SECONDS" -lt "$deadline" ]; do
   # Sampled before the log is read, never after: a process that dies between the reads and a
   # liveness test written last would leave its final line unread and be reported as a bare exit.
@@ -271,6 +311,24 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   # exactly that window (#597).
   alive=true
   kill -0 "$gradle_pid" 2>/dev/null || alive=false
+
+  if [ "$game_started" = false ]; then
+    start_line=$(grep -b -m1 -E "$game_start_re" "$LOG_FILE" || true)
+    if [ -n "$start_line" ]; then
+      game_started=true
+      log_offset=$(( ${start_line%%:*} + 1 ))
+      deadline=$((SECONDS + timeout_secs))
+      echo "==> The build of $LOADER finished and its game starts. Waiting up to ${timeout_secs}s for the tests to pass..."
+    elif [ "$alive" = false ]; then
+      # Gradle ended before it started the game, so the build failed. A compile error is that, and
+      # the log above says which; it is not a game that exited.
+      status=buildfailed
+      break
+    else
+      sleep 1
+      continue
+    fi
+  fi
 
   if [ "$reached_title" = false ] && grep -q -F "$BOOT_MSG" "$LOG_FILE"; then
     echo "==> $LOADER reached the title screen. Waiting for tests to complete..."
@@ -282,12 +340,12 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   # compiled, which is everything specific to grug on the platform. A crash before that is still
   # caught by the checks below.
   if [ -n "${GRUG_CI_BOOT_ONLY:-}" ] && grep -q -F "$GRUG_LOADED_MSG" "$LOG_FILE"; then status=success; break; fi
-  if grep -q "FAIL " "$LOG_FILE"; then status=failed; break; fi
-  if grep -q -E "$crash_re" "$LOG_FILE"; then status=crashed; break; fi
+  if game_log_grep -q "FAIL "; then status=failed; break; fi
+  if game_log_grep -q -E "$crash_re"; then status=crashed; break; fi
   # Checked before the liveness test below, because a Rust panic is written to the log a moment
   # before the process dies: on the poll that sees both, the liveness test would report a bare
   # "exited" and the panic, which is the whole diagnosis, would go unread.
-  if grep -q -E "$ABORT_RE" "$LOG_FILE"; then status=aborted; break; fi
+  if game_log_grep -q -E "$ABORT_RE"; then status=aborted; break; fi
   if [ "$alive" = false ]; then status=exited; break; fi
   sleep 1
 done
@@ -329,7 +387,7 @@ case "$status" in
     ;;
   failed)
     echo "==> $LOADER tests failed." >&2
-    grep -n -B2 -A10 "FAIL " "$LOG_FILE" >&2 || true
+    game_log_grep -n -B2 -A10 "FAIL " >&2 || true
     # The loop classifies on the first FAIL line, so a panic that lands after it, during shutdown
     # for example, would otherwise be reported as a plain test failure and never surfaced.
     report_native_abort ""
@@ -341,7 +399,7 @@ case "$status" in
       echo "==> $LOADER's game thread crashed BEFORE reaching the title screen." >&2
     fi
     echo "==> First fatal error in $LOG_FILE:" >&2
-    grep -n -m1 -B2 -A14 -E "$crash_re" "$LOG_FILE" >&2 || true
+    game_log_grep -n -m1 -B2 -A14 -E "$crash_re" >&2 || true
     ;;
   aborted)
     # The poll loop matched a panic that aborts the process, so this normally returns at once. Stop
@@ -362,6 +420,15 @@ case "$status" in
     fi
     report_native_abort "$exit_code"
     ;;
+  buildfailed)
+    wait "$gradle_pid"
+    exit_code=$?
+    echo "==> Gradle failed to build $LOADER (exit code $exit_code), so the game was never launched." >&2
+    # The compiler's complaints, then Gradle's own account of what went wrong.
+    grep -n -m20 "error:" "$LOG_FILE" >&2 || true
+    grep -n -m1 -A12 "^\* What went wrong:" "$LOG_FILE" >&2 || true
+    echo "==> See $LOG_FILE" >&2
+    ;;
   exited)
     wait "$gradle_pid"
     exit_code=$?
@@ -376,7 +443,9 @@ case "$status" in
     echo "==> See $LOG_FILE" >&2
     ;;
   timeout)
-    if [ "$reached_title" = true ]; then
+    if [ "$game_started" = false ]; then
+      echo "==> Timed out after ${GRUG_CI_BUILD_TIMEOUT:-600}s building $LOADER, before its game started." >&2
+    elif [ "$reached_title" = true ]; then
       echo "==> Timed out after ${timeout_secs}s waiting for $LOADER tests to pass (but it DID reach the title screen)." >&2
     else
       echo "==> Timed out after ${timeout_secs}s waiting for $LOADER to reach the title screen." >&2

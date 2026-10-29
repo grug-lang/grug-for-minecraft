@@ -471,13 +471,12 @@ jobs:
             libgl1 libgl1-mesa-dri libglx-mesa0 \
             libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
 
-      - name: Build (${{ matrix.dir }})
-        run: .github/scripts/run-loader.sh "${{ matrix.dir }}" build
-        env:
-          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
-
-      - name: Run tests (${{ matrix.dir }})
-        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" run
+      # One Gradle invocation builds the loader and its layer and then runs the game (#678), so the
+      # job pays one Gradle start and one configuration. A build failure still fails the step before
+      # any game exists: the script tells it from a game that exited, and the game's time limit
+      # starts when Gradle starts the runClient task. The layer job stays a build-only job.
+      - name: Build and run tests (${{ matrix.dir }})
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" build-run
         env:
           # Empty for every loader except 1.2.5-forge; its game JVM uses this Java 8.
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
