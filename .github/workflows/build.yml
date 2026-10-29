@@ -833,12 +833,14 @@ jobs:
           reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL"
 
       # Kept between runs for the reason the Linux production job gives.
-      - name: Cache the LWJGL launcher.sh downloads (b1.7.3-stationapi only)
-        if: matrix.dir == 'b1.7.3-stationapi'
+      - name: Cache Legacy Fabric's LWJGL (Alpha and Beta loaders only)
+        if: matrix.dir == 'a1.1.2_01-ornithe' || matrix.dir == 'b1.7.3-ornithe' || matrix.dir == 'b1.7.3-stationapi'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/grug-production/lwjgl-*
-          key: grug-lwjgl-${{ runner.os }}-${{ hashFiles('.github/scripts/launcher.sh') }}
+          path: |
+            ~/.cache/grug-production/lwjgl-*
+            ~/.cache/grug-production/main/libraries/org/lwjgl/lwjgl
+          key: grug-lwjgl-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/scripts/launcher.sh') }}
 
       # Relative, because the script reads it from Git Bash, where a Windows path with backslashes is
       # not one.
@@ -984,15 +986,19 @@ jobs:
           name: grug-universal
           path: universal
 
-      # Legacy Fabric's LWJGL, which launcher.sh downloads for Babric's launch into a directory that
-      # lived only as long as the job. Kept between runs, an outage of maven.legacyfabric.net (#643)
-      # does not reach this job.
-      - name: Cache the LWJGL launcher.sh downloads (b1.7.3-stationapi only)
-        if: matrix.dir == 'b1.7.3-stationapi'
+      # Legacy Fabric's LWJGL, which the Alpha and Beta games need from maven.legacyfabric.net: Babric's
+      # launch has launcher.sh download it (lwjgl-*), and Ornithe's profile names it for the launcher
+      # itself (main/libraries). Both lived only as long as the job. Kept between runs, an outage of
+      # that host (#643) does not reach these jobs. One entry per loader, because an entry is written
+      # once by whichever job finishes first.
+      - name: Cache Legacy Fabric's LWJGL (Alpha and Beta loaders only)
+        if: matrix.dir == 'a1.1.2_01-ornithe' || matrix.dir == 'b1.7.3-ornithe' || matrix.dir == 'b1.7.3-stationapi'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/grug-production/lwjgl-*
-          key: grug-lwjgl-${{ runner.os }}-${{ hashFiles('.github/scripts/launcher.sh') }}
+          path: |
+            ~/.cache/grug-production/lwjgl-*
+            ~/.cache/grug-production/main/libraries/org/lwjgl/lwjgl
+          key: grug-lwjgl-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/scripts/launcher.sh') }}
 
       - name: Run tests in an installed game (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" production
