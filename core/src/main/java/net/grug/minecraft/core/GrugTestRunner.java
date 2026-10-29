@@ -114,6 +114,32 @@ public class GrugTestRunner {
         default void closeScreenBeforeFirstTest() {}
     }
 
+    /**
+     * Where the run's coverage is cut into the segments the coverage gate counts. A seam like
+     * {@link TestEntityOps}: the unit tests drive the runner without a JaCoCo agent to cut. See
+     * {@link GrugCoverage} and #626.
+     */
+    public interface CoverageRecorder {
+        /**
+         * The next test, of {@code mod}, is about to start. Called before the test creates its
+         * entity, so everything the test does lands after the call.
+         */
+        void testStarting(String mod);
+
+        /** Every test passed. Called before the run announces it, so a failure here is seen. */
+        void runPassed();
+    }
+
+    /** The recorder of a runner with no agent to cut. */
+    private static final CoverageRecorder NO_COVERAGE =
+            new CoverageRecorder() {
+                @Override
+                public void testStarting(String mod) {}
+
+                @Override
+                public void runPassed() {}
+            };
+
     /** The builder of a runner with no game: there is no room and no item to sweep. */
     private static final TestBoxBuilder NO_BOX =
             new TestBoxBuilder() {
@@ -127,6 +153,7 @@ public class GrugTestRunner {
     private final TestEntityOps ops;
     private final LongSupplier clock;
     private final TestBoxBuilder boxBuilder;
+    private final CoverageRecorder coverage;
     private final List<Map.Entry<String, Long>> tests;
     private final int totalCount;
 
@@ -224,7 +251,8 @@ public class GrugTestRunner {
                         GrugCore.getAdapter().closeOpenScreenForTest();
                     }
                 },
-                repeatsFromEnv());
+                repeatsFromEnv(),
+                GrugCoverage.fromEnvironment());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -257,7 +285,24 @@ public class GrugTestRunner {
             LongSupplier clock,
             TestBoxBuilder boxBuilder,
             int repeats) {
+        this(fileIds, referenceErrors, ops, clock, boxBuilder, repeats, NO_COVERAGE);
+    }
+
+    /**
+     * Visible for tests: the same, with the recorder the loaders wire to the JaCoCo agent. The
+     * other constructors cut no coverage, because a unit test's agent is the build's own and a
+     * reset would throw away what the unit tests reached so far.
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock,
+            TestBoxBuilder boxBuilder,
+            int repeats,
+            CoverageRecorder coverage) {
         this.ops = ops;
+        this.coverage = coverage;
         this.clock = clock;
         this.boxBuilder = boxBuilder;
         this.repeats = repeats;
@@ -383,18 +428,18 @@ public class GrugTestRunner {
                 testNanos.clear();
                 return;
             }
-            // Marked before the dump rather than after it, so that a dump which throws stops the
+            // Marked before the write rather than after it, so that a write which throws stops the
             // loaders from queueing this runner again and repeating one failure once per tick.
             finished = true;
             if (passedCount == totalCount) {
                 // Before announcing the run, because run-loader.sh reads that line as the whole run
                 // succeeding and stops watching: anything that goes wrong after it is never looked
-                // at, so a failed dump would have left the run green with no coverage data behind
-                // it. Dumping here also makes the line mean what it says, which is that the tests
+                // at, so a failed write would have left the run green with no coverage data behind
+                // it. Writing here also makes the line mean what it says, which is that the tests
                 // passed and their coverage was recorded. The times go first for the same reason,
-                // and before the dump because a dump that throws is exactly when they are wanted.
+                // and before the write because a write that throws is exactly when they are wanted.
                 printTestTimes();
-                GrugCoverage.dump();
+                coverage.runPassed();
                 System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
             }
             return;
@@ -668,6 +713,11 @@ public class GrugTestRunner {
 
         Map.Entry<String, Long> entry = tests.get(nextTestIndex);
         String path = entry.getKey();
+
+        // Before anything the test does, so the test's entity and init land in its mod's segment of
+        // the coverage. The tests are sorted by path, so the mods follow one another in blocks and
+        // this cuts only where the mod changes. See #626.
+        coverage.testStarting(owningMod(path));
 
         // Started before the entity exists, so the time includes the setup a test needs rather than
         // reporting only the part after it, which would make the cheapest test look free.

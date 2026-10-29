@@ -554,6 +554,85 @@ class GrugTestRunnerTest {
         assertTrue(ops.destroyed == 2);
     }
 
+    /** Notes what the runner tells the coverage recorder, in order. */
+    private static class CoverageLog implements GrugTestRunner.CoverageRecorder {
+        final List<String> events = new ArrayList<>();
+
+        @Override
+        public void testStarting(String mod) {
+            events.add("starting " + mod);
+        }
+
+        @Override
+        public void runPassed() {
+            events.add("passed");
+        }
+    }
+
+    private GrugTestRunner runnerWithCoverage(
+            FakeOps ops, Map<String, Long> files, int repeats, CoverageLog coverage) {
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                new SweepLog(new ArrayList<>()),
+                repeats,
+                coverage);
+    }
+
+    @Test
+    void tellsTheCoverageRecorderWhichModEachTestBelongsToInRunOrder() {
+        // Put in out of order, so the order the recorder hears is the runner's own sort by path.
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("jei/code/a-Test.grug", 1L);
+        files.put("coverage/tests/b-Test.grug", 2L);
+        files.put("buildcraft/code/a-Test.grug", 3L);
+        files.put("coverage/tests/a-Test.grug", 4L);
+        CoverageLog coverage = new CoverageLog();
+        GrugTestRunner runner = runnerWithCoverage(new FakeOps(), files, 1, coverage);
+        runToEnd(runner);
+
+        assertTrue(runner.isFinished());
+        assertEquals(
+                List.of(
+                        "starting buildcraft",
+                        "starting coverage",
+                        "starting coverage",
+                        "starting jei",
+                        "passed"),
+                coverage.events);
+    }
+
+    @Test
+    void tellsTheCoverageRecorderAgainForEveryRepeat() {
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("buildcraft/code/a-Test.grug", 1L);
+        files.put("coverage/tests/a-Test.grug", 2L);
+        CoverageLog coverage = new CoverageLog();
+        runToEnd(runnerWithCoverage(new FakeOps(), files, 2, coverage));
+
+        assertEquals(
+                List.of(
+                        "starting buildcraft",
+                        "starting coverage",
+                        "starting buildcraft",
+                        "starting coverage",
+                        "passed"),
+                coverage.events);
+    }
+
+    @Test
+    void doesNotTellTheCoverageRecorderThatAFailedRunPassed() {
+        FakeOps ops = new FakeOps();
+        ops.completed = false;
+        CoverageLog coverage = new CoverageLog();
+        runToEnd(runnerWithCoverage(ops, Map.of("coverage/tests/a-Test.grug", 1L), 1, coverage));
+
+        assertEquals(List.of("starting coverage"), coverage.events);
+    }
+
     @Test
     void tickIsANoOpAfterTheRunnerFinished() {
         FakeOps ops = new FakeOps();
