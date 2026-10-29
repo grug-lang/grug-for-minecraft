@@ -259,7 +259,7 @@ def affected_mods(repo: Path, base: str, head: str):
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("base", help="the commit the pull request is compared with")
     parser.add_argument("head", help="the commit that is built")
     parser.add_argument("--repo", default=".", help="the git repository (default: the current one)")
