@@ -16,4 +16,10 @@ public interface GrugClientAccess {
 
     /** Shuts the game down. */
     void grug$shutdown();
+
+    /**
+     * Scales the game's tick timer, which is private to {@code Minecraft}: {@code 1} is the 20
+     * ticks per second of real time. See {@link GrugClientHooks#setGameSpeed}.
+     */
+    void grug$setGameSpeed(float speed);
 }

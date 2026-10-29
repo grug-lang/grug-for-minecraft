@@ -1,0 +1,17 @@
+# Covers TestInitContext.set_game_speed: a test that asks for a faster clock still counts game ticks
+# and runs to the end, on a loader that can run its clock faster and on one that cannot, which runs
+# it at 1x. How fast it ran is not something a test can see, because the speed changes only how many
+# seconds the same ticks take, so the runner's log is where the speed shows (#633). The room and the
+# block the test places are built at real time and the test is back at real time when it ends, which
+# the tests that run after it, whose goldens would shift otherwise, are the proof of.
+export init(ctx: TestInitContext) {
+    ctx.set_game_speed(10)
+}
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() < 100 {
+        ctx.not_done()
+    } else {
+        ctx.assert(ctx.current_tick() == 100, "A faster clock changes how long a tick takes, not how many the test counts.")
+    }
+}

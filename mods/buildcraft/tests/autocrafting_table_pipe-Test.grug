@@ -22,6 +22,13 @@ pipe_placed_at: number = -1
 # still there on the delayed check and the dropped-item assertion still fails on it.
 pipe_bread_at: number = -1
 
+# Waiting for the pipe is waiting for the game's clock and nothing is drawn or read from a frame,
+# so the clock may run faster: the test counts the same game ticks and takes a fraction of the
+# seconds. See TestInitContext.set_game_speed.
+export init(ctx: TestInitContext) {
+    ctx.set_game_speed(10)
+}
+
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup_table(ctx)

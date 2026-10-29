@@ -220,6 +220,21 @@ public class GrugClientHooks {
         return instance.testRunner != null;
     }
 
+    /**
+     * Runs the game's clock at {@code speed} times real time and answers whether it did, which is
+     * every time this version's client exists to speed up.
+     *
+     * <p>The version's single-process game ticks the world from the client's own tick, which {@code
+     * Minecraft.run} takes from a timer, so scaling that timer speeds the world, the block entities
+     * and the test runner up together. The timer hands out at most 10 ticks for a frame, so what a
+     * speed delivers is bounded by about ten times the frame rate.
+     */
+    public static boolean setGameSpeed(float speed) {
+        if (instance == null) return false;
+        instance.access.grug$setGameSpeed(speed);
+        return true;
+    }
+
     /** Registers the R and M keybinds; safe to call once from the mixin's static initializer. */
     @GrugGenerated("dev-only: R runs tests and M forces the test resolution by hand")
     public static void registerKeybinds() {

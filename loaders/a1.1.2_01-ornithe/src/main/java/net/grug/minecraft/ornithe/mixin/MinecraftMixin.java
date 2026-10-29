@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.mixin;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.TickTimer;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
 import net.minecraft.client.gui.GameGui;
 
@@ -17,6 +18,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MinecraftMixin implements GrugClientAccess {
 
     @Shadow public ClientPlayerEntity player;
+
+    // The timer that decides how many ticks Minecraft.run takes for a frame, which is the game's
+    // clock. Its tpsScale is public and multiplies the ticks per second.
+    @Shadow private TickTimer timer;
 
     @Shadow public GameGui gui;
 
@@ -56,6 +61,11 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     @Override
     public void grug$resize(int width, int height) {
         this.resize(width, height);
+    }
+
+    @Override
+    public void grug$setGameSpeed(float speed) {
+        this.timer.tpsScale = speed;
     }
 
     @Override

@@ -104,6 +104,7 @@ class GrugTestRunnerTest {
         GrugTestState.currentTestMod = null;
         GrugTestState.testOrigin = null;
         GrugTestState.maxTestTicks = GrugTestRunner.DEFAULT_MAX_TEST_TICKS;
+        GrugTestState.gameSpeed = 1;
         GrugTestState.runtimeErrorCount = 0;
         GrugErrors.printQueue.clear();
         GrugErrors.runtimeErrorQueue.clear();
@@ -1082,6 +1083,243 @@ class GrugTestRunnerTest {
         public void sweepItems() {
             log.add("sweep");
         }
+    }
+
+    /** A room builder whose clock logs every speed it is asked for, and answers as told. */
+    private static final class ClockLog implements GrugTestRunner.TestBoxBuilder {
+        final List<String> log;
+        final boolean supported;
+
+        ClockLog(List<String> log, boolean supported) {
+            this.log = log;
+            this.supported = supported;
+        }
+
+        @Override
+        public void build(int radius) {
+            log.add("build");
+        }
+
+        @Override
+        public void sweepItems() {}
+
+        @Override
+        public boolean setGameSpeed(double speed) {
+            log.add("speed " + (long) speed);
+            return supported;
+        }
+    }
+
+    private static GrugTestRunner clockRunner(
+            FakeOps ops, Map<String, Long> files, GrugTestRunner.TestBoxBuilder box, int max) {
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                box,
+                1,
+                new GrugTestRunner.CoverageRecorder() {
+                    @Override
+                    public void testStarting(String mod) {}
+
+                    @Override
+                    public void runPassed() {}
+                },
+                Set.of(),
+                max);
+    }
+
+    @Test
+    void aTestThatAsksForSpeedRunsFastAfterTheRoomAndGetsRealTimeBackWhenItEnds() {
+        FakeOps ops = new FakeOps();
+        List<String> log = new ArrayList<>();
+        ops.onInit = () -> GrugTestState.gameSpeed = 10;
+        ops.onCall = () -> log.add("tick");
+        GrugTestRunner runner =
+                clockRunner(
+                        ops,
+                        Map.of("mymod/code/a-Test.grug", 1L),
+                        new ClockLog(log, true),
+                        GrugTestRunner.MAX_GAME_SPEED);
+
+        String printed = capture(() -> runToEnd(runner));
+
+        assertEquals(
+                List.of("build", "speed 10", "tick", "speed 1"),
+                log,
+                "The room is built at real time, the test ticks fast, and real time returns.");
+        assertTrue(printed.contains("Game speed 10x for mymod/code/a-Test.grug"), printed);
+        assertEquals(1, GrugTestState.gameSpeed, "The next test starts from real time.");
+    }
+
+    @Test
+    void aTestThatDidNotAskNeverTouchesTheClock() {
+        FakeOps ops = new FakeOps();
+        List<String> log = new ArrayList<>();
+        GrugTestRunner runner =
+                clockRunner(
+                        ops,
+                        Map.of("mymod/code/a-Test.grug", 1L),
+                        new ClockLog(log, true),
+                        GrugTestRunner.MAX_GAME_SPEED);
+
+        String printed = capture(() -> runToEnd(runner));
+
+        assertEquals(List.of("build"), log);
+        assertFalse(printed.contains("game speed"), printed);
+    }
+
+    @Test
+    void theSpeedGoesBackToRealTimeForTheNextTest() {
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        ops.pathsAre(files);
+        List<String> log = new ArrayList<>();
+        List<Double> seen = new ArrayList<>();
+        ops.onInit =
+                () -> {
+                    seen.add(GrugTestState.gameSpeed);
+                    if (ops.activePath.startsWith("mymod/code/a")) GrugTestState.gameSpeed = 50;
+                };
+        GrugTestRunner runner =
+                clockRunner(ops, files, new ClockLog(log, true), GrugTestRunner.MAX_GAME_SPEED);
+
+        capture(() -> runToEnd(runner));
+
+        assertEquals(List.of(1.0, 1.0), seen, "Each test starts from real time.");
+        assertEquals(
+                List.of("build", "speed 50", "speed 1", "build"),
+                log,
+                "The second test builds its room at real time and never asks for a speed.");
+    }
+
+    @Test
+    void aFailingTestStillGetsRealTimeBack() {
+        FakeOps ops = new FakeOps();
+        List<String> log = new ArrayList<>();
+        ops.onInit = () -> GrugTestState.gameSpeed = 10;
+        ops.throwOnCall = new RuntimeException("boom");
+        GrugTestRunner runner =
+                clockRunner(
+                        ops,
+                        Map.of("mymod/code/a-Test.grug", 1L),
+                        new ClockLog(log, true),
+                        GrugTestRunner.MAX_GAME_SPEED);
+
+        capture(() -> runToEnd(runner));
+
+        assertTrue(runner.isFinished());
+        assertEquals(List.of("build", "speed 10", "speed 1"), log);
+    }
+
+    @Test
+    void aTestThatExpectsAnErrorStillGetsRealTimeBack() {
+        FakeOps ops = new FakeOps();
+        List<String> log = new ArrayList<>();
+        ops.onInit = () -> GrugTestState.gameSpeed = 10;
+        ops.completed = false;
+        ops.onCall =
+                () -> {
+                    GrugTestState.testExpectedError = "oops";
+                    GrugTestState.testRuntimeErrors.add("oops happened");
+                };
+        GrugTestRunner runner =
+                clockRunner(
+                        ops,
+                        Map.of("mymod/code/a-Test.grug", 1L),
+                        new ClockLog(log, true),
+                        GrugTestRunner.MAX_GAME_SPEED);
+
+        capture(() -> runToEnd(runner));
+
+        assertEquals(List.of("build", "speed 10", "speed 1"), log);
+    }
+
+    @Test
+    void aLoaderThatCannotSpeedUpRunsTheTestAtRealTimeAndSaysSo() {
+        FakeOps ops = new FakeOps();
+        List<String> log = new ArrayList<>();
+        ops.onInit = () -> GrugTestState.gameSpeed = 10;
+        GrugTestRunner runner =
+                clockRunner(
+                        ops,
+                        Map.of("mymod/code/a-Test.grug", 1L),
+                        new ClockLog(log, false),
+                        GrugTestRunner.MAX_GAME_SPEED);
+
+        String printed = capture(() -> runToEnd(runner));
+
+        assertEquals(
+                List.of("build", "speed 10"), log, "Nothing was applied, so nothing is restored.");
+        assertTrue(runner.isFinished());
+        assertTrue(GrugErrors.runtimeErrorQueue.stream().noneMatch(m -> m.contains("FAIL")));
+        assertTrue(
+                printed.contains(
+                        "mymod/code/a-Test.grug asked for game speed 10x, which this loader"
+                                + " cannot run, so it runs at 1x"),
+                printed);
+    }
+
+    @Test
+    void theSeamDefaultsToAClockThatCannotBeSpedUp() {
+        assertFalse(new SweepLog(new ArrayList<>()).setGameSpeed(10));
+    }
+
+    @Test
+    void theLimitCapsTheSpeedAndOneKeepsEveryTestAtRealTime() {
+        FakeOps capped = new FakeOps();
+        List<String> cappedLog = new ArrayList<>();
+        capped.onInit = () -> GrugTestState.gameSpeed = 50;
+        GrugTestRunner cappedRunner =
+                clockRunner(
+                        capped,
+                        Map.of("mymod/code/a-Test.grug", 1L),
+                        new ClockLog(cappedLog, true),
+                        4);
+        capture(() -> runToEnd(cappedRunner));
+        assertEquals(List.of("build", "speed 4", "speed 1"), cappedLog);
+
+        FakeOps off = new FakeOps();
+        List<String> offLog = new ArrayList<>();
+        off.onInit = () -> GrugTestState.gameSpeed = 50;
+        GrugTestRunner offRunner =
+                clockRunner(
+                        off, Map.of("mymod/code/a-Test.grug", 1L), new ClockLog(offLog, true), 1);
+        String printed = capture(() -> runToEnd(offRunner));
+        assertEquals(List.of("build"), offLog);
+        assertTrue(
+                printed.contains(
+                        "asked for game speed 50x, and GRUG_CI_MAX_GAME_SPEED keeps it at 1x"),
+                printed);
+    }
+
+    @Test
+    void parsesTheLimitOnGameSpeed() {
+        assertEquals(GrugTestRunner.MAX_GAME_SPEED, GrugTestRunner.parseMaxGameSpeed(null));
+        assertEquals(GrugTestRunner.MAX_GAME_SPEED, GrugTestRunner.parseMaxGameSpeed(""));
+        assertEquals(1, GrugTestRunner.parseMaxGameSpeed("1"));
+        assertEquals(100, GrugTestRunner.parseMaxGameSpeed("100"));
+        for (String bad : new String[] {"0", "-3", "101", "2.5", "fast", " "}) {
+            assertThrows(
+                    IllegalStateException.class, () -> GrugTestRunner.parseMaxGameSpeed(bad), bad);
+        }
+    }
+
+    @Test
+    void anAdapterThatDoesNotOverrideTheClockCannotSpeedItUp() throws Throwable {
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) ->
+                                        java.lang.reflect.InvocationHandler.invokeDefault(
+                                                proxy, method, args));
+
+        assertFalse(adapter.setGameSpeed(10));
     }
 
     @Test

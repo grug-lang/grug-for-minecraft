@@ -12,6 +12,13 @@ full_target_pipe: Option[BlockEntity] = Option.new()
 # undamaged means a merge into the target would also change its damage and be caught.
 sword_damage: number = 7
 
+# Waiting for the pipe is waiting for the game's clock and nothing is drawn or read from a frame,
+# so the clock may run faster: the test counts the same game ticks and takes a fraction of the
+# seconds. See TestInitContext.set_game_speed.
+export init(ctx: TestInitContext) {
+    ctx.set_game_speed(10)
+}
+
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _full_target_setup(ctx)

@@ -429,6 +429,36 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return blockEntityNbt;
     }
 
+    /**
+     * The ticks per second of the game's clock in real time, which vanilla's tick rate defaults to.
+     */
+    private static final float REAL_TIME_TICK_RATE = 20.0F;
+
+    /**
+     * Runs the world and the client's tick faster than real time, together.
+     *
+     * <p>Two clocks keep time here, and both are moved. The integrated server ticks the world, the
+     * block entities and the runner itself on its own thread at the tick rate its tick rate manager
+     * holds, which is what vanilla's {@code /tick rate} sets, and it tells the client. The client
+     * ticks from its own timer, and the timer never goes faster than 20 a second on the server's
+     * word, so {@code MinecraftTimerMixin} scales it from {@link GrugGameClock}. The runner is
+     * queued from the client's tick, so with only the server sped up it would run 20 times a second
+     * against a world that ran many times as fast.
+     *
+     * <p>The client still runs at most 10 ticks for a frame, so what a speed delivers is bounded by
+     * about ten times the frame rate, and the server skips ticks it cannot keep up with.
+     */
+    @Override
+    public boolean setGameSpeed(double speed) {
+        // A dedicated server has no client timer, and its tick rate is the server's own to set.
+        if (getSide() != GrugSide.CLIENT) return false;
+        MinecraftServer server = Minecraft.getInstance().getSingleplayerServer();
+        if (server == null) return false;
+        GrugGameClock.speed = (float) speed;
+        server.tickRateManager().setTickRate(REAL_TIME_TICK_RATE * (float) speed);
+        return true;
+    }
+
     @Override
     public void tickBlockEntity(Object blockEntityObj) {
         ((GrugBlockEntity) blockEntityObj).tick();

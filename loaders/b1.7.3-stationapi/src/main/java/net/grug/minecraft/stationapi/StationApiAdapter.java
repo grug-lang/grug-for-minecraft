@@ -466,6 +466,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean setGameSpeed(double speed) {
+        // A dedicated server has no client timer: its clock is its own tick loop.
+        if (getSide() != GrugSide.CLIENT) return false;
+        return GrugClientHooks.setGameSpeed((float) speed);
+    }
+
+    @Override
     public void tickBlockEntity(Object blockEntityObj) {
         ((net.grug.minecraft.stationapi.block.entity.GrugBlockEntity) blockEntityObj).tick();
     }
