@@ -62,6 +62,7 @@ ORNITHE_LOADERS = {"a1.1.2_01-ornithe", "b1.7.3-ornithe"}
 EXCLUDED_CLASSES = {
     "GenericHostFunctions",
     "MinecraftMixin",
+    "MinecraftTimerMixin",
     "TitleScreenMixin",
     "ResourcePackManagerMixin",
     "CraftingManagerMixin",

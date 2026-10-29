@@ -753,6 +753,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return blockEntityNbt;
     }
 
+    @GrugGenerated(
+            "the game's private tick timer: CI sees the scale only as how long a test takes, and"
+                    + " a dedicated server, which has no client timer, is never launched")
     @Override
     public boolean setGameSpeed(double speed) {
         // A dedicated server has no client timer: its clock is its own tick loop.
