@@ -337,10 +337,12 @@ public interface ModLoaderAdapter {
      * pipe, an engine's stroke) takes less wall time without a mod knowing. What changes is only
      * how long a test takes, because tests count ticks and wait for conditions, never seconds. The
      * test runner's own ticks are the client's ticks, so on a loader that answers true they speed
-     * up with the world, and {@code TestTickContext.current_tick} still counts game ticks. What a
-     * speed-up cannot do is draw more frames: every loader caps the ticks it runs for one frame at
-     * 10, so the real gain is bounded by about ten times the frame rate, and a test that reads a
-     * rendered result must not ask for it.
+     * up with the world. Where the world ticks from the client they stay equal to it, and where it
+     * has a server of its own (1.20.6) the server may tick more often than the client does, so a
+     * test waits for a condition and never infers how much the world did from {@code
+     * TestTickContext.current_tick}. What a speed-up cannot do is draw more frames: every loader
+     * caps the ticks it runs for one frame at 10, so the real gain is bounded by about ten times
+     * the frame rate, and a test that reads a rendered result must not ask for it.
      *
      * <p>{@code speed} is a whole number from 1 to {@link GrugTestRunner#MAX_GAME_SPEED}, which the
      * runner has already checked. The runner puts 1 back when the test ends, whether it passed or

@@ -346,7 +346,9 @@ public class HostFunctions {
      *
      * <p>The clock is the game's and not a mod's, so it speeds up a reference mod as well as a
      * port. The speed is a hint that the test is correct at any speed, and a loader that cannot run
-     * its clock faster runs the test at 1x, which the log says. A whole number from 1 to {@link
+     * its clock faster runs the test at 1x, which the log says. The test waits for a condition and
+     * never works out how much the world did from the tick count, because on 1.20.6 the server may
+     * tick more often than the client the runner is driven from. A whole number from 1 to {@link
      * GrugTestRunner#MAX_GAME_SPEED} is the only thing that means anything, and anything else is a
      * mistake in the mod, reported without changing the speed.
      */
