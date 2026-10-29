@@ -7,6 +7,13 @@ inputs:
   loader:
     description: The loaders/* directory name, which keys the per-loader caches.
     required: true
+  save:
+    description: >-
+      Whether this job writes the loader's Gradle and Minecraft caches back at its end. Only a job
+      that runs the game may: a cache entry is written once per key by whichever job finishes
+      first, so a job that stops after the build would write one without what the game resolves.
+    required: false
+    default: 'true'
 outputs:
   java21-path:
     description: JAVA_HOME of the JDK 21 this action installed.
@@ -54,17 +61,59 @@ runs:
     # 1.2.5-forge fetched them from Maven Central on every run and a 403 there failed its Build
     # step although the cache had restored successfully.
     #
+    # Only a job that runs the game writes the entry (the save input). The layer job, which stops
+    # after the build, used to write it first, because it is the quicker of the two, and the build
+    # job's own write was then refused ("Unable to reserve cache"). What the layer job resolves does
+    # not include the game's classpath: Loom resolves the natives, among them lwjgl-platform from
+    # repo.legacyfabric.net, only for runClient. Every later run restored an entry without them and
+    # asked that server for them in its Run tests step, so the server being down failed every
+    # Alpha and Beta loader job although every cache had hit (#643). `gradle --offline
+    # :extractNatives` after the layer job's build reproduces it: "No cached version of
+    # org.lwjgl.lwjgl:lwjgl-platform:2.9.4+legacyfabric.15 available for offline mode".
+    #
     # Keyed on every file that decides what is resolvable, so a version, repository or plugin bump
-    # misses rather than restoring a graph that no longer matches the build. The standalone loaders'
-    # own root.gradle is not in the key because it resolves nothing: it registers the task that execs
-    # their own wrapper.
+    # misses rather than restoring a graph that no longer matches the build, and on this file, which
+    # decides the paths (the key has to describe the cache). The standalone loaders' own root.gradle
+    # is not in the key because it resolves nothing: it registers the task that execs their own
+    # wrapper.
+    #
+    # A miss still restores the loader's previous entry (restore-keys), because Gradle checks what it
+    # restores and fetches only what changed. Without it every edit of build.yml, which is most days,
+    # sent the next run of every ref to the network for everything, repo.legacyfabric.net included.
+    # The Minecraft toolchain has no such fallback: its entry names its versions.
+    - name: Work out the loader caches' keys
+      id: keys
+      shell: bash
+      env:
+        LOADER: ${{ inputs.loader }}
+        GRADLE_HASH: ${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+        MINECRAFT_HASH: ${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'loaders/*/gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+      run: |
+        {
+          echo "gradle-prefix=grug-gradle-${RUNNER_OS}-${LOADER}-"
+          echo "gradle=grug-gradle-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
+          echo "minecraft=grug-minecraft-${RUNNER_OS}-${LOADER}-${MINECRAFT_HASH}"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Cache the Gradle distributions and dependencies
+      if: inputs.save == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.gradle/wrapper
           ~/.gradle/caches/modules-2
-        key: grug-gradle-${{ runner.os }}-${{ inputs.loader }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+        key: ${{ steps.keys.outputs.gradle }}
+        restore-keys: ${{ steps.keys.outputs.gradle-prefix }}
+
+    - name: Restore the Gradle distributions and dependencies
+      if: inputs.save != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/wrapper
+          ~/.gradle/caches/modules-2
+        key: ${{ steps.keys.outputs.gradle }}
+        restore-keys: ${{ steps.keys.outputs.gradle-prefix }}
 
     # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
     # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
@@ -82,7 +131,7 @@ runs:
     # entirely, because it does not provision a Minecraft at all (see the snapshot below), so none of
     # these paths would exist there and the action would report that no cache was saved.
     - name: Cache the Minecraft toolchain
-      if: inputs.loader != '1.2.5-forge'
+      if: inputs.loader != '1.2.5-forge' && inputs.save == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -92,7 +141,20 @@ runs:
           ~/.gradle/caches/forge_gradle/maven_downloader
           ~/.gradle/caches/fabric-loom
           ~/.gradle/caches/ornithe-keratin
-        key: grug-minecraft-${{ runner.os }}-${{ inputs.loader }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'loaders/*/gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+        key: ${{ steps.keys.outputs.minecraft }}
+
+    - name: Restore the Minecraft toolchain
+      if: inputs.loader != '1.2.5-forge' && inputs.save != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches/forge_gradle/mcp_repo
+          ~/.gradle/caches/forge_gradle/minecraft_repo
+          ~/.gradle/caches/forge_gradle/minecraft_user_repo
+          ~/.gradle/caches/forge_gradle/maven_downloader
+          ~/.gradle/caches/fabric-loom
+          ~/.gradle/caches/ornithe-keratin
+        key: ${{ steps.keys.outputs.minecraft }}
 
     # 1.2.5-forge's Minecraft is the pinned MCP snapshot its build clones, 170MB into its own build
     # directory, which is 13s of its Build step. Keyed on the build file that holds the pin, so a
