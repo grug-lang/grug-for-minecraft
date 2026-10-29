@@ -50,7 +50,8 @@ Minecraft never runs on the maintainer's machine: it is pointless there and has 
 laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay local: Gradle builds,
 `javap`, the JaCoCo CLI, the Python and script tests, `pre-commit`.
 
-- A pull request runs 10 jobs of `build.yml`. The jar, installed, smoke and Windows jobs and two
+- A pull request runs 10 jobs of `build.yml`, 9 when it changes only other mods and other loaders:
+  `.github/scripts/reference-needed.py` skips the `reference` job then, and its log says why. The jar, installed, smoke and Windows jobs and two
   steps of the core tests run only on push to `main` and `workflow_dispatch`, so a green pull
   request says nothing about them. `gh workflow run build.yml --ref <branch>` gives a branch the
   full pipeline, with `-f repeats=<n>` to repeat the suite in one session.
