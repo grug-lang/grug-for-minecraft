@@ -1,3 +1,5 @@
 export init(ctx: BlockInitContext) {
     ctx.set_block_entity(e"foo_block_entity")
 }
+
+# selection proof, a throwaway comment
