@@ -79,8 +79,8 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 ### A red main or a flake
 
 - When a job fails, read the titles of the open issues (`gh issue list --state open`) before
-  anything else: it is often a known flake (the grug-rs abort of #123, say). A rerun that passes
-  still gets the occurrence added to that issue's body.
+  anything else: it is often a known flake. A rerun that passes still gets the occurrence added to
+  that issue's body.
 - A flake the pull request did not cause (its failing job exercises code it does not touch, or the
   same failure shows on another pull request or `main`) is fixed first, in its own pull request with
   the test that fails without the fix. Then rebase the original onto `main` and merge once its CI
@@ -119,11 +119,13 @@ only `build` is light enough.
 - Coverage stays at 100% on `core`, and comes from `mods/coverage/` alone: cover a host function
   with a grug test there first, then a Java test, and `@GrugGenerated` only as a last resort.
   The gate counts only the unit tests, each game run's boot and `mods/coverage/`'s tests, so
-  another mod's tests cannot be what reaches it (what still depends on them is #652 to #655); a
+  another mod's tests cannot be what reaches it; a
   class initializer counts wherever it ran, since it runs once per JVM. A test that
   hits a branch only when its timing happens to fall right (a poll landing while the client is
   behind the server) does not cover it, however many runs passed: the gate flakes. Make the hit
-  deterministic; only if no test can force it, `@GrugGenerated` with a reason that says so (#664).
+  deterministic first, by moving the decision into a pure function of the values the loader reads
+  and unit-testing every combination (`GrugRenderSettle.lightSettled`); only if no test can force
+  it, `@GrugGenerated` with a reason that says so.
   "A grug test cannot reach this" is not "no test can reach this".
 - A coverage failure prints only the counts: `gh run download <run> --name coverage-report`, then
   look in each runner's XML for a `<line>` with `mi` or `mb` above 0. The report sums every runner,
