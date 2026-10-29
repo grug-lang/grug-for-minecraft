@@ -3,4 +3,5 @@ export init(ctx: BlockInitContext) {
     ctx.set_material("stone")
     ctx.set_block_entity(e"coverage_neighbor_block_entity")
     ctx.set_inventory_size(1)
+    ctx.set_custom_render()
 }

@@ -1,0 +1,5 @@
+# Test.is_reference tells a test whether it runs against the reference, which is only the reference
+# job. The coverage mod never runs there, so a normal run must answer false.
+export tick(ctx: TestTickContext) {
+    ctx.assert(not Test.is_reference(), "A normal run is not the reference run.")
+}

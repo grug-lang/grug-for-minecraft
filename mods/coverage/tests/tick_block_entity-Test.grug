@@ -1,0 +1,22 @@
+# Test.tick_block_entity runs a grug block entity's tick function that many times within the current
+# game tick. The block entity counts its ticks, and the game may tick it too, so the count has to have
+# grown by at least what was asked for. A count of 0 is allowed and runs nothing.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_neighbor_block")
+    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_opt.has(), "The neighbour-coverage block should have a block entity.")
+    block: BlockEntity = block_opt.unwrap()
+
+    Test.tick_block_entity(block, 0)
+
+    before: number = block.get_saved_number("ticks")
+    Test.tick_block_entity(block, 3)
+    after: number = block.get_saved_number("ticks")
+    ctx.assert(after - before >= 3, "Three asked-for ticks should have run at least three ticks.")
+}

@@ -1,0 +1,7 @@
+# A resource location with no colon names something in the minecraft namespace, so it finds the same
+# item as the spelled-out form.
+export tick(ctx: TestTickContext) {
+    short: Item = item(resource_location("diamond"))
+    full: Item = item(resource_location("minecraft:diamond"))
+    ctx.assert(equals(short, full), "diamond should mean minecraft:diamond.")
+}
