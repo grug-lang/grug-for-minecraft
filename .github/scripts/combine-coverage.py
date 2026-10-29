@@ -17,9 +17,14 @@ exec data. Each loader's report only uses its own exec and its own class files. 
 EXCLUDED_CLASSES are dropped from every report.
 
 A loader's exec files are not the whole game run. GrugCoverage cuts the run into segments and writes
-only the boot before the first test (000-boot.exec) and the segments of mods/coverage/'s tests
-(001-coverage.exec and on, one per stretch of that mod's tests, so a repeated suite has several), so
-the gate counts the unit tests, the boot and mods/coverage/ and no other mod's tests (#626).
+the boot before the first test (000-boot.exec) and the segments of mods/coverage/'s tests
+(NNN-coverage.exec, one per stretch of that mod's tests, so a repeated suite has several) as .exec
+files, and every other mod's segments as .dropped files. The gate counts the unit tests, the boot
+and mods/coverage/ and no other mod's tests (#626), with one exception: a class initializer counts
+wherever it ran, because it runs once per JVM, in the segment of whichever mod's test first used its
+class, and a dropped segment's reset would otherwise leave it uncovered however well mods/coverage/
+tests the class. rescue_class_initializers compares a report of the .exec files with one of the
+.exec and .dropped files together and counts what only the second shows in a <clinit> method.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ import csv
 import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 CORE = "core"
@@ -167,7 +173,9 @@ def discover_runners(artifacts: Path) -> dict[str, dict]:
             continue
         if entry.name.startswith("coverage-exec-"):
             runner = entry.name[len("coverage-exec-") :]
-            runners.setdefault(runner, {})["exec"] = sorted(entry.glob("*.exec"))
+            info = runners.setdefault(runner, {})
+            info["exec"] = sorted(entry.glob("*.exec"))
+            info["dropped"] = sorted(entry.glob("*.dropped"))
         elif entry.name.startswith("coverage-classes-"):
             runner = entry.name[len("coverage-classes-") :]
             runners.setdefault(runner, {})["classes"] = entry
@@ -201,6 +209,73 @@ def jacoco_report(
             command += ["--sourcefiles", str(source)]
     command += ["--csv", str(csv_path), "--xml", str(xml_path)]
     subprocess.run(command, check=True)
+
+
+def class_initializer_counters(xml_path: Path) -> dict[tuple[str, str], dict[str, tuple[int, int]]]:
+    """The missed and covered counts of every <clinit> in a JaCoCo XML report.
+
+    Keyed by (package, class) as the CSV names them: a nested class is Outer.Inner there and
+    Outer$Inner in the XML. The value maps INSTRUCTION and BRANCH to (missed, covered).
+    """
+    counters: dict[tuple[str, str], dict[str, tuple[int, int]]] = {}
+    for package in ET.parse(xml_path).getroot().iter("package"):
+        package_name = package.get("name", "").replace("/", ".")
+        for cls in package.iter("class"):
+            simple_name = cls.get("name", "").rsplit("/", 1)[-1].replace("$", ".")
+            for method in cls.iter("method"):
+                if method.get("name") != "<clinit>":
+                    continue
+                counts = {
+                    counter.get("type", ""): (
+                        int(counter.get("missed", "0")),
+                        int(counter.get("covered", "0")),
+                    )
+                    for counter in method.iter("counter")
+                    if counter.get("type") in ("INSTRUCTION", "BRANCH")
+                }
+                counters[(package_name, simple_name)] = counts
+    return counters
+
+
+def rescue_class_initializers(csv_path: Path, counted_xml: Path, everything_xml: Path) -> None:
+    """Count a class initializer that ran in a dropped segment as covered, in csv_path.
+
+    csv_path and counted_xml are the report of the segments the gate counts, and everything_xml the
+    report of those and the dropped ones. A <clinit> that the second shows covered and the first
+    missed ran only in a dropped segment, which is where a class's initializer runs when another
+    mod's test is the first to use the class, and no test of mods/coverage/ can make it run again.
+    Only the <clinit> of a class is moved; whatever else a dropped segment reached stays uncounted.
+    """
+    counted = class_initializer_counters(counted_xml)
+    everything = class_initializer_counters(everything_xml)
+    columns = {
+        "INSTRUCTION": ("INSTRUCTION_MISSED", "INSTRUCTION_COVERED"),
+        "BRANCH": ("BRANCH_MISSED", "BRANCH_COVERED"),
+    }
+    with csv_path.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+        fieldnames = rows[0].keys() if rows else []
+    for row in rows:
+        key = (row["PACKAGE"], row["CLASS"])
+        if key not in counted or key not in everything:
+            continue
+        rescued: dict[str, int] = {}
+        for kind, (missed_column, covered_column) in columns.items():
+            # A <clinit> without a branch has no BRANCH counter at all.
+            gained = counted[key].get(kind, (0, 0))[0] - everything[key].get(kind, (0, 0))[0]
+            if gained > 0:
+                row[missed_column] = str(int(row[missed_column]) - gained)
+                row[covered_column] = str(int(row[covered_column]) + gained)
+                rescued[kind] = gained
+        if rescued:
+            print(
+                f"counted the class initializer of {key[0]}.{key[1]}, which only ran in another"
+                f" mod's tests: {rescued}"
+            )
+    with csv_path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(fieldnames))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def sum_csvs(csv_paths: list[Path], out_path: Path) -> None:
@@ -265,9 +340,11 @@ def main() -> int:
         return 1
 
     all_execs = [exec_file for info in runners.values() for exec_file in info.get("exec", [])]
+    all_dropped = [dropped for info in runners.values() for dropped in info.get("dropped", [])]
     csv_paths: list[Path] = []
     for runner, info in sorted(runners.items()):
         execs = all_execs if runner == CORE else info.get("exec", [])
+        dropped = all_dropped if runner == CORE else info.get("dropped", [])
         classes = info.get("classes")
         if not execs or classes is None:
             print(f"warning: skipping {runner}: missing exec data or class files", file=sys.stderr)
@@ -283,8 +360,21 @@ def main() -> int:
             csv_path,
             args.output / f"{runner}.xml",
         )
+        if dropped:
+            # Kept out of coverage/report like the filtered classes, since it is only an input.
+            everything_xml = args.output.parent / "everything-reports" / f"{runner}.xml"
+            everything_xml.parent.mkdir(parents=True, exist_ok=True)
+            jacoco_report(
+                args.jacoco_cli,
+                [*execs, *dropped],
+                classes,
+                source_dirs(runner),
+                everything_xml.with_suffix(".csv"),
+                everything_xml,
+            )
+            rescue_class_initializers(csv_path, args.output / f"{runner}.xml", everything_xml)
         csv_paths.append(csv_path)
-        print(f"reported {runner} from {len(execs)} exec files")
+        print(f"reported {runner} from {len(execs)} exec files and {len(dropped)} dropped ones")
 
     combined = args.output / "combined.csv"
     sum_csvs(csv_paths, combined)

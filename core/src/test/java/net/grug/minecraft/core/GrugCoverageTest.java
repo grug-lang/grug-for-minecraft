@@ -71,46 +71,39 @@ class GrugCoverageTest {
                     + "    public static void install(IAgent a) { agent = a; }\n"
                     + "}\n";
 
-    /** The real {@code IAgent}, cut down to the two calls the recorder makes. */
+    /** The real {@code IAgent}, cut down to the one call the recorder makes. */
     private static final String IAGENT_SOURCE =
             "package org.jacoco.agent.rt;\n"
                     + "public interface IAgent {\n"
                     + "    byte[] getExecutionData(boolean reset);\n"
-                    + "    void reset();\n"
                     + "}\n";
 
     /**
      * Records its calls in {@code log}, hands out {@code data0}, {@code data1} and so on as its
-     * snapshots, and throws from the call named by {@code failing} when there is one.
+     * snapshots, and throws from them when it was made to fail.
      */
     private static final String AGENT_SOURCE =
             "package org.jacoco.agent.rt;\n"
                     + "public class StubAgent implements IAgent {\n"
                     + "    public static final StringBuilder log = new StringBuilder();\n"
                     + "    private int snapshots = 0;\n"
-                    + "    private final String failing;\n"
-                    + "    public StubAgent(String failing) { this.failing = failing; }\n"
+                    + "    private final boolean failing;\n"
+                    + "    public StubAgent(boolean failing) { this.failing = failing; }\n"
                     + "    public byte[] getExecutionData(boolean reset) {\n"
-                    + "        if (\"snapshot\".equals(failing)) {\n"
+                    + "        if (failing) {\n"
                     + "            throw new IllegalStateException(\"the agent is gone\");\n"
                     + "        }\n"
                     + "        log.append(\"snapshot(\").append(reset).append(\") \");\n"
                     + "        return (\"data\" + snapshots++).getBytes();\n"
                     + "    }\n"
-                    + "    public void reset() {\n"
-                    + "        if (\"reset\".equals(failing)) {\n"
-                    + "            throw new IllegalStateException(\"the agent is gone\");\n"
-                    + "        }\n"
-                    + "        log.append(\"reset \");\n"
-                    + "    }\n"
                     + "}\n";
 
     /**
-     * A stub agent that throws from {@code failing} ({@code "snapshot"} or {@code "reset"}) or
-     * works when that is null. Loaded by a loader that delegates to nothing, so the test JVM's real
-     * JaCoCo agent is invisible to it.
+     * A stub agent that throws when it is asked for its data if {@code failing}, and works
+     * otherwise. Loaded by a loader that delegates to nothing, so the test JVM's real JaCoCo agent
+     * is invisible to it.
      */
-    private URLClassLoader stubAgent(String name, String failing) throws Exception {
+    private URLClassLoader stubAgent(String name, boolean failing) throws Exception {
         Path classes =
                 compile(
                         name,
@@ -124,7 +117,7 @@ class GrugCoverageTest {
         URLClassLoader loader = loaderOver(classes);
         Class<?> stub = loader.loadClass("org.jacoco.agent.rt.StubAgent");
         Class<?> agentType = loader.loadClass("org.jacoco.agent.rt.IAgent");
-        Object agent = stub.getConstructor(String.class).newInstance(failing);
+        Object agent = stub.getConstructor(boolean.class).newInstance(failing);
         loader.loadClass("org.jacoco.agent.rt.RT")
                 .getMethod("install", agentType)
                 .invoke(null, agent);
@@ -262,9 +255,9 @@ class GrugCoverageTest {
     }
 
     @Test
-    void keepsTheBootAndTheCoverageModAndDropsTheRest() throws Exception {
+    void countsTheBootAndTheCoverageModAndSetsTheRestApart() throws Exception {
         Path directory = tmp.resolve("segments");
-        try (URLClassLoader loader = stubAgent("keeps", null)) {
+        try (URLClassLoader loader = stubAgent("keeps", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
             // Several tests of one mod are one segment, so only the change of mod cuts.
             coverage.testStarting("buildcraft");
@@ -275,63 +268,66 @@ class GrugCoverageTest {
             coverage.testStarting("jei");
             coverage.runPassed();
 
-            // The boot is snapshotted as buildcraft starts, buildcraft is reset away as coverage
-            // starts, coverage is snapshotted as examplemod starts, examplemod is reset away as jei
-            // starts, and jei, the last segment, is not counted so it is not even reset.
-            assertEquals("snapshot(true) reset snapshot(true) reset ", calls(loader));
-            assertEquals("000-boot.exec 001-coverage.exec", segmentFiles(directory));
+            // Every cut takes the data and resets in the same call.
+            assertEquals(
+                    "snapshot(true) snapshot(true) snapshot(true) snapshot(true) snapshot(true) ",
+                    calls(loader));
+            assertEquals(
+                    "000-boot.exec 001-buildcraft.dropped 002-coverage.exec"
+                            + " 003-examplemod.dropped 004-jei.dropped",
+                    segmentFiles(directory));
             assertEquals("data0", content(directory, "000-boot.exec"));
-            assertEquals("data1", content(directory, "001-coverage.exec"));
+            assertEquals("data1", content(directory, "001-buildcraft.dropped"));
+            assertEquals("data2", content(directory, "002-coverage.exec"));
         }
     }
 
     @Test
     void writesTheCoverageSegmentThatEndsTheRun() throws Exception {
         Path directory = tmp.resolve("segments");
-        try (URLClassLoader loader = stubAgent("ends", null)) {
+        try (URLClassLoader loader = stubAgent("ends", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
             coverage.testStarting("buildcraft");
             coverage.testStarting("coverage");
             coverage.runPassed();
 
-            assertEquals("snapshot(true) reset snapshot(true) ", calls(loader));
-            assertEquals("000-boot.exec 001-coverage.exec", segmentFiles(directory));
+            assertEquals(
+                    "000-boot.exec 001-buildcraft.dropped 002-coverage.exec",
+                    segmentFiles(directory));
         }
     }
 
     @Test
     void aRunOfTheCoverageModAlone() throws Exception {
         Path directory = tmp.resolve("segments");
-        try (URLClassLoader loader = stubAgent("alone", null)) {
+        try (URLClassLoader loader = stubAgent("alone", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
             coverage.testStarting("coverage");
             coverage.testStarting("coverage");
             coverage.runPassed();
 
-            assertEquals("snapshot(true) snapshot(true) ", calls(loader));
             assertEquals("000-boot.exec 001-coverage.exec", segmentFiles(directory));
         }
     }
 
     @Test
-    void aRunWithoutTheCoverageModKeepsOnlyTheBoot() throws Exception {
+    void aRunWithoutTheCoverageModCountsOnlyTheBoot() throws Exception {
         // The gate then fails for the coverage the missing mod would have added, which is the
         // point.
         Path directory = tmp.resolve("segments");
-        try (URLClassLoader loader = stubAgent("without", null)) {
+        try (URLClassLoader loader = stubAgent("without", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
             coverage.testStarting("jei");
             coverage.runPassed();
 
-            assertEquals("snapshot(true) ", calls(loader));
-            assertEquals("000-boot.exec", segmentFiles(directory));
+            assertEquals("000-boot.exec 001-jei.dropped", segmentFiles(directory));
         }
     }
 
     @Test
     void aRepeatedSuiteCutsEverySegmentAgain() throws Exception {
         Path directory = tmp.resolve("segments");
-        try (URLClassLoader loader = stubAgent("repeats", null)) {
+        try (URLClassLoader loader = stubAgent("repeats", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
             for (int pass = 0; pass < 2; pass++) {
                 coverage.testStarting("buildcraft");
@@ -341,13 +337,15 @@ class GrugCoverageTest {
             coverage.runPassed();
 
             assertEquals(
-                    "000-boot.exec 001-coverage.exec 002-coverage.exec", segmentFiles(directory));
+                    "000-boot.exec 001-buildcraft.dropped 002-coverage.exec 003-jei.dropped"
+                            + " 004-buildcraft.dropped 005-coverage.exec 006-jei.dropped",
+                    segmentFiles(directory));
         }
     }
 
     @Test
     void creatingTheRecorderWithoutADirectoryIsFatalWhenAnAgentIsAttached() throws Exception {
-        try (URLClassLoader loader = stubAgent("nodir", null)) {
+        try (URLClassLoader loader = stubAgent("nodir", false)) {
             for (String directory : new String[] {null, ""}) {
                 IllegalStateException failure =
                         assertThrows(
@@ -386,7 +384,7 @@ class GrugCoverageTest {
 
     @Test
     void aFailingSnapshotIsFatalAndCarriesTheFailure() throws Exception {
-        try (URLClassLoader loader = stubAgent("badsnapshot", "snapshot")) {
+        try (URLClassLoader loader = stubAgent("badsnapshot", true)) {
             GrugCoverage coverage = new GrugCoverage(loader, tmp.resolve("segments").toString());
             IllegalStateException failure =
                     assertThrows(
@@ -405,25 +403,11 @@ class GrugCoverageTest {
     }
 
     @Test
-    void aFailingResetIsFatal() throws Exception {
-        try (URLClassLoader loader = stubAgent("badreset", "reset")) {
-            GrugCoverage coverage = new GrugCoverage(loader, tmp.resolve("segments").toString());
-            // The boot is snapshotted, which works, and the next cut resets.
-            coverage.testStarting("buildcraft");
-            IllegalStateException failure =
-                    assertThrows(
-                            IllegalStateException.class, () -> coverage.testStarting("coverage"));
-            assertTrue(failure.getMessage().startsWith("Broken grug invariant: "));
-            assertTrue(failure.getMessage().contains("reset"));
-        }
-    }
-
-    @Test
     void aSegmentThatCannotBeWrittenIsFatalAndCarriesTheFailure() throws Exception {
         // A file where the directory should be, so neither can the directory be made nor written
         // in.
         Path blocked = Files.writeString(tmp.resolve("blocked"), "in the way");
-        try (URLClassLoader loader = stubAgent("unwritable", null)) {
+        try (URLClassLoader loader = stubAgent("unwritable", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, blocked.toString());
             IllegalStateException failure =
                     assertThrows(

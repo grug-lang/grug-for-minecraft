@@ -10,8 +10,9 @@
 //
 // The agent writes nothing itself (output=none): run-loader.sh terminates the game as soon as the
 // tests pass, which can interrupt a shutdown-hook write. Instead GrugCoverage cuts the data into
-// segments from inside the game and writes the ones the coverage gate counts, the boot and the
-// tests of mods/coverage/, as one NNN-<segment>.exec file each in grug.coverage.dir (#626).
+// segments from inside the game and writes one file per segment in grug.coverage.dir:
+// NNN-<segment>.exec for the boot and the tests of mods/coverage/, which the coverage gate counts,
+// and NNN-<segment>.dropped for the other mods' tests (#626).
 apply plugin: 'jacoco'
 
 repositories {

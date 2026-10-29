@@ -212,6 +212,7 @@ jobs:
           python3 .github/scripts/report_native_abort_test.py
           python3 .github/scripts/run_loader_test.py
           python3 .github/scripts/ci_timing_test.py
+          python3 .github/scripts/combine_coverage_test.py
           python3 .github/scripts/watch_run_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
@@ -444,7 +445,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-exec-${{ matrix.dir }}
-          path: loaders/${{ matrix.dir }}/build/jacoco/*.exec
+          path: |
+            loaders/${{ matrix.dir }}/build/jacoco/*.exec
+            loaders/${{ matrix.dir }}/build/jacoco/*.dropped
           if-no-files-found: error
           retention-days: 7
 
