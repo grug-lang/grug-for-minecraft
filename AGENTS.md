@@ -51,10 +51,11 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 `javap`, the JaCoCo CLI, the Python and script tests, `pre-commit`.
 
 - A pull request runs 10 jobs of `build.yml`, 9 when it changes only other mods and other loaders:
-  `.github/scripts/reference-needed.py` skips the `reference` job then, and its log says why. The jar, installed, smoke and Windows jobs and two
-  steps of the core tests run only on push to `main` and `workflow_dispatch`, so a green pull
-  request says nothing about them. `gh workflow run build.yml --ref <branch>` gives a branch the
-  full pipeline, with `-f repeats=<n>` to repeat the suite in one session.
+  `.github/scripts/reference-needed.py` skips the `reference` job then, and its log says why. The
+  jar, installed, smoke and Windows jobs and two steps of the core tests run only on push to `main`
+  and `workflow_dispatch`, so a green pull request says nothing about them. `gh workflow run
+  build.yml --ref <branch>` gives a branch the full pipeline, with `-f repeats=<n>` to repeat the
+  suite in one session.
 - Build's concurrency cancels an older run of the same ref, except on `main`. To run several
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
   done. An experiment that changes only `.github/scripts/` keeps the caches warm. Editing

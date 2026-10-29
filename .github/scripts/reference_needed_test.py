@@ -124,6 +124,9 @@ class ReferenceNeededTest(unittest.TestCase):
             "loaders/stray_file.txt",
         ):
             with self.subTest(path=path):
+                # Each path is the whole diff: without the reset the history keeps growing and every
+                # later diff still holds the first path, which always answers true.
+                self.repo.git("reset", "-q", "--hard", self.base)
                 self.assertEqual(self.answer({path: "new\n"}), "true")
 
     def test_one_path_in_the_reference_among_others_runs_it(self):
