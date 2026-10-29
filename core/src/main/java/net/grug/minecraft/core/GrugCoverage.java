@@ -10,23 +10,30 @@ import java.nio.file.Paths;
 import java.util.Locale;
 
 /**
- * Cuts the JaCoCo agent's coverage data into segments as the test run goes, and keeps only the
- * segments the coverage gate counts: the boot before the first test, and the tests of {@code
- * mods/coverage/}. What the other mods' tests reach is dropped, so they never decide the gate and a
- * pull request can run any subset of them. See #626.
+ * Cuts the JaCoCo agent's coverage data into segments as the test run goes, so the coverage gate
+ * can count only the boot before the first test and the tests of {@code mods/coverage/}. What the
+ * other mods' tests reach is kept apart, so they never decide the gate and a pull request can run
+ * any subset of them. See #626.
  *
  * <p>The runner sorts the tests by path, so the run is a sequence of segments, one per stretch of
  * tests of the same mod: the boot, then for example {@code buildcraft}, {@code coverage}, {@code
  * examplemod} and {@code jei}. Whenever the next test belongs to another mod the segment that just
- * ended is cut: a counted one is written to its own {@code NNN-<segment>.exec} file in the
- * directory named by {@code -Dgrug.coverage.dir}, and any other is thrown away. The agent resets as
- * part of the cut, so the data in it is always that of the current segment. The coverage job
- * combines the files of a runner, so several of them are one run.
+ * ended is cut: the agent hands over its data and resets in one call, and the data is written to
+ * {@code NNN-<segment>.exec} in the directory named by {@code -Dgrug.coverage.dir} when the gate
+ * counts the segment, and to {@code NNN-<segment>.dropped} when it does not. The coverage job
+ * combines the {@code .exec} files of a runner, so several of them are one run.
+ *
+ * <p>The {@code .dropped} files exist for one thing only: code that runs once per JVM, which is a
+ * class initializer. It ran in whichever segment first used its class, and a reset forgets it, so a
+ * class that {@code buildcraft}'s tests happen to use before {@code coverage}'s would otherwise
+ * leave its initializer uncovered however well {@code coverage} tests it. {@code
+ * combine-coverage.py} counts a class initializer that ran in a dropped segment, and nothing else
+ * from one.
  *
  * <p>This replaces the agent's own write on exit, which the CI agent no longer does ({@code
  * output=none}): {@code run-loader.sh} terminates the game as soon as the tests pass, which could
- * interrupt the agent's shutdown-hook write and leave a truncated exec file. Writing each counted
- * segment from here, and the last one before the run announces that it passed, makes every write
+ * interrupt the agent's shutdown-hook write and leave a truncated exec file. Writing each segment
+ * from here, and the last one before the run announces that it passed, makes every write
  * deterministic.
  *
  * <p>The agent classes are resolved through the system class loader, since the mod class loader
@@ -51,7 +58,6 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
     private Object agent;
 
     private Method getExecutionData;
-    private Method reset;
     private Path directory;
 
     /** The segment the agent currently holds the data of. */
@@ -97,7 +103,6 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
             Object attached = runtime.getMethod("getAgent").invoke(null);
             Class<?> agentType = Class.forName("org.jacoco.agent.rt.IAgent", false, loader);
             getExecutionData = agentType.getMethod("getExecutionData", boolean.class);
-            reset = agentType.getMethod("reset");
             agent = attached;
         } catch (ReflectiveOperationException | LinkageError | SecurityException e) {
             throw Grug.fatal("the JaCoCo agent is attached but could not be reached: ", e);
@@ -118,30 +123,32 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
         if (agent == null || mod.equals(segment)) {
             return;
         }
-        if (counted(segment)) {
-            write(snapshotAndReset());
-        } else {
-            call(reset);
-        }
+        cutSegment();
         segment = mod;
     }
 
     @Override
     public void runPassed() {
-        // The data of an uncounted last segment is of no use to anyone, and the process ends right
-        // after, so it is not even reset.
-        if (agent != null && counted(segment)) {
-            write(snapshotAndReset());
+        if (agent != null) {
+            cutSegment();
         }
     }
 
-    /** What the agent holds, taken and cleared in one call so no hit falls between the two. */
-    private byte[] snapshotAndReset() {
-        return (byte[]) call(getExecutionData, true);
-    }
-
-    private void write(byte[] data) {
-        Path file = directory.resolve(String.format(Locale.ROOT, "%03d-%s.exec", written, segment));
+    /**
+     * Writes what the agent holds as the current segment's file and clears it, taken in one call so
+     * no hit falls between the two.
+     */
+    private void cutSegment() {
+        byte[] data;
+        try {
+            data = (byte[]) getExecutionData.invoke(agent, true);
+        } catch (ReflectiveOperationException e) {
+            throw Grug.fatal("the JaCoCo agent could not hand over its coverage: ", e);
+        }
+        String extension = counted(segment) ? "exec" : "dropped";
+        Path file =
+                directory.resolve(
+                        String.format(Locale.ROOT, "%03d-%s.%s", written, segment, extension));
         try {
             Files.createDirectories(directory);
             Files.write(file, data);
@@ -149,13 +156,5 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
             throw Grug.fatal("could not write the coverage segment " + file + ": ", e);
         }
         written++;
-    }
-
-    private Object call(Method method, Object... arguments) {
-        try {
-            return method.invoke(agent, arguments);
-        } catch (ReflectiveOperationException e) {
-            throw Grug.fatal("the JaCoCo agent could not " + method.getName() + ": ", e);
-        }
     }
 }

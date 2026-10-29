@@ -64,6 +64,12 @@ export tick(ctx: TestTickContext) {
         # StationAPI's resource reload runs off-thread, so this waits for the loader to say it
         # finished instead of guessing a number of ticks. Loaders report the finish after the
         # tick's own tick() call, so the capture below lands on a later tick than the finish.
+        # The world is asked whether it has settled meanwhile, and told no because a reload is
+        # running: that answer is the one 1.20.6's settled check gives while it is reloading, and
+        # this is the only wait in which the check runs inside a reload every time. It is not
+        # something the check can be left to meet by timing, now that the coverage gate counts only
+        # these tests.
+        Test.world_settled()
         ctx.not_done()
     } else if not Test.world_settled() {
         # The loader finishes its reload inside a game tick, and the next test call can come before
