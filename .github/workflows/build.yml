@@ -10,6 +10,10 @@ on:
         # Empty uses the repository variable GRUG_CI_REPEATS, then 1. See #268.
         description: 'Suite passes per loader run; empty uses the repository variable or 1'
         type: string
+      mods:
+        # The runner loads every mod and runs only the tests of these. See #627.
+        description: 'Comma separated mod directory names whose tests the development loader runs; empty runs every mod'
+        type: string
 
 permissions:
   contents: read
@@ -420,6 +424,9 @@ jobs:
           # repository variable GRUG_CI_REPEATS, then 1, which is what pull request runs use
           # because their inputs context is empty. See #268.
           GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
+          # Which mods' tests run, as the dispatch input says it. Empty on a pull request and a push,
+          # which run every mod. A name that is no mod fails the step before the game starts. See #627.
+          GRUG_CI_MODS: ${{ inputs.mods }}
           # The watch covers the whole run: 300s for one pass (the slowest loader measured under 190s
           # of game time) plus 200s per extra pass. 1.2.5 is the slowest loader and took about 150s
           # per pass in the repeats runs of #583 (1068s for twenty passes when #291 measured it, before

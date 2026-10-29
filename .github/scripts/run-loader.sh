@@ -121,7 +121,45 @@ fi
 
 # The tests the run is about to load. A reference run points GRUG_MODS_DIR at a harness-only
 # directory, so its count comes from there rather than from every mod in the repository.
-EXPECTED_TESTS=$(find "${GRUG_MODS_DIR:-${REPO_ROOT}/mods}" -name "*-Test.grug" | wc -l | tr -d ' ')
+#
+# GRUG_CI_MODS, a comma separated list of mod directory names, runs only those mods' tests (every
+# mod is still loaded). Unset, empty or blank runs all of them. The runner in core reads the same
+# variable, and the count has to agree with it, so the names are checked here first: a name that is
+# not a mod directory, or an empty entry, stops the script before the game starts instead of passing
+# a run that quietly ran less than it was asked to.
+MODS_DIR="${GRUG_MODS_DIR:-${REPO_ROOT}/mods}"
+GRUG_CI_MODS="${GRUG_CI_MODS:-}"
+if [ -n "${GRUG_CI_MODS//[[:space:]]/}" ]; then
+  EXPECTED_TESTS=0
+  selected_mods=" "
+  # The comma appended here keeps read from dropping a last empty entry, such as the one in "a,".
+  IFS=, read -r -a requested_mods <<< "${GRUG_CI_MODS},"
+  for mod in "${requested_mods[@]}"; do
+    mod="${mod#"${mod%%[![:space:]]*}"}"
+    mod="${mod%"${mod##*[![:space:]]}"}"
+    if [ -z "$mod" ]; then
+      echo "==> ERROR: GRUG_CI_MODS has an empty entry, but each has to name a mod: '${GRUG_CI_MODS}'" >&2
+      exit 2
+    fi
+    case "$mod" in
+      */* | .*)
+        echo "==> ERROR: GRUG_CI_MODS names '${mod}', which is not a mod directory name." >&2
+        exit 2
+        ;;
+    esac
+    if [ ! -d "${MODS_DIR}/${mod}" ]; then
+      echo "==> ERROR: GRUG_CI_MODS names the mod '${mod}', but ${MODS_DIR} has no such directory. The mods are: $(ls "$MODS_DIR" | tr '\n' ' ')" >&2
+      exit 2
+    fi
+    # A name repeated in the list counts once, as the runner treats it.
+    case "$selected_mods" in *" ${mod} "*) continue ;; esac
+    selected_mods="${selected_mods}${mod} "
+    EXPECTED_TESTS=$((EXPECTED_TESTS + $(find "${MODS_DIR}/${mod}" -name "*-Test.grug" | wc -l | tr -d ' ')))
+  done
+  echo "==> GRUG_CI_MODS selects the tests of:${selected_mods}(${EXPECTED_TESTS} tests)"
+else
+  EXPECTED_TESTS=$(find "$MODS_DIR" -name "*-Test.grug" | wc -l | tr -d ' ')
+fi
 SUCCESS_MSG="[GRUG CI] ALL ${EXPECTED_TESTS} TESTS PASSED"
 BOOT_MSG="[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL"
 GRUG_LOADED_MSG="[GRUG CI] GRUG LOADED"
