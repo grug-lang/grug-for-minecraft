@@ -13,6 +13,18 @@
 
 set -uo pipefail
 
+# THROWAWAY (#643 proof, never merged): the Legacy Fabric hosts do not answer, as in an outage.
+case "${OSTYPE:-}" in
+  msys* | cygwin*)
+    printf '0.0.0.0 repo.legacyfabric.net maven.legacyfabric.net\r\n' >> /c/Windows/System32/drivers/etc/hosts || echo "==> PROOF: could not write the hosts file" >&2
+    ipconfig //flushdns >/dev/null 2>&1 || true
+    ;;
+  *)
+    printf '0.0.0.0 repo.legacyfabric.net maven.legacyfabric.net\n' | sudo tee -a /etc/hosts >/dev/null
+    ;;
+esac
+echo "==> PROOF: repo.legacyfabric.net is blocked: $(getent hosts repo.legacyfabric.net || ping -n 1 repo.legacyfabric.net 2>&1 | head -2 | tr '\n' ' ')"
+
 if [ "$#" -ne 2 ] || { [ "$2" != build ] && [ "$2" != run ] && [ "$2" != update-goldens ] && [ "$2" != production ]; }; then
   echo "Usage: $0 <loader-dir-name> <build|run|update-goldens|production>" >&2
   exit 2
