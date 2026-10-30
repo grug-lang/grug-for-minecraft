@@ -59,6 +59,43 @@ thread caused non-unwinding panic. aborting.
 """
 )
 
+# The downloadAssets failure of #700, as the b1.7.3-ornithe job's log held it. Loom retries three
+# times inside a second, so a transient hiccup outlives every one of them.
+LOOM_DOWNLOAD_FAILURE_LOG = """\
+> Task :downloadAssets FAILED
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':downloadAssets' (registered by plugin 'fabric-loom').
+> net.fabricmc.loom.util.download.DownloadException: Failed to download
+
+* Exception is:
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':downloadAssets' (registered by plugin 'fabric-loom').
+	Suppressed: net.fabricmc.loom.util.download.DownloadException: Failed download after 3 attempts
+"""
+
+# The same task under ForgeGradle, which is the second occurrence recorded on #700: its advice is
+# literally to run the task again.
+FORGE_DOWNLOAD_FAILURE_LOG = """\
+> Task :loaders:fake-loader:downloadAssets FAILED
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':loaders:fake-loader:downloadAssets'.
+> Failed to get asset: minecraft/sounds/block/smoker/smoker4.ogg
+  Some assets failed to download or validate, try running the task again.
+"""
+
+# A Gradle failure that is neither a download nor the code failing in a way the script knows: it has
+# to fail the job rather than earn a retry.
+UNRECOGNISED_FAILURE_LOG = """\
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+A problem occurred configuring project ':loaders:fake-loader'.
+> Could not create task ':loaders:fake-loader:runClient'.
+"""
+
 # The log is written after a short delay and the process lingers, because the run script polls once
 # a second and classifies on the first poll that matches. A write that landed between a poll's own
 # greps could show the panic to the abort check while the FAIL check still saw an empty log, which
@@ -74,6 +111,16 @@ sleep "${FAKE_GRADLE_START_DELAY:-0.5}"
 # A test that needs the log written at an exact point in the script's poll names a file here, and the
 # fake game writes nothing until that file exists.
 while [ -n "${FAKE_GRADLE_WAIT_FOR:-}" ] && [ ! -e "$FAKE_GRADLE_WAIT_FOR" ]; do sleep 0.05; done
+# A test that needs the invocations to differ, such as the retry tests, names a directory here whose
+# <n>.log and <n>.exit hold the nth invocation's log and exit code. The count file holds the number
+# of the invocation this is, so the first one reads 1.
+if [ -n "${FAKE_GRADLE_SEQUENCE:-}" ]; then
+  attempt=$(cat "$FAKE_GRADLE_SEQUENCE/count" 2>/dev/null || echo 1)
+  echo $((attempt + 1)) > "$FAKE_GRADLE_SEQUENCE/count"
+  cat "$FAKE_GRADLE_SEQUENCE/$attempt.log"
+  sleep "${FAKE_GRADLE_SLEEP:-2}"
+  exit "$(cat "$FAKE_GRADLE_SEQUENCE/$attempt.exit")"
+fi
 cat "$FAKE_GRADLE_LOG"
 sleep "${FAKE_GRADLE_SLEEP:-2}"
 exit "${FAKE_GRADLE_EXIT:-0}"
@@ -114,10 +161,11 @@ class RunLoaderTest(unittest.TestCase):
 
     def run_script(
         self,
-        log: str,
-        exit_code: int,
+        log: str = "",
+        exit_code: int = 0,
         extra_env: dict[str, str] | None = None,
         phase: str = "run",
+        sequence: list[tuple[str, int]] | None = None,
     ) -> subprocess.CompletedProcess:
         log_file = self.tmp / "gradle.log"
         log_file.write_text(log)
@@ -133,6 +181,17 @@ class RunLoaderTest(unittest.TestCase):
             "PATH": "/usr/bin:/bin:/usr/local/bin",
             "GRUG_CI_RUN_TIMEOUT": "30",
         }
+        if sequence is not None:
+            # One log and exit code per Gradle invocation, in the order the script makes them, which
+            # is how a test says that the first attempt fails and the retry passes.
+            directory = self.tmp / "gradle-sequence"
+            shutil.rmtree(directory, ignore_errors=True)
+            directory.mkdir()
+            for index, (attempt_log, attempt_exit) in enumerate(sequence, 1):
+                (directory / f"{index}.log").write_text(attempt_log)
+                (directory / f"{index}.exit").write_text(str(attempt_exit))
+            (directory / "count").write_text("1")
+            env["FAKE_GRADLE_SEQUENCE"] = str(directory)
         env.update(extra_env or {})
         summary = self.tmp / "summary.md"
         # The script only appends when it has something to report, so start it as an empty file the
@@ -397,6 +456,10 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotIn("exited", result.stderr)
         self.assertNotIn("tests failed", result.stderr)
         self.assertNotIn("crashed", result.stderr)
+        # A compile error is not a download failure, so the build runs once and the error is the
+        # whole story of the job.
+        self.assertEqual(len(result.gradle_args.splitlines()), 1)
+        self.assertNotIn("failed on a download", result.stderr)
 
     def test_build_output_is_not_read_as_the_games(self):
         # A line of the build that looks like a failed test must not fail a run whose game passes,
@@ -431,6 +494,142 @@ class RunLoaderTest(unittest.TestCase):
 
         self.assertIn("build/game process exited (exit code 3)", result.stderr)
         self.assertNotIn("Gradle failed to build", result.stderr)
+
+    # A download failure gets one more Gradle invocation, because the game never ran and the first
+    # attempt's failure is a hiccup on an external host rather than a defect in the code (#700). The
+    # cases below are the whole decision: every other way a job can end is not retried.
+    def test_a_loom_asset_download_failure_is_retried_once(self):
+        result = self.run_script(
+            phase="build-run",
+            sequence=[
+                (LOOM_DOWNLOAD_FAILURE_LOG, 1),
+                (self.BUILD_LOG + self.GAME_START + PASSING_LOG, 0),
+            ],
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        self.assertIn("failed on a download", result.stderr)
+        self.assertIn("DownloadException", result.stderr)
+        self.assertEqual(len([c for c in result.gradle_args.splitlines() if "runClient" in c]), 2)
+        # The failed attempt's log is kept beside the one the job reports from, so the hiccup is
+        # still readable after a retry that passed.
+        run_dir = self.tmp / "loaders" / "fake-loader" / "run"
+        self.assertIn("DownloadException", (run_dir / "ci-run-loader.log.attempt-1").read_text())
+        self.assertIn("ALL 1 TESTS PASSED", (run_dir / "ci-run-loader.log").read_text())
+
+    def test_a_forge_asset_download_failure_is_retried_too(self):
+        result = self.run_script(
+            phase="build-run",
+            sequence=[
+                (FORGE_DOWNLOAD_FAILURE_LOG, 1),
+                (self.BUILD_LOG + self.GAME_START + PASSING_LOG, 0),
+            ],
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "Failed to get asset: minecraft/sounds/block/smoker/smoker4.ogg", result.stderr
+        )
+        self.assertEqual(len(result.gradle_args.splitlines()), 2)
+
+    def test_a_download_failure_in_a_run_phase_is_retried(self):
+        # A Windows loader job launches only the game, so a downloadAssets failure ends Gradle
+        # before runClient and the script sees an exited process rather than a failed build. It is
+        # still the same failure and still worth the retry.
+        result = self.run_script(sequence=[(LOOM_DOWNLOAD_FAILURE_LOG, 1), (PASSING_LOG, 0)])
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        self.assertEqual(len(result.gradle_args.splitlines()), 2)
+
+    def test_a_download_failure_in_the_build_phase_is_retried(self):
+        result = self.run_script(
+            phase="build",
+            extra_env={"DISPLAY": ""},
+            sequence=[(LOOM_DOWNLOAD_FAILURE_LOG, 1), ("BUILD SUCCESSFUL\n", 0)],
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(result.gradle_args.splitlines()), 2)
+        self.assertIn(
+            ":loaders:fake-loader:build :loaders:fake-loader:layerJar -x test",
+            result.gradle_args.splitlines()[-1],
+        )
+
+    def test_a_download_failure_publishing_core_is_retried(self):
+        # The four standalone loaders publish core with the root wrapper before their own build, so
+        # that invocation is a Gradle path of its own and earns the same retry.
+        loader = self.tmp / "loaders" / "fake-loader"
+        (loader / "root.gradle").write_text("// standalone\n")
+        shutil.copy(self.tmp / "gradlew", loader / "gradlew")
+
+        result = self.run_script(
+            phase="build-run",
+            sequence=[
+                (LOOM_DOWNLOAD_FAILURE_LOG, 1),
+                ("BUILD SUCCESSFUL\n", 0),
+                ("> Task :runClient\n" + PASSING_LOG, 0),
+            ],
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = result.gradle_args.splitlines()
+        self.assertTrue(calls[0].startswith(":core:publishMavenJava"), calls)
+        self.assertTrue(calls[1].startswith(":core:publishMavenJava"), calls)
+        self.assertIn("runClient", calls[2])
+
+    def test_a_test_failure_is_not_retried(self):
+        result = self.run_script(FAILING_LOG, 1)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tests failed", result.stderr)
+        self.assertEqual(len(result.gradle_args.splitlines()), 1)
+        self.assertNotIn("failed on a download", result.stderr)
+
+    def test_a_game_that_ran_is_not_retried_for_a_download_like_line_in_its_log(self):
+        # The run phase reads its whole log as the game's, so a message that looks like the download
+        # failure could be the game's own. Gradle's runClient line says the game started, and a game
+        # that ran is never repeated.
+        log = (
+            "> Task :loaders:fake-loader:runClient\n"
+            "Failed to get asset: something the game logged\n"
+        )
+
+        result = self.run_script(log, 3)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("build/game process exited (exit code 3)", result.stderr)
+        self.assertEqual(len(result.gradle_args.splitlines()), 1)
+        self.assertNotIn("failed on a download", result.stderr)
+
+    def test_an_unrecognised_gradle_failure_is_not_retried(self):
+        result = self.run_script(UNRECOGNISED_FAILURE_LOG, 1, phase="build-run")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Gradle failed to build fake-loader", result.stderr)
+        self.assertEqual(len(result.gradle_args.splitlines()), 1)
+        self.assertNotIn("failed on a download", result.stderr)
+
+    def test_a_retry_that_fails_again_fails_the_job_with_its_own_output(self):
+        compile_log = (
+            "> Task :loaders:fake-loader:compileJava FAILED\n"
+            "src/main/java/Broken.java:3: error: ';' expected\n"
+            "FAILURE: Build failed with an exception.\n"
+            "* What went wrong:\n"
+            "Execution failed for task ':loaders:fake-loader:compileJava'.\n"
+        )
+
+        result = self.run_script(
+            phase="build-run",
+            sequence=[(LOOM_DOWNLOAD_FAILURE_LOG, 1), (compile_log, 1)],
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Gradle failed to build fake-loader", result.stderr)
+        self.assertIn("Broken.java:3: error: ';' expected", result.stderr)
+        # Exactly one retry: a second failure is the job's failure, not another attempt.
+        self.assertEqual(len([c for c in result.gradle_args.splitlines() if "runClient" in c]), 2)
 
     def write_slow_build(self, build_seconds: float, game_seconds: float) -> None:
         # A gradlew whose build takes build_seconds before it starts the game, and whose game then

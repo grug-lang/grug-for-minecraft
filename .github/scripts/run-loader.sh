@@ -108,13 +108,52 @@ if [ "$PHASE" = production ]; then
   UNIVERSAL_JAR="$(cd "$(dirname "$GRUG_UNIVERSAL_JAR")" && pwd)/$(basename "$GRUG_UNIVERSAL_JAR")"
 fi
 
+# A failed asset download is worth one more Gradle invocation, and nothing else is: Loom's own three
+# attempts all land inside a single transient hiccup on resources.download.minecraft.net (#700),
+# ForgeGradle's downloadAssets says to run the task again, and a compile error, a test failure or an
+# unrecognised Gradle failure would only be delayed by a retry. The decision is a pure function of
+# the log, so it is unit-tested case by case in run_loader_test.py, and it prints the line it matched
+# so the job says why it retried.
+DOWNLOAD_FAILURE_RE='net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate'
+download_failed() {
+  grep -m1 -E "$DOWNLOAD_FAILURE_RE" "$1" 2>/dev/null
+}
+
+# The first attempt and one retry. Never a third: an outage longer than this is not a flake for a
+# single job to ride out, and each attempt costs the job its whole build again.
+MAX_GRADLE_ATTEMPTS=2
+
+# Runs a Gradle invocation whose output nothing else reads, and once more when it failed on a
+# download. The log of the attempt that failed is kept beside the one that decided the job, so a
+# retry that passes still leaves the hiccup readable.
+gradle_with_retry() {
+  local log="$1" attempt=1 status reason
+  shift
+  while :; do
+    "$@" 2>&1 | tee "$log"
+    status=${PIPESTATUS[0]}
+    if [ "$status" -eq 0 ]; then
+      return 0
+    fi
+    if [ "$attempt" -ge "$MAX_GRADLE_ATTEMPTS" ] || ! reason=$(download_failed "$log"); then
+      return "$status"
+    fi
+    cp "$log" "${log}.attempt-${attempt}"
+    echo "==> Gradle failed on a download, not on the code: $reason" >&2
+    echo "==> Retrying the same Gradle invocation, attempt $((attempt + 1)) of ${MAX_GRADLE_ATTEMPTS}." >&2
+    echo "==> The failed attempt's log is ${log#"${REPO_ROOT}/"}.attempt-${attempt}" >&2
+    attempt=$((attempt + 1))
+  done
+}
+
 # Standalone loaders have their own Gradle wrapper and consume core from the repository the root
 # build publishes it into, so that publish has to happen before the loader's own build runs. A
 # production run builds no loader: the universal jar already holds core.
 if [ -f "${LOADER_DIR}/root.gradle" ]; then
   if [ "$PHASE" != production ]; then
     echo "==> Publishing core into build/maven"
-    ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository "${gradle_args[@]}" || exit 1
+    gradle_with_retry "${REPO_ROOT}/${LOADER_DIR}/run/ci-publish.log" \
+      ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository "${gradle_args[@]}" || exit 1
   fi
   cd "$LOADER_DIR"
   task_prefix=""
@@ -126,7 +165,8 @@ fi
 # which CI hands to universal_jar.py.
 if [ "$PHASE" = build ]; then
   echo "==> Building $LOADER and its layer of the universal jar (no game launch)"
-  ./gradlew "${task_prefix}build" "${task_prefix}layerJar" -x test "${gradle_args[@]}"
+  gradle_with_retry "${REPO_ROOT}/${LOADER_DIR}/run/ci-build.log" \
+    ./gradlew "${task_prefix}build" "${task_prefix}layerJar" -x test "${gradle_args[@]}"
   exit
 fi
 
@@ -265,100 +305,132 @@ if [ "$PHASE" = build-run ]; then
 else
   echo "==> Launching $LOADER, waiting up to ${timeout_secs}s for the tests to pass..."
 fi
-: > "$LOG_FILE"
-
-# Follow the log in the background so we get real-time output in the CI console
-tail -f "$LOG_FILE" &
-tail_pid=$!
-
-# setsid gives the launch its own process group so cleanup can kill Gradle and the game together.
-# Windows has none, and cleanup ends its Java processes by name instead.
 SETSID=setsid
 [ "$WINDOWS" = true ] && SETSID=
-if [ "$PHASE" = production ]; then
-  $SETSID "${REPO_ROOT}/.github/scripts/launch-production.sh" "$LOADER" "$GAME_DIR" "$UNIVERSAL_JAR" >"$LOG_FILE" 2>&1 &
-else
-  $SETSID ./gradlew "${run_tasks[@]}" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
-fi
-gradle_pid=$!
 
-# Where the game's own output starts in the log, as a byte offset for tail -c. A run phase starts
-# with the game, so that is the whole log. In build-run the log first holds the build, whose output
-# (a compiler warning that mentions a failure, say) must not be read as the game's, so the game is
-# only looked for after the line Gradle prints when it starts the runClient task, and the time limit
-# starts there too: a slow build never eats the game's budget. The build has a limit of its own, a
-# guard against a hang that is well inside the job's.
-log_offset=1
-game_started=true
 # The task is :runClient in a standalone loader's own build, which has no task prefix.
 game_start_re="^> Task ${task_prefix:-:}runClient( |\$)"
-deadline=$((SECONDS + timeout_secs))
-if [ "$PHASE" = build-run ]; then
-  game_started=false
-  deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
-fi
 
-# grep over the game's part of the log.
-game_log_grep() {
-  if [ "$log_offset" -le 1 ]; then
-    grep "$@" "$LOG_FILE"
+# One attempt, and one more when the first failed on a download rather than on the code. The game
+# never started in that case, so repeating the whole invocation repeats nothing the game did; any
+# other outcome ends the job here, with the log of the attempt that decided it.
+attempt=1
+while :; do
+  : > "$LOG_FILE"
+
+  # Follow the log in the background so we get real-time output in the CI console
+  tail -f "$LOG_FILE" &
+  tail_pid=$!
+
+  # setsid gives the launch its own process group so cleanup can kill Gradle and the game together.
+  # Windows has none, and cleanup ends its Java processes by name instead.
+  if [ "$PHASE" = production ]; then
+    $SETSID "${REPO_ROOT}/.github/scripts/launch-production.sh" "$LOADER" "$GAME_DIR" "$UNIVERSAL_JAR" >"$LOG_FILE" 2>&1 &
   else
-    grep "$@" < <(tail -c "+${log_offset}" "$LOG_FILE")
+    $SETSID ./gradlew "${run_tasks[@]}" "${gradle_args[@]}" --no-daemon >"$LOG_FILE" 2>&1 &
   fi
-}
+  gradle_pid=$!
 
-status=timeout
-reached_title=false
-while [ "$SECONDS" -lt "$deadline" ]; do
-  # Sampled before the log is read, never after: a process that dies between the reads and a
-  # liveness test written last would leave its final line unread and be reported as a bare exit.
-  # A game that was already dead here wrote everything it ever will before this point, so the
-  # reads below see all of it. A boot-only game prints GRUG LOADED and exits at once, so it hit
-  # exactly that window (#597).
-  alive=true
-  kill -0 "$gradle_pid" 2>/dev/null || alive=false
+  # Where the game's own output starts in the log, as a byte offset for tail -c. A run phase starts
+  # with the game, so that is the whole log. In build-run the log first holds the build, whose output
+  # (a compiler warning that mentions a failure, say) must not be read as the game's, so the game is
+  # only looked for after the line Gradle prints when it starts the runClient task, and the time limit
+  # starts there too: a slow build never eats the game's budget. The build has a limit of its own, a
+  # guard against a hang that is well inside the job's.
+  log_offset=1
+  game_started=true
+  deadline=$((SECONDS + timeout_secs))
+  if [ "$PHASE" = build-run ]; then
+    game_started=false
+    deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
+  fi
 
-  if [ "$game_started" = false ]; then
-    start_line=$(grep -b -m1 -E "$game_start_re" "$LOG_FILE" || true)
-    if [ -n "$start_line" ]; then
-      game_started=true
-      log_offset=$(( ${start_line%%:*} + 1 ))
-      deadline=$((SECONDS + timeout_secs))
-      echo "==> The build of $LOADER finished and its game starts. Waiting up to ${timeout_secs}s for the tests to pass..."
-    elif [ "$alive" = false ]; then
-      # Gradle ended before it started the game, so the build failed. A compile error is that, and
-      # the log above says which; it is not a game that exited.
-      status=buildfailed
-      break
+  # grep over the game's part of the log.
+  game_log_grep() {
+    if [ "$log_offset" -le 1 ]; then
+      grep "$@" "$LOG_FILE"
     else
-      sleep 1
-      continue
+      grep "$@" < <(tail -c "+${log_offset}" "$LOG_FILE")
     fi
-  fi
+  }
 
-  if [ "$reached_title" = false ] && grep -q -F "$BOOT_MSG" "$LOG_FILE"; then
-    echo "==> $LOADER reached the title screen. Waiting for tests to complete..."
-    reached_title=true
-  fi
+  status=timeout
+  reached_title=false
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    # Sampled before the log is read, never after: a process that dies between the reads and a
+    # liveness test written last would leave its final line unread and be reported as a bare exit.
+    # A game that was already dead here wrote everything it ever will before this point, so the
+    # reads below see all of it. A boot-only game prints GRUG LOADED and exits at once, so it hit
+    # exactly that window (#597).
+    alive=true
+    kill -0 "$gradle_pid" 2>/dev/null || alive=false
 
-  if grep -q -F "$SUCCESS_MSG" "$LOG_FILE"; then status=success; break; fi
-  # A boot-only run is done once grug has loaded: the native loaded, the VM started and the mods
-  # compiled, which is everything specific to grug on the platform. A crash before that is still
-  # caught by the checks below.
-  if [ -n "${GRUG_CI_BOOT_ONLY:-}" ] && grep -q -F "$GRUG_LOADED_MSG" "$LOG_FILE"; then status=success; break; fi
-  if game_log_grep -q "FAIL "; then status=failed; break; fi
-  if game_log_grep -q -E "$crash_re"; then status=crashed; break; fi
-  # Checked before the liveness test below, because a Rust panic is written to the log a moment
-  # before the process dies: on the poll that sees both, the liveness test would report a bare
-  # "exited" and the panic, which is the whole diagnosis, would go unread.
-  if game_log_grep -q -E "$ABORT_RE"; then status=aborted; break; fi
-  if [ "$alive" = false ]; then status=exited; break; fi
-  sleep 1
+    if [ "$game_started" = false ]; then
+      start_line=$(grep -b -m1 -E "$game_start_re" "$LOG_FILE" || true)
+      if [ -n "$start_line" ]; then
+        game_started=true
+        log_offset=$(( ${start_line%%:*} + 1 ))
+        deadline=$((SECONDS + timeout_secs))
+        echo "==> The build of $LOADER finished and its game starts. Waiting up to ${timeout_secs}s for the tests to pass..."
+      elif [ "$alive" = false ]; then
+        # Gradle ended before it started the game, so the build failed. A compile error is that, and
+        # the log above says which; it is not a game that exited.
+        status=buildfailed
+        break
+      else
+        sleep 1
+        continue
+      fi
+    fi
+
+    if [ "$reached_title" = false ] && grep -q -F "$BOOT_MSG" "$LOG_FILE"; then
+      echo "==> $LOADER reached the title screen. Waiting for tests to complete..."
+      reached_title=true
+    fi
+
+    if grep -q -F "$SUCCESS_MSG" "$LOG_FILE"; then status=success; break; fi
+    # A boot-only run is done once grug has loaded: the native loaded, the VM started and the mods
+    # compiled, which is everything specific to grug on the platform. A crash before that is still
+    # caught by the checks below.
+    if [ -n "${GRUG_CI_BOOT_ONLY:-}" ] && grep -q -F "$GRUG_LOADED_MSG" "$LOG_FILE"; then status=success; break; fi
+    if game_log_grep -q "FAIL "; then status=failed; break; fi
+    if game_log_grep -q -E "$crash_re"; then status=crashed; break; fi
+    # Checked before the liveness test below, because a Rust panic is written to the log a moment
+    # before the process dies: on the poll that sees both, the liveness test would report a bare
+    # "exited" and the panic, which is the whole diagnosis, would go unread.
+    if game_log_grep -q -E "$ABORT_RE"; then status=aborted; break; fi
+    if [ "$alive" = false ]; then status=exited; break; fi
+    sleep 1
+  done
+
+  # Kill tail manually so it doesn't leak into the next attempt
+  [ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
+  tail_pid=""
+
+  if [ "$attempt" -ge "$MAX_GRADLE_ATTEMPTS" ]; then
+    break
+  fi
+  # Only a failure before the game started can be a download: buildfailed is Gradle ending before
+  # runClient, and exited is the same in a run phase, which has no build to tell it from a game that
+  # exited. A test failure, a crash, an abort and a timeout are never retried.
+  if [ "$status" != buildfailed ] && [ "$status" != exited ]; then
+    break
+  fi
+  # The run phase reads the whole log as the game's, so a line in it that looks like a download
+  # failure could be the game's own. Gradle's runClient line is what says the game started, and a
+  # game that ran is never repeated.
+  if [ "$status" = exited ] && grep -q -E "$game_start_re" "$LOG_FILE"; then
+    break
+  fi
+  if ! reason=$(download_failed "$LOG_FILE"); then
+    break
+  fi
+  cp "$LOG_FILE" "${LOG_FILE}.attempt-${attempt}"
+  echo "==> Gradle failed on a download, not on the code: $reason" >&2
+  echo "==> Retrying $LOADER, attempt $((attempt + 1)) of ${MAX_GRADLE_ATTEMPTS}." >&2
+  echo "==> The failed attempt's log is ${LOG_FILE#"${REPO_ROOT}/"}.attempt-${attempt}" >&2
+  attempt=$((attempt + 1))
 done
-
-# Kill tail manually so it doesn't leak into the next steps
-[ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
-tail_pid=""
 
 # Prints the grug-rs abort report for the log, if it holds one, and puts the same text in the job
 # summary so the panic is readable from the checks list instead of only from the raw log.
