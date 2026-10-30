@@ -136,6 +136,18 @@ public interface ModLoaderAdapter {
     void placeBlock(Object levelObj, double x, double y, double z, String blockName);
 
     /**
+     * Starts a batch of {@link #placeBlock} calls that {@link #endBatch} closes, so a loader that
+     * relights the world for every block can relight once at the end of the batch instead. The
+     * blocks a batch leaves behind, their metadata and the neighbours it notifies are the ones the
+     * same calls make one at a time; only when the relight happens changes. A loader whose
+     * placement is already cheap keeps this a no-op.
+     */
+    default void beginBatch(Object levelObj) {}
+
+    /** Ends the batch {@link #beginBatch} started, doing the relight it postponed. */
+    default void endBatch(Object levelObj) {}
+
+    /**
      * Creates an explosion of the given power at the given coordinates, which are not floored. The
      * caller has already rejected a non-finite coordinate and a negative power.
      */
