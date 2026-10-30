@@ -37,6 +37,19 @@ public final class GrugBoxRenderer {
     @GrugGenerated("utility class: never instantiated")
     private GrugBoxRenderer() {}
 
+    /** Whether the last overlay pass drew one of this block's boxes. See {@link #render}. */
+    private static boolean overlayDrew;
+
+    /** Forgets the last overlay pass, so a test can tell whether its own pass drew anything. */
+    public static void resetOverlayProbe() {
+        overlayDrew = false;
+    }
+
+    /** Whether the last overlay pass drew this block's own geometry rather than nothing. */
+    public static boolean overlayDrew() {
+        return overlayDrew;
+    }
+
     /**
      * Draws a custom-rendered block's geometry, or reports that this block does not draw its own.
      *
@@ -46,10 +59,18 @@ public final class GrugBoxRenderer {
      * @param renderer the renderer whose world, lighting and texture atlas to use
      * @param world the world the renderer is drawing, which is where the block entity comes from
      * @param block the block being drawn, whose bounding box each box is set on
+     * @param overlay whether this is the mining overlay's pass, which is recorded for a test to ask
+     *     about
      * @return false when the block does not draw its own geometry, so the caller draws its cube
      */
     public static boolean render(
-            BlockRenderManager renderer, BlockView world, Block block, int x, int y, int z) {
+            BlockRenderManager renderer,
+            BlockView world,
+            Block block,
+            int x,
+            int y,
+            int z,
+            boolean overlay) {
         if (!(block instanceof GrugBlock grugBlock)) return false;
         if (!grugBlock.drawsCustomGeometry()) return false;
 
@@ -70,6 +91,7 @@ public final class GrugBoxRenderer {
                 } else {
                     renderer.renderBlock(block, x, y, z);
                 }
+                if (overlay) overlayDrew = true;
             }
         } finally {
             block.setBoundingBox(0.0F, 0.0F, 0.0F, 1.0F, 1.0F, 1.0F);

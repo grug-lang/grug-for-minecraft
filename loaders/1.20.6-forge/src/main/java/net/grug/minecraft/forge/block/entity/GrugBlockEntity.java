@@ -2,6 +2,7 @@ package net.grug.minecraft.forge.block.entity;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge.GrugModLoader;
+import net.grug.minecraft.forge.block.GrugBakedModel;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
@@ -29,6 +30,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.client.model.data.ModelData;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -95,6 +97,24 @@ public class GrugBlockEntity extends BlockEntity
     public void onLoad() {
         super.onLoad();
         initGrug();
+    }
+
+    /**
+     * The position and level the breaking overlay needs to draw this block's custom geometry.
+     *
+     * <p>The overlay is drawn outside a chunk compile, and it asks the block's baked model for its
+     * quads with this block entity's model data instead of with the position the section mesher
+     * supplies. Without them {@link GrugBakedModel} has no place to look the block entity up, so it
+     * draws nothing and a custom-rendered block being mined shows no crack. These are the same two
+     * values the mesher hands the model, and {@code onLoad} asks the game to refresh them, so the
+     * overlay sees them from the first frame. See #201.
+     */
+    @Override
+    public ModelData getModelData() {
+        return ModelData.builder()
+                .with(GrugBakedModel.POS, worldPosition)
+                .with(GrugBakedModel.LEVEL, level)
+                .build();
     }
 
     /**

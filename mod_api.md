@@ -71,6 +71,7 @@ Test.get_player() Player
 Test.hot_reload_count(relative_path: string) number
 Test.is_reference() bool
 Test.load_nbt(block_entity: BlockEntity)
+Test.mining_crack(level: Level, x: number, y: number, z: number) bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number

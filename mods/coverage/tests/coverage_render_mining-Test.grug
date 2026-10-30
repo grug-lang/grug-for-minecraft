@@ -1,0 +1,75 @@
+# Covers the mining crack on a block that draws its own geometry. A block being mined shows the
+# game's destroy-stage crack, and a custom-rendered block has to show it over the geometry it drew
+# rather than over the cube it replaced, or not at all. The hook used to cancel the tesselation call
+# the overlay draws from, which is what this test is about.
+# The crack cannot be held on screen for a capture: the versions whose overlay follows the local
+# player's own mining clear that state on every tick the attack button is not held, and a test has
+# no way to hold it, so a screenshot of a mined block would show no crack whatever the hook did.
+# `Test.mining_crack` makes the same call the game makes for one overlay pass at the middle of the
+# break and answers whether it reached the block's own geometry, which is the question the
+# cancelled hook gets wrong.
+# The same answer covers the shape reset. The overlay sets the block's shared shape to each box, so
+# a box left behind would reshape every later block of that type in the same chunk compile; the
+# host function reports a shape that is not a full cube afterwards. See #201.
+render_block: Option[BlockEntity] = Option.new()
+
+# Where the run was placed, kept as members because the player can settle by a fraction of a block
+# between the setup and the check, and the check has to ask about the same block. See #609.
+block_x: number = 0.0
+block_y: number = 0.0
+block_z: number = 0.0
+
+# How many runner ticks in a row the world has answered settled. See the wait in tick().
+settled_ticks: number = 0
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        # The game has to have the block on the client and its block entity running before the
+        # overlay pass can draw anything, so the wait comes first. A world that never settles runs
+        # into the test's own budget rather than asking about a block that is not there. See #259.
+        settled_ticks = 0
+        ctx.not_done()
+    } else if settled_ticks < 5 {
+        # One settled answer is not enough: 1.20.6 learns of the block from a packet, and its
+        # section and lighting have to land before the model data manager holds the block entity.
+        # Five answers in a row is well past the tick an in-flight update takes to arrive. See #259.
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+    } else {
+        _check(ctx)
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # One block with an arm, so the crack has to follow a shape that is not a cube. It is four
+    # blocks in front of the player, inside the room the runner builds.
+    block_x = x
+    block_y = y
+    block_z = z + 4
+    level.place_block(block_x, block_y, block_z, "grug:coverage_crack")
+
+    be_opt: Option[BlockEntity] = level.get_block_entity(block_x, block_y, block_z)
+    ctx.assert(be_opt.has(), "The custom-rendered block should have a block entity.")
+    render_block.set(be_opt.unwrap())
+}
+
+local _check(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+
+    # The block entity is what the hook draws through, so a missing one would make the answer below
+    # a report about the wrong thing. Asserting it here turns that into a readable failure.
+    ctx.assert(render_block.has(), "The custom-rendered block lost its block entity.")
+
+    # The crack over the block's own geometry, and the shape back to a full cube afterwards.
+    ctx.assert(Test.mining_crack(level, block_x, block_y, block_z), "The mining crack should be drawn over the block's own geometry.")
+    ctx.assert(level.get_block(block_x, block_y, block_z) == "grug:coverage_crack", "Showing the crack should not break the block.")
+}

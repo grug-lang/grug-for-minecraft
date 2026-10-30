@@ -34,14 +34,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * custom rendering is left alone and returns false, so every other block, grug or vanilla, still
  * goes through the game's own path.
  *
- * <p>The mining overlay is not drawn for a custom-rendered block: the overlay calls the same {@code
- * render}, so cancelling here cancels its second copy of the block too. That is the honest
- * consequence of cancelling, and it applies to every loader. See #201.
+ * <p>The mining overlay calls the same {@code render} with the destroy-stage sprite set, and
+ * GrugBoxRenderer's boxes go through the face methods that honour it, so a mined custom-rendered
+ * block shows the crack on its own geometry. Only the cube the render type would have drawn is
+ * cancelled. See #201.
  */
 @Mixin(value = BlockRenderManager.class, priority = 750)
 public class BlockRenderManagerMixin {
 
     @Shadow private BlockView blockView;
+
+    /** The destroy-stage sprite while the mining overlay draws, and -1 otherwise. */
+    @Shadow private int textureOverride;
 
     @Inject(
             method = "render(Lnet/minecraft/block/Block;III)Z",
@@ -49,7 +53,14 @@ public class BlockRenderManagerMixin {
             cancellable = true)
     private void grug$customGeometry(
             Block block, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
-        if (GrugBoxRenderer.render((BlockRenderManager) (Object) this, blockView, block, x, y, z)) {
+        if (GrugBoxRenderer.render(
+                (BlockRenderManager) (Object) this,
+                blockView,
+                block,
+                x,
+                y,
+                z,
+                textureOverride >= 0)) {
             // True, not false: the block did draw geometry, so the chunk is not empty. Returning
             // false would let the chunk compile skip the display list that now holds the shape.
             cir.setReturnValue(true);
