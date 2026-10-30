@@ -1,0 +1,8 @@
+# Fixture block for block_entity_me-Test.grug: one slot, so the test can insert into it and have the loader
+# call the block entity's item_inserted export.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_me_block_entity")
+    ctx.set_inventory_size(1)
+}
