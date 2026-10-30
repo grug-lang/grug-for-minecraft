@@ -1,0 +1,6 @@
+# A core with one arm, both valid boxes, so the geometry the mining crack has to follow is not a
+# cube and there is nothing for a render pass to report. See coverage_crack-Block.grug.
+export render(ctx: RenderContext) {
+    ctx.draw_box(0.3, 0.3, 0.3, 0.7, 0.7, 0.7)
+    ctx.draw_box(0.7, 0.375, 0.375, 1.0, 0.625, 0.625)
+}

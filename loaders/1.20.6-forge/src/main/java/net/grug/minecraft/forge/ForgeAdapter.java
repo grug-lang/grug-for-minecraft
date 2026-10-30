@@ -11,6 +11,7 @@ import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugTickLockstep;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
+import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.grug.BlockPos;
@@ -24,6 +25,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -31,6 +33,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
@@ -49,10 +52,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.model.data.ModelData;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -62,6 +67,7 @@ import org.slf4j.Logger;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 
@@ -1162,6 +1168,61 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         pos,
                         false);
         mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
+    }
+
+    @Override
+    @GrugGenerated("the game's overlay model data: a test-only path that only a client has")
+    public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
+        if (refuseWithoutAClient("Test.mining_crack")) return false;
+        final net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        final boolean[] result = new boolean[1];
+        // The baked model and its model data are client objects, and the render thread reads the
+        // manager this asks for, so the whole question is asked on that thread.
+        onClientThread(() -> result[0] = miningCrackOnClient(pos));
+        return result[0];
+    }
+
+    @GrugGenerated("the game's overlay model data: a test-only path that only a client has")
+    private static boolean miningCrackOnClient(net.minecraft.core.BlockPos pos) {
+        Minecraft mc = Minecraft.getInstance();
+        ClientLevel level = mc.level;
+        if (level == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.mining_crack: There is no client level to draw in.");
+            return false;
+        }
+
+        BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof GrugBlock)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.mining_crack: There is no grug block at "
+                            + pos.getX()
+                            + ", "
+                            + pos.getY()
+                            + ", "
+                            + pos.getZ()
+                            + ".");
+            return false;
+        }
+
+        // The overlay draws the block's model with the model data the model data manager holds, so
+        // asking for its quads the same way is the same question the overlay asks. The block
+        // entity answers with its position and level, and without them the model has no place to
+        // find it and draws nothing, which is what a mined block showed before this. See #201.
+        ModelData data = level.getModelDataManager().getAt(pos);
+        List<BakedQuad> quads =
+                mc.getBlockRenderer()
+                        .getBlockModel(state)
+                        .getQuads(
+                                state,
+                                null,
+                                RandomSource.create(0L),
+                                data == null ? ModelData.EMPTY : data,
+                                null);
+        return !quads.isEmpty();
     }
 
     @Override

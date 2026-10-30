@@ -7,6 +7,7 @@ import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge125.block.GrugBlock;
 import net.grug.minecraft.forge125.block.GrugBlocks;
+import net.grug.minecraft.forge125.block.GrugBoxRenderer;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge125.client.GlBridge;
 import net.grug.minecraft.forge125.client.GrugEmptyScreen;
@@ -36,10 +37,12 @@ import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
+import net.minecraft.src.MovingObjectPosition;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.RenderGlobal;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.Timer;
+import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
 import net.minecraft.src.WorldRenderer;
 
@@ -1281,6 +1284,91 @@ public class Grug125Adapter implements ModLoaderAdapter {
                             + blockZ
                             + ".");
         }
+    }
+
+    @Override
+    @GrugGenerated("the game's own overlay pass: a test-only path that only a client has")
+    public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
+        if (refuseWithoutAClient("Test.mining_crack")) return false;
+        Minecraft mc = ModLoader.getMinecraftInstance();
+        EntityPlayer player = mc.thePlayer;
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.mining_crack: There is no local player to mine with.");
+            return false;
+        }
+
+        World world = (World) levelObj;
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+        int blockId = world.getBlockId(blockX, blockY, blockZ);
+        Block block =
+                (blockId > 0 && blockId < Block.blocksList.length)
+                        ? Block.blocksList[blockId]
+                        : null;
+        if (block == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.mining_crack: There is no block at "
+                            + blockX
+                            + ", "
+                            + blockY
+                            + ", "
+                            + blockZ
+                            + ".");
+            return false;
+        }
+
+        // One overlay pass for the block, the way a frame draws it while the player holds the
+        // attack button, at the middle of the break. Drawing between frames goes into the buffer
+        // the next frame clears, and the state it leaves is the game's own.
+        MovingObjectPosition hit =
+                new MovingObjectPosition(
+                        blockX,
+                        blockY,
+                        blockZ,
+                        1,
+                        Vec3D.createVectorHelper(blockX + 0.5, blockY + 0.5, blockZ + 0.5));
+        GrugBoxRenderer.resetOverlayProbe();
+        float previousDamage = mc.renderGlobal.damagePartialTime;
+        mc.renderGlobal.damagePartialTime = 0.5F;
+        mc.renderGlobal.drawBlockBreaking(player, hit, 0, player.inventory.getCurrentItem(), 0.0F);
+        mc.renderGlobal.damagePartialTime = previousDamage;
+
+        // The shape has to be a full cube again, or every later block of this type in the same
+        // chunk compile is reshaped by the last box the overlay drew.
+        if (block.minX != 0.0
+                || block.minY != 0.0
+                || block.minZ != 0.0
+                || block.maxX != 1.0
+                || block.maxY != 1.0
+                || block.maxZ != 1.0) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.mining_crack: The overlay left the block at "
+                            + blockX
+                            + ", "
+                            + blockY
+                            + ", "
+                            + blockZ
+                            + " shaped from ("
+                            + block.minX
+                            + ", "
+                            + block.minY
+                            + ", "
+                            + block.minZ
+                            + ") to ("
+                            + block.maxX
+                            + ", "
+                            + block.maxY
+                            + ", "
+                            + block.maxZ
+                            + ") instead of a full cube.");
+            return false;
+        }
+
+        return GrugBoxRenderer.overlayDrew();
     }
 
     @Override

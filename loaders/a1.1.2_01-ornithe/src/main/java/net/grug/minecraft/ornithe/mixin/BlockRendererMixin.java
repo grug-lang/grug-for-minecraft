@@ -26,21 +26,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * custom rendering is left alone and returns false, so every other block, grug or vanilla, still
  * goes through the game's own path.
  *
- * <p>{@code forcedSprite} is left alone rather than honoured: it is the mining-progress overlay,
- * which sets it and then tesselates a second copy of the block. Cancelling this call cancels that
- * second copy too, so a custom-rendered block being mined shows its geometry with no crack overlay
- * on it. That is the honest consequence of cancelling here, and it is left as it is rather than
- * special cased, because a crack drawn over custom geometry would need the shape applied twice.
+ * <p>The mining-progress overlay sets {@code forcedSprite} and then tesselates the block a second
+ * time, and the face methods of {@code tesselateBlock}, which is what this class hands each box to,
+ * use that sprite instead of the block's own. So the boxes are drawn with the crack on them, and
+ * the only copy this cancels is the one {@code tesselateInWorld} would have drawn from the render
+ * type, which is the cube the block does not use. See #201.
  */
 @Mixin(BlockRenderer.class)
 public class BlockRendererMixin {
 
     @Shadow private WorldView world;
 
+    /** The destroy-stage sprite while the mining overlay draws, and -1 otherwise. */
+    @Shadow private int forcedSprite;
+
     @Inject(method = "tesselateInWorld", at = @At("HEAD"), cancellable = true)
     private void grug$customGeometry(
             Block block, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
-        if (GrugBoxRenderer.render((BlockRenderer) (Object) this, world, block, x, y, z)) {
+        if (GrugBoxRenderer.render(
+                (BlockRenderer) (Object) this, world, block, x, y, z, forcedSprite >= 0)) {
             // True, not false: the block did draw geometry, so the chunk is not empty. Returning
             // false would let the chunk compile skip the display list that now holds the shape.
             cir.setReturnValue(true);

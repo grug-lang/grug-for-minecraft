@@ -1179,6 +1179,38 @@
 						}
 					]
 				},
+				"mining_crack": {
+					"description": "Test only: whether the game draws the mining crack over the block's own geometry, and leaves the block's shape a full cube afterwards. A test cannot hold the crack on screen, because the versions whose overlay follows the local player's own mining clear that state on every tick the attack button is not held; so the versions that draw the overlay from an explicit call make one overlay pass for the block at the middle of the break, and 1.20.6 asks its baked model for the quads the overlay would draw. The block is left in place.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					],
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"set_held_item": {
 					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there.",
 					"parameters": [

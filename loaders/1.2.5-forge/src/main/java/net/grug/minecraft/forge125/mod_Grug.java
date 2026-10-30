@@ -164,8 +164,10 @@ public class mod_Grug extends BaseMod {
      * than from a second rule kept in step with it. The block does not also draw its cube, because
      * the default case in renderBlockByRenderType does not call renderStandardBlock.
      *
-     * <p>The mining overlay is not drawn for a custom-rendered block, because FML's hook replaces
-     * the whole tesselation call. That is issue #201 and applies to every loader.
+     * <p>The mining overlay goes through {@code RenderBlocks.renderBlockUsingTexture}, which sets
+     * {@code overrideBlockTexture} and then reaches this hook for a custom render type. The face
+     * methods GrugBoxRenderer draws through honour it, so a mined custom-rendered block shows the
+     * crack on its own boxes. See #201.
      */
     @Override
     public boolean renderWorldBlock(
@@ -176,7 +178,8 @@ public class mod_Grug extends BaseMod {
             int z,
             Block block,
             int modelID) {
-        return GrugBoxRenderer.render(renderer, world, block, x, y, z);
+        return GrugBoxRenderer.render(
+                renderer, world, block, x, y, z, renderer.overrideBlockTexture >= 0);
     }
 
     /**

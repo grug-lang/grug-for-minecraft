@@ -475,6 +475,23 @@ public interface ModLoaderAdapter {
     void useBlockForTest(Object levelObj, double x, double y, double z);
 
     /**
+     * Whether the game draws the mining crack over the block's own geometry at the given
+     * coordinates, and leaves the block's shape a full cube afterwards.
+     *
+     * <p>A test needs this because it cannot hold the crack on screen: the versions whose overlay
+     * follows the local player's own mining clear that state on every tick the attack button is not
+     * held, and a test has no way to hold it, so a capture of a mined block would show no crack
+     * whatever the hook does. The versions that draw the overlay from an explicit call make one
+     * overlay pass for the block at the middle of the break; 1.20.6 asks its baked model for the
+     * quads the overlay would draw, which is what the fix there is about.
+     *
+     * <p>The block is left in place and nothing is damaged. The shape half of the answer is the
+     * promise every shape-per-box loader makes: the overlay sets the block's shared shape per box,
+     * so a box left behind would reshape every later block of that type in the same chunk compile.
+     */
+    boolean miningCrackForTest(Object levelObj, double x, double y, double z);
+
+    /**
      * Captures the rectangle and compares it against the reference directory. When {@code
      * tolerancePercent} is 0 the capture must match pixel-for-pixel; otherwise it passes when at
      * most that percentage of pixels differ.

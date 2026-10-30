@@ -343,6 +343,11 @@ public class HostFunctions {
         GrugCore.getAdapter().useBlockForTest(GrugEntities.entityData.get(levelId).object, x, y, z);
     }
 
+    public static boolean Test_mining_crack(long levelId, double x, double y, double z) {
+        return GrugCore.getAdapter()
+                .miningCrackForTest(GrugEntities.entityData.get(levelId).object, x, y, z);
+    }
+
     public static long Test_screenshot() {
         return GrugEntities.addEntity(GrugEntityType.Screenshot, new GrugScreenshot(0));
     }

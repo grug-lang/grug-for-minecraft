@@ -1,0 +1,10 @@
+# A block whose block entity draws a shape of its own, for the mining crack test. Its render draws
+# two valid boxes and nothing else, so a render pass a host function asks for cannot report a defect
+# and fail the test it is part of: the coverage_render fixture deliberately draws one bad box and
+# one empty model, and a second pass over it reports the model.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_crack_entity")
+    ctx.set_custom_render()
+}

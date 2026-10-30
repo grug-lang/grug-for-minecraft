@@ -56,10 +56,12 @@ import java.util.List;
  * result to the quad calls, which is what puts the position and the level within reach of a baked
  * model, which is otherwise asked about a block state rather than about a place in the world.
  *
- * <p>A call with no position, which is the breaking overlay and anything else rendering the model
- * outside a level, draws nothing. A cube-shaped crack over a shape that is not a cube is not a
- * thing anyone asked for, and the other ports' hooks cancel the crack overlay along with the cube.
- * See #201.
+ * <p>The breaking overlay draws this model outside a chunk compile, so the position cannot come
+ * from the mesher. It asks for the block entity's model data instead, and the block entity answers
+ * with the position and level it holds, which is why a mined block shows the crack over its own
+ * boxes. A call with neither, from anything else rendering the model outside a level, draws
+ * nothing, because a cube-shaped crack over a shape that is not a cube is not a thing anyone asked
+ * for. See #201.
  *
  * <p>Excluded from coverage because the class carries {@link GrugGenerated}, which JaCoCo drops
  * whole (see that annotation). The pass bookkeeping and box this works from are game-independent,
