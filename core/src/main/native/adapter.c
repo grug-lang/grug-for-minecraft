@@ -24,6 +24,15 @@ struct grug_file_info {
 };
 struct grug_files_slice { struct grug_file_info* ptr; size_t len; };
 
+// Mirrors grug_entity in grug.h. The id is the entity's own, which is what the script's `me` holds,
+// and it is unique per entity for the life of the state, whereas the handle's storage may be reused
+// after a destroy (#604).
+struct grug_entity {
+    uint64_t id;
+    uint64_t file_id;
+    void* data;
+};
+
 struct grug_stack_frame;
 
 // Mirrors grug_runtime_error in grug.h. Every string field there is a null terminated pointer, so
@@ -214,6 +223,7 @@ Java_net_grug_minecraft_grug_GrugNative_nativeCompileAllFiles(JNIEnv *env, jclas
 }
 
 extern void* grug_create_entity(void* state, uint64_t file_id);
+extern struct grug_entity* grug_entity_get_data(void* state, void* entity_handle);
 extern uint64_t grug_get_on_fn_id(void* state, const char* entity_type, const char* on_fn_name);
 extern bool grug_call_export_fn(void* state, void* entity_handle, uint64_t on_fn_id, const union grug_value* args, size_t args_len);
 extern void grug_deinit_entity(void* state, void* entity_handle);
@@ -221,6 +231,12 @@ extern void grug_deinit_entity(void* state, void* entity_handle);
 JNIEXPORT jlong JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeCreateEntity(JNIEnv *env, jclass clazz, jlong statePtr, jlong fileId) {
     return (jlong)(intptr_t)grug_create_entity((void*)(intptr_t)statePtr, (uint64_t)fileId);
+}
+
+JNIEXPORT jlong JNICALL
+Java_net_grug_minecraft_grug_GrugNative_nativeGetEntityId(JNIEnv *env, jclass clazz, jlong statePtr, jlong entityHandle) {
+    struct grug_entity* entity = grug_entity_get_data((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle);
+    return entity ? (jlong)entity->id : -1;
 }
 
 JNIEXPORT jlong JNICALL

@@ -120,6 +120,8 @@ final class GrugNative {
 
     static native long nativeCreateEntity(long statePtr, long fileId);
 
+    static native long nativeGetEntityId(long statePtr, long entityHandle);
+
     static native long nativeGetExportFnId(long statePtr, String entityType, String fnName);
 
     static native boolean nativeCallExportFn(long statePtr, long entityHandle, long exportFnId);

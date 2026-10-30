@@ -1,6 +1,4 @@
-# An energy receiver holding at most 10, for the tests of the energy host functions. Resolving me in
-# the member scope registers the block entity's me handle, which a later host call needs.
-level: Level = me.level()
+# An energy receiver holding at most 10, for the tests of the energy host functions.
 
 export init(ctx: BlockEntityInitContext) {
     ctx.set_power_receiver(10)
