@@ -192,11 +192,12 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 - The README calls `mod_api.json` frozen. That discourages growth for its own sake, not removals,
   replacements, test-only helpers or tooling fixes. Justify every change to it in the pull request
   description, one by one.
-- The goal is to port every Java mod to grug for every Minecraft version from Alpha 1.1.2_01 onward,
-  and every mod loader that ever shipped for one of them, so design an entry for the ports known to
-  need it, not only the one at hand; one that no committed mod calls yet goes in an issue instead.
-  Porting is therefore most of the work and most pull requests will change only `mods/`, so a saving
-  counts for each pull request it will affect and is not discounted by how few have that shape today.
+- The goal is to port every Java mod to grug for every Minecraft version ever released, starting
+  from Alpha 1.1.2_01, and for every mod loader ever released, so design an entry for the ports
+  known to need it, not only the one at hand; one that no committed mod calls yet goes in an issue
+  instead. Porting is therefore most of the work and most pull requests will change only `mods/`, so
+  a saving counts for each pull request it will affect and is not discounted by how few have that
+  shape today.
 - Compare every new or changed `mod_api.json` entry with its Forge and Fabric equivalents, and say
   in the pull request how it compares. They are a reference, not a design to copy.
 - A host function added for a port is free of the reference's bugs: `mod_api.json` serves every mod.
