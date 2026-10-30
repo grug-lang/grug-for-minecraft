@@ -412,8 +412,11 @@ while :; do
   fi
   # Only a failure before the game started can be a download: buildfailed is Gradle ending before
   # runClient, and exited is the same in a run phase, which has no build to tell it from a game that
-  # exited. A test failure, a crash, an abort and a timeout are never retried.
-  if [ "$status" != buildfailed ] && [ "$status" != exited ]; then
+  # exited. A test failure, a crash, an abort and a timeout are never retried. The production phase
+  # never retries either: its launcher downloads with curl's own retries, its log holds no Gradle
+  # runClient line to tell a failed install from a game that ran, and a second installed launch is
+  # the most expensive thing this script could repeat.
+  if [ "$PHASE" = production ] || { [ "$status" != buildfailed ] && [ "$status" != exited ]; }; then
     break
   fi
   # The run phase reads the whole log as the game's, so a line in it that looks like a download
