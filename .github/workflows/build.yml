@@ -279,7 +279,7 @@ jobs:
       # fake Gradle sleeps two seconds in every case, and the seven files cost 119 s of this job one
       # after another. parallel_test_runner.py puts each file in a process of its own and stops at
       # the first failure, and run_loader_test.py runs its 45 cases the same way, so the step costs
-      # about its slowest case instead of the sum.
+      # about a quarter of what the waits add up to.
       - name: Test the native-abort reporter and the run script
         run: |
           python3 .github/scripts/parallel_test_runner.py \

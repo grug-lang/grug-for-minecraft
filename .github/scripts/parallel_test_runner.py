@@ -5,7 +5,7 @@
 
 The Python suites of the core tests job are waits, not work: run_loader_test.py's fake Gradle
 sleeps two seconds in every case, so 45 cases took 112 s of a 119 s step while the runner's four
-CPUs sat idle. Run side by side, the step costs its slowest case instead of the sum of the waits.
+CPUs sat idle. Run side by side, the step costs about a quarter of what the waits add up to.
 
 A script is a process of its own, and so is every case of run_loader_test.py (it runs its own cases
 through this module), because a process is the only boundary that cannot leak a path, a port, an
