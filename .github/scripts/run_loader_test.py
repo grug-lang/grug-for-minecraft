@@ -86,6 +86,30 @@ Execution failed for task ':loaders:fake-loader:downloadAssets'.
   Some assets failed to download or validate, try running the task again.
 """
 
+# The dependency resolution failure of #728, as the 1.2.5-forge installed job's log held it: Maven
+# Central served 404 for an artifact it serves a moment later. The retry costs one invocation.
+RESOLUTION_FAILURE_LOG = """\
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':fogPatch'.
+> Could not resolve all files for configuration ':fogPatchTool'.
+   > Could not find org.ow2.asm:asm:9.10.1.
+     Searched in the following locations:
+       - https://repo.maven.apache.org/maven2/org/ow2/asm/asm/9.10.1/asm-9.10.1.pom
+       - https://libraries.minecraft.net/org/ow2/asm/asm/9.10.1/asm-9.10.1.pom
+"""
+
+# A build script that names a method that does not exist also says "Could not find", and that is the
+# code failing: the artifact pattern must not match it.
+MISSING_METHOD_LOG = """\
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+A problem occurred evaluating project ':loaders:fake-loader'.
+> Could not find method fixInheritedTool() for arguments [org.ow2.asm:asm:9.10.1] on project ':loaders:fake-loader'.
+"""
+
 # A Gradle failure that is neither a download nor the code failing in a way the script knows: it has
 # to fail the job rather than earn a retry.
 UNRECOGNISED_FAILURE_LOG = """\
@@ -459,7 +483,7 @@ class RunLoaderTest(unittest.TestCase):
         # A compile error is not a download failure, so the build runs once and the error is the
         # whole story of the job.
         self.assertEqual(len(result.gradle_args.splitlines()), 1)
-        self.assertNotIn("failed on a download", result.stderr)
+        self.assertNotIn("failed fetching what it needs", result.stderr)
 
     def test_build_output_is_not_read_as_the_games(self):
         # A line of the build that looks like a failed test must not fail a run whose game passes,
@@ -509,7 +533,7 @@ class RunLoaderTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("passed all tests", result.stdout)
-        self.assertIn("failed on a download", result.stderr)
+        self.assertIn("failed fetching what it needs", result.stderr)
         self.assertIn("DownloadException", result.stderr)
         self.assertEqual(len([c for c in result.gradle_args.splitlines() if "runClient" in c]), 2)
         # The failed attempt's log is kept beside the one the job reports from, so the hiccup is
@@ -532,6 +556,35 @@ class RunLoaderTest(unittest.TestCase):
             "Failed to get asset: minecraft/sounds/block/smoker/smoker4.ogg", result.stderr
         )
         self.assertEqual(len(result.gradle_args.splitlines()), 2)
+
+    def test_a_dependency_resolution_failure_is_retried(self):
+        # #728: a cold dependency graph asked Maven Central for an artifact it served a moment later,
+        # and the job failed on the hiccup. The retry is the same one a download failure gets.
+        result = self.run_script(
+            phase="build-run",
+            sequence=[
+                (RESOLUTION_FAILURE_LOG, 1),
+                (self.BUILD_LOG + self.GAME_START + PASSING_LOG, 0),
+            ],
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("failed fetching what it needs", result.stderr)
+        # The header comes before the coordinate in Gradle's output and the script prints the first
+        # line it matched, so that is the one the job sees. The coordinate in the same log is what
+        # makes the resolution failure recognisable; the negative case below pins its pattern.
+        self.assertIn(
+            "Could not resolve all files for configuration ':fogPatchTool'.", result.stderr
+        )
+        self.assertEqual(len(result.gradle_args.splitlines()), 2)
+
+    def test_a_build_script_that_names_a_missing_method_is_not_retried(self):
+        result = self.run_script(MISSING_METHOD_LOG, 1, phase="build-run")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("failed fetching what it needs", result.stderr)
+        self.assertIn("Gradle failed to build fake-loader", result.stderr)
+        self.assertEqual(len(result.gradle_args.splitlines()), 1)
 
     def test_a_download_failure_in_a_run_phase_is_retried(self):
         # A Windows loader job launches only the game, so a downloadAssets failure ends Gradle
@@ -585,7 +638,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("tests failed", result.stderr)
         self.assertEqual(len(result.gradle_args.splitlines()), 1)
-        self.assertNotIn("failed on a download", result.stderr)
+        self.assertNotIn("failed fetching what it needs", result.stderr)
 
     def test_a_game_that_ran_is_not_retried_for_a_download_like_line_in_its_log(self):
         # The run phase reads its whole log as the game's, so a message that looks like the download
@@ -601,7 +654,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("build/game process exited (exit code 3)", result.stderr)
         self.assertEqual(len(result.gradle_args.splitlines()), 1)
-        self.assertNotIn("failed on a download", result.stderr)
+        self.assertNotIn("failed fetching what it needs", result.stderr)
 
     def test_an_unrecognised_gradle_failure_is_not_retried(self):
         result = self.run_script(UNRECOGNISED_FAILURE_LOG, 1, phase="build-run")
@@ -609,7 +662,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Gradle failed to build fake-loader", result.stderr)
         self.assertEqual(len(result.gradle_args.splitlines()), 1)
-        self.assertNotIn("failed on a download", result.stderr)
+        self.assertNotIn("failed fetching what it needs", result.stderr)
 
     def test_a_production_launch_is_not_retried_for_a_download_like_line(self):
         # The installed run's launcher retries its own downloads with curl, its log has no Gradle
@@ -637,7 +690,7 @@ class RunLoaderTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(len(launches.read_text().splitlines()), 1)
-        self.assertNotIn("failed on a download", result.stderr)
+        self.assertNotIn("failed fetching what it needs", result.stderr)
         # A launcher that exits before reporting a launch is a failed install, reported at once as
         # the exit it was, never as an install that sat until its limit.
         self.assertIn(

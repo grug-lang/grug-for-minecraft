@@ -110,24 +110,32 @@ if [ "$PHASE" = production ]; then
   UNIVERSAL_JAR="$(cd "$(dirname "$GRUG_UNIVERSAL_JAR")" && pwd)/$(basename "$GRUG_UNIVERSAL_JAR")"
 fi
 
-# A failed asset download is worth one more Gradle invocation, and nothing else is: Loom's own three
-# attempts all land inside a single transient hiccup on resources.download.minecraft.net (#700),
-# ForgeGradle's downloadAssets says to run the task again, and a compile error, a test failure or an
-# unrecognised Gradle failure would only be delayed by a retry. The decision is a pure function of
-# the log, so it is unit-tested case by case in run_loader_test.py, and it prints the line it matched
-# so the job says why it retried.
-DOWNLOAD_FAILURE_RE='net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate'
-download_failed() {
-  grep -m1 -E "$DOWNLOAD_FAILURE_RE" "$1" 2>/dev/null
+# An external host answering badly is worth one more Gradle invocation, and nothing else is: Loom's
+# own three attempts all land inside a single transient hiccup on resources.download.minecraft.net
+# (#700), ForgeGradle's downloadAssets says to run the task again, and Maven Central or
+# libraries.minecraft.net answering 404 for an artifact they serve a moment later fails the
+# dependency resolution (#728). A compile error, a test failure or an unrecognised Gradle failure
+# would only be delayed by a retry, and a missing artifact is retried exactly once, which is cheap
+# next to a job that failed on a hiccup.
+#
+# The decision is a pure function of the log, so it is unit-tested case by case in
+# run_loader_test.py, and it prints the line it matched so the job says why it retried.
+#
+# "Could not find" is matched only with a full coordinate, `group:artifact:version.`, because a build
+# script that names a method that does not exist says "Could not find method foo()" and that is the
+# code failing, not a host.
+RETRYABLE_FAILURE_RE='net\.fabricmc\.loom\.util\.download\.DownloadException|Failed download after [0-9]+ attempts|Failed to get asset:|Some assets failed to download or validate|Could not find [^ :]+:[^ :]+:[^ :]+\.|Could not resolve all (files|artifacts) for configuration|Could not (GET|HEAD) .https?://'
+retryable_failure() {
+  grep -m1 -E "$RETRYABLE_FAILURE_RE" "$1" 2>/dev/null
 }
 
 # The first attempt and one retry. Never a third: an outage longer than this is not a flake for a
 # single job to ride out, and each attempt costs the job its whole build again.
 MAX_GRADLE_ATTEMPTS=2
 
-# Runs a Gradle invocation whose output nothing else reads, and once more when it failed on a
-# download. The log of the attempt that failed is kept beside the one that decided the job, so a
-# retry that passes still leaves the hiccup readable.
+# Runs a Gradle invocation whose output nothing else reads, and once more when it failed fetching
+# what the build needs rather than on the code. The log of the attempt that failed is kept beside the
+# one that decided the job, so a retry that passes still leaves the hiccup readable.
 gradle_with_retry() {
   local log="$1" attempt=1 status reason
   shift
@@ -137,11 +145,11 @@ gradle_with_retry() {
     if [ "$status" -eq 0 ]; then
       return 0
     fi
-    if [ "$attempt" -ge "$MAX_GRADLE_ATTEMPTS" ] || ! reason=$(download_failed "$log"); then
+    if [ "$attempt" -ge "$MAX_GRADLE_ATTEMPTS" ] || ! reason=$(retryable_failure "$log"); then
       return "$status"
     fi
     cp "$log" "${log}.attempt-${attempt}"
-    echo "==> Gradle failed on a download, not on the code: $reason" >&2
+    echo "==> Gradle failed fetching what it needs, not on the code: $reason" >&2
     echo "==> Retrying the same Gradle invocation, attempt $((attempt + 1)) of ${MAX_GRADLE_ATTEMPTS}." >&2
     echo "==> The failed attempt's log is ${log#"${REPO_ROOT}/"}.attempt-${attempt}" >&2
     attempt=$((attempt + 1))
@@ -329,7 +337,8 @@ game_start_re="^> Task ${task_prefix:-:}runClient( |\$)"
 # the harness line instead, in launch-production.sh, so its limit starts at the launch as before.
 production_game_start_re='Launched|\[GRUG CI\] GAME LAUNCHING'
 
-# One attempt, and one more when the first failed on a download rather than on the code. The game
+# One attempt, and one more when the first failed fetching what the build needs rather than on the
+# code. The game
 # never started in that case, so repeating the whole invocation repeats nothing the game did; any
 # other outcome ends the job here, with the log of the attempt that decided it.
 attempt=1
@@ -467,11 +476,11 @@ while :; do
   if [ "$status" = exited ] && grep -q -E "$game_start_re" "$LOG_FILE"; then
     break
   fi
-  if ! reason=$(download_failed "$LOG_FILE"); then
+  if ! reason=$(retryable_failure "$LOG_FILE"); then
     break
   fi
   cp "$LOG_FILE" "${LOG_FILE}.attempt-${attempt}"
-  echo "==> Gradle failed on a download, not on the code: $reason" >&2
+  echo "==> Gradle failed fetching what it needs, not on the code: $reason" >&2
   echo "==> Retrying $LOADER, attempt $((attempt + 1)) of ${MAX_GRADLE_ATTEMPTS}." >&2
   echo "==> The failed attempt's log is ${LOG_FILE#"${REPO_ROOT}/"}.attempt-${attempt}" >&2
   attempt=$((attempt + 1))
