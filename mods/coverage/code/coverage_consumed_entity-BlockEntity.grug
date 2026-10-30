@@ -6,10 +6,6 @@
 #   1 gives the result as an ordinary result and then as consumed, which is an err
 #   2 gives the result as an ordinary result without paying, which the host takes itself and reports to
 #     output_taken
-# Member scope has to use me for the script to be able to use it in its exports: the host only learns which block
-# entity me is while the grug entity is being created, so a script that leaves it alone there finds no block
-# entity behind me in extract_item and sees no crafting result.
-level: Level = me.level()
 
 export output_taken(amount: number) {
     me.set_saved_number("output_taken_calls", me.get_saved_number("output_taken_calls") + 1)

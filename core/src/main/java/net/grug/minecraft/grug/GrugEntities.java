@@ -72,6 +72,28 @@ public final class GrugEntities {
     }
 
     /**
+     * Registers the block entity a just-created grug entity stands for, under the entity's own id,
+     * which is the id {@code me} holds.
+     *
+     * <p>Without this, {@code me} enters the entity table only when a host call resolves it while
+     * {@link #currentlyInitializingBlockEntity} is bound, which happens only inside member scope
+     * and {@code init}. A script that never touched {@code me} there then found no block entity
+     * behind it in {@code tick} or any other export, so it needed a throwaway member-scope line
+     * such as {@code level: Level = me.level()}. See #604.
+     *
+     * <p>The registration is rooted in {@link #fnEntities}, which is the block entity's own child
+     * list for the duration of its creation, so it is freed with the block entity rather than kept
+     * in a process-wide list forever. An id that already holds this same block entity is left
+     * alone, which is the case when member scope resolved {@code me} and registered it then.
+     */
+    static void registerBlockEntity(long entityId, Object blockEntity) {
+        if (entityId == Grug.INVALID_GRUG_ENTITY_ID || blockEntity == null) return;
+        GrugObject registered = entityData.get(entityId);
+        if (registered != null && registered.object == blockEntity) return;
+        addEntityWithId(entityId, GrugEntityType.BlockEntity, blockEntity);
+    }
+
+    /**
      * {@link Grug#createEntity} with the host entities the call creates rooted in {@code owner} and
      * {@code me} resolving to {@code initializingBlockEntity}, under the state lock.
      *
@@ -94,7 +116,9 @@ public final class GrugEntities {
             fnEntities = owner;
             currentlyInitializingBlockEntity = initializingBlockEntity;
             try {
-                return Grug.createEntity(fileId);
+                long entityHandle = Grug.createEntity(fileId);
+                registerBlockEntity(Grug.getEntityId(entityHandle), initializingBlockEntity);
+                return entityHandle;
             } finally {
                 currentlyInitializingBlockEntity = oldInitializingBlockEntity;
                 fnEntities = oldFnEntities;

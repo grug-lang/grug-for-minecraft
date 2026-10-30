@@ -1,7 +1,3 @@
-# Resolving me in the member scope registers the block entity's me handle, which a later host call
-# needs. The autocrafting table does the same.
-level: Level = me.level()
-
 # Drops a marker into slot 0 whenever a neighbour changes, so a test can observe that the loader
 # delivered the on_neighbor_change hook.
 export on_neighbor_change() {

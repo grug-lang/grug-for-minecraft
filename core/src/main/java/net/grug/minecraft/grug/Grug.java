@@ -13,6 +13,7 @@ public final class Grug {
     public static long statePtr = 0;
     public static final long INVALID_GRUG_FILE_ID = -1L;
     public static final long INVALID_GRUG_EXPORT_FN_ID = -1L;
+    public static final long INVALID_GRUG_ENTITY_ID = -1L;
 
     @GrugGenerated("utility class: never instantiated")
     private Grug() {}
@@ -48,6 +49,25 @@ public final class Grug {
         GrugStateLock.lock();
         try {
             return GrugNative.nativeCreateEntity(statePtr, fileId);
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
+     * The id a grug entity's {@code me} holds, for one of its handles, or {@link
+     * #INVALID_GRUG_ENTITY_ID} when the handle addresses no entity.
+     *
+     * <p>This is not the handle: the handle addresses the entity's storage, which the VM may hand
+     * out again after a destroy, whereas the id is unique for the life of the state and is what a
+     * script passes back to a host function. A host-created entity's id is this side's to choose,
+     * but the id of an entity the VM created has to be asked for, to register the entity under the
+     * id its {@code me} holds. See #604.
+     */
+    public static long getEntityId(long entityHandle) {
+        GrugStateLock.lock();
+        try {
+            return GrugNative.nativeGetEntityId(statePtr, entityHandle);
         } finally {
             GrugStateLock.unlock();
         }
