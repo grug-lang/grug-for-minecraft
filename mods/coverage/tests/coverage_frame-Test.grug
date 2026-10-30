@@ -17,9 +17,13 @@ remesh_ticks: number = 0
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
+# DIAGNOSTIC, for #660: how many times the settled frame has been compared with the reference.
+probes: number = 0
+
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
+        print(Test.get_origin())
         ctx.not_done()
     } else if not Test.world_settled() {
         # The mesh below has to read the settled light, so the wait comes first. See coverage_render
@@ -40,6 +44,14 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
     } else if not Test.world_settled() {
         # Waiting for the mesh the swap scheduled. See coverage_render and #259.
+        ctx.not_done()
+    } else if probes < 30 {
+        # DIAGNOSTIC, for #660: compare thirty consecutive settled frames with the reference and
+        # print the camera each time, so a frame that differs from the reference within one session
+        # fails here instead of once in a while on another runner.
+        print(Test.get_origin())
+        _check(ctx)
+        probes = probes + 1
         ctx.not_done()
     } else {
         _check(ctx)
