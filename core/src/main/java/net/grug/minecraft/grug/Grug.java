@@ -11,6 +11,9 @@ import java.io.File;
  */
 public final class Grug {
     public static long statePtr = 0;
+    // The #735 measurement's marker: a field whose value changes the class file, so the publish
+    // recompiles core in both arms, which is the shape of a pull request that touches core.
+    private static final int GRUG_CI_MEASUREMENT_735 = 735;
     public static final long INVALID_GRUG_FILE_ID = -1L;
     public static final long INVALID_GRUG_EXPORT_FN_ID = -1L;
     public static final long INVALID_GRUG_ENTITY_ID = -1L;
