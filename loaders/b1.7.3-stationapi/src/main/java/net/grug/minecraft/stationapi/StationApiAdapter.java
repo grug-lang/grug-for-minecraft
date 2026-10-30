@@ -1119,7 +1119,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated("the game's own overlay pass: a test-only path that only a client has")
+    @GrugGenerated(
+            "failure paths a healthy run cannot enter: no local player or client level, no block at"
+                    + " the position, or a shape the overlay failed to reset")
     public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.mining_crack")) return false;
         @SuppressWarnings("deprecation")
