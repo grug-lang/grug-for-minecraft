@@ -466,13 +466,28 @@ jobs:
       # x11-xserver-utils provides the xrandr binary, which LWJGL 2 (the
       # Alpha/Beta loaders) shells out to. Without it those loaders fail with
       # "No display mode extension is available".
+      # The runner image ships an apt index and already carries most of these, so only what it lacks
+      # is installed: `apt-get update` is about a third of this step's 8.9 s and runs only if that
+      # index can no longer resolve a package (#697).
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            xvfb xauth x11-xserver-utils \
-            libgl1 libgl1-mesa-dri libglx-mesa0 \
+          packages=(
+            xvfb xauth x11-xserver-utils
+            libgl1 libgl1-mesa-dri libglx-mesa0
             libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+            [ "$status" = 'install ok installed' ] || missing+=("$package")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            # The image's index can have gone stale since it was built; updating is the slow path.
+            if ! sudo apt-get install -y --no-install-recommends "${missing[@]}"; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends "${missing[@]}"
+            fi
+          fi
 
       # One Gradle invocation builds the loader and its layer and then runs the game (#678), so the
       # job pays one Gradle start and one configuration. A build failure still fails the step before
@@ -682,13 +697,28 @@ jobs:
           echo "The reference harness is $harness:"
           (cd "$harness" && find . -type f -not -name '*.png' | sort)
 
+      # The runner image ships an apt index and already carries most of these, so only what it lacks
+      # is installed: `apt-get update` is about a third of this step's 8.9 s and runs only if that
+      # index can no longer resolve a package (#697).
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            xvfb xauth x11-xserver-utils \
-            libgl1 libgl1-mesa-dri libglx-mesa0 \
+          packages=(
+            xvfb xauth x11-xserver-utils
+            libgl1 libgl1-mesa-dri libglx-mesa0
             libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+            [ "$status" = 'install ok installed' ] || missing+=("$package")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            # The image's index can have gone stale since it was built; updating is the slow path.
+            if ! sudo apt-get install -y --no-install-recommends "${missing[@]}"; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends "${missing[@]}"
+            fi
+          fi
 
       - name: Run the reference (1.2.5-forge)
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh 1.2.5-forge run
@@ -1051,13 +1081,28 @@ jobs:
           key: grug-mcp125-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
 
       # The same display stack as the build job, for the same reasons.
+      # The runner image ships an apt index and already carries most of these, so only what it lacks
+      # is installed: `apt-get update` is about a third of this step's 8.9 s and runs only if that
+      # index can no longer resolve a package (#697).
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            xvfb xauth x11-xserver-utils \
-            libgl1 libgl1-mesa-dri libglx-mesa0 \
+          packages=(
+            xvfb xauth x11-xserver-utils
+            libgl1 libgl1-mesa-dri libglx-mesa0
             libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+            [ "$status" = 'install ok installed' ] || missing+=("$package")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            # The image's index can have gone stale since it was built; updating is the slow path.
+            if ! sudo apt-get install -y --no-install-recommends "${missing[@]}"; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends "${missing[@]}"
+            fi
+          fi
 
       - name: Download the universal jar
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -1130,13 +1175,28 @@ jobs:
           java-version: 21
 
       # The same display stack as the build job, for the same reasons.
+      # The runner image ships an apt index and already carries most of these, so only what it lacks
+      # is installed: `apt-get update` is about a third of this step's 8.9 s and runs only if that
+      # index can no longer resolve a package (#697).
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            xvfb xauth x11-xserver-utils \
-            libgl1 libgl1-mesa-dri libglx-mesa0 \
+          packages=(
+            xvfb xauth x11-xserver-utils
+            libgl1 libgl1-mesa-dri libglx-mesa0
             libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+            [ "$status" = 'install ok installed' ] || missing+=("$package")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            # The image's index can have gone stale since it was built; updating is the slow path.
+            if ! sudo apt-get install -y --no-install-recommends "${missing[@]}"; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends "${missing[@]}"
+            fi
+          fi
 
       - name: Download the universal jar
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -1215,13 +1275,28 @@ jobs:
           java-version: 21
 
       # The display stack of the production job, and ImageMagick for the screen capture.
+      # The runner image ships an apt index and already carries most of these, so only what it lacks
+      # is installed: `apt-get update` is about a third of this step's 8.9 s and runs only if that
+      # index can no longer resolve a package (#697).
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            xvfb xauth x11-xserver-utils imagemagick \
-            libgl1 libgl1-mesa-dri libglx-mesa0 \
+          packages=(
+            xvfb xauth x11-xserver-utils imagemagick
+            libgl1 libgl1-mesa-dri libglx-mesa0
             libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+            [ "$status" = 'install ok installed' ] || missing+=("$package")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            # The image's index can have gone stale since it was built; updating is the slow path.
+            if ! sudo apt-get install -y --no-install-recommends "${missing[@]}"; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends "${missing[@]}"
+            fi
+          fi
 
       - name: Download the universal jar
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
