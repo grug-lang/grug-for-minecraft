@@ -638,6 +638,82 @@ class RunLoaderTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(len(launches.read_text().splitlines()), 1)
         self.assertNotIn("failed on a download", result.stderr)
+        # A launcher that exits before reporting a launch is a failed install, reported at once as
+        # the exit it was, never as an install that sat until its limit.
+        self.assertIn(
+            "build/game process exited (exit code 1) before reaching the title screen",
+            result.stderr,
+        )
+
+    def write_production_launcher(
+        self, install_seconds: float, game_seconds: float = 0.0
+    ) -> dict[str, str]:
+        # A launch-production.sh whose install takes install_seconds and then reports the launch the
+        # way portablemc 5.0.6 does once it has spawned the game process, followed by a game that
+        # prints the passing log game_seconds later. The install prints a line of the progress a
+        # Forge install writes while it downloads.
+        launcher = self.tmp / ".github" / "scripts" / "launch-production.sh"
+        launcher.write_text(
+            "#!/usr/bin/env bash\n"
+            "echo '         [  ..  ] Fetching installer libraries'\n"
+            f"sleep {install_seconds}\n"
+            "echo '         [  OK  ] Launched'\n"
+            f"sleep {game_seconds}\n"
+            f"printf %s {shlex.quote(PASSING_LOG)}\n"
+            "sleep 1\n"
+        )
+        launcher.chmod(0o755)
+        universal = self.tmp / "universal.jar"
+        universal.write_text("jar\n")
+        return {"GRUG_UNIVERSAL_JAR": str(universal)}
+
+    def test_a_slow_production_install_does_not_spend_the_game_budget(self):
+        # The install takes longer than the game's 2s limit and the game then passes inside it. An
+        # install without a limit of its own spends the game's budget and reads as a game that never
+        # reached the title screen (#725).
+        env = self.write_production_launcher(install_seconds=4)
+
+        result = self.run_script(
+            phase="production",
+            extra_env={**env, "GRUG_CI_RUN_TIMEOUT": "2", "GRUG_CI_INSTALL_TIMEOUT": "20"},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("passed all tests", result.stdout)
+        self.assertIn("The install of fake-loader finished", result.stdout)
+
+    def test_a_production_install_that_never_finishes_fails_on_the_install_limit(self):
+        # Nothing reports a launch and nothing exits, so the install's own limit has to end the run,
+        # and its message has to name the install rather than a title screen the game never reached.
+        env = self.write_production_launcher(install_seconds=30)
+
+        result = self.run_script(
+            phase="production",
+            extra_env={**env, "GRUG_CI_RUN_TIMEOUT": "20", "GRUG_CI_INSTALL_TIMEOUT": "2"},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Timed out after 2s installing fake-loader, before its game started", result.stderr
+        )
+        self.assertIn("raise GRUG_CI_INSTALL_TIMEOUT", result.stderr)
+        self.assertNotIn("waiting for fake-loader to reach the title screen", result.stderr)
+
+    def test_the_game_after_a_production_install_keeps_its_own_limit(self):
+        # The install is instant and the game then runs past its own 2s limit: the deadline the
+        # launch resets has to be the game's, never the install's.
+        env = self.write_production_launcher(install_seconds=0, game_seconds=5)
+
+        result = self.run_script(
+            phase="production",
+            extra_env={**env, "GRUG_CI_RUN_TIMEOUT": "2", "GRUG_CI_INSTALL_TIMEOUT": "20"},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Timed out after 2s waiting for fake-loader to reach the title screen", result.stderr
+        )
+        self.assertNotIn("installing fake-loader", result.stderr)
 
     def test_a_retry_that_fails_again_fails_the_job_with_its_own_output(self):
         compile_log = (

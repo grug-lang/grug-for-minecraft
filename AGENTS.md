@@ -104,7 +104,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 CI runs `.github/scripts/run-loader.sh <loader> build|build-run|run|update-goldens` under
 `xvfb-run`; locally only `build` is light enough. `build-run` is `build` and `run` in one Gradle
 invocation (the loader jobs of a pull request use it); a Gradle failure before the game starts is
-reported as a failed build, and the run timeout starts when Gradle starts `runClient`.
+reported as a failed build, and the run timeout starts when Gradle starts `runClient`. `production`
+gives the launcher's install its own limit (`GRUG_CI_INSTALL_TIMEOUT`) and starts the run timeout
+at the line that reports the launch, which is `Launched` from portablemc 5.0.6.
 
 - `run-loader.sh` is the only supported way: it resets `run/saves`, sets `GRUG_CI=true`, and
   publishes `grug-core` to `build/maven` first, which the four standalone loaders resolve. The 1.2.5

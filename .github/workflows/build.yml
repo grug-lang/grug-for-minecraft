@@ -889,7 +889,9 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [universal]
     runs-on: windows-2025
-    timeout-minutes: 10
+    # Both script limits can run in full now that the install has its own: up to 600 s of install
+    # (GRUG_CI_INSTALL_TIMEOUT) and then the game's 480 s (#725), plus the job's setup.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -969,7 +971,8 @@ jobs:
           GRUG_UNIVERSAL_JAR: universal/grug.jar
           GRUG_CI_BOOT_ONLY: '1'
           GALLIUM_DRIVER: llvmpipe
-          # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
+          # The game's own limit. The launcher's install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s
+          # by default), so a slow download there cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
 
       - name: Upload logs and crash reports
@@ -1040,7 +1043,9 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Both script limits can run in full now that the install has its own: up to 600 s of install
+    # (GRUG_CI_INSTALL_TIMEOUT) and then the game's 480 s (#725), plus the job's setup.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -1145,7 +1150,8 @@ jobs:
         env:
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
-          # Covers the launcher downloading the game, its libraries and its assets on a cold cache.
+          # The game's own limit. The launcher's install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s
+          # by default), so a slow download there cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
 
       - name: Upload logs and crash reports
@@ -1179,7 +1185,9 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [universal]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Both script limits can run in full now that the install has its own: up to 600 s of install
+    # (GRUG_CI_INSTALL_TIMEOUT) and then the game's 480 s (#725), plus the job's setup.
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1225,6 +1233,8 @@ jobs:
         env:
           GRUG_BESIDE: jei
           GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
+          # The game's own limit; the install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s default),
+          # so a slow download of the installer or the game cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
 
       # JEI builds its ingredient list from every registered item before it logs this line, so an item
