@@ -8,9 +8,9 @@
 
 # The stall is what makes that window measurable on every run: an idle room build leaves a tick or so
 # queued, while a test whose init or room takes real time leaves many, and a test cannot know which
-# it gets. The client ticks about 20 times a second while the server thread is blocked, so 2500 ms
-# leaves a queue several times the bound below.
-stall: number = 2500
+# it gets. The client ticks at most 20 times a second while the server thread is blocked, and a slow
+# runner can halve that, so 4000 ms still leaves a queue several times the bound below.
+stall: number = 4000
 
 # A test's ticks follow the world's clock, which is Level.get_time, the integrated server's own tick
 # count, at most one frame's worth of ticks behind. This test counts its own ticks from its first one
