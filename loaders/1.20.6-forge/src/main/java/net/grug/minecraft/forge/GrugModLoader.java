@@ -884,7 +884,8 @@ public class GrugModLoader {
                                 if (grug$testRunner != runner) {
                                     return;
                                 }
-                                if (runner.startedTests() != startsWhenQueued) {
+                                if (GrugTestRunner.queuedTickIsStale(
+                                        startsWhenQueued, runner.startedTests())) {
                                     return;
                                 }
                                 runner.tick(serverPlayer);
