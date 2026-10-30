@@ -18,6 +18,13 @@ frame_yaw: number = 0
 # script error, so the run is unaffected.
 refused_bad_count: bool = false
 
+# DIAGNOSTIC, for #660: how many frames this fixture has been drawn in, and how far the log has
+# been stepped up since the twentieth frame. The step is 0.00005 of a block, which is 0.0064 of the
+# 720-line frame, so the first capture that stops matching says how near a pixel centre the cube's
+# top texel edge sits.
+frames: number = 0
+drift: number = 0
+
 export render(ctx: RenderContext) {
     ctx.draw_box(0.2, 0.0, 0.4, 0.8, 0.15, 0.6)
 }
@@ -26,9 +33,15 @@ export render_frame(ctx: RenderFrameContext) {
     frame_tick = ctx.partial_tick()
     frame_yaw = ctx.camera_yaw()
 
+    frames = frames + 1
+    if frames > 20 {
+        drift = 0.00005 * (frames - 20)
+        print(drift)
+    }
+
     # A log is a block item, so it is a cube a quarter of a block across, lifted a quarter. The
     # stick is one flat sprite half a block across, lifted a tenth, turned to face the camera.
-    ctx.draw_item(log, 0, 1, 0.3, 0.2, 0.5)
+    ctx.draw_item(log, 0, 1, 0.3, 0.2 + drift, 0.5)
     ctx.draw_item(stick, 0, 1, 0.7, 0.2, 0.5)
 
     if not refused_bad_count {

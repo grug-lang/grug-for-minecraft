@@ -20,6 +20,11 @@ settled_ticks: number = 0
 # DIAGNOSTIC, for #660: how many times the settled frame has been compared with the reference.
 probes: number = 0
 
+# DIAGNOSTIC, for #660: the probe loop runs for 700 ticks, past the 200-tick default.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(900)
+}
+
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
@@ -45,11 +50,15 @@ export tick(ctx: TestTickContext) {
     } else if not Test.world_settled() {
         # Waiting for the mesh the swap scheduled. See coverage_render and #259.
         ctx.not_done()
-    } else if probes < 30 {
-        # DIAGNOSTIC, for #660: compare thirty consecutive settled frames with the reference and
-        # print the camera each time, so a frame that differs from the reference within one session
-        # fails here instead of once in a while on another runner.
-        print(Test.get_origin())
+    } else if probes < 700 {
+        # DIAGNOSTIC, for #660: compare the settled frame with the reference on every tick. The
+        # first 180 ticks are the fixture with the log where it has always been, so they say whether
+        # any frame of one session differs from the reference; after that the log steps up by
+        # 0.0064 of a pixel per frame and the first failing capture says how near a pixel centre its
+        # top texel edge sits.
+        if probes < 180 {
+            print(Test.get_origin())
+        }
         _check(ctx)
         probes = probes + 1
         ctx.not_done()
