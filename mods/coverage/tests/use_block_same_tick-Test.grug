@@ -10,11 +10,10 @@
 # repeat's first GUI test.
 # The wait is for the screen and for nothing else: a tick is not a unit of time, because on 1.20.6 the runner is
 # queued on the server's thread from the client's tick, and the client keeps ticking while that thread is
-# blocked by a world save or a pause of the garbage collector. The ticks it missed then run back to back, with
-# no frame drawn and no packet read between them, so a count of ticks can run out before the packet could have
-# been read (#688). The first use stalls the server thread for longer than any count of ticks this test used to
-# allow, which is how the test proves it; the runner's budget, which is scaled by the game's speed, is what
-# ends a screen that never opens.
+# blocked by a world save or a pause of the garbage collector. The runner coalesces the ticks it missed to at
+# most a frame's worth (#709), but a count of them is still a count and not the condition, so the first use
+# stalls the server thread, which is how the defect this test exists for was found, and the runner's budget,
+# which is scaled by the game's speed, is what ends a screen that never opens.
 # Which position the next use is at, and whether the current one is waiting for its screen.
 col: number = 0
 row: number = 0

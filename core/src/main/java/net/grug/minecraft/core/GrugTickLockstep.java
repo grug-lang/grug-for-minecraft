@@ -19,10 +19,24 @@ import java.util.function.LongSupplier;
  * <p>The wait is bounded, so a client that makes no ticks (it is busy reloading resources, or has
  * stopped) cannot stop the server: the server's tick goes ahead after {@link #TIMEOUT_NANOS} and
  * its count stays ahead, so the next tick waits for the client to catch up with it.
+ *
+ * <p>The client may run at most {@link #MAX_TICKS_AHEAD} ticks ahead of the server, which is what
+ * one frame can make. Banking that many lets the server catch up in the part of a frame the client
+ * spends drawing, so a test the server keeps up with keeps its speed. A tick beyond the bank is not
+ * counted, and its caller is told so: the client made it while the server was blocked, and
+ * replaying it after the block would run a test's ticks back to back with no frame drawn and no
+ * packet read between them (#709). {@link #clientTicked} answers whether the tick counted, and the
+ * runner's tick is queued only for a counted one.
  */
 public final class GrugTickLockstep {
     /** How long a server tick waits for the client before it goes ahead without it. */
     public static final long TIMEOUT_NANOS = 250_000_000L;
+
+    /**
+     * The most client ticks the client may run ahead of the server: one frame's worth, since a
+     * frame runs at most {@link ModLoaderAdapter#CLIENT_TICKS_PER_FRAME} client ticks.
+     */
+    public static final long MAX_TICKS_AHEAD = (long) ModLoaderAdapter.CLIENT_TICKS_PER_FRAME;
 
     /** How a thread waits on a monitor, which a test replaces to drive the clock by hand. */
     interface Waiter {
@@ -69,12 +83,19 @@ public final class GrugTickLockstep {
         }
     }
 
-    /** One client tick, called from the client's tick before the runner is queued. */
-    public void clientTicked() {
+    /**
+     * One client tick, called from the client's tick before the runner is queued. Answers whether
+     * it counted: a tick made while the client is already {@link #MAX_TICKS_AHEAD} ticks ahead of
+     * the server is dropped, because the server cannot act on it yet, and the caller queues no
+     * runner tick for it. A tick made before {@link #start}, or after {@link #stop}, always counts.
+     */
+    public boolean clientTicked() {
         synchronized (lock) {
-            if (!active) return;
+            if (!active) return true;
+            if (clientTicks >= serverTicks + MAX_TICKS_AHEAD) return false;
             clientTicks++;
             lock.notifyAll();
+            return true;
         }
     }
 

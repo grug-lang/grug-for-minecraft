@@ -241,9 +241,11 @@ public class HostFunctions {
      * or a world save does.
      *
      * <p>On 1.20.6 the runner is queued on the integrated server's thread from the client's tick,
-     * and the client keeps ticking while that thread is busy, so a stall leaves a backlog of runner
-     * ticks that then run back to back with no frame drawn and no packet read between them. A test
-     * that counts its own ticks while it waits for a packet is wrong after one. See #688.
+     * and the client keeps ticking while that thread is busy, so a stall leaves the client with
+     * ticks the server has not acted on. The runner coalesces them to at most one frame's worth
+     * rather than replaying them (see {@code GrugTickLockstep}), but a test that waits for a packet
+     * or a frame still waits for the condition: a stall is how such a test proves it. See #688 and
+     * #709.
      */
     public static void Test_stall(double milliseconds) {
         if (!(milliseconds >= 0 && milliseconds <= MAX_STALL_MILLISECONDS)) {
