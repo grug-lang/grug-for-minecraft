@@ -14,7 +14,9 @@
 # production runs the same tests in an installed game instead of the development run: it hands the
 # universal jar named by GRUG_UNIVERSAL_JAR (which .github/scripts/universal_jar.py assembles from
 # every loader's layerJar) to launch-production.sh, which installs the game and mod loader the way a
-# player's launcher does and runs it with that jar alone.
+# player's launcher does and runs it with that jar alone. The installer downloads the game and its
+# loader before the game exists, so that install has a limit of its own, GRUG_CI_INSTALL_TIMEOUT,
+# and GRUG_CI_RUN_TIMEOUT starts at the line that reports the game has launched (#725).
 
 set -uo pipefail
 
@@ -271,6 +273,13 @@ fi
 timeout_secs="${GRUG_CI_RUN_TIMEOUT:-120}"
 # Each pass after the first adds this many seconds, so the watch scales with GRUG_CI_REPEATS.
 timeout_secs=$((timeout_secs + ${GRUG_CI_RUN_TIMEOUT_PER_EXTRA_REPEAT:-0} * (${GRUG_CI_REPEATS:-1} - 1)))
+# A production launch installs the game and its mod loader before the game exists: the launcher
+# downloads the client, its libraries and its assets, and Forge additionally fetches its installer
+# libraries and generates MCP data. All of that is network-bound, and a slow network there must not
+# spend the game's budget, which is what made a slow install read as a game that never started
+# (#725). The install has its own limit, the same 600s guard against a hang that a build-run's build
+# gets, while the game's own limit above is unchanged.
+install_timeout_secs="${GRUG_CI_INSTALL_TIMEOUT:-600}"
 # Fabric Loader runs the Alpha and Beta init entrypoints, and the block registration they trigger, on
 # the applet's AWT thread, so a mod that fails there leaves the game thread waiting rather than
 # crashing it. A broken grug invariant (Grug.fatal) is a crash wherever it is thrown.
@@ -302,6 +311,8 @@ trap 'exit 143' TERM
 
 if [ "$PHASE" = build-run ]; then
   echo "==> Building and launching $LOADER in one Gradle invocation, waiting up to ${timeout_secs}s from the game's start for the tests to pass..."
+elif [ "$PHASE" = production ]; then
+  echo "==> Installing $LOADER, waiting up to ${install_timeout_secs}s for the install and then up to ${timeout_secs}s for the tests to pass..."
 else
   echo "==> Launching $LOADER, waiting up to ${timeout_secs}s for the tests to pass..."
 fi
@@ -310,6 +321,13 @@ SETSID=setsid
 
 # The task is :runClient in a standalone loader's own build, which has no task prefix.
 game_start_re="^> Task ${task_prefix:-:}runClient( |\$)"
+
+# The end of a production install, which is where the game's own limit starts. portablemc 5.0.6
+# prints "Launched" once it has spawned the game process, and only then: its install events end
+# with "Loader installed, retrying to start the game", a word "Launched" does not contain. A loader
+# whose production launch installs nothing (1.2.5-forge runs the game from its Gradle task) prints
+# the harness line instead, in launch-production.sh, so its limit starts at the launch as before.
+production_game_start_re='Launched|\[GRUG CI\] GAME LAUNCHING'
 
 # One attempt, and one more when the first failed on a download rather than on the code. The game
 # never started in that case, so repeating the whole invocation repeats nothing the game did; any
@@ -336,13 +354,18 @@ while :; do
   # (a compiler warning that mentions a failure, say) must not be read as the game's, so the game is
   # only looked for after the line Gradle prints when it starts the runClient task, and the time limit
   # starts there too: a slow build never eats the game's budget. The build has a limit of its own, a
-  # guard against a hang that is well inside the job's.
+  # guard against a hang that is well inside the job's. A production launch starts the same way with
+  # its installer's output, so its game is looked for at the line that reports the launch, and that
+  # is where its limit starts; the install's own limit runs before it.
   log_offset=1
   game_started=true
   deadline=$((SECONDS + timeout_secs))
   if [ "$PHASE" = build-run ]; then
     game_started=false
     deadline=$((SECONDS + ${GRUG_CI_BUILD_TIMEOUT:-600}))
+  elif [ "$PHASE" = production ]; then
+    game_started=false
+    deadline=$((SECONDS + install_timeout_secs))
   fi
 
   # grep over the game's part of the log.
@@ -366,20 +389,39 @@ while :; do
     kill -0 "$gradle_pid" 2>/dev/null || alive=false
 
     if [ "$game_started" = false ]; then
-      start_line=$(grep -b -m1 -E "$game_start_re" "$LOG_FILE" || true)
-      if [ -n "$start_line" ]; then
-        game_started=true
-        log_offset=$(( ${start_line%%:*} + 1 ))
-        deadline=$((SECONDS + timeout_secs))
-        echo "==> The build of $LOADER finished and its game starts. Waiting up to ${timeout_secs}s for the tests to pass..."
-      elif [ "$alive" = false ]; then
-        # Gradle ended before it started the game, so the build failed. A compile error is that, and
-        # the log above says which; it is not a game that exited.
-        status=buildfailed
-        break
+      if [ "$PHASE" = production ]; then
+        # The launcher is installing the game and its mod loader. Once it reports the launch, the
+        # game's own limit replaces the install's, and the game's checks below run from there.
+        if grep -q -E "$production_game_start_re" "$LOG_FILE"; then
+          game_started=true
+          deadline=$((SECONDS + timeout_secs))
+          echo "==> The install of $LOADER finished and its game starts. Waiting up to ${timeout_secs}s for the tests to pass..."
+        elif [ "$alive" = false ]; then
+          # The launcher ended before it reported a launch, so the install failed and its log says
+          # why. That is an exit, the same classification a failed install had before it had a
+          # limit of its own.
+          status=exited
+          break
+        else
+          sleep 1
+          continue
+        fi
       else
-        sleep 1
-        continue
+        start_line=$(grep -b -m1 -E "$game_start_re" "$LOG_FILE" || true)
+        if [ -n "$start_line" ]; then
+          game_started=true
+          log_offset=$(( ${start_line%%:*} + 1 ))
+          deadline=$((SECONDS + timeout_secs))
+          echo "==> The build of $LOADER finished and its game starts. Waiting up to ${timeout_secs}s for the tests to pass..."
+        elif [ "$alive" = false ]; then
+          # Gradle ended before it started the game, so the build failed. A compile error is that, and
+          # the log above says which; it is not a game that exited.
+          status=buildfailed
+          break
+        else
+          sleep 1
+          continue
+        fi
       fi
     fi
 
@@ -524,14 +566,23 @@ case "$status" in
     echo "==> See $LOG_FILE" >&2
     ;;
   timeout)
-    if [ "$game_started" = false ]; then
+    if [ "$PHASE" = production ] && [ "$game_started" = false ]; then
+      # The install never reported a launch, so the game has not started and its own limit has not
+      # been spent. Saying it timed out "waiting to reach the title screen" would blame the game
+      # for the installer's network.
+      echo "==> Timed out after ${install_timeout_secs}s installing $LOADER, before its game started." >&2
+      echo "==> The game's own ${timeout_secs}s limit had not started." >&2
+      echo "==> Check $LOG_FILE, and raise GRUG_CI_INSTALL_TIMEOUT if the installer was still making progress." >&2
+    elif [ "$game_started" = false ]; then
       echo "==> Timed out after ${GRUG_CI_BUILD_TIMEOUT:-600}s building $LOADER, before its game started." >&2
+      echo "==> Check $LOG_FILE, and raise GRUG_CI_BUILD_TIMEOUT if it was still making progress." >&2
     elif [ "$reached_title" = true ]; then
       echo "==> Timed out after ${timeout_secs}s waiting for $LOADER tests to pass (but it DID reach the title screen)." >&2
+      echo "==> Check $LOG_FILE, and raise GRUG_CI_RUN_TIMEOUT if it was still making progress." >&2
     else
       echo "==> Timed out after ${timeout_secs}s waiting for $LOADER to reach the title screen." >&2
+      echo "==> Check $LOG_FILE, and raise GRUG_CI_RUN_TIMEOUT if it was still making progress." >&2
     fi
-    echo "==> Check $LOG_FILE, and raise GRUG_CI_RUN_TIMEOUT if it was still making progress." >&2
 
     if command -v jcmd >/dev/null 2>&1; then
       for jp in $(jcmd -l 2>/dev/null | awk '!/[Gg]radle|JCmd/ {print $1}'); do

@@ -147,7 +147,11 @@ EOF
 
   1.2.5-forge)
     # No launcher installs Forge 1.2.5, which is a jar mod, so this boots the loader's own pack-style
-    # runtime with only the game's libraries on the classpath.
+    # runtime with only the game's libraries on the classpath. Gradle starts the game itself, so
+    # there is no installer to wait for: the harness line is the same end of the install phase that
+    # portablemc's launch reports for the other loaders, and here it comes immediately, so the game's
+    # own limit still starts at the launch.
+    echo "[GRUG CI] GAME LAUNCHING"
     cd "$LOADER_DIR"
     exec ./gradlew runProduction -Pgrug.productionGameDir="$GAME_DIR" --stacktrace --no-daemon
     ;;
