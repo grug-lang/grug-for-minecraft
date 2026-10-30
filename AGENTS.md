@@ -21,7 +21,9 @@ are by members only (#617).
   It opens the pull request in the same sitting with `Closes #<n>` (a draft if unfinished; the
   workflows trigger only on `pull_request`, so a branch without one is never verified), watches CI
   and fixes it until it is green. It reports in at most about 15 lines (pull request link, head SHA,
-  CI result, measurements, surprises) and never merges.
+  CI result, measurements, surprises) and never merges. It never closes, reopens or marks an issue
+  not planned either: whether a task is finished or should be closed is the orchestrator's decision,
+  and a subagent that finds no saving reports the numbers and its recommendation.
 - **Merging.** The orchestrator merges by rebase (`gh pr merge <n> --rebase`) once every job of the
   pull request has passed (a skipped job counts as a pass) and it has read the diff against the
   issue. Never wait for CodeRabbit: it is slow and hits its review limit, so the review that counts
