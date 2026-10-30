@@ -848,6 +848,13 @@ public class GrugModLoader {
             if (runner == null || mc.getSingleplayerServer() == null || mc.player == null) {
                 return;
             }
+            // A client tick the lockstep did not count is one the server cannot act on yet,
+            // because it is already a frame's worth of ticks behind: queueing a runner tick for it
+            // is what ran the ticks the client made during a stall of the server thread back to
+            // back afterwards. Dropping it coalesces them instead. See GrugTickLockstep and #709.
+            if (!GrugGameClock.runnerTickDue) {
+                return;
+            }
             // Push the execution onto the server thread to prevent ghost blocks & crashes. The
             // whole
             // advance happens there, so the runner's state is only ever touched by one thread.

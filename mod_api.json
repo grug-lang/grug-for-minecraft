@@ -1111,7 +1111,7 @@
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
 				"stall": {
-					"description": "Blocks the thread the test runs on for the given number of milliseconds, the way a garbage collection pause or a world save does, and returns once they have passed. On 1.20.6 the game keeps ticking its client while the integrated server's thread is blocked, so the test's ticks queue up and run back to back afterwards with no frame drawn and no packet read between them. A test that waits for a packet or a frame calls this to prove it waits for the condition and not for a number of ticks. The time has to be from 0 to 10000, and anything else is reported without stalling.",
+					"description": "Blocks the thread the test runs on for the given number of milliseconds, the way a garbage collection pause or a world save does, and returns once they have passed. On 1.20.6 the game keeps ticking its client while the integrated server's thread is blocked, so a stall leaves the client with ticks the server has not acted on; the runner coalesces them to at most one frame's worth, but a test that waits for a packet or a frame calls this to prove it waits for the condition and not for a number of ticks. The time has to be from 0 to 10000, and anything else is reported without stalling.",
 					"parameters": [
 						{
 							"name": "milliseconds",

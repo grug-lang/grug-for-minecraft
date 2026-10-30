@@ -1,0 +1,67 @@
+# A test's ticks are the client's ticks, and on 1.20.6 the runner is queued on the integrated
+# server's thread from every client tick. While that thread is blocked the client keeps ticking, so
+# the ticks it made used to pile up and run back to back when the server came back, with no frame
+# drawn and no packet read between them: a test that counted ticks while it waited for a packet saw
+# time that did not pass (#688, #709). The runner now drops a client tick the server cannot act on
+# yet, so it never runs more than one frame's worth of ticks beyond the world's clock.
+
+# The wait at the start drains the ticks the room build queued before this test began. The runner is
+# queued from the client's tick while the room is built at real time, so those ticks run as this
+# test's first invocations, in a burst that is not this test's to measure; after it the runner runs
+# one tick for each tick of the world.
+
+# Each round stalls the server thread, then checks at every tick that the test is not ahead of the
+# world's clock by more than one frame's worth. The clock is Level.get_time, which on 1.20.6 is the
+# integrated server's own tick count, the clock the runner is meant to follow. A loader whose runner
+# ticks in the world's own tick never runs ahead of it, so the first round shows that there is no
+# backlog to look for and the rounds stop.
+settle: number = 40
+rounds: number = 3
+# The world's time the current count started at, or -1 when no round is counting.
+clock: number = -1
+# How many of the test's ticks have run since that time.
+ran: number = 0
+# The largest distance this loader has put between the test's ticks and the world's, over all rounds.
+worst: number = 0
+
+export tick(ctx: TestTickContext) {
+    if settle > 0 {
+        settle = settle - 1
+        ctx.not_done()
+        return
+    }
+
+    if clock >= 0 {
+        ran = ran + 1
+        advance: number = _now() - clock
+        if ran - advance > worst {
+            worst = ran - advance
+        }
+        # Every loader runs at most 10 ticks for a frame, so 25 is two and a half frames' worth and
+        # leaves room for a tick that lands in a window of its own. A replayed backlog is far more.
+        ctx.assert(ran - advance <= 25, "The runner replayed ticks the client made while the server thread was blocked: it ran more than one frame's worth beyond the world's clock.")
+        if advance < 12 {
+            ctx.not_done()
+            return
+        }
+        clock = -1
+        # A tick of the world per tick of the test is what a loader whose runner runs on the world's
+        # own thread does, and it cannot run a backlog between two threads.
+        if worst <= 1 {
+            rounds = 0
+        }
+    }
+
+    if rounds == 0 {
+        return
+    }
+    rounds = rounds - 1
+    Test.stall(800)
+    clock = _now()
+    ran = 0
+    ctx.not_done()
+}
+
+local _now() number {
+    return Test.get_client_level().get_time()
+}

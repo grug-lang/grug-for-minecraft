@@ -22,4 +22,14 @@ public final class GrugGameClock {
      * speed is above 1. See {@link GrugTickLockstep}.
      */
     public static final GrugTickLockstep LOCKSTEP = new GrugTickLockstep();
+
+    /**
+     * Whether the client tick that just began counted, so the runner gets its tick for it. Written
+     * at the head of {@code Minecraft.tick} and read by the tick event later in the same tick.
+     *
+     * <p>A tick that does not count is one the client made while the server was already a frame's
+     * worth of ticks behind: the server cannot act on it yet, and replaying it after the server
+     * catches up is what ran a test's ticks back to back after a stall. See #709.
+     */
+    public static volatile boolean runnerTickDue = true;
 }

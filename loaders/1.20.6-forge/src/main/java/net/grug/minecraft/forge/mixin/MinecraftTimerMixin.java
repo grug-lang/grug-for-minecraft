@@ -22,7 +22,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <p>It also counts the client's ticks for the lockstep that holds the integrated server to them,
  * at the start of {@code tick()} so the count is made before the runner is queued from the same
- * tick.
+ * tick, and keeps its answer for the runner: a tick the server cannot act on yet queues no runner
+ * tick. See {@code GrugTickLockstep} and #709.
  */
 @Mixin(Minecraft.class)
 public class MinecraftTimerMixin {
@@ -33,6 +34,6 @@ public class MinecraftTimerMixin {
 
     @Inject(method = "tick()V", at = @At("HEAD"))
     private void grug$countClientTick(CallbackInfo ci) {
-        GrugGameClock.LOCKSTEP.clientTicked();
+        GrugGameClock.runnerTickDue = GrugGameClock.LOCKSTEP.clientTicked();
     }
 }

@@ -70,6 +70,49 @@ class GrugTickLockstepTest {
     }
 
     @Test
+    void aClientTickBeyondOneFrameIsNotCounted() {
+        Hand hand = new Hand();
+        GrugTickLockstep lockstep = lockstep(hand);
+        lockstep.start();
+        for (int i = 0; i < GrugTickLockstep.MAX_TICKS_AHEAD; i++) {
+            assertTrue(lockstep.clientTicked(), "A frame's worth of ticks counts.");
+        }
+
+        assertFalse(lockstep.clientTicked(), "The tick past a frame's worth is dropped.");
+
+        for (int i = 0; i < GrugTickLockstep.MAX_TICKS_AHEAD; i++) {
+            assertTrue(lockstep.awaitClient(), "The banked ticks let the server catch up at once.");
+        }
+        assertTrue(hand.waits.isEmpty(), "The banked ticks should not hold the server.");
+        assertFalse(
+                lockstep.awaitClient(),
+                "The dropped tick is not a tick the server may still make, so the next one waits.");
+    }
+
+    @Test
+    void aServerTickMakesRoomForOneMoreClientTick() {
+        Hand hand = new Hand();
+        GrugTickLockstep lockstep = lockstep(hand);
+        lockstep.start();
+        for (int i = 0; i < GrugTickLockstep.MAX_TICKS_AHEAD; i++) lockstep.clientTicked();
+        assertFalse(lockstep.clientTicked(), "The client cannot run further ahead than a frame.");
+
+        assertTrue(lockstep.awaitClient(), "The server consumes one of the banked ticks.");
+
+        assertTrue(lockstep.clientTicked(), "The tick the server consumed makes room for its own.");
+    }
+
+    @Test
+    void everyClientTickCountsWhileTheLockstepIsNotRunning() {
+        Hand hand = new Hand();
+        GrugTickLockstep lockstep = lockstep(hand);
+
+        for (int i = 0; i < GrugTickLockstep.MAX_TICKS_AHEAD * 3; i++) {
+            assertTrue(lockstep.clientTicked(), "There is no server tick to be ahead of yet.");
+        }
+    }
+
+    @Test
     void aClientThatStopsTicksOnlyHoldsTheServerForTheTimeout() {
         Hand hand = new Hand();
         GrugTickLockstep lockstep = lockstep(hand);
