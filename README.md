@@ -154,3 +154,5 @@ running loader's name instead of failing, so the new PNGs turn up in `git status
 
 Use it locally for a GUI capture, or on CI when many references change at once, since the suite
 stops at its first failure.
+
+<!-- A throwaway change that keeps every cache key of setup-loader-build warm, so the run measures the steady state of the loader jobs. See #696. -->
