@@ -17,6 +17,12 @@ remesh_ticks: number = 0
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
+# The block put up in front of the wall and taken down again, and whether each of those happened.
+# The lift's light arrives a batch later than the block change, which is what the settle wait has to
+# cover. See #686.
+shadow_placed: bool = false
+shadow_lifted: bool = false
+
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
@@ -41,9 +47,39 @@ export tick(ctx: TestTickContext) {
     } else if not Test.world_settled() {
         # Waiting for the mesh the swap scheduled. See coverage_render and #259.
         ctx.not_done()
+    } else if not shadow_placed {
+        # A block in front of the wall, so the wall's own face is lit from the air that replaces it
+        # and has to be re-lit when the block comes away again below. It is put up now, settled
+        # first, so the light it takes away is applied before it goes.
+        _shadow(ctx, "minecraft:stone")
+        shadow_placed = true
+        ctx.not_done()
+    } else if not shadow_lifted {
+        _shadow(ctx, "minecraft:air")
+        # The block change reaches the client before the light it gives back does, and the frame rule
+        # counts idle frames, which the client has while that light is still queued on the server.
+        # Holding the server thread here keeps the light's batch from being scheduled at all, so a
+        # settle wait that cannot see the queued check answers on the client's own idle frames, and
+        # the comparison below then reads the wall still dark where the block was. See #686.
+        Test.stall(1500)
+        shadow_lifted = true
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        # The frame that leaves must be the one the reference shows, so this wait is what #686 is
+        # about: the block is already gone from every mesh, and only the light that came with it is
+        # still on its way.
+        ctx.not_done()
     } else {
         _check(ctx)
     }
+}
+
+# Puts a block in front of the wall's middle, out of the crop's way but on the face the crop shows,
+# so the wall's own face light changes when it comes and goes.
+local _shadow(ctx: TestTickContext, block: string) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    level.place_block(origin.x(), origin.y() - 1, origin.z() + 5, block)
 }
 
 local _setup(ctx: TestTickContext) {
