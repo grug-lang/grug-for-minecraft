@@ -1,0 +1,13 @@
+# Probe for #717: an idle init, so the only server work before the first tick is the room build.
+start: number = -1
+
+export tick(ctx: TestTickContext) {
+    now: number = Test.get_client_level().get_time()
+    if start < 0 {
+        start = now
+    }
+    if ctx.current_tick() < 60 {
+        print3("PROBE idle ticks, world:", ctx.current_tick(), now - start)
+        ctx.not_done()
+    }
+}

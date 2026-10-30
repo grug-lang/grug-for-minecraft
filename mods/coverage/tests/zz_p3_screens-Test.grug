@@ -1,0 +1,22 @@
+# Probe for #717: waits for the client thread a hundred times over, which the client has to answer.
+rounds: number = 100
+start: number = -1
+
+export init(ctx: TestInitContext) {
+    i: number = 0
+    while i < rounds {
+        Test.close_screen()
+        i = i + 1
+    }
+}
+
+export tick(ctx: TestTickContext) {
+    now: number = Test.get_client_level().get_time()
+    if start < 0 {
+        start = now
+    }
+    if ctx.current_tick() < 60 {
+        print3("PROBE screens ticks, world:", ctx.current_tick(), now - start)
+        ctx.not_done()
+    }
+}

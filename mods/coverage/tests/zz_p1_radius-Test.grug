@@ -1,0 +1,17 @@
+# Probe for #717: a room rebuild that takes real work on the server thread, with no sleep in it.
+start: number = -1
+
+export init(ctx: TestInitContext) {
+    Test.set_box_radius(16)
+}
+
+export tick(ctx: TestTickContext) {
+    now: number = Test.get_client_level().get_time()
+    if start < 0 {
+        start = now
+    }
+    if ctx.current_tick() < 60 {
+        print3("PROBE radius ticks, world:", ctx.current_tick(), now - start)
+        ctx.not_done()
+    }
+}
