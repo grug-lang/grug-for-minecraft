@@ -139,8 +139,13 @@ public interface ModLoaderAdapter {
      * Starts a batch of {@link #placeBlock} calls that {@link #endBatch} closes, so a loader that
      * relights the world for every block can relight once at the end of the batch instead. The
      * blocks a batch leaves behind, their metadata and the neighbours it notifies are the ones the
-     * same calls make one at a time; only when the relight happens changes. A loader whose
-     * placement is already cheap keeps this a no-op.
+     * same calls make one at a time.
+     *
+     * <p>A write that changes nothing is not relit at all. One at a time such a write relights the
+     * position with the world already as it is, which recomputes light that is already correct
+     * (1.2.5 does it even though its write returns false), so a loader may drop it; the room build
+     * is mostly such writes, which is where the saving comes from. A loader whose placement is
+     * already cheap keeps this a no-op.
      */
     default void beginBatch(Object levelObj) {}
 

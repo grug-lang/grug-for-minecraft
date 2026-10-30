@@ -691,8 +691,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
         if (batchActive) {
             // The same write setBlockWithNotify makes, minus the relight: the batch relights at its
-            // end. The neighbour notification stays per block, so block states and dropped items
-            // come out the same. See ModLoaderAdapter#beginBatch.
+            // end. A write that changes nothing records nothing and is not relit, which is the
+            // whole-room case the one-by-one build relit for no change. The neighbour notification
+            // stays per block, so block states and dropped items come out the same. See
+            // ModLoaderAdapter#beginBatch.
             if (posX >= -30000000
                     && posZ >= -30000000
                     && posX < 30000000
