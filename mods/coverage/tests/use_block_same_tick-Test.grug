@@ -11,9 +11,10 @@
 # The wait is for the screen and for nothing else: a tick is not a unit of time, because on 1.20.6 the runner is
 # queued on the server's thread from the client's tick, and the client keeps ticking while that thread is
 # blocked by a world save or a pause of the garbage collector. The runner coalesces the ticks it missed to at
-# most a frame's worth (#709), but a count of them is still a count and not the condition, so the first use
-# stalls the server thread, which is how the defect this test exists for was found, and the runner's budget,
-# which is scaled by the game's speed, is what ends a screen that never opens.
+# most a frame's worth (#709), so no wait of a fixed number of ticks can stand in for the condition; the
+# runner's budget, which is scaled by the game's speed, is what ends a screen that never opens. The first use
+# used to stall the server thread for 1500 ms so that a build without #698's fix failed on the old count of
+# ticks: after #709 no length of stall does that, so it does not stall any more (#708).
 # Which position the next use is at, and whether the current one is waiting for its screen.
 col: number = 0
 row: number = 0
@@ -22,9 +23,6 @@ waiting: bool = false
 export tick(ctx: TestTickContext) {
     if not waiting {
         _use()
-        if col == 0 and row == 0 {
-            Test.stall(1500)
-        }
         waiting = true
         ctx.not_done()
         return
