@@ -65,6 +65,10 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   Gradle dependencies fall back to the loader's previous entry (`restore-keys`), but the Minecraft
   toolchain has no fallback, so that run is slow. The plan allows 20 concurrent jobs, shared by
   all runs: do not dispatch a full `build.yml` while another run is going.
+- A loader job restores the project's `build/` and `.gradle/`, so Gradle's up-to-date check decides
+  what runs; the cache key says only where that state lives, never what is safe to reuse. A task
+  reading an undeclared input is therefore a CI correctness bug, not only a local one, and moving
+  outputs out of `build/` drops them from reuse, so the action's paths must be told.
 - Before pushing, check locally what can be checked: `pre-commit run --all-files`, the grug compile
   check, the Python tests. Wait with `.github/scripts/watch-run.sh <run-id>` in the background,
   never a fixed sleep: it exits 1 at the first failed job with the last 80 lines of its failed step,
