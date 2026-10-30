@@ -274,15 +274,23 @@ jobs:
       # recognize that shape and explain it. Nothing else in CI can catch a regression there: the
       # panic is intermittent, so the only check is the reporter against a log that holds one, and
       # a faked run for the classification around it.
+      #
+      # The suites are waits rather than work, so they run side by side (#744): run_loader_test.py's
+      # fake Gradle sleeps two seconds in every case, and the seven files cost 119 s of this job one
+      # after another. parallel_test_runner.py puts each file in a process of its own and stops at
+      # the first failure, and run_loader_test.py runs its 45 cases the same way, so the step costs
+      # about its slowest case instead of the sum.
       - name: Test the native-abort reporter and the run script
         run: |
-          python3 .github/scripts/report_native_abort_test.py
-          python3 .github/scripts/run_loader_test.py
-          python3 .github/scripts/ci_timing_test.py
-          python3 .github/scripts/combine_coverage_test.py
-          python3 .github/scripts/watch_run_test.py
-          python3 .github/scripts/affected_mods_test.py
-          python3 .github/scripts/reference_needed_test.py
+          python3 .github/scripts/parallel_test_runner.py \
+            .github/scripts/run_loader_test.py \
+            .github/scripts/report_native_abort_test.py \
+            .github/scripts/parallel_test_runner_test.py \
+            .github/scripts/ci_timing_test.py \
+            .github/scripts/combine_coverage_test.py \
+            .github/scripts/watch_run_test.py \
+            .github/scripts/affected_mods_test.py \
+            .github/scripts/reference_needed_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory

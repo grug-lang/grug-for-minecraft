@@ -10,11 +10,18 @@ is one where the classification is the only thing anyone sees.
 The harness fakes the repository the script runs from: the real script and reporter, a gradlew that
 replays a canned log and exits with a chosen code, and just enough of a loader for the script to
 get as far as launching it.
+
+Every case is a process of its own, run side by side with the others through parallel_test_runner.py:
+the fake Gradle's sleeps are the whole cost of the suite, and each case already builds its own
+repository and temporary directory, so the cases share nothing. GRUG_TEST_JOBS, or --jobs N, sets
+the number of processes; a case named on the command line, or unittest's own options, run in this
+process one at a time, the way the whole file did before.
 """
 
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -22,6 +29,9 @@ from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS.parent.parent
+
+sys.path.insert(0, str(SCRIPTS))
+import parallel_test_runner  # noqa: E402
 
 # The panic from the 1.20.6-forge job of PR #118, as Gradle's log holds it (no timestamps).
 PANIC_LOG = """\
@@ -930,5 +940,19 @@ class RunLoaderTest(unittest.TestCase):
             self.assertEqual(result.gradle_args, "")
 
 
+def main(argv: list[str]) -> int:
+    """Runs every case in a process of its own, side by side, unless argv names cases."""
+    jobs, args = parallel_test_runner.parse_jobs(argv)
+    if args:
+        # Anything unittest understands, a case name or -v for one, keeps the single-process run.
+        unittest.main(argv=[sys.argv[0], *args])
+    commands = []
+    for group in unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__]):
+        for case in group:
+            label = case.id().split(".", 1)[1]
+            commands.append((label, [sys.executable, str(Path(__file__).resolve()), label]))
+    return parallel_test_runner.run(commands, jobs)
+
+
 if __name__ == "__main__":
-    unittest.main()
+    sys.exit(main(sys.argv[1:]))
