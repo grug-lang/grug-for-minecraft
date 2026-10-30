@@ -6,8 +6,8 @@
 # player's own mining clear that state on every tick the attack button is not held, and a test has
 # no way to hold it, so a screenshot of a mined block would show no crack whatever the hook did.
 # `Test.mining_crack` makes the same call the game makes for one overlay pass at the middle of the
-# break and answers whether it reached the block's own geometry, which is the question the
-# cancelled hook gets wrong.
+# break and answers whether it reached the block's own geometry, which is the question a hook that
+# cancels the overlay's tesselation call gets wrong.
 # The same answer covers the shape reset. The overlay sets the block's shared shape to each box, so
 # a box left behind would reshape every later block of that type in the same chunk compile; the
 # host function reports a shape that is not a full cube afterwards. See #201.
