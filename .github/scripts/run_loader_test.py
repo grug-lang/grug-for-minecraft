@@ -611,6 +611,34 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(len(result.gradle_args.splitlines()), 1)
         self.assertNotIn("failed on a download", result.stderr)
 
+    def test_a_production_launch_is_not_retried_for_a_download_like_line(self):
+        # The installed run's launcher retries its own downloads with curl, its log has no Gradle
+        # runClient line to tell a failed install from a game that ran, and repeating a 480 s
+        # installed launch is the most expensive thing this script could do twice: never retry it.
+        launcher = self.tmp / ".github" / "scripts" / "launch-production.sh"
+        launcher.write_text(
+            "#!/usr/bin/env bash\n"
+            'echo launch >> "$FAKE_PRODUCTION_LAUNCHES"\n'
+            "echo 'Some assets failed to download or validate, try running the task again.'\n"
+            "exit 1\n"
+        )
+        launcher.chmod(0o755)
+        universal = self.tmp / "universal.jar"
+        universal.write_text("jar\n")
+        launches = self.tmp / "production-launches.txt"
+
+        result = self.run_script(
+            phase="production",
+            extra_env={
+                "GRUG_UNIVERSAL_JAR": str(universal),
+                "FAKE_PRODUCTION_LAUNCHES": str(launches),
+            },
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(launches.read_text().splitlines()), 1)
+        self.assertNotIn("failed on a download", result.stderr)
+
     def test_a_retry_that_fails_again_fails_the_job_with_its_own_output(self):
         compile_log = (
             "> Task :loaders:fake-loader:compileJava FAILED\n"
