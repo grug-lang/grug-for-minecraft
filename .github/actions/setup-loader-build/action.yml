@@ -46,13 +46,10 @@ runs:
           core/build/generated/sources/grug
         key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py', '.github/workflows/build.yml') }}
 
-    # Gradle's own state on the loader side: the distribution each loader's wrapper pins and the
-    # dependency cache its build resolves against. cache: gradle above covers both paths, but what it
-    # restores is whatever the job that saved it happened to resolve, and the job that saves it is the
-    # one that ran first and resolved the least: grug-rs, which only ever builds core on Gradle 8.14.
-    # So every loader was downloading its own Gradle distribution again on every run. Removing the
-    # "Fetching distribution" line from every loader's log is what this bought, and it is the whole
-    # of what it bought.
+    # The dependency cache each loader's build resolves against. cache: gradle above covers this path,
+    # but what it restores is whatever the job that saved it happened to resolve, and the job that
+    # saves it is the one that ran first and resolved the least: grug-rs, which only ever builds core
+    # on Gradle 8.14.
     #
     # One entry per loader. It used to be one entry for all five, and whichever loader finished first
     # wrote it and nobody wrote it again, so what it held was that loader's resolved subset. A
@@ -77,6 +74,11 @@ runs:
     # is not in the key because it resolves nothing: it registers the task that execs their own
     # wrapper.
     #
+    # Only this loader's files, plus the shared ones. Every key here used to name every loader's
+    # build files as well (loaders/*/), so an edit confined to one loader invalidated all five
+    # loaders' three entries and rewrote about 3 GB of them, although a loader's job includes only
+    # itself (-Dgrug.activeLoader) and so resolves nothing of the other four (#699).
+    #
     # A miss still restores the loader's previous entry (restore-keys), because Gradle checks what it
     # restores and fetches only what changed. Without it every edit of build.yml, which is most days,
     # sent the next run of every ref to the network for everything, repo.legacyfabric.net included.
@@ -86,10 +88,13 @@ runs:
       shell: bash
       env:
         LOADER: ${{ inputs.loader }}
-        GRADLE_HASH: ${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
-        MINECRAFT_HASH: ${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'loaders/*/gradle.properties', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+        GRADLE_HASH: ${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', inputs.loader), format('loaders/{0}/settings.gradle', inputs.loader), format('loaders/{0}/settings.gradle.kts', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
+        MINECRAFT_HASH: ${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
+        DISTS_HASH: ${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties') }}
       run: |
         {
+          echo "dists=grug-gradle-dists-${RUNNER_OS}-${DISTS_HASH}"
+          echo "dists-prefix=grug-gradle-dists-${RUNNER_OS}-"
           echo "gradle-prefix=grug-gradle-${RUNNER_OS}-${LOADER}-"
           echo "gradle=grug-gradle-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
           echo "home-prefix=grug-gradle-home-${RUNNER_OS}-${LOADER}-"
@@ -97,23 +102,56 @@ runs:
           echo "minecraft=grug-minecraft-${RUNNER_OS}-${LOADER}-${MINECRAFT_HASH}"
         } >> "$GITHUB_OUTPUT"
 
-    - name: Cache the Gradle distributions and dependencies
+    # The Gradle distributions themselves, in one entry per OS rather than in every loader's
+    # dependency entry. ~/.gradle/wrapper holds the two every loader job unpacks: 8.14 for the root
+    # build, which also publishes core for the four standalone loaders, and 9.8 for each loader's own
+    # wrapper. On 1.20.6-forge they are 442 of the 577 MB its dependency entry unpacks, so keeping
+    # them there stored the same 442 MB in all five Linux entries, 2.2 GB of every generation, and
+    # every dependency change rewrote it (#699).
+    #
+    # Keyed on the wrapper properties that name the distributions and nothing else, because they are
+    # all that decide what it holds: a dependency bump leaves it alone, and a version bump misses and
+    # falls back to the previous entry, whose other distribution Gradle still finds, so only the new
+    # version is downloaded.
+    #
+    # setup-java's own gradle-wrapper entry, restored by "Set up JDK 21" above, holds this same
+    # directory keyed on the same files. This entry is kept anyway: the installed job does not use
+    # setup-java's Gradle cache, and it is a second copy that survives setup-java's being evicted.
+    #
+    # 1.20.6-forge restores this entry but never writes it. It is not a standalone loader, so its job
+    # runs only the root build and unpacks only 8.14; a key is written once, so a first write from
+    # that job would leave an entry without 9.8, which the other four loaders' own wrappers need and
+    # no later job could add. The four standalone jobs always hold both, because they publish core
+    # with the root wrapper before building with their own.
+    - name: Cache the Gradle distributions
+      if: inputs.save == 'true' && inputs.loader != '1.20.6-forge'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.gradle/wrapper
+        key: ${{ steps.keys.outputs.dists }}
+        restore-keys: ${{ steps.keys.outputs.dists-prefix }}
+
+    - name: Restore the Gradle distributions
+      if: inputs.save != 'true' || inputs.loader == '1.20.6-forge'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.gradle/wrapper
+        key: ${{ steps.keys.outputs.dists }}
+        restore-keys: ${{ steps.keys.outputs.dists-prefix }}
+
+    - name: Cache the Gradle dependencies
       if: inputs.save == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: |
-          ~/.gradle/wrapper
-          ~/.gradle/caches/modules-2
+        path: ~/.gradle/caches/modules-2
         key: ${{ steps.keys.outputs.gradle }}
         restore-keys: ${{ steps.keys.outputs.gradle-prefix }}
 
-    - name: Restore the Gradle distributions and dependencies
+    - name: Restore the Gradle dependencies
       if: inputs.save != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: |
-          ~/.gradle/wrapper
-          ~/.gradle/caches/modules-2
+        path: ~/.gradle/caches/modules-2
         key: ${{ steps.keys.outputs.gradle }}
         restore-keys: ${{ steps.keys.outputs.gradle-prefix }}
 

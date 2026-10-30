@@ -643,14 +643,21 @@ jobs:
           path: .grug-ci
 
       # The same entries the 1.2.5-forge loader job restores, so neither job resolves its Gradle
-      # dependencies or clones the MCP snapshot again. See the loader job for why each is keyed so.
-      - name: Cache the Gradle distributions and dependencies
+      # dependencies, unpacks a Gradle distribution or clones the MCP snapshot again. See the loader
+      # job for why each is keyed so. The two expressions have to stay the same as the action's for
+      # 1.2.5-forge, or this job reads an entry of its own that the loader job never writes.
+      - name: Cache the Gradle distributions
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/.gradle/wrapper
-            ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          path: ~/.gradle/wrapper
+          key: grug-gradle-dists-${{ runner.os }}-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: grug-gradle-dists-${{ runner.os }}-
+
+      - name: Cache the Gradle dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/modules-2
+          key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/1.2.5-forge/gradle.properties', 'loaders/1.2.5-forge/gradle/wrapper/gradle-wrapper.properties', 'loaders/1.2.5-forge/settings.gradle', 'loaders/1.2.5-forge/settings.gradle.kts', 'loaders/1.2.5-forge/build.gradle', 'loaders/1.2.5-forge/build.gradle.kts') }}
           restore-keys: grug-gradle-${{ runner.os }}-1.2.5-forge-
 
       - name: Cache the 1.2.5 MCP snapshot
@@ -797,11 +804,13 @@ jobs:
       # .github/actions/setup-loader-build): cache: gradle above is one entry for the five loaders of
       # this matrix, written by whichever leg finishes first, so four of five legs restored an entry
       # without their dependencies and fetched them, repo.legacyfabric.net's LWJGL among them (#643).
+      # Only this leg's files, as in the action, so an edit confined to another loader leaves this
+      # leg's entry alone (#699).
       - name: Cache the Gradle dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', matrix.dir), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', matrix.dir), format('loaders/{0}/settings.gradle', matrix.dir), format('loaders/{0}/settings.gradle.kts', matrix.dir), format('loaders/{0}/build.gradle', matrix.dir), format('loaders/{0}/build.gradle.kts', matrix.dir)) }}
           restore-keys: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-
 
       - name: Set up the MSVC toolchain
@@ -1062,15 +1071,22 @@ jobs:
         run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
 
       # Only 1.2.5's launch runs Gradle, to obfuscate its runtime out of the MCP snapshot; the other
-      # four are installed by a launcher. Restored from the build job's caches, never saved here.
-      - name: Restore the Gradle distributions and dependencies (1.2.5-forge only)
+      # four are installed by a launcher. Restored from the build job's caches, never saved here, and
+      # split as the build job splits them (see .github/actions/setup-loader-build).
+      - name: Restore the Gradle distributions (1.2.5-forge only)
         if: matrix.dir == '1.2.5-forge'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/.gradle/wrapper
-            ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/*/gradle.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties', 'loaders/*/settings.gradle', 'loaders/*/settings.gradle.kts', 'loaders/*/build.gradle', 'loaders/*/build.gradle.kts') }}
+          path: ~/.gradle/wrapper
+          key: grug-gradle-dists-${{ runner.os }}-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: grug-gradle-dists-${{ runner.os }}-
+
+      - name: Restore the Gradle dependencies (1.2.5-forge only)
+        if: matrix.dir == '1.2.5-forge'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.gradle/caches/modules-2
+          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/1.2.5-forge/gradle.properties', 'loaders/1.2.5-forge/gradle/wrapper/gradle-wrapper.properties', 'loaders/1.2.5-forge/settings.gradle', 'loaders/1.2.5-forge/settings.gradle.kts', 'loaders/1.2.5-forge/build.gradle', 'loaders/1.2.5-forge/build.gradle.kts') }}
           restore-keys: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-
 
       - name: Restore the 1.2.5 MCP snapshot (1.2.5-forge only)
