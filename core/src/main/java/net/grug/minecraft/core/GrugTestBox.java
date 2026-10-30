@@ -117,15 +117,23 @@ public final class GrugTestBox {
                         wallBottomY,
                         ceilingY);
         boolean roomIsWhole = room.isWhole(adapter, level);
-        for (int y = areaTopY; y >= wallBottomY; y--) {
-            for (int z = areaMinZ; z <= areaMaxZ; z++) {
-                for (int x = areaMinX; x <= areaMaxX; x++) {
-                    if (roomIsWhole && room.blockAt(x, y, z) != null) {
-                        continue;
+        // The clear and the placements each run as a batch: a loader that relights the world per
+        // block (1.2.5) then relights once at the end of each instead of after every block. See
+        // ModLoaderAdapter#beginBatch. The end state is the same, block for block.
+        adapter.beginBatch(level);
+        try {
+            for (int y = areaTopY; y >= wallBottomY; y--) {
+                for (int z = areaMinZ; z <= areaMaxZ; z++) {
+                    for (int x = areaMinX; x <= areaMaxX; x++) {
+                        if (roomIsWhole && room.blockAt(x, y, z) != null) {
+                            continue;
+                        }
+                        clearBlock(adapter, level, x, y, z);
                     }
-                    clearBlock(adapter, level, x, y, z);
                 }
             }
+        } finally {
+            adapter.endBatch(level);
         }
         if (roomIsWhole) {
             clearItems(
@@ -133,45 +141,50 @@ public final class GrugTestBox {
             return;
         }
 
-        // The torch floor, and the single block the player stands on. The floor goes in below the
-        // player's feet, so the light comes up around the block they stand on and their feet stay
-        // where they are.
-        for (int z = minZ; z <= maxZ; z++) {
-            for (int x = minX; x <= maxX; x++) {
-                adapter.placeBlock(level, x, torchFloorY, z, "minecraft:stone");
-            }
-        }
-        adapter.placeBlock(level, px, py - 1, pz, "minecraft:stone");
-
-        // A torch on every floor tile, so the floor's light level is the same everywhere. The
-        // player's column is left clear: a torch under the block they stand on would be boxed in.
-        // The torches go in before the shell: the ring is clear then, so every torch is placed on
-        // its floor and none attaches to a wall. That matters on 1.2.5, where a torch attaches to a
-        // solid side when it has one and a torch whose attachment is cleared drops even while its
-        // floor still supports it.
-        for (int z = minZ; z <= maxZ; z++) {
-            for (int x = minX; x <= maxX; x++) {
-                if (x != px || z != pz) {
-                    adapter.placeBlock(level, x, torchY, z, "minecraft:torch");
+        adapter.beginBatch(level);
+        try {
+            // The torch floor, and the single block the player stands on. The floor goes in below
+            // the player's feet, so the light comes up around the block they stand on and their
+            // feet stay where they are.
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    adapter.placeBlock(level, x, torchFloorY, z, "minecraft:stone");
                 }
             }
-        }
+            adapter.placeBlock(level, px, py - 1, pz, "minecraft:stone");
 
-        for (int y = wallBottomY; y <= ceilingY; y++) {
+            // A torch on every floor tile, so the floor's light level is the same everywhere. The
+            // player's column is left clear: a torch under the block they stand on would be boxed
+            // in. The torches go in before the shell: the ring is clear then, so every torch is
+            // placed on its floor and none attaches to a wall. That matters on 1.2.5, where a torch
+            // attaches to a solid side when it has one and a torch whose attachment is cleared
+            // drops even while its floor still supports it.
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int x = minX; x <= maxX; x++) {
+                    if (x != px || z != pz) {
+                        adapter.placeBlock(level, x, torchY, z, "minecraft:torch");
+                    }
+                }
+            }
+
+            for (int y = wallBottomY; y <= ceilingY; y++) {
+                for (int z = minZ - 1; z <= maxZ + 1; z++) {
+                    adapter.placeBlock(level, minX - 1, y, z, "minecraft:stone");
+                    adapter.placeBlock(level, maxX + 1, y, z, "minecraft:stone");
+                }
+                for (int x = minX - 1; x <= maxX + 1; x++) {
+                    adapter.placeBlock(level, x, y, minZ - 1, "minecraft:stone");
+                    adapter.placeBlock(level, x, y, maxZ + 1, "minecraft:stone");
+                }
+            }
+
             for (int z = minZ - 1; z <= maxZ + 1; z++) {
-                adapter.placeBlock(level, minX - 1, y, z, "minecraft:stone");
-                adapter.placeBlock(level, maxX + 1, y, z, "minecraft:stone");
+                for (int x = minX - 1; x <= maxX + 1; x++) {
+                    adapter.placeBlock(level, x, ceilingY, z, "minecraft:stone");
+                }
             }
-            for (int x = minX - 1; x <= maxX + 1; x++) {
-                adapter.placeBlock(level, x, y, minZ - 1, "minecraft:stone");
-                adapter.placeBlock(level, x, y, maxZ + 1, "minecraft:stone");
-            }
-        }
-
-        for (int z = minZ - 1; z <= maxZ + 1; z++) {
-            for (int x = minX - 1; x <= maxX + 1; x++) {
-                adapter.placeBlock(level, x, ceilingY, z, "minecraft:stone");
-            }
+        } finally {
+            adapter.endBatch(level);
         }
 
         // The items go last, once the room is sealed again: whatever the block clearing freed and

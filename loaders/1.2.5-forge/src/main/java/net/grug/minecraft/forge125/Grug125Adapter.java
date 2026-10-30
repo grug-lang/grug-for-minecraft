@@ -50,6 +50,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -688,7 +689,24 @@ public class Grug125Adapter implements ModLoaderAdapter {
         int posY = (int) Math.floor(y);
         int posZ = (int) Math.floor(z);
 
-        world.setBlockWithNotify(posX, posY, posZ, blockId);
+        if (batchActive) {
+            // The same write setBlockWithNotify makes, minus the relight: the batch relights at its
+            // end. The neighbour notification stays per block, so block states and dropped items
+            // come out the same. See ModLoaderAdapter#beginBatch.
+            if (posX >= -30000000
+                    && posZ >= -30000000
+                    && posX < 30000000
+                    && posZ < 30000000
+                    && posY >= 0
+                    && posY < 256
+                    && world.getChunkFromChunkCoords(posX >> 4, posZ >> 4)
+                            .setBlockID(posX & 15, posY, posZ & 15, blockId)) {
+                batchPosition(posX, posY, posZ);
+                world.notifyBlockChange(posX, posY, posZ, blockId);
+            }
+        } else {
+            world.setBlockWithNotify(posX, posY, posZ, blockId);
+        }
 
         // A placement that reports false because the block was already there is not a failure,
         // so the block's presence is the check rather than the return value. A y outside the
@@ -710,6 +728,45 @@ public class Grug125Adapter implements ModLoaderAdapter {
                             + ". A y outside this version's world height is refused, and a"
                             + " position in a chunk the client has not received is discarded.");
         }
+    }
+
+    /**
+     * Whether a batch of placements is open, in which case {@link #placeBlock} writes without the
+     * relight and records the position for {@link #endBatch}.
+     */
+    private boolean batchActive;
+
+    /** Three ints per block the open batch changed: x, y and z, in the order it touched them. */
+    private int[] batchPositions = new int[0];
+
+    private int batchPositionCount;
+
+    @Override
+    public void beginBatch(Object levelObj) {
+        batchActive = true;
+        batchPositionCount = 0;
+    }
+
+    @Override
+    public void endBatch(Object levelObj) {
+        batchActive = false;
+        World world = (World) levelObj;
+        for (int i = 0; i < batchPositionCount; i += 3) {
+            world.updateAllLightTypes(
+                    batchPositions[i], batchPositions[i + 1], batchPositions[i + 2]);
+        }
+        batchPositionCount = 0;
+    }
+
+    /** Records a position whose relight the open batch postponed. */
+    private void batchPosition(int x, int y, int z) {
+        if (batchPositionCount + 3 > batchPositions.length) {
+            batchPositions =
+                    Arrays.copyOf(batchPositions, Math.max(3 * 64, batchPositions.length * 2));
+        }
+        batchPositions[batchPositionCount++] = x;
+        batchPositions[batchPositionCount++] = y;
+        batchPositions[batchPositionCount++] = z;
     }
 
     /**

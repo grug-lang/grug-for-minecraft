@@ -59,6 +59,10 @@ class GrugTestBoxTest {
     private static final class FakeWorld {
         final Map<String, String> blocks = new HashMap<>();
         int placements = 0;
+        int batchBegins = 0;
+        int batchEnds = 0;
+        int placementsOutsideBatch = 0;
+        boolean batchOpen = false;
         final boolean canTell;
         final ModLoaderAdapter adapter;
 
@@ -76,7 +80,18 @@ class GrugTestBoxTest {
                                             case "isBlock":
                                                 return FakeWorld.this.canTell
                                                         && args[4].equals(blocks.get(key(args, 1)));
+                                            case "beginBatch":
+                                                batchBegins++;
+                                                batchOpen = true;
+                                                return null;
+                                            case "endBatch":
+                                                batchEnds++;
+                                                batchOpen = false;
+                                                return null;
                                             case "placeBlock":
+                                                if (!batchOpen) {
+                                                    placementsOutsideBatch++;
+                                                }
                                                 placements++;
                                                 if (args[4].equals("minecraft:air")) {
                                                     blocks.remove(key(args, 1));
@@ -177,6 +192,26 @@ class GrugTestBoxTest {
         assertEquals(room, world.blocks);
         // The room cleared, then placed again.
         assertEquals(placedFirst + room.size(), world.placements);
+    }
+
+    @Test
+    void everyBlockABuildChangesIsPlacedInsideABatch() {
+        FakeWorld world = new FakeWorld(true);
+        world.build(3);
+
+        // A room from nothing: the clear, then the placements, each in its own batch.
+        assertEquals(2, world.batchBegins);
+        assertEquals(2, world.batchEnds);
+        assertEquals(0, world.placementsOutsideBatch);
+
+        // A whole room changes nothing of its own, so only the clear runs, in one batch.
+        int begins = world.batchBegins;
+        world.build(3);
+
+        assertEquals(0, world.placements);
+        assertEquals(begins + 1, world.batchBegins);
+        assertEquals(world.batchBegins, world.batchEnds);
+        assertEquals(0, world.placementsOutsideBatch);
     }
 
     @Test
