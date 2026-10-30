@@ -3,19 +3,15 @@
 # the ticks it made used to pile up and run back to back when the server came back, with no frame
 # drawn and no packet read between them: a test that counted ticks while it waited for a packet saw
 # time that did not pass (#688, #709). The runner now drops a client tick the server cannot act on
-# yet, so it never runs more than one frame's worth of ticks beyond the world's clock.
-
-# The wait at the start drains the ticks the room build queued before this test began. The runner is
-# queued from the client's tick while the room is built at real time, so those ticks run as this
-# test's first invocations, in a burst that is not this test's to measure; after it the runner runs
-# one tick for each tick of the world.
+# yet, so it never runs more than one frame's worth of ticks beyond the world's clock. It drops the
+# ticks the client queued before this test started too, so its first tick is its first tick and the
+# first round has no backlog to drain (#717).
 
 # Each round stalls the server thread, then checks at every tick that the test is not ahead of the
 # world's clock by more than one frame's worth. The clock is Level.get_time, which on 1.20.6 is the
 # integrated server's own tick count, the clock the runner is meant to follow. A loader whose runner
 # ticks in the world's own tick never runs ahead of it, so the first round shows that there is no
 # backlog to look for and the rounds stop.
-settle: number = 40
 rounds: number = 3
 # The world's time the current count started at, or -1 when no round is counting.
 clock: number = -1
@@ -25,12 +21,6 @@ ran: number = 0
 worst: number = 0
 
 export tick(ctx: TestTickContext) {
-    if settle > 0 {
-        settle = settle - 1
-        ctx.not_done()
-        return
-    }
-
     if clock >= 0 {
         ran = ran + 1
         advance: number = _now() - clock

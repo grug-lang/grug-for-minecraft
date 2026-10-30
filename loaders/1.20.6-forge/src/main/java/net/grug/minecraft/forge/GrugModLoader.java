@@ -858,6 +858,15 @@ public class GrugModLoader {
             // Push the execution onto the server thread to prevent ghost blocks & crashes. The
             // whole
             // advance happens there, so the runner's state is only ever touched by one thread.
+            //
+            // The tick that starts the next test builds that test's room on the server thread,
+            // which takes far longer than one frame, and a tick the client queues meanwhile is not
+            // the new test's tick: it was meant for the test that is ending. The task carries the
+            // number of tests started when it was queued and drops itself if a later start has
+            // overtaken it, so a test's first tick is its first tick. See
+            // GrugTestRunner#startedTests
+            // and #717.
+            long startsWhenQueued = runner.startedTests();
             mc.getSingleplayerServer()
                     .execute(
                             () -> {
@@ -873,6 +882,9 @@ public class GrugModLoader {
                                 // already been cleared, so skip them rather than dereferencing a
                                 // null.
                                 if (grug$testRunner != runner) {
+                                    return;
+                                }
+                                if (runner.startedTests() != startsWhenQueued) {
                                     return;
                                 }
                                 runner.tick(serverPlayer);

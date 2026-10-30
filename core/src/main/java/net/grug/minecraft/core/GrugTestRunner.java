@@ -224,6 +224,27 @@ public class GrugTestRunner {
     private long currentTestStartNanos = 0;
 
     /**
+     * How many tests this runner has started, raised once a test's room is built and before its
+     * first tick.
+     *
+     * <p>On 1.20.6 the runner is ticked by a task the client queues on the integrated server's
+     * thread, and the room build keeps that thread busy for far longer than one frame while the
+     * client goes on queueing a tick for every tick of its own. Those ticks would run back to back
+     * as the new test's first ticks, with no world tick and no frame between them, so a loader that
+     * queues them stamps each with this count at queue time and drops the ones a later start has
+     * overtaken: then a test's first tick is its first tick. See #717.
+     */
+    private volatile long startedTests = 0;
+
+    /**
+     * How many tests this runner has started, which a loader that queues runner ticks on another
+     * thread stamps them with. See {@link #startedTests}.
+     */
+    public long startedTests() {
+        return startedTests;
+    }
+
+    /**
      * How long each test that finished took, in the order they ran. A path is unique because the
      * runner took it from a map's keys, so it doubles as the key here.
      */
@@ -1006,6 +1027,11 @@ public class GrugTestRunner {
         // After the room, so the setup that every test shares runs in real time, and before the
         // first tick, so the whole wait the test asked to speed up is sped up.
         applyGameSpeed(path);
+
+        // The room is built and the clock is the test's, and its first tick is the one that comes
+        // next: raised here, so a loader that stamped the runner ticks it queued while the room was
+        // built drops them rather than running them as this test's first ticks. See #717.
+        startedTests++;
         return true;
     }
 

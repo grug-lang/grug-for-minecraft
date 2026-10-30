@@ -239,6 +239,58 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void countsATestAsStartedOnlyAfterItsRoomIsBuilt() {
+        // A loader stamps a runner tick with this count when it queues the tick, and drops it if a
+        // later start has overtaken the stamp, so the count has to move while the room is built,
+        // which is the long block the client keeps queueing ticks through, and never on a tick of a
+        // test that is already running. See #717.
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        ops.pathsAre(files);
+        int[] calls = {0};
+        // The first test keeps asking for ticks, so there is a tick that starts nothing.
+        ops.onCall = () -> GrugTestState.testNotDone = ++calls[0] < 3;
+
+        GrugTestRunner[] self = new GrugTestRunner[1];
+        List<Long> startedWhenBuilt = new ArrayList<>();
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        files,
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {
+                                startedWhenBuilt.add(self[0].startedTests());
+                            }
+
+                            @Override
+                            public void sweepItems() {}
+                        },
+                        1);
+        self[0] = runner;
+
+        assertEquals(0, runner.startedTests(), "No test has started before the first tick.");
+        runner.tick(null);
+        assertEquals(1, runner.startedTests(), "The first tick starts the first test.");
+        assertEquals(
+                List.of(0L),
+                startedWhenBuilt,
+                "The count moves after the build: a tick the client queues during the build must"
+                        + " not carry the count of the test the build is for.");
+        runner.tick(null);
+        assertEquals(1, runner.startedTests(), "A tick of a running test starts nothing.");
+        runner.tick(null);
+        // The third call finishes the first test, and the tick after it starts the second.
+        runner.tick(null);
+        assertEquals(2, runner.startedTests());
+        assertEquals(List.of(0L, 1L), startedWhenBuilt);
+    }
+
+    @Test
     void ignoresFilesThatAreNotTests() {
         FakeOps ops = new FakeOps();
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Block.grug", 1L));
