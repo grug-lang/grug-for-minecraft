@@ -157,13 +157,30 @@ gradle_with_retry() {
 }
 
 # Standalone loaders have their own Gradle wrapper and consume core from the repository the root
-# build publishes it into, so that publish has to happen before the loader's own build runs. A
-# production run builds no loader: the universal jar already holds core.
+# build publishes it into, so that publish has to happen before the loader's own build runs, unless
+# this run was handed a published copy. GRUG_CORE_MAVEN names that copy: CI publishes core once per
+# run and hands the same repository to every job that loads a standalone loader (#735), because the
+# artifact does not depend on the active loader. Left unset, as a developer's run leaves it, the
+# publish happens here and is the only supported way to build a loader from a checkout.
+# A production run builds no loader: the universal jar already holds core.
 if [ -f "${LOADER_DIR}/root.gradle" ]; then
   if [ "$PHASE" != production ]; then
-    echo "==> Publishing core into build/maven"
-    gradle_with_retry "${REPO_ROOT}/${LOADER_DIR}/run/ci-publish.log" \
-      ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository "${gradle_args[@]}" || exit 1
+    if [ -n "${GRUG_CORE_MAVEN:-}" ]; then
+      if [ ! -d "${GRUG_CORE_MAVEN}/net/grug/grug-core" ]; then
+        echo "==> ERROR: GRUG_CORE_MAVEN is '${GRUG_CORE_MAVEN}', which holds no net/grug/grug-core." >&2
+        exit 1
+      fi
+      echo "==> Staging the published core from ${GRUG_CORE_MAVEN} into build/maven"
+      mkdir -p build
+      rm -rf build/maven
+      cp -a "${GRUG_CORE_MAVEN}/." build/maven/
+      staged_versions=$(ls build/maven/net/grug/grug-core | tr '\n' ' ')
+      echo "==> Staged grug-core: ${staged_versions% }"
+    else
+      echo "==> Publishing core into build/maven"
+      gradle_with_retry "${REPO_ROOT}/${LOADER_DIR}/run/ci-publish.log" \
+        ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository "${gradle_args[@]}" || exit 1
+    fi
   fi
   cd "$LOADER_DIR"
   task_prefix=""

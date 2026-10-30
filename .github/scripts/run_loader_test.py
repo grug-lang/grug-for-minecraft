@@ -632,6 +632,58 @@ class RunLoaderTest(unittest.TestCase):
         self.assertTrue(calls[1].startswith(":core:publishMavenJava"), calls)
         self.assertIn("runClient", calls[2])
 
+    def test_a_handed_core_repository_is_staged_instead_of_published(self):
+        # CI publishes core once per run and hands build/maven to every job that resolves it, so this
+        # run skips the publish and copies the handed repository where the loader looks for it (#735).
+        loader = self.tmp / "loaders" / "fake-loader"
+        (loader / "root.gradle").write_text("// standalone\n")
+        shutil.copy(self.tmp / "gradlew", loader / "gradlew")
+        handed = self.tmp / ".grug-ci" / "core-maven"
+        version = handed / "net" / "grug" / "grug-core" / "1.0.0-abc"
+        version.mkdir(parents=True)
+        (version / "grug-core-1.0.0-abc.pom").write_text("pom\n")
+
+        result = self.run_script(
+            "> Task :compileJava\n> Task :layerJar\n> Task :runClient\n" + PASSING_LOG,
+            0,
+            extra_env={"GRUG_CORE_MAVEN": str(handed)},
+            phase="build-run",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Staging the published core", result.stdout)
+        self.assertIn("Staged grug-core: 1.0.0-abc", result.stdout)
+        self.assertNotIn(":core:publishMavenJava", result.gradle_args)
+        self.assertEqual(len(result.gradle_args.splitlines()), 1, result.gradle_args)
+        self.assertTrue(
+            (
+                self.tmp
+                / "build"
+                / "maven"
+                / "net"
+                / "grug"
+                / "grug-core"
+                / "1.0.0-abc"
+                / "grug-core-1.0.0-abc.pom"
+            ).is_file()
+        )
+
+    def test_a_handed_core_that_holds_no_repository_is_an_error_before_gradle(self):
+        # A directory without the published coordinate would fail the loader's resolution with a
+        # message about a missing module; the run should say what it was handed instead.
+        loader = self.tmp / "loaders" / "fake-loader"
+        (loader / "root.gradle").write_text("// standalone\n")
+        shutil.copy(self.tmp / "gradlew", loader / "gradlew")
+
+        result = self.run_script(
+            extra_env={"GRUG_CORE_MAVEN": str(self.tmp / "empty")}, phase="build-run"
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("holds no net/grug/grug-core", result.stderr)
+        # Nothing reached Gradle, so there is no invocation at all.
+        self.assertEqual(result.gradle_args, "")
+
     def test_a_test_failure_is_not_retried(self):
         result = self.run_script(FAILING_LOG, 1)
 

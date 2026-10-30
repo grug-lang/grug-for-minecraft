@@ -177,6 +177,90 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # One publish of core per run (#735). Each of the four standalone loader jobs publishes it today,
+  # and so do the layer jobs and the reference job: the root build's 8.14 startup and configuration,
+  # for the same jar every time, because the artifact does not depend on which loader is active. This
+  # job produces it once and uploads build/maven, and each job that resolves core downloads it.
+  #
+  # It starts with the run and not after grug-rs, because a job that the loader jobs `needs:` delays
+  # every leg of their matrix by its own time, 1.20.6-forge included, and 1.20.6-forge is usually the
+  # build job that ends last and publishes nothing at all. So this job restores the library from the
+  # entry the grug-rs job writes instead of downloading its artifact, and the jobs that resolve core
+  # treat the artifact as best effort: when it is not there yet they publish core themselves, which
+  # costs exactly what it costs today.
+  core-maven:
+    name: publish core
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # The loader entries hold the root build's state too, core/build among them, which is where
+      # Gradle keeps the classes the jar is made of. Restored, the publish is the wrapper's startup
+      # and configuration plus the copy, as it is in a loader job whose core this commit did not
+      # touch; without it this job would compile core once per run, which is the work the loader jobs
+      # already do off the run's critical path. a1.1.2_01-ornithe is only the entry to read: no core
+      # output depends on which loader the root build is scoped to.
+      - name: Set up the loader build
+        uses: ./.github/actions/setup-loader-build
+        with:
+          loader: a1.1.2_01-ornithe
+          save: 'false'
+          grug-rs-artifact: 'false'
+
+      # The grug-rs job's own key, which names what built the library, so a hit is the very bytes it
+      # would have handed over as an artifact. Restored after the build state above and not before:
+      # that entry also holds a copy of the library, from whichever run wrote it, and a revision bump
+      # in core/build.gradle.kts does not change the build-state key (#734), so the exact entry has
+      # to land last. The fallback build runs beside the grug-rs job's own and not after it, and only
+      # on the run after such a bump.
+      - name: Read the Rust version
+        id: rust
+        run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the grug-rs static library
+        id: library
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: core/build/grug-rs/target/release/libgruggers.a
+          key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts') }}-v1
+
+      - name: Build the static library
+        if: steps.library.outputs.cache-hit != 'true'
+        run: ./gradlew :core:cloneGrugRs :core:buildGrugRs -Dgrug.activeLoader=a1.1.2_01-ornithe
+
+      # A path of its own, not the build's own output: stagePrebuiltGrugRs copies the file it is
+      # given onto core/build/grug-rs/target/release/libgruggers.a, and copying a file onto itself
+      # truncates it. The loader jobs hand over the same path from their artifact.
+      - name: Stage the static library
+        run: |
+          mkdir -p .grug-ci
+          cp core/build/grug-rs/target/release/libgruggers.a .grug-ci/libgruggers.a
+
+      - name: Publish core into build/maven
+        env:
+          GRUG_CI: 'true'
+        run: >-
+          ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository
+          -Dgrug.activeLoader=a1.1.2_01-ornithe
+          -Pgrug.prebuiltGrugRs="${{ github.workspace }}/.grug-ci/libgruggers.a"
+
+      - name: Upload the published repository
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: grug-core-maven
+          path: build/maven
+          if-no-files-found: error
+          retention-days: 7
+
   # The adapter as a Windows DLL (#528). Built on its own runner, with grug-rs compiled there for the
   # MSVC target (Rust's default on Windows, and the one grug-rs's own CI uses), because a static
   # library is built for one OS and the Linux jobs hand theirs around as an artifact.
@@ -425,10 +509,21 @@ jobs:
           loader: ${{ matrix.dir }}
           save: 'false'
 
+      # Best effort, like the loader job's: this job may reach the build before the publish job has
+      # uploaded, in which case run-loader.sh publishes core itself, which is what it did before.
+      - name: Download the published core
+        id: core
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-core-maven
+          path: .grug-ci/core-maven
+
       - name: Build (${{ matrix.dir }}) and its layer
         run: .github/scripts/run-loader.sh "${{ matrix.dir }}" build
         env:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
+          GRUG_CORE_MAVEN: ${{ steps.core.outcome == 'success' && format('{0}/.grug-ci/core-maven', github.workspace) || '' }}
 
       - name: Upload the layer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -507,6 +602,21 @@ jobs:
             fi
           fi
 
+      # The core repository this run's publish job uploads, when it is ready by now: the standalone
+      # loaders resolve core from it instead of publishing their own, and 1.20.6-forge, which the
+      # root build compiles core into, does not need it. Best effort on purpose: this job has no
+      # `needs:` on the publish job, because that would delay every leg of the matrix, 1.20.6-forge
+      # included, by the publish's own time. When the artifact is not there yet, run-loader.sh
+      # publishes core itself, exactly as this job did before (#735).
+      - name: Download the published core
+        if: matrix.dir != '1.20.6-forge'
+        id: core
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-core-maven
+          path: .grug-ci/core-maven
+
       # One Gradle invocation builds the loader and its layer and then runs the game (#678), so the
       # job pays one Gradle start and one configuration. A build failure still fails the step before
       # any game exists: the script tells it from a game that exited, and the game's time limit
@@ -517,6 +627,7 @@ jobs:
           # Empty for every loader except 1.2.5-forge; its game JVM uses this Java 8.
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
+          GRUG_CORE_MAVEN: ${{ steps.core.outcome == 'success' && format('{0}/.grug-ci/core-maven', github.workspace) || '' }}
           # How many times the suite runs in one test run. A dispatch input wins, then the
           # repository variable GRUG_CI_REPEATS, then 1, which is what pull request runs use
           # because their inputs context is empty. See #268.
@@ -751,10 +862,22 @@ jobs:
             fi
           fi
 
+      # Best effort, as in the loader jobs: this job resolves core from the published repository
+      # rather than publishing its own copy, and publishes it as before when the artifact is not
+      # ready (#735).
+      - name: Download the published core
+        id: core
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: grug-core-maven
+          path: .grug-ci/core-maven
+
       - name: Run the reference (1.2.5-forge)
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh 1.2.5-forge run
         env:
           GRUG_REFERENCE: '1'
+          GRUG_CORE_MAVEN: ${{ steps.core.outcome == 'success' && format('{0}/.grug-ci/core-maven', github.workspace) || '' }}
           GRUG_MODS_DIR: ${{ github.workspace }}/reference-harness
           GRUG_REFERENCE_MODS_DIR: ${{ github.workspace }}/loaders/1.2.5-forge/run/reference-mods
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}

@@ -14,6 +14,13 @@ inputs:
       first, so a job that stops after the build would write one without what the game resolves.
     required: false
     default: 'true'
+  grug-rs-artifact:
+    description: >-
+      Whether to download the grug-rs static library this run's grug-rs job produced. The job that
+      publishes core starts beside that job rather than after it, so it restores the library's cache
+      entry itself and passes 'false' here; every job that runs a game needs the artifact.
+    required: false
+    default: 'true'
 outputs:
   java21-path:
     description: JAVA_HOME of the JDK 21 this action installed.
@@ -30,6 +37,7 @@ runs:
         cache: gradle
 
     - name: Download the grug-rs static library
+      if: inputs.grug-rs-artifact == 'true'
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: grug-rs-library
