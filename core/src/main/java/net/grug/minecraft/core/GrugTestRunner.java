@@ -245,6 +245,22 @@ public class GrugTestRunner {
     }
 
     /**
+     * Whether a runner tick a loader queued is for a test that has since ended, and so must be
+     * dropped rather than run as the next test's tick.
+     *
+     * <p>A loader that queues runner ticks on another thread reads {@link #startedTests()} when it
+     * queues one and asks this when the task runs. Equal counts mean no test has started in
+     * between, so the tick still belongs to the test it was queued for. A count that moved means a
+     * later test started, which builds its room on that thread and leaves a queue of ticks meant
+     * for the test that ended; those must not become the new test's first ticks. The decision is a
+     * pure function of the two counts so it is unit-tested for both, rather than left to a loader's
+     * game code (see #717 and {@code GrugTestRunnerTest}).
+     */
+    public static boolean queuedTickIsStale(long startsWhenQueued, long startsNow) {
+        return startsNow != startsWhenQueued;
+    }
+
+    /**
      * How long each test that finished took, in the order they ran. A path is unique because the
      * runner took it from a map's keys, so it doubles as the key here.
      */

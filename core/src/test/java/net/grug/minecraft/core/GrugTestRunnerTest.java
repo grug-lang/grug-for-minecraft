@@ -291,6 +291,23 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void aQueuedTickIsStaleOnlyOnceALaterTestHasStarted() {
+        // The loader reads the count when it queues the task and asks this when the task runs, so a
+        // count that did not move is the same test and the tick belongs to it (#717).
+        assertFalse(
+                GrugTestRunner.queuedTickIsStale(0L, 0L), "No start in between: the tick runs.");
+        assertFalse(
+                GrugTestRunner.queuedTickIsStale(7L, 7L),
+                "The same count, whatever it is, is the same test.");
+        assertTrue(
+                GrugTestRunner.queuedTickIsStale(0L, 1L),
+                "The next test started while the tick was queued: it is dropped.");
+        assertTrue(
+                GrugTestRunner.queuedTickIsStale(7L, 9L),
+                "Any later start makes the tick stale, not only the next one.");
+    }
+
+    @Test
     void ignoresFilesThatAreNotTests() {
         FakeOps ops = new FakeOps();
         GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Block.grug", 1L));
