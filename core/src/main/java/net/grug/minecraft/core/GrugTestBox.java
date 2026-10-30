@@ -116,32 +116,59 @@ public final class GrugTestBox {
                         torchY,
                         wallBottomY,
                         ceilingY);
+        long buildStartNanos = System.nanoTime();
         boolean roomIsWhole = room.isWhole(adapter, level);
+        long checkedNanos = System.nanoTime();
+        int clearedBlocks = 0;
         for (int y = areaTopY; y >= wallBottomY; y--) {
             for (int z = areaMinZ; z <= areaMaxZ; z++) {
                 for (int x = areaMinX; x <= areaMaxX; x++) {
                     if (roomIsWhole && room.blockAt(x, y, z) != null) {
                         continue;
                     }
+                    if (!adapter.isAir(level, x, y, z)) {
+                        clearedBlocks++;
+                    }
                     clearBlock(adapter, level, x, y, z);
                 }
             }
         }
+        long clearedNanos = System.nanoTime();
         if (roomIsWhole) {
             clearItems(
                     adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
+            long itemsNanos = System.nanoTime();
+            System.out.println(
+                    "[GRUG CI] ROOMBUILD radius="
+                            + radius
+                            + " whole=true"
+                            + " checkNanos="
+                            + (checkedNanos - buildStartNanos)
+                            + " clearNanos="
+                            + (clearedNanos - checkedNanos)
+                            + " clearedBlocks="
+                            + clearedBlocks
+                            + " placeNanos=0"
+                            + " placedBlocks=0"
+                            + " itemsNanos="
+                            + (itemsNanos - clearedNanos)
+                            + " totalNanos="
+                            + (itemsNanos - buildStartNanos));
             return;
         }
 
+        int placedBlocks = 0;
         // The torch floor, and the single block the player stands on. The floor goes in below the
         // player's feet, so the light comes up around the block they stand on and their feet stay
         // where they are.
         for (int z = minZ; z <= maxZ; z++) {
             for (int x = minX; x <= maxX; x++) {
                 adapter.placeBlock(level, x, torchFloorY, z, "minecraft:stone");
+                placedBlocks++;
             }
         }
         adapter.placeBlock(level, px, py - 1, pz, "minecraft:stone");
+        placedBlocks++;
 
         // A torch on every floor tile, so the floor's light level is the same everywhere. The
         // player's column is left clear: a torch under the block they stand on would be boxed in.
@@ -153,6 +180,7 @@ public final class GrugTestBox {
             for (int x = minX; x <= maxX; x++) {
                 if (x != px || z != pz) {
                     adapter.placeBlock(level, x, torchY, z, "minecraft:torch");
+                    placedBlocks++;
                 }
             }
         }
@@ -161,23 +189,46 @@ public final class GrugTestBox {
             for (int z = minZ - 1; z <= maxZ + 1; z++) {
                 adapter.placeBlock(level, minX - 1, y, z, "minecraft:stone");
                 adapter.placeBlock(level, maxX + 1, y, z, "minecraft:stone");
+                placedBlocks += 2;
             }
             for (int x = minX - 1; x <= maxX + 1; x++) {
                 adapter.placeBlock(level, x, y, minZ - 1, "minecraft:stone");
                 adapter.placeBlock(level, x, y, maxZ + 1, "minecraft:stone");
+                placedBlocks += 2;
             }
         }
 
         for (int z = minZ - 1; z <= maxZ + 1; z++) {
             for (int x = minX - 1; x <= maxX + 1; x++) {
                 adapter.placeBlock(level, x, ceilingY, z, "minecraft:stone");
+                placedBlocks++;
             }
         }
+        long placedNanos = System.nanoTime();
 
         // The items go last, once the room is sealed again: whatever the block clearing freed and
         // whatever else is in the area. The player picks up anything that lands near them, and an
         // item in the hotbar shows in every capture that has one in frame. See #254.
         clearItems(adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
+        long itemsNanos = System.nanoTime();
+        System.out.println(
+                "[GRUG CI] ROOMBUILD radius="
+                        + radius
+                        + " whole=false"
+                        + " checkNanos="
+                        + (checkedNanos - buildStartNanos)
+                        + " clearNanos="
+                        + (clearedNanos - checkedNanos)
+                        + " clearedBlocks="
+                        + clearedBlocks
+                        + " placeNanos="
+                        + (placedNanos - clearedNanos)
+                        + " placedBlocks="
+                        + placedBlocks
+                        + " itemsNanos="
+                        + (itemsNanos - placedNanos)
+                        + " totalNanos="
+                        + (itemsNanos - buildStartNanos));
     }
 
     /**
