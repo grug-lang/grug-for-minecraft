@@ -99,6 +99,10 @@ runs:
           echo "gradle=grug-gradle-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
           echo "home-prefix=grug-gradle-home-${RUNNER_OS}-${LOADER}-"
           echo "home=grug-gradle-home-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
+          echo "build-state=grug-build-state-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
+          echo "build-state-prefix=grug-build-state-${RUNNER_OS}-${LOADER}-"
+          echo "own-state=grug-own-state-${RUNNER_OS}-${LOADER}-${GRADLE_HASH}"
+          echo "own-state-prefix=grug-own-state-${RUNNER_OS}-${LOADER}-"
           echo "minecraft=grug-minecraft-${RUNNER_OS}-${LOADER}-${MINECRAFT_HASH}"
         } >> "$GITHUB_OUTPUT"
 
@@ -194,6 +198,81 @@ runs:
           ~/.gradle/caches/journal-1
         key: ${{ steps.keys.outputs.home }}
         restore-keys: ${{ steps.keys.outputs.home-prefix }}
+
+    # The project's own Gradle state, which every job rebuilt from nothing: the task history Gradle
+    # keeps in the project's .gradle directory, and the outputs it compares against, in core/build
+    # and the loader's build directory. A fresh checkout has neither, so every task runs again; with
+    # both restored, Gradle skips the ones whose declared inputs this commit did not touch, which is
+    # all of the Minecraft/Forge/Loom toolchain work and, on a commit that changes no Java, the
+    # compiles too.
+    #
+    # The key is not the guard, which is what makes this sound where a hand-written key was not
+    # (#629): it says only where the state lives. Gradle hashes the inputs its build declares and
+    # compares them with what the entry holds, so a stale entry costs the saving and never a stale
+    # class. What that leaves is the one risk a fresh checkout did not carry: a task with an
+    # undeclared input would be up to date against a state it never produced, which is exactly the
+    # trust a developer's incremental build already places.
+    #
+    # It is written by the same jobs as the entries around it, those that run the game, and keyed and
+    # falling back like them, so a commit that changes a build file misses and saves a new one.
+    #
+    # Measured on 2026-10-30 in the throwaway harness of #713: one job per loader, the arms
+    # alternating pass by pass on one runner, a discarded warm-up first, seconds from the launch to
+    # the runClient task, four pairs against a control with no restore and a core method body changed
+    # (the shape of a normal pull request): -8.0 s on 1.20.6-forge, -16.1 s on b1.7.3-stationapi,
+    # -5.7 s on b1.7.3-ornithe and -4.1 s on a1.1.2_01-ornithe, every interval clear of 0 at p 0.002
+    # or below. With only one bundled mod changed instead, 1.20.6-forge saves 8.9 s, b1.7.3-ornithe
+    # 10.1 s, a1.1.2_01-ornithe 6.5 s and b1.7.3-stationapi about 18 s by median, its median being
+    # what two hiccup passes in that job leave usable.
+    # The entry packs to 27 to 141 MB per loader and took 1 to 7 s to download and unpack here, which
+    # the numbers above already have taken off.
+    #
+    # What is left to the up-to-date check is a task whose declared inputs are incomplete. A fresh
+    # checkout could never skip such a task; this change can, which is the one risk it adds.
+    #
+    # 1.2.5-forge is left out: its 170MB MCP snapshot lives inside loaders/1.2.5-forge/build and has
+    # its own entry above, so this one would store the snapshot a second time. Its own saving was
+    # 4.9 s (p below 0.001), which does not pay for 170MB, and its job is not the longest of a run.
+    - name: Cache the build state
+      if: inputs.loader != '1.2.5-forge' && inputs.save == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          .gradle
+          core/build
+          loaders/${{ inputs.loader }}/build
+        key: ${{ steps.keys.outputs.build-state }}
+        restore-keys: ${{ steps.keys.outputs.build-state-prefix }}
+
+    - name: Restore the build state
+      if: inputs.loader != '1.2.5-forge' && inputs.save != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          .gradle
+          core/build
+          loaders/${{ inputs.loader }}/build
+        key: ${{ steps.keys.outputs.build-state }}
+        restore-keys: ${{ steps.keys.outputs.build-state-prefix }}
+
+    # A standalone loader is its own Gradle build, with a .gradle of its own that holds the history
+    # of its tasks: Loom's remapping, the jar, the layer. 1.20.6-forge is built by the root build and
+    # has no such directory, and 1.2.5-forge is left out for the reason above.
+    - name: Cache the loader's own build state
+      if: inputs.loader != '1.20.6-forge' && inputs.loader != '1.2.5-forge' && inputs.save == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: loaders/${{ inputs.loader }}/.gradle
+        key: ${{ steps.keys.outputs.own-state }}
+        restore-keys: ${{ steps.keys.outputs.own-state-prefix }}
+
+    - name: Restore the loader's own build state
+      if: inputs.loader != '1.20.6-forge' && inputs.loader != '1.2.5-forge' && inputs.save != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: loaders/${{ inputs.loader }}/.gradle
+        key: ${{ steps.keys.outputs.own-state }}
+        restore-keys: ${{ steps.keys.outputs.own-state-prefix }}
 
     # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
     # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
