@@ -487,18 +487,23 @@ def check_layers(jar, loaders):
 # player's pack has a limited supply of block ids, and these ask for 32 of them (#509).
 UNBUNDLED_MODS = {"coverage"}
 
-# The adapter of each OS grug runs on, which GrugNative picks from by the running one.
-NATIVES = ("libadapter.so", "adapter.dll")
+# The adapter of each OS grug runs on, which GrugNative picks from by the running one. The Linux one
+# is in every jar, since core's own build makes it. The Windows one is in the jar only when the run
+# that assembled it built one (#784): a push that adds no loader assembles and tests the jar on
+# Linux, so its jar is a Linux jar, and a dispatch's jar, the one a release publishes, holds both.
+LINUX_NATIVE = "libadapter.so"
+WINDOWS_NATIVE = "adapter.dll"
 
 
-def check_payload(jar, mods):
+def check_payload(jar, mods, windows_native=True):
     # Each appears once at the root, which the duplicate check guarantees, and in no nested layer.
     singles = ("mod_api.json", "grug_bundled_mods.txt")
     problems = [
         f"{name} is missing from the root" for name in singles if name not in jar.root.files
     ]
+    natives = (LINUX_NATIVE, WINDOWS_NATIVE) if windows_native else (LINUX_NATIVE,)
     problems += [
-        f"the root holds no {name}" for name in NATIVES if "natives/" + name not in jar.root.files
+        f"the root holds no {name}" for name in natives if "natives/" + name not in jar.root.files
     ]
     for nested in jar.nested.values():
         for name in sorted(nested.files):
@@ -1210,7 +1215,7 @@ def check_dispatcher(jar, games=GAMES, known_gaps=KNOWN_GAPS):
     return problems
 
 
-def check(path, repo=REPO_ROOT):
+def check(path, repo=REPO_ROOT, windows_native=True):
     jar = Universal.read(path)
     loaders = {p.name for p in (repo / "loaders").iterdir() if p.is_dir()}
     mods = {p.name for p in (repo / "mods").iterdir() if p.is_dir()} - UNBUNDLED_MODS
@@ -1219,7 +1224,7 @@ def check(path, repo=REPO_ROOT):
         check_duplicates,
         check_packages,
         lambda j: check_layers(j, loaders),
-        lambda j: check_payload(j, mods),
+        lambda j: check_payload(j, mods, windows_native),
         check_metadata,
         lambda j: check_forge_family(j, repo),
         lambda j: check_versions(j, repo),
@@ -1333,6 +1338,11 @@ def main(argv=None):
     checking.add_argument(
         "--repo", default=REPO_ROOT, type=Path, help="the checkout to compare with"
     )
+    checking.add_argument(
+        "--no-windows-native",
+        action="store_true",
+        help="the jar was assembled without a Windows native, so the root holds no adapter.dll",
+    )
     commands.add_parser("smoke-matrix", help="print the smoke jobs' matrix as JSON")
     zipping = commands.add_parser("mod-zips", help="write one zip per mod and their index.json")
     zipping.add_argument("--commit", required=True, help="the commit the mods are taken from")
@@ -1377,7 +1387,7 @@ def main(argv=None):
         print(f"==> Wrote {args.out}")
         return 0
 
-    problems = check(Path(args.jar), args.repo)
+    problems = check(Path(args.jar), args.repo, not args.no_windows_native)
     for problem in problems:
         print(f"==> ERROR: {problem}", file=sys.stderr)
     if problems:
