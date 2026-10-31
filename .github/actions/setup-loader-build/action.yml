@@ -233,8 +233,10 @@ runs:
     # 1.2.5-forge has the same entry. It was left out at first because its 170MB MCP snapshot lived
     # inside its build directory, which would have stored the snapshot a second time beside its own
     # entry; the snapshot now lives in loaders/1.2.5-forge/mcp125, so the two entries do not overlap.
-    # Almost all of its task part is MCP toolchain work a restored history leaves up to date (#706),
-    # and the entry stores about 30MB (#736).
+    # Almost all of its task part is MCP toolchain work a restored history leaves up to date (#706).
+    # Over five interleaved pairs the Gradle phase fell from 21.2 s to 8.4 s with a core method body
+    # changed and from 18.8 s to 8.4 s with only a bundled mod changed, every variant sample an exact
+    # hit on the key the action computed (#736). It packs to 36.6MB, its own .gradle to 0.4MB.
     - name: Cache the build state
       if: inputs.save == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
