@@ -43,7 +43,7 @@ public final class GrugModsWatcher {
 
     /**
      * What {@link #update} does with one report from the engine: counts each reported path once,
-     * reloads the files that compiled, and returns the paths a loader has to reload for.
+     * reloads the files that compiled, and returns the client resources a loader has to reload for.
      *
      * <p>Package-private so a Java test can hand it a report and read the counts, because a grug
      * test cannot: it cannot tell a count the engine raised twice from one this class raised twice.
@@ -85,7 +85,7 @@ public final class GrugModsWatcher {
 
         for (String resource : updatedResources) {
             noteReportedChange(resource);
-            if (!isScreenshotReference(resource)) {
+            if (!isScreenshotReference(resource) && isClientResource(resource)) {
                 reloadTriggers.add(resource);
             }
         }
@@ -108,6 +108,16 @@ public final class GrugModsWatcher {
      */
     private static boolean isScreenshotReference(String resource) {
         return resource.replace('\\', '/').matches("[^/]+/screenshots(/.*)?");
+    }
+
+    /**
+     * Whether {@code resource} is under a mod's {@code assets/} directory, the only tree a client's
+     * resource reload reads. A file under {@code data/} is read by the server's own data reload,
+     * which a loader never asks for on a hot reload, so the client reloading every pack for one
+     * buys nothing and holds the suite for seconds. See #758.
+     */
+    private static boolean isClientResource(String resource) {
+        return resource.replace('\\', '/').matches("[^/]+/assets(/.*)?");
     }
 
     /**

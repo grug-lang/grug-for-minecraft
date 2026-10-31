@@ -115,6 +115,34 @@ class GrugModsWatcherTest {
     }
 
     /**
+     * A data file is read by the server's own data reload, which a loader never asks for on a hot
+     * reload, so a change under data/ is counted and reloads nothing. See #758.
+     */
+    @Test
+    void aDataFileIsCountedButReloadsNothing() {
+        String path = "watcher_test/data/recipe.json";
+        String[] triggers =
+                GrugModsWatcher.applyReport(new FileInfo[0], new String[] {path}, errors::add);
+
+        assertEquals(1, GrugModsWatcher.reportedChangeCount(path));
+        assertArrayEquals(new String[0], triggers);
+    }
+
+    /**
+     * Only the mod's own assets tree is a client resource. A directory named assets deeper in the
+     * path is a data pack's own file, which no client resource reload reads either. See #758.
+     */
+    @Test
+    void aDeeperAssetsDirectoryIsNotAClientResource() {
+        String path = "watcher_test/data/grug/assets/recipe.json";
+        String[] triggers =
+                GrugModsWatcher.applyReport(new FileInfo[0], new String[] {path}, errors::add);
+
+        assertEquals(1, GrugModsWatcher.reportedChangeCount(path));
+        assertArrayEquals(new String[0], triggers);
+    }
+
+    /**
      * An update-goldens run writes a golden into the mods tree while its tests run, and a reload of
      * the game's resources for it stalled 1.20.6's test until it timed out.
      */
