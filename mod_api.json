@@ -931,6 +931,12 @@
 						}
 					]
 				},
+				"high_block_round_trip": {
+					"description": "Test only: proves a block id above 255 survives the game's own chunk save and load. The loader's block-id search takes an id with every id in its low range taken by stand-ins, a block registers and is placed with it, and the chunk the tests run in is saved and read straight back through the game's own chunk loader. The answer is the id the loaded chunk holds, which the test checks is above 255, or -1 on a loader whose block ids never reach there: it has no such id to round trip, and -1 is a no-op rather than an err. See #518.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"tick_block_entity": {
 					"description": "Test only: runs a grug block entity's tick function the given number of times in a row, within the test's current tick, so a test can reach a state that takes the game minutes to build without waiting for them. The clock Level.get_time reads is left alone, as a machine accelerator leaves it. The ticks have to be a whole number from 0 to 2147483647, and the block entity a grug one, or it is reported.",
 					"parameters": [

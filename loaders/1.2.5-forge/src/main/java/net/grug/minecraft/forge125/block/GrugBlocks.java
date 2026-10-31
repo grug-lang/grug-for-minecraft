@@ -38,15 +38,24 @@ public final class GrugBlocks {
     /**
      * First id searched when handing out ids. Vanilla 1.2.5 stops at 124 (redstone lamp), so this
      * is just above it. Ids are not taken blindly from here because a pack can have dozens of other
-     * mods already holding them; the search below skips any that are taken.
+     * mods already holding them; the search below skips any that are taken, and when the range up
+     * to {@link #LAST_BLOCK_ID} is used up it continues at {@link #FIRST_HIGH_BLOCK_ID}.
      */
     public static final int START_BLOCK_ID = 125;
 
     /**
-     * Block ids stop here. The top id is left free because some mods (Modular Force Field System in
-     * Tekkit Classic, for one) hardcode it instead of searching for a free one.
+     * Where the low range of the search stops. The top id is left free because some mods (Modular
+     * Force Field System in Tekkit Classic, for one) hardcode it instead of searching for a free
+     * one.
      */
     public static final int LAST_BLOCK_ID = 254;
+
+    /**
+     * The first id the search takes when the range up to {@link #LAST_BLOCK_ID} is full. 255 itself
+     * is left free for the same reason the top of the low range is, so the high range starts one
+     * above it.
+     */
+    public static final int FIRST_HIGH_BLOCK_ID = 256;
 
     /** First item id searched, for the same reason. */
     public static final int START_ITEM_ID = 400;
@@ -88,11 +97,27 @@ public final class GrugBlocks {
         registerItems();
     }
 
+    /**
+     * The pool every block id is handed from: the low range searched first, and when the pack's
+     * other mods have used it up, the search continues at {@link #FIRST_HIGH_BLOCK_ID}, where
+     * 1.2.5's tables have room to 4095. A block's item sits at {@code Item.itemsList[id]}, so an id
+     * is taken when either table holds one.
+     *
+     * <p>The test that proves the high range is reachable takes its id from the same pool the
+     * registration takes its own from, with the low range used up (#518).
+     */
+    public static GrugIdPool blockIdPool() {
+        return GrugIdPool.of(
+                "block",
+                id -> Block.blocksList[id] != null || Item.itemsList[id] != null,
+                new int[][] {
+                    {START_BLOCK_ID, LAST_BLOCK_ID},
+                    {FIRST_HIGH_BLOCK_ID, Block.blocksList.length - 1}
+                });
+    }
+
     private static void registerBlocks() {
-        // A pack's other mods have registered by now, so what is free is what they left.
-        GrugIdPool ids =
-                GrugIdPool.of(
-                        "block", id -> Block.blocksList[id] != null, START_BLOCK_ID, LAST_BLOCK_ID);
+        GrugIdPool ids = blockIdPool();
         if (!ids.hasRoomFor(mod_Grug.blockMods)) return;
         for (Map.Entry<String, Long> entry : mod_Grug.blockFiles.entrySet()) {
             String cleanName = entry.getKey();

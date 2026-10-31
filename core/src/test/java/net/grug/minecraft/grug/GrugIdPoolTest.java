@@ -65,6 +65,54 @@ class GrugIdPoolTest {
     }
 
     @Test
+    void rangesAreSearchedInOrderAndTheGapBetweenThemIsLeftFree() {
+        // The 1.2.5 shape: 125 to 254, then 256 to 4095, with 255 outside both ranges because
+        // some mods hardcode it.
+        int[][] ranges = {{125, 254}, {256, 4095}};
+        int[] free = GrugIdPool.freeIds(id -> false, ranges);
+
+        assertEquals(125, free[0]);
+        assertEquals(254, free[129]);
+        assertEquals(256, free[130]);
+        assertEquals(4095, free[free.length - 1]);
+        assertEquals(3970, free.length);
+    }
+
+    @Test
+    void aFilledFirstRangeHandsOutTheSecond() {
+        // 1.2.5 with the pack's other mods over the low range: the search spills past the gap.
+        int[][] ranges = {{125, 254}, {256, 4095}};
+        int[] free = GrugIdPool.freeIds(id -> id <= 254, ranges);
+
+        assertEquals(256, free[0]);
+        assertEquals(4095, free[free.length - 1]);
+    }
+
+    @Test
+    void anIdIsFreeOnlyWhenEveryTableSaysSo() {
+        Set<Integer> oneTable = taken(256, 257, 258);
+        Set<Integer> otherTable = taken(258, 259);
+        // Both tables occupied: an id held by either is taken.
+        int[] free =
+                GrugIdPool.freeIds(
+                        id -> oneTable.contains(id) || otherTable.contains(id),
+                        new int[][] {{256, 260}});
+
+        assertArrayEquals(new int[] {260}, free);
+    }
+
+    @Test
+    void aPoolOverSeveralRangesTakesLowestFirstAcrossTheGap() {
+        GrugIdPool pool =
+                GrugIdPool.of("block", id -> id <= 254, new int[][] {{125, 254}, {256, 4095}});
+
+        assertEquals(3840, pool.remaining());
+        assertEquals(256, pool.take());
+        assertEquals(257, pool.take());
+        assertEquals(3838, pool.remaining());
+    }
+
+    @Test
     void idsAreHandedOutLowestFirstAndCounted() {
         Set<Integer> taken = taken(6);
         GrugIdPool pool = GrugIdPool.of("block", taken::contains, 5, 8);

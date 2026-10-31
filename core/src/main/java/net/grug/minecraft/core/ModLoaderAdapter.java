@@ -357,6 +357,19 @@ public interface ModLoaderAdapter {
     void tickBlockEntity(Object blockEntityObj);
 
     /**
+     * Test only: saves the chunk the tests run in through this loader's chunk save format and reads
+     * it straight back, with a block whose id is above 255 in it, so the round trip is proven on a
+     * real save. Answers the id the block got, which the loader's own block-id search hands out
+     * with the ids of its low range taken by the pack's other mods.
+     *
+     * <p>A loader whose block ids do not reach above 255 keeps this default answer of -1, which is
+     * a documented no-op and not an err: there is no such id for it to round trip. See #518.
+     */
+    default long highBlockRoundTrip() {
+        return -1;
+    }
+
+    /**
      * How many ticks every loader's client runs for one rendered frame at most. A client draws no
      * more frames when its clock runs faster, so the speed it delivers saturates at about this
      * multiple of real time and a higher number only adds drift.
