@@ -30,23 +30,14 @@ the 20 shared job slots allow it. The orchestrator may change its own process wi
 the change is drastic, such as a different model or servers the maintainer would have to rent: it
 applies the optimization, records it here or in the handoff, and reports what it changed.
 
-**Context and compaction.** The orchestrator compacts its own session, so long runs continue while
-the maintainer is away, and it never relies on the harness's automatic compaction, which leaves
-nothing on disk. At a task boundary, when the last assistant message's `tokens.input` plus
-`tokens.cache.read` is over about 250,000, it first writes the persistent record: this file if a rule
-changed, the handoff's live section, the log, and each issue or pull request body, enough that a
-fresh session resumes with nothing lost. Then it compacts with `opencode api post
-/api/session/$OPENCODE_SESSION_ID/compact --data '{}'` (the body is required, even empty; `opencode
-api get /api/session/$OPENCODE_SESSION_ID/message` gives the counts, from the last assistant
-message's `tokens.input` plus `tokens.cache.read`) and checks that the compaction message reached
-status `completed`. The next task starts by reading the handoff, because the harness's summary is
-not the record and the record is what a fresh session trusts. Never compact before the record is
-written, or with the orchestrator's own worktree or pull request unmerged. A subagent's running
-session is not the middle of a task: the handoff names it, its brief and what to do when it
-reports, and compaction does not stop it, so it is not a reason to wait for a merge that keeps
-receding. Read the size from the API at every merge and every four-hourly check rather than
-remembering it, because a stretch of notifications buries a check done only by memory. If the call fails, retry at the next boundary and carry on; do not wait
-for the maintainer to run `/compact` unless the session cannot continue at all.
+**Context and compaction.** The harness compacts the session automatically at the configured
+threshold, and that is deliberate: choosing the moment by hand cost attention at every boundary and
+was wrong twice, once by deferring for six hours and once by "updating" a record that had silently
+not changed. Write decisions and state into the issue, the pull request or this file when they are
+made, as part of the work, rather than into a record written because a compaction is coming. The
+handoff holds the live orchestration state that is nowhere else (the running subagent sessions and
+their briefs, the queued work, the next scheduled check), it is updated at merges, and it is what a
+restarted session reads; it is not a prerequisite for compacting.
 
 **The daily meta pass.** Once a day, at a boundary rather than on a clock (after the day's last
 merge, while a long dispatch runs, or before the Sunday release), the orchestrator improves the
