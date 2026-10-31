@@ -868,6 +868,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
      */
     @Override
     public void onFrameRendered() {
+        // Experiment only (#760): the frame counters the measurement reports.
+        net.grug.minecraft.core.GrugTestCounters.framesDrawn.incrementAndGet();
         RENDER_SETTLE.onFrame(!rendererIdle(Minecraft.getInstance()));
     }
 
