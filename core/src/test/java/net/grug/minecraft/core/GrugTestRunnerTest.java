@@ -196,6 +196,25 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void asksForNoFrameWhileATestRunsUntilItDoes() {
+        // The runner turns drawing off once a test's room is built and back on when the test ends,
+        // so a test that never captures draws nothing. See GrugFrameRequest and #770.
+        FakeOps ops = new FakeOps();
+        // Keeps the test alive through the tick that starts it, so the flag can be read with the
+        // test still running.
+        ops.onCall = () -> GrugTestState.testNotDone = true;
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+
+        GrugFrameRequest.endTest();
+        runner.tick(null);
+        assertFalse(GrugFrameRequest.wanted());
+
+        ops.onCall = null;
+        runToEnd(runner);
+        assertTrue(GrugFrameRequest.wanted());
+    }
+
+    @Test
     void parsesTheRepeatCount() {
         assertEquals(1, GrugTestRunner.parseRepeats(null));
         assertEquals(1, GrugTestRunner.parseRepeats(""));

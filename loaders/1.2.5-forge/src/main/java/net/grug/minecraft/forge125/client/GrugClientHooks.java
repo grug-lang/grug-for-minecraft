@@ -4,6 +4,7 @@ import cpw.mods.fml.common.ITickHandler;
 import cpw.mods.fml.common.TickType;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge125.mod_Grug;
@@ -225,6 +226,21 @@ public class GrugClientHooks implements ITickHandler {
         }
     }
 
+    /**
+     * The property the runtime's {@code updateCameraAndRender} reads to leave a frame undrawn. It
+     * is a property rather than a direct call because the game classes are loaded by
+     * launchwrapper's parent loader and cannot see this mod's classes; the runtime jar is patched
+     * with the read at build time. See {@code tools/SkipFrame.java} and #770.
+     */
+    private static final String SKIP_FRAME_PROPERTY = "grug.skip.frame";
+
+    /**
+     * Whether the frame the last render tick started was drawn: 1 for drawn, 0 for skipped, and -1
+     * before the first frame. The runtime reads it from the property above, which is only written
+     * when it changes because that is per frame.
+     */
+    private int frameDrawn = -1;
+
     @Override
     public void tickStart(EnumSet<TickType> types, Object... data) {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
@@ -232,6 +248,7 @@ public class GrugClientHooks implements ITickHandler {
             gameTick(minecraft);
         }
         if (types.contains(TickType.RENDER)) {
+            publishFrameRequest();
             renderTick(minecraft);
         }
     }
@@ -241,8 +258,37 @@ public class GrugClientHooks implements ITickHandler {
         // Everything else runs at tick start, like the injected client tick hooks on the other
         // loaders. The frame hook is the exception: the frame has just been drawn, so this is where
         // the settle answer samples it. See ModLoaderAdapter#onFrameRendered.
-        if (types.contains(TickType.RENDER)) {
+        //
+        // Only a frame that was drawn is sampled: 1.2.5 has no Mixin to cancel the draw with, so
+        // its
+        // frame hook is this tick and it fires whether or not the frame was drawn. A skipped frame
+        // left the previous one where a capture would read it, so counting it would let a capture
+        // through on frames nobody drew. See GrugFrameRequest and #770.
+        if (types.contains(TickType.RENDER) && frameDrawn == 1) {
             GrugCore.getAdapter().onFrameRendered();
+        }
+    }
+
+    /**
+     * Tells the patched runtime whether this frame is to be drawn, from the running test's frame
+     * request.
+     *
+     * <p>A test that never captures asks for no frame, so the frame is left undrawn: the runtime's
+     * guard sits after the lightmap update and the mouse work and before the level, its chunk
+     * rebuilds and the GUI. Drawing is on outside a test, so the title screen, the world load and
+     * the frames between two tests draw as they always did. Written only when it changes, since
+     * this runs once per frame. See {@code SkipFrame} and #770.
+     */
+    private void publishFrameRequest() {
+        int draw = GrugFrameRequest.wanted() ? 1 : 0;
+        if (draw == frameDrawn) {
+            return;
+        }
+        frameDrawn = draw;
+        if (draw == 1) {
+            System.clearProperty(SKIP_FRAME_PROPERTY);
+        } else {
+            System.setProperty(SKIP_FRAME_PROPERTY, "1");
         }
     }
 

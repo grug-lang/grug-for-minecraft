@@ -39,12 +39,14 @@ def generatedSourcesDir = new File(buildDirFile, 'generated/sources/grugVersion'
 def genToolClasses = new File(buildDirFile, 'tools/vanilla-names')
 def fixToolClasses = new File(buildDirFile, 'tools/fixinherited')
 def fogToolClasses = new File(buildDirFile, 'tools/disable-fog')
+def skipFrameToolClasses = new File(buildDirFile, 'tools/skip-frame')
 def reobfSrgFile = new File(buildDirFile, 'reobf.srg')
 def devJar = new File(buildDirFile, 'libs/grug-1.2.5-forge-dev.jar')
 def fixedJar = new File(buildDirFile, 'grug-1.2.5-forge-fixed.jar')
 def finalJar = new File(buildDirFile, 'grug-1.2.5-forge.jar')
 def runtimeDevJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-dev.jar')
 def runtimeFogJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-fog.jar')
+def runtimeSkipFrameJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-skip-frame.jar')
 def runtimeJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime.jar')
 def nativesDir = new File(buildDirFile, 'natives')
 def windows = System.getProperty('os.name').startsWith('Windows')
@@ -293,6 +295,15 @@ tasks.register('compileDisableFogTool', JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+tasks.register('compileSkipFrameTool', JavaCompile) {
+    description = 'Compiles tools/SkipFrame.java.'
+    source = fileTree(toolsDir) { include 'SkipFrame.java' }
+    classpath = configurations.fogPatchTool
+    destinationDirectory.set(skipFrameToolClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
 tasks.register('fixInheritedJar', JavaExec) {
     description = 'Rewrites inherited member references before reobfuscation.'
     dependsOn tasks.named('jar'), 'compileFixInheritedTool', 'reobfSrg'
@@ -361,16 +372,29 @@ tasks.register('patchRuntimeFog', JavaExec) {
     }
 }
 
+tasks.register('patchRuntimeSkipFrame', JavaExec) {
+    description = 'Rewrites EntityRenderer.updateCameraAndRender to honor the grug.skip.frame property.'
+    dependsOn 'patchRuntimeFog', 'compileSkipFrameTool'
+    inputs.file runtimeFogJar
+    outputs.file runtimeSkipFrameJar
+    classpath = files(skipFrameToolClasses) + configurations.fogPatchTool
+    mainClass.set('SkipFrame')
+    doFirst {
+        runtimeSkipFrameJar.parentFile.mkdirs()
+        args = [runtimeFogJar.absolutePath, runtimeSkipFrameJar.absolutePath]
+    }
+}
+
 tasks.register('obfuscateRuntime', Exec) {
     description = 'Reobfuscates the MCP dev classes into the pack-style runtime jar.'
-    dependsOn 'patchRuntimeFog', 'reobfSrg'
-    inputs.file runtimeFogJar
+    dependsOn 'patchRuntimeSkipFrame', 'reobfSrg'
+    inputs.file runtimeSkipFrameJar
     inputs.file reobfSrgFile
     outputs.file runtimeJar
     doFirst {
         runtimeJar.parentFile.mkdirs()
         commandLine 'java', '-jar', configurations.specialSourceTool.singleFile.absolutePath,
-            '--in-jar', runtimeFogJar.absolutePath,
+            '--in-jar', runtimeSkipFrameJar.absolutePath,
             '--out-jar', runtimeJar.absolutePath,
             '--srg-in', reobfSrgFile.absolutePath
     }
