@@ -266,6 +266,15 @@ public class GrugTestRunner {
      */
     private final Map<String, Long> testNanos = new LinkedHashMap<>();
 
+    /** Experiment only (#760): the frame and rebuild counters of each finished test. */
+    private final Map<String, long[]> testStats = new LinkedHashMap<>();
+
+    /** Experiment only (#760): the counters as the running test began. */
+    private long framesDrawnAtStart;
+
+    private long framesSkippedAtStart;
+    private long rebuildsAtStart;
+
     private boolean finished = false;
 
     /** Whether the screen the client may have open has been closed for the first test yet. */
@@ -671,6 +680,7 @@ public class GrugTestRunner {
                                 + repeats
                                 + " complete, starting the next");
                 testNanos.clear();
+                testStats.clear();
                 return;
             }
             // Marked before the write rather than after it, so that a write which throws stops the
@@ -854,6 +864,15 @@ public class GrugTestRunner {
      */
     private void recordTestTime(String path) {
         testNanos.put(path, clock.getAsLong() - currentTestStartNanos);
+        // Experiment only (#760): what the test's body caused, per test.
+        testStats.put(
+                path,
+                new long[] {
+                    currentTick + 1,
+                    GrugTestCounters.framesDrawn.get() - framesDrawnAtStart,
+                    GrugTestCounters.framesSkipped.get() - framesSkippedAtStart,
+                    GrugTestCounters.sectionRebuilds.get() - rebuildsAtStart
+                });
     }
 
     /**
@@ -892,6 +911,30 @@ public class GrugTestRunner {
                                     "%" + width + "dms  %s",
                                     millis(entry.getValue()),
                                     entry.getKey()));
+        }
+
+        // Experiment only (#760): the frame and rebuild counters the measurement compares.
+        System.out.println(
+                "[GRUG CI] Totals: frames_drawn="
+                        + GrugTestCounters.framesDrawn.get()
+                        + " frames_skipped="
+                        + GrugTestCounters.framesSkipped.get()
+                        + " rebuilds="
+                        + GrugTestCounters.sectionRebuilds.get());
+        for (Map.Entry<String, Long> entry : slowestFirst) {
+            long[] stats = testStats.get(entry.getKey());
+            if (stats == null) continue;
+            System.out.println(
+                    "[GRUG CI] STAT "
+                            + entry.getKey()
+                            + " ticks="
+                            + stats[0]
+                            + " frames="
+                            + stats[1]
+                            + " skipped="
+                            + stats[2]
+                            + " rebuilds="
+                            + stats[3]);
         }
     }
 
@@ -994,6 +1037,10 @@ public class GrugTestRunner {
         // Started before the entity exists, so the time includes the setup a test needs rather than
         // reporting only the part after it, which would make the cheapest test look free.
         currentTestStartNanos = clock.getAsLong();
+        // Experiment only (#760): the counters as this test's setup begins.
+        framesDrawnAtStart = GrugTestCounters.framesDrawn.get();
+        framesSkippedAtStart = GrugTestCounters.framesSkipped.get();
+        rebuildsAtStart = GrugTestCounters.sectionRebuilds.get();
 
         System.out.println("[GRUG CI] Executing test: " + path);
 
