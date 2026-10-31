@@ -1,0 +1,183 @@
+name: Weekly release
+
+# The Sunday gate (#795): every Sunday at 12:00 CET (11:00 UTC) this dispatches the full Build run
+# on main's head, waits for it, and releases its jar when every job passed. A dispatch is the only
+# run shape that includes the Windows boot jobs, so it is the shape a release requires (#632, #784),
+# and it is the only run that must be green: pull requests may merge optimistically and main may be
+# red briefly, while a red Sunday run tags nothing.
+#
+# A failed dispatch tags nothing and leaves this run red for its log. Next Sunday resolves main's
+# head again, so it retries on its own, and a head that has moved since is part of that retry rather
+# than a reason to intervene.
+#
+# The scheduled path and the manual run are one workflow, because the manual run is the same release
+# with its last step left out: a dry run has to dispatch, watch and judge the same Build run to say
+# anything about a Sunday run, and a second workflow would drift from the one that ships.
+#
+# The released tag is the newest v* tag's minor bumped with its patch zeroed, and it has to name the
+# repository version, because release.yml refuses a tag that does not name gradle.properties's
+# mod_version (#499). So the version is bumped on main first, and a version that was never bumped
+# stops the run with a message saying so instead of handing release.yml a tag it would refuse.
+
+on:
+  schedule:
+    # 11:00 UTC is 12:00 CET, and the schedule stays on UTC: 12:00 in winter and 13:00 in summer.
+    - cron: '0 11 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        # The default is what makes a dispatch by hand safe: it takes the whole path but the last
+        # step, so it proves the build gate without publishing.
+        description: 'Dispatch and watch the full Build run, then stop before releasing'
+        type: boolean
+        default: true
+
+permissions:
+  # Dispatching build.yml and release.yml is the only write this run does, so actions: write is the
+  # only write it asks for: release.yml creates the tag and the release with its own token.
+  contents: read
+  actions: write
+
+# One release runs at a time and a run in flight is never cancelled, like release.yml: a second
+# Sunday run, or a manual one during a scheduled one, waits its turn instead of killing it halfway.
+concurrency:
+  group: weekly-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    # The poll below is bounded at 60 minutes, so this covers the dispatch, the poll and the release
+    # dispatch with room to spare, and a step that hangs anyway cannot hold the runner indefinitely.
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      # Only the schedule, and a manual run whose dry_run input was unchecked, releases. A scheduled
+      # run has no inputs, hence the comparison rather than inputs.dry_run itself.
+      DRY_RUN: ${{ inputs.dry_run == true }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The full history and every tag, since the next tag is computed from the newest one.
+          fetch-depth: 0
+          fetch-tags: true
+
+      # The run acts on what main is now, not on the commit a schedule was queued for, and a manual
+      # run from a throwaway branch still releases main. The fetch is explicit, so the tag below and
+      # the version check read the same commit that is built.
+      - name: Resolve main's head
+        id: main
+        run: |
+          git fetch --prune --tags origin +refs/heads/main:refs/remotes/origin/main
+          sha=$(git rev-parse refs/remotes/origin/main)
+          echo "==> main is at $sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      # v1.1.0 becomes v1.2.0. release.yml's release names the version of the commit it releases, so
+      # a main whose mod_version was not bumped to the computed tag stops the run here, before the
+      # build starts, and the message says which value to change. A dry run reports that instead of
+      # failing, because it exists to judge the build gate rather than the version.
+      - name: Compute the next tag
+        id: tag
+        env:
+          SHA: ${{ steps.main.outputs.sha }}
+        run: |
+          newest=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          if ! [[ "$newest" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
+            echo "==> ERROR: the newest v* tag '$newest' does not look like v<major>.<minor>.<patch>"
+            exit 1
+          fi
+          tag="v${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1)).0"
+          version=$(git show "$SHA:gradle.properties" | sed -n 's/^mod_version=//p' | tr -d '\r')
+          echo "==> the next tag is $tag and main's gradle.properties says mod_version=$version"
+          if [ "$tag" != "v$version" ]; then
+            if [ "$DRY_RUN" = true ]; then
+              echo "==> DRY RUN: a real run would refuse to tag $tag, because main's mod_version is $version and release.yml requires the tag to name it (#499)"
+              echo "tag=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "==> ERROR: the next tag $tag does not name main's mod_version '$version'; bump mod_version to ${tag#v} in gradle.properties on main, then release: release.yml refuses a tag that does not name the repository version"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # The dispatch is the run release.yml looks for, so the release never names a jar that a push
+      # built. The poll follows the run this dispatch started rather than the newest one at the
+      # commit, so a hand dispatch of the same commit cannot stand in for it, and it is bounded at
+      # 60 minutes, so a hung run fails this one instead of hanging the release until the job
+      # timeout.
+      - name: Dispatch and watch the full Build run
+        id: build
+        env:
+          SHA: ${{ steps.main.outputs.sha }}
+        run: |
+          query="repos/$REPO/actions/workflows/build.yml/runs?head_sha=$SHA&event=workflow_dispatch&branch=main"
+          # The newest dispatch at this commit before this step's, so the poll can name the run this
+          # step started even when another dispatch of the same commit already exists.
+          before=$(gh api "$query" --jq '.workflow_runs[0].id // 0')
+          echo "==> dispatching build.yml on main at $SHA"
+          gh workflow run build.yml --ref main --repo "$REPO"
+          run=''
+          deadline=$((SECONDS + 3600))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ -z "$run" ]; then
+              run=$(gh api "$query" --jq "[.workflow_runs[] | select(.id > $before)] | sort_by(.id) | first | .id // empty" 2>/dev/null || true)
+              if [ -z "$run" ]; then
+                echo "==> $(date -u +%T) the dispatch is not listed yet"
+                sleep 15
+                continue
+              fi
+              echo "==> build run $run is the dispatch of $SHA: https://github.com/$REPO/actions/runs/$run"
+            fi
+            state=$(gh api "repos/$REPO/actions/runs/$run" --jq '[.status, .conclusion] | @tsv' 2>/dev/null || true)
+            status=$(cut -f1 <<<"$state")
+            conclusion=$(cut -f2 <<<"$state")
+            if [ "$status" = completed ]; then
+              if [ "$conclusion" != success ]; then
+                echo "==> ERROR: build run $run on $SHA concluded '$conclusion', not 'success'; nothing is tagged, and the next Sunday's run dispatches main again"
+                exit 1
+              fi
+              echo "==> build run $run is green on $SHA: every production, smoke and Windows job passed"
+              echo "run=$run" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "==> $(date -u +%T) build run $run is ${status:-not listed}"
+            sleep 30
+          done
+          echo "==> ERROR: build run ${run:-of $SHA} did not finish within 60 minutes; nothing is tagged"
+          exit 1
+
+      - name: Stop before tagging
+        if: env.DRY_RUN == 'true'
+        env:
+          SHA: ${{ steps.main.outputs.sha }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          RUN: ${{ steps.build.outputs.run }}
+        run: |
+          if [ -z "$TAG" ]; then
+            echo "==> DRY RUN: build run $RUN is green; a real run would still tag nothing, because main's mod_version is not bumped to the next tag; this run changed no tag and dispatched no release"
+            exit 0
+          fi
+          echo "==> DRY RUN: build run $RUN is green; a real run would release $TAG at $SHA through release.yml, so this run changed no tag and dispatched no release"
+
+      # release.yml is dispatched rather than left to fire on the tag, because an event caused by
+      # this workflow's GITHUB_TOKEN starts no workflow run at all, tag pushes included; only
+      # workflow_dispatch and repository_dispatch are exempt. Its dispatch path refuses a tag that
+      # already exists and creates that tag at the commit it runs on, which is main's head, so the
+      # tag lands on the commit the green dispatch built, and release.yml re-checks that dispatch,
+      # the jar and adapter.dll before publishing.
+      - name: Release through release.yml
+        if: env.DRY_RUN != 'true'
+        env:
+          SHA: ${{ steps.main.outputs.sha }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          head=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$head" != "$SHA" ]; then
+            echo "==> ERROR: main moved from $SHA to $head while its build ran; nothing is tagged, and the next Sunday's run releases the new head"
+            exit 1
+          fi
+          echo "==> releasing $TAG at $SHA through release.yml"
+          gh workflow run release.yml --ref main --repo "$REPO" -f tag="$TAG"
