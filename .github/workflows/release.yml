@@ -20,8 +20,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Attaches the universal jar that build.yml already assembled and tested on this commit. It never
-  # builds the jar again: a rebuild would ship bytes that no production or smoke job launched.
+  # Attaches the universal jar that build.yml assembled and tested on this commit. It never builds
+  # the jar again: a rebuild would ship bytes that no production or smoke job launched. The jar comes
+  # from a dispatch of build.yml, not from the push that merged the commit: a push runs no Windows
+  # boot job any more (#632), so only a dispatch's jar has been through every job this release
+  # claims. The release process is therefore to dispatch build.yml on main while the commit is
+  # main's head, to tag that commit once the dispatch is green, and to release; the step that finds
+  # the run enforces it.
   release:
     runs-on: ubuntu-24.04
     env:
@@ -83,21 +88,23 @@ jobs:
             exit 1
           fi
 
-      # The newest push-to-main run of build.yml on this exact commit decides. Its success means every
-      # production and smoke job passed on the jar that same run assembled.
+      # The newest dispatch of build.yml on main at this exact commit decides (#632). A dispatch is
+      # the full run, the one shape that includes the Windows boot jobs, so its success means every
+      # production, smoke and Windows job passed on the jar this release downloads. A dispatch runs on
+      # main's head, hence the error below: dispatch it while the commit is main's head.
       - name: Find the commit's successful Build run
         id: build
         run: |
-          run=$(gh api "repos/${{ github.repository }}/actions/workflows/build.yml/runs?head_sha=$SHA&event=push&branch=main" \
+          run=$(gh api "repos/${{ github.repository }}/actions/workflows/build.yml/runs?head_sha=$SHA&event=workflow_dispatch&branch=main" \
             --jq '.workflow_runs | sort_by(.created_at) | last // empty | [.id, .conclusion] | @tsv')
           if [ -z "$run" ]; then
-            echo "==> ERROR: no Build run on main exists for commit $SHA"
+            echo "==> ERROR: no Build dispatch on main exists for commit $SHA; run 'gh workflow run build.yml --ref main' while $SHA is main's head, and release again once it has passed: the Windows boot jobs run only on a dispatch"
             exit 1
           fi
           id=$(cut -f1 <<<"$run")
           conclusion=$(cut -f2 <<<"$run")
           if [ "$conclusion" != success ]; then
-            echo "==> ERROR: the newest Build run ($id) for commit $SHA concluded '$conclusion', not 'success'"
+            echo "==> ERROR: the newest Build dispatch ($id) for commit $SHA concluded '$conclusion', not 'success'"
             exit 1
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"

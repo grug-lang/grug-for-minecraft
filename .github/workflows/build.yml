@@ -35,6 +35,8 @@ jobs:
       smoke: ${{ steps.smoke.outputs.matrix }}
       mods: ${{ steps.mods.outputs.mods }}
       reference: ${{ steps.reference.outputs.reference }}
+      # The loader directories the Windows jobs run on, a JSON list (#632).
+      windows: ${{ steps.windows.outputs.dirs }}
     steps:
       # The run timeout of a repeats run is 300 s plus 200 s per extra pass (see the loader job), and
       # the job's own limit is 90 minutes, so 26 passes is the most whose deadline the script reaches
@@ -109,6 +111,33 @@ jobs:
             reference=$(python3 .github/scripts/reference-needed.py "$BASE_SHA" HEAD) || reference=true
           fi
           echo "reference=$reference" >> "$GITHUB_OUTPUT"
+
+      # The loader directories the Windows boot jobs run on (#632). A change that boots on Linux
+      # cannot fail to boot on Windows without failing on Linux first, and the two Windows jobs are
+      # 219 s of a loader's 484 s on main while running no tests (#707), so a push runs them only for
+      # a loader it adds, and a dispatch, the full run a release requires, runs them for all of them
+      # (added-loaders.py explains its answer in this log). A pull request runs neither: no entry
+      # leaves the jobs a matrix GitHub refuses, so their condition skips them. The checkout is one
+      # commit deep, so the commit the push started from is fetched first. A push with no commit
+      # before it and a fetch or a read that fails run every loader, the direction that runs more.
+      - name: Choose the loaders the Windows jobs run
+        id: windows
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          LOADERS: ${{ steps.discover.outputs.matrix }}
+        run: |
+          dirs='[]'
+          if [ "$EVENT" = workflow_dispatch ]; then
+            dirs="$LOADERS"
+            echo "Running the Windows jobs on every loader: a dispatch is the whole run."
+          elif [ "$EVENT" = push ]; then
+            git fetch --quiet --no-tags --depth=1 origin "$BEFORE" || true
+            dirs=$(python3 .github/scripts/added-loaders.py "$BEFORE" HEAD) || dirs="$LOADERS"
+          else
+            echo "Running the Windows jobs nowhere: a $EVENT run is not a full run."
+          fi
+          echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
 
   # grug-rs builds once per run and the loader jobs link the very same libgruggers.a. It depends on
   # nothing in this repository except the revision core/build.gradle.kts pins, so before this job each
@@ -290,6 +319,7 @@ jobs:
             .github/scripts/combine_coverage_test.py \
             .github/scripts/watch_run_test.py \
             .github/scripts/affected_mods_test.py \
+            .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
@@ -770,17 +800,22 @@ jobs:
           retention-days: 7
 
   # Loaders on Windows (#530, #531): a1.1.2_01-ornithe, whose Windows setup is least like the others,
-  # and the other four, so the DLL, JNI, and core's
-  # Windows paths are exercised by a game that really starts, in each loader's own adapter.
+  # and the other four, so the DLL, JNI, and core's Windows paths are exercised by a game that really
+  # starts, in each loader's own adapter. It runs on a dispatch, the full run a release needs, and on a
+  # push only for a loader the push adds (#632): a change that boots on Linux cannot fail to boot on
+  # Windows without failing on Linux first. So its matrix is discover's answer, not a list here that a
+  # loader could be added without. A pull request never runs it, and neither does it run a change
+  # confined to a mod, which reaches no native.
   windows:
     name: ${{ matrix.dir }} (Windows)
-    if: github.event_name != 'pull_request'
+    if: needs.discover.outputs.windows != '[]'
+    needs: [discover]
     runs-on: windows-2025
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        dir: [a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi, 1.20.6-forge, 1.2.5-forge]
+        dir: ${{ fromJson(needs.discover.outputs.windows) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -891,11 +926,11 @@ jobs:
 
   # The same loaders installed the way a player's launcher does it, on Windows (#530): the jar a
   # player downloads, in the game portablemc installs, loading grug on the platform most players use.
-  # Boot-only for the reason the job above gives.
+  # Boot-only for the reason the job above gives, and it runs when that one does (#632).
   windows-installed:
     name: ${{ matrix.dir }} installed (Windows)
-    if: github.event_name != 'pull_request'
-    needs: [universal]
+    if: needs.discover.outputs.windows != '[]'
+    needs: [discover, universal]
     runs-on: windows-2025
     # Both script limits can run in full now that the install has its own: up to 600 s of install
     # (GRUG_CI_INSTALL_TIMEOUT) and then the game's 480 s (#725), plus the job's setup.
@@ -903,7 +938,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi, 1.20.6-forge, 1.2.5-forge]
+        dir: ${{ fromJson(needs.discover.outputs.windows) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
