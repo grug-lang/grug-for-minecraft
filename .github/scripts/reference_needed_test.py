@@ -27,6 +27,7 @@ BASE = {
     "mods/buildcraft/about.json": "{}",
     "mods/buildcraft/LICENSE": "license\n",
     "mods/buildcraft/tests/pipe-Test.grug": "tick() {}\n",
+    "mods/buildcraft/tests/capture-Test.grug": "# Test.screenshot()\n",
     "mods/buildcraft/screenshots/pipe/1.2.5-forge.png": "png",
     "mods/coverage/about.json": "{}",
     "mods/coverage/code/coverage_frame-Block.grug": "on_tick() {}\n",
@@ -100,46 +101,64 @@ class ReferenceNeededTest(unittest.TestCase):
     # Everything the job observes runs it.
 
     def test_each_part_of_the_reference_job_runs_it(self):
-        for path in (
-            "mods/buildcraft/about.json",
-            "mods/buildcraft/LICENSE",
-            "mods/buildcraft/tests/pipe-Test.grug",
-            "mods/buildcraft/code/new-Block.grug",
-            "mods/buildcraft/screenshots/pipe/1.2.5-forge.png",
-            "loaders/1.2.5-forge/build.gradle",
-            "loaders/1.2.5-forge/src/Main.java",
-            "loaders/1.2.5-forge/src/new/File.java",
-            "core/src/Main.java",
-            "shared/Shared.java",
-            "mod_api.json",
-            "recreation.py",
-            ".github/workflows/build.yml",
-            ".github/scripts/run-loader.sh",
-            ".github/scripts/new-script.py",
-            "README.md",
-            "settings.gradle.kts",
-            "gradle/grug-core.gradle",
-            "test-saves/world.zip",
-            "mods/stray_file.txt",
-            "loaders/stray_file.txt",
+        for path, content in (
+            ("mods/buildcraft/about.json", "{}\n"),
+            ("mods/buildcraft/LICENSE", "license\n"),
+            ("mods/buildcraft/tests/capture-Test.grug", "# Test.screenshot()\n"),
+            ("mods/buildcraft/tests/newcapture-Test.grug", "# Test.is_reference()\n"),
+            ("mods/buildcraft/screenshots/pipe/1.2.5-forge.png", "png"),
+            ("loaders/1.2.5-forge/build.gradle", "// new\n"),
+            ("loaders/1.2.5-forge/src/Main.java", "// new\n"),
+            ("loaders/1.2.5-forge/src/new/File.java", "// new\n"),
+            ("core/src/Main.java", "// new\n"),
+            ("shared/Shared.java", "// new\n"),
+            ("mod_api.json", "// new\n"),
+            ("recreation.py", "// new\n"),
+            (".github/workflows/build.yml", "// new\n"),
+            (".github/scripts/run-loader.sh", "// new\n"),
+            (".github/scripts/new-script.py", "// new\n"),
+            ("README.md", "readme\n"),
+            ("settings.gradle.kts", "// new\n"),
+            ("gradle/grug-core.gradle", "// new\n"),
+            ("test-saves/world.zip", "zip"),
+            ("mods/stray_file.txt", "new\n"),
+            ("loaders/stray_file.txt", "new\n"),
         ):
             with self.subTest(path=path):
                 # Each path is the whole diff: without the reset the history keeps growing and every
                 # later diff still holds the first path, which always answers true.
                 self.repo.git("reset", "-q", "--hard", self.base)
-                self.assertEqual(self.answer({path: "new\n"}), "true")
+                self.assertEqual(self.answer({path: content}), "true")
+
+    def test_the_port_s_code_data_assets_and_other_tests_skip(self):
+        # The harness holds no code, data or assets: the real BuildCraft provides every block and
+        # draws every texture, so changing them cannot change what the reference run draws.
+        changes = {
+            "mods/buildcraft/code/new-Block.grug": "# new\n",
+            "mods/buildcraft/data/grug/recipes/crafting/new.json": "{}\n",
+            "mods/buildcraft/assets/grug/textures/block/new.png": "png",
+            "mods/buildcraft/tests/pipe-Test.grug": "# new\n",
+        }
+        self.assertEqual(self.answer(changes), "false")
+        self.assertIn("skipping", self.reason)
+
+    def test_a_test_that_stops_capturing_still_runs_it(self):
+        # It was in the harness at the base commit, so its removal from it is a change to the run.
+        self.assertEqual(
+            self.answer({"mods/buildcraft/tests/capture-Test.grug": "tick() {}\n"}), "true"
+        )
 
     def test_one_path_in_the_reference_among_others_runs_it(self):
         changes = {
             "mods/examplemod/code/foo_block-Block.grug": "# new\n",
             "loaders/1.20.6-forge/src/Main.java": "// new\n",
-            "mods/buildcraft/tests/pipe-Test.grug": "# new\n",
+            "mods/buildcraft/tests/capture-Test.grug": "# Test.screenshot()\n// new\n",
         }
         self.assertEqual(self.answer(changes), "true")
 
     def test_a_file_moved_out_of_buildcraft_counts_at_its_old_path(self):
         self.repo.git(
-            "mv", "mods/buildcraft/tests/pipe-Test.grug", "mods/examplemod/pipe-Test.grug"
+            "mv", "mods/buildcraft/tests/capture-Test.grug", "mods/examplemod/capture-Test.grug"
         )
         self.repo.git("commit", "-q", "-m", "move")
         self.assertEqual(self.answer(None), "true")
@@ -156,7 +175,7 @@ class ReferenceNeededTest(unittest.TestCase):
 
     def test_a_path_with_spaces_and_odd_characters_stays_in_its_directory(self):
         self.assertEqual(self.answer({"mods/examplemod/code/odd name\"'.grug": "x\n"}), "false")
-        self.assertEqual(self.answer({"mods/buildcraft/code/odd name\"'.grug": "x\n"}), "true")
+        self.assertEqual(self.answer({"mods/buildcraft/screenshots/odd name\"'.png": "x"}), "true")
 
     # Every doubt runs the job.
 
