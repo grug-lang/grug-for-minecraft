@@ -106,6 +106,13 @@ if [ "$PHASE" = update-goldens ]; then
   export GRUG_UPDATE_GOLDENS=1
 fi
 
+# The loader's test order record: the test runner reads it to run the tests that failed the last
+# recorded run first, then the rest slowest first, and writes it back when the run ends, so the
+# file in the repository holds what the last run measured. The path is a repository file, so a run
+# in a throwaway tree updates a copy that is uploaded and committed rather than lost with the tree;
+# the runner in core reads the variable.
+export GRUG_CI_TEST_TIMES_FILE="${REPO_ROOT}/${LOADER_DIR}/test-times.json"
+
 # The universal jar a production run launches, resolved before the cd below. It is assembled from
 # all five loaders, which no single loader's build produces, so it is handed in rather than built.
 if [ "$PHASE" = production ]; then

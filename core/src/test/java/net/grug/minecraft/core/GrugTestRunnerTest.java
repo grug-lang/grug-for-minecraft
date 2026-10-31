@@ -6,21 +6,31 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugErrors;
+import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.Vec3;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,6 +122,9 @@ class GrugTestRunnerTest {
 
     /** How many times the runner asked the installed adapter to restore the camera. */
     private final List<String> cameraRestores = new ArrayList<>();
+
+    /** A directory the tests may put a test order record in, cleared between the tests. */
+    @TempDir Path tempDir;
 
     private Object savedAdapter;
 
@@ -1151,6 +1164,505 @@ class GrugTestRunnerTest {
                                                 ops, Map.of("mymod/code/a-Test.grug", 1L), clock)));
 
         assertFalse(printed.contains("Test times"), printed);
+    }
+
+    /** Writes the record a test points the runner at, and returns its path. */
+    private static Path recordFile(Path dir, String json) throws IOException {
+        Path file = dir.resolve("test-times.json");
+        Files.write(file, json.getBytes(StandardCharsets.UTF_8));
+        return file;
+    }
+
+    /** Points the runner at the record, and clears the point when the body is done. */
+    private static void withRecordFile(Path file, Runnable body) {
+        System.setProperty(GrugTestRunner.TEST_TIMES_FILE_PROPERTY, file.toString());
+        try {
+            body.run();
+        } finally {
+            System.clearProperty(GrugTestRunner.TEST_TIMES_FILE_PROPERTY);
+        }
+    }
+
+    /** The "times" the record at file holds, for the assertions that read the run back. */
+    private static Map<String, Long> timesIn(Path file) throws IOException {
+        JsonObject object = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+        Map<String, Long> times = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry :
+                object.getAsJsonObject("times").entrySet()) {
+            times.put(entry.getKey(), entry.getValue().getAsLong());
+        }
+        return times;
+    }
+
+    /** The "failed" the record at file holds, in the order the run wrote it. */
+    private static List<String> failedIn(Path file) throws IOException {
+        JsonObject object = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+        List<String> failed = new ArrayList<>();
+        for (JsonElement item : object.getAsJsonArray("failed")) {
+            failed.add(item.getAsString());
+        }
+        return failed;
+    }
+
+    @Test
+    void ordersTheTestsByTheRecordItReads() throws Exception {
+        Path file =
+                recordFile(
+                        tempDir,
+                        "{\"failed\": [], \"times\": {\"mymod/code/a-Test.grug\": 1000000,"
+                                + " \"mymod/code/b-Test.grug\": 900000000}}");
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+
+        withRecordFile(
+                file,
+                () -> {
+                    String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+                    assertEquals(
+                            List.of("mymod/code/b-Test.grug", "mymod/code/a-Test.grug"),
+                            executedTests(printed),
+                            printed);
+                });
+    }
+
+    @Test
+    void runsThePreviouslyFailedTestFirstEvenWhenItIsNotTheSlowest() throws Exception {
+        Path file =
+                recordFile(
+                        tempDir,
+                        "{\"failed\": [\"mymod/code/a-Test.grug\"], \"times\": "
+                                + "{\"mymod/code/a-Test.grug\": 1000000, "
+                                + "\"mymod/code/b-Test.grug\": 900000000}}");
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+
+        withRecordFile(
+                file,
+                () -> {
+                    String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+                    assertEquals(
+                            List.of("mymod/code/a-Test.grug", "mymod/code/b-Test.grug"),
+                            executedTests(printed),
+                            printed);
+                });
+    }
+
+    @Test
+    void saysWhereTheTestOrderComesFrom() throws Exception {
+        Path file =
+                recordFile(
+                        tempDir,
+                        "{\"failed\": [], \"times\": {\"mymod/code/a-Test.grug\": 1}}");
+        Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+
+        withRecordFile(
+                file,
+                () -> {
+                    String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+                    assertTrue(
+                            printed.contains("[GRUG CI] Test order: slowest first, from " + file),
+                            printed);
+                });
+    }
+
+    @Test
+    void saysHowManyPreviouslyFailedTestsRunFirst() throws Exception {
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        Path one =
+                recordFile(
+                        tempDir,
+                        "{\"failed\": [\"mymod/code/a-Test.grug\"], \"times\": {}}");
+        Path two = tempDir.resolve("two.json");
+        String json =
+                "{\"failed\": [\"mymod/code/a-Test.grug\", \"mymod/code/b-Test.grug\"], "
+                        + "\"times\": {}}";
+        Files.write(two, json.getBytes(StandardCharsets.UTF_8));
+
+        withRecordFile(
+                one,
+                () -> {
+                    String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+                    assertTrue(
+                            printed.contains(
+                                    "[GRUG CI] Test order: 1 previously failed test first,"
+                                            + " then slowest first, from "
+                                            + one),
+                            printed);
+                });
+        withRecordFile(
+                two,
+                () -> {
+                    String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+                    assertTrue(
+                            printed.contains(
+                                    "[GRUG CI] Test order: 2 previously failed tests first,"
+                                            + " then slowest first, from "
+                                            + two),
+                            printed);
+                });
+    }
+
+    @Test
+    void fallsBackToNameOrderWhenTheRecordCannotBeRead() throws Exception {
+        // The record is data, not an invariant: a broken one or a missing one costs this run its
+        // order, and the line says so where the run is read, instead of the suite being ordered by
+        // noise.
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        files.put("othermod/code/a-Test.grug", 3L);
+        for (Path file :
+                new Path[] {
+                    recordFile(tempDir, "definitely not a record"),
+                    tempDir.resolve("absent.json")
+                }) {
+            withRecordFile(
+                    file,
+                    () -> {
+                        String printed =
+                                capture(
+                                        () ->
+                                                runToEnd(
+                                                        selectingRunner(
+                                                                new FakeOps(),
+                                                                files,
+                                                                1,
+                                                                GrugTestRunner.parseMods("mymod"),
+                                                                new CoverageLog())));
+                        assertTrue(
+                                printed.contains(
+                                        "The test order record at " + file + " could not be read"),
+                                printed);
+                        assertEquals(
+                                List.of("mymod/code/a-Test.grug", "mymod/code/b-Test.grug"),
+                                executedTests(printed),
+                                printed);
+                        assertTrue(printed.contains("ALL 2 TESTS PASSED"), printed);
+                    });
+        }
+    }
+
+    @Test
+    void runsInNameOrderAndSaysNothingAboutTheOrderWhenThereIsNoRecord() {
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/b-Test.grug", 2L);
+        files.put("mymod/code/a-Test.grug", 1L);
+
+        String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+
+        assertFalse(printed.contains("Test order:"), printed);
+        assertEquals(
+                List.of("mymod/code/a-Test.grug", "mymod/code/b-Test.grug"),
+                executedTests(printed),
+                printed);
+    }
+
+    @Test
+    void anEmptyRecordNameIsTheSameAsNoRecord() {
+        System.setProperty(GrugTestRunner.TEST_TIMES_FILE_PROPERTY, "");
+        try {
+            Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+            String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+            assertFalse(printed.contains("Test order:"), printed);
+            assertTrue(printed.contains("ALL 1 TESTS PASSED"), printed);
+        } finally {
+            System.clearProperty(GrugTestRunner.TEST_TIMES_FILE_PROPERTY);
+        }
+    }
+
+    @Test
+    void anEmptyRecordKeepsNameOrderAndSaysNothingAboutIt() throws Exception {
+        // The record exists but holds nothing, so the run's order is the name order it found, and
+        // the run does not claim the record for it: an empty file is a place, not an order.
+        Path file = recordFile(tempDir, "{\"failed\": [], \"times\": {}}");
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/b-Test.grug", 2L);
+        files.put("mymod/code/a-Test.grug", 1L);
+
+        withRecordFile(
+                file,
+                () -> {
+                    String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+                    assertFalse(printed.contains("Test order:"), printed);
+                    assertEquals(
+                            List.of("mymod/code/a-Test.grug", "mymod/code/b-Test.grug"),
+                            executedTests(printed),
+                            printed);
+                });
+    }
+
+    @Test
+    void writesTheTimesItMeasuredWhenTheRunPasses() throws Exception {
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        Map<String, Long> timePerTest = new LinkedHashMap<>();
+        timePerTest.put("mymod/code/a-Test.grug", 3 * MS);
+        timePerTest.put("mymod/code/b-Test.grug", 5 * MS);
+        ops.pathsAre(files);
+        ops.onCall = () -> clock.advance(timePerTest.get(ops.activePath));
+        Path file = recordFile(tempDir, "{\"failed\": [], \"times\": {}}");
+
+        withRecordFile(
+                file,
+                () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
+
+        assertEquals(List.of(), failedIn(file));
+        assertEquals(
+                Map.of("mymod/code/a-Test.grug", 3 * MS, "mymod/code/b-Test.grug", 5 * MS),
+                timesIn(file));
+    }
+
+    @Test
+    void writesTheFailedTestAndTheTimeItTookWhenTheRunFails() throws Exception {
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        Map<String, Long> timePerTest = new LinkedHashMap<>();
+        timePerTest.put("mymod/code/a-Test.grug", 4 * MS);
+        timePerTest.put("mymod/code/b-Test.grug", 6 * MS);
+        ops.pathsAre(files);
+        ops.onCall =
+                () -> {
+                    clock.advance(timePerTest.get(ops.activePath));
+                    if (ops.activePath.endsWith("b-Test.grug")) {
+                        ops.completed = false;
+                    }
+                };
+        Path file = recordFile(tempDir, "{\"failed\": [], \"times\": {}}");
+
+        withRecordFile(
+                file,
+                () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
+
+        assertEquals(List.of("mymod/code/b-Test.grug"), failedIn(file));
+        assertEquals(
+                Map.of("mymod/code/a-Test.grug", 4 * MS, "mymod/code/b-Test.grug", 6 * MS),
+                timesIn(file));
+    }
+
+    @Test
+    void keepsTheRecordedTimeOfATestTheRunDidNotReach() throws Exception {
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        files.put("mymod/code/c-Test.grug", 3L);
+        ops.pathsAre(files);
+        ops.onCall =
+                () -> {
+                    clock.advance(2 * MS);
+                    if (ops.activePath.endsWith("b-Test.grug")) {
+                        ops.completed = false;
+                    }
+                };
+        Path file =
+                recordFile(
+                        tempDir,
+                        "{\"failed\": [], \"times\": {\"mymod/code/a-Test.grug\": 8000000, "
+                                + "\"mymod/code/b-Test.grug\": 2, "
+                                + "\"mymod/code/c-Test.grug\": 1}}");
+
+        withRecordFile(
+                file,
+                () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
+
+        assertEquals(List.of("mymod/code/b-Test.grug"), failedIn(file));
+        assertEquals(
+                Map.of(
+                        "mymod/code/a-Test.grug",
+                        2 * MS,
+                        "mymod/code/b-Test.grug",
+                        2 * MS,
+                        "mymod/code/c-Test.grug",
+                        1L),
+                timesIn(file));
+    }
+
+    @Test
+    void keepsTheTimesOfTestsTheSelectionDidNotRun() throws Exception {
+        // The run measured its own subset only, and the record it writes back is still a record of
+        // every test the loader has, so the times of the mods it did not run survive the subset.
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("othermod/code/a-Test.grug", 2L);
+        ops.pathsAre(files);
+        ops.onCall = () -> clock.advance(3 * MS);
+        Path file =
+                recordFile(
+                        tempDir,
+                        "{\"failed\": [], \"times\": {\"othermod/code/a-Test.grug\": 7000000}}");
+
+        withRecordFile(
+                file,
+                () ->
+                        capture(
+                                () ->
+                                        runToEnd(
+                                                new GrugTestRunner(
+                                                        files,
+                                                        List.of(),
+                                                        ops,
+                                                        clock,
+                                                        new SweepLog(new ArrayList<>()),
+                                                        1,
+                                                        new CoverageLog(),
+                                                        GrugTestRunner.parseMods(
+                                                                "mymod")))));
+
+        assertEquals(List.of(), failedIn(file));
+        assertEquals(
+                Map.of(
+                        "mymod/code/a-Test.grug",
+                        3 * MS,
+                        "othermod/code/a-Test.grug",
+                        7_000_000L),
+                timesIn(file));
+    }
+
+    @Test
+    void dropsATestTheLoaderNoLongerHasFromTheRecordItWrites() throws Exception {
+        // The record held a time for a test that is gone from the repository, so the record the
+        // run writes back must not name it: a time is kept for each test the loader has, no more.
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/a-Block.grug", 9L);
+        ops.pathsAre(files);
+        ops.onCall = () -> clock.advance(MS);
+        Path file =
+                recordFile(
+                        tempDir,
+                        "{\"failed\": [\"ghostmod/code/gone-Test.grug\"], "
+                                + "\"times\": {\"ghostmod/code/gone-Test.grug\": 1,"
+                                + " \"mymod/code/a-Test.grug\": 2}}");
+
+        withRecordFile(
+                file,
+                () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
+
+        assertEquals(List.of(), failedIn(file));
+        assertEquals(Map.of("mymod/code/a-Test.grug", MS), timesIn(file));
+    }
+
+    @Test
+    void writesNothingWhenItWasNotPointedAtARecord() throws Exception {
+        // No record file, no record written: the run keeps the repository's file exactly where the
+        // refresh command, not the run, leaves it.
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+
+        capture(() -> runToEnd(runner(ops, files)));
+
+        assertEquals(0, tempDir.toFile().list().length);
+    }
+
+    @Test
+    void timesNoTestThatNeverStartedWhenTheRunFailsBeforeOneDoes() throws Exception {
+        // A reload that never ends fails the run before the first test starts; the test it names
+        // is one that was never started, so it took no time, and the record the run writes holds
+        // none for it.
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+        ops.pathsAre(files);
+        long[] now = {0};
+        Path file = recordFile(tempDir, "{\"failed\": [], \"times\": {}}");
+
+        withRecordFile(
+                file,
+                () -> {
+                    GrugTestRunner runner =
+                            new GrugTestRunner(
+                                    files,
+                                    List.of(),
+                                    ops,
+                                    () -> now[0],
+                                    new GrugTestRunner.TestBoxBuilder() {
+                                        @Override
+                                        public void build(int radius) {}
+
+                                        @Override
+                                        public void sweepItems() {}
+
+                                        @Override
+                                        public boolean loaderReloading() {
+                                            return true;
+                                        }
+                                    },
+                                    1);
+                    capture(() -> runner.tick(null));
+                    now[0] = GrugTestRunner.RELOAD_DEADLINE_NANOS + 1;
+                    capture(() -> runner.tick(null));
+                });
+
+        assertEquals(List.of("mymod/code/a-Test.grug"), failedIn(file));
+        assertEquals(Map.of(), timesIn(file));
+    }
+
+    @Test
+    void saysSoWhenTheUpdatedRecordCannotBeWritten() throws Exception {
+        // The run read its record fine, and then the place the record lives goes away before the
+        // run ends: the write fails, the run stays green, and the line says the update did not
+        // land, because a data file is not a reason to fail a run.
+        StepClock clock = new StepClock();
+        FakeOps ops = new FakeOps();
+        ops.onCall = () -> clock.advance(MS);
+        Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+        Path dir = Files.createTempDirectory(tempDir, "record");
+        Path file = recordFile(dir, "{\"failed\": [], \"times\": {}}");
+
+        withRecordFile(
+                file,
+                () -> {
+                    GrugTestRunner runner = timedRunner(ops, files, clock);
+                    capture(() -> runner.tick(null));
+                    try {
+                        Files.delete(file);
+                        Files.delete(dir);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    String printed = capture(() -> runToEnd(runner));
+                    assertTrue(
+                            printed.contains(
+                                    "The updated test order record could not be written to "
+                                            + file),
+                            printed);
+                    assertTrue(printed.contains("ALL 1 TESTS PASSED"), printed);
+                });
+    }
+
+    @Test
+    void aReferenceRunNeitherReadsNorWritesTheRecord() throws Exception {
+        // The reference run loads the harness rather than the port, so its record would be of the
+        // harness's tests and drop every one of the port's: the runner refuses to touch the
+        // record on one, in either direction.
+        Path file = recordFile(tempDir, "{\"failed\": [], \"times\": {}}");
+        String before = Files.readString(file);
+        System.setProperty(GrugReference.PROPERTY, "1");
+        try {
+            System.setProperty(GrugTestRunner.TEST_TIMES_FILE_PROPERTY, file.toString());
+            Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
+            String printed = capture(() -> runToEnd(runner(new FakeOps(), files)));
+            assertFalse(printed.contains("Test order:"), printed);
+            assertTrue(printed.contains("ALL 1 TESTS PASSED"), printed);
+        } finally {
+            System.clearProperty(GrugReference.PROPERTY);
+            System.clearProperty(GrugTestRunner.TEST_TIMES_FILE_PROPERTY);
+        }
+        assertEquals(before, Files.readString(file));
     }
 
     /** A room builder that logs what the runner asks of it, in order. */
