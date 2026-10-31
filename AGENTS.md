@@ -66,10 +66,11 @@ called `grug-for-minecraft` in each such repository, or a fork of it when it can
 piles commits on top of it so a run here can fetch the commit, with the language-level tests a VM
 change needs on the same-named branch in `grug-tests`. That branch or fork is the only write allowed
 outside this repository: it never opens a pull request there, because that asks the maintainer's
-teammates for reviews they did not sign up for, and it never tags or releases. A pull request here that measures such a change pins `grugRsRevision` (or
-the equivalent) to the branch commit, names the branch or fork and the commit in its body, says that
-no upstream pull request exists, and is not merged unattended: the maintainer decides whether that
-revision goes to `main`. The measurement follows the evidence rules like any other CI saving.
+teammates for reviews they did not sign up for, and it never tags or releases. A pull request here
+that measures such a change pins `grugRsRevision` (or the equivalent) to the branch commit, names the
+branch or fork and the commit in its body, says that no upstream pull request exists, and is not
+merged unattended: the maintainer decides whether that revision goes to `main`. The measurement
+follows the evidence rules like any other CI saving.
 
 - **Orchestrator.** Reads the issue, writes the subagent a self-contained brief, reviews the
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. The brief
