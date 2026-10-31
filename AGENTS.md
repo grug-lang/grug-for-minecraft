@@ -97,7 +97,11 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   Read the issue, the pull request description and the whole diff, ask what the change exists for
   and check that exact case (a watcher has to work while a run is still going, not only on a
   finished one), and think of an empty, odd or failing input; a subagent's check of the easy case
-  proves nothing about the real one. Velocity is what the CI exists for: a change that touches
+  proves nothing about the real one. Check the shape the change takes on `main` too, not only on its
+  pull request: a job that runs only on a push, or only on a dispatch, is not exercised by the
+  pull request run, so a change that gates or adds jobs is pushed to a throwaway branch or watched
+  on the push that carries it, and a schedule- or dispatch-only file is exercised by that dispatch,
+  before it is called done. Velocity is what the CI exists for: a change that touches
   `core/`, `mod_api.json`, the runner or a loader's adapters waits for the pull request's full run,
   while a change confined to `mods/`, to documentation or to a script with its own tests may merge
   on the jobs that exercise it, or on `pre-commit` alone when the orchestrator will watch the
