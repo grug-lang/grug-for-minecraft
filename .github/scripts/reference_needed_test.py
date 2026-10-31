@@ -32,7 +32,10 @@ BASE = {
     "mods/coverage/about.json": "{}",
     "mods/coverage/code/coverage_frame-Block.grug": "on_tick() {}\n",
     "mods/examplemod/about.json": "{}",
+    "mods/examplemod/LICENSE": "license\n",
     "mods/examplemod/code/foo_block-Block.grug": "on_tick() {}\n",
+    "mods/examplemod/tests/capture-Test.grug": "# Test.screenshot()\n",
+    "mods/examplemod/screenshots/x/1.20.6-forge.png": "png",
     "loaders/1.2.5-forge/build.gradle": "// 1.2.5\n",
     "loaders/1.2.5-forge/src/Main.java": "class Main {}\n",
     "loaders/1.20.6-forge/build.gradle": "// 1.20.6\n",
@@ -55,21 +58,22 @@ class ReferenceNeededTest(unittest.TestCase):
         self.repo = repo_module.Repo(Path(self.tmp.name))
         self.base = self.repo.commit(BASE, "base")
 
-    def answer(self, changes: dict, base=None, repo=None) -> str:
+    def answer(self, changes: dict, base=None, repo=None, mod=None, loader=None) -> str:
         """The script's stdout for a commit with these changes: ``true`` or ``false``."""
         head = self.repo.commit(changes) if changes is not None else "HEAD"
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                base or self.base,
-                head,
-                "--repo",
-                str(repo or self.repo.path),
-            ],
-            capture_output=True,
-            text=True,
-        )
+        argv = [
+            sys.executable,
+            str(SCRIPT),
+            base or self.base,
+            head,
+            "--repo",
+            str(repo or self.repo.path),
+        ]
+        if mod is not None:
+            argv += ["--mod", mod]
+        if loader is not None:
+            argv += ["--loader", loader]
+        result = subprocess.run(argv, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.reason = result.stderr
         return result.stdout.strip()
@@ -195,7 +199,7 @@ class ReferenceNeededTest(unittest.TestCase):
 
     def test_an_error_in_the_script_runs_it(self):
         original = reference.reason_to_run
-        reference.reason_to_run = lambda path: 1 / 0
+        reference.reason_to_run = lambda *args: 1 / 0
         try:
             self.repo.commit({"mods/examplemod/a.grug": "x\n"})
             with (
@@ -207,6 +211,76 @@ class ReferenceNeededTest(unittest.TestCase):
             reference.reason_to_run = original
         self.assertEqual(status, 0)
         self.assertEqual(out.getvalue().strip(), "true")
+
+    # The same rules hold for a mod that is not buildcraft, on a loader that is not 1.2.5-forge.
+
+    def test_a_change_confined_to_other_mods_and_loaders_skips_when_the_mod_is_not_buildcraft(self):
+        # buildcraft is another mod and 1.2.5-forge is another loader, once the reference job runs
+        # examplemod on 1.20.6-forge.
+        changes = {
+            "mods/buildcraft/about.json": "{}\n",
+            "mods/buildcraft/tests/capture-Test.grug": "# Test.screenshot()\n// new\n",
+            "loaders/1.2.5-forge/src/Main.java": "// new\n",
+            "mods/coverage/code/coverage_frame-Block.grug": "# new\n",
+        }
+        self.assertEqual(self.answer(changes, mod="examplemod", loader="1.20.6-forge"), "false")
+        self.assertIn("skipping", self.reason)
+
+    def test_a_change_to_the_selected_mods_harness_runs_it(self):
+        self.assertEqual(
+            self.answer(
+                {"mods/examplemod/about.json": "{}\n"}, mod="examplemod", loader="1.20.6-forge"
+            ),
+            "true",
+        )
+
+    def test_a_change_to_the_selected_mods_screenshot_test_runs_it(self):
+        self.assertEqual(
+            self.answer(
+                {"mods/examplemod/tests/capture-Test.grug": "# Test.is_reference()\n"},
+                mod="examplemod",
+                loader="1.20.6-forge",
+            ),
+            "true",
+        )
+
+    def test_a_change_to_the_selected_mods_code_still_skips(self):
+        # The harness holds no code, so a change confined to the mod's code is outside it.
+        self.assertEqual(
+            self.answer(
+                {"mods/examplemod/code/foo_block-Block.grug": "# new\n"},
+                mod="examplemod",
+                loader="1.20.6-forge",
+            ),
+            "false",
+        )
+
+    def test_a_change_to_the_selected_loader_runs_it(self):
+        self.assertEqual(
+            self.answer(
+                {"loaders/1.20.6-forge/src/Main.java": "// new\n"},
+                mod="examplemod",
+                loader="1.20.6-forge",
+            ),
+            "true",
+        )
+
+    def test_a_change_to_the_other_loader_skips_when_the_mod_is_not_buildcraft(self):
+        self.assertEqual(
+            self.answer(
+                {"loaders/1.2.5-forge/src/Main.java": "// new\n"},
+                mod="examplemod",
+                loader="1.20.6-forge",
+            ),
+            "false",
+        )
+
+    def test_a_file_moved_out_of_the_selected_mod_counts_at_its_old_path(self):
+        self.repo.git(
+            "mv", "mods/examplemod/tests/capture-Test.grug", "mods/coverage/capture-Test.grug"
+        )
+        self.repo.git("commit", "-q", "-m", "move")
+        self.assertEqual(self.answer(None, mod="examplemod", loader="1.20.6-forge"), "true")
 
     def test_the_pull_request_is_diffed_against_its_base_not_the_branch_history(self):
         # A base that moved on since the branch was cut only adds paths to the diff, which runs more.
