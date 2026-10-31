@@ -701,6 +701,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 new net.minecraft.core.BlockPos(
                         (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
 
+        net.grug.minecraft.core.GrugTestCounters.placements.incrementAndGet();
         world.setBlockAndUpdate(pos, targetBlock.defaultBlockState());
         // The client learns of the block from a packet it has not read yet, so the frames drawn
         // before this call say nothing about it. See redraw.
@@ -811,6 +812,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         net.minecraft.core.BlockPos pos =
                 new net.minecraft.core.BlockPos(
                         (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        net.grug.minecraft.core.GrugTestCounters.airProbes.incrementAndGet();
         return world.getBlockState(pos).isAir();
     }
 
@@ -876,6 +878,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
      */
     @Override
     public void onFrameRendered() {
+        net.grug.minecraft.core.GrugTestCounters.frames.incrementAndGet();
         RENDER_SETTLE.onFrame(!rendererIdle(Minecraft.getInstance()));
     }
 

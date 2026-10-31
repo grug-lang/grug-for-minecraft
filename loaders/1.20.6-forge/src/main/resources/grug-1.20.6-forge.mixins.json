@@ -15,7 +15,8 @@
             "MinecraftServerTickMixin",
             "MinecraftTimerMixin",
             "ModelBlockRendererMixin",
-            "SectionBufferBuilderPoolMixin"
+            "SectionBufferBuilderPoolMixin",
+            "SectionRebuildCountMixin"
         ]
     }
 }
