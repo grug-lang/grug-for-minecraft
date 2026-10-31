@@ -14,7 +14,9 @@ Work is pipelined rather than strictly serial, so the runner is the bottleneck a
 orchestrator's attention: an implementation subagent works alone on its area, a second may start on a
 disjoint area while the first waits on CI, and research subagents run in parallel freely. A full
 `build.yml` dispatch still waits for any run in flight, and pull request runs may overlap only while
-the 20 shared job slots allow it.
+the 20 shared job slots allow it. The orchestrator may change its own process without asking, unless
+the change is drastic, such as a different model or servers the maintainer would have to rent: it
+applies the optimization, records it here or in the handoff, and reports what it changed.
 
 - **Orchestrator.** Reads the issue, writes the subagent a self-contained brief, reviews the
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. The brief
