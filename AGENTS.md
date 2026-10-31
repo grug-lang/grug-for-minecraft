@@ -421,7 +421,6 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
   `gh issue create`. Never add `planned` or `maybe planned`: the repository owner decides those.
 - Current state goes in the body, never in a comment: when work advances what an issue or a pull
   request says (progress, results, what is left, a changed design), rewrite that body, because it
-  is what the next reader reads first and a comment is not found by anyone scanning the list. A
-  comment is for a question, an answer, or a note about a moment.
+  is what the next reader reads first and a comment is not found by anyone scanning the list.
 - Run `git add -A && pre-commit run --all-files` twice before pushing: the first run may reformat
   and fail, the second must pass. It only sees tracked files, hence the `git add`.
