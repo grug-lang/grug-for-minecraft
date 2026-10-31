@@ -61,12 +61,12 @@ costs a day is the failure this pass exists to prevent.
 
 **Other repositories.** `grug-rs` is the VM under every loader and `grug-tests` is the language spec,
 and a change there can make every run faster or settle a language question; any other repository, a
-compiler such as Clang included, may be needed the same way. The orchestrator may keep one branch
-per such repository, `agent/<task>`, or a fork when it cannot push there, and push commits to it so a
-run here can fetch the commit, with the language-level tests a VM change needs on a `grug-tests`
-branch. That branch or fork is the only write allowed outside this repository: it never opens a pull
-request there, because that asks the maintainer's teammates for reviews they did not sign up for, and
-it never tags or releases. A pull request here that measures such a change pins `grugRsRevision` (or
+compiler such as Clang included, may be needed the same way. The orchestrator keeps a single branch
+called `grug-for-minecraft` in each such repository, or a fork of it when it cannot push there, and
+piles commits on top of it so a run here can fetch the commit, with the language-level tests a VM
+change needs on the same-named branch in `grug-tests`. That branch or fork is the only write allowed
+outside this repository: it never opens a pull request there, because that asks the maintainer's
+teammates for reviews they did not sign up for, and it never tags or releases. A pull request here that measures such a change pins `grugRsRevision` (or
 the equivalent) to the branch commit, names the branch or fork and the commit in its body, says that
 no upstream pull request exists, and is not merged unattended: the maintainer decides whether that
 revision goes to `main`. The measurement follows the evidence rules like any other CI saving.
