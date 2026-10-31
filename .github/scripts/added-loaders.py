@@ -72,8 +72,7 @@ def main(argv: list[str]) -> int:
     except Exception as e:  # noqa: BLE001 - whatever went wrong, every loader runs
         added = loader_dirs(root)
         reason = (
-            f"what this push adds cannot be read ({type(e).__name__}: {e}), "
-            "so every loader runs"
+            f"what this push adds cannot be read ({type(e).__name__}: {e}), so every loader runs"
         )
     print(f"added-loaders: {reason}", file=sys.stderr)
     print(json.dumps(added))
