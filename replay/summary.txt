@@ -1,0 +1,42 @@
+#755 offline replay: 40 merged pull requests
+map = tests the static map selects; ran = tests the mod selector ran; all = all tests at that head
+#775  build/workflow         map=168 ran=168 all=168 fallback=True  .github/scripts/run-loader.sh is not inside a mod directory
+#774  build/workflow         map=168 ran=168 all=168 fallback=True  .github/actions/setup-loader-build/action.yml is not inside a mod directory
+#771  Java                   map=168 ran=168 all=168 fallback=True  core/src/main/java/net/grug/minecraft/core/GrugFrameRequest.java is Java that implements n
+#762  Java                   map=168 ran=168 all=168 fallback=True  core/src/main/java/net/grug/minecraft/grug/GrugModsWatcher.java is Java that implements no
+#761  build/workflow         map=168 ran=168 all=168 fallback=True  .github/scripts/reference-needed.py is not inside a mod directory
+#745  build/workflow         map=168 ran=168 all=168 fallback=True  .github/scripts/parallel_test_runner.py is not inside a mod directory
+#743  docs                   map=168 ran=168 all=168 fallback=True  AGENTS.md is not inside a mod directory
+#742  docs                   map=168 ran=168 all=168 fallback=True  AGENTS.md is not inside a mod directory
+#741  docs                   map=168 ran=168 all=168 fallback=True  AGENTS.md is not inside a mod directory
+#740  docs                   map=168 ran=168 all=168 fallback=True  AGENTS.md is not inside a mod directory
+#734  build/workflow         map=168 ran=168 all=168 fallback=True  .github/actions/setup-loader-build/action.yml is not inside a mod directory
+#733  Java                   map=168 ran=168 all=168 fallback=True  core/src/main/java/net/grug/minecraft/core/GrugTestBox.java is Java that implements no hos
+#732  docs                   map=168 ran=168 all=168 fallback=True  AGENTS.md is not inside a mod directory
+#730  build/workflow         map=168 ran=168 all=168 fallback=True  .github/scripts/run-loader.sh is not inside a mod directory
+#729  build/workflow         map=168 ran=168 all=168 fallback=True  .github/scripts/launch-production.sh is not inside a mod directory
+#727  Java                   map=168 ran=168 all=168 fallback=True  core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java is Java that implements no 
+#724  build/workflow         map=167 ran=167 all=167 fallback=True  .github/actions/setup-loader-build/action.yml is not inside a mod directory
+#723  host API               map=167 ran=167 all=167 fallback=True  core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java is Java that implements n
+#722  Java                   map=166 ran=166 all=166 fallback=True  core/src/main/java/net/grug/minecraft/grug/Grug.java is Java that implements no host API e
+#720  grug one mod: tests    map=139 ran=165 all=165 fallback=False 
+#718  build/workflow         map=165 ran=165 all=165 fallback=True  .github/workflows/build.yml is not inside a mod directory
+#716  host API               map=165 ran=165 all=165 fallback=True  core/src/main/java/net/grug/minecraft/core/GrugTickLockstep.java is Java that implements n
+#715  build/workflow         map=164 ran=164 all=164 fallback=True  .github/scripts/run-loader.sh is not inside a mod directory
+#714  build/workflow         map=164 ran=164 all=164 fallback=True  .github/workflows/build.yml is not inside a mod directory
+#712  build/workflow         map=164 ran=164 all=164 fallback=True  .github/scripts/run-loader.sh is not inside a mod directory
+#711  build/workflow         map=164 ran=164 all=164 fallback=True  .github/actions/setup-loader-build/action.yml is not inside a mod directory
+#710  docs                   map=164 ran=164 all=164 fallback=True  AGENTS.md is not inside a mod directory
+#698  host API               map=140 ran=164 all=164 fallback=False core/src/main/java/net/grug/minecraft/grug/HostFunctions.java serves ; core/src/test/java/
+#689  build/workflow         map=162 ran=162 all=162 fallback=True  .github/scripts/run-loader.sh is not inside a mod directory
+#685  Java                   map=162 ran=162 all=162 fallback=True  core/src/main/java/net/grug/minecraft/core/GrugTestBox.java is Java that implements no hos
+#683  docs                   map=162 ran=162 all=162 fallback=True  AGENTS.md is not inside a mod directory
+#680  build/workflow         map=162 ran=162 all=162 fallback=True  .github/scripts/reference-needed.py is not inside a mod directory
+#679  host API               map=162 ran=162 all=162 fallback=True  .github/scripts/combine-coverage.py is not inside a mod directory
+#676  grug one mod: tests    map=137 ran=162 all=162 fallback=False 
+#673  build/workflow         map=161 ran=161 all=161 fallback=True  .github/workflows/build.yml is not inside a mod directory
+#672  Java                   map=161 ran=161 all=161 fallback=True  core/src/main/java/net/grug/minecraft/core/GrugRenderSettle.java is Java that implements n
+#671  docs                   map=161 ran=161 all=161 fallback=True  AGENTS.md is not inside a mod directory
+#670  host API               map=162 ran=162 all=162 fallback=True  .github/scripts/combine-coverage.py is not inside a mod directory
+#667  build/workflow         map=162 ran=162 all=162 fallback=True  .github/scripts/affected-mods.py is not inside a mod directory
+#666  build/workflow         map=162 ran=162 all=162 fallback=True  .github/scripts/watch-run.sh is not inside a mod directory

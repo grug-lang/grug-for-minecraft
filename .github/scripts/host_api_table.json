@@ -1,0 +1,3735 @@
+{
+ "core/src/main/java/net/grug/minecraft/bootstrap/GrugForgeLayers.java": {
+  "client": [
+   "Test.world_settled"
+  ],
+  "game": [
+   "TestTickContext.assert"
+  ],
+  "load": [
+   "Test.load_nbt"
+  ],
+  "loader": [
+   "BlockInitContext.set_custom_render"
+  ],
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/bootstrap/GrugUnsupportedGameException.java": {
+  "of": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Test.screenshot"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/core/GrugCore.java": {
+  "adapter": [
+   "Screenshot.capture"
+  ],
+  "getAdapter": [
+   "BlockEntity.block_pos",
+   "BlockEntity.consume_crafting_ingredients",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item",
+   "BlockEntity.get_inventory_size",
+   "BlockEntity.get_item_count_in_slot",
+   "BlockEntity.get_item_damage_in_slot",
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.level",
+   "BlockEntity.redraw",
+   "BlockEntity.set_item_count_in_slot",
+   "BlockEntity.set_item_damage_in_slot",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.take_crafting_result",
+   "BlockEntity.take_item_from_slot",
+   "BlockEntity.update_recipe_output",
+   "Entity.set_delta_movement",
+   "Entity.spawn",
+   "GUI.open",
+   "ItemEntity.damage",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.get_time",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "Level.random_float",
+   "Level.random_gaussian",
+   "Level.random_int",
+   "Player.get_held_item",
+   "RenderContext.draw_model",
+   "Screenshot.capture",
+   "Screenshot.equals",
+   "Test.clear_held_item",
+   "Test.close_screen",
+   "Test.get_client_level",
+   "Test.get_origin",
+   "Test.get_player",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.registers_mod_recipes",
+   "Test.round_trip_nbt",
+   "Test.screen_open",
+   "Test.set_box_radius",
+   "Test.set_held_item",
+   "Test.set_mod_file_state",
+   "Test.setup_graphics_camera",
+   "Test.tick_block_entity",
+   "Test.use_block",
+   "Test.world_settled",
+   "drop_inventory",
+   "item",
+   "item_entity",
+   "item_stack",
+   "resource_location"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/core/GrugExactPorts.java": {
+  "load": [
+   "Test.load_nbt"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/core/GrugFrameRequest.java": {
+  "request": [
+   "Screenshot.capture",
+   "Screenshot.equals",
+   "Test.screenshot",
+   "Test.world_settled"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/core/GrugRenderSettle.java": {
+  "frames": [
+   "Test.screenshot",
+   "Test.world_settled"
+  ],
+  "settled": [
+   "Test.world_settled"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/core/GrugRunWindow.java": {
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java": {
+  "DEFAULT_MAX_TEST_TICKS": [
+   "TestInitContext.set_max_ticks"
+  ],
+  "fail": [
+   "TestTickContext.assert"
+  ],
+  "format": [
+   "Screenshot.differs_from"
+  ],
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/AddResponse.java": {
+  "acceptIntoSlot": [
+   "AddResponse.accept_into_slot"
+  ],
+  "refuse": [
+   "AddResponse.refuse",
+   "ExtractResponse.refuse"
+  ],
+  "slot": [
+   "AddResponse.accept_into_slot",
+   "BlockEntity.get_item_count_in_slot",
+   "BlockEntity.get_item_damage_in_slot",
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.is_slot_extractable",
+   "BlockEntity.is_slot_insertable",
+   "BlockEntity.set_item_count_in_slot",
+   "BlockEntity.set_item_damage_in_slot",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.take_item_from_slot",
+   "ExtractResponse.give_from_slot",
+   "GUI.open"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/BlockPos.java": {
+  "x": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.x",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "y": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.y",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "z": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.z",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/Color.java": {
+  "b": [
+   "Color.rgb",
+   "equals",
+   "print2",
+   "print3"
+  ],
+  "g": [
+   "Color.rgb"
+  ],
+  "getRGB": [
+   "GUI.add_text"
+  ],
+  "r": [
+   "Color.rgb"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/ExtractResponse.java": {
+  "amount": [
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.receive_energy",
+   "BlockEntity.take_crafting_result",
+   "BlockEntity.take_item_from_slot",
+   "ExtractResponse.give_from_slot"
+  ],
+  "giveCraftingResult": [
+   "ExtractResponse.give_crafting_result"
+  ],
+  "giveCraftingResultConsumed": [
+   "ExtractResponse.give_crafting_result_consumed"
+  ],
+  "giveFromSlot": [
+   "ExtractResponse.give_from_slot"
+  ],
+  "refuse": [
+   "AddResponse.refuse",
+   "ExtractResponse.refuse"
+  ],
+  "slot": [
+   "AddResponse.accept_into_slot",
+   "BlockEntity.get_item_count_in_slot",
+   "BlockEntity.get_item_damage_in_slot",
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.is_slot_extractable",
+   "BlockEntity.is_slot_insertable",
+   "BlockEntity.set_item_count_in_slot",
+   "BlockEntity.set_item_damage_in_slot",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.take_item_from_slot",
+   "ExtractResponse.give_from_slot",
+   "GUI.open"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/FileInfo.java": {
+  "path": [
+   "Test.set_nbt_item",
+   "Test.set_nbt_number"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/Grug.java": {
+  "fatal": [
+   "TestTickContext.assert"
+  ],
+  "hostFunctionErrorHappened": [
+   "BlockEntity.extract_energy",
+   "BlockEntity.get_energy_stored",
+   "BlockEntity.receive_energy",
+   "BlockEntity.redraw",
+   "GUI.open",
+   "Level.explode",
+   "Level.get_block_entity",
+   "Level.random_int",
+   "Math.remainder",
+   "Option.unwrap",
+   "RenderContext.draw_box",
+   "RenderContext.draw_model",
+   "RenderFrameContext.draw_item",
+   "Screenshot.differs_from",
+   "Screenshot.tolerance",
+   "Test.set_mod_file_state",
+   "Test.stall",
+   "Test.tick_block_entity",
+   "TestTickContext.assert",
+   "vec3"
+  ],
+  "statePtr": [
+   "BlockEntity.extract_energy",
+   "BlockEntity.get_energy_stored",
+   "BlockEntity.receive_energy",
+   "BlockEntity.redraw",
+   "GUI.open",
+   "Level.explode",
+   "Level.random_int",
+   "Math.remainder",
+   "Option.unwrap",
+   "RenderContext.draw_box",
+   "RenderContext.draw_model",
+   "RenderFrameContext.draw_item",
+   "Screenshot.differs_from",
+   "Screenshot.tolerance",
+   "Test.set_mod_file_state",
+   "Test.stall",
+   "Test.tick_block_entity",
+   "TestTickContext.assert",
+   "vec3"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugBlockData.java": {
+  "blockEntityString": [
+   "BlockInitContext.set_block_entity"
+  ],
+  "customRender": [
+   "BlockInitContext.set_custom_render",
+   "BlockInitContext.set_flat_lighting"
+  ],
+  "flatLighting": [
+   "BlockInitContext.set_flat_lighting"
+  ],
+  "hardness": [
+   "BlockInitContext.set_hardness"
+  ],
+  "id": [
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting",
+   "Screenshot.tolerance",
+   "item"
+  ],
+  "inventorySize": [
+   "BlockInitContext.set_inventory_size",
+   "GUI.open"
+  ],
+  "material": [
+   "BlockInitContext.set_material"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugBlockEntityNbt.java": {
+  "item": [
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.get_saved_list_item",
+   "Player.get_held_item",
+   "item"
+  ],
+  "load": [
+   "Test.load_nbt"
+  ],
+  "number": [
+   "Level.random_int",
+   "Screenshot.differs_from",
+   "TestInitContext.set_max_ticks"
+  ],
+  "path": [
+   "Test.set_nbt_item",
+   "Test.set_nbt_number"
+  ],
+  "report": [
+   "BlockEntityInitContext.set_power_receiver",
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting",
+   "Test.load_nbt",
+   "Test.set_nbt_item",
+   "Test.set_nbt_number",
+   "TestInitContext.set_max_ticks"
+  ],
+  "stageItem": [
+   "Test.set_nbt_item"
+  ],
+  "stageNumber": [
+   "Test.set_nbt_number"
+  ],
+  "type": [
+   "Test.set_nbt_number"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugBlockGeometry.java": {
+  "draw": [
+   "BlockEntity.redraw"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugBlockUse.java": {
+  "context": [
+   "BlockUseContext.decline_use"
+  ],
+  "decline": [
+   "BlockUseContext.decline_use"
+  ],
+  "use": [
+   "BlockUseContext.decline_use"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugBox.java": {
+  "x1": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.equals"
+  ],
+  "x2": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.equals"
+  ],
+  "y1": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.equals"
+  ],
+  "y2": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.equals"
+  ],
+  "z1": [
+   "RenderContext.draw_box"
+  ],
+  "z2": [
+   "RenderContext.draw_box"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugCatalogue.java": {
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugDeclarations.java": {
+  "block": [
+   "BlockEntity.redraw",
+   "BlockEntityInitContext.set_power_receiver",
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_custom_render",
+   "BlockInitContext.set_flat_lighting",
+   "BlockInitContext.set_hardness",
+   "BlockInitContext.set_inventory_size",
+   "BlockInitContext.set_material",
+   "GUI.open",
+   "Test.tick_block_entity"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugEntities.java": {
+  "addEntity": [
+   "BlockEntity.block_pos",
+   "BlockEntity.get_crafting_result_item",
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.level",
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Color.rgb",
+   "Level.find_item_entity",
+   "Level.get_block_entity",
+   "Option.new",
+   "Player.get_held_item",
+   "Test.get_origin",
+   "Test.screenshot",
+   "Test.setup_graphics_camera",
+   "gui",
+   "item",
+   "item_entity",
+   "item_stack",
+   "resource_location",
+   "vec3",
+   "vec3_zero"
+  ],
+  "addEntityWithId": [
+   "Screenshot.capture",
+   "Screenshot.tolerance"
+  ],
+  "blockEntity": [
+   "BlockEntity.append_saved_list_record",
+   "BlockEntity.extract_energy",
+   "BlockEntity.get_energy_stored",
+   "BlockEntity.get_saved_list_item",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.get_saved_list_size",
+   "BlockEntity.get_saved_number",
+   "BlockEntity.receive_energy",
+   "BlockEntity.redraw",
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number",
+   "BlockEntityInitContext.set_extractable_slots",
+   "BlockEntityInitContext.set_insertable_slots",
+   "BlockEntityInitContext.set_power_receiver",
+   "Test.tick_block_entity"
+  ],
+  "entityData": [
+   "AddResponse.accept_into_slot",
+   "AddResponse.refuse",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_list_item",
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Entity.spawn",
+   "ExtractResponse.give_crafting_result",
+   "ExtractResponse.give_crafting_result_consumed",
+   "ExtractResponse.give_from_slot",
+   "ExtractResponse.refuse",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_player_inventory",
+   "GUI.add_text",
+   "GUI.open",
+   "ItemEntity.damage",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.get_time",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "Level.random_float",
+   "Level.random_gaussian",
+   "Level.random_int",
+   "Option.has",
+   "Option.unwrap",
+   "Player.get_held_item",
+   "RenderFrameContext.draw_item",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Screenshot.equals",
+   "Test.clear_held_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.set_held_item",
+   "Test.set_nbt_item",
+   "Test.use_block",
+   "Vec3.x",
+   "Vec3.y",
+   "Vec3.z",
+   "drop_inventory",
+   "item",
+   "item_entity",
+   "item_stack"
+  ],
+  "entityFileIdsByName": [
+   "BlockInitContext.set_block_entity"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugEntityType.java": {
+  "get": [
+   "AddResponse.accept_into_slot",
+   "AddResponse.refuse",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.get_saved_number",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_list_item",
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Entity.spawn",
+   "ExtractResponse.give_crafting_result",
+   "ExtractResponse.give_crafting_result_consumed",
+   "ExtractResponse.give_from_slot",
+   "ExtractResponse.refuse",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_player_inventory",
+   "GUI.add_text",
+   "GUI.open",
+   "ItemEntity.damage",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.get_time",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "Level.random_float",
+   "Level.random_gaussian",
+   "Level.random_int",
+   "Option.has",
+   "Option.unwrap",
+   "Player.get_held_item",
+   "RenderFrameContext.draw_item",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Screenshot.equals",
+   "Test.clear_held_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.set_held_item",
+   "Test.set_nbt_item",
+   "Test.use_block",
+   "Vec3.x",
+   "Vec3.y",
+   "Vec3.z",
+   "drop_inventory",
+   "item",
+   "item_entity",
+   "item_stack"
+  ],
+  "values": [
+   "Level.explode",
+   "vec3"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugErrors.java": {
+  "fatal": [
+   "TestTickContext.assert"
+  ],
+  "printQueue": [
+   "print",
+   "print2",
+   "print3"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugFieldNames.java": {
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugFileIndex.java": {
+  "cleanName": [
+   "BlockInitContext.set_block_entity"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugHttp.java": {
+  "get": [
+   "AddResponse.accept_into_slot",
+   "AddResponse.refuse",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.get_saved_number",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_list_item",
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Entity.spawn",
+   "ExtractResponse.give_crafting_result",
+   "ExtractResponse.give_crafting_result_consumed",
+   "ExtractResponse.give_from_slot",
+   "ExtractResponse.refuse",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_player_inventory",
+   "GUI.add_text",
+   "GUI.open",
+   "ItemEntity.damage",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.get_time",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "Level.random_float",
+   "Level.random_gaussian",
+   "Level.random_int",
+   "Option.has",
+   "Option.unwrap",
+   "Player.get_held_item",
+   "RenderFrameContext.draw_item",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Screenshot.equals",
+   "Test.clear_held_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.set_held_item",
+   "Test.set_nbt_item",
+   "Test.use_block",
+   "Vec3.x",
+   "Vec3.y",
+   "Vec3.z",
+   "drop_inventory",
+   "item",
+   "item_entity",
+   "item_stack"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugIdPool.java": {
+  "of": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Test.screenshot"
+  ],
+  "take": [
+   "BlockEntity.extract_energy",
+   "Level.explode",
+   "Screenshot.capture",
+   "TestTickContext.assert"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugIdShortage.java": {
+  "missing": [
+   "Screenshot.capture"
+  ],
+  "needs": [
+   "BlockInitContext.set_flat_lighting"
+  ],
+  "record": [
+   "BlockEntity.get_saved_list_item",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number",
+   "RenderContext.draw_box"
+  ],
+  "recorded": [
+   "RenderContext.draw_box"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugItemData.java": {
+  "id": [
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting",
+   "Screenshot.tolerance",
+   "item"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugItemDraw.java": {
+  "count": [
+   "BlockEntity.add_item",
+   "BlockEntity.set_item_count_in_slot",
+   "BlockEntity.set_item_in_slot",
+   "RenderFrameContext.draw_item",
+   "Test.world_settled"
+  ],
+  "damage": [
+   "BlockEntity.add_item",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_damage_in_slot",
+   "RenderFrameContext.draw_item",
+   "item_stack"
+  ],
+  "finite": [
+   "Level.explode",
+   "vec3"
+  ],
+  "item": [
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.get_saved_list_item",
+   "Player.get_held_item",
+   "item"
+  ],
+  "problem": [
+   "BlockEntity.extract_energy",
+   "BlockEntity.get_energy_stored",
+   "BlockEntity.receive_energy",
+   "BlockEntityInitContext.set_power_receiver",
+   "RenderContext.draw_model",
+   "RenderFrameContext.draw_item",
+   "Screenshot.tolerance",
+   "Test.tick_block_entity"
+  ],
+  "x": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.x",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "y": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.y",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "z": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.z",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugModFileStates.java": {
+  "set": [
+   "BlockEntity.set_saved_number",
+   "Screenshot.tolerance",
+   "Test.set_mod_file_state"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugModManager.java": {
+  "error": [
+   "TestTickContext.assert"
+  ],
+  "name": [
+   "BlockEntity.append_saved_list_record",
+   "BlockEntity.get_saved_list_item",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.get_saved_list_size",
+   "BlockEntity.get_saved_number",
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number",
+   "BlockEntity.set_saved_number",
+   "Screenshot.capture",
+   "Screenshot.differs_from"
+  ],
+  "of": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Test.screenshot"
+  ],
+  "on": [
+   "BlockInitContext.set_custom_render"
+  ],
+  "read": [
+   "Screenshot.differs_from"
+  ],
+  "record": [
+   "BlockEntity.get_saved_list_item",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number",
+   "RenderContext.draw_box"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugModTreeDefect.java": {
+  "report": [
+   "BlockEntityInitContext.set_power_receiver",
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting",
+   "Test.load_nbt",
+   "Test.set_nbt_item",
+   "Test.set_nbt_number",
+   "TestInitContext.set_max_ticks"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugModels.java": {
+  "load": [
+   "Test.load_nbt"
+  ],
+  "number": [
+   "Level.random_int",
+   "Screenshot.differs_from",
+   "TestInitContext.set_max_ticks"
+  ],
+  "read": [
+   "Screenshot.differs_from"
+  ],
+  "texturePath": [
+   "gui"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugModsExtractor.java": {
+  "index": [
+   "BlockEntity.get_saved_list_item",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugModsScreenModel.java": {
+  "asking": [
+   "Test.world_settled"
+  ],
+  "decline": [
+   "BlockUseContext.decline_use"
+  ],
+  "error": [
+   "TestTickContext.assert"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugModsWatcher.java": {
+  "loaderReloadCount": [
+   "Test.reload_count"
+  ],
+  "reportedChangeCount": [
+   "Test.hot_reload_count"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugNative.java": {
+  "load": [
+   "Test.load_nbt"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugObject.java": {
+  "object": [
+   "AddResponse.accept_into_slot",
+   "AddResponse.refuse",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_list_item",
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Entity.spawn",
+   "ExtractResponse.give_crafting_result",
+   "ExtractResponse.give_crafting_result_consumed",
+   "ExtractResponse.give_from_slot",
+   "ExtractResponse.refuse",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_player_inventory",
+   "GUI.add_text",
+   "GUI.open",
+   "ItemEntity.damage",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.get_time",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "Level.random_float",
+   "Level.random_gaussian",
+   "Level.random_int",
+   "Option.has",
+   "Option.unwrap",
+   "Player.get_held_item",
+   "RenderFrameContext.draw_item",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Screenshot.equals",
+   "Screenshot.tolerance",
+   "Test.clear_held_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.set_held_item",
+   "Test.set_nbt_item",
+   "Test.use_block",
+   "Vec3.x",
+   "Vec3.y",
+   "Vec3.z",
+   "drop_inventory",
+   "item",
+   "item_entity",
+   "item_stack"
+  ],
+  "type": [
+   "Test.set_nbt_number"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugOption.java": {
+  "has": [
+   "BlockEntity.redraw",
+   "GUI.open",
+   "Level.random_int",
+   "Option.has",
+   "Option.unwrap",
+   "Screenshot.capture",
+   "Test.stall",
+   "Test.tick_block_entity",
+   "Test.world_settled"
+  ],
+  "set": [
+   "BlockEntity.set_saved_number",
+   "Screenshot.tolerance",
+   "Test.set_mod_file_state"
+  ],
+  "value": [
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.set_saved_list_number",
+   "BlockEntity.set_saved_number",
+   "BlockInitContext.set_hardness",
+   "Math.floor",
+   "Math.remainder",
+   "Option.set",
+   "Option.unwrap",
+   "Test.set_nbt_number"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugPower.java": {
+  "checkEnergy": [
+   "BlockEntity.extract_energy",
+   "BlockEntity.receive_energy",
+   "BlockEntityInitContext.set_power_receiver"
+  ],
+  "checkIsReceiver": [
+   "BlockEntity.extract_energy",
+   "BlockEntity.get_energy_stored",
+   "BlockEntity.receive_energy"
+  ],
+  "declare": [
+   "BlockEntityInitContext.set_power_receiver"
+  ],
+  "extract": [
+   "BlockEntity.extract_energy"
+  ],
+  "isReceiver": [
+   "BlockEntity.is_power_receiver"
+  ],
+  "load": [
+   "Test.load_nbt"
+  ],
+  "receive": [
+   "BlockEntity.receive_energy"
+  ],
+  "stored": [
+   "BlockEntity.get_energy_stored",
+   "Screenshot.capture",
+   "Screenshot.tolerance"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugQuad.java": {
+  "texturePath": [
+   "gui"
+  ],
+  "x": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.x",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "y": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.y",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "z": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.z",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugRecipeTree.java": {
+  "defect": [
+   "BlockEntityInitContext.set_power_receiver",
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting"
+  ],
+  "id": [
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting",
+   "Screenshot.tolerance",
+   "item"
+  ],
+  "path": [
+   "Test.set_nbt_item",
+   "Test.set_nbt_number"
+  ],
+  "read": [
+   "Screenshot.differs_from"
+  ],
+  "relativePath": [
+   "Test.hot_reload_count",
+   "Test.reload_count",
+   "Test.set_mod_file_state"
+  ],
+  "report": [
+   "BlockEntityInitContext.set_power_receiver",
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting",
+   "Test.load_nbt",
+   "Test.set_nbt_item",
+   "Test.set_nbt_number",
+   "TestInitContext.set_max_ticks"
+  ],
+  "type": [
+   "Test.set_nbt_number"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugReference.java": {
+  "isReferenceRun": [
+   "Test.is_reference"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugRenderPass.java": {
+  "cameraYaw": [
+   "RenderFrameContext.camera_yaw"
+  ],
+  "context": [
+   "BlockUseContext.decline_use"
+  ],
+  "frame": [
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Screenshot.equals",
+   "Test.world_settled"
+  ],
+  "open": [
+   "GUI.open",
+   "Test.screen_open"
+  ],
+  "partialTick": [
+   "RenderFrameContext.partial_tick"
+  ],
+  "record": [
+   "BlockEntity.get_saved_list_item",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number",
+   "RenderContext.draw_box"
+  ],
+  "recordItem": [
+   "RenderFrameContext.draw_item"
+  ],
+  "recordModel": [
+   "RenderContext.draw_model"
+  ],
+  "recorded": [
+   "RenderContext.draw_box"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugResponse.java": {
+  "open": [
+   "GUI.open",
+   "Test.screen_open"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugSavedLists.java": {
+  "append": [
+   "BlockEntity.append_saved_list_record"
+  ],
+  "isHolder": [
+   "BlockEntity.get_saved_number",
+   "BlockEntity.redraw",
+   "Test.tick_block_entity"
+  ],
+  "item": [
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.get_saved_list_item",
+   "Player.get_held_item",
+   "item"
+  ],
+  "numbers": [
+   "BlockEntity.get_saved_list_number"
+  ],
+  "record": [
+   "BlockEntity.get_saved_list_item",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number",
+   "RenderContext.draw_box"
+  ],
+  "remove": [
+   "BlockEntity.remove_saved_list_record"
+  ],
+  "setItem": [
+   "BlockEntity.set_saved_list_item"
+  ],
+  "setNumber": [
+   "BlockEntity.set_saved_list_number"
+  ],
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugSavedNumbers.java": {
+  "get": [
+   "AddResponse.accept_into_slot",
+   "AddResponse.refuse",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.get_saved_number",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_list_item",
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Entity.spawn",
+   "ExtractResponse.give_crafting_result",
+   "ExtractResponse.give_crafting_result_consumed",
+   "ExtractResponse.give_from_slot",
+   "ExtractResponse.refuse",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_player_inventory",
+   "GUI.add_text",
+   "GUI.open",
+   "ItemEntity.damage",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.get_time",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "Level.random_float",
+   "Level.random_gaussian",
+   "Level.random_int",
+   "Option.has",
+   "Option.unwrap",
+   "Player.get_held_item",
+   "RenderFrameContext.draw_item",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Screenshot.equals",
+   "Test.clear_held_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.set_held_item",
+   "Test.set_nbt_item",
+   "Test.use_block",
+   "Vec3.x",
+   "Vec3.y",
+   "Vec3.z",
+   "drop_inventory",
+   "item",
+   "item_entity",
+   "item_stack"
+  ],
+  "isHolder": [
+   "BlockEntity.get_saved_number",
+   "BlockEntity.redraw",
+   "Test.tick_block_entity"
+  ],
+  "set": [
+   "BlockEntity.set_saved_number",
+   "Screenshot.tolerance",
+   "Test.set_mod_file_state"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugScreenshot.java": {
+  "captured": [
+   "Screenshot.differs_from"
+  ],
+  "tolerancePercent": [
+   "Screenshot.equals"
+  ],
+  "withCapture": [
+   "Screenshot.capture"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugScreenshots.java": {
+  "changedPercent": [
+   "Screenshot.differs_from"
+  ],
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugShapelessRecipes.java": {
+  "holds": [
+   "BlockEntityInitContext.set_power_receiver"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugSlotAccess.java": {
+  "declareExtractable": [
+   "BlockEntityInitContext.set_extractable_slots"
+  ],
+  "declareInsertable": [
+   "BlockEntityInitContext.set_insertable_slots"
+  ],
+  "first": [
+   "BlockEntityInitContext.set_extractable_slots",
+   "BlockEntityInitContext.set_insertable_slots",
+   "BlockInitContext.set_flat_lighting",
+   "RenderContext.draw_box",
+   "Screenshot.differs_from"
+  ],
+  "isExtractable": [
+   "BlockEntity.is_slot_extractable"
+  ],
+  "isInsertable": [
+   "BlockEntity.is_slot_insertable"
+  ],
+  "last": [
+   "BlockEntityInitContext.set_extractable_slots",
+   "BlockEntityInitContext.set_insertable_slots"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugSpecialInventory.java": {
+  "addItem": [
+   "BlockEntity.add_item"
+  ],
+  "askExtract": [
+   "BlockEntity.ask_extract_item"
+  ],
+  "count": [
+   "BlockEntity.add_item",
+   "BlockEntity.set_item_count_in_slot",
+   "BlockEntity.set_item_in_slot",
+   "RenderFrameContext.draw_item",
+   "Test.world_settled"
+  ],
+  "damage": [
+   "BlockEntity.add_item",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_damage_in_slot",
+   "RenderFrameContext.draw_item",
+   "item_stack"
+  ],
+  "extractInto": [
+   "BlockEntity.extract_item_into"
+  ],
+  "item": [
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.get_saved_list_item",
+   "Player.get_held_item",
+   "item"
+  ],
+  "of": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Test.screenshot"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugTags.java": {
+  "itemId": [
+   "BlockEntity.add_item",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_list_item",
+   "RenderFrameContext.draw_item",
+   "Test.set_held_item",
+   "Test.set_nbt_item",
+   "item_stack"
+  ],
+  "of": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Test.screenshot"
+  ],
+  "problem": [
+   "BlockEntity.extract_energy",
+   "BlockEntity.get_energy_stored",
+   "BlockEntity.receive_energy",
+   "BlockEntityInitContext.set_power_receiver",
+   "RenderContext.draw_model",
+   "RenderFrameContext.draw_item",
+   "Screenshot.tolerance",
+   "Test.tick_block_entity"
+  ],
+  "value": [
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.set_saved_list_number",
+   "BlockEntity.set_saved_number",
+   "BlockInitContext.set_hardness",
+   "Math.floor",
+   "Math.remainder",
+   "Option.set",
+   "Option.unwrap",
+   "Test.set_nbt_number"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugTestState.java": {
+  "captureTestOrigin": [
+   "Test.get_origin"
+  ],
+  "checkTickCount": [
+   "Test.tick_block_entity"
+  ],
+  "checkTolerance": [
+   "Screenshot.tolerance"
+  ],
+  "currentTestTick": [
+   "TestTickContext.current_tick"
+  ],
+  "maxTestTicks": [
+   "TestInitContext.set_max_ticks"
+  ],
+  "testExpectedError": [
+   "TestTickContext.expect_error"
+  ],
+  "testNotDone": [
+   "TestTickContext.not_done"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/GrugVanillaBlocks.java": {
+  "add": [
+   "BlockEntity.add_item",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "print",
+   "print2",
+   "print3"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/HostFunctionHelpers.java": {
+  "prettyFormat": [
+   "print",
+   "print2",
+   "print3"
+  ],
+  "resolveBlockEntity": [
+   "BlockEntity.add_item",
+   "BlockEntity.ask_extract_item",
+   "BlockEntity.block_pos",
+   "BlockEntity.consume_crafting_ingredients",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_energy",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.extract_item_into",
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item",
+   "BlockEntity.get_energy_stored",
+   "BlockEntity.get_inventory_size",
+   "BlockEntity.get_item_count_in_slot",
+   "BlockEntity.get_item_damage_in_slot",
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.get_saved_number",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.is_power_receiver",
+   "BlockEntity.is_slot_extractable",
+   "BlockEntity.is_slot_insertable",
+   "BlockEntity.level",
+   "BlockEntity.receive_energy",
+   "BlockEntity.redraw",
+   "BlockEntity.set_item_count_in_slot",
+   "BlockEntity.set_item_damage_in_slot",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_number",
+   "BlockEntity.take_crafting_result",
+   "BlockEntity.take_item_from_slot",
+   "BlockEntity.update_recipe_output",
+   "GUI.open",
+   "Test.load_nbt",
+   "Test.round_trip_nbt",
+   "Test.set_nbt_item",
+   "Test.set_nbt_number",
+   "Test.tick_block_entity"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java": {
+  "AddResponse_accept_into_slot": [
+   "AddResponse.accept_into_slot"
+  ],
+  "AddResponse_refuse": [
+   "AddResponse.refuse"
+  ],
+  "BlockEntityInitContext_set_extractable_slots": [
+   "BlockEntityInitContext.set_extractable_slots"
+  ],
+  "BlockEntityInitContext_set_insertable_slots": [
+   "BlockEntityInitContext.set_insertable_slots"
+  ],
+  "BlockEntityInitContext_set_power_receiver": [
+   "BlockEntityInitContext.set_power_receiver"
+  ],
+  "BlockEntity_add_item": [
+   "BlockEntity.add_item"
+  ],
+  "BlockEntity_append_saved_list_record": [
+   "BlockEntity.append_saved_list_record"
+  ],
+  "BlockEntity_ask_extract_item": [
+   "BlockEntity.ask_extract_item"
+  ],
+  "BlockEntity_block_pos": [
+   "BlockEntity.block_pos"
+  ],
+  "BlockEntity_consume_crafting_ingredients": [
+   "BlockEntity.consume_crafting_ingredients"
+  ],
+  "BlockEntity_count_item_in_inventory": [
+   "BlockEntity.count_item_in_inventory"
+  ],
+  "BlockEntity_extract_energy": [
+   "BlockEntity.extract_energy"
+  ],
+  "BlockEntity_extract_item_from_inventory": [
+   "BlockEntity.extract_item_from_inventory"
+  ],
+  "BlockEntity_extract_item_into": [
+   "BlockEntity.extract_item_into"
+  ],
+  "BlockEntity_get_crafting_result_damage": [
+   "BlockEntity.get_crafting_result_damage"
+  ],
+  "BlockEntity_get_crafting_result_item": [
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "BlockEntity_get_energy_stored": [
+   "BlockEntity.get_energy_stored"
+  ],
+  "BlockEntity_get_inventory_size": [
+   "BlockEntity.get_inventory_size"
+  ],
+  "BlockEntity_get_item_count_in_slot": [
+   "BlockEntity.get_item_count_in_slot"
+  ],
+  "BlockEntity_get_item_damage_in_slot": [
+   "BlockEntity.get_item_damage_in_slot"
+  ],
+  "BlockEntity_get_item_in_slot": [
+   "BlockEntity.get_item_in_slot"
+  ],
+  "BlockEntity_get_saved_list_item": [
+   "BlockEntity.get_saved_list_item"
+  ],
+  "BlockEntity_get_saved_list_number": [
+   "BlockEntity.get_saved_list_number"
+  ],
+  "BlockEntity_get_saved_list_size": [
+   "BlockEntity.get_saved_list_size"
+  ],
+  "BlockEntity_get_saved_number": [
+   "BlockEntity.get_saved_number"
+  ],
+  "BlockEntity_insert_item_into_inventory": [
+   "BlockEntity.insert_item_into_inventory"
+  ],
+  "BlockEntity_is_power_receiver": [
+   "BlockEntity.is_power_receiver"
+  ],
+  "BlockEntity_is_slot_extractable": [
+   "BlockEntity.is_slot_extractable"
+  ],
+  "BlockEntity_is_slot_insertable": [
+   "BlockEntity.is_slot_insertable"
+  ],
+  "BlockEntity_level": [
+   "BlockEntity.level"
+  ],
+  "BlockEntity_receive_energy": [
+   "BlockEntity.receive_energy"
+  ],
+  "BlockEntity_redraw": [
+   "BlockEntity.redraw"
+  ],
+  "BlockEntity_remove_saved_list_record": [
+   "BlockEntity.remove_saved_list_record"
+  ],
+  "BlockEntity_set_item_count_in_slot": [
+   "BlockEntity.set_item_count_in_slot"
+  ],
+  "BlockEntity_set_item_damage_in_slot": [
+   "BlockEntity.set_item_damage_in_slot"
+  ],
+  "BlockEntity_set_item_in_slot": [
+   "BlockEntity.set_item_in_slot"
+  ],
+  "BlockEntity_set_saved_list_item": [
+   "BlockEntity.set_saved_list_item"
+  ],
+  "BlockEntity_set_saved_list_number": [
+   "BlockEntity.set_saved_list_number"
+  ],
+  "BlockEntity_set_saved_number": [
+   "BlockEntity.set_saved_number"
+  ],
+  "BlockEntity_take_crafting_result": [
+   "BlockEntity.take_crafting_result"
+  ],
+  "BlockEntity_take_item_from_slot": [
+   "BlockEntity.take_item_from_slot"
+  ],
+  "BlockEntity_update_recipe_output": [
+   "BlockEntity.update_recipe_output"
+  ],
+  "BlockInitContext_set_block_entity": [
+   "BlockInitContext.set_block_entity"
+  ],
+  "BlockInitContext_set_custom_render": [
+   "BlockInitContext.set_custom_render"
+  ],
+  "BlockInitContext_set_flat_lighting": [
+   "BlockInitContext.set_flat_lighting"
+  ],
+  "BlockInitContext_set_hardness": [
+   "BlockInitContext.set_hardness"
+  ],
+  "BlockInitContext_set_inventory_size": [
+   "BlockInitContext.set_inventory_size"
+  ],
+  "BlockInitContext_set_material": [
+   "BlockInitContext.set_material"
+  ],
+  "BlockPos_above_n": [
+   "BlockPos.above_n"
+  ],
+  "BlockPos_center": [
+   "BlockPos.center"
+  ],
+  "BlockUseContext_decline_use": [
+   "BlockUseContext.decline_use"
+  ],
+  "Color_rgb": [
+   "Color.rgb"
+  ],
+  "EMPTY_ITEM_OPTION": [
+   "BlockEntity.get_saved_list_item"
+  ],
+  "Entity_set_delta_movement": [
+   "Entity.set_delta_movement"
+  ],
+  "Entity_spawn": [
+   "Entity.spawn"
+  ],
+  "ExtractResponse_give_crafting_result": [
+   "ExtractResponse.give_crafting_result"
+  ],
+  "ExtractResponse_give_crafting_result_consumed": [
+   "ExtractResponse.give_crafting_result_consumed"
+  ],
+  "ExtractResponse_give_from_slot": [
+   "ExtractResponse.give_from_slot"
+  ],
+  "ExtractResponse_refuse": [
+   "ExtractResponse.refuse"
+  ],
+  "GUI_add_crafting_grid": [
+   "GUI.add_crafting_grid"
+  ],
+  "GUI_add_crafting_result": [
+   "GUI.add_crafting_result"
+  ],
+  "GUI_add_player_inventory": [
+   "GUI.add_player_inventory"
+  ],
+  "GUI_add_text": [
+   "GUI.add_text"
+  ],
+  "GUI_open": [
+   "GUI.open"
+  ],
+  "ItemEntity_damage": [
+   "ItemEntity.damage"
+  ],
+  "ItemEntity_entity": [
+   "ItemEntity.entity"
+  ],
+  "Level_count_item_entities": [
+   "Level.count_item_entities"
+  ],
+  "Level_explode": [
+   "Level.explode"
+  ],
+  "Level_find_item_entity": [
+   "Level.find_item_entity"
+  ],
+  "Level_get_block": [
+   "Level.get_block"
+  ],
+  "Level_get_block_entity": [
+   "Level.get_block_entity"
+  ],
+  "Level_get_time": [
+   "Level.get_time"
+  ],
+  "Level_has_neighbor_signal": [
+   "Level.has_neighbor_signal"
+  ],
+  "Level_is_air": [
+   "Level.is_air"
+  ],
+  "Level_place_block": [
+   "Level.place_block"
+  ],
+  "Level_random_float": [
+   "Level.random_float"
+  ],
+  "Level_random_gaussian": [
+   "Level.random_gaussian"
+  ],
+  "Level_random_int": [
+   "Level.random_int"
+  ],
+  "MAX_STALL_MILLISECONDS": [
+   "Test.stall"
+  ],
+  "Math_floor": [
+   "Math.floor"
+  ],
+  "Math_remainder": [
+   "Math.remainder"
+  ],
+  "NO_RESULT": [
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number"
+  ],
+  "Option_has": [
+   "Option.has"
+  ],
+  "Option_new": [
+   "Option.new"
+  ],
+  "Option_set": [
+   "Option.set"
+  ],
+  "Option_unwrap": [
+   "Option.unwrap"
+  ],
+  "Player_get_held_item": [
+   "Player.get_held_item"
+  ],
+  "RenderContext_draw_box": [
+   "RenderContext.draw_box"
+  ],
+  "RenderContext_draw_model": [
+   "RenderContext.draw_model"
+  ],
+  "RenderFrameContext_camera_yaw": [
+   "RenderFrameContext.camera_yaw"
+  ],
+  "RenderFrameContext_draw_item": [
+   "RenderFrameContext.draw_item"
+  ],
+  "RenderFrameContext_partial_tick": [
+   "RenderFrameContext.partial_tick"
+  ],
+  "Screenshot_capture": [
+   "Screenshot.capture"
+  ],
+  "Screenshot_differs_from": [
+   "Screenshot.differs_from"
+  ],
+  "Screenshot_equals": [
+   "Screenshot.equals"
+  ],
+  "Screenshot_tolerance": [
+   "Screenshot.tolerance"
+  ],
+  "TestInitContext_set_max_ticks": [
+   "TestInitContext.set_max_ticks"
+  ],
+  "TestTickContext_assert": [
+   "TestTickContext.assert"
+  ],
+  "TestTickContext_current_tick": [
+   "TestTickContext.current_tick"
+  ],
+  "TestTickContext_expect_error": [
+   "TestTickContext.expect_error"
+  ],
+  "TestTickContext_not_done": [
+   "TestTickContext.not_done"
+  ],
+  "Test_clear_held_item": [
+   "Test.clear_held_item"
+  ],
+  "Test_close_screen": [
+   "Test.close_screen"
+  ],
+  "Test_force_gc": [
+   "Test.force_gc"
+  ],
+  "Test_get_client_level": [
+   "Test.get_client_level"
+  ],
+  "Test_get_origin": [
+   "Test.get_origin"
+  ],
+  "Test_get_player": [
+   "Test.get_player"
+  ],
+  "Test_hot_reload_count": [
+   "Test.hot_reload_count"
+  ],
+  "Test_is_reference": [
+   "Test.is_reference"
+  ],
+  "Test_load_nbt": [
+   "Test.load_nbt"
+  ],
+  "Test_mining_crack": [
+   "Test.mining_crack"
+  ],
+  "Test_notify_neighbors": [
+   "Test.notify_neighbors"
+  ],
+  "Test_registers_mod_recipes": [
+   "Test.registers_mod_recipes"
+  ],
+  "Test_reload_count": [
+   "Test.reload_count"
+  ],
+  "Test_round_trip_nbt": [
+   "Test.round_trip_nbt"
+  ],
+  "Test_screen_open": [
+   "Test.screen_open"
+  ],
+  "Test_screenshot": [
+   "Test.screenshot"
+  ],
+  "Test_set_box_radius": [
+   "Test.set_box_radius"
+  ],
+  "Test_set_held_item": [
+   "Test.set_held_item"
+  ],
+  "Test_set_mod_file_state": [
+   "Test.set_mod_file_state"
+  ],
+  "Test_set_nbt_item": [
+   "Test.set_nbt_item"
+  ],
+  "Test_set_nbt_number": [
+   "Test.set_nbt_number"
+  ],
+  "Test_setup_graphics_camera": [
+   "Test.setup_graphics_camera"
+  ],
+  "Test_stall": [
+   "Test.stall"
+  ],
+  "Test_tick_block_entity": [
+   "Test.tick_block_entity"
+  ],
+  "Test_use_block": [
+   "Test.use_block"
+  ],
+  "Test_world_settled": [
+   "Test.world_settled"
+  ],
+  "Vec3_x": [
+   "Vec3.x"
+  ],
+  "Vec3_y": [
+   "Vec3.y"
+  ],
+  "Vec3_z": [
+   "Vec3.z"
+  ],
+  "ZERO": [
+   "BlockEntity.append_saved_list_record",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.get_saved_list_size"
+  ],
+  "addLevel": [
+   "Test.get_client_level"
+  ],
+  "addPlayer": [
+   "Test.get_player"
+  ],
+  "drop_inventory": [
+   "drop_inventory"
+  ],
+  "equals": [
+   "equals"
+  ],
+  "gui": [
+   "gui"
+  ],
+  "item": [
+   "BlockEntity.get_item_in_slot",
+   "BlockEntity.get_saved_list_item",
+   "Player.get_held_item",
+   "item"
+  ],
+  "itemOption": [
+   "BlockEntity.get_saved_list_item"
+  ],
+  "item_entity": [
+   "item_entity"
+  ],
+  "item_stack": [
+   "item_stack"
+  ],
+  "print": [
+   "print"
+  ],
+  "print2": [
+   "print2"
+  ],
+  "print3": [
+   "print3"
+  ],
+  "reportNotSaving": [
+   "BlockEntity.get_saved_number",
+   "BlockEntity.set_saved_number"
+  ],
+  "requireBlockEntityInitContext": [
+   "BlockEntityInitContext.set_extractable_slots",
+   "BlockEntityInitContext.set_insertable_slots",
+   "BlockEntityInitContext.set_power_receiver"
+  ],
+  "requireBlockInitContext": [
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_custom_render",
+   "BlockInitContext.set_flat_lighting",
+   "BlockInitContext.set_hardness",
+   "BlockInitContext.set_inventory_size",
+   "BlockInitContext.set_material"
+  ],
+  "requireContext": [
+   "BlockUseContext.decline_use",
+   "RenderContext.draw_box",
+   "RenderContext.draw_model",
+   "RenderFrameContext.camera_yaw",
+   "RenderFrameContext.draw_item",
+   "RenderFrameContext.partial_tick"
+  ],
+  "requireInitContext": [
+   "TestInitContext.set_max_ticks"
+  ],
+  "requireTickContext": [
+   "TestTickContext.assert",
+   "TestTickContext.current_tick",
+   "TestTickContext.expect_error",
+   "TestTickContext.not_done"
+  ],
+  "resource_location": [
+   "resource_location"
+  ],
+  "screenWasOpen": [
+   "Test.close_screen",
+   "Test.screen_open"
+  ],
+  "setOptionValue": [
+   "Option.set"
+  ],
+  "sleepUninterrupted": [
+   "Test.stall"
+  ],
+  "valuesEqual": [
+   "equals"
+  ],
+  "vec3": [
+   "vec3"
+  ],
+  "vec3_zero": [
+   "vec3_zero"
+  ],
+  "withSavedLists": [
+   "BlockEntity.append_saved_list_record",
+   "BlockEntity.get_saved_list_size"
+  ],
+  "withSavedRecord": [
+   "BlockEntity.get_saved_list_item",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.remove_saved_list_record",
+   "BlockEntity.set_saved_list_item",
+   "BlockEntity.set_saved_list_number"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/Vec3.java": {
+  "x": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.x",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "y": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.y",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "z": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.z",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/grug/WeakGrugValueMap.java": {
+  "get": [
+   "AddResponse.accept_into_slot",
+   "AddResponse.refuse",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.get_saved_number",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_list_item",
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "Entity.spawn",
+   "ExtractResponse.give_crafting_result",
+   "ExtractResponse.give_crafting_result_consumed",
+   "ExtractResponse.give_from_slot",
+   "ExtractResponse.refuse",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_player_inventory",
+   "GUI.add_text",
+   "GUI.open",
+   "ItemEntity.damage",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.get_time",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "Level.random_float",
+   "Level.random_gaussian",
+   "Level.random_int",
+   "Option.has",
+   "Option.unwrap",
+   "Player.get_held_item",
+   "RenderFrameContext.draw_item",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Screenshot.equals",
+   "Test.clear_held_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.set_held_item",
+   "Test.set_nbt_item",
+   "Test.use_block",
+   "Vec3.x",
+   "Vec3.y",
+   "Vec3.z",
+   "drop_inventory",
+   "item",
+   "item_entity",
+   "item_stack"
+  ],
+  "id": [
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting",
+   "Screenshot.tolerance",
+   "item"
+  ],
+  "remove": [
+   "BlockEntity.remove_saved_list_record"
+  ],
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ]
+ },
+ "core/src/main/java/net/grug/minecraft/gui/GrugGuiBuilder.java": {
+  "color": [
+   "GUI.add_text"
+  ],
+  "craftingGrids": [
+   "GUI.add_crafting_grid"
+  ],
+  "craftingResults": [
+   "GUI.add_crafting_result"
+  ],
+  "firstSlotOutsideInventory": [
+   "GUI.open"
+  ],
+  "hasPlayerInventory": [
+   "GUI.add_player_inventory"
+  ],
+  "hotbarY": [
+   "GUI.add_player_inventory"
+  ],
+  "startSlot": [
+   "BlockEntity.consume_crafting_ingredients",
+   "BlockEntity.update_recipe_output",
+   "GUI.add_crafting_grid"
+  ],
+  "text": [
+   "GUI.add_text"
+  ],
+  "texts": [
+   "GUI.add_text"
+  ],
+  "texturePath": [
+   "gui"
+  ],
+  "x": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.x",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ],
+  "y": [
+   "BlockPos.above_n",
+   "BlockPos.center",
+   "Entity.set_delta_movement",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "Level.count_item_entities",
+   "Level.explode",
+   "Level.find_item_entity",
+   "Level.get_block",
+   "Level.get_block_entity",
+   "Level.has_neighbor_signal",
+   "Level.is_air",
+   "Level.place_block",
+   "RenderFrameContext.draw_item",
+   "Test.mining_crack",
+   "Test.notify_neighbors",
+   "Test.use_block",
+   "Vec3.y",
+   "drop_inventory",
+   "item_entity",
+   "vec3"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java": {
+  "assertScreenshotEquals": [
+   "Screenshot.equals"
+  ],
+  "buildTestBox": [
+   "Test.set_box_radius"
+  ],
+  "captureScreenshot": [
+   "Screenshot.capture"
+  ],
+  "closeOpenScreenForTest": [
+   "Test.close_screen"
+  ],
+  "consumeCraftingIngredients": [
+   "BlockEntity.consume_crafting_ingredients"
+  ],
+  "countItemEntities": [
+   "Level.count_item_entities"
+  ],
+  "countItemInInventory": [
+   "BlockEntity.count_item_in_inventory"
+  ],
+  "createItemEntity": [
+   "item_entity"
+  ],
+  "createItemStack": [
+   "item_stack"
+  ],
+  "createResourceLocation": [
+   "resource_location"
+  ],
+  "dropInventory": [
+   "drop_inventory"
+  ],
+  "explode": [
+   "Level.explode"
+  ],
+  "extractItemFromInventory": [
+   "BlockEntity.extract_item_from_inventory"
+  ],
+  "findItemEntity": [
+   "Level.find_item_entity"
+  ],
+  "forgetSettledFrames": [
+   "Test.screen_open"
+  ],
+  "getBlock": [
+   "Level.get_block"
+  ],
+  "getBlockEntity": [
+   "Level.get_block_entity"
+  ],
+  "getBlockEntityLevel": [
+   "BlockEntity.level"
+  ],
+  "getBlockPosOfBlockEntity": [
+   "BlockEntity.block_pos"
+  ],
+  "getGrugModsDirectory": [
+   "RenderContext.draw_model",
+   "Test.set_mod_file_state"
+  ],
+  "getHeldItem": [
+   "Player.get_held_item"
+  ],
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ],
+  "getItemCountInSlot": [
+   "BlockEntity.get_item_count_in_slot"
+  ],
+  "getItemDamageInSlot": [
+   "BlockEntity.get_item_damage_in_slot"
+  ],
+  "getItemEntityDamage": [
+   "ItemEntity.damage"
+  ],
+  "getItemFromRegistry": [
+   "item"
+  ],
+  "getItemInSlot": [
+   "BlockEntity.get_item_in_slot"
+  ],
+  "getLevel": [
+   "Test.get_client_level"
+  ],
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getStackDamage": [
+   "BlockEntity.get_crafting_result_damage"
+  ],
+  "getStackItem": [
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getTestOrigin": [
+   "Test.get_origin"
+  ],
+  "getWorldTime": [
+   "Level.get_time"
+  ],
+  "hasNeighborSignal": [
+   "Level.has_neighbor_signal"
+  ],
+  "insertItemIntoInventory": [
+   "BlockEntity.insert_item_into_inventory"
+  ],
+  "isAir": [
+   "Level.is_air"
+  ],
+  "isScreenOpenForTest": [
+   "Test.screen_open"
+  ],
+  "isWorldSettled": [
+   "Test.world_settled"
+  ],
+  "miningCrackForTest": [
+   "Test.mining_crack"
+  ],
+  "nextRandomFloat": [
+   "Level.random_float"
+  ],
+  "nextRandomGaussian": [
+   "Level.random_gaussian"
+  ],
+  "nextRandomInt": [
+   "Level.random_int"
+  ],
+  "notifyNeighbors": [
+   "Test.notify_neighbors"
+  ],
+  "openGui": [
+   "GUI.open"
+  ],
+  "placeBlock": [
+   "Level.place_block"
+  ],
+  "redraw": [
+   "BlockEntity.redraw"
+  ],
+  "registersModRecipes": [
+   "Test.registers_mod_recipes"
+  ],
+  "roundTripNbt": [
+   "Test.round_trip_nbt"
+  ],
+  "setEntityDeltaMovement": [
+   "Entity.set_delta_movement"
+  ],
+  "setHeldItem": [
+   "Test.clear_held_item",
+   "Test.set_held_item"
+  ],
+  "setItemCountInSlot": [
+   "BlockEntity.set_item_count_in_slot"
+  ],
+  "setItemDamageInSlot": [
+   "BlockEntity.set_item_damage_in_slot"
+  ],
+  "setItemInSlot": [
+   "BlockEntity.set_item_in_slot"
+  ],
+  "setupGraphicsTestCamera": [
+   "Test.setup_graphics_camera"
+  ],
+  "spawnEntity": [
+   "Entity.spawn"
+  ],
+  "takeCraftingResult": [
+   "BlockEntity.take_crafting_result"
+  ],
+  "takeItemFromSlot": [
+   "BlockEntity.take_item_from_slot"
+  ],
+  "testPlayer": [
+   "Test.get_player"
+  ],
+  "tickBlockEntity": [
+   "Test.tick_block_entity"
+  ],
+  "updateRecipeOutput": [
+   "BlockEntity.update_recipe_output"
+  ],
+  "useBlockForTest": [
+   "Test.use_block"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/GrugBlockEntityNbtAccess.java": {
+  "add": [
+   "BlockEntity.add_item",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "print",
+   "print2",
+   "print3"
+  ],
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/block/GrugBlock.java": {
+  "getBlockEntity": [
+   "Level.get_block_entity"
+  ],
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/block/GrugBoxRenderer.java": {
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/block/entity/GrugBlockEntity.java": {
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/client/GrugClientHooks.java": {
+  "ticks": [
+   "Test.tick_block_entity",
+   "TestInitContext.set_max_ticks"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/client/GrugModelRenderer.java": {
+  "corners": [
+   "RenderContext.draw_box"
+  ],
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/client/GrugModsScreen.java": {
+  "model": [
+   "BlockInitContext.set_flat_lighting"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/client/GrugScreen.java": {
+  "open": [
+   "GUI.open",
+   "Test.screen_open"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/client/GrugStaticTexture.java": {
+  "pixels": [
+   "Screenshot.differs_from"
+  ],
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/grug/DummyCraftingInventory.java": {
+  "startSlot": [
+   "BlockEntity.consume_crafting_ingredients",
+   "BlockEntity.update_recipe_output",
+   "GUI.add_crafting_grid"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/grug/VanillaNames.java": {
+  "blockName": [
+   "Level.place_block"
+  ],
+  "itemId": [
+   "BlockEntity.add_item",
+   "BlockEntity.count_item_in_inventory",
+   "BlockEntity.extract_item_from_inventory",
+   "BlockEntity.insert_item_into_inventory",
+   "BlockEntity.set_item_in_slot",
+   "BlockEntity.set_saved_list_item",
+   "RenderFrameContext.draw_item",
+   "Test.set_held_item",
+   "Test.set_nbt_item",
+   "item_stack"
+  ],
+  "key": [
+   "BlockEntity.get_saved_list_number",
+   "BlockEntity.set_saved_list_number"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/mod_Grug.java": {
+  "load": [
+   "Test.load_nbt"
+  ]
+ },
+ "loaders/1.2.5-forge/src/main/java/net/minecraft/src/GrugTitleButton.java": {
+  "add": [
+   "BlockEntity.add_item",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "print",
+   "print2",
+   "print3"
+  ],
+  "has": [
+   "BlockEntity.redraw",
+   "GUI.open",
+   "Level.random_int",
+   "Option.has",
+   "Option.unwrap",
+   "Screenshot.capture",
+   "Test.stall",
+   "Test.tick_block_entity",
+   "Test.world_settled"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java": {
+  "assertScreenshotEquals": [
+   "Screenshot.equals"
+  ],
+  "buildTestBox": [
+   "Test.set_box_radius"
+  ],
+  "capture": [
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Screenshot.equals",
+   "Test.screenshot"
+  ],
+  "captureScreenshot": [
+   "Screenshot.capture"
+  ],
+  "closeOpenScreenForTest": [
+   "Test.close_screen"
+  ],
+  "consumeCraftingIngredients": [
+   "BlockEntity.consume_crafting_ingredients"
+  ],
+  "countItemEntities": [
+   "Level.count_item_entities"
+  ],
+  "countItemInInventory": [
+   "BlockEntity.count_item_in_inventory"
+  ],
+  "createItemEntity": [
+   "item_entity"
+  ],
+  "createItemStack": [
+   "item_stack"
+  ],
+  "createResourceLocation": [
+   "resource_location"
+  ],
+  "dropInventory": [
+   "drop_inventory"
+  ],
+  "explode": [
+   "Level.explode"
+  ],
+  "extractItemFromInventory": [
+   "BlockEntity.extract_item_from_inventory"
+  ],
+  "findItemEntity": [
+   "Level.find_item_entity"
+  ],
+  "forgetSettledFrames": [
+   "Test.screen_open"
+  ],
+  "getBlock": [
+   "Level.get_block"
+  ],
+  "getBlockEntity": [
+   "Level.get_block_entity"
+  ],
+  "getBlockEntityLevel": [
+   "BlockEntity.level"
+  ],
+  "getBlockPosOfBlockEntity": [
+   "BlockEntity.block_pos"
+  ],
+  "getGrugModsDirectory": [
+   "RenderContext.draw_model",
+   "Test.set_mod_file_state"
+  ],
+  "getHeldItem": [
+   "Player.get_held_item"
+  ],
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ],
+  "getItemCountInSlot": [
+   "BlockEntity.get_item_count_in_slot"
+  ],
+  "getItemDamageInSlot": [
+   "BlockEntity.get_item_damage_in_slot"
+  ],
+  "getItemEntityDamage": [
+   "ItemEntity.damage"
+  ],
+  "getItemFromRegistry": [
+   "item"
+  ],
+  "getItemInSlot": [
+   "BlockEntity.get_item_in_slot"
+  ],
+  "getLevel": [
+   "Test.get_client_level"
+  ],
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getStackDamage": [
+   "BlockEntity.get_crafting_result_damage"
+  ],
+  "getStackItem": [
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getTestOrigin": [
+   "Test.get_origin"
+  ],
+  "getWorldTime": [
+   "Level.get_time"
+  ],
+  "hasNeighborSignal": [
+   "Level.has_neighbor_signal"
+  ],
+  "insertItemIntoInventory": [
+   "BlockEntity.insert_item_into_inventory"
+  ],
+  "isAir": [
+   "Level.is_air"
+  ],
+  "isScreenOpenForTest": [
+   "Test.screen_open"
+  ],
+  "isWorldSettled": [
+   "Test.world_settled"
+  ],
+  "miningCrackForTest": [
+   "Test.mining_crack"
+  ],
+  "nextRandomFloat": [
+   "Level.random_float"
+  ],
+  "nextRandomGaussian": [
+   "Level.random_gaussian"
+  ],
+  "nextRandomInt": [
+   "Level.random_int"
+  ],
+  "notifyNeighbors": [
+   "Test.notify_neighbors"
+  ],
+  "openGui": [
+   "GUI.open"
+  ],
+  "placeBlock": [
+   "Level.place_block"
+  ],
+  "pos": [
+   "BlockEntity.block_pos",
+   "BlockPos.above_n",
+   "BlockPos.center"
+  ],
+  "redraw": [
+   "BlockEntity.redraw"
+  ],
+  "registersModRecipes": [
+   "Test.registers_mod_recipes"
+  ],
+  "roundTripNbt": [
+   "Test.round_trip_nbt"
+  ],
+  "setEntityDeltaMovement": [
+   "Entity.set_delta_movement"
+  ],
+  "setHeldItem": [
+   "Test.clear_held_item",
+   "Test.set_held_item"
+  ],
+  "setItemCountInSlot": [
+   "BlockEntity.set_item_count_in_slot"
+  ],
+  "setItemDamageInSlot": [
+   "BlockEntity.set_item_damage_in_slot"
+  ],
+  "setItemInSlot": [
+   "BlockEntity.set_item_in_slot"
+  ],
+  "setupGraphicsTestCamera": [
+   "Test.setup_graphics_camera"
+  ],
+  "spawnEntity": [
+   "Entity.spawn"
+  ],
+  "takeCraftingResult": [
+   "BlockEntity.take_crafting_result"
+  ],
+  "takeItemFromSlot": [
+   "BlockEntity.take_item_from_slot"
+  ],
+  "testPlayer": [
+   "Test.get_player"
+  ],
+  "tickBlockEntity": [
+   "Test.tick_block_entity"
+  ],
+  "updateRecipeOutput": [
+   "BlockEntity.update_recipe_output"
+  ],
+  "useBlockForTest": [
+   "Test.use_block"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugBlockEntityNbtAccess.java": {
+  "add": [
+   "BlockEntity.add_item",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "print",
+   "print2",
+   "print3"
+  ],
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ServerForgeAdapter.java": {
+  "getTestOrigin": [
+   "Test.get_origin"
+  ],
+  "testPlayer": [
+   "Test.get_player"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/block/GrugBakedModel.java": {
+  "corners": [
+   "RenderContext.draw_box"
+  ],
+  "reaches": [
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/block/GrugBlock.java": {
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/block/entity/GrugBlockEntity.java": {
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "setItem": [
+   "BlockEntity.set_saved_list_item"
+  ],
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/block/entity/GrugBlockEntityRenderer.java": {
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/gui/GrugModsScreen.java": {
+  "model": [
+   "BlockInitContext.set_flat_lighting"
+  ],
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/gui/GrugScreen.java": {
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/gui/GrugTitleButton.java": {
+  "open": [
+   "GUI.open",
+   "Test.screen_open"
+  ]
+ },
+ "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java": {
+  "assertScreenshotEquals": [
+   "Screenshot.equals"
+  ],
+  "blockName": [
+   "Level.place_block"
+  ],
+  "buildTestBox": [
+   "Test.set_box_radius"
+  ],
+  "captureScreenshot": [
+   "Screenshot.capture"
+  ],
+  "closeOpenScreenForTest": [
+   "Test.close_screen"
+  ],
+  "consumeCraftingIngredients": [
+   "BlockEntity.consume_crafting_ingredients"
+  ],
+  "countItemEntities": [
+   "Level.count_item_entities"
+  ],
+  "countItemInInventory": [
+   "BlockEntity.count_item_in_inventory"
+  ],
+  "createItemEntity": [
+   "item_entity"
+  ],
+  "createItemStack": [
+   "item_stack"
+  ],
+  "createResourceLocation": [
+   "resource_location"
+  ],
+  "dropInventory": [
+   "drop_inventory"
+  ],
+  "explode": [
+   "Level.explode"
+  ],
+  "extractItemFromInventory": [
+   "BlockEntity.extract_item_from_inventory"
+  ],
+  "findItemEntity": [
+   "Level.find_item_entity"
+  ],
+  "forgetSettledFrames": [
+   "Test.screen_open"
+  ],
+  "getBlock": [
+   "Level.get_block"
+  ],
+  "getBlockEntity": [
+   "Level.get_block_entity"
+  ],
+  "getBlockEntityLevel": [
+   "BlockEntity.level"
+  ],
+  "getBlockPosOfBlockEntity": [
+   "BlockEntity.block_pos"
+  ],
+  "getGrugModsDirectory": [
+   "RenderContext.draw_model",
+   "Test.set_mod_file_state"
+  ],
+  "getHeldItem": [
+   "Player.get_held_item"
+  ],
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ],
+  "getItemCountInSlot": [
+   "BlockEntity.get_item_count_in_slot"
+  ],
+  "getItemDamageInSlot": [
+   "BlockEntity.get_item_damage_in_slot"
+  ],
+  "getItemEntityDamage": [
+   "ItemEntity.damage"
+  ],
+  "getItemFromRegistry": [
+   "item"
+  ],
+  "getItemInSlot": [
+   "BlockEntity.get_item_in_slot"
+  ],
+  "getLevel": [
+   "Test.get_client_level"
+  ],
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getStackDamage": [
+   "BlockEntity.get_crafting_result_damage"
+  ],
+  "getStackItem": [
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getTestOrigin": [
+   "Test.get_origin"
+  ],
+  "getWorldTime": [
+   "Level.get_time"
+  ],
+  "hasNeighborSignal": [
+   "Level.has_neighbor_signal"
+  ],
+  "insertItemIntoInventory": [
+   "BlockEntity.insert_item_into_inventory"
+  ],
+  "isAir": [
+   "Level.is_air"
+  ],
+  "isScreenOpenForTest": [
+   "Test.screen_open"
+  ],
+  "isWorldSettled": [
+   "Test.world_settled"
+  ],
+  "miningCrackForTest": [
+   "Test.mining_crack"
+  ],
+  "nextRandomFloat": [
+   "Level.random_float"
+  ],
+  "nextRandomGaussian": [
+   "Level.random_gaussian"
+  ],
+  "nextRandomInt": [
+   "Level.random_int"
+  ],
+  "notifyNeighbors": [
+   "Test.notify_neighbors"
+  ],
+  "openGui": [
+   "GUI.open"
+  ],
+  "placeBlock": [
+   "Level.place_block"
+  ],
+  "redraw": [
+   "BlockEntity.redraw"
+  ],
+  "registersModRecipes": [
+   "Test.registers_mod_recipes"
+  ],
+  "roundTripNbt": [
+   "Test.round_trip_nbt"
+  ],
+  "setEntityDeltaMovement": [
+   "Entity.set_delta_movement"
+  ],
+  "setHeldItem": [
+   "Test.clear_held_item",
+   "Test.set_held_item"
+  ],
+  "setItemCountInSlot": [
+   "BlockEntity.set_item_count_in_slot"
+  ],
+  "setItemDamageInSlot": [
+   "BlockEntity.set_item_damage_in_slot"
+  ],
+  "setItemInSlot": [
+   "BlockEntity.set_item_in_slot"
+  ],
+  "setupGraphicsTestCamera": [
+   "Test.setup_graphics_camera"
+  ],
+  "spawnEntity": [
+   "Entity.spawn"
+  ],
+  "takeCraftingResult": [
+   "BlockEntity.take_crafting_result"
+  ],
+  "takeItemFromSlot": [
+   "BlockEntity.take_item_from_slot"
+  ],
+  "testPlayer": [
+   "Test.get_player"
+  ],
+  "tickBlockEntity": [
+   "Test.tick_block_entity"
+  ],
+  "updateRecipeOutput": [
+   "BlockEntity.update_recipe_output"
+  ],
+  "useBlockForTest": [
+   "Test.use_block"
+  ]
+ },
+ "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugBoxRenderer.java": {
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/block/entity/GrugBlockEntity.java": {
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "setItem": [
+   "BlockEntity.set_saved_list_item"
+  ],
+  "stack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ },
+ "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/client/GrugScreen.java": {
+  "open": [
+   "GUI.open",
+   "Test.screen_open"
+  ],
+  "texturePath": [
+   "gui"
+  ]
+ },
+ "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java": {
+  "assertScreenshotEquals": [
+   "Screenshot.equals"
+  ],
+  "blockName": [
+   "Level.place_block"
+  ],
+  "buildTestBox": [
+   "Test.set_box_radius"
+  ],
+  "captureScreenshot": [
+   "Screenshot.capture"
+  ],
+  "closeOpenScreenForTest": [
+   "Test.close_screen"
+  ],
+  "consumeCraftingIngredients": [
+   "BlockEntity.consume_crafting_ingredients"
+  ],
+  "countItemEntities": [
+   "Level.count_item_entities"
+  ],
+  "countItemInInventory": [
+   "BlockEntity.count_item_in_inventory"
+  ],
+  "createItemEntity": [
+   "item_entity"
+  ],
+  "createItemStack": [
+   "item_stack"
+  ],
+  "createResourceLocation": [
+   "resource_location"
+  ],
+  "dropInventory": [
+   "drop_inventory"
+  ],
+  "explode": [
+   "Level.explode"
+  ],
+  "extractItemFromInventory": [
+   "BlockEntity.extract_item_from_inventory"
+  ],
+  "findItemEntity": [
+   "Level.find_item_entity"
+  ],
+  "forgetSettledFrames": [
+   "Test.screen_open"
+  ],
+  "getBlock": [
+   "Level.get_block"
+  ],
+  "getBlockEntity": [
+   "Level.get_block_entity"
+  ],
+  "getBlockEntityLevel": [
+   "BlockEntity.level"
+  ],
+  "getBlockPosOfBlockEntity": [
+   "BlockEntity.block_pos"
+  ],
+  "getGrugModsDirectory": [
+   "RenderContext.draw_model",
+   "Test.set_mod_file_state"
+  ],
+  "getHeldItem": [
+   "Player.get_held_item"
+  ],
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ],
+  "getItemCountInSlot": [
+   "BlockEntity.get_item_count_in_slot"
+  ],
+  "getItemDamageInSlot": [
+   "BlockEntity.get_item_damage_in_slot"
+  ],
+  "getItemEntityDamage": [
+   "ItemEntity.damage"
+  ],
+  "getItemFromRegistry": [
+   "item"
+  ],
+  "getItemInSlot": [
+   "BlockEntity.get_item_in_slot"
+  ],
+  "getLevel": [
+   "Test.get_client_level"
+  ],
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getStackDamage": [
+   "BlockEntity.get_crafting_result_damage"
+  ],
+  "getStackItem": [
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getTestOrigin": [
+   "Test.get_origin"
+  ],
+  "getWorldTime": [
+   "Level.get_time"
+  ],
+  "hasNeighborSignal": [
+   "Level.has_neighbor_signal"
+  ],
+  "insertItemIntoInventory": [
+   "BlockEntity.insert_item_into_inventory"
+  ],
+  "isAir": [
+   "Level.is_air"
+  ],
+  "isScreenOpenForTest": [
+   "Test.screen_open"
+  ],
+  "isWorldSettled": [
+   "Test.world_settled"
+  ],
+  "itemStack": [
+   "item_stack"
+  ],
+  "miningCrackForTest": [
+   "Test.mining_crack"
+  ],
+  "nextRandomFloat": [
+   "Level.random_float"
+  ],
+  "nextRandomGaussian": [
+   "Level.random_gaussian"
+  ],
+  "nextRandomInt": [
+   "Level.random_int"
+  ],
+  "notifyNeighbors": [
+   "Test.notify_neighbors"
+  ],
+  "openGui": [
+   "GUI.open"
+  ],
+  "placeBlock": [
+   "Level.place_block"
+  ],
+  "redraw": [
+   "BlockEntity.redraw"
+  ],
+  "registersModRecipes": [
+   "Test.registers_mod_recipes"
+  ],
+  "roundTripNbt": [
+   "Test.round_trip_nbt"
+  ],
+  "setEntityDeltaMovement": [
+   "Entity.set_delta_movement"
+  ],
+  "setHeldItem": [
+   "Test.clear_held_item",
+   "Test.set_held_item"
+  ],
+  "setItemCountInSlot": [
+   "BlockEntity.set_item_count_in_slot"
+  ],
+  "setItemDamageInSlot": [
+   "BlockEntity.set_item_damage_in_slot"
+  ],
+  "setItemInSlot": [
+   "BlockEntity.set_item_in_slot"
+  ],
+  "setupGraphicsTestCamera": [
+   "Test.setup_graphics_camera"
+  ],
+  "spawnEntity": [
+   "Entity.spawn"
+  ],
+  "takeCraftingResult": [
+   "BlockEntity.take_crafting_result"
+  ],
+  "takeItemFromSlot": [
+   "BlockEntity.take_item_from_slot"
+  ],
+  "testPlayer": [
+   "Test.get_player"
+  ],
+  "tickBlockEntity": [
+   "Test.tick_block_entity"
+  ],
+  "updateRecipeOutput": [
+   "BlockEntity.update_recipe_output"
+  ],
+  "useBlockForTest": [
+   "Test.use_block"
+  ]
+ },
+ "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/ServerOrnitheAdapter.java": {
+  "getLevel": [
+   "Test.get_client_level"
+  ],
+  "getTestOrigin": [
+   "Test.get_origin"
+  ],
+  "testPlayer": [
+   "Test.get_player"
+  ]
+ },
+ "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugBoxRenderer.java": {
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/block/entity/GrugBlockEntity.java": {
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "setItem": [
+   "BlockEntity.set_saved_list_item"
+  ],
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ },
+ "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/client/GrugScreen.java": {
+  "open": [
+   "GUI.open",
+   "Test.screen_open"
+  ],
+  "texturePath": [
+   "gui"
+  ]
+ },
+ "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/inventory/DummyCraftingInventory.java": {
+  "setItem": [
+   "BlockEntity.set_saved_list_item"
+  ],
+  "startSlot": [
+   "BlockEntity.consume_crafting_ingredients",
+   "BlockEntity.update_recipe_output",
+   "GUI.add_crafting_grid"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/GrugBlockEntityNbtAccess.java": {
+  "add": [
+   "BlockEntity.add_item",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "print",
+   "print2",
+   "print3"
+  ],
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/GrugClientHooks.java": {
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/StationApiAdapter.java": {
+  "assertScreenshotEquals": [
+   "Screenshot.equals"
+  ],
+  "blockName": [
+   "Level.place_block"
+  ],
+  "buildTestBox": [
+   "Test.set_box_radius"
+  ],
+  "captureScreenshot": [
+   "Screenshot.capture"
+  ],
+  "closeOpenScreenForTest": [
+   "Test.close_screen"
+  ],
+  "consumeCraftingIngredients": [
+   "BlockEntity.consume_crafting_ingredients"
+  ],
+  "countItemEntities": [
+   "Level.count_item_entities"
+  ],
+  "countItemInInventory": [
+   "BlockEntity.count_item_in_inventory"
+  ],
+  "createItemEntity": [
+   "item_entity"
+  ],
+  "createItemStack": [
+   "item_stack"
+  ],
+  "createResourceLocation": [
+   "resource_location"
+  ],
+  "dropInventory": [
+   "drop_inventory"
+  ],
+  "explode": [
+   "Level.explode"
+  ],
+  "extractItemFromInventory": [
+   "BlockEntity.extract_item_from_inventory"
+  ],
+  "findItemEntity": [
+   "Level.find_item_entity"
+  ],
+  "forgetSettledFrames": [
+   "Test.screen_open"
+  ],
+  "getBlock": [
+   "Level.get_block"
+  ],
+  "getBlockEntity": [
+   "Level.get_block_entity"
+  ],
+  "getBlockEntityLevel": [
+   "BlockEntity.level"
+  ],
+  "getBlockPosOfBlockEntity": [
+   "BlockEntity.block_pos"
+  ],
+  "getGrugModsDirectory": [
+   "RenderContext.draw_model",
+   "Test.set_mod_file_state"
+  ],
+  "getHeldItem": [
+   "Player.get_held_item"
+  ],
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ],
+  "getItemCountInSlot": [
+   "BlockEntity.get_item_count_in_slot"
+  ],
+  "getItemDamageInSlot": [
+   "BlockEntity.get_item_damage_in_slot"
+  ],
+  "getItemEntityDamage": [
+   "ItemEntity.damage"
+  ],
+  "getItemFromRegistry": [
+   "item"
+  ],
+  "getItemInSlot": [
+   "BlockEntity.get_item_in_slot"
+  ],
+  "getLevel": [
+   "Test.get_client_level"
+  ],
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getStackDamage": [
+   "BlockEntity.get_crafting_result_damage"
+  ],
+  "getStackItem": [
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "getTestOrigin": [
+   "Test.get_origin"
+  ],
+  "getWorldTime": [
+   "Level.get_time"
+  ],
+  "hasNeighborSignal": [
+   "Level.has_neighbor_signal"
+  ],
+  "insertItemIntoInventory": [
+   "BlockEntity.insert_item_into_inventory"
+  ],
+  "isAir": [
+   "Level.is_air"
+  ],
+  "isScreenOpenForTest": [
+   "Test.screen_open"
+  ],
+  "isWorldSettled": [
+   "Test.world_settled"
+  ],
+  "miningCrackForTest": [
+   "Test.mining_crack"
+  ],
+  "nextRandomFloat": [
+   "Level.random_float"
+  ],
+  "nextRandomGaussian": [
+   "Level.random_gaussian"
+  ],
+  "nextRandomInt": [
+   "Level.random_int"
+  ],
+  "notifyNeighbors": [
+   "Test.notify_neighbors"
+  ],
+  "openGui": [
+   "GUI.open"
+  ],
+  "placeBlock": [
+   "Level.place_block"
+  ],
+  "redraw": [
+   "BlockEntity.redraw"
+  ],
+  "registersModRecipes": [
+   "Test.registers_mod_recipes"
+  ],
+  "roundTripNbt": [
+   "Test.round_trip_nbt"
+  ],
+  "setEntityDeltaMovement": [
+   "Entity.set_delta_movement"
+  ],
+  "setHeldItem": [
+   "Test.clear_held_item",
+   "Test.set_held_item"
+  ],
+  "setItemCountInSlot": [
+   "BlockEntity.set_item_count_in_slot"
+  ],
+  "setItemDamageInSlot": [
+   "BlockEntity.set_item_damage_in_slot"
+  ],
+  "setItemInSlot": [
+   "BlockEntity.set_item_in_slot"
+  ],
+  "setupGraphicsTestCamera": [
+   "Test.setup_graphics_camera"
+  ],
+  "spawnEntity": [
+   "Entity.spawn"
+  ],
+  "takeCraftingResult": [
+   "BlockEntity.take_crafting_result"
+  ],
+  "takeItemFromSlot": [
+   "BlockEntity.take_item_from_slot"
+  ],
+  "testPlayer": [
+   "Test.get_player"
+  ],
+  "tickBlockEntity": [
+   "Test.tick_block_entity"
+  ],
+  "updateRecipeOutput": [
+   "BlockEntity.update_recipe_output"
+  ],
+  "useBlockForTest": [
+   "Test.use_block"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/block/GrugBlock.java": {
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/block/GrugBoxRenderer.java": {
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/block/entity/GrugBlockEntity.java": {
+  "getResultStack": [
+   "BlockEntity.get_crafting_result_damage",
+   "BlockEntity.get_crafting_result_item"
+  ],
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ],
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/client/GrugFrameRenderer.java": {
+  "cameraYaw": [
+   "RenderFrameContext.camera_yaw"
+  ],
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/client/GrugModelRenderer.java": {
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/events/init/InitListener.java": {
+  "type": [
+   "Test.set_nbt_number"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/grug/DummyCraftingInventory.java": {
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ],
+  "startSlot": [
+   "BlockEntity.consume_crafting_ingredients",
+   "BlockEntity.update_recipe_output",
+   "GUI.add_crafting_grid"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/gui/GrugCraftingInventory.java": {
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ],
+  "startSlot": [
+   "BlockEntity.consume_crafting_ingredients",
+   "BlockEntity.update_recipe_output",
+   "GUI.add_crafting_grid"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/gui/GrugModsScreen.java": {
+  "model": [
+   "BlockInitContext.set_flat_lighting"
+  ],
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/resource/GrugResourcePack.java": {
+  "open": [
+   "GUI.open",
+   "Test.screen_open"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/GrugClientHooks.java": {
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/GrugVanillaNames.java": {
+  "names": [
+   "BlockEntityInitContext.set_power_receiver",
+   "BlockInitContext.set_block_entity",
+   "BlockInitContext.set_flat_lighting",
+   "Level.explode",
+   "vec3"
+  ],
+  "of": [
+   "RenderContext.draw_box",
+   "Screenshot.capture",
+   "Screenshot.differs_from",
+   "Test.screenshot"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugBlock.java": {
+  "getInventorySize": [
+   "BlockEntity.get_inventory_size",
+   "GUI.open"
+  ],
+  "use": [
+   "BlockUseContext.decline_use"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugBlockEntityNbtAccess.java": {
+  "add": [
+   "BlockEntity.add_item",
+   "GUI.add_crafting_grid",
+   "GUI.add_crafting_result",
+   "GUI.add_text",
+   "print",
+   "print2",
+   "print3"
+  ],
+  "size": [
+   "BlockEntity.get_saved_list_size",
+   "BlockInitContext.set_inventory_size"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugPowerNbt.java": {
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugSavedListsNbt.java": {
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugSavedNumbersNbt.java": {
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/client/GrugFrameRenderer.java": {
+  "cameraYaw": [
+   "RenderFrameContext.camera_yaw"
+  ],
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/client/GrugModelRenderer.java": {
+  "read": [
+   "Screenshot.differs_from"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/client/GrugModsScreen.java": {
+  "model": [
+   "BlockInitContext.set_flat_lighting"
+  ],
+  "render": [
+   "BlockEntity.redraw",
+   "BlockInitContext.set_custom_render"
+  ]
+ },
+ "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/client/GrugStaticTexture.java": {
+  "read": [
+   "Screenshot.differs_from"
+  ],
+  "tick": [
+   "Test.tick_block_entity"
+  ]
+ }
+}

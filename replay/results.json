@@ -1,0 +1,653 @@
+[
+ {
+  "number": 775,
+  "shape": "build/workflow",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": ".github/scripts/run-loader.sh is not inside a mod directory",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py"
+  ]
+ },
+ {
+  "number": 774,
+  "shape": "build/workflow",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": ".github/actions/setup-loader-build/action.yml is not inside a mod directory",
+  "paths": [
+   ".github/actions/setup-loader-build/action.yml",
+   ".github/workflows/build.yml",
+   "loaders/1.2.5-forge/.gitignore",
+   "loaders/1.2.5-forge/build.gradle"
+  ]
+ },
+ {
+  "number": 771,
+  "shape": "Java",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/core/GrugFrameRequest.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugFrameRequest.java",
+   "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugFrameRequestTest.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestRunnerTest.java",
+   "loaders/1.2.5-forge/build.gradle",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/client/GrugClientHooks.java",
+   "loaders/1.2.5-forge/tools/SkipFrame.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/GameRendererMixin.java",
+   "loaders/1.20.6-forge/src/main/resources/grug-1.20.6-forge.mixins.json",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/GameRendererMixin.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/GameRendererMixin.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/mixin/GameRendererMixin.java",
+   "mods/coverage/tests/runner_clear_b_hammers_client-Test.grug"
+  ]
+ },
+ {
+  "number": 762,
+  "shape": "Java",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/grug/GrugModsWatcher.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/grug/GrugModsWatcher.java",
+   "core/src/test/java/net/grug/minecraft/grug/GrugModsWatcherTest.java"
+  ]
+ },
+ {
+  "number": 761,
+  "shape": "build/workflow",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": ".github/scripts/reference-needed.py is not inside a mod directory",
+  "paths": [
+   ".github/scripts/reference-needed.py",
+   ".github/scripts/reference_needed_test.py"
+  ]
+ },
+ {
+  "number": 745,
+  "shape": "build/workflow",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": ".github/scripts/parallel_test_runner.py is not inside a mod directory",
+  "paths": [
+   ".github/scripts/parallel_test_runner.py",
+   ".github/scripts/parallel_test_runner_test.py",
+   ".github/scripts/run_loader_test.py",
+   ".github/workflows/build.yml"
+  ]
+ },
+ {
+  "number": 743,
+  "shape": "docs",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "AGENTS.md is not inside a mod directory",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 742,
+  "shape": "docs",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "AGENTS.md is not inside a mod directory",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 741,
+  "shape": "docs",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "AGENTS.md is not inside a mod directory",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 740,
+  "shape": "docs",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "AGENTS.md is not inside a mod directory",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 734,
+  "shape": "build/workflow",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": ".github/actions/setup-loader-build/action.yml is not inside a mod directory",
+  "paths": [
+   ".github/actions/setup-loader-build/action.yml"
+  ]
+ },
+ {
+  "number": 733,
+  "shape": "Java",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/core/GrugTestBox.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugTestBox.java",
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestBoxTest.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java"
+  ]
+ },
+ {
+  "number": 732,
+  "shape": "docs",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "AGENTS.md is not inside a mod directory",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 730,
+  "shape": "build/workflow",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": ".github/scripts/run-loader.sh is not inside a mod directory",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py"
+  ]
+ },
+ {
+  "number": 729,
+  "shape": "build/workflow",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": ".github/scripts/launch-production.sh is not inside a mod directory",
+  "paths": [
+   ".github/scripts/launch-production.sh",
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py",
+   ".github/workflows/build.yml",
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 727,
+  "shape": "Java",
+  "map": 168,
+  "ran": 168,
+  "all": 168,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestRunnerTest.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugModLoader.java",
+   "mods/coverage/tests/runner_first_tick-Test.grug",
+   "mods/coverage/tests/runner_stall_backlog-Test.grug"
+  ]
+ },
+ {
+  "number": 724,
+  "shape": "build/workflow",
+  "map": 167,
+  "ran": 167,
+  "all": 167,
+  "fallback": true,
+  "reason": ".github/actions/setup-loader-build/action.yml is not inside a mod directory",
+  "paths": [
+   ".github/actions/setup-loader-build/action.yml",
+   ".github/workflows/build.yml"
+  ]
+ },
+ {
+  "number": 723,
+  "shape": "host API",
+  "map": 167,
+  "ran": 167,
+  "all": 167,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/block/GrugBoxRenderer.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/mod_Grug.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/block/GrugBakedModel.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/block/entity/GrugBlockEntity.java",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugBoxRenderer.java",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/BlockRendererMixin.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugBoxRenderer.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/BlockRendererMixin.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/StationApiAdapter.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/block/GrugBoxRenderer.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/mixin/BlockRenderManagerMixin.java",
+   "mod_api.json",
+   "mod_api.md",
+   "mods/coverage/code/coverage_crack-Block.grug",
+   "mods/coverage/code/coverage_crack_entity-BlockEntity.grug",
+   "mods/coverage/tests/coverage_render_mining-Test.grug"
+  ]
+ },
+ {
+  "number": 722,
+  "shape": "Java",
+  "map": 166,
+  "ran": 166,
+  "all": 166,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/grug/Grug.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/grug/Grug.java",
+   "core/src/main/java/net/grug/minecraft/grug/GrugEntities.java",
+   "core/src/main/java/net/grug/minecraft/grug/GrugNative.java",
+   "core/src/main/native/adapter.c",
+   "core/src/test/java/net/grug/minecraft/grug/GrugEntitiesTest.java",
+   "mods/coverage/code/coverage_consumed_entity-BlockEntity.grug",
+   "mods/coverage/code/coverage_init_block_entity-BlockEntity.grug",
+   "mods/coverage/code/coverage_me_block-Block.grug",
+   "mods/coverage/code/coverage_me_block_entity-BlockEntity.grug",
+   "mods/coverage/code/coverage_neighbor_block_entity-BlockEntity.grug",
+   "mods/coverage/code/coverage_power_block_entity-BlockEntity.grug",
+   "mods/coverage/tests/block_entity_me-Test.grug"
+  ]
+ },
+ {
+  "number": 720,
+  "shape": "grug one mod: tests",
+  "map": 139,
+  "ran": 165,
+  "all": 165,
+  "fallback": false,
+  "reason": "",
+  "paths": [
+   "mods/coverage/tests/use_block_same_tick-Test.grug"
+  ]
+ },
+ {
+  "number": 718,
+  "shape": "build/workflow",
+  "map": 165,
+  "ran": 165,
+  "all": 165,
+  "fallback": true,
+  "reason": ".github/workflows/build.yml is not inside a mod directory",
+  "paths": [
+   ".github/workflows/build.yml"
+  ]
+ },
+ {
+  "number": 716,
+  "shape": "host API",
+  "map": 165,
+  "ran": 165,
+  "all": 165,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/core/GrugTickLockstep.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugTickLockstep.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTickLockstepTest.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugGameClock.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugModLoader.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/MinecraftTimerMixin.java",
+   "mod_api.json",
+   "mods/coverage/tests/runner_stall_backlog-Test.grug",
+   "mods/coverage/tests/use_block_same_tick-Test.grug"
+  ]
+ },
+ {
+  "number": 715,
+  "shape": "build/workflow",
+  "map": 164,
+  "ran": 164,
+  "all": 164,
+  "fallback": true,
+  "reason": ".github/scripts/run-loader.sh is not inside a mod directory",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py"
+  ]
+ },
+ {
+  "number": 714,
+  "shape": "build/workflow",
+  "map": 164,
+  "ran": 164,
+  "all": 164,
+  "fallback": true,
+  "reason": ".github/workflows/build.yml is not inside a mod directory",
+  "paths": [
+   ".github/workflows/build.yml"
+  ]
+ },
+ {
+  "number": 712,
+  "shape": "build/workflow",
+  "map": 164,
+  "ran": 164,
+  "all": 164,
+  "fallback": true,
+  "reason": ".github/scripts/run-loader.sh is not inside a mod directory",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   "core/build.gradle.kts",
+   "loaders/1.2.5-forge/build.gradle",
+   "loaders/1.20.6-forge/build.gradle",
+   "loaders/a1.1.2_01-ornithe/build.gradle",
+   "loaders/b1.7.3-stationapi/build.gradle.kts"
+  ]
+ },
+ {
+  "number": 711,
+  "shape": "build/workflow",
+  "map": 164,
+  "ran": 164,
+  "all": 164,
+  "fallback": true,
+  "reason": ".github/actions/setup-loader-build/action.yml is not inside a mod directory",
+  "paths": [
+   ".github/actions/setup-loader-build/action.yml"
+  ]
+ },
+ {
+  "number": 710,
+  "shape": "docs",
+  "map": 164,
+  "ran": 164,
+  "all": 164,
+  "fallback": true,
+  "reason": "AGENTS.md is not inside a mod directory",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 698,
+  "shape": "host API",
+  "map": 140,
+  "ran": 164,
+  "all": 164,
+  "fallback": false,
+  "reason": "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java serves ; core/src/test/java/net/grug/minecraft/grug/HostFunctionsStallTest.java is a Java unit test, which runs separately; mod_api.json only adds entries, so only coverage's tests are needed; mod_api.md is generated from mod_api.json, which decides the selection",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/grug/HostFunctionsStallTest.java",
+   "mod_api.json",
+   "mod_api.md",
+   "mods/buildcraft/tests/redstone_engine_wrench-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_wrench-Test.grug",
+   "mods/coverage/tests/decline_use_places-Test.grug",
+   "mods/coverage/tests/expect_stall_negative-Test.grug",
+   "mods/coverage/tests/expect_stall_too_long-Test.grug",
+   "mods/coverage/tests/use_block_same_tick-Test.grug"
+  ]
+ },
+ {
+  "number": 689,
+  "shape": "build/workflow",
+  "map": 162,
+  "ran": 162,
+  "all": 162,
+  "fallback": true,
+  "reason": ".github/scripts/run-loader.sh is not inside a mod directory",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py",
+   ".github/workflows/build.yml",
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 685,
+  "shape": "Java",
+  "map": 162,
+  "ran": 162,
+  "all": 162,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/core/GrugTestBox.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugTestBox.java",
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestBoxTest.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java"
+  ]
+ },
+ {
+  "number": 683,
+  "shape": "docs",
+  "map": 162,
+  "ran": 162,
+  "all": 162,
+  "fallback": true,
+  "reason": "AGENTS.md is not inside a mod directory",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 680,
+  "shape": "build/workflow",
+  "map": 162,
+  "ran": 162,
+  "all": 162,
+  "fallback": true,
+  "reason": ".github/scripts/reference-needed.py is not inside a mod directory",
+  "paths": [
+   ".github/scripts/reference-needed.py",
+   ".github/scripts/reference_needed_test.py",
+   ".github/workflows/build.yml",
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 679,
+  "shape": "host API",
+  "map": 162,
+  "ran": 162,
+  "all": 162,
+  "fallback": true,
+  "reason": ".github/scripts/combine-coverage.py is not inside a mod directory",
+  "paths": [
+   ".github/scripts/combine-coverage.py",
+   "AGENTS.md",
+   "core/src/main/java/net/grug/minecraft/core/GrugRenderSettle.java",
+   "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java",
+   "core/src/main/java/net/grug/minecraft/core/GrugTickLockstep.java",
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/main/java/net/grug/minecraft/grug/GrugTestState.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugRenderSettleTest.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestRunnerTest.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTickLockstepTest.java",
+   "core/src/test/java/net/grug/minecraft/grug/HostFunctionsTestInitContextTest.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugGameClock.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/MinecraftServerTickMixin.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/MinecraftTimerMixin.java",
+   "loaders/1.20.6-forge/src/main/resources/grug-1.20.6-forge.mixins.json",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/StationApiAdapter.java",
+   "mod_api.json",
+   "mod_api.md",
+   "mods/buildcraft/tests/autocrafting_table_pipe-Test.grug",
+   "mods/buildcraft/tests/demo_chain-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_damage-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_drop_damage-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_full_target-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_turn-Test.grug",
+   "mods/coverage/tests/game_speed-Test.grug",
+   "mods/coverage/tests/max_ticks_raised-Test.grug"
+  ]
+ },
+ {
+  "number": 676,
+  "shape": "grug one mod: tests",
+  "map": 137,
+  "ran": 162,
+  "all": 162,
+  "fallback": false,
+  "reason": "",
+  "paths": [
+   "mods/buildcraft/tests/demo_chain-Test.grug"
+  ]
+ },
+ {
+  "number": 673,
+  "shape": "build/workflow",
+  "map": 161,
+  "ran": 161,
+  "all": 161,
+  "fallback": true,
+  "reason": ".github/workflows/build.yml is not inside a mod directory",
+  "paths": [
+   ".github/workflows/build.yml",
+   "mods/coverage/tests/level_random-Test.grug"
+  ]
+ },
+ {
+  "number": 672,
+  "shape": "Java",
+  "map": 161,
+  "ran": 161,
+  "all": 161,
+  "fallback": true,
+  "reason": "core/src/main/java/net/grug/minecraft/core/GrugRenderSettle.java is Java that implements no host API entry",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugRenderSettle.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugRenderSettleTest.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java",
+   "mods/coverage/tests/light_update_queue-Test.grug"
+  ]
+ },
+ {
+  "number": 671,
+  "shape": "docs",
+  "map": 161,
+  "ran": 161,
+  "all": 161,
+  "fallback": true,
+  "reason": "AGENTS.md is not inside a mod directory",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 670,
+  "shape": "host API",
+  "map": 162,
+  "ran": 162,
+  "all": 162,
+  "fallback": true,
+  "reason": ".github/scripts/combine-coverage.py is not inside a mod directory",
+  "paths": [
+   ".github/scripts/combine-coverage.py",
+   "AGENTS.md",
+   "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java",
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/main/java/net/grug/minecraft/grug/GrugTestState.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestRunnerTest.java",
+   "core/src/test/java/net/grug/minecraft/grug/HostFunctionsTestInitContextTest.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugGameClock.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/MinecraftTimerMixin.java",
+   "loaders/1.20.6-forge/src/main/resources/grug-1.20.6-forge.mixins.json",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/MinecraftMixin.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/MinecraftMixin.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/GrugClientAccess.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/GrugClientHooks.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/StationApiAdapter.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/mixin/MinecraftMixin.java",
+   "mod_api.json",
+   "mod_api.md",
+   "mods/buildcraft/tests/autocrafting_table_pipe-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_damage-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_drop_damage-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_full_target-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_turn-Test.grug",
+   "mods/coverage/tests/game_speed-Test.grug",
+   "mods/coverage/tests/max_ticks_raised-Test.grug",
+   "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/GrugClientAccess.java",
+   "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/GrugClientHooks.java"
+  ]
+ },
+ {
+  "number": 667,
+  "shape": "build/workflow",
+  "map": 162,
+  "ran": 162,
+  "all": 162,
+  "fallback": true,
+  "reason": ".github/scripts/affected-mods.py is not inside a mod directory",
+  "paths": [
+   ".github/scripts/affected-mods.py",
+   ".github/scripts/affected_mods_test.py",
+   ".github/workflows/build.yml",
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 666,
+  "shape": "build/workflow",
+  "map": 162,
+  "ran": 162,
+  "all": 162,
+  "fallback": true,
+  "reason": ".github/scripts/watch-run.sh is not inside a mod directory",
+  "paths": [
+   ".github/scripts/watch-run.sh",
+   ".github/scripts/watch_run_test.py",
+   "AGENTS.md"
+  ]
+ }
+]

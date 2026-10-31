@@ -1,0 +1,573 @@
+[
+ {
+  "number": 775,
+  "title": "Run only the tasks a CI loader job needs, instead of build",
+  "mergedAt": "2026-10-31T08:45:14Z",
+  "base": "f9a674c86c26e0d9ef6df74e898dd5ade016deea",
+  "head": "5489e6b3f6acfe9b7364bd4e36c2dd93db6d35cd",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py"
+  ]
+ },
+ {
+  "number": 774,
+  "title": "Give 1.2.5-forge the build-state cache entries the other loaders have",
+  "mergedAt": "2026-10-31T07:16:27Z",
+  "base": "a92bb9d356039197277b060b9d129936b6106c11",
+  "head": "f9a674c86c26e0d9ef6df74e898dd5ade016deea",
+  "paths": [
+   ".github/actions/setup-loader-build/action.yml",
+   ".github/workflows/build.yml",
+   "loaders/1.2.5-forge/.gitignore",
+   "loaders/1.2.5-forge/build.gradle"
+  ]
+ },
+ {
+  "number": 771,
+  "title": "Draw only the frames a test asks for",
+  "mergedAt": "2026-10-31T06:08:47Z",
+  "base": "7f237ddcb999fcb0f2eca04e280a02a57e79c579",
+  "head": "a92bb9d356039197277b060b9d129936b6106c11",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugFrameRequest.java",
+   "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugFrameRequestTest.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestRunnerTest.java",
+   "loaders/1.2.5-forge/build.gradle",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/client/GrugClientHooks.java",
+   "loaders/1.2.5-forge/tools/SkipFrame.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/GameRendererMixin.java",
+   "loaders/1.20.6-forge/src/main/resources/grug-1.20.6-forge.mixins.json",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/GameRendererMixin.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/GameRendererMixin.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/mixin/GameRendererMixin.java",
+   "mods/coverage/tests/runner_clear_b_hammers_client-Test.grug"
+  ]
+ },
+ {
+  "number": 762,
+  "title": "Reload the client's resource packs only for a hot reload that changes an asset",
+  "mergedAt": "2026-10-31T02:32:11Z",
+  "base": "110a64b0637ecacd627215ba9ad700c9cfe7b9d2",
+  "head": "7f237ddcb999fcb0f2eca04e280a02a57e79c579",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/grug/GrugModsWatcher.java",
+   "core/src/test/java/net/grug/minecraft/grug/GrugModsWatcherTest.java"
+  ]
+ },
+ {
+  "number": 761,
+  "title": "Run the reference job only for what its harness stages",
+  "mergedAt": "2026-10-31T00:33:07Z",
+  "base": "6732282018b7e24704efd9dce520eb9bd5ab4e8a",
+  "head": "110a64b0637ecacd627215ba9ad700c9cfe7b9d2",
+  "paths": [
+   ".github/scripts/reference-needed.py",
+   ".github/scripts/reference_needed_test.py"
+  ]
+ },
+ {
+  "number": 745,
+  "title": "Run the core tests job's Python suites in parallel",
+  "mergedAt": "2026-10-30T23:22:05Z",
+  "base": "a9e044030b787ccb6e7aa397bb623fd5b0ea695b",
+  "head": "6732282018b7e24704efd9dce520eb9bd5ab4e8a",
+  "paths": [
+   ".github/scripts/parallel_test_runner.py",
+   ".github/scripts/parallel_test_runner_test.py",
+   ".github/scripts/run_loader_test.py",
+   ".github/workflows/build.yml"
+  ]
+ },
+ {
+  "number": 743,
+  "title": "Use the porting goal's scope in the words it was given in",
+  "mergedAt": "2026-10-30T21:02:51Z",
+  "base": "2327843af6019dd9c609155fd2373a0a2123252f",
+  "head": "a9e044030b787ccb6e7aa397bb623fd5b0ea695b",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 742,
+  "title": "Say the porting goal's real scope, which is every version and every loader",
+  "mergedAt": "2026-10-30T21:01:52Z",
+  "base": "f416c576be84c8024bc7cec2ccc1cd8cdd83bf79",
+  "head": "2327843af6019dd9c609155fd2373a0a2123252f",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 741,
+  "title": "State the porting goal's scope and what it means for judging a saving",
+  "mergedAt": "2026-10-30T21:00:46Z",
+  "base": "cba07d71dfe1c6cee6e428465b384429ec23f2c6",
+  "head": "f416c576be84c8024bc7cec2ccc1cd8cdd83bf79",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 740,
+  "title": "Say in AGENTS.md that a loader job restores its build state",
+  "mergedAt": "2026-10-30T19:58:12Z",
+  "base": "f3f75e9daf28481a973ad53af0d99ff5eb048bc4",
+  "head": "cba07d71dfe1c6cee6e428465b384429ec23f2c6",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 734,
+  "title": "Restore the project's build state in the loader jobs",
+  "mergedAt": "2026-10-30T18:09:09Z",
+  "base": "06acc73b63526e8a5bacab55ef184c35b00342b3",
+  "head": "f3f75e9daf28481a973ad53af0d99ff5eb048bc4",
+  "paths": [
+   ".github/actions/setup-loader-build/action.yml"
+  ]
+ },
+ {
+  "number": 733,
+  "title": "Relight once per room build on 1.2.5 instead of once per block",
+  "mergedAt": "2026-10-30T15:38:21Z",
+  "base": "d956642284cbf777e81e253acae59b4b6eb1f704",
+  "head": "06acc73b63526e8a5bacab55ef184c35b00342b3",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugTestBox.java",
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestBoxTest.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java"
+  ]
+ },
+ {
+  "number": 732,
+  "title": "Say in AGENTS.md that a subagent never closes an issue",
+  "mergedAt": "2026-10-30T13:45:35Z",
+  "base": "7c89fc5838f034df74c5e72d0ef4a47a59205602",
+  "head": "d956642284cbf777e81e253acae59b4b6eb1f704",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 730,
+  "title": "Retry one Gradle invocation when a dependency cannot be resolved",
+  "mergedAt": "2026-10-30T13:37:32Z",
+  "base": "8fc29bad769b5cebac742361e5ea3e95aec48166",
+  "head": "7c89fc5838f034df74c5e72d0ef4a47a59205602",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py"
+  ]
+ },
+ {
+  "number": 729,
+  "title": "Give a production install its own time limit, so a slow download no longer spends the game's",
+  "mergedAt": "2026-10-30T13:14:21Z",
+  "base": "5d9694067f335a0071897dc804528dd9d09f26c4",
+  "head": "8fc29bad769b5cebac742361e5ea3e95aec48166",
+  "paths": [
+   ".github/scripts/launch-production.sh",
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py",
+   ".github/workflows/build.yml",
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 727,
+  "title": "Drop the 1.20.6 runner ticks the client queued before a test started",
+  "mergedAt": "2026-10-30T12:15:28Z",
+  "base": "72e96bf1103274dc8f7acf8a69a1aeac0e917d18",
+  "head": "5d9694067f335a0071897dc804528dd9d09f26c4",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestRunnerTest.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugModLoader.java",
+   "mods/coverage/tests/runner_first_tick-Test.grug",
+   "mods/coverage/tests/runner_stall_backlog-Test.grug"
+  ]
+ },
+ {
+  "number": 724,
+  "title": "Cache the Gradle distributions once per OS and key each loader's caches on its own files",
+  "mergedAt": "2026-10-30T10:47:24Z",
+  "base": "0755a4f18ba89895faa576fba36e9c47ea4e4a42",
+  "head": "72e96bf1103274dc8f7acf8a69a1aeac0e917d18",
+  "paths": [
+   ".github/actions/setup-loader-build/action.yml",
+   ".github/workflows/build.yml"
+  ]
+ },
+ {
+  "number": 723,
+  "title": "Draw the mining crack on a custom-rendered block, and give 1.20.6 the quads its overlay needs",
+  "mergedAt": "2026-10-30T10:01:23Z",
+  "base": "3e5db4f2972a0a3cc88fe079616b0b754a40b947",
+  "head": "0755a4f18ba89895faa576fba36e9c47ea4e4a42",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/block/GrugBoxRenderer.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/mod_Grug.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/block/GrugBakedModel.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/block/entity/GrugBlockEntity.java",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugBoxRenderer.java",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/BlockRendererMixin.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/block/GrugBoxRenderer.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/BlockRendererMixin.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/StationApiAdapter.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/block/GrugBoxRenderer.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/mixin/BlockRenderManagerMixin.java",
+   "mod_api.json",
+   "mod_api.md",
+   "mods/coverage/code/coverage_crack-Block.grug",
+   "mods/coverage/code/coverage_crack_entity-BlockEntity.grug",
+   "mods/coverage/tests/coverage_render_mining-Test.grug"
+  ]
+ },
+ {
+  "number": 722,
+  "title": "Register a block entity's me when it is created, so an export finds it without a member-scope line",
+  "mergedAt": "2026-10-30T07:59:30Z",
+  "base": "50e2e5097c2f2e40e14cf799ce50a9c059c3f52c",
+  "head": "3e5db4f2972a0a3cc88fe079616b0b754a40b947",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/grug/Grug.java",
+   "core/src/main/java/net/grug/minecraft/grug/GrugEntities.java",
+   "core/src/main/java/net/grug/minecraft/grug/GrugNative.java",
+   "core/src/main/native/adapter.c",
+   "core/src/test/java/net/grug/minecraft/grug/GrugEntitiesTest.java",
+   "mods/coverage/code/coverage_consumed_entity-BlockEntity.grug",
+   "mods/coverage/code/coverage_init_block_entity-BlockEntity.grug",
+   "mods/coverage/code/coverage_me_block-Block.grug",
+   "mods/coverage/code/coverage_me_block_entity-BlockEntity.grug",
+   "mods/coverage/code/coverage_neighbor_block_entity-BlockEntity.grug",
+   "mods/coverage/code/coverage_power_block_entity-BlockEntity.grug",
+   "mods/coverage/tests/block_entity_me-Test.grug"
+  ]
+ },
+ {
+  "number": 720,
+  "title": "Remove use_block_same_tick's 1500 ms stall, which no length of it can make fail without the fix after #709",
+  "mergedAt": "2026-10-30T06:08:43Z",
+  "base": "30f11ce9b740a427ecf4494df16a39a631c40269",
+  "head": "50e2e5097c2f2e40e14cf799ce50a9c059c3f52c",
+  "paths": [
+   "mods/coverage/tests/use_block_same_tick-Test.grug"
+  ]
+ },
+ {
+  "number": 718,
+  "title": "Install only the packages the runner image lacks in the Install dependencies step",
+  "mergedAt": "2026-10-30T04:00:25Z",
+  "base": "9185fbc9cad4a34ba232983c73225a08859cbc3b",
+  "head": "30f11ce9b740a427ecf4494df16a39a631c40269",
+  "paths": [
+   ".github/workflows/build.yml"
+  ]
+ },
+ {
+  "number": 716,
+  "title": "Coalesce the 1.20.6 runner's ticks so a stall of the server thread cannot replay them",
+  "mergedAt": "2026-10-30T02:46:49Z",
+  "base": "d7c35b88512b6392ddf1b702548ef6f9cb70569c",
+  "head": "9185fbc9cad4a34ba232983c73225a08859cbc3b",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugTickLockstep.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTickLockstepTest.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugGameClock.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugModLoader.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/MinecraftTimerMixin.java",
+   "mod_api.json",
+   "mods/coverage/tests/runner_stall_backlog-Test.grug",
+   "mods/coverage/tests/use_block_same_tick-Test.grug"
+  ]
+ },
+ {
+  "number": 715,
+  "title": "Retry a loader's Gradle invocation once when it failed on a download",
+  "mergedAt": "2026-10-30T00:54:18Z",
+  "base": "f22f23056de2bf8952f60543436db75e0fa9533b",
+  "head": "d7c35b88512b6392ddf1b702548ef6f9cb70569c",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py"
+  ]
+ },
+ {
+  "number": 714,
+  "title": "Take the workflow file out of the grug-rs library cache's key, so a CI pull request starts its loader jobs sooner",
+  "mergedAt": "2026-10-30T00:31:42Z",
+  "base": "c99bd0d6d0be1973856c5112b5b97bcb6735ae71",
+  "head": "f22f23056de2bf8952f60543436db75e0fa9533b",
+  "paths": [
+   ".github/workflows/build.yml"
+  ]
+ },
+ {
+  "number": 712,
+  "title": "Skip incremental Java compilation in CI and run Gradle's projects in parallel",
+  "mergedAt": "2026-10-29T23:45:49Z",
+  "base": "615b92cbc1576d64adb563035530756a0e788fbf",
+  "head": "c99bd0d6d0be1973856c5112b5b97bcb6735ae71",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   "core/build.gradle.kts",
+   "loaders/1.2.5-forge/build.gradle",
+   "loaders/1.20.6-forge/build.gradle",
+   "loaders/a1.1.2_01-ornithe/build.gradle",
+   "loaders/b1.7.3-stationapi/build.gradle.kts"
+  ]
+ },
+ {
+  "number": 711,
+  "title": "Restore a primed Gradle user home in the loader jobs",
+  "mergedAt": "2026-10-29T22:21:49Z",
+  "base": "3a62820b276fc1e765cd016d1bf3a1f81b09433d",
+  "head": "615b92cbc1576d64adb563035530756a0e788fbf",
+  "paths": [
+   ".github/actions/setup-loader-build/action.yml"
+  ]
+ },
+ {
+  "number": 710,
+  "title": "Say that a time saving needs as many runs as it takes to show it significant, not a fixed 10",
+  "mergedAt": "2026-10-29T21:47:14Z",
+  "base": "473fd465199b56fc9bf9bd2cb0f482671980b100",
+  "head": "3a62820b276fc1e765cd016d1bf3a1f81b09433d",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 698,
+  "title": "Make the 1.20.6 tests that wait for a packet wait for the condition, and add Test.stall to prove it",
+  "mergedAt": "2026-10-29T20:35:28Z",
+  "base": "e771db6d8bf4a919f59ad278177a932114e31ecf",
+  "head": "473fd465199b56fc9bf9bd2cb0f482671980b100",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/grug/HostFunctionsStallTest.java",
+   "mod_api.json",
+   "mod_api.md",
+   "mods/buildcraft/tests/redstone_engine_wrench-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_wrench-Test.grug",
+   "mods/coverage/tests/decline_use_places-Test.grug",
+   "mods/coverage/tests/expect_stall_negative-Test.grug",
+   "mods/coverage/tests/expect_stall_too_long-Test.grug",
+   "mods/coverage/tests/use_block_same_tick-Test.grug"
+  ]
+ },
+ {
+  "number": 689,
+  "title": "Build and run each loader job in one Gradle invocation",
+  "mergedAt": "2026-10-29T19:00:32Z",
+  "base": "84cb28cadfc700ae88122cc257c977f896944e2d",
+  "head": "e771db6d8bf4a919f59ad278177a932114e31ecf",
+  "paths": [
+   ".github/scripts/run-loader.sh",
+   ".github/scripts/run_loader_test.py",
+   ".github/workflows/build.yml",
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 685,
+  "title": "Leave the test room in place on 1.2.5 when it is already whole",
+  "mergedAt": "2026-10-29T14:33:50Z",
+  "base": "24ee811a00df3d749a7626e593868d22b9baa86c",
+  "head": "84cb28cadfc700ae88122cc257c977f896944e2d",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugTestBox.java",
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestBoxTest.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java"
+  ]
+ },
+ {
+  "number": 683,
+  "title": "State in AGENTS.md how a time saving is proven",
+  "mergedAt": "2026-10-29T11:25:41Z",
+  "base": "2d9f087ad4ed9451548b790f97cb4b55be15fe11",
+  "head": "24ee811a00df3d749a7626e593868d22b9baa86c",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 680,
+  "title": "Skip the reference job when a pull request changes only other mods and other loaders",
+  "mergedAt": "2026-10-29T11:06:16Z",
+  "base": "7b5affe2aa953d86e115753c178a1ddfa7658306",
+  "head": "2d9f087ad4ed9451548b790f97cb4b55be15fe11",
+  "paths": [
+   ".github/scripts/reference-needed.py",
+   ".github/scripts/reference_needed_test.py",
+   ".github/workflows/build.yml",
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 679,
+  "title": "Run every test at the maximum game speed by default",
+  "mergedAt": "2026-10-29T10:44:13Z",
+  "base": "6051a8443e2b58cc7e7ebb83d84447454bde48b8",
+  "head": "7b5affe2aa953d86e115753c178a1ddfa7658306",
+  "paths": [
+   ".github/scripts/combine-coverage.py",
+   "AGENTS.md",
+   "core/src/main/java/net/grug/minecraft/core/GrugRenderSettle.java",
+   "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java",
+   "core/src/main/java/net/grug/minecraft/core/GrugTickLockstep.java",
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/main/java/net/grug/minecraft/grug/GrugTestState.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugRenderSettleTest.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestRunnerTest.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTickLockstepTest.java",
+   "core/src/test/java/net/grug/minecraft/grug/HostFunctionsTestInitContextTest.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugGameClock.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/MinecraftServerTickMixin.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/MinecraftTimerMixin.java",
+   "loaders/1.20.6-forge/src/main/resources/grug-1.20.6-forge.mixins.json",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/StationApiAdapter.java",
+   "mod_api.json",
+   "mod_api.md",
+   "mods/buildcraft/tests/autocrafting_table_pipe-Test.grug",
+   "mods/buildcraft/tests/demo_chain-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_damage-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_drop_damage-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_full_target-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_turn-Test.grug",
+   "mods/coverage/tests/game_speed-Test.grug",
+   "mods/coverage/tests/max_ticks_raised-Test.grug"
+  ]
+ },
+ {
+  "number": 676,
+  "title": "Wait for demo_chain's reference side on a faster game clock",
+  "mergedAt": "2026-10-29T08:07:04Z",
+  "base": "2b37192f889aed429e186665130c117a082b674b",
+  "head": "6051a8443e2b58cc7e7ebb83d84447454bde48b8",
+  "paths": [
+   "mods/buildcraft/tests/demo_chain-Test.grug"
+  ]
+ },
+ {
+  "number": 673,
+  "title": "Act on the valid CodeRabbit findings of the merged pull requests",
+  "mergedAt": "2026-10-29T07:33:46Z",
+  "base": "d3e7943f22ef17de2d41339d4f25d5232fb9ce64",
+  "head": "a5d45f57e38d374bfea6fbfd84ec44124962beed",
+  "paths": [
+   ".github/workflows/build.yml",
+   "mods/coverage/tests/level_random-Test.grug"
+  ]
+ },
+ {
+  "number": 672,
+  "title": "Cover the light settle rule with a unit test instead of a timing window",
+  "mergedAt": "2026-10-29T07:22:13Z",
+  "base": "93aaa859e522e5054d7b1edcb68eff17a7ab6262",
+  "head": "d3e7943f22ef17de2d41339d4f25d5232fb9ce64",
+  "paths": [
+   "core/src/main/java/net/grug/minecraft/core/GrugRenderSettle.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugRenderSettleTest.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java",
+   "mods/coverage/tests/light_update_queue-Test.grug"
+  ]
+ },
+ {
+  "number": 671,
+  "title": "Add the overnight run's lessons to AGENTS.md",
+  "mergedAt": "2026-10-29T07:40:30Z",
+  "base": "a5d45f57e38d374bfea6fbfd84ec44124962beed",
+  "head": "7a6b8f9028424f2db01db9b05bab689a7e62a427",
+  "paths": [
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 670,
+  "title": "Let a test run the game's clock faster than real time",
+  "mergedAt": "2026-10-29T07:58:18Z",
+  "base": "7a6b8f9028424f2db01db9b05bab689a7e62a427",
+  "head": "2b37192f889aed429e186665130c117a082b674b",
+  "paths": [
+   ".github/scripts/combine-coverage.py",
+   "AGENTS.md",
+   "core/src/main/java/net/grug/minecraft/core/GrugTestRunner.java",
+   "core/src/main/java/net/grug/minecraft/core/ModLoaderAdapter.java",
+   "core/src/main/java/net/grug/minecraft/grug/GrugTestState.java",
+   "core/src/main/java/net/grug/minecraft/grug/HostFunctions.java",
+   "core/src/test/java/net/grug/minecraft/core/GrugTestRunnerTest.java",
+   "core/src/test/java/net/grug/minecraft/grug/HostFunctionsTestInitContextTest.java",
+   "loaders/1.2.5-forge/src/main/java/net/grug/minecraft/forge125/Grug125Adapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/ForgeAdapter.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/GrugGameClock.java",
+   "loaders/1.20.6-forge/src/main/java/net/grug/minecraft/forge/mixin/MinecraftTimerMixin.java",
+   "loaders/1.20.6-forge/src/main/resources/grug-1.20.6-forge.mixins.json",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/a1.1.2_01-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/MinecraftMixin.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/OrnitheAdapter.java",
+   "loaders/b1.7.3-ornithe/src/main/java/net/grug/minecraft/ornithe/mixin/MinecraftMixin.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/GrugClientAccess.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/GrugClientHooks.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/StationApiAdapter.java",
+   "loaders/b1.7.3-stationapi/src/main/java/net/grug/minecraft/stationapi/mixin/MinecraftMixin.java",
+   "mod_api.json",
+   "mod_api.md",
+   "mods/buildcraft/tests/autocrafting_table_pipe-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_damage-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_drop_damage-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_full_target-Test.grug",
+   "mods/buildcraft/tests/wooden_pipe_turn-Test.grug",
+   "mods/coverage/tests/game_speed-Test.grug",
+   "mods/coverage/tests/max_ticks_raised-Test.grug",
+   "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/GrugClientAccess.java",
+   "shared/ornithe/src/main/java/net/grug/minecraft/ornithe/GrugClientHooks.java"
+  ]
+ },
+ {
+  "number": 667,
+  "title": "Run only the tests of the mods a pull request can affect",
+  "mergedAt": "2026-10-29T06:26:22Z",
+  "base": "809cc1c4b3e15d20427e176ff1e1e2a50aa19e15",
+  "head": "93aaa859e522e5054d7b1edcb68eff17a7ab6262",
+  "paths": [
+   ".github/scripts/affected-mods.py",
+   ".github/scripts/affected_mods_test.py",
+   ".github/workflows/build.yml",
+   "AGENTS.md"
+  ]
+ },
+ {
+  "number": 666,
+  "title": "Let watch-run.sh survive a failed poll",
+  "mergedAt": "2026-10-29T05:59:19Z",
+  "base": "3fe0e580c10ee5d45b147b12f35ad3ce9692a394",
+  "head": "809cc1c4b3e15d20427e176ff1e1e2a50aa19e15",
+  "paths": [
+   ".github/scripts/watch-run.sh",
+   ".github/scripts/watch_run_test.py",
+   "AGENTS.md"
+  ]
+ }
+]
