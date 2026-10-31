@@ -45,9 +45,11 @@ public final class GrugRecipeParser {
     /**
      * Registers every recipe in the mods tree that this loader can register.
      *
-     * <p>A recipe grug cannot register is reported and left out rather than logged and skipped, so
-     * the run fails on a mod that ships a recipe its players cannot craft, and the rest of the tree
-     * still loads.
+     * <p>A recipe is left out when it names an item this loader does not have, and reported only
+     * when the missing item is in the mod's own namespace, so the run fails on a mod that names one
+     * of its own items that never registered. A missing {@code minecraft} or other-mod item is the
+     * ok outcome: a mod written for a modern version cannot know what an old one lacks, so the
+     * recipe is simply not registered here, and the rest of the tree still loads.
      */
     public static void registerAll(File grugModsDir) {
         ModLoaderAdapter adapter = GrugCore.getAdapter();
@@ -92,7 +94,7 @@ public final class GrugRecipeParser {
                         + "' recipe, which grug does not know how to register.");
     }
 
-    /** Builds one recipe's output and ingredients, or reports and returns null. */
+    /** Builds one recipe's output and ingredients, or returns null once the recipe is dropped. */
     private static ParsedRecipe parse(
             GrugRecipeTree.Recipe recipe, ModLoaderAdapter adapter, File grugModsDir) {
         Object[] inputs = inputs(recipe, adapter, grugModsDir);
@@ -131,7 +133,7 @@ public final class GrugRecipeParser {
     }
 
     /**
-     * The game object an ingredient names, or null once the reason has been reported.
+     * The game object an ingredient names, or null once the recipe has been dropped.
      *
      * <p>An ingredient a tag names resolves to the one item that fills it, which is what a crafting
      * registration can hold: grug takes a single object per slot rather than a set to match
@@ -163,32 +165,49 @@ public final class GrugRecipeParser {
 
         Object item = adapter.getItemFromRegistry(adapter.createResourceLocation(itemId));
         if (item == null) {
-            GrugModTreeDefect.report(
-                    "Recipe '"
-                            + recipePath
-                            + "' needs the item '"
-                            + itemId
-                            + "', which this loader does not know.");
+            reportOwnItemIfNeeded(recipePath, itemId, "needs the item");
         }
         return item;
     }
 
-    /** The recipe's output stack, or null once a result nothing resolves to has been reported. */
+    /** The recipe's output stack, or null once the recipe has been dropped. */
     private static ItemStack buildResult(
             ModLoaderAdapter adapter, String resultId, int count, String recipePath) {
         Object resultItem = adapter.getItemFromRegistry(adapter.createResourceLocation(resultId));
         if (resultItem == null) {
-            GrugModTreeDefect.report(
-                    "Recipe '"
-                            + recipePath
-                            + "' gives '"
-                            + resultId
-                            + "', which this loader does not know.");
+            reportOwnItemIfNeeded(recipePath, resultId, "gives");
             return null;
         }
 
         ItemStack resultStack = (ItemStack) adapter.createItemStack(resultItem, 0);
         resultStack.stackSize = count;
         return resultStack;
+    }
+
+    /**
+     * Reports an unknown item only when it is one the mod cannot lack, and says nothing otherwise.
+     *
+     * <p>{@code verb} is the half of the report's sentence that differs between an ingredient
+     * ({@code "needs the item"}) and a result ({@code "gives"}).
+     *
+     * <p>An unknown name from {@code minecraft} or another mod is an item this version may simply
+     * not have, so the recipe that names it is dropped rather than reported: a mod written for a
+     * modern version cannot know what an old one lacks. A name in the mod's own {@code grug}
+     * namespace is different, because a mod cannot lack its own item: one of its files failed to
+     * register, so the run fails on it.
+     */
+    private static void reportOwnItemIfNeeded(String recipePath, String itemId, String verb) {
+        int separator = itemId.indexOf(':');
+        String namespace = separator < 0 ? "minecraft" : itemId.substring(0, separator);
+        if (!"grug".equals(namespace)) return;
+        GrugModTreeDefect.report(
+                "Recipe '"
+                        + recipePath
+                        + "' "
+                        + verb
+                        + " '"
+                        + itemId
+                        + "', which this loader does not"
+                        + " know.");
     }
 }

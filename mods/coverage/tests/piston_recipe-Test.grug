@@ -1,0 +1,54 @@
+# A recipe that names an item the running loader does not have (Alpha 1.1.2_01 has no piston) is
+# not registered on that loader, silently, rather than reported as a mod-tree defect: a mod written
+# for a modern version cannot know what an old one lacks. Where the loader has the item, the recipe
+# registers and crafts; where it does not, the recipe does not exist.
+# Band 12 is free: the recipe and coverage tests use 0, 5, 10, 15, 20, 25, 30, 35, 40, 45 and 50.
+export tick(ctx: TestTickContext) {
+    # A loader that registers no mod recipe answers the grid with nothing too, so the loader is
+    # asked rather than assumed.
+    if not Test.registers_mod_recipes() {
+        return
+    }
+
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 12
+    z: number = origin.z()
+
+    piston: Item = item(resource_location("minecraft:piston"))
+    ingot: Item = item(resource_location("minecraft:iron_ingot"))
+
+    be: BlockEntity = _grid(ctx, level, x, y, z)
+
+    # Whether this loader knows the piston, asked the way registry_lookups asks: an item the registry
+    # lacks reads back as an empty record.
+    record: number = be.append_saved_list_record("piston")
+    be.set_saved_list_item("piston", record, piston)
+    has_piston: bool = be.get_saved_list_item("piston", record).has()
+
+    # The two iron ingots always go in; the piston goes in only where the loader has it, because a
+    # name the loader lacks resolves to no item, and a null item does not go in a slot.
+    be.set_item_in_slot(1, ingot, 1)
+    be.set_item_in_slot(2, ingot, 1)
+    if has_piston {
+        be.set_item_in_slot(0, piston, 1)
+    }
+    be.update_recipe_output(0)
+    result: Option[Item] = be.get_crafting_result_item()
+
+    if has_piston {
+        ctx.assert(result.has(), "Where the loader has the piston, the recipe that names it should register.")
+    } else {
+        ctx.assert(not result.has(), "Where the loader lacks the piston, the recipe that names it should not register.")
+    }
+}
+
+# The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
+# the block to place rather than a chest or the autocrafting table.
+local _grid(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    level.place_block(x, y, z, "grug:coverage_block")
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The coverage block should have a block entity after being placed.")
+    return found.unwrap()
+}

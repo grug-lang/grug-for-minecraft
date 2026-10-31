@@ -47,6 +47,10 @@ On first launch grug creates a `grug_mods/` folder in the game directory and ins
 mod, `examplemod`, into it. The other bundled mods stay in the jar until you turn them on from the
 **Grug Mods** button on the title screen, and take effect after a restart.
 
+A recipe a mod ships may not exist on an older version of Minecraft, because the item it names is
+not there on that version. That item has to be obtained another way instead, such as a future item
+viewer (NEI) on a version with no creative inventory.
+
 Only Linux is supported for now. Windows is tracked in
 https://github.com/grug-lang/grug-for-minecraft/issues/491 and macOS in
 https://github.com/grug-lang/grug-for-minecraft/issues/492.
