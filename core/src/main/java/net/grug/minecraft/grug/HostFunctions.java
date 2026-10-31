@@ -103,6 +103,21 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: proves that a block id above 255 survives the game's own chunk save and load, and
+     * that the loader's block-id search reaches such an id once the ids below are used up.
+     *
+     * <p>The work happens in the loader: 1.2.5's search must spill from its low range into the ids
+     * above 255 when a pack uses the low range up, and the id it then hands out has to come back
+     * through the save's 12-bit form. The answer is the id the test block got, so the test can
+     * check it is one of the high ones rather than take the round trip on its own word; a loader
+     * whose block ids never reach above 255 has no such id to round trip, and answers -1, which is
+     * a no-op rather than an err. See #518.
+     */
+    public static double Test_high_block_round_trip() {
+        return GrugCore.getAdapter().highBlockRoundTrip();
+    }
+
+    /**
      * Test only: runs a grug block entity's tick {@code ticks} times in a row, within the one game
      * tick the test is in.
      *

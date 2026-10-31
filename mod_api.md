@@ -68,6 +68,7 @@ Test.force_gc()
 Test.get_client_level() Level
 Test.get_origin() Vec3
 Test.get_player() Player
+Test.high_block_round_trip() number
 Test.hot_reload_count(relative_path: string) number
 Test.is_reference() bool
 Test.load_nbt(block_entity: BlockEntity)

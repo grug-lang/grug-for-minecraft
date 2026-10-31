@@ -21,6 +21,7 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
@@ -29,13 +30,16 @@ import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.Block;
+import net.minecraft.src.Chunk;
 import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.IChunkLoader;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
+import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.MovingObjectPosition;
 import net.minecraft.src.NBTTagCompound;
@@ -48,8 +52,10 @@ import net.minecraft.src.WorldRenderer;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -1029,6 +1035,150 @@ public class Grug125Adapter implements ModLoaderAdapter {
         NBTTagCompound nbt = new NBTTagCompound();
         be.writeToNBT(nbt);
         be.readFromNBT(nbt);
+    }
+
+    /**
+     * The name the test block registers under. No mod ships it, so the tables the block takes are
+     * grug's own, as if registration had registered it.
+     */
+    private static final String HIGH_BLOCK_ID = "grug:zz_high_block_round_trip";
+
+    /** A file id no mod ships, for the test block that takes one. */
+    private static final long HIGH_BLOCK_FILE_ID = -2L;
+
+    /**
+     * Test only: proves the block-id search spills into the ids above 255 and that an id it hands
+     * out survives the game's own chunk save and load.
+     *
+     * <p>The pack's other mods have used up the low range by the time a grug block overruns it
+     * (#509), which is the case this test makes happen on purpose: every low id it leaves free is
+     * taken with a stand-in, and the id the test block gets then comes from the same pool the
+     * registration takes its own from. Without a search that continues at {@link
+     * GrugBlocks#FIRST_HIGH_BLOCK_ID} that pool is empty, which is the failure. The block takes the
+     * id for real: it is registered in the tables the way registration registers it, placed in the
+     * room the tests run in, saved with the game's own chunk loader, and the id is read back out of
+     * the chunk the loader loaded, so it came back through the save's 12-bit id rather than out of
+     * a field. See #518 and the measurement in #513.
+     */
+    @Override
+    public long highBlockRoundTrip() {
+        World world = ModLoader.getMinecraftInstance().theWorld;
+        if (world == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.high_block_round_trip: There is no level to test in yet.");
+            return -1L;
+        }
+
+        Vec3 origin = getTestOrigin();
+        int ox = (int) Math.floor(origin.x());
+        int oy = (int) Math.floor(origin.y());
+        int oz = (int) Math.floor(origin.z());
+
+        // Every low id the pack's other mods left free is taken now, the overrun #509 hit. The
+        // stand-ins are items only, because a block's id and its item's sit in the same slot of
+        // the two tables the search looks at, and an item is the smaller of the two to set aside.
+        List<Integer> standIns = new ArrayList<>();
+        for (int id = GrugBlocks.START_BLOCK_ID; id <= GrugBlocks.LAST_BLOCK_ID; id++) {
+            if (Block.blocksList[id] == null && Item.itemsList[id] == null) {
+                Item.itemsList[id] = new GrugItem(id - 256, Grug.INVALID_GRUG_FILE_ID);
+                standIns.add(id);
+            }
+        }
+
+        // The pool registration takes ids from, with the low range used up: only a search that
+        // continues above 255 has a free id to hand out.
+        GrugIdPool pool = GrugBlocks.blockIdPool();
+        if (pool.remaining() < 1) {
+            releaseStandIns(standIns);
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.high_block_round_trip: every id from "
+                            + GrugBlocks.START_BLOCK_ID
+                            + " to "
+                            + GrugBlocks.LAST_BLOCK_ID
+                            + " is used and the block-id search found no free id above it, so a"
+                            + " grug block that overruns the low range gets no id at all.");
+            return -1L;
+        }
+        int highId = pool.take();
+
+        GrugBlockData data = new GrugBlockData(HIGH_BLOCK_ID);
+        GrugDeclarations.blockDataByFileId.put(HIGH_BLOCK_FILE_ID, data);
+        GrugDeclarations.declaredBlocks.put(HIGH_BLOCK_ID, data);
+        GrugBlock block = new GrugBlock(highId, HIGH_BLOCK_FILE_ID, Material.rock, 1.0F);
+        block.setBlockName("grug_zz_high_block_round_trip");
+        ModLoader.registerBlock(block);
+
+        int before = world.getBlockId(ox, oy, oz);
+        world.setBlockWithNotify(ox, oy, oz, highId);
+        if (world.getBlockId(ox, oy, oz) != highId) {
+            releaseStandIns(standIns);
+            world.setBlockWithNotify(ox, oy, oz, before);
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.high_block_round_trip: the game did not put the test block at "
+                            + ox
+                            + ", "
+                            + oy
+                            + ", "
+                            + oz
+                            + ".");
+            return -1L;
+        }
+
+        Chunk chunk = world.getChunkFromBlockCoords(ox, oz);
+        IChunkLoader loader = world.getSaveHandler().getChunkLoader(world.worldProvider);
+        Chunk loaded;
+        try {
+            loader.saveChunk(world, chunk);
+            loaded = loader.loadChunk(world, ox >> 4, oz >> 4);
+        } catch (IOException e) {
+            releaseStandIns(standIns);
+            world.setBlockWithNotify(ox, oy, oz, before);
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.high_block_round_trip: " + e);
+            return -1L;
+        }
+        if (loaded == null) {
+            releaseStandIns(standIns);
+            world.setBlockWithNotify(ox, oy, oz, before);
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.high_block_round_trip: the chunk's save and load came back with no"
+                            + " chunk.");
+            return -1L;
+        }
+
+        // The id the loaded chunk's own storage holds, not the one the world's still does: that is
+        // the id the save format carried.
+        int readBack = loaded.getBlockID(ox & 15, oy, oz & 15);
+        if (readBack != highId) {
+            releaseStandIns(standIns);
+            world.setBlockWithNotify(ox, oy, oz, before);
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.high_block_round_trip: block id "
+                            + highId
+                            + " came back "
+                            + readBack
+                            + " after the chunk's save and load; an id above "
+                            + GrugBlocks.LAST_BLOCK_ID
+                            + " did not survive the save's 12-bit form.");
+            return -1L;
+        }
+
+        // The cell and the tables the way the test found them; the block stays registered, as one
+        // of the grug blocks of this run.
+        world.setBlockWithNotify(ox, oy, oz, before);
+        releaseStandIns(standIns);
+        return highId;
+    }
+
+    /** Puts back the ids the stand-in items took, which the pack's other mods had left free. */
+    private static void releaseStandIns(List<Integer> standIns) {
+        for (Integer id : standIns) {
+            Item.itemsList[id] = null;
+        }
+        standIns.clear();
     }
 
     private final GrugBlockEntityNbtAccess blockEntityNbt = new GrugBlockEntityNbtAccess();

@@ -1,0 +1,8 @@
+# Proves that a block id above 255 survives the game's own chunk save and load. The loader's
+# block id search must spill above 255 once the pack uses up its low range, and the id it then
+# hands out must come back through the save's 12-bit form, not out of a field. A loader whose
+# block ids never reach above 255 has no such id to round trip and answers -1. See #518.
+export tick(ctx: TestTickContext) {
+    id: number = Test.high_block_round_trip()
+    ctx.assert(id == -1 or id >= 256, "the round trip answered an id the block id search cannot hand out")
+}
