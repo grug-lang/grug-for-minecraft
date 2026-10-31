@@ -14,10 +14,10 @@ name: Weekly release
 # with its last step left out: a dry run has to dispatch, watch and judge the same Build run to say
 # anything about a Sunday run, and a second workflow would drift from the one that ships.
 #
-# The released tag is the newest v* tag's minor bumped with its patch zeroed, and it has to name the
-# repository version, because release.yml refuses a tag that does not name gradle.properties's
-# mod_version (#499). So the version is bumped on main first, and a version that was never bumped
-# stops the run with a message saying so instead of handing release.yml a tag it would refuse.
+# The released tag names main's mod_version exactly, because release.yml refuses a tag that does not
+# name the released commit's version (#499), and a tag that already exists means main's version was
+# released already: the run then leaves every tag alone and says so. Bumping mod_version on main is
+# therefore the release decision, and it works for a patch or a major bump as well as a minor one.
 
 on:
   schedule:
@@ -60,7 +60,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The full history and every tag, since the next tag is computed from the newest one.
+          # The full history and every tag, since an existing tag is what says the version was
+          # released already.
           fetch-depth: 0
           fetch-tags: true
 
@@ -75,31 +76,25 @@ jobs:
           echo "==> main is at $sha"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-      # v1.1.0 becomes v1.2.0. release.yml's release names the version of the commit it releases, so
-      # a main whose mod_version was not bumped to the computed tag stops the run here, before the
-      # build starts, and the message says which value to change. A dry run reports that instead of
-      # failing, because it exists to judge the build gate rather than the version.
-      - name: Compute the next tag
+      # The tag is main's mod_version with a v, so it always names the version release.yml expects,
+      # and it covers a patch or a major bump, not only a minor one. An existing tag means main's
+      # version was released already, so there is nothing new to release and this run tags nothing.
+      - name: Compute the tag
         id: tag
         env:
           SHA: ${{ steps.main.outputs.sha }}
         run: |
-          newest=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
-          if ! [[ "$newest" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
-            echo "==> ERROR: the newest v* tag '$newest' does not look like v<major>.<minor>.<patch>"
+          version=$(git show "$SHA:gradle.properties" | sed -n 's/^mod_version=//p' | tr -d '\r')
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "==> ERROR: main's gradle.properties says mod_version='$version', which does not look like <major>.<minor>.<patch>"
             exit 1
           fi
-          tag="v${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1)).0"
-          version=$(git show "$SHA:gradle.properties" | sed -n 's/^mod_version=//p' | tr -d '\r')
-          echo "==> the next tag is $tag and main's gradle.properties says mod_version=$version"
-          if [ "$tag" != "v$version" ]; then
-            if [ "$DRY_RUN" = true ]; then
-              echo "==> DRY RUN: a real run would refuse to tag $tag, because main's mod_version is $version and release.yml requires the tag to name it (#499)"
-              echo "tag=" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "==> ERROR: the next tag $tag does not name main's mod_version '$version'; bump mod_version to ${tag#v} in gradle.properties on main, then release: release.yml refuses a tag that does not name the repository version"
-            exit 1
+          tag="v$version"
+          echo "==> main's mod_version is $version, so this release is $tag"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "==> $tag already exists, so main's version was released already and this run tags nothing; bump mod_version in gradle.properties on main to release main's head"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
@@ -157,7 +152,7 @@ jobs:
           RUN: ${{ steps.build.outputs.run }}
         run: |
           if [ -z "$TAG" ]; then
-            echo "==> DRY RUN: build run $RUN is green; a real run would still tag nothing, because main's mod_version is not bumped to the next tag; this run changed no tag and dispatched no release"
+            echo "==> DRY RUN: build run $RUN is green; a real run would still tag nothing, because main's mod_version names a tag that already exists; bump mod_version in gradle.properties on main to release its head"
             exit 0
           fi
           echo "==> DRY RUN: build run $RUN is green; a real run would release $TAG at $SHA through release.yml, so this run changed no tag and dispatched no release"
@@ -169,7 +164,7 @@ jobs:
       # tag lands on the commit the green dispatch built, and release.yml re-checks that dispatch,
       # the jar and adapter.dll before publishing.
       - name: Release through release.yml
-        if: env.DRY_RUN != 'true'
+        if: env.DRY_RUN != 'true' && steps.tag.outputs.tag != ''
         env:
           SHA: ${{ steps.main.outputs.sha }}
           TAG: ${{ steps.tag.outputs.tag }}
