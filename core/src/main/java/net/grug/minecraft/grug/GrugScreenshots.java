@@ -7,8 +7,10 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.imageio.ImageIO;
@@ -66,6 +68,51 @@ public final class GrugScreenshots {
      */
     private static final Set<String> LOADER_NAMES =
             Collections.unmodifiableSet(new HashSet<>(GrugVanillaBlocks.loaderIds()));
+
+    /**
+     * The pixels of every golden decoded this run, keyed by the file's absolute path.
+     *
+     * <p>A directory holds one reference per accepted rendering, so a single capture is compared
+     * against several PNGs, and a test that compares twice against the same directory compared the
+     * same PNGs twice. Decoding and then walking a full frame a pixel at a time costs milliseconds
+     * per reference, which the run pays again for every capture (#757), so a decoded reference is
+     * kept for the rest of the run. A golden cannot change during one except by accepting a
+     * reference below, which clears this; the whole set is about 15 MB of pixels for every
+     * committed reference.
+     */
+    private static final Map<String, Golden> DECODED_GOLDENS = new HashMap<>();
+
+    /**
+     * A decoded reference: its size and its pixels in the {@code TYPE_INT_ARGB} values {@code
+     * getRGB} returns. Reading them once, in bulk, is what lets a comparison be one array pass
+     * rather than three per-pixel calls per reference.
+     */
+    private static final class Golden {
+        final int width;
+        final int height;
+        final int[] pixels;
+
+        Golden(BufferedImage image) {
+            this.width = image.getWidth();
+            this.height = image.getHeight();
+            this.pixels = pixelsOf(image);
+        }
+    }
+
+    /**
+     * What one pass over a capture and a reference found: the largest change any single pixel
+     * underwent, and how many pixels differ at all, which pick the match and the closest reference
+     * respectively.
+     */
+    private static final class Comparison {
+        final int maxChange;
+        final int differing;
+
+        Comparison(int maxChange, int differing) {
+            this.maxChange = maxChange;
+            this.differing = differing;
+        }
+    }
 
     private GrugScreenshots() {}
 
@@ -140,20 +187,20 @@ public final class GrugScreenshots {
         }
 
         int totalPixels = capture.getWidth() * capture.getHeight();
+        int[] capturePixels = pixelsOf(capture);
         int closestDifference = Integer.MAX_VALUE;
         String closestName = null;
-        BufferedImage closestImage = null;
+        Golden closestImage = null;
         // The smallest tolerance that would accept the capture. The assert passes if any reference
         // matches, so this is the least slack any accepted reference needs.
         int minimalPassingTolerance = Integer.MAX_VALUE;
         for (File reference : references) {
-            BufferedImage image = read(reference);
+            Golden image = golden(reference);
             if (image == null) {
                 continue;
             }
 
-            if (image.getWidth() != capture.getWidth()
-                    || image.getHeight() != capture.getHeight()) {
+            if (image.width != capture.getWidth() || image.height != capture.getHeight()) {
                 // A reference of the wrong size means the crop rectangle changed; every reference,
                 // including this one, is now stale and has to be regenerated.
                 throw Grug.fatal(
@@ -162,9 +209,9 @@ public final class GrugScreenshots {
                                 + " in "
                                 + referencePath
                                 + " is "
-                                + image.getWidth()
+                                + image.width
                                 + "x"
-                                + image.getHeight()
+                                + image.height
                                 + " but the capture is "
                                 + capture.getWidth()
                                 + "x"
@@ -174,16 +221,16 @@ public final class GrugScreenshots {
 
             // The match is decided by the single worst pixel, so a small area that changed
             // drastically cannot slip under a tolerance the way a count of differing pixels would.
-            int maxChange = maxPixelChange(image, capture);
-            if (matches(maxChange, tolerancePercent)) {
-                minimalPassingTolerance =
-                        Math.min(minimalPassingTolerance, requiredTolerance(maxChange));
-            }
             // The closest reference is still chosen by differing-pixel count: it keeps the
-            // highlighted area in the diff as small as possible for the human looking at it.
-            int differing = countDifferences(image, capture);
-            if (differing < closestDifference) {
-                closestDifference = differing;
+            // highlighted area in the diff as small as possible for the human looking at it. Both
+            // come out of the same pass, since they read the same pixel pairs.
+            Comparison comparison = compare(capturePixels, image.pixels);
+            if (matches(comparison.maxChange, tolerancePercent)) {
+                minimalPassingTolerance =
+                        Math.min(minimalPassingTolerance, requiredTolerance(comparison.maxChange));
+            }
+            if (comparison.differing < closestDifference) {
+                closestDifference = comparison.differing;
                 closestName = reference.getName();
                 closestImage = image;
             }
@@ -241,7 +288,13 @@ public final class GrugScreenshots {
         File diff =
                 closestImage == null
                         ? null
-                        : writeDiff(capture, closestImage, referencePath, artifactsRoot);
+                        : writeDiff(
+                                capturePixels,
+                                closestImage,
+                                capture.getWidth(),
+                                capture.getHeight(),
+                                referencePath,
+                                artifactsRoot);
 
         String difference =
                 closestName == null
@@ -345,9 +398,9 @@ public final class GrugScreenshots {
         // both loaders, so the other is an orphan that a later edit could update while the first
         // went stale; the pair is reported instead of quietly comparing one rendering twice.
         List<File> seen = new ArrayList<>();
-        List<BufferedImage> seenImages = new ArrayList<>();
+        List<Golden> seenImages = new ArrayList<>();
         for (File reference : references) {
-            BufferedImage image = read(reference);
+            Golden image = golden(reference);
             if (image == null) {
                 errors.add(path + "/" + reference.getName() + " could not be read as a PNG.");
                 continue;
@@ -391,11 +444,11 @@ public final class GrugScreenshots {
      * matches a reference on its RGB alone; two files that would accept the same capture are one
      * reference.
      */
-    private static boolean identicalPixels(BufferedImage a, BufferedImage b) {
-        if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) {
+    private static boolean identicalPixels(Golden a, Golden b) {
+        if (a.width != b.width || a.height != b.height) {
             return false;
         }
-        return maxPixelChange(a, b) == 0;
+        return compare(a.pixels, b.pixels).maxChange == 0;
     }
 
     /**
@@ -445,26 +498,24 @@ public final class GrugScreenshots {
         // capture, which rejects an empty rectangle before it reads one, so a zero-pixel capture
         // cannot arrive; and a branch nothing can reach is a branch nothing can cover.
         int total = a.getWidth() * a.getHeight();
-        return 100.0 * countVisibleDifferences(a, b) / total;
+        return 100.0 * countVisibleDifferences(pixelsOf(a), pixelsOf(b)) / total;
     }
 
     /**
      * The pixels where a channel moved by more than {@link #CHANGED_CHANNEL_FLOOR}, which is fewer
-     * than {@link #countDifferences} counts and is a number a change of lighting does not reach.
+     * than {@link #compare} counts and is a number a change of lighting does not reach.
      */
-    private static int countVisibleDifferences(BufferedImage a, BufferedImage b) {
+    private static int countVisibleDifferences(int[] a, int[] b) {
         int changed = 0;
-        for (int y = 0; y < a.getHeight(); y++) {
-            for (int x = 0; x < a.getWidth(); x++) {
-                int actual = a.getRGB(x, y);
-                int expected = b.getRGB(x, y);
-                if (Math.abs(((actual >> 16) & 0xFF) - ((expected >> 16) & 0xFF))
-                                > CHANGED_CHANNEL_FLOOR
-                        || Math.abs(((actual >> 8) & 0xFF) - ((expected >> 8) & 0xFF))
-                                > CHANGED_CHANNEL_FLOOR
-                        || Math.abs((actual & 0xFF) - (expected & 0xFF)) > CHANGED_CHANNEL_FLOOR) {
-                    changed++;
-                }
+        for (int i = 0; i < a.length; i++) {
+            int actual = a[i];
+            int expected = b[i];
+            if (Math.abs(((actual >> 16) & 0xFF) - ((expected >> 16) & 0xFF))
+                            > CHANGED_CHANNEL_FLOOR
+                    || Math.abs(((actual >> 8) & 0xFF) - ((expected >> 8) & 0xFF))
+                            > CHANGED_CHANNEL_FLOOR
+                    || Math.abs((actual & 0xFF) - (expected & 0xFF)) > CHANGED_CHANNEL_FLOOR) {
+                changed++;
             }
         }
         return changed;
@@ -528,6 +579,11 @@ public final class GrugScreenshots {
         try {
             File reference = new File(directory, loaderName + REFERENCE_EXTENSION);
             ImageIO.write(capture, "png", reference);
+            // The file just changed, so a comparison later in this run must decode the new pixels
+            // rather than the ones the run already had.
+            synchronized (DECODED_GOLDENS) {
+                DECODED_GOLDENS.clear();
+            }
             return reference;
         } catch (Exception e) {
             throw Grug.fatal(
@@ -576,22 +632,22 @@ public final class GrugScreenshots {
      * pixel-identical to {@code magick compare capture reference diff}.
      */
     private static File writeDiff(
-            BufferedImage capture,
-            BufferedImage reference,
+            int[] capturePixels,
+            Golden reference,
+            int width,
+            int height,
             String referencePath,
             File artifactsRoot) {
-        int width = capture.getWidth();
-        int height = capture.getHeight();
-        BufferedImage diff = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int actual = capture.getRGB(x, y);
-                int expected = reference.getRGB(x, y);
-                // Alpha is not part of the comparison; only the RGB channels matter.
-                boolean matches = (actual & 0xFFFFFF) == (expected & 0xFFFFFF);
-                diff.setRGB(x, y, blend(matches ? DIFF_LOWLIGHT : DIFF_HIGHLIGHT, actual));
-            }
+        int[] diffPixels = new int[capturePixels.length];
+        for (int i = 0; i < capturePixels.length; i++) {
+            int actual = capturePixels[i];
+            int expected = reference.pixels[i];
+            // Alpha is not part of the comparison; only the RGB channels matter.
+            boolean matches = (actual & 0xFFFFFF) == (expected & 0xFFFFFF);
+            diffPixels[i] = blend(matches ? DIFF_LOWLIGHT : DIFF_HIGHLIGHT, actual);
         }
+        BufferedImage diff = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        diff.setRGB(0, 0, width, height, diffPixels, 0, width);
 
         File directory = artifactDirectory(referencePath, artifactsRoot);
         if (!ensureDirectory(directory)) {
@@ -673,37 +729,69 @@ public final class GrugScreenshots {
 
     /**
      * The largest change any single pixel underwent, as the maximum absolute per-channel difference
-     * between the two images (0 to 255). Alpha is not compared: only the RGB channels matter.
+     * between the two images (0 to 255), and how many pixels differ at all. Alpha is not compared:
+     * only the RGB channels matter for the change, while a pixel counts as differing when its
+     * {@code getRGB} value does, alpha included, which is what the closest reference has always
+     * been chosen by.
+     *
+     * <p>Both are one pass over pixels already read in bulk. The per-pixel {@code getRGB} calls
+     * this replaced cost several milliseconds per full frame, on two passes per reference and for
+     * every pixel of every golden (#757).
      */
-    private static int maxPixelChange(BufferedImage a, BufferedImage b) {
+    private static Comparison compare(int[] actualPixels, int[] expectedPixels) {
         int maxChange = 0;
-        for (int y = 0; y < a.getHeight(); y++) {
-            for (int x = 0; x < a.getWidth(); x++) {
-                int actual = a.getRGB(x, y);
-                int expected = b.getRGB(x, y);
-                int change =
-                        Math.max(
-                                Math.abs(((actual >> 16) & 0xFF) - ((expected >> 16) & 0xFF)),
-                                Math.max(
-                                        Math.abs(((actual >> 8) & 0xFF) - ((expected >> 8) & 0xFF)),
-                                        Math.abs((actual & 0xFF) - (expected & 0xFF))));
-                if (change > maxChange) {
-                    maxChange = change;
-                }
+        int differing = 0;
+        for (int i = 0; i < actualPixels.length; i++) {
+            int actual = actualPixels[i];
+            int expected = expectedPixels[i];
+            if (actual != expected) {
+                differing++;
+            }
+            int change =
+                    Math.max(
+                            Math.abs(((actual >> 16) & 0xFF) - ((expected >> 16) & 0xFF)),
+                            Math.max(
+                                    Math.abs(((actual >> 8) & 0xFF) - ((expected >> 8) & 0xFF)),
+                                    Math.abs((actual & 0xFF) - (expected & 0xFF))));
+            if (change > maxChange) {
+                maxChange = change;
             }
         }
-        return maxChange;
+        return new Comparison(maxChange, differing);
     }
 
-    private static int countDifferences(BufferedImage a, BufferedImage b) {
-        int differing = 0;
-        for (int y = 0; y < a.getHeight(); y++) {
-            for (int x = 0; x < a.getWidth(); x++) {
-                if (a.getRGB(x, y) != b.getRGB(x, y)) {
-                    differing++;
-                }
+    /**
+     * The decoded pixels of a reference, from the run's cache or by decoding and keeping them. Null
+     * when the file cannot be read as a PNG, which is reported by the caller.
+     */
+    private static Golden golden(File file) {
+        String key = file.getAbsolutePath();
+        synchronized (DECODED_GOLDENS) {
+            Golden cached = DECODED_GOLDENS.get(key);
+            if (cached != null) {
+                return cached;
             }
         }
-        return differing;
+        BufferedImage image = read(file);
+        if (image == null) {
+            return null;
+        }
+        Golden decoded = new Golden(image);
+        synchronized (DECODED_GOLDENS) {
+            DECODED_GOLDENS.put(key, decoded);
+        }
+        return decoded;
+    }
+
+    /**
+     * An image's pixels in the {@code TYPE_INT_ARGB} values {@code getRGB} returns, read in one
+     * call rather than one per pixel.
+     */
+    private static int[] pixelsOf(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int[] pixels = new int[width * height];
+        image.getRGB(0, 0, width, height, pixels, 0, width);
+        return pixels;
     }
 }
