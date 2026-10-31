@@ -61,9 +61,11 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 - Build's concurrency cancels an older run of the same ref, except on `main`. To run several
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
   done. An experiment that changes only `.github/scripts/` keeps the caches warm. Editing
-  `build.yml` or `.github/actions/setup-loader-build/action.yml` misses the exact cache keys: the
-  Gradle dependencies fall back to the loader's previous entry (`restore-keys`), but the Minecraft
-  toolchain has no fallback, so that run is slow. The plan allows 20 concurrent jobs, shared by
+  `.github/actions/setup-loader-build/action.yml`, a loader's `gradle.properties` or a build file
+  misses the exact cache keys; editing `build.yml` does not, the 1.2.5 MCP snapshot excepted until
+  #783. The Gradle dependencies fall back to the loader's previous entry (`restore-keys`), but the
+  Minecraft toolchain has no fallback, so a miss there fetches it again, about 60 s on
+  `1.20.6-forge`. The plan allows 20 concurrent jobs, shared by
   all runs: do not dispatch a full `build.yml` while another run is going.
 - A loader job restores the project's `build/` and `.gradle/`, so Gradle's up-to-date check decides
   what runs; the cache key says only where that state lives, never what is safe to reuse. A task
@@ -87,8 +89,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 - Do not idle while the push-to-`main` run of a merged pull request goes: start the next task at
   once and watch that run in the background, so it is checked while the next subagent works. Only a
   task that depends on the merged change waits for it, and after a merge that touches
-  `.github/workflows/build.yml` that run is slow (the cache keys hash `build.yml`, so the
-  Minecraft toolchain is fetched again). If it fails, deal with it before merging anything else.
+  `.github/actions/setup-loader-build/action.yml` that run is slow (the action is in the cache keys
+  and the Minecraft toolchain has no fallback, so it is fetched again). If it fails, deal with it
+  before merging anything else.
 
 ### A red main or a flake
 
