@@ -17,17 +17,18 @@ on:
       coverage-only:
         # A dispatch that checks this measures the coverage gate instead of paying the whole
         # suite for it (#831): the development loader jobs run only the tests of mods/coverage,
-        # one game run per loader at the job's fixed cost of about 92 s plus the 14.4 s of
-        # coverage's tests, instead of the full suite's 122 s, and the coverage job still
-        # requires 100% of the same data, so the run shows the gate's result. Every other job
-        # of the dispatch runs as in a full one. The shape is a measurement, not the 100%
-        # requirement of main: the input exists only on a dispatch, a push to main and a pull
-        # request never set it, and a merge is gated by a pull request run, whose selection
-        # always includes the coverage mod, so main's requirement stays with the full runs.
-        # The gate's own inputs are all in the shape: the game boot of each loader, which the
-        # gate counts, is in it, since each loader's game boots and then runs only coverage's
-        # tests.
-        description: 'Run only the tests of mods/coverage in the development loader jobs, to measure the coverage gate at about 106 s per loader; every other job of the dispatch runs as usual'
+        # one game run per loader, instead of the full suite, and the coverage job still
+        # requires 100% of the same data, which the shape reports at 100% with 0 dropped files
+        # per loader. Every other job of the dispatch runs as in a full one. The shape costs 95
+        # to 149 s per loader, measured in this pull request's interleaved dispatch pair: the
+        # coverage mod's tests take 9.9 to 41.9 s of game clock per loader, with 1.20.6-forge
+        # the heavy one. The shape is a measurement, not the 100% requirement of main: the input
+        # exists only on a dispatch, a push to main and a pull request never set it, and a merge
+        # is gated by a pull request run, whose selection always includes the coverage mod, so
+        # main's requirement stays with the full runs. The gate's own inputs are all in the
+        # shape: the game boot of each loader, which the gate counts, is in it, since each
+        # loader's game boots and then runs only coverage's tests.
+        description: 'Run only the tests of mods/coverage in the development loader jobs, to measure the coverage gate in 95 to 149 s per loader; every other job of the dispatch runs as usual'
         type: boolean
       refresh-test-times:
         # Every game run writes its loader's test order record back to the repository it read it
@@ -110,15 +111,17 @@ jobs:
           mods=
           if [ "$COVERAGE_ONLY" = 'true' ]; then
             # The coverage-only input of a dispatch (#831): the development loader jobs run only
-            # the tests of mods/coverage, a measurement of the coverage gate at the job's fixed
-            # cost of about 92 s plus the 14.4 s of coverage's tests, instead of the full suite's
-            # 122 s, while every other job of the dispatch runs as in a full one and the coverage
-            # job still requires 100%. The gate's own inputs are all in the shape, the game boot
-            # of each loader, which the game does before it runs only coverage's tests, and the
-            # tests of mods/coverage itself. The input is a measurement, not the 100% requirement
-            # of main: it exists only on a dispatch, a push to main and a pull request never set
-            # it, and a merge is gated by a pull request run, whose selection always includes the
-            # coverage mod, so main's requirement stays with the full runs.
+            # the tests of mods/coverage, a measurement of the coverage gate, while every other
+            # job of the dispatch runs as in a full one and the coverage job still requires
+            # 100%, which the shape reports at 100% with 0 dropped files per loader. The shape
+            # costs 95 to 149 s per loader, measured in this pull request's interleaved dispatch
+            # pair: the coverage mod's tests take 9.9 to 41.9 s of game clock per loader, with
+            # 1.20.6-forge the heavy one. The gate's own inputs are all in the shape, the game
+            # boot of each loader, which the game does before it runs only coverage's tests, and
+            # the tests of mods/coverage itself. The input is a measurement, not the 100%
+            # requirement of main: it exists only on a dispatch, a push to main and a pull
+            # request never set it, and a merge is gated by a pull request run, whose selection
+            # always includes the coverage mod, so main's requirement stays with the full runs.
             echo "Selecting the coverage mod alone: the coverage-only input is set, so the development loader jobs measure the coverage gate rather than the whole suite (#831)."
             mods=coverage
           elif [ "$EVENT" != pull_request ]; then
