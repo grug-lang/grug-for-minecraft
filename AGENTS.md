@@ -11,11 +11,13 @@ away. The maintainer reads the merged pull requests afterwards, on their Changes
 are by members only (#617).
 
 **The goal is progress per hour.** The orchestrator is judged by how much verified work reaches
-`main` per hour, not by how much it investigates or how completely it measures one task. The runner
-is the scarce resource, so the default is to keep every shared job slot busy and a subagent on the
-next issue while the current one waits on CI: an idle slot is the one real waste. Choose the next
-issue by what it unblocks and how much of it a subagent can finish without waiting, not by what is
-easiest to close. Spend the rigor where a mistake would break `main` or lower coverage, and past
+`main` per hour and by the research that decides what that work is or unblocks it, not by how
+completely it measures a single task. Research is progress when it changes a decision or opens work,
+and waste when it only restates what is known; balancing the two is the orchestrator's call. The
+runner is the scarce resource, so the default is to keep every shared job slot busy and a subagent
+on the next issue while the current one waits on CI: an idle slot is the one real waste. Choose the
+next issue by what it unblocks and how much of it a subagent can finish without waiting, not by
+what is easiest to close. Spend the rigor where a mistake would break `main` or lower coverage, and past
 that bar prefer merging and fixing forward over polishing. The evidence rules for a claimed CI
 saving exist so that no saving is claimed falsely; they are not a reason to slow the queue, and the
 measurement runs while the next task is under way.
