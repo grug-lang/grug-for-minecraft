@@ -310,6 +310,22 @@ class GrugScreenshotsVerifyTest {
     }
 
     @Test
+    void decodesAReferenceAgainAfterAnUpdateReplacedIt() throws Exception {
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "1");
+        write(references.resolve(LOADER_NAME + ".png"), solid(2, 2, RED));
+
+        // The comparison decodes the red reference and the miss replaces it with this green
+        // capture.
+        BufferedImage green = solid(2, 2, GREEN);
+        assertDoesNotThrow(() -> verify(green));
+
+        // A later capture of the same rectangle is compared with the reference as the update left
+        // it, not with the pixels this run had already decoded.
+        System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "0");
+        assertDoesNotThrow(() -> verify(green));
+    }
+
+    @Test
     void leavesAMatchAloneWhenUpdatingGoldens() throws Exception {
         System.setProperty(GrugReference.UPDATE_GOLDENS_PROPERTY, "1");
         write(references.resolve(OTHER_LOADER + ".png"), solid(2, 2, GREEN));
