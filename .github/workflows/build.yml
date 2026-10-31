@@ -35,6 +35,8 @@ jobs:
       smoke: ${{ steps.smoke.outputs.matrix }}
       mods: ${{ steps.mods.outputs.mods }}
       reference: ${{ steps.reference.outputs.reference }}
+      # Whether the diff is prose alone, which no test can read (#785).
+      no-tests: ${{ steps.no-tests.outputs.no-tests }}
       # The loader directories the Windows jobs run on, a JSON list (#632).
       windows: ${{ steps.windows.outputs.dirs }}
     steps:
@@ -111,6 +113,38 @@ jobs:
             reference=$(python3 .github/scripts/reference-needed.py "$BASE_SHA" HEAD) || reference=true
           fi
           echo "reference=$reference" >> "$GITHUB_OUTPUT"
+
+      # Whether the test jobs can be skipped (#785): only when every changed path is prose no test
+      # reads (no-tests.py). A pull request and a push to main narrow it, each against the commit
+      # it started from; a dispatch never does, since it is the full run a release requires, and
+      # neither does an event this step does not know, a base that cannot be fetched or an error in
+      # the script. The checkout is one commit deep, so the commit the push started from is fetched
+      # first. The test jobs' conditions skip only on an explicit true, so a step that wrote no
+      # output runs them.
+      - name: Choose whether the test jobs run
+        id: no-tests
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          no_tests=false
+          if [ "$EVENT" = pull_request ]; then
+            if [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
+              echo "Running every test: the pull request's base commit '$BASE_SHA' could not be fetched."
+            else
+              no_tests=$(python3 .github/scripts/no-tests.py "$BASE_SHA" HEAD) || no_tests=false
+            fi
+          elif [ "$EVENT" = push ]; then
+            if [ -z "$BEFORE" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BEFORE"; then
+              echo "Running every test: the commit before this push, '$BEFORE', could not be fetched."
+            else
+              no_tests=$(python3 .github/scripts/no-tests.py "$BEFORE" HEAD) || no_tests=false
+            fi
+          else
+            echo "Running every test: this is a $EVENT run, which is the full run a release needs."
+          fi
+          echo "no-tests=$no_tests" >> "$GITHUB_OUTPUT"
 
       # The loader directories the Windows boot jobs run on (#632). A change that boots on Linux
       # cannot fail to boot on Windows without failing on Linux first, and the two Windows jobs are
@@ -252,7 +286,10 @@ jobs:
 
   core:
     name: core tests
-    needs: grug-rs
+    # A diff of prose alone cannot change a test's result, so the job skips (#785). Only an
+    # explicit true skips it (see the discover job), and a dispatch never sets one.
+    if: needs.discover.outputs.no-tests != 'true'
+    needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -324,7 +361,8 @@ jobs:
             .github/scripts/watch_run_test.py \
             .github/scripts/affected_mods_test.py \
             .github/scripts/added_loaders_test.py \
-            .github/scripts/reference_needed_test.py
+            .github/scripts/reference_needed_test.py \
+            .github/scripts/no_tests_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
@@ -470,6 +508,9 @@ jobs:
 
   build:
     name: ${{ matrix.dir }}
+    # A diff of prose alone cannot change a test's result, so the five loader jobs skip (#785).
+    # Only an explicit true skips them (see the discover job), and a dispatch never sets one.
+    if: needs.discover.outputs.no-tests != 'true'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ (inputs.repeats || vars.GRUG_CI_REPEATS || '1') == '1' && 15 || 90 }}
@@ -647,9 +688,11 @@ jobs:
   reference:
     name: reference (1.2.5-forge)
     # A pull request that changes only other mods and other loaders skips it, which a required status
-    # check counts as passed. Only an explicit false skips (see the discover job), and a push to main
-    # and a dispatch always run it.
-    if: github.event_name != 'pull_request' || needs.discover.outputs.reference != 'false'
+    # check counts as passed. Only an explicit false skips it (see the discover job), so a push to
+    # main and a dispatch run it, and a diff of prose alone skips it like the game jobs (#785).
+    if: |
+      needs.discover.outputs.no-tests != 'true'
+      && (github.event_name != 'pull_request' || needs.discover.outputs.reference != 'false')
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1436,6 +1479,9 @@ jobs:
   # excluded in combine-coverage.py; everything that remains must be at 100%.
   coverage:
     name: coverage report
+    # The test jobs produce what it reads, so it skips with them (#785): a diff of prose alone
+    # cannot change coverage, and main's next full run restores the global guarantee.
+    if: needs.discover.outputs.no-tests != 'true'
     needs: [core, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
