@@ -1037,14 +1037,24 @@ public class Grug125Adapter implements ModLoaderAdapter {
         be.readFromNBT(nbt);
     }
 
-    /**
-     * The name the test block registers under. No mod ships it, so the tables the block takes are
-     * grug's own, as if registration had registered it.
-     */
+    /** The name the test block registers under. No mod ships it. */
     private static final String HIGH_BLOCK_ID = "grug:zz_high_block_round_trip";
 
-    /** A file id no mod ships, for the test block that takes one. */
-    private static final long HIGH_BLOCK_FILE_ID = -2L;
+    /**
+     * The block the test takes the high id under, with none of grug's wiring.
+     *
+     * <p>It is not a {@link GrugBlock} on purpose: replacing any block in 1.2.5 calls the replaced
+     * block's {@code onBlockRemoval}, and a grug block's does that with the block's file id, so a
+     * test block would hand grug-rs an id no compiled file owns and abort the whole game (#123) the
+     * moment the test puts the cell back. What the test proves is a property of the id tables and
+     * of the save format, not of the wiring, so the block is the plain kind every other mod
+     * registers, through {@code ModLoader.registerBlock}.
+     */
+    private static final class HighBlockRoundTripBlock extends Block {
+        private HighBlockRoundTripBlock(int id) {
+            super(id, 0, Material.rock);
+        }
+    }
 
     /**
      * Test only: proves the block-id search spills into the ids above 255 and that an id it hands
@@ -1102,11 +1112,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
         }
         int highId = pool.take();
 
-        GrugBlockData data = new GrugBlockData(HIGH_BLOCK_ID);
-        GrugDeclarations.blockDataByFileId.put(HIGH_BLOCK_FILE_ID, data);
-        GrugDeclarations.declaredBlocks.put(HIGH_BLOCK_ID, data);
-        GrugBlock block = new GrugBlock(highId, HIGH_BLOCK_FILE_ID, Material.rock, 1.0F);
-        block.setBlockName("grug_zz_high_block_round_trip");
+        Block block = new HighBlockRoundTripBlock(highId);
+        block.setBlockName(HIGH_BLOCK_ID);
         ModLoader.registerBlock(block);
 
         int before = world.getBlockId(ox, oy, oz);
@@ -1166,8 +1173,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
             return -1L;
         }
 
-        // The cell and the tables the way the test found them; the block stays registered, as one
-        // of the grug blocks of this run.
+        // The cell and the tables the way the test found them; the block stays registered, the way
+        // a block of the pack's would be, with its item at the same slot.
         world.setBlockWithNotify(ox, oy, oz, before);
         releaseStandIns(standIns);
         return highId;
