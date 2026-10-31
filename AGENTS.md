@@ -61,10 +61,16 @@ costs a day is the failure this pass exists to prevent.
 
 **Other repositories.** `grug-rs` is the VM under every loader and `grug-tests` is the language spec,
 and a change there can make every run faster or settle a language question; any other repository, a
-compiler such as Clang included, may be needed the same way. The orchestrator keeps a single branch
-called `grug-for-minecraft` in each such repository, or a fork of it when it cannot push there, and
-piles commits on top of it so a run here can fetch the commit, with the language-level tests a VM
-change needs on the same-named branch in `grug-tests`. That branch or fork is the only write allowed
+compiler such as Clang included, may be needed the same way. Before optimizing one of them, read the
+long-term plan first: `grug-ir`'s README and its `planned` and `maybe planned` issues, and the same
+labels in `grug`, `grug-tests` and `grug-rs`. That plan compiles grug to its IR and host functions
+ahead of time to LLVM IR that is inlined at runtime, with CI holding grug within 5% of C, so a
+micro-optimization it would delete is not worth a branch or a measurement however much it wins
+today; a change that survives the plan, or a measurement that tells what the plan is worth, is. Say
+in the pull request which plan item the change survives or preempts. The orchestrator keeps a
+single branch called `grug-for-minecraft` in each such repository, or a fork of it when it cannot
+push there, and piles commits on top of it so a run here can fetch the commit, with the
+language-level tests a VM change needs on the same-named branch in `grug-tests`. That branch or fork is the only write allowed
 outside this repository: it never opens a pull request there, because that asks the maintainer's
 teammates for reviews they did not sign up for, and it never tags or releases. A pull request here
 that measures such a change pins `grugRsRevision` (or the equivalent) to the branch commit, names the
