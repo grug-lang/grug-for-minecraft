@@ -39,8 +39,9 @@ fresh session resumes with nothing lost. Then it compacts with `opencode api pos
 /api/session/$OPENCODE_SESSION_ID/compact --data '{}'` (the body is required, even empty; `opencode
 api get /api/session/$OPENCODE_SESSION_ID/message` gives the counts, from the last assistant
 message's `tokens.input` plus `tokens.cache.read`) and checks that the compaction message reached
-status `completed`. Never compact before the record is written, or with the orchestrator's own
-worktree or pull request unmerged. A subagent's running session is not the middle of a task: the
+status `completed`. The next task starts by reading the handoff, because the harness's summary is
+not the record and the record is what a fresh session trusts. Never compact before the record is
+written, or with the orchestrator's own worktree or pull request unmerged. A subagent's running session is not the middle of a task: the
 handoff names it, its brief and what to do when it reports, and compaction does not stop it, so it
 is not a reason to wait for a merge that keeps receding. Read the size from the API at every merge
 and every four-hourly check rather than remembering it, because a stretch of notifications buries a
