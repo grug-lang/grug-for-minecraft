@@ -8,7 +8,8 @@ name: Weekly release
 #
 # A failed dispatch tags nothing and leaves this run red for its log. Next Sunday resolves main's
 # head again, so it retries on its own, and a head that has moved since is part of that retry rather
-# than a reason to intervene.
+# than a reason to intervene. The Release run the dispatch starts is followed and judged here too,
+# because the dispatch alone says only that GitHub accepted it.
 #
 # The scheduled path and the manual run are one workflow, because the manual run is the same release
 # with its last step left out: a dry run has to dispatch, watch and judge the same Build run to say
@@ -47,9 +48,9 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    # The poll below is bounded at 60 minutes, so this covers the dispatch, the poll and the release
-    # dispatch with room to spare, and a step that hangs anyway cannot hold the runner indefinitely.
-    timeout-minutes: 75
+    # The build poll is bounded at 60 minutes and the release poll at 20, so this covers both with
+    # room to spare, and a step that hangs anyway cannot hold the runner indefinitely.
+    timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
@@ -163,7 +164,14 @@ jobs:
       # already exists and creates that tag at the commit it runs on, which is main's head, so the
       # tag lands on the commit the green dispatch built, and release.yml re-checks that dispatch,
       # the jar and adapter.dll before publishing.
-      - name: Release through release.yml
+      #
+      # The dispatch returns as soon as GitHub accepts it, so the run it started is followed here:
+      # a Release run that failed on the tag, the jar or the dispatch check would otherwise leave
+      # this Sunday run green with nothing shipped, and a release that did not happen is exactly
+      # what this gate exists to report. The poll follows the run this dispatch started by id, so a
+      # hand dispatch of release.yml cannot stand in for it, and it is bounded, so a hung release
+      # fails this run instead of holding the runner until the job timeout.
+      - name: Release through release.yml, and wait for it
         if: env.DRY_RUN != 'true' && steps.tag.outputs.tag != ''
         env:
           SHA: ${{ steps.main.outputs.sha }}
@@ -174,5 +182,36 @@ jobs:
             echo "==> ERROR: main moved from $SHA to $head while its build ran; nothing is tagged, and the next Sunday's run releases the new head"
             exit 1
           fi
+          query="repos/$REPO/actions/workflows/release.yml/runs?event=workflow_dispatch&branch=main"
+          # The newest release dispatch before this step's, so the poll names the run it started.
+          before=$(gh api "$query" --jq '.workflow_runs[0].id // 0')
           echo "==> releasing $TAG at $SHA through release.yml"
           gh workflow run release.yml --ref main --repo "$REPO" -f tag="$TAG"
+          run=''
+          deadline=$((SECONDS + 1200))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ -z "$run" ]; then
+              run=$(gh api "$query" --jq "[.workflow_runs[] | select(.id > $before)] | sort_by(.id) | first | .id // empty" 2>/dev/null || true)
+              if [ -z "$run" ]; then
+                echo "==> $(date -u +%T) the release dispatch is not listed yet"
+                sleep 10
+                continue
+              fi
+              echo "==> release run $run is the dispatch for $TAG: https://github.com/$REPO/actions/runs/$run"
+            fi
+            state=$(gh api "repos/$REPO/actions/runs/$run" --jq '[.status, .conclusion] | @tsv' 2>/dev/null || true)
+            status=$(cut -f1 <<<"$state")
+            conclusion=$(cut -f2 <<<"$state")
+            if [ "$status" = completed ]; then
+              if [ "$conclusion" != success ]; then
+                echo "==> ERROR: release run $run for $TAG concluded '$conclusion', not 'success'; nothing is published, and the next Sunday's run retries once mod_version or the release step is fixed"
+                exit 1
+              fi
+              echo "==> release run $run is green: $TAG is published at $SHA"
+              exit 0
+            fi
+            echo "==> $(date -u +%T) release run $run is ${status:-not listed}"
+            sleep 15
+          done
+          echo "==> ERROR: release run ${run:-for $TAG} did not finish within 20 minutes; nothing is published"
+          exit 1
