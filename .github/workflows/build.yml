@@ -706,7 +706,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: loaders/1.2.5-forge/mcp125
-          key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
+          key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('loaders/1.2.5-forge/build.gradle') }}
 
       # The reference's jars are pinned by sha256 in about.json, so the entry is keyed on it: a
       # changed pin misses and downloads again, and verify checks every hash either way.
@@ -1177,7 +1177,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: loaders/1.2.5-forge/mcp125
-          key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
+          key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('loaders/1.2.5-forge/build.gradle') }}
 
       # The same display stack as the build job, for the same reasons.
       # The runner image ships an apt index and already carries most of these, so only what it lacks

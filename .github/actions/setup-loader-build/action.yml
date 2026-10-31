@@ -21,13 +21,21 @@ outputs:
 runs:
   using: composite
   steps:
+    # No `cache: gradle` here (#782). It restored ~/.gradle/wrapper and ~/.gradle/caches, and the
+    # entries below restore both again: the wrapper 424.8 MB on Linux and 273.9 MB on Windows, the
+    # dependencies a second time. It also stored a second copy of the 425 MB distribution, which is
+    # the family #699 audited. setup-java's entry is shared by every job in the workflow, so it held
+    # what whichever job saved it first resolved, and that job is grug-rs.
+    #
+    # Nothing waits for it: "Cache the Gradle distributions" below restores the wrapper, and this
+    # action is a step before the job's first Gradle invocation in both of its callers, so dropping
+    # setup-java's copy never turns a warm distribution into a download.
     - name: Set up JDK 21
       id: java21
       uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
       with:
         distribution: temurin
         java-version: 21
-        cache: gradle
 
     - name: Download the grug-rs static library
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -46,10 +54,10 @@ runs:
           core/build/generated/sources/grug
         key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
-    # The dependency cache each loader's build resolves against. cache: gradle above covers this path,
-    # but what it restores is whatever the job that saved it happened to resolve, and the job that
-    # saves it is the one that ran first and resolved the least: grug-rs, which only ever builds core
-    # on Gradle 8.14.
+    # The dependency cache each loader's build resolves against. setup-java's Gradle cache covered
+    # this path and went in #782, because what it restored was whatever the job that saved it
+    # happened to resolve, and the job that saves it is the one that ran first and resolved the
+    # least: grug-rs, which only ever builds core on Gradle 8.14.
     #
     # One entry per loader. It used to be one entry for all five, and whichever loader finished first
     # wrote it and nobody wrote it again, so what it held was that loader's resolved subset. A
@@ -123,9 +131,9 @@ runs:
     # falls back to the previous entry, whose other distribution Gradle still finds, so only the new
     # version is downloaded.
     #
-    # setup-java's own gradle-wrapper entry, restored by "Set up JDK 21" above, holds this same
-    # directory keyed on the same files. This entry is kept anyway: the installed job does not use
-    # setup-java's Gradle cache, and it is a second copy that survives setup-java's being evicted.
+    # This is now the only entry that holds this directory in a job that uses this action:
+    # setup-java's own gradle-wrapper entry held the same files and went with `cache: gradle`
+    # (#782), which is why the step below has to stay ahead of the job's first Gradle invocation.
     #
     # 1.20.6-forge restores this entry but never writes it. It is not a standalone loader, so its job
     # runs only the root build and unpacks only 8.14; a key is written once, so a first write from
@@ -283,12 +291,13 @@ runs:
         key: ${{ steps.keys.outputs.own-state }}
         restore-keys: ${{ steps.keys.outputs.own-state-prefix }}
 
-    # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It cannot go in
-    # cache: gradle above, because that key belongs to whichever job saves it first, and the lightest
-    # job in this workflow is grug-rs, which never resolves a Minecraft, so it wins and the Forge
-    # and Loom content never gets in. Keyed per loader, because ForgeGradle and Loom both write to
-    # the same directory and no loader may restore another's, and on the files that name the
-    # Minecraft and mapping versions, so a version bump misses instead of serving the old one.
+    # The Minecraft itself, which is what Loom and ForgeGradle spend the Build step on. It was never
+    # in setup-java's Gradle cache, which this action no longer uses anyway (#782): that key belongs
+    # to whichever job saves it first, and the lightest job in this workflow is grug-rs, which never
+    # resolves a Minecraft, so it won and the Forge and Loom content never got in. Keyed per loader,
+    # because ForgeGradle and Loom both write to the same directory and no loader may restore
+    # another's, and on the files that name the Minecraft and mapping versions, so a version bump
+    # misses instead of serving the old one.
     #
     # Which means loaders/*/gradle.properties and not just the build files: that is where every
     # loader's minecraft_version and mappings actually live, a subproject's properties file overriding
@@ -333,9 +342,13 @@ runs:
     # holds the pin, so a different snapshot misses rather than restoring the previous one. The key
     # carries a version because the path it restores into changed (#736): an entry from the old key
     # would unpack the snapshot into build/, where the build-state entry would store it as well.
+    #
+    # Not the workflow (#783), for the same reason as the entries above: build.yml names the job, and
+    # the pin is the build file's. Hashing it rekeyed this entry on every edit of the workflow, and
+    # the entry has no restore-keys, so the first run after each edit cloned the snapshot again.
     - name: Cache the 1.2.5 MCP snapshot
       if: inputs.loader == '1.2.5-forge'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: loaders/1.2.5-forge/mcp125
-        key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
+        key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('loaders/1.2.5-forge/build.gradle') }}
