@@ -328,3 +328,5 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
   in a comment: the body is what the next reader reads first.
 - Run `git add -A && pre-commit run --all-files` twice before pushing: the first run may reformat
   and fail, the second must pass. It only sees tracked files, hence the `git add`.
+
+<!-- measurement branch -->
