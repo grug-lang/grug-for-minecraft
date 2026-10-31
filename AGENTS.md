@@ -39,9 +39,13 @@ fresh session resumes with nothing lost. Then it compacts with `opencode api pos
 /api/session/$OPENCODE_SESSION_ID/compact --data '{}'` (the body is required, even empty; `opencode
 api get /api/session/$OPENCODE_SESSION_ID/message` gives the counts, from the last assistant
 message's `tokens.input` plus `tokens.cache.read`) and checks that the compaction message reached
-status `completed`. Never compact in the middle of a task, with a worktree that is not merged, or before the
-record is written. If the call fails, retry at the next boundary and carry on; do not wait for the
-maintainer to run `/compact` unless the session cannot continue at all.
+status `completed`. Never compact before the record is written, or with the orchestrator's own
+worktree or pull request unmerged. A subagent's running session is not the middle of a task: the
+handoff names it, its brief and what to do when it reports, and compaction does not stop it, so it
+is not a reason to wait for a merge that keeps receding. Read the size from the API at every merge
+and every four-hourly check rather than remembering it, because a stretch of notifications buries a
+check done only by memory. If the call fails, retry at the next boundary and carry on; do not wait
+for the maintainer to run `/compact` unless the session cannot continue at all.
 
 **The daily meta pass.** Once a day, at a boundary rather than on a clock (after the day's last
 merge, while a long dispatch runs, or before the Sunday release), the orchestrator improves the
