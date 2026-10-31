@@ -24,9 +24,10 @@ nothing on disk. At a task boundary, when the last assistant message's `tokens.i
 `tokens.cache.read` is over about 250,000, it first writes the persistent record: this file if a rule
 changed, the handoff's live section, the log, and each issue or pull request body, enough that a
 fresh session resumes with nothing lost. Then it compacts with `opencode api post
-/api/session/$OPENCODE_SESSION_ID/compact` (the server's `session.compact` operation; `opencode api
-get /api/session/$OPENCODE_SESSION_ID/message` gives the counts) and checks that the compaction
-completed. Never compact in the middle of a task, with a worktree that is not merged, or before the
+/api/session/$OPENCODE_SESSION_ID/compact --data '{}'` (the body is required, even empty; `opencode
+api get /api/session/$OPENCODE_SESSION_ID/message` gives the counts, from the last assistant
+message's `tokens.input` plus `tokens.cache.read`) and checks that the compaction message reached
+status `completed`. Never compact in the middle of a task, with a worktree that is not merged, or before the
 record is written. If the call fails, retry at the next boundary and carry on; do not wait for the
 maintainer to run `/compact` unless the session cannot continue at all.
 
