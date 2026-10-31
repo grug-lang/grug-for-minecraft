@@ -230,11 +230,13 @@ runs:
     # What is left to the up-to-date check is a task whose declared inputs are incomplete. A fresh
     # checkout could never skip such a task; this change can, which is the one risk it adds.
     #
-    # 1.2.5-forge is left out: its 170MB MCP snapshot lives inside loaders/1.2.5-forge/build and has
-    # its own entry above, so this one would store the snapshot a second time. Its own saving was
-    # 4.9 s (p below 0.001), which does not pay for 170MB, and its job is not the longest of a run.
+    # 1.2.5-forge has the same entry. It was left out at first because its 170MB MCP snapshot lived
+    # inside its build directory, which would have stored the snapshot a second time beside its own
+    # entry; the snapshot now lives in loaders/1.2.5-forge/mcp125, so the two entries do not overlap.
+    # Almost all of its task part is MCP toolchain work a restored history leaves up to date (#706),
+    # and the entry stores about 30MB (#736).
     - name: Cache the build state
-      if: inputs.loader != '1.2.5-forge' && inputs.save == 'true'
+      if: inputs.save == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -245,7 +247,7 @@ runs:
         restore-keys: ${{ steps.keys.outputs.build-state-prefix }}
 
     - name: Restore the build state
-      if: inputs.loader != '1.2.5-forge' && inputs.save != 'true'
+      if: inputs.save != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -256,10 +258,10 @@ runs:
         restore-keys: ${{ steps.keys.outputs.build-state-prefix }}
 
     # A standalone loader is its own Gradle build, with a .gradle of its own that holds the history
-    # of its tasks: Loom's remapping, the jar, the layer. 1.20.6-forge is built by the root build and
-    # has no such directory, and 1.2.5-forge is left out for the reason above.
+    # of its tasks: Loom's remapping, the jar, the layer, and on 1.2.5 the MCP toolchain's. 1.20.6-forge
+    # is built by the root build and has no such directory.
     - name: Cache the loader's own build state
-      if: inputs.loader != '1.20.6-forge' && inputs.loader != '1.2.5-forge' && inputs.save == 'true'
+      if: inputs.loader != '1.20.6-forge' && inputs.save == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: loaders/${{ inputs.loader }}/.gradle
@@ -267,7 +269,7 @@ runs:
         restore-keys: ${{ steps.keys.outputs.own-state-prefix }}
 
     - name: Restore the loader's own build state
-      if: inputs.loader != '1.20.6-forge' && inputs.loader != '1.2.5-forge' && inputs.save != 'true'
+      if: inputs.loader != '1.20.6-forge' && inputs.save != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: loaders/${{ inputs.loader }}/.gradle
@@ -315,12 +317,14 @@ runs:
           ~/.gradle/caches/ornithe-keratin
         key: ${{ steps.keys.outputs.minecraft }}
 
-    # 1.2.5-forge's Minecraft is the pinned MCP snapshot its build clones, 170MB into its own build
-    # directory, which is 13s of its Build step. Keyed on the build file that holds the pin, so a
-    # different snapshot misses rather than restoring the previous one.
+    # 1.2.5-forge's Minecraft is the pinned MCP snapshot its build clones, 170MB into a directory of
+    # its own beside the build directory, which is 13s of its Build step. Keyed on the build file that
+    # holds the pin, so a different snapshot misses rather than restoring the previous one. The key
+    # carries a version because the path it restores into changed (#736): an entry from the old key
+    # would unpack the snapshot into build/, where the build-state entry would store it as well.
     - name: Cache the 1.2.5 MCP snapshot
       if: inputs.loader == '1.2.5-forge'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: loaders/1.2.5-forge/build/mcp125
-        key: grug-mcp125-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
+        path: loaders/1.2.5-forge/mcp125
+        key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml', 'loaders/1.2.5-forge/build.gradle') }}
