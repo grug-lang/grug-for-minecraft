@@ -187,6 +187,10 @@ at the line that reports the launch, which is `Launched` from portablemc 5.0.6.
   per paragraph or bullet. Repository files wrap at about 100 columns.
 - Never repeat the title as the first line of an issue or pull request body.
 - Commit messages state what changed and why in full sentences.
+- A commit uses the repository's configured identity (`git config user.name` and `user.email`), never a
+  synthetic one. GitHub counts a commit whose author it cannot link to an account as an unattributed
+  change, and the `main` ruleset then requires an extra approval, which a rebase merge cannot give
+  itself.
 - Do not add repository documentation beyond this file.
 
 ## Errors are the only severity
