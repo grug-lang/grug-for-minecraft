@@ -61,6 +61,9 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   and `workflow_dispatch`, so a green pull request says nothing about them. `gh workflow run
   build.yml --ref <branch>` gives a branch the full pipeline, with `-f repeats=<n>` to repeat the
   suite in one session.
+- A release takes its jar from a dispatch of `build.yml` on main, not from the push that merged the
+  commit: the Windows boot jobs run only on a dispatch and for a loader a push adds (#632), so
+  `release.yml` requires that dispatch.
 - Build's concurrency cancels an older run of the same ref, except on `main`. To run several
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
   done. An experiment that changes only `.github/scripts/` keeps the caches warm. Editing
