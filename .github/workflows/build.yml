@@ -1073,7 +1073,10 @@ jobs:
       # A pattern that matches no artifact fails the download, so the native is a step of its own with
       # a condition (#784). It lands at universal/parts/adapter.dll, where the two steps below look.
       - name: Download the Windows native when this run built one
-        if: needs.discover.outputs.windows != '[]'
+        # native-windows' own result decides, not discover's output: this job does not list discover
+        # in needs, so that output is null here and the step would run on a push that built nothing
+        # (the bug that reddened main after #784).
+        if: needs.native-windows.result == 'success'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: native-windows
