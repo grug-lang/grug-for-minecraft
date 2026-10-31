@@ -119,6 +119,9 @@ jobs:
             exit 1
           fi
 
+      # The jar came from a dispatch, which is the run that builds and adds the Windows native, and
+      # this check refuses one without it (#784): that is what keeps a Linux-only jar out of a
+      # release, since a normal push's jar has no adapter.dll.
       - name: Check the universal jar's invariants
         run: python3 .github/scripts/universal_jar.py check universal/grug.jar
 

@@ -460,6 +460,16 @@ class CheckTest(unittest.TestCase):
         assemble(core, fixture.layer_paths(), STAMPED, fixture.out)
         self.assertProblem(check(fixture.out, fixture.repo), "the root holds no adapter.dll")
 
+    def test_a_jar_assembled_without_the_windows_adapter_is_accepted_when_it_says_so(self):
+        # A push that adds no loader assembles and tests the jar on Linux, so a Linux jar is what it
+        # has and its job says so (#784). A release still requires the adapter, which is the test
+        # above and, in CI, release.yml's check with no flag.
+        fixture = Fixture(self)
+        core = write_jar(fixture.dir / "core-release.jar", fixture.core)
+        assemble(core, fixture.layer_paths(), STAMPED, fixture.out)
+        self.assertEqual(check(fixture.out, fixture.repo, windows_native=False), [])
+        self.assertProblem(check(fixture.out, fixture.repo), "the root holds no adapter.dll")
+
     def test_a_missing_mod_api(self):
         fixture = Fixture(self)
         del fixture.core["mod_api.json"]

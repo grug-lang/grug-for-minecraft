@@ -203,9 +203,12 @@ jobs:
   # The adapter as a Windows DLL (#528). Built on its own runner, with grug-rs compiled there for the
   # MSVC target (Rust's default on Windows, and the one grug-rs's own CI uses), because a static
   # library is built for one OS and the Linux jobs hand theirs around as an artifact.
+  # It takes the same gate as the boot jobs (#784): a dispatch and a push that adds a loader are the
+  # runs whose jar gets a Windows native, so a normal push builds none and ships a Linux jar.
   native-windows:
     name: adapter.dll (Windows)
-    if: github.event_name != 'pull_request'
+    if: needs.discover.outputs.windows != '[]'
+    needs: [discover]
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
@@ -237,7 +240,8 @@ jobs:
           $exports
           if (-not ($exports | Select-String "Java_net_grug_minecraft_grug_GrugNative_nativeInit")) { exit 1 }
 
-      # The universal job adds it to the jar beside the Linux native core's own build made.
+      # The universal job adds it to the jar beside the Linux native core's own build made, and only
+      # in a run that gets this far (#784).
       - name: Upload the adapter
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -1037,11 +1041,21 @@ jobs:
   # mod_api.json and each bundled mod exactly once, metadata whose entrypoints and mixins exist,
   # and exactly one layer activating on each supported game and none on the others. See #488.
   # Its real inputs are the compiled parts, so it needs the layer matrix, core's release jar and the
-  # Windows native, and none of the test jobs: the installed and smoke jobs below start while the
-  # suites are still running (#570).
+  # Windows native when the run built one, and none of the test jobs: the installed and smoke jobs
+  # below start while the suites are still running (#570).
+  # The native is the run's to add (#784): only a dispatch and a push that adds a loader build it, so
+  # a normal push's jar is a Linux jar. The Linux jobs below run it as it is, and the Windows ones run
+  # only on a dispatch, where the native is in it. The job therefore names each result it needs
+  # instead of relying on the default, which a skipped native-windows would otherwise fail: it waits
+  # for that artifact when there is one and assembles without it when there is none.
   universal:
     name: universal jar
-    if: github.event_name != 'pull_request'
+    if: |
+      !cancelled()
+      && needs.core-release.result == 'success'
+      && needs.layer.result == 'success'
+      && (needs.native-windows.result == 'success' || needs.native-windows.result == 'skipped')
+      && github.event_name != 'pull_request'
     needs: [core-release, layer, native-windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -1052,21 +1066,39 @@ jobs:
       - name: Download the layers and core's release jar
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: '{layer-*,core-release,native-windows}'
+          pattern: '{layer-*,core-release}'
           path: universal/parts
           merge-multiple: true
 
+      # A pattern that matches no artifact fails the download, so the native is a step of its own with
+      # a condition (#784). It lands at universal/parts/adapter.dll, where the two steps below look.
+      - name: Download the Windows native when this run built one
+        if: needs.discover.outputs.windows != '[]'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native-windows
+          path: universal/parts
+
       # The outer mod reports core's version, which carries the commit, so a jar names the commit it
-      # was built from.
+      # was built from. Without the native the jar is a Linux jar, and the check below is told so.
       - name: Assemble the universal jar
         run: |
           core=$(ls universal/parts/core-*-release.jar)
           version=$(basename "$core" | sed -E 's/^core-(.+)-release\.jar$/\1/')
+          native=()
+          if [ -f universal/parts/adapter.dll ]; then
+            native=(--native universal/parts/adapter.dll)
+          fi
           python3 .github/scripts/universal_jar.py assemble --core "$core" --version "$version" \
-            --native universal/parts/adapter.dll --out universal/grug.jar universal/parts/grug-*.jar
+            --out universal/grug.jar "${native[@]}" universal/parts/grug-*.jar
 
       - name: Check the universal jar's invariants
-        run: python3 .github/scripts/universal_jar.py check universal/grug.jar
+        run: |
+          if [ -f universal/parts/adapter.dll ]; then
+            python3 .github/scripts/universal_jar.py check universal/grug.jar
+          else
+            python3 .github/scripts/universal_jar.py check universal/grug.jar --no-windows-native
+          fi
 
       - name: Upload the universal jar
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
