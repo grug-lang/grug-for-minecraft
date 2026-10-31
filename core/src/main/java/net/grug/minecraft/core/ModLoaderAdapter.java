@@ -197,13 +197,12 @@ public interface ModLoaderAdapter {
      * Whether the block at the position is the one {@link #placeBlock} would put there for {@code
      * blockName}, ignoring its state. The room build leaves a room that is already whole in place
      * when every one of its blocks answers true, and rebuilds it otherwise, so the answer has to
-     * agree with what a placement by that name puts there. A loader that cannot name the block a
-     * position holds keeps the default, which makes every test's room be built from scratch as it
-     * always was.
+     * agree with what a placement by that name puts there. Every loader names a block as cheaply as
+     * {@code get_block} does, so this is part of the contract rather than an option: a loader that
+     * could not tell would answer false, which rebuilds the room before every test as it always
+     * was.
      */
-    default boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
-        return false;
-    }
+    boolean isBlock(Object levelObj, double x, double y, double z, String blockName);
 
     /**
      * Removes every item entity inside the box, which is how the items a fixture drops stop the
