@@ -231,7 +231,7 @@ public final class GrugEntities {
      * Runs {@code task} with a fresh root list, then restores the previous one.
      *
      * <p>An export that runs every frame creates host entities through calls such as {@code item}
-     * and {@code vec3}. Rooting them in the list the call found would keep the previous frame's
+     * and {@code Vec3.new}. Rooting them in the list the call found would keep the previous frame's
      * entities alive forever, so an export that owns its entities for the whole call creates the
      * context, runs the export and cleans the context up inside here. The caller holds {@link
      * GrugStateLock}: the swap is process-global state and has to be in the same critical section

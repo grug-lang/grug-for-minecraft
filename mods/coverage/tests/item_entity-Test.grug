@@ -10,7 +10,7 @@ export tick(ctx: TestTickContext) {
         stack: ItemStack = item_stack(sword, 3)
         entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
         ctx.assert(entity.damage() == 3, "The item entity should carry the stack's damage.")
-        entity.entity().set_delta_movement(vec3_zero())
+        entity.entity().set_delta_movement(Vec3.zero())
         entity.entity().spawn(level)
     }
 }

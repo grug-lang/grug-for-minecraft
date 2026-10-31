@@ -61,7 +61,7 @@ local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: Bloc
             while remaining > 0 {
                 stack: ItemStack = item_stack(item_opt.unwrap(), damage)
                 dropped: ItemEntity = item_entity(world, x + dx, y + dy, z + dz, stack)
-                dropped.entity().set_delta_movement(vec3_zero())
+                dropped.entity().set_delta_movement(Vec3.zero())
                 dropped.entity().spawn(world)
                 remaining = remaining - 1
             }

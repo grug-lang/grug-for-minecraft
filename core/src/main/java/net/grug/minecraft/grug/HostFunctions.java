@@ -1167,6 +1167,20 @@ public class HostFunctions {
         }
     }
 
+    public static long Vec3_new(double x, double y, double z) {
+        double[] values = {x, y, z};
+        String[] names = {"x", "y", "z"};
+        for (int i = 0; i < values.length; i++) {
+            if (!Double.isFinite(values[i])) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        "Vec3.new: " + names[i] + " must be finite, got " + values[i]);
+                return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
+            }
+        }
+        return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(x, y, z));
+    }
+
     public static double Vec3_x(long vec3Id) {
         return ((Vec3) GrugEntities.entityData.get(vec3Id).object).x();
     }
@@ -1177,6 +1191,10 @@ public class HostFunctions {
 
     public static double Vec3_z(long vec3Id) {
         return ((Vec3) GrugEntities.entityData.get(vec3Id).object).z();
+    }
+
+    public static long Vec3_zero() {
+        return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
     }
 
     // Host functions
@@ -1636,22 +1654,5 @@ public class HostFunctions {
             return 0;
         }
         return value % divisor;
-    }
-
-    public static long vec3_zero() {
-        return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
-    }
-
-    public static long vec3(double x, double y, double z) {
-        double[] values = {x, y, z};
-        String[] names = {"x", "y", "z"};
-        for (int i = 0; i < values.length; i++) {
-            if (!Double.isFinite(values[i])) {
-                Grug.hostFunctionErrorHappened(
-                        Grug.statePtr, "vec3: " + names[i] + " must be finite, got " + values[i]);
-                return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
-            }
-        }
-        return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(x, y, z));
     }
 }

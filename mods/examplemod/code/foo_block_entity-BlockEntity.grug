@@ -34,7 +34,7 @@ export tick() {
     item_entity: ItemEntity = item_entity(level, x, y, z, item_stack)
 
     # Remove the random velocity that spawned items are given
-    item_entity.entity().set_delta_movement(vec3_zero())
+    item_entity.entity().set_delta_movement(Vec3.zero())
 
     # Spawn the diamond
     item_entity.entity().spawn(level)

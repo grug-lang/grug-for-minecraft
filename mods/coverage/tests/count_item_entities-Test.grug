@@ -13,7 +13,7 @@ export tick(ctx: TestTickContext) {
     diamond: Item = item(resource_location("minecraft:diamond"))
     stack: ItemStack = item_stack(diamond, 0)
     spawned: ItemEntity = item_entity(level, x, y, z, stack)
-    spawned.entity().set_delta_movement(vec3_zero())
+    spawned.entity().set_delta_movement(Vec3.zero())
     spawned.entity().spawn(level)
 
     ctx.assert(level.count_item_entities(x, y, z, 2) == 1, "The spawned item entity should be counted.")
@@ -28,7 +28,7 @@ export tick(ctx: TestTickContext) {
     cx: number = x
     cz: number = z + 6
     corner: ItemEntity = item_entity(level, cx + 1.5, y, cz + 1.5, stack)
-    corner.entity().set_delta_movement(vec3_zero())
+    corner.entity().set_delta_movement(Vec3.zero())
     corner.entity().spawn(level)
 
     found: Option[ItemEntity] = level.find_item_entity(cx, y, cz, 2)

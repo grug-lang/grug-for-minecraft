@@ -10,6 +10,6 @@ export tick(ctx: TestTickContext) {
     infinity = infinity * infinity
     nan: number = infinity - infinity
 
-    ctx.expect_error("vec3: x must be finite")
-    velocity: Vec3 = vec3(nan, 0, 0)
+    ctx.expect_error("Vec3.new: x must be finite")
+    velocity: Vec3 = Vec3.new(nan, 0, 0)
 }

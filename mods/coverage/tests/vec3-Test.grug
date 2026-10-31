@@ -1,7 +1,7 @@
 # vec3 holds the three finite coordinates it was given, and reads them back unchanged.
 export tick(ctx: TestTickContext) {
-    v: Vec3 = vec3(1.5, -2, 3)
-    ctx.assert(v.x() == 1.5, "vec3 should keep x.")
-    ctx.assert(v.y() == -2, "vec3 should keep y.")
-    ctx.assert(v.z() == 3, "vec3 should keep z.")
+    v: Vec3 = Vec3.new(1.5, -2, 3)
+    ctx.assert(v.x() == 1.5, "Vec3.new should keep x.")
+    ctx.assert(v.y() == -2, "Vec3.new should keep y.")
+    ctx.assert(v.z() == 3, "Vec3.new should keep z.")
 }
