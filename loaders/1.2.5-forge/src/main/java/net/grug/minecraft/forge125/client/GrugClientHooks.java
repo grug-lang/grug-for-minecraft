@@ -236,8 +236,8 @@ public class GrugClientHooks implements ITickHandler {
 
     /**
      * Whether the frame the last render tick started was drawn: 1 for drawn, 0 for skipped, and -1
-     * before the first frame. The runtime reads it from the property above, which is only written
-     * when it changes because that is per frame.
+     * before the first frame. The property above carries the same answer to the runtime, and is
+     * only written when it changes because this runs once per frame.
      */
     private int frameDrawn = -1;
 
@@ -260,10 +260,9 @@ public class GrugClientHooks implements ITickHandler {
         // the settle answer samples it. See ModLoaderAdapter#onFrameRendered.
         //
         // Only a frame that was drawn is sampled: 1.2.5 has no Mixin to cancel the draw with, so
-        // its
-        // frame hook is this tick and it fires whether or not the frame was drawn. A skipped frame
-        // left the previous one where a capture would read it, so counting it would let a capture
-        // through on frames nobody drew. See GrugFrameRequest and #770.
+        // its frame hook is this tick and it fires whether or not the frame was drawn. A skipped
+        // frame left the previous one where a capture would read it, so counting it would let a
+        // capture through on frames nobody drew. See GrugFrameRequest and #770.
         if (types.contains(TickType.RENDER) && frameDrawn == 1) {
             GrugCore.getAdapter().onFrameRendered();
         }
