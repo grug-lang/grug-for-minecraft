@@ -36,6 +36,12 @@ on:
         # refresh is one dispatch and a commit, never a hand-edit.
         description: 'Upload each loader test order record the run wrote, so the refresh can be committed'
         type: boolean
+      reference-mod:
+        # The mod the reference job runs (#832), read from that mod's about.json: its first
+        # derived_from entry names the runtime the job stages the reference into and runs on.
+        # Empty runs the default, buildcraft, so a pull request's reference is unchanged.
+        description: 'The mod the reference job runs, read from its first derived_from entry; empty runs the default, buildcraft'
+        type: string
 
 permissions:
   contents: read
@@ -133,11 +139,14 @@ jobs:
           fi
           echo "mods=$mods" >> "$GITHUB_OUTPUT"
 
-      # Whether the reference job runs (#631). Only a pull request can skip it, and only when its diff
-      # touches nothing the reference run observes: reference-needed.py explains its answer in this
-      # log. A push to main, a dispatch, an unreachable base and any error in the script answer true,
-      # and the job's own condition skips only on an explicit false, so a step that failed to write
-      # an output runs the job too.
+      # Whether the reference job runs (#631, #832). Only a pull request can skip it, and only when
+      # its diff touches nothing the reference run observes: reference-needed.py explains its answer
+      # in this log. A push to main, a dispatch, an unreachable base and any error in the script
+      # answer true, and the job's own condition skips only on an explicit false, so a step that
+      # failed to write an output runs the job too. A pull request always runs the default mod,
+      # buildcraft, on the loader its first derived_from names (1.2.5-forge), so the gate guards
+      # exactly that, as before. A dispatch names another mod with its input, but a run that is not
+      # a pull request never asks this question.
       - name: Choose whether the reference job runs
         id: reference
         env:
@@ -404,6 +413,7 @@ jobs:
             .github/scripts/affected_mods_test.py \
             .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py \
+            .github/scripts/reference_selection_test.py \
             .github/scripts/no_tests_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
@@ -735,14 +745,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The reference run (#574): BuildCraft 2.2.14 itself on its runtime, 1.2.5 Forge, driven by the
-  # mod's screenshot tests and compared with the committed 1.2.5-forge.png goldens. Only the
-  # reference's runtime is a strict graphical reference, so a mismatch here means the port's 1.2.5
-  # golden is not what BuildCraft draws, and it fails like any loader job. GrugScreenshots compares a
-  # reference run only with the PNG named after its own loader, so it cannot pass on another
-  # loader's golden.
+  # The reference run (#574, #832): the reference named by the mod under test's first derived_from
+  # entry, on that entry's runtime, driven by the mod's screenshot tests and compared with the
+  # committed goldens. A dispatch names the mod; every other event runs the default, buildcraft, so a
+  # pull request's reference is unchanged. Only the reference's runtime is a strict graphical
+  # reference, so a mismatch here means the port's golden is not what the reference draws, and it
+  # fails like any loader job. GrugScreenshots compares a reference run only with the PNG named
+  # after its own loader, so it cannot pass on another loader's golden.
   reference:
-    name: reference (1.2.5-forge)
+    name: reference
     # A pull request that changes only other mods and other loaders skips it, which a required status
     # check counts as passed. Only an explicit false skips it (see the discover job), so a push to
     # main and a dispatch run it, and a diff of prose alone skips it like the game jobs (#785).
@@ -758,6 +769,18 @@ jobs:
         with:
           persist-credentials: false
 
+      # Read the mod under test's first derived_from entry to learn what to run (#832). A dispatch
+      # names the mod; every other event runs the default, buildcraft. The script prints to this log
+      # which derived_from entry was chosen, and it fails this job clearly when the mod names no
+      # entry to run, rather than silently running nothing. It is the single source of the mod,
+      # loader and Java every step below drives from.
+      - name: Select the reference mod and its runtime
+        id: select
+        env:
+          REFERENCE_MOD: ${{ inputs.reference-mod || 'buildcraft' }}
+        run: |
+          python3 .github/scripts/reference-selection.py "$REFERENCE_MOD" >> "$GITHUB_OUTPUT"
+
       - name: Set up JDK 21
         id: java21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -766,13 +789,15 @@ jobs:
           java-version: 21
           cache: gradle
 
-      # The game boots on Java 8, as in the loader job.
-      - name: Set up JDK 8
-        id: java8
+      # The game boots on the runtime's Java, as in the loader job. buildcraft's is 8, so this sets
+      # up JDK 8; a runtime on Java 21 needs none, since 21 is already the build JDK.
+      - name: Set up the reference's game JDK
+        id: gamejava
+        if: steps.select.outputs.java != '21'
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          java-version: 8
+          java-version: ${{ steps.select.outputs.java }}
 
       - name: Restore JDK 21 for Gradle
         run: echo "JAVA_HOME=${{ steps.java21.outputs.path }}" >> "$GITHUB_ENV"
@@ -783,10 +808,10 @@ jobs:
           name: grug-rs-library
           path: .grug-ci
 
-      # The same entries the 1.2.5-forge loader job restores, so neither job resolves its Gradle
-      # dependencies, unpacks a Gradle distribution or clones the MCP snapshot again. See the loader
-      # job for why each is keyed so. The two expressions have to stay the same as the action's for
-      # 1.2.5-forge, or this job reads an entry of its own that the loader job never writes.
+      # The same entries the loader job for the loader the runtime names restores, so neither job
+      # resolves its Gradle dependencies or unpacks a Gradle distribution again. See the loader job
+      # for why each is keyed so. The expressions have to stay the same as the action's key for the
+      # selected loader, or this job reads an entry of its own that the loader job never writes.
       - name: Cache the Gradle distributions
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -798,49 +823,56 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/1.2.5-forge/gradle.properties', 'loaders/1.2.5-forge/gradle/wrapper/gradle-wrapper.properties', 'loaders/1.2.5-forge/settings.gradle', 'loaders/1.2.5-forge/settings.gradle.kts', 'loaders/1.2.5-forge/build.gradle', 'loaders/1.2.5-forge/build.gradle.kts') }}
-          restore-keys: grug-gradle-${{ runner.os }}-1.2.5-forge-
+          key: grug-gradle-${{ runner.os }}-${{ steps.select.outputs.loader }}-${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/${{ steps.select.outputs.loader }}/gradle.properties', 'loaders/${{ steps.select.outputs.loader }}/gradle/wrapper/gradle-wrapper.properties', 'loaders/${{ steps.select.outputs.loader }}/settings.gradle', 'loaders/${{ steps.select.outputs.loader }}/settings.gradle.kts', 'loaders/${{ steps.select.outputs.loader }}/build.gradle', 'loaders/${{ steps.select.outputs.loader }}/build.gradle.kts') }}
+          restore-keys: grug-gradle-${{ runner.os }}-${{ steps.select.outputs.loader }}-
 
       - name: Cache the 1.2.5 MCP snapshot
+        if: steps.select.outputs.loader == '1.2.5-forge'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: loaders/1.2.5-forge/mcp125
           key: grug-mcp125-v2-${{ runner.os }}-${{ hashFiles('loaders/1.2.5-forge/build.gradle') }}
 
-      # The reference's jars are pinned by sha256 in about.json, so the entry is keyed on it: a
-      # changed pin misses and downloads again, and verify checks every hash either way.
+      # The reference's jars are pinned by sha256 in the mod's about.json, so the entry is keyed on
+      # it: a changed pin misses and downloads again, and verify checks every hash either way.
       - name: Cache the reference artifacts
         id: reference-artifacts
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: reference-artifacts
-          key: grug-reference-${{ hashFiles('mods/buildcraft/about.json') }}
+          key: grug-reference-${{ hashFiles('mods/${{ steps.select.outputs.mod }}/about.json') }}
 
       - name: Download and verify the reference artifacts
         if: steps.reference-artifacts.outputs.cache-hit != 'true'
-        run: python3 recreation.py verify mods/buildcraft/about.json --output reference-artifacts
+        run: python3 recreation.py verify mods/${{ steps.select.outputs.mod }}/about.json --output reference-artifacts
 
       # stage hashes every artifact again before it copies it, so a restored cache is checked too.
       - name: Stage the reference install
         run: |
-          python3 recreation.py stage mods/buildcraft/about.json \
+          python3 recreation.py stage mods/${{ steps.select.outputs.mod }}/about.json \
             --artifacts reference-artifacts \
-            --destination loaders/1.2.5-forge/run/reference-mods
+            --destination loaders/${{ steps.select.outputs.loader }}/run/reference-mods
           echo "The reference run loads:"
-          (cd loaders/1.2.5-forge/run/reference-mods && sha256sum *)
+          (cd loaders/${{ steps.select.outputs.loader }}/run/reference-mods && sha256sum *)
 
       # The harness is the mod's tests that have a reference side, the ones that capture a screenshot
       # or branch on Test.is_reference(), plus about.json, LICENSE and goldens without its code, so the
-      # real BuildCraft provides every block and the harness only drives the tests. The game dies
+      # real reference provides every block and the harness only drives the tests. The game dies
       # before the tests without the LICENSE.
       - name: Assemble the reference harness
         run: |
+          mod="${{ steps.select.outputs.mod }}"
           harness="$GITHUB_WORKSPACE/reference-harness"
-          mkdir -p "$harness/buildcraft/tests"
-          cp mods/buildcraft/about.json mods/buildcraft/LICENSE "$harness/buildcraft/"
-          cp -r mods/buildcraft/screenshots "$harness/buildcraft/"
-          for test in $(grep -l -e "Test.screenshot" -e "Test.is_reference" mods/buildcraft/tests/*-Test.grug); do
-            cp "$test" "$harness/buildcraft/tests/"
+          mkdir -p "$harness/$mod/tests"
+          cp "mods/$mod/about.json" "$harness/$mod/"
+          if [ -f "mods/$mod/LICENSE" ]; then
+            cp "mods/$mod/LICENSE" "$harness/$mod/"
+          fi
+          if [ -d "mods/$mod/screenshots" ]; then
+            cp -r "mods/$mod/screenshots" "$harness/$mod/"
+          fi
+          for test in $(grep -l -e "Test.screenshot" -e "Test.is_reference" "mods/$mod/tests/"*-Test.grug 2>/dev/null); do
+            cp "$test" "$harness/$mod/tests/"
           done
           echo "The reference harness is $harness:"
           (cd "$harness" && find . -type f -not -name '*.png' | sort)
@@ -868,13 +900,13 @@ jobs:
             fi
           fi
 
-      - name: Run the reference (1.2.5-forge)
-        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh 1.2.5-forge run
+      - name: Run the reference (${{ steps.select.outputs.loader }})
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh ${{ steps.select.outputs.loader }} run
         env:
           GRUG_REFERENCE: '1'
           GRUG_MODS_DIR: ${{ github.workspace }}/reference-harness
-          GRUG_REFERENCE_MODS_DIR: ${{ github.workspace }}/loaders/1.2.5-forge/run/reference-mods
-          GRUG_JAVA8: ${{ steps.java8.outputs.path }}
+          GRUG_REFERENCE_MODS_DIR: ${{ github.workspace }}/loaders/${{ steps.select.outputs.loader }}/run/reference-mods
+          GRUG_JAVA8: ${{ steps.gamejava.outputs.path }}
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '360'
 
@@ -882,23 +914,23 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: reference-1.2.5-forge-logs
+          name: reference-${{ steps.select.outputs.loader }}-logs
           path: |
-            loaders/1.2.5-forge/run/logs
-            loaders/1.2.5-forge/run/crash-reports
-            loaders/1.2.5-forge/run/ci-run-loader.log
-            loaders/1.2.5-forge/run/hs_err_pid*.log
+            loaders/${{ steps.select.outputs.loader }}/run/logs
+            loaders/${{ steps.select.outputs.loader }}/run/crash-reports
+            loaders/${{ steps.select.outputs.loader }}/run/ci-run-loader.log
+            loaders/${{ steps.select.outputs.loader }}/run/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
 
       # The reference's capture and diff for the golden it missed. The capture is the reference's own
-      # rendering, so it is what that 1.2.5-forge.png should hold once the port draws the same.
+      # rendering, so it is what that loader's golden should hold once the port draws the same.
       - name: Upload unmatched screenshot captures
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: reference-1.2.5-forge-screenshots
-          path: loaders/1.2.5-forge/run/grug-screenshot-artifacts
+          name: reference-${{ steps.select.outputs.loader }}-screenshots
+          path: loaders/${{ steps.select.outputs.loader }}/run/grug-screenshot-artifacts
           if-no-files-found: ignore
           retention-days: 7
 

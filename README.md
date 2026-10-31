@@ -142,7 +142,7 @@ which is `screenshots/` or any directory nested under it in the mod, each PNG na
 loader that produced it, so a rendering that none of them represents yet has to be accepted
 explicitly, from a CI runner's capture: a world capture from a local run can differ slightly. A
 failing job uploads its unmatched capture as `loader-<loader>-screenshots` (the reference job as
-`reference-1.2.5-forge-screenshots`), also for a test with no reference yet; copy that loader's PNG
+`reference-<loader>-screenshots`), also for a test with no reference yet; copy that loader's PNG
 into the reference directory.
 
 The `update-goldens` phase writes every unmatched capture into the reference directory under the
