@@ -1,4 +1,6 @@
 import java.io.File
+import java.util.concurrent.Callable
+import org.gradle.jvm.tasks.Jar
 import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
 
 plugins {
@@ -38,6 +40,25 @@ repositories {
 // javac would then discover in tests that compile code.
 val stubs: SourceSet = sourceSets.create("stubs")
 
+// The tool that records what each coverage test covered, for the carry-over of the tests a diff
+// cannot affect (#786): one JVM over the per-test exec data, against the JaCoCo core library,
+// rather than one jacoco-cli invocation per file. It is a build tool, not core: core's main
+// sources compile with --release 8 and are packaged into the game, and this is neither. Its jar
+// bundles the core library's own classes, which shade asm the way the library shades it, so the
+// tool has no runtime dependency at all: the coverage job adds nothing to its classpath.
+val coverageMapTool: SourceSet = sourceSets.create("coverageMapTool")
+
+// The JaCoCo core library the tool links against, resolved for itself alone: the tool's jar
+// bundles this jar's org/jacoco tree and nothing else.
+val coverageMapToolCoreJar: Configuration by configurations.creating {
+    isTransitive = false
+}
+
+// The CI coverage job builds one report per runner from the uploaded exec/class artifacts using the
+// JaCoCo CLI. Exposing the jar here keeps the CLI version in sync with the jacoco plugin's, and
+// the coverage map tool compiles against the same core library version.
+val jacocoToolVersion = the<JacocoPluginExtension>().toolVersion
+
 dependencies {
     // The game provides ASM wherever GrugMixinPlugin is loaded, so it is not packaged either.
     "stubsCompileOnly"("org.ow2.asm:asm-tree:9.7.1")
@@ -45,6 +66,11 @@ dependencies {
     compileOnly("org.ow2.asm:asm-tree:9.7.1")
     testImplementation(stubs.output)
     testImplementation("org.ow2.asm:asm-tree:9.7.1")
+
+    // The coverage map tool's own classes and the JaCoCo core library they link against, which
+    // the tool's tests drive with class files they write themselves (#786).
+    testImplementation(coverageMapTool.output)
+    testImplementation("org.jacoco:org.jacoco.core:$jacocoToolVersion")
 
     compileOnly("org.projectlombok:lombok:1.18.48")
     annotationProcessor("org.projectlombok:lombok:1.18.48")
@@ -83,7 +109,6 @@ tasks.jacocoTestReport {
 val jacocoCli: Configuration by configurations.creating {
     isTransitive = false
 }
-val jacocoToolVersion = the<JacocoPluginExtension>().toolVersion
 
 dependencies {
     jacocoCli("org.jacoco:org.jacoco.cli:$jacocoToolVersion:nodeps")
@@ -92,6 +117,21 @@ dependencies {
 tasks.register("printJacocoCliPath") {
     doLast {
         println("JACOCO_CLI=${jacocoCli.singleFile.absolutePath}")
+    }
+}
+
+dependencies {
+    coverageMapToolCoreJar("org.jacoco:org.jacoco.core:$jacocoToolVersion")
+    "coverageMapToolImplementation"("org.jacoco:org.jacoco.core:$jacocoToolVersion")
+}
+
+tasks.register<Jar>("coverageMapToolJar") {
+    archiveFileName.set("coverage-map-tool.jar")
+    from(coverageMapTool.output)
+    // The core library's classes, the way the library shades asm: a tool with no classpath to
+    // get wrong in a workflow.
+    from(zipTree(Callable { coverageMapToolCoreJar.singleFile })) {
+        include("org/jacoco/**")
     }
 }
 

@@ -240,8 +240,8 @@ class GrugCoverageTest {
                 System.setOut(new PrintStream(out, true, "UTF-8"));
                 // Not wrapped in an assertion, so a thrown fatal would fail this test too.
                 GrugCoverage coverage = new GrugCoverage(bare, directory.toString());
-                coverage.testStarting("buildcraft");
-                coverage.testStarting("coverage");
+                coverage.testStarting("buildcraft/tests/x-Test.grug");
+                coverage.testStarting("coverage/tests/a-Test.grug");
                 coverage.runPassed();
                 new GrugCoverage(bare, null).runPassed();
             } finally {
@@ -255,30 +255,33 @@ class GrugCoverageTest {
     }
 
     @Test
-    void countsTheBootAndTheCoverageModAndSetsTheRestApart() throws Exception {
+    void cutsASegmentForEveryTestAndCountsOnlyTheCoverageOnes() throws Exception {
         Path directory = tmp.resolve("segments");
         try (URLClassLoader loader = stubAgent("keeps", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
-            // Several tests of one mod are one segment, so only the change of mod cuts.
-            coverage.testStarting("buildcraft");
-            coverage.testStarting("buildcraft");
-            coverage.testStarting("coverage");
-            coverage.testStarting("coverage");
-            coverage.testStarting("examplemod");
-            coverage.testStarting("jei");
+            // Every test is its own segment: the previous test's (or the boot's) segment is cut
+            // when the next test starts, so a buildcraft test lands in a .dropped file and a
+            // coverage test in a .exec one, named after the test.
+            coverage.testStarting("buildcraft/tests/x-Test.grug");
+            coverage.testStarting("coverage/tests/a-Test.grug");
+            coverage.testStarting("coverage/tests/b-Test.grug");
+            coverage.testStarting("jei/tests/j-Test.grug");
             coverage.runPassed();
 
             // Every cut takes the data and resets in the same call.
             assertEquals(
-                    "snapshot(true) snapshot(true) snapshot(true) snapshot(true) snapshot(true) ",
+                    "snapshot(true) snapshot(true) snapshot(true) snapshot(true)"
+                            + " snapshot(true) ",
                     calls(loader));
             assertEquals(
-                    "000-boot.exec 001-buildcraft.dropped 002-coverage.exec"
-                            + " 003-examplemod.dropped 004-jei.dropped",
+                    "000-boot.exec 001-buildcraft.tests.x-Test.grug.dropped"
+                        + " 002-coverage.tests.a-Test.grug.exec 003-coverage.tests.b-Test.grug.exec"
+                        + " 004-jei.tests.j-Test.grug.dropped",
                     segmentFiles(directory));
             assertEquals("data0", content(directory, "000-boot.exec"));
-            assertEquals("data1", content(directory, "001-buildcraft.dropped"));
-            assertEquals("data2", content(directory, "002-coverage.exec"));
+            assertEquals("data1", content(directory, "001-buildcraft.tests.x-Test.grug.dropped"));
+            assertEquals("data2", content(directory, "002-coverage.tests.a-Test.grug.exec"));
+            assertEquals("data3", content(directory, "003-coverage.tests.b-Test.grug.exec"));
         }
     }
 
@@ -287,12 +290,13 @@ class GrugCoverageTest {
         Path directory = tmp.resolve("segments");
         try (URLClassLoader loader = stubAgent("ends", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
-            coverage.testStarting("buildcraft");
-            coverage.testStarting("coverage");
+            coverage.testStarting("buildcraft/tests/x-Test.grug");
+            coverage.testStarting("coverage/tests/a-Test.grug");
             coverage.runPassed();
 
             assertEquals(
-                    "000-boot.exec 001-buildcraft.dropped 002-coverage.exec",
+                    "000-boot.exec 001-buildcraft.tests.x-Test.grug.dropped"
+                            + " 002-coverage.tests.a-Test.grug.exec",
                     segmentFiles(directory));
         }
     }
@@ -302,11 +306,14 @@ class GrugCoverageTest {
         Path directory = tmp.resolve("segments");
         try (URLClassLoader loader = stubAgent("alone", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
-            coverage.testStarting("coverage");
-            coverage.testStarting("coverage");
+            coverage.testStarting("coverage/tests/a-Test.grug");
+            coverage.testStarting("coverage/tests/b-Test.grug");
             coverage.runPassed();
 
-            assertEquals("000-boot.exec 001-coverage.exec", segmentFiles(directory));
+            assertEquals(
+                    "000-boot.exec 001-coverage.tests.a-Test.grug.exec"
+                            + " 002-coverage.tests.b-Test.grug.exec",
+                    segmentFiles(directory));
         }
     }
 
@@ -317,10 +324,11 @@ class GrugCoverageTest {
         Path directory = tmp.resolve("segments");
         try (URLClassLoader loader = stubAgent("without", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
-            coverage.testStarting("jei");
+            coverage.testStarting("jei/tests/j-Test.grug");
             coverage.runPassed();
 
-            assertEquals("000-boot.exec 001-jei.dropped", segmentFiles(directory));
+            assertEquals(
+                    "000-boot.exec 001-jei.tests.j-Test.grug.dropped", segmentFiles(directory));
         }
     }
 
@@ -330,15 +338,17 @@ class GrugCoverageTest {
         try (URLClassLoader loader = stubAgent("repeats", false)) {
             GrugCoverage coverage = new GrugCoverage(loader, directory.toString());
             for (int pass = 0; pass < 2; pass++) {
-                coverage.testStarting("buildcraft");
-                coverage.testStarting("coverage");
-                coverage.testStarting("jei");
+                coverage.testStarting("buildcraft/tests/x-Test.grug");
+                coverage.testStarting("coverage/tests/a-Test.grug");
+                coverage.testStarting("jei/tests/j-Test.grug");
             }
             coverage.runPassed();
 
             assertEquals(
-                    "000-boot.exec 001-buildcraft.dropped 002-coverage.exec 003-jei.dropped"
-                            + " 004-buildcraft.dropped 005-coverage.exec 006-jei.dropped",
+                    "000-boot.exec 001-buildcraft.tests.x-Test.grug.dropped"
+                        + " 002-coverage.tests.a-Test.grug.exec 003-jei.tests.j-Test.grug.dropped"
+                        + " 004-buildcraft.tests.x-Test.grug.dropped"
+                        + " 005-coverage.tests.a-Test.grug.exec 006-jei.tests.j-Test.grug.dropped",
                     segmentFiles(directory));
         }
     }
@@ -388,7 +398,8 @@ class GrugCoverageTest {
             GrugCoverage coverage = new GrugCoverage(loader, tmp.resolve("segments").toString());
             IllegalStateException failure =
                     assertThrows(
-                            IllegalStateException.class, () -> coverage.testStarting("buildcraft"));
+                            IllegalStateException.class,
+                            () -> coverage.testStarting("buildcraft/tests/x-Test.grug"));
             assertTrue(
                     failure.getMessage().startsWith("Broken grug invariant: "),
                     "not an invariant failure: " + failure.getMessage());
@@ -411,7 +422,8 @@ class GrugCoverageTest {
             GrugCoverage coverage = new GrugCoverage(loader, blocked.toString());
             IllegalStateException failure =
                     assertThrows(
-                            IllegalStateException.class, () -> coverage.testStarting("buildcraft"));
+                            IllegalStateException.class,
+                            () -> coverage.testStarting("buildcraft/tests/x-Test.grug"));
             assertTrue(failure.getMessage().startsWith("Broken grug invariant: "));
             assertTrue(failure.getMessage().contains("000-boot.exec"));
             assertTrue(causeOfType(failure, IOException.class) != null);

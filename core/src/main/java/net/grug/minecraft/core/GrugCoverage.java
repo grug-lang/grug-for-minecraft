@@ -15,13 +15,17 @@ import java.util.Locale;
  * other mods' tests reach is kept apart, so they never decide the gate and a pull request can run
  * any subset of them. See #626.
  *
- * <p>The runner sorts the tests by path, so the run is a sequence of segments, one per stretch of
- * tests of the same mod: the boot, then for example {@code buildcraft}, {@code coverage}, {@code
- * examplemod} and {@code jei}. Whenever the next test belongs to another mod the segment that just
- * ended is cut: the agent hands over its data and resets in one call, and the data is written to
- * {@code NNN-<segment>.exec} in the directory named by {@code -Dgrug.coverage.dir} when the gate
- * counts the segment, and to {@code NNN-<segment>.dropped} when it does not. The coverage job
- * combines the {@code .exec} files of a runner, so several of them are one run.
+ * <p>The cut is per test, not per mod (#786): the runner calls {@link #testStarting(String)} before
+ * every test with the test's path, and the segment that just ended is cut then, so each test of a
+ * run is its own {@code NNN-<test>.exec} or {@code NNN-<test>.dropped} file in the directory named
+ * by {@code -Dgrug.coverage.dir}. Cutting on every test costs one {@code
+ * getExecutionData(reset=true)} per test (a copy and a reset of a tens-of- kilobytes probe array),
+ * well under a second for a whole suite, and it is what lets a later run carry over the recorded
+ * coverage of the tests a diff provably cannot affect instead of rerunning them. The boot before
+ * the first test is still its own counted segment, and a test of the counted mod {@link
+ * #COUNTED_MOD} is written {@code .exec} while the rest are {@code .dropped}, exactly as the
+ * per-mod cut did: the coverage job combines the {@code .exec} files of a runner, so several of
+ * them are one run.
  *
  * <p>The {@code .dropped} files exist for one thing only: code that runs once per JVM, which is a
  * class initializer. It ran in whichever segment first used its class, and a reset forgets it, so a
@@ -60,7 +64,9 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
     private Method getExecutionData;
     private Path directory;
 
-    /** The segment the agent currently holds the data of. */
+    /**
+     * The segment the agent currently holds the data of: {@link #BOOT} or the running test's path.
+     */
     private String segment = BOOT;
 
     /** How many segments were written, which numbers the files so they sort in run order. */
@@ -112,19 +118,23 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
 
     /**
      * Whether the coverage gate counts what a segment reached. Anything else is dropped, so the
-     * only mod that decides the gate is the one named {@link #COUNTED_MOD}.
+     * only mod that decides the gate is the one named {@link #COUNTED_MOD}. A segment is the boot
+     * or a test's path, and a test is counted by the mod it is in.
      */
     private static boolean counted(String segment) {
-        return BOOT.equals(segment) || COUNTED_MOD.equals(segment);
+        if (BOOT.equals(segment)) return true;
+        int slash = segment.indexOf('/');
+        String mod = slash < 0 ? segment : segment.substring(0, slash);
+        return COUNTED_MOD.equals(mod);
     }
 
     @Override
-    public void testStarting(String mod) {
-        if (agent == null || mod.equals(segment)) {
+    public void testStarting(String testPath) {
+        if (agent == null) {
             return;
         }
         cutSegment();
-        segment = mod;
+        segment = testPath;
     }
 
     @Override
@@ -132,6 +142,16 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
         if (agent != null) {
             cutSegment();
         }
+    }
+
+    /**
+     * The file-name label of a segment: the boot stays {@code boot}, and a test's path has its
+     * slashes flattened, so {@code coverage/tests/a-Test.grug} is the file {@code
+     * NNN-coverage.tests.a-Test.grug.<ext>}. Flattening is a bijection for the paths the runner
+     * hands over, since the runner owns both the cut and the list of the tests that ran.
+     */
+    private static String segmentName(String segment) {
+        return segment.replace('/', '.');
     }
 
     /**
@@ -148,7 +168,12 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
         String extension = counted(segment) ? "exec" : "dropped";
         Path file =
                 directory.resolve(
-                        String.format(Locale.ROOT, "%03d-%s.%s", written, segment, extension));
+                        String.format(
+                                Locale.ROOT,
+                                "%03d-%s.%s",
+                                written,
+                                segmentName(segment),
+                                extension));
         try {
             Files.createDirectories(directory);
             Files.write(file, data);
