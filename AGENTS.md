@@ -41,11 +41,11 @@ api get /api/session/$OPENCODE_SESSION_ID/message` gives the counts, from the la
 message's `tokens.input` plus `tokens.cache.read`) and checks that the compaction message reached
 status `completed`. The next task starts by reading the handoff, because the harness's summary is
 not the record and the record is what a fresh session trusts. Never compact before the record is
-written, or with the orchestrator's own worktree or pull request unmerged. A subagent's running session is not the middle of a task: the
-handoff names it, its brief and what to do when it reports, and compaction does not stop it, so it
-is not a reason to wait for a merge that keeps receding. Read the size from the API at every merge
-and every four-hourly check rather than remembering it, because a stretch of notifications buries a
-check done only by memory. If the call fails, retry at the next boundary and carry on; do not wait
+written, or with the orchestrator's own worktree or pull request unmerged. A subagent's running
+session is not the middle of a task: the handoff names it, its brief and what to do when it
+reports, and compaction does not stop it, so it is not a reason to wait for a merge that keeps
+receding. Read the size from the API at every merge and every four-hourly check rather than
+remembering it, because a stretch of notifications buries a check done only by memory. If the call fails, retry at the next boundary and carry on; do not wait
 for the maintainer to run `/compact` unless the session cannot continue at all.
 
 **The daily meta pass.** Once a day, at a boundary rather than on a clock (after the day's last
