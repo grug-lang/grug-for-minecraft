@@ -233,8 +233,8 @@ public class GrugTestRunner {
     private int currentTick = 0;
 
     /**
-     * When the running test started, so its duration can be worked out when it ends, and -1 until
-     * a test has started, so a test that never did is not timed as if it took the whole run.
+     * When the running test started, so its duration can be worked out when it ends, and -1 until a
+     * test has started, so a test that never did is not timed as if it took the whole run.
      */
     private long currentTestStartNanos = -1;
 
@@ -561,8 +561,7 @@ public class GrugTestRunner {
                 record =
                         GrugTestOrder.parseRecord(
                                 new String(
-                                        Files.readAllBytes(testTimesFile),
-                                        StandardCharsets.UTF_8));
+                                        Files.readAllBytes(testTimesFile), StandardCharsets.UTF_8));
                 orderTestsByRecord();
             } catch (Exception e) {
                 // The record is data, not an invariant: a broken one costs this run its order and
@@ -987,7 +986,8 @@ public class GrugTestRunner {
             return null;
         }
         String value =
-                System.getProperty(TEST_TIMES_FILE_PROPERTY, System.getenv(TEST_TIMES_FILE_ENV_VAR));
+                System.getProperty(
+                        TEST_TIMES_FILE_PROPERTY, System.getenv(TEST_TIMES_FILE_ENV_VAR));
         if (value == null || value.isEmpty()) {
             return null;
         }
@@ -1040,10 +1040,9 @@ public class GrugTestRunner {
     }
 
     /**
-     * The times the record the run writes back holds: this run's measurement for a test it ran,
-     * and the record it read for a test it did not reach, so a run of a subset of the mods never
-     * throws the other mods' times away. A test the loader no longer has is in neither, so it is
-     * dropped.
+     * The times the record the run writes back holds: this run's measurement for a test it ran, and
+     * the record it read for a test it did not reach, so a run of a subset of the mods never throws
+     * the other mods' times away. A test the loader no longer has is in neither, so it is dropped.
      */
     private Map<String, Long> mergedTimes() {
         Map<String, Long> times = new LinkedHashMap<>();
@@ -1063,8 +1062,8 @@ public class GrugTestRunner {
 
     /**
      * Writes the record the run hands to the next one: the times it measured, and the test it
-     * failed, if one did. Written when the run ends, on a pass and on a failure alike, and never
-     * on a run the game never let finish, so a timeout or a crash leaves the record it found.
+     * failed, if one did. Written when the run ends, on a pass and on a failure alike, and never on
+     * a run the game never let finish, so a timeout or a crash leaves the record it found.
      */
     private void writeTestTimesRecord(Set<String> failed) {
         if (testTimesFile == null) {
@@ -1082,8 +1081,7 @@ public class GrugTestRunner {
         }
         json.add("times", times);
         try {
-            Files.write(
-                    testTimesFile, GSON.toJson(json).getBytes(StandardCharsets.UTF_8));
+            Files.write(testTimesFile, GSON.toJson(json).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             System.out.println(
                     "[GRUG CI] The updated test order record could not be written to "

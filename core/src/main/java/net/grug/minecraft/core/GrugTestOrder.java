@@ -21,13 +21,15 @@ import java.util.Set;
  * <p>The suite is serial, so a green run takes as long as it does whatever the order is; what the
  * order changes is where a failure lands. A test that failed last is the first thing the next run
  * runs, so it fails in the first minute of that run instead of the last minute of the one before,
- * and the record that says so is what the runner writes back when a run ends and the next one
- * reads when it starts.
+ * and the record that says so is what the runner writes back when a run ends and the next one reads
+ * when it starts.
  */
 public final class GrugTestOrder {
     private GrugTestOrder() {}
 
-    /** What one run records about its tests: how long each took, and the one that failed, if any. */
+    /**
+     * What one run records about its tests: how long each took, and the one that failed, if any.
+     */
     public static final class Record {
         /** The tests that failed the run the record came from, so the next one starts there. */
         public final Set<String> failed;
