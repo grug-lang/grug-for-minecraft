@@ -119,13 +119,12 @@ public final class GrugCoverage implements GrugTestRunner.CoverageRecorder {
     /**
      * Whether the coverage gate counts what a segment reached. Anything else is dropped, so the
      * only mod that decides the gate is the one named {@link #COUNTED_MOD}. A segment is the boot
-     * or a test's path, and a test is counted by the mod it is in.
+     * or a test's path, and a test is counted by the mod it is in: the part of the path before its
+     * first slash, since the runner names every test {@code <mod>/<rest>}.
      */
     private static boolean counted(String segment) {
         if (BOOT.equals(segment)) return true;
-        int slash = segment.indexOf('/');
-        String mod = slash < 0 ? segment : segment.substring(0, slash);
-        return COUNTED_MOD.equals(mod);
+        return COUNTED_MOD.equals(segment.substring(0, segment.indexOf('/')));
     }
 
     @Override
