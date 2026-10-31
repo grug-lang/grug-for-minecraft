@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugReference;
@@ -1187,8 +1188,7 @@ class GrugTestRunnerTest {
     private static Map<String, Long> timesIn(Path file) throws IOException {
         JsonObject object = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
         Map<String, Long> times = new HashMap<>();
-        for (Map.Entry<String, JsonElement> entry :
-                object.getAsJsonObject("times").entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : object.getAsJsonObject("times").entrySet()) {
             times.put(entry.getKey(), entry.getValue().getAsLong());
         }
         return times;
@@ -1252,9 +1252,7 @@ class GrugTestRunnerTest {
     @Test
     void saysWhereTheTestOrderComesFrom() throws Exception {
         Path file =
-                recordFile(
-                        tempDir,
-                        "{\"failed\": [], \"times\": {\"mymod/code/a-Test.grug\": 1}}");
+                recordFile(tempDir, "{\"failed\": [], \"times\": {\"mymod/code/a-Test.grug\": 1}}");
         Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
 
         withRecordFile(
@@ -1272,10 +1270,7 @@ class GrugTestRunnerTest {
         Map<String, Long> files = new LinkedHashMap<>();
         files.put("mymod/code/a-Test.grug", 1L);
         files.put("mymod/code/b-Test.grug", 2L);
-        Path one =
-                recordFile(
-                        tempDir,
-                        "{\"failed\": [\"mymod/code/a-Test.grug\"], \"times\": {}}");
+        Path one = recordFile(tempDir, "{\"failed\": [\"mymod/code/a-Test.grug\"], \"times\": {}}");
         Path two = tempDir.resolve("two.json");
         String json =
                 "{\"failed\": [\"mymod/code/a-Test.grug\", \"mymod/code/b-Test.grug\"], "
@@ -1317,8 +1312,7 @@ class GrugTestRunnerTest {
         files.put("othermod/code/a-Test.grug", 3L);
         for (Path file :
                 new Path[] {
-                    recordFile(tempDir, "definitely not a record"),
-                    tempDir.resolve("absent.json")
+                    recordFile(tempDir, "definitely not a record"), tempDir.resolve("absent.json")
                 }) {
             withRecordFile(
                     file,
@@ -1409,9 +1403,7 @@ class GrugTestRunnerTest {
         ops.onCall = () -> clock.advance(timePerTest.get(ops.activePath));
         Path file = recordFile(tempDir, "{\"failed\": [], \"times\": {}}");
 
-        withRecordFile(
-                file,
-                () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
+        withRecordFile(file, () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
 
         assertEquals(List.of(), failedIn(file));
         assertEquals(
@@ -1439,9 +1431,7 @@ class GrugTestRunnerTest {
                 };
         Path file = recordFile(tempDir, "{\"failed\": [], \"times\": {}}");
 
-        withRecordFile(
-                file,
-                () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
+        withRecordFile(file, () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
 
         assertEquals(List.of("mymod/code/b-Test.grug"), failedIn(file));
         assertEquals(
@@ -1472,9 +1462,7 @@ class GrugTestRunnerTest {
                                 + "\"mymod/code/b-Test.grug\": 2, "
                                 + "\"mymod/code/c-Test.grug\": 1}}");
 
-        withRecordFile(
-                file,
-                () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
+        withRecordFile(file, () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
 
         assertEquals(List.of("mymod/code/b-Test.grug"), failedIn(file));
         assertEquals(
@@ -1518,16 +1506,11 @@ class GrugTestRunnerTest {
                                                         new SweepLog(new ArrayList<>()),
                                                         1,
                                                         new CoverageLog(),
-                                                        GrugTestRunner.parseMods(
-                                                                "mymod")))));
+                                                        GrugTestRunner.parseMods("mymod")))));
 
         assertEquals(List.of(), failedIn(file));
         assertEquals(
-                Map.of(
-                        "mymod/code/a-Test.grug",
-                        3 * MS,
-                        "othermod/code/a-Test.grug",
-                        7_000_000L),
+                Map.of("mymod/code/a-Test.grug", 3 * MS, "othermod/code/a-Test.grug", 7_000_000L),
                 timesIn(file));
     }
 
@@ -1549,9 +1532,7 @@ class GrugTestRunnerTest {
                                 + "\"times\": {\"ghostmod/code/gone-Test.grug\": 1,"
                                 + " \"mymod/code/a-Test.grug\": 2}}");
 
-        withRecordFile(
-                file,
-                () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
+        withRecordFile(file, () -> capture(() -> runToEnd(timedRunner(ops, files, clock))));
 
         assertEquals(List.of(), failedIn(file));
         assertEquals(Map.of("mymod/code/a-Test.grug", MS), timesIn(file));

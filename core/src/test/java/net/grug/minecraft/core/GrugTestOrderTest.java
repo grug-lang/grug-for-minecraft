@@ -4,11 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.junit.jupiter.api.Test;
 
 /** Covers {@link GrugTestOrder}: the order it returns and the record it reads. */
 class GrugTestOrderTest {
@@ -24,9 +24,7 @@ class GrugTestOrderTest {
 
     private static List<String> allThree() {
         return List.of(
-                "mymod/code/a-Test.grug",
-                "mymod/code/b-Test.grug",
-                "mymod/code/c-Test.grug");
+                "mymod/code/a-Test.grug", "mymod/code/b-Test.grug", "mymod/code/c-Test.grug");
     }
 
     @Test
@@ -44,7 +42,8 @@ class GrugTestOrderTest {
                         "mymod/code/c-Test.grug",
                         "mymod/code/b-Test.grug",
                         "mymod/code/a-Test.grug"),
-                GrugTestOrder.orderTests(times(10, 30, 1), Set.of("mymod/code/c-Test.grug"), allThree()));
+                GrugTestOrder.orderTests(
+                        times(10, 30, 1), Set.of("mymod/code/c-Test.grug"), allThree()));
     }
 
     @Test
@@ -54,7 +53,8 @@ class GrugTestOrderTest {
                         "mymod/code/a-Test.grug",
                         "mymod/code/b-Test.grug",
                         "mymod/code/c-Test.grug"),
-                GrugTestOrder.orderTests(times(10, 30, 1), Set.of("mymod/code/a-Test.grug"), allThree()));
+                GrugTestOrder.orderTests(
+                        times(10, 30, 1), Set.of("mymod/code/a-Test.grug"), allThree()));
     }
 
     @Test
@@ -88,14 +88,20 @@ class GrugTestOrderTest {
                 GrugTestOrder.orderTests(
                         times(10, 30, 1),
                         Set.of(),
-                        List.of("mymod/code/a-Test.grug", "mymod/code/z-Test.grug", "mymod/code/b-Test.grug")));
+                        List.of(
+                                "mymod/code/a-Test.grug",
+                                "mymod/code/z-Test.grug",
+                                "mymod/code/b-Test.grug")));
     }
 
     @Test
     void unrecordedTestsTieAgainstEachOtherByName() {
         assertEquals(
                 List.of("mymod/code/b-Test.grug", "mymod/code/z-Test.grug"),
-                GrugTestOrder.orderTests(Map.of(), Set.of(), List.of("mymod/code/z-Test.grug", "mymod/code/b-Test.grug")));
+                GrugTestOrder.orderTests(
+                        Map.of(),
+                        Set.of(),
+                        List.of("mymod/code/z-Test.grug", "mymod/code/b-Test.grug")));
     }
 
     @Test
@@ -169,7 +175,10 @@ class GrugTestOrderTest {
     void refusesTextThatIsNotAnObject() {
         for (String text : new String[] {"", "null", "[]", "5", "\"mymod\""}) {
             IllegalArgumentException e =
-                    assertThrows(IllegalArgumentException.class, () -> GrugTestOrder.parseRecord(text), text);
+                    assertThrows(
+                            IllegalArgumentException.class,
+                            () -> GrugTestOrder.parseRecord(text),
+                            text);
             assertTrue(e.getMessage().contains("JSON object"), e.getMessage());
         }
     }
@@ -179,7 +188,8 @@ class GrugTestOrderTest {
         assertThrows(
                 IllegalArgumentException.class, () -> GrugTestOrder.parseRecord("{\"times\": {}}"));
         assertThrows(
-                IllegalArgumentException.class, () -> GrugTestOrder.parseRecord("{\"failed\": []}"));
+                IllegalArgumentException.class,
+                () -> GrugTestOrder.parseRecord("{\"failed\": []}"));
         assertThrows(IllegalArgumentException.class, () -> GrugTestOrder.parseRecord("{}"));
     }
 
