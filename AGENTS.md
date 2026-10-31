@@ -24,17 +24,22 @@ are by members only (#617).
   CI result, measurements, surprises) and never merges. It never closes, reopens or marks an issue
   not planned either: whether a task is finished or should be closed is the orchestrator's decision,
   and a subagent that finds no saving reports the numbers and its recommendation.
-- **Merging.** The orchestrator merges by rebase (`gh pr merge <n> --rebase`) once every job of the
-  pull request has passed (a skipped job counts as a pass) and it has read the diff against the
-  issue. Never wait for CodeRabbit: it is slow and hits its review limit, so the review that counts
-  is yours. Read the issue, the pull request description and the whole diff, ask what the change
-  exists for and check that exact case (a watcher has to work while a run is still going, not only
-  on a finished one), and think of an empty, odd or failing input; a subagent's check of the easy
-  case proves nothing about the real one. Nothing is pushed to `main`. A quick edit to markdown
-  only (an AGENTS.md fix, say) may be merged without waiting for any CI, and neither its pull
-  request run nor the push-to-`main` run after it needs checking. Before merging a base pull
-  request that another one is stacked on, retarget the other to `main`, or `--delete-branch` closes
-  it.
+- **Merging.** The orchestrator merges by rebase (`gh pr merge <n> --rebase`) once it has read the
+  diff against the issue and judged that the change is unlikely to break `main` or lower coverage.
+  Read the issue, the pull request description and the whole diff, ask what the change exists for
+  and check that exact case (a watcher has to work while a run is still going, not only on a
+  finished one), and think of an empty, odd or failing input; a subagent's check of the easy case
+  proves nothing about the real one. Velocity is what the CI exists for: a change that touches
+  `core/`, `mod_api.json`, the runner or a loader's adapters waits for the pull request's full run,
+  while a change confined to `mods/`, to documentation or to a script with its own tests may merge
+  on the jobs that exercise it, or on `pre-commit` alone when the orchestrator will watch the
+  push-to-`main` run and fix forward. Every push to `main` is one merge, so a failure is attributed
+  to that pull request, and a temporarily red `main` is acceptable. Never wait for CodeRabbit: it
+  is slow and hits its review limit, so the review that counts is yours. Nothing is pushed to
+  `main`. A quick edit to markdown only (an `AGENTS.md` fix, say) may be merged without waiting for
+  any CI, and neither its pull request run nor the push-to-`main` run after it needs checking.
+  Before merging a base pull request that another one is stacked on, retarget the other to `main`,
+  or `--delete-branch` closes it.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
@@ -66,6 +71,10 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 - A release takes its jar from a dispatch of `build.yml` on main, not from the push that merged the
   commit: the Windows boot jobs run only on a dispatch and for a loader a push adds (#632), so
   `release.yml` requires that dispatch.
+- A release is published automatically every Sunday at 12:00 CET (11:00 UTC) from `main`'s head: the
+  scheduled workflow dispatches the full `build.yml`, waits for it, tags the commit and lets
+  `release.yml` attach the jar. That dispatch is the one run that must be green; a failure there
+  blocks the release and is fixed before the next one, never by weakening the gate.
 - Build's concurrency cancels an older run of the same ref, except on `main`. To run several
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
   done. An experiment that changes only `.github/scripts/` keeps the caches warm. Editing
@@ -98,11 +107,16 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   once and watch that run in the background, so it is checked while the next subagent works. Only a
   task that depends on the merged change waits for it, and after a merge that touches
   `.github/actions/setup-loader-build/action.yml` that run is slow (the action is in the cache keys
-  and the Minecraft toolchain has no fallback, so it is fetched again). If it fails, deal with it
-  before merging anything else.
+  and the Minecraft toolchain has no fallback, so it is fetched again). If it fails, attribute it to
+  that merge and deal with it while the next task runs.
 
 ### A red main or a flake
 
+- A red `main` is not a stop sign. It comes from one merge, so it is attributed to that pull
+  request: rerun the failed jobs once to tell a flake from a real failure, then fix forward or
+  revert, and do not pause the work in flight. Keeping `main` green still matters, because a red
+  `main` blocks the next release and makes the next pull request's comparisons noisy, but only the
+  Sunday release has to be green.
 - When a job fails, read the titles of the open issues (`gh issue list --state open`) before
   anything else: it is often a known flake. A rerun that passes still gets the occurrence added to
   that issue's body.
@@ -113,8 +127,8 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 - When `main` is red, find the pull request of the commit
   (`gh api repos/grug-lang/grug-for-minecraft/commits/<sha>/pulls`) and compare its last run with
   the one on `main`. A job that failed on `main` and was missing or skipped on the pull request is
-  the expected case; one that failed on the pull request too was merged red. Rerun the failed jobs
-  once to tell a flake from a real failure, then fix forward or revert.
+  the expected case for an optimistic merge; one that failed on the pull request too was merged
+  red.
 
 ## Running a loader
 
