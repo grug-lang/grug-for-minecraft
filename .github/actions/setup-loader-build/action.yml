@@ -187,11 +187,16 @@ runs:
     # against the file on disk, so a stale entry costs the saving and never changes a result. Keyed and
     # falling back like the dependency entry above, for the same reason.
     #
-    # 1.2.5-forge is left out: it does not provision a Minecraft through ForgeGradle (see the snapshot
-    # below), so there is little here for it to reuse, and over 10 pairs it saved a CPU-adjusted 2.5 s
-    # of its Gradle phase with an interval that includes 0 (p 0.079) and its whole job did not move.
+    # 1.2.5-forge was left out at first: it does not provision a Minecraft through ForgeGradle (see
+    # the snapshot below), so there seemed little here for it to reuse, and over 10 pairs it saved a
+    # CPU-adjusted 2.5 s of its Gradle phase with an interval that includes 0 (p 0.079) and its whole
+    # job did not move (#736). That measurement was taken while setup-java's shared Gradle cache, which
+    # held this same directory, was still restored in the same job. With that gone (#782) a job
+    # without this entry rebuilds the root build's `caches/8.14` every run, which cost 1.2.5-forge
+    # 24 s between the start of its Build step and the launch (39.4 s against 17.1 s, interleaved,
+    # 2026-10-31), so it is included now.
     - name: Cache the rest of Gradle's user home
-      if: inputs.loader != '1.2.5-forge' && inputs.save == 'true'
+      if: inputs.save == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -202,7 +207,7 @@ runs:
         restore-keys: ${{ steps.keys.outputs.home-prefix }}
 
     - name: Restore the rest of Gradle's user home
-      if: inputs.loader != '1.2.5-forge' && inputs.save != 'true'
+      if: inputs.save != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
