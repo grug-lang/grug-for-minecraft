@@ -18,6 +18,18 @@ the 20 shared job slots allow it. The orchestrator may change its own process wi
 the change is drastic, such as a different model or servers the maintainer would have to rent: it
 applies the optimization, records it here or in the handoff, and reports what it changed.
 
+**Context and compaction.** The orchestrator compacts its own session, so long runs continue while
+the maintainer is away, and it never relies on the harness's automatic compaction, which leaves
+nothing on disk. At a task boundary, when the last assistant message's `tokens.input` plus
+`tokens.cache.read` is over about 250,000, it first writes the persistent record: this file if a rule
+changed, the handoff's live section, the log, and each issue or pull request body, enough that a
+fresh session resumes with nothing lost. Then it compacts with `opencode api post
+/api/session/$OPENCODE_SESSION_ID/compact` (the server's `session.compact` operation; `opencode api
+get /api/session/$OPENCODE_SESSION_ID/message` gives the counts) and checks that the compaction
+completed. Never compact in the middle of a task, with a worktree that is not merged, or before the
+record is written. If the call fails, retry at the next boundary and carry on; do not wait for the
+maintainer to run `/compact` unless the session cannot continue at all.
+
 - **Orchestrator.** Reads the issue, writes the subagent a self-contained brief, reviews the
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. The brief
   holds the issue and its acceptance points, the rules of this file that apply, the exact steps,
