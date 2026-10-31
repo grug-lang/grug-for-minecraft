@@ -896,11 +896,20 @@ jobs:
       # without their dependencies and fetched them, repo.legacyfabric.net's LWJGL among them (#643).
       # Only this leg's files, as in the action, so an edit confined to another loader leaves this
       # leg's entry alone (#699).
+      #
+      # Not the workflow (#783), as in the action: build.yml names the job and the matrix, and the
+      # files above decide what the entry holds. Hashing it rekeyed all five Windows legs on every
+      # edit of the workflow, and each leg restores its previous entry through the prefix and then
+      # writes the new one, so an edit that changed nothing cost about 350 MB of new entries (#699).
+      #
+      # The path below is then the one thing no file in the key names. `modules-2` is content
+      # addressed and Gradle verifies what it restores, so an edit of that line costs a fetch of what
+      # the entry lacks and never a wrong entry.
       - name: Cache the Gradle dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', matrix.dir), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', matrix.dir), format('loaders/{0}/settings.gradle', matrix.dir), format('loaders/{0}/settings.gradle.kts', matrix.dir), format('loaders/{0}/build.gradle', matrix.dir), format('loaders/{0}/build.gradle.kts', matrix.dir)) }}
+          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', matrix.dir), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', matrix.dir), format('loaders/{0}/settings.gradle', matrix.dir), format('loaders/{0}/settings.gradle.kts', matrix.dir), format('loaders/{0}/build.gradle', matrix.dir), format('loaders/{0}/build.gradle.kts', matrix.dir)) }}
           restore-keys: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-
 
       - name: Set up the MSVC toolchain
