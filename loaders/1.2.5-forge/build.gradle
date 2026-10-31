@@ -3,7 +3,7 @@
 // Forge 1.2.5 predates ForgeGradle and Loom, so the build is a plain Java one that talks to a
 // pinned MCP snapshot directly:
 //
-//   1. fetch the MCP snapshot (build/mcp125);
+//   1. fetch the MCP snapshot (mcp125);
 //   2. invert its client.srg plus fields/methods.csv into a dev -> notch srg (tools/invert_srg.py);
 //   3. compile GenerateVanillaNames against the MCP dev classes and run it to produce the
 //      resource-name table the obfuscated runtime reads back (vanilla_names.txt);
@@ -13,7 +13,11 @@
 //      game with Java 8 under the freshly built loader jar.
 //
 // An existing snapshot checkout can be reused with -Pgrug.mcpSnapshot=/path/to/mcp125 (used for
-// local iteration so the 170 MB tree is not cloned into build/ every time).
+// local iteration so the 170 MB tree is not cloned every time).
+//
+// The snapshot is cloned beside build/ and not into it: CI restores this build directory from the
+// loader's build-state cache entry, which would then store the snapshot a second time beside its own
+// entry (#736).
 
 import java.io.ByteArrayOutputStream
 
@@ -57,7 +61,7 @@ def runDir = new File(projectDirFile, 'run')
 def modsDir = new File(repoRoot, 'mods')
 
 def mcpProperty = findProperty('grug.mcpSnapshot')
-def mcpDir = mcpProperty ? file(mcpProperty) : new File(buildDirFile, 'mcp125')
+def mcpDir = mcpProperty ? file(mcpProperty) : new File(projectDirFile, 'mcp125')
 def mcpBin = new File(mcpDir, 'bin/minecraft')
 def mcpResources = new File(mcpDir, 'src/minecraft')
 def mcpMinecraftJar = new File(mcpDir, 'jars/bin/minecraft.jar')
@@ -167,7 +171,7 @@ sourceSets {
 // -- Step 1: the MCP snapshot ------------------------------------------------------------------
 
 tasks.register('fetchMcpSnapshot', Exec) {
-    description = 'Clones the pinned 1.2.5 MCP snapshot with Forge into build/mcp125.'
+    description = 'Clones the pinned 1.2.5 MCP snapshot with Forge into mcp125.'
     outputs.dir mcpDir
     onlyIf {
         !(new File(mcpDir, '.git').isDirectory() && new File(mcpDir, 'conf/client.srg').isFile())
