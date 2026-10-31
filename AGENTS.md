@@ -43,6 +43,22 @@ status `completed`. Never compact in the middle of a task, with a worktree that 
 record is written. If the call fails, retry at the next boundary and carry on; do not wait for the
 maintainer to run `/compact` unless the session cannot continue at all.
 
+**The daily meta pass.** Once a day, at a boundary rather than on a clock (after the day's last
+merge, while a long dispatch runs, or before the Sunday release), the orchestrator improves the
+process itself, because its throughput comes from its rules, briefs and tooling and not only from
+the work. It reads the day's record rather than recalling it: the merged pull requests and their
+diffs, the issues opened and closed, the CI runs through `ci_timing.py` (runner minutes per merge,
+job walls and queue time, failure class, reruns), the cache store, the subagent reports, this file's
+own diff, and the log. It adds one row to `~/agent-workspaces/meta-metrics.md` (date, merges, runner
+minutes and their split, failures by class, research items and what each decided) and compares it
+with the previous rows, so the last pass's change is judged by whether it worked. Then it makes at
+most two changes, each backed by that day's numbers: a line here, in a brief template, a script or a
+workflow, with what it expects to improve so the next pass can check. Anything larger becomes an
+issue with the `research` label. It spends one to three subagents on the self-hosted model for the
+data, and a day with nothing actionable says so in the log and costs no more. A line that the record
+shows never mattered is deleted, because it costs every request, and a process improvement that
+costs a day is the failure this pass exists to prevent.
+
 - **Orchestrator.** Reads the issue, writes the subagent a self-contained brief, reviews the
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. The brief
   holds the issue and its acceptance points, the rules of this file that apply, the exact steps,
