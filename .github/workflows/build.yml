@@ -186,6 +186,8 @@ jobs:
   # same runner image, from the revision this commit pins.
   grug-rs:
     name: build grug-rs
+    if: needs.discover.outputs.no-tests != 'true'
+    needs: discover
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -427,8 +429,8 @@ jobs:
   # does not wait for core's tests (#570).
   core-release:
     name: core release jar
-    if: github.event_name != 'pull_request'
-    needs: grug-rs
+    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -476,7 +478,7 @@ jobs:
   # the two jobs start together.
   layer:
     name: layer ${{ matrix.dir }}
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -1127,7 +1129,8 @@ jobs:
       && needs.layer.result == 'success'
       && (needs.native-windows.result == 'success' || needs.native-windows.result == 'skipped')
       && github.event_name != 'pull_request'
-    needs: [core-release, layer, native-windows]
+      && needs.discover.outputs.no-tests != 'true'
+    needs: [discover, core-release, layer, native-windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -1189,7 +1192,7 @@ jobs:
   # See #487 and #488.
   production:
     name: ${{ matrix.dir }} installed
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     # Both script limits can run in full now that the install has its own: up to 600 s of install
@@ -1331,8 +1334,8 @@ jobs:
   # The production jobs keep grug as the game's only mod. See #501.
   coexistence:
     name: 1.20.6-forge installed beside JEI
-    if: github.event_name != 'pull_request'
-    needs: [universal]
+    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    needs: [discover, universal]
     runs-on: ubuntu-24.04
     # Both script limits can run in full now that the install has its own: up to 600 s of install
     # (GRUG_CI_INSTALL_TIMEOUT) and then the game's 480 s (#725), plus the job's setup.
@@ -1429,7 +1432,7 @@ jobs:
   # asks for another game of its mechanism. See #493.
   smoke:
     name: ${{ matrix.game }} without a layer
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
