@@ -8,8 +8,9 @@ name: Weekly release
 #
 # A failed dispatch tags nothing and leaves this run red for its log. Next Sunday resolves main's
 # head again, so it retries on its own, and a head that has moved since is part of that retry rather
-# than a reason to intervene. The Release run the dispatch starts is followed and judged here too,
-# because the dispatch alone says only that GitHub accepted it.
+# than a reason to intervene, though the poll stops once a moved head makes its run unfindable. The
+# Release run the dispatch starts is followed and judged here too, because the dispatch alone says
+# only that GitHub accepted it.
 #
 # The scheduled path and the manual run are one workflow, because the manual run is the same release
 # with its last step left out: a dry run has to dispatch, watch and judge the same Build run to say
@@ -116,13 +117,26 @@ jobs:
           echo "==> dispatching build.yml on main at $SHA"
           gh workflow run build.yml --ref main --repo "$REPO"
           run=''
+          waited=0
           deadline=$((SECONDS + 3600))
           while [ "$SECONDS" -lt "$deadline" ]; do
             if [ -z "$run" ]; then
               run=$(gh api "$query" --jq "[.workflow_runs[] | select(.id > $before)] | sort_by(.id) | first | .id // empty" 2>/dev/null || true)
               if [ -z "$run" ]; then
+                # The dispatch is at the head main had when GitHub resolved it, so a main that moved
+                # before that leaves a run this poll, filtered by the old SHA, can never find; two
+                # minutes is far longer than a dispatch needs to be listed, so a moved head is
+                # reported now rather than after the 60 minute deadline.
+                if [ "$waited" -ge 120 ]; then
+                  head=$(git ls-remote origin refs/heads/main | cut -f1)
+                  if [ "$head" != "$SHA" ]; then
+                    echo "==> ERROR: main moved from $SHA to $head before the dispatch was listed, so this step's Build run belongs to the new head; nothing is tagged, and the next Sunday's run releases $head"
+                    exit 1
+                  fi
+                fi
                 echo "==> $(date -u +%T) the dispatch is not listed yet"
                 sleep 15
+                waited=$((waited + 15))
                 continue
               fi
               echo "==> build run $run is the dispatch of $SHA: https://github.com/$REPO/actions/runs/$run"
