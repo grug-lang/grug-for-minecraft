@@ -32,9 +32,8 @@ applies the optimization, records it here or in the handoff, and reports what it
 
 **Context and compaction.** The harness compacts the session automatically at the configured
 threshold, and that is deliberate: choosing the moment by hand cost attention at every boundary and
-was wrong twice, once by deferring for six hours and once by "updating" a record that had silently
-not changed. Write decisions and state into the issue, the pull request or this file when they are
-made, as part of the work, rather than into a record written because a compaction is coming. The
+was not reliable. Write decisions and state into the issue, the pull request or this file when they
+are made, as part of the work, rather than into a record written because a compaction is coming. The
 handoff holds the live orchestration state that is nowhere else (the running subagent sessions and
 their briefs, the queued work, the next scheduled check), it is updated at merges, and it is what a
 restarted session reads; it is not a prerequisite for compacting.
