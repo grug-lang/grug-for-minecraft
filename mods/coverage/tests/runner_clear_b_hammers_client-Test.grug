@@ -7,6 +7,11 @@
 # for the first ticks makes that moment as likely as it can be. Nothing here is asserted but that the
 # calls come back: a draw that is not this test's must not stop them.
 export tick(ctx: TestTickContext) {
+    # A frame is only drawn for a test that asks for one (#770), and the draw path this test exists
+    # to provoke runs only on a drawn frame: a rebuild of the block entities the runner just cleared
+    # has to be under way for a worker thread to enter grug mid-call. So ask every tick. The settle
+    # wait is the call that turns drawing back on, and its answer is not the point here.
+    Test.world_settled()
     i: number = 0
     while i < 30 {
         Test.close_screen()

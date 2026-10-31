@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
@@ -332,6 +333,11 @@ public class HostFunctions {
      * not the settled scene. See #253 and #257.
      */
     public static boolean Test_world_settled() {
+        // A settle wait is about frames, so asking whether the client has a settled one means the
+        // test wants one drawn. The frame count was forgotten when this test's room was built, so
+        // the two frames that satisfy the wait are frames this call asked for. See
+        // GrugFrameRequest.
+        GrugFrameRequest.request();
         return GrugCore.getAdapter().isWorldSettled();
     }
 
@@ -349,6 +355,9 @@ public class HostFunctions {
     }
 
     public static long Test_screenshot() {
+        // A test that builds a screenshot entity is about to capture, so it wants frames drawn from
+        // here, which is before the settle wait in front of the capture. See GrugFrameRequest.
+        GrugFrameRequest.request();
         return GrugEntities.addEntity(GrugEntityType.Screenshot, new GrugScreenshot(0));
     }
 
@@ -1062,6 +1071,9 @@ public class HostFunctions {
 
     public static void Screenshot_equals(
             long screenshotId, String referencePath, double x1, double y1, double x2, double y2) {
+        // A capture reads a drawn frame, so the test wants one even if it reached this call without
+        // Test.screenshot. See GrugFrameRequest.
+        GrugFrameRequest.request();
         GrugScreenshot screenshot =
                 (GrugScreenshot) GrugEntities.entityData.get(screenshotId).object;
         GrugCore.getAdapter()
@@ -1078,6 +1090,8 @@ public class HostFunctions {
      */
     public static long Screenshot_capture(
             long screenshotId, double x1, double y1, double x2, double y2) {
+        // A capture reads a drawn frame. See GrugFrameRequest.
+        GrugFrameRequest.request();
         GrugScreenshot screenshot =
                 (GrugScreenshot) GrugEntities.entityData.get(screenshotId).object;
         BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
