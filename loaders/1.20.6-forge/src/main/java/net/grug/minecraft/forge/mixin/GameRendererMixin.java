@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge.mixin;
 
 import net.grug.minecraft.core.GrugFrameRequest;
+import net.grug.minecraft.core.GrugTestCounters;
 import net.minecraft.client.renderer.GameRenderer;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -29,6 +30,7 @@ public class GameRendererMixin {
     @Inject(method = "render(FJZ)V", at = @At("HEAD"), cancellable = true)
     private void grug$skipUnwantedFrame(CallbackInfo ci) {
         if (!GrugFrameRequest.wanted()) {
+            GrugTestCounters.framesSkipped.incrementAndGet();
             ci.cancel();
         }
     }
