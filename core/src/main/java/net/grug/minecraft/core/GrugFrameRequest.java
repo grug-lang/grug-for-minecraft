@@ -44,9 +44,10 @@ public final class GrugFrameRequest {
     /**
      * The test asked for a frame, which stays on for the rest of it.
      *
-     * <p>A test asks on the first capture it will take rather than on every frame, because drawing
-     * is cheaper as one uninterrupted burst than as frames sprinkled through the test, and a test
-     * that has captured once has its fixture in the frame it keeps.
+     * <p>Staying on rather than following each call is what makes the settle wait fold in: a test
+     * that has captured once captures again, and the frames between two captures are the ones its
+     * next wait counts. A test that never asks leaves the flag off, and draws nothing from its room
+     * build to its last tick.
      */
     public static void request() {
         wanted = true;
