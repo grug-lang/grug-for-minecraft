@@ -14,6 +14,12 @@ on:
         # The runner loads every mod and runs only the tests of these. See #627.
         description: 'Comma separated mod directory names whose tests the development loader runs; empty runs every mod'
         type: string
+      refresh-test-times:
+        # Every game run writes its loader's test order record back to the repository it read it
+        # from (#778), so set this and the loader jobs hand the records back as artifacts: the
+        # refresh is one dispatch and a commit, never a hand-edit.
+        description: 'Upload each loader test order record the run wrote, so the refresh can be committed'
+        type: boolean
 
 permissions:
   contents: read
@@ -597,6 +603,19 @@ jobs:
           # the suite grew), so twenty passes get 4100s. See #291.
           GRUG_CI_RUN_TIMEOUT: '300'
           GRUG_CI_RUN_TIMEOUT_PER_EXTRA_REPEAT: '200'
+
+      # The run wrote the loader's test order record back to the repository file it read it from
+      # (#778), so a dispatch that asks for the refresh hands the file back rather than losing it
+      # with the throwaway tree. The installed-game runs write their own copies and never upload
+      # them, so the committed record is always what the development run last measured.
+      - name: Upload the test order record the run wrote
+        if: ${{ inputs.refresh-test-times == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-times-${{ matrix.dir }}
+          path: loaders/${{ matrix.dir }}/test-times.json
+          if-no-files-found: error
+          retention-days: 7
 
       # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
       # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.

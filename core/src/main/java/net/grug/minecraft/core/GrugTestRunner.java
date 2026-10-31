@@ -1,15 +1,27 @@
 package net.grug.minecraft.core;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugTestState;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -220,8 +232,11 @@ public class GrugTestRunner {
     private long currentTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private int currentTick = 0;
 
-    /** When the running test started, so its duration can be worked out when it ends. */
-    private long currentTestStartNanos = 0;
+    /**
+     * When the running test started, so its duration can be worked out when it ends, and -1 until
+     * a test has started, so a test that never did is not timed as if it took the whole run.
+     */
+    private long currentTestStartNanos = -1;
 
     /**
      * How many tests this runner has started, raised once a test's room is built and before its
@@ -265,6 +280,29 @@ public class GrugTestRunner {
      * runner took it from a map's keys, so it doubles as the key here.
      */
     private final Map<String, Long> testNanos = new LinkedHashMap<>();
+
+    /**
+     * The record the run read to order its tests, or null when it read none: a run with no record
+     * file, or one whose record could not be read and fell back to name order.
+     */
+    private GrugTestOrder.Record record = null;
+
+    /**
+     * Where the run writes the record it hands to the next one, or null when there is nowhere: a
+     * run without a file of its own, and always a reference run, which loads the harness rather
+     * than the port and would hand back a record of the harness's tests.
+     */
+    private Path testTimesFile = null;
+
+    /**
+     * Every test the loader has, the selected and the not, which is what the record the run writes
+     * back is a record of: each keeps a time, whether this run measured it or the record it read
+     * held one.
+     */
+    private final List<String> loadedTests = new ArrayList<>();
+
+    /** Writes the test order record with the shape the runner reads it back in. */
+    private static final Gson GSON = new Gson();
 
     private boolean finished = false;
 
@@ -491,11 +529,11 @@ public class GrugTestRunner {
                 tests.add(entry);
             }
         }
-        // Tests share one world, so run them in a stable order. Otherwise a logic test's placed
-        // blocks and spawned entities can land in a screenshot test's frame, and HashMap iteration
-        // order would decide whether the run passes. A selection only removes tests from this list,
-        // never reorders it: the order decides the world state a screenshot test meets, so a test
-        // that runs must meet the one it meets in the full run. See #262.
+        // The default order is the name order, which is stable for the reason a selection never
+        // reorders it: a test that runs must meet the world state it meets in the full run. The
+        // record read below may reorder the list, failed first and then slowest first, because the
+        // room build clears the area before every test, so a test meets its own fixture and not
+        // what the suite left it (#262).
         tests.sort(Map.Entry.comparingByKey());
         this.totalCount = tests.size();
 
@@ -510,6 +548,32 @@ public class GrugTestRunner {
 
         synchronized (GrugErrors.printQueue) {
             GrugErrors.printQueue.add(startMsg);
+        }
+
+        this.testTimesFile = testTimesFile();
+        if (testTimesFile != null) {
+            for (String path : fileIds.keySet()) {
+                if (path.endsWith(GrugFileIndex.TEST_SUFFIX)) {
+                    loadedTests.add(path);
+                }
+            }
+            try {
+                record =
+                        GrugTestOrder.parseRecord(
+                                new String(
+                                        Files.readAllBytes(testTimesFile),
+                                        StandardCharsets.UTF_8));
+                orderTestsByRecord();
+            } catch (Exception e) {
+                // The record is data, not an invariant: a broken one costs this run its order and
+                // nothing more, and the line says so where the run is read.
+                System.out.println(
+                        "[GRUG CI] The test order record at "
+                                + testTimesFile
+                                + " could not be read ("
+                                + e
+                                + "), so the tests run in name order.");
+            }
         }
     }
 
@@ -684,6 +748,7 @@ public class GrugTestRunner {
                 // passed and their coverage was recorded. The times go first for the same reason,
                 // and before the write because a write that throws is exactly when they are wanted.
                 printTestTimes();
+                writeTestTimesRecord(Collections.emptySet());
                 coverage.runPassed();
                 System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
             }
@@ -853,6 +918,11 @@ public class GrugTestRunner {
      * slow.
      */
     private void recordTestTime(String path) {
+        if (currentTestStartNanos < 0) {
+            // The test never started, so it took no time, and must not be timed from the start of
+            // whatever test it did not replace.
+            return;
+        }
         testNanos.put(path, clock.getAsLong() - currentTestStartNanos);
     }
 
@@ -898,6 +968,129 @@ public class GrugTestRunner {
     /** Whole milliseconds, which is the resolution the printed times are stated at. */
     private static long millis(long nanos) {
         return nanos / 1_000_000L;
+    }
+
+    /** The environment variable that points a run at its test order record. */
+    static final String TEST_TIMES_FILE_ENV_VAR = "GRUG_CI_TEST_TIMES_FILE";
+
+    /** The property equivalent, so a test can point the runner at a record of its own. */
+    static final String TEST_TIMES_FILE_PROPERTY = "grug.test.times.file";
+
+    /**
+     * Where the run reads and writes its test order record, or null when there is nowhere: no
+     * variable or property for the run, and always a reference run, which loads the harness rather
+     * than the port, so its record would be of the harness's tests and drop every one of the
+     * port's.
+     */
+    static Path testTimesFile() {
+        if (GrugReference.isReferenceRun()) {
+            return null;
+        }
+        String value =
+                System.getProperty(TEST_TIMES_FILE_PROPERTY, System.getenv(TEST_TIMES_FILE_ENV_VAR));
+        if (value == null || value.isEmpty()) {
+            return null;
+        }
+        return Paths.get(value);
+    }
+
+    /**
+     * Runs the tests in the order the record says: the ones it names as failed first, then the
+     * rest, both slowest first, and says so in the log and in the chat, so a run's order is
+     * explained where the run is read. An empty record holds nothing to order by, so the run keeps
+     * the name order it found and does not claim the record for it.
+     */
+    private void orderTestsByRecord() {
+        if (record.failed.isEmpty() && record.times.isEmpty()) {
+            return;
+        }
+        List<String> current = new ArrayList<>(tests.size());
+        for (Map.Entry<String, Long> entry : tests) {
+            current.add(entry.getKey());
+        }
+        List<String> order = GrugTestOrder.orderTests(record.times, record.failed, current);
+        Map<String, Integer> position = new HashMap<>();
+        for (int i = 0; i < order.size(); i++) {
+            position.put(order.get(i), i);
+        }
+        tests.sort(Comparator.comparingInt(entry -> position.get(entry.getKey())));
+
+        int failedNow = 0;
+        for (String test : record.failed) {
+            if (position.containsKey(test)) {
+                failedNow++;
+            }
+        }
+        String orderMsg;
+        if (failedNow == 0) {
+            orderMsg = "Test order: slowest first, from " + testTimesFile;
+        } else {
+            orderMsg =
+                    "Test order: "
+                            + failedNow
+                            + " previously failed "
+                            + (failedNow == 1 ? "test" : "tests")
+                            + " first, then slowest first, from "
+                            + testTimesFile;
+        }
+        System.out.println("[GRUG CI] " + orderMsg);
+        synchronized (GrugErrors.printQueue) {
+            GrugErrors.printQueue.add(orderMsg);
+        }
+    }
+
+    /**
+     * The times the record the run writes back holds: this run's measurement for a test it ran,
+     * and the record it read for a test it did not reach, so a run of a subset of the mods never
+     * throws the other mods' times away. A test the loader no longer has is in neither, so it is
+     * dropped.
+     */
+    private Map<String, Long> mergedTimes() {
+        Map<String, Long> times = new LinkedHashMap<>();
+        for (String test : loadedTests) {
+            Long fresh = testNanos.get(test);
+            if (fresh != null) {
+                times.put(test, fresh);
+            } else if (record != null) {
+                Long old = record.times.get(test);
+                if (old != null) {
+                    times.put(test, old);
+                }
+            }
+        }
+        return times;
+    }
+
+    /**
+     * Writes the record the run hands to the next one: the times it measured, and the test it
+     * failed, if one did. Written when the run ends, on a pass and on a failure alike, and never
+     * on a run the game never let finish, so a timeout or a crash leaves the record it found.
+     */
+    private void writeTestTimesRecord(Set<String> failed) {
+        if (testTimesFile == null) {
+            return;
+        }
+        JsonObject json = new JsonObject();
+        JsonArray failedArray = new JsonArray();
+        for (String test : failed) {
+            failedArray.add(test);
+        }
+        json.add("failed", failedArray);
+        JsonObject times = new JsonObject();
+        for (Map.Entry<String, Long> entry : mergedTimes().entrySet()) {
+            times.addProperty(entry.getKey(), entry.getValue());
+        }
+        json.add("times", times);
+        try {
+            Files.write(
+                    testTimesFile, GSON.toJson(json).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            System.out.println(
+                    "[GRUG CI] The updated test order record could not be written to "
+                            + testTimesFile
+                            + ": "
+                            + e);
+        }
     }
 
     /**
@@ -1120,8 +1313,12 @@ public class GrugTestRunner {
             GrugErrors.runtimeErrorQueue.add(msg);
         }
 
+        // Before destroyCurrentEntity, which puts the test's start back where it belongs, so the
+        // test that failed is timed on the run it failed, and the next one starts there.
+        recordTestTime(path);
         destroyCurrentEntity();
         finished = true;
+        writeTestTimesRecord(Collections.singleton(path));
     }
 
     private void destroyCurrentEntity() {
@@ -1133,6 +1330,9 @@ public class GrugTestRunner {
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
+        // The test's start goes back to "no test has started" with the rest, so a test that is not
+        // started, such as the one a reload deadline fails, is not timed from this test's start.
+        currentTestStartNanos = -1;
         // The test is over, so frames draw again until the next test's room is built, whether it
         // passed, failed or aborted. That also puts drawing back after the last test, so a client
         // that outlives a run is the client the run found. See GrugFrameRequest.
