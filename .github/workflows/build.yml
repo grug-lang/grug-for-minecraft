@@ -250,7 +250,7 @@ jobs:
           path: |
             core/build/generated/grug
             core/build/generated/sources/grug
-          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py', '.github/workflows/build.yml') }}
+          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
       # The active-loader property scopes the settings to core plus one no-op loader, so this job
       # doesn't configure every loader's build plugins just to run core's JUnit tests. The prebuilt
@@ -378,7 +378,7 @@ jobs:
           path: |
             core/build/generated/grug
             core/build/generated/sources/grug
-          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py', '.github/workflows/build.yml') }}
+          key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
       - name: Build core's release jar
         run: ./gradlew :core:shadowJar -Dgrug.activeLoader=a1.1.2_01-ornithe -Pgrug.prebuiltGrugRs="${{ github.workspace }}/.grug-ci/libgruggers.a"
@@ -665,7 +665,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/1.2.5-forge/gradle.properties', 'loaders/1.2.5-forge/gradle/wrapper/gradle-wrapper.properties', 'loaders/1.2.5-forge/settings.gradle', 'loaders/1.2.5-forge/settings.gradle.kts', 'loaders/1.2.5-forge/build.gradle', 'loaders/1.2.5-forge/build.gradle.kts') }}
+          key: grug-gradle-${{ runner.os }}-1.2.5-forge-${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/1.2.5-forge/gradle.properties', 'loaders/1.2.5-forge/gradle/wrapper/gradle-wrapper.properties', 'loaders/1.2.5-forge/settings.gradle', 'loaders/1.2.5-forge/settings.gradle.kts', 'loaders/1.2.5-forge/build.gradle', 'loaders/1.2.5-forge/build.gradle.kts') }}
           restore-keys: grug-gradle-${{ runner.os }}-1.2.5-forge-
 
       - name: Cache the 1.2.5 MCP snapshot
@@ -1099,7 +1099,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/1.2.5-forge/gradle.properties', 'loaders/1.2.5-forge/gradle/wrapper/gradle-wrapper.properties', 'loaders/1.2.5-forge/settings.gradle', 'loaders/1.2.5-forge/settings.gradle.kts', 'loaders/1.2.5-forge/build.gradle', 'loaders/1.2.5-forge/build.gradle.kts') }}
+          key: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/1.2.5-forge/gradle.properties', 'loaders/1.2.5-forge/gradle/wrapper/gradle-wrapper.properties', 'loaders/1.2.5-forge/settings.gradle', 'loaders/1.2.5-forge/settings.gradle.kts', 'loaders/1.2.5-forge/build.gradle', 'loaders/1.2.5-forge/build.gradle.kts') }}
           restore-keys: grug-gradle-${{ runner.os }}-${{ matrix.dir }}-
 
       - name: Restore the 1.2.5 MCP snapshot (1.2.5-forge only)
