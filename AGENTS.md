@@ -289,7 +289,7 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
   `classes/`; do not decompile it again. The jars are in `~/.technic/modpacks/tekkit/mods/` and
   Vineflower is at
   `~/.gradle/caches/forge_gradle/maven_downloader/org/vineflower/vineflower/1.10.1/vineflower-1.10.1.jar`.
-  1.2.5 is decompiled under `loaders/1.2.5-forge/build/mcp125`; for other versions, decompile the
+  1.2.5 is decompiled under `loaders/1.2.5-forge/mcp125`; for other versions, decompile the
   exact jar from the Gradle caches rather than trusting memory.
 - The reference run is the `reference` CI job: `GRUG_REFERENCE=1`, a harness-only `GRUG_MODS_DIR`
   and `GRUG_REFERENCE_MODS_DIR` at the mods `recreation.py stage` staged. Develop a reference
