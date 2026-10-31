@@ -774,7 +774,9 @@ class GrugTestRunnerTest {
     }
 
     private static Map<String, Long> threeMods() {
-        // Not in path order, so the order the tests run in is the runner's own sort.
+        // Not in path order, so the order the tests run in is the runner's own sort. The
+        // coverage mod has a non-test file of its own, as the real one does, so a loop over the
+        // files meets a path in the counted mod that is not a test.
         Map<String, Long> files = new LinkedHashMap<>();
         files.put("coverage/tests/b-Test.grug", 1L);
         files.put("buildcraft/code/a-Test.grug", 2L);
@@ -782,6 +784,7 @@ class GrugTestRunnerTest {
         files.put("jei/code/a-Test.grug", 4L);
         files.put("examplemod/code/foo-Block.grug", 5L);
         files.put("buildcraft/code/b-Test.grug", 6L);
+        files.put("coverage/code/foo-Block.grug", 7L);
         return files;
     }
 

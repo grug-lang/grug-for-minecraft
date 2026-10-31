@@ -110,9 +110,26 @@ public final class CoverageMapTool {
 
     /** The JaCoCo id of a class file, the CRC64 of its bytes, which pins the class. */
     static long classId(byte[] classBytes) throws IOException {
+        Long id = classIdIfAnalyzed(classBytes);
+        if (id == null) {
+            throw new IOException("the analysis records nothing for the class");
+        }
+        return id;
+    }
+
+    /**
+     * The JaCoCo id of a class file, or nothing when the analysis records nothing for it: the
+     * analysis does not count a synthetic class, such as the marker javac synthesizes for a nested
+     * class's private constructor, or a module class, and neither does the gate, so the map records
+     * nothing for one either.
+     */
+    static Long classIdIfAnalyzed(byte[] classBytes) throws IOException {
         CoverageBuilder builder = new CoverageBuilder();
         new Analyzer(new ExecutionDataStore(), builder)
                 .analyzeClass(new ByteArrayInputStream(classBytes), null);
+        if (builder.getClasses().isEmpty()) {
+            return null;
+        }
         return builder.getClasses().iterator().next().getId();
     }
 
@@ -195,7 +212,12 @@ public final class CoverageMapTool {
         Map<String, byte[]> classes = readClasses(classesDir);
         Map<String, Long> classIds = new TreeMap<>();
         for (Map.Entry<String, byte[]> classFile : classes.entrySet()) {
-            classIds.put(classFile.getKey(), classId(classFile.getValue()));
+            // A class the analysis does not record keeps no id, and the map records nothing for
+            // it: the gate does not count it either.
+            Long id = classIdIfAnalyzed(classFile.getValue());
+            if (id != null) {
+                classIds.put(classFile.getKey(), id);
+            }
         }
 
         // test path -> class name -> the probes the test hit in that class, unioned over every
@@ -228,6 +250,9 @@ public final class CoverageMapTool {
                 ExecutionDataStore store = new ExecutionDataStore();
                 try (InputStream in = Files.newInputStream(exec)) {
                     ExecutionDataReader reader = new ExecutionDataReader(in);
+                    // The agent stamps every dump with its session header, which holds no
+                    // coverage to record, but the reader demands a visitor for it.
+                    reader.setSessionInfoVisitor(sessionInfo -> {});
                     reader.setExecutionDataVisitor(store::put);
                     while (reader.read()) {
                         // the store took the entry
@@ -239,7 +264,8 @@ public final class CoverageMapTool {
                     String class_ = data.getName();
                     Long id = classIds.get(class_);
                     if (id == null) {
-                        // A class of the loader's own, which the map does not record.
+                        // A class the map does not record: the loader's own, or a synthetic one
+                        // the analysis does not record and the gate does not count.
                         continue;
                     }
                     if (!id.equals(data.getId())) {
@@ -466,9 +492,14 @@ public final class CoverageMapTool {
         Map<String, Map<String, Map<String, Object>>> recorded =
                 (Map<String, Map<String, Map<String, Object>>>) map.get("tests");
         Map<String, byte[]> headClasses = readClasses(classesDir);
+        // A class the analysis does not record keeps no id here, and the map never names one:
+        // it records only what the analysis records.
         Map<String, Long> headIds = new TreeMap<>();
         for (String class_ : headClasses.keySet()) {
-            headIds.put(class_, classId(headClasses.get(class_)));
+            Long id = classIdIfAnalyzed(headClasses.get(class_));
+            if (id != null) {
+                headIds.put(class_, id);
+            }
         }
 
         Files.createDirectories(outDir);
@@ -512,8 +543,10 @@ public final class CoverageMapTool {
                 }
                 long storedId = Long.parseUnsignedLong((String) classInfo.get("crc64"));
                 int probeCount = (int) ((Number) classInfo.get("probes")).longValue();
-                long headId = headIds.get(class_);
-                if (headId != storedId) {
+                // The map names only classes the analysis records, so a class without an id
+                // here is one that changed between the map's commit and this run.
+                Long headId = headIds.get(class_);
+                if (headId == null || headId != storedId) {
                     throw new ToolError(
                             1,
                             "the class "

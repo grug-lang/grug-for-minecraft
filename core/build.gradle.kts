@@ -44,15 +44,14 @@ val stubs: SourceSet = sourceSets.create("stubs")
 // cannot affect (#786): one JVM over the per-test exec data, against the JaCoCo core library,
 // rather than one jacoco-cli invocation per file. It is a build tool, not core: core's main
 // sources compile with --release 8 and are packaged into the game, and this is neither. Its jar
-// bundles the core library's own classes, which shade asm the way the library shades it, so the
-// tool has no runtime dependency at all: the coverage job adds nothing to its classpath.
+// bundles the core library's classes and the asm classes the library calls, which the plain core
+// jar does not hold, so the tool has no runtime dependency at all: the coverage job adds nothing
+// to its classpath.
 val coverageMapTool: SourceSet = sourceSets.create("coverageMapTool")
 
-// The JaCoCo core library the tool links against, resolved for itself alone: the tool's jar
-// bundles this jar's org/jacoco tree and nothing else.
-val coverageMapToolCoreJar: Configuration by configurations.creating {
-    isTransitive = false
-}
+// The JaCoCo core library and the asm jars it resolves to, for the tool's jar alone: the jar
+// bundles every jar in the set, and nothing else.
+val coverageMapToolBundledJars: Configuration by configurations.creating
 
 // The CI coverage job builds one report per runner from the uploaded exec/class artifacts using the
 // JaCoCo CLI. Exposing the jar here keeps the CLI version in sync with the jacoco plugin's, and
@@ -121,17 +120,21 @@ tasks.register("printJacocoCliPath") {
 }
 
 dependencies {
-    coverageMapToolCoreJar("org.jacoco:org.jacoco.core:$jacocoToolVersion")
+    coverageMapToolBundledJars("org.jacoco:org.jacoco.core:$jacocoToolVersion")
     "coverageMapToolImplementation"("org.jacoco:org.jacoco.core:$jacocoToolVersion")
 }
 
 tasks.register<Jar>("coverageMapToolJar") {
     archiveFileName.set("coverage-map-tool.jar")
     from(coverageMapTool.output)
-    // The core library's classes, the way the library shades asm: a tool with no classpath to
-    // get wrong in a workflow.
-    from(zipTree(Callable { coverageMapToolCoreJar.singleFile })) {
-        include("org/jacoco/**")
+    // The core library and the asm it calls, one tree per jar: a tool with no classpath to get
+    // wrong in a workflow. The bundled jars' module descriptors and manifests would fight the
+    // jar's own, so they stay out.
+    for (jar in coverageMapToolBundledJars) {
+        from(zipTree(Callable { jar as File })) {
+            exclude("module-info.class")
+            exclude("META-INF/**")
+        }
     }
 }
 
