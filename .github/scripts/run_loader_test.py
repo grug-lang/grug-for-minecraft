@@ -425,7 +425,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(len([c for c in calls if "runClient" in c]), 1, calls)
         game_call = next(c for c in calls if "runClient" in c)
         self.assertIn(
-            ":loaders:fake-loader:build :loaders:fake-loader:layerJar :loaders:fake-loader:runClient -x test",
+            ":loaders:fake-loader:classes :loaders:fake-loader:layerJar :loaders:fake-loader:runClient -x test",
             game_call,
         )
         self.assertIn("--no-daemon", game_call)
@@ -449,7 +449,7 @@ class RunLoaderTest(unittest.TestCase):
         calls = result.gradle_args.splitlines()
         self.assertTrue(calls[0].startswith(":core:publishMavenJava"), calls)
         self.assertEqual(len([c for c in calls if "runClient" in c]), 1, calls)
-        self.assertIn("build layerJar runClient -x test", calls[-1])
+        self.assertIn("classes layerJar runClient -x test", calls[-1])
 
     def test_the_run_phase_still_runs_only_the_game(self):
         result = self.run_script(PASSING_LOG, 0)
@@ -457,6 +457,7 @@ class RunLoaderTest(unittest.TestCase):
         game_call = next(c for c in result.gradle_args.splitlines() if "runClient" in c)
         self.assertNotIn(":build", game_call)
         self.assertNotIn("layerJar", game_call)
+        self.assertNotIn("classes", game_call)
 
     def test_the_build_phase_still_builds_the_layer_without_a_game(self):
         # The layer job's phase: no display, no game, no log to poll.
@@ -465,7 +466,10 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = result.gradle_args.splitlines()
         self.assertNotIn("runClient", result.gradle_args)
-        self.assertIn(":loaders:fake-loader:build :loaders:fake-loader:layerJar -x test", calls[-1])
+        # Only the layer: the build lifecycle would add the sources jar and its Loom remap, which
+        # nothing downstream of this job reads (#737).
+        self.assertIn(":loaders:fake-loader:layerJar -x test", calls[-1])
+        self.assertNotIn(":build", calls[-1])
 
     def test_a_compile_error_in_build_run_is_a_failed_build_and_not_a_game_that_exited(self):
         # Gradle ends with 1 and the game never starts. The build output has the words the game
@@ -616,7 +620,7 @@ class RunLoaderTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(result.gradle_args.splitlines()), 2)
         self.assertIn(
-            ":loaders:fake-loader:build :loaders:fake-loader:layerJar -x test",
+            ":loaders:fake-loader:layerJar -x test",
             result.gradle_args.splitlines()[-1],
         )
 
