@@ -798,6 +798,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
+        // getBlock is the registry key of the block the position holds, and placeBlock resolves a
+        // name through the same registry, so the position holds the block placeBlock would put
+        // there exactly when the two names are the same. Nothing is resolved either way.
+        return getBlock(levelObj, x, y, z).equals(blockName);
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         net.minecraft.core.BlockPos pos =

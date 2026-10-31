@@ -196,9 +196,10 @@ public interface ModLoaderAdapter {
     /**
      * Whether the block at the position is the one {@link #placeBlock} would put there for {@code
      * blockName}, ignoring its state. The room build leaves a room that is already whole in place
-     * when every one of its blocks answers true, and rebuilds it otherwise, so a loader whose block
-     * placement is expensive (1.2.5 relights the world for each one) answers it and the others keep
-     * the default, which makes every test's room be built from scratch as it always was.
+     * when every one of its blocks answers true, and rebuilds it otherwise, so the answer has to
+     * agree with what a placement by that name puts there. A loader that cannot name the block a
+     * position holds keeps the default, which makes every test's room be built from scratch as it
+     * always was.
      */
     default boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
         return false;

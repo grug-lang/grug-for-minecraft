@@ -581,6 +581,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
+        // getBlock maps the block the position holds through the canonical table, and placeBlock
+        // resolves the name it is given to a block, so the position holds what placeBlock would put
+        // there exactly when the two canonical names are the same. A name spelled otherwise answers
+        // false, which rebuilds the room rather than leaving a wrong one standing.
+        return getBlock(levelObj, x, y, z).equals(blockName);
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;

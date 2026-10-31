@@ -53,8 +53,8 @@ class GrugTestBoxTest {
 
     /**
      * A world of named blocks that counts what the room build does to it. {@code canTell} is
-     * whether the loader answers {@link ModLoaderAdapter#isBlock}, as 1.2.5 does and the others do
-     * not.
+     * whether the loader answers {@link ModLoaderAdapter#isBlock}, so the same world can be built
+     * by one that recognises its own room and by one that has to rebuild it.
      */
     private static final class FakeWorld {
         final Map<String, String> blocks = new HashMap<>();
