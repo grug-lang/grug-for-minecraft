@@ -117,6 +117,10 @@ public final class GrugTestBox {
                         wallBottomY,
                         ceilingY);
         boolean roomIsWhole = room.isWhole(adapter, level);
+        // Experiment only (#759 measurement): whether a build had to rebuild its room at all.
+        if (roomIsWhole) {
+            GrugTestCounters.wholeRooms.incrementAndGet();
+        }
         // The clear and the placements each run as a batch: a loader that relights the world per
         // block (1.2.5) then relights once at the end of each instead of after every block. See
         // ModLoaderAdapter#beginBatch. The end state is the same, block for block.

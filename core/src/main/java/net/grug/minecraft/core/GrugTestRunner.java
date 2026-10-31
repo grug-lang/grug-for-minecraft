@@ -954,6 +954,8 @@ public class GrugTestRunner {
                             + " probes="
                             + stats[7]);
         }
+        System.out.println(
+                "[GRUG CI] STAT rooms_left_whole=" + GrugTestCounters.wholeRooms.get());
     }
 
     /** Whole milliseconds, which is the resolution the printed times are stated at. */

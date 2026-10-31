@@ -3,11 +3,12 @@ package net.grug.minecraft.core;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Counters for the #704 measurement, and nothing else.
+ * Counters for the #704 and #759 measurements, and nothing else.
  *
- * <p>This class exists only on the throwaway branch that measures which CPU work the 1.20.6 tests
- * could avoid, and is deleted with that branch. The loader increments the counters from the places
- * that do the work: the section rebuild mixin, the per-frame hook, and the block writes.
+ * <p>This class exists only on the throwaway branches that measure what the tests pay for, and is
+ * deleted with them. The loader increments the counters from the places that do the work: the
+ * section rebuild mixin, the per-frame hook, the block writes, and the room build's own answer about
+ * whether the room was already there.
  */
 public final class GrugTestCounters {
     /** Section mesh rebuilds started, one per {@code RebuildTask.doTask}. */
@@ -21,6 +22,9 @@ public final class GrugTestCounters {
 
     /** Block reads the room build's clear made through the adapter. */
     public static final AtomicLong airProbes = new AtomicLong();
+
+    /** Room builds that found their room already whole and left it standing. */
+    public static final AtomicLong wholeRooms = new AtomicLong();
 
     private GrugTestCounters() {}
 }
