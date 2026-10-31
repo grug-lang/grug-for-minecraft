@@ -45,6 +45,9 @@ on:
 
 permissions:
   contents: read
+  # The pull request's coverage job reads the base commit's coverage-map artifact off the run of
+  # the base commit's push to main, which is an artifact of another run (#786).
+  actions: read
 
 concurrency:
   # Every run on main is its own group. A group holds one running and one pending run, and a newer
@@ -68,6 +71,10 @@ jobs:
       reference: ${{ steps.reference.outputs.reference }}
       # Whether the diff is prose alone, which no test can read (#785).
       no-tests: ${{ steps.no-tests.outputs.no-tests }}
+      # The coverage tests a pull request carries over instead of rerunning, and the run of the
+      # base commit that uploaded the map they are carried from (#786).
+      carry-over: ${{ steps.carry-over.outputs.carry-over }}
+      base-run: ${{ steps.carry-over.outputs.base-run }}
       # The loader directories the Windows jobs run on, a JSON list (#632).
       windows: ${{ steps.windows.outputs.dirs }}
     steps:
@@ -165,6 +172,42 @@ jobs:
             mods=$(python3 .github/scripts/affected-mods.py "$BASE_SHA" HEAD) || mods=
           fi
           echo "mods=$mods" >> "$GITHUB_OUTPUT"
+
+      # The coverage tests the gate may carry over instead of rerunning (#786). A pull request
+      # carries over only the tests select-coverage-tests.py proves its diff cannot affect, from
+      # the base commit's recorded coverage: a successful run of the base commit on main built the
+      # map from its own per-test exec data and uploaded it as the coverage-map artifact that
+      # base_coverage_map_run.py looks up here. Every way to not have both runs every coverage
+      # test, before any game starts: a push to main and a dispatch, an unfetchable or unreadable
+      # base, a base without a successful run on main that uploaded a map, and any error, which
+      # the scripts answer with the same fallback themselves. The list goes to the development
+      # loader jobs as GRUG_CI_COVERAGE_CARRY_OVER, whose assertions the run does not rerun, and
+      # to the coverage job, which counts the base commit's recorded coverage of exactly these
+      # tests in their place.
+      - name: Choose the coverage tests to carry over
+        id: carry-over
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          carry=
+          base_run=
+          if [ "$EVENT" = pull_request ]; then
+            if [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
+              echo "Carrying over no coverage test: the pull request's base commit '$BASE_SHA' could not be fetched."
+            else
+              base_run=$(python3 .github/scripts/base_coverage_map_run.py "$BASE_SHA") || base_run=
+              if [ -z "$base_run" ]; then
+                echo "Carrying over no coverage test: no successful run of the base commit on main uploaded a coverage map."
+              else
+                carry=$(python3 .github/scripts/select-coverage-tests.py "$BASE_SHA" HEAD) || carry=
+              fi
+            fi
+          else
+            echo "Carrying over no coverage test: this is a $EVENT run, which runs every coverage test."
+          fi
+          echo "carry-over=$carry" >> "$GITHUB_OUTPUT"
+          echo "base-run=$base_run" >> "$GITHUB_OUTPUT"
 
       # Whether the reference job runs (#631, #832). Only a pull request can skip it, and only when
       # its diff touches nothing the reference run observes: reference-needed.py explains its answer
@@ -405,7 +448,7 @@ jobs:
       # property is what run-loader.sh passes for the loader jobs: core's tests load libadapter.so,
       # so they need the static library this commit links against.
       - name: Test core
-        run: ./gradlew :core:test -Dgrug.activeLoader=a1.1.2_01-ornithe -Pgrug.prebuiltGrugRs="${{ github.workspace }}/.grug-ci/libgruggers.a"
+        run: ./gradlew :core:test :core:coverageMapToolJar -Dgrug.activeLoader=a1.1.2_01-ornithe -Pgrug.prebuiltGrugRs="${{ github.workspace }}/.grug-ci/libgruggers.a"
 
       - name: Test the grug adapter generator
         run: python3 core/test_generate.py
@@ -439,6 +482,7 @@ jobs:
             .github/scripts/watch_run_test.py \
             .github/scripts/affected_mods_test.py \
             .github/scripts/affected_loaders_test.py \
+            .github/scripts/select_coverage_tests_test.py \
             .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py \
             .github/scripts/reference_selection_test.py \
@@ -484,6 +528,19 @@ jobs:
         with:
           name: coverage-classes-core
           path: core/build/classes/java/main
+          if-no-files-found: error
+          retention-days: 7
+
+      # The tool that records what each coverage test covered, for the carry-over of the tests a
+      # diff cannot affect (#786): the coverage job runs it against this run's per-test exec data
+      # to build the map, and a pull request's coverage job reconstructs the carried-over
+      # coverage from the base commit's map with it. The jar bundles the JaCoCo core library's
+      # classes, so the coverage job adds nothing to its classpath.
+      - name: Upload the coverage map tool
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-map-tool
+          path: core/build/libs/coverage-map-tool.jar
           if-no-files-found: error
           retention-days: 7
 
@@ -675,6 +732,12 @@ jobs:
           # and on a dispatch without the input, which run every mod. A name that is no mod fails
           # the step before the game starts.
           GRUG_CI_MODS: ${{ needs.discover.outputs.mods || inputs.mods }}
+          # The coverage tests the gate carries over instead of rerunning (#786), the discover
+          # job's proof: a pull request's, empty otherwise. run-loader.sh checks each name
+          # against the tree before the game starts and subtracts it from the expected count,
+          # so a name the proof cannot back is a failure before the game, not a run that quietly
+          # skipped more than it was asked to.
+          GRUG_CI_COVERAGE_CARRY_OVER: ${{ needs.discover.outputs.carry-over }}
           # The watch covers the whole run: 300s for one pass (the slowest loader measured under 190s
           # of game time) plus 200s per extra pass. 1.2.5 is the slowest loader and took about 150s
           # per pass in the repeats runs of #583 (1068s for twenty passes when #291 measured it, before
@@ -1644,13 +1707,107 @@ jobs:
           name: jacoco-cli
           path: coverage/tools
 
+      # The tool the core job built, which this job runs against the per-test exec data the
+      # development loader jobs uploaded: it builds the map of what each coverage test of this
+      # run covered, and on a pull request it reconstructs the carried-over coverage from the
+      # base commit's map (#786).
+      - name: Download the coverage map tool
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-map-tool
+          path: coverage/tools
+
+      # A pull request's carry-over is the base commit's recorded coverage, and a successful run
+      # of the base commit on main is the run that built it: the discover job found that run
+      # before any game started, or the carry-over is empty and this step does nothing. The map
+      # is data from the base commit, which is why it is an artifact of that commit's run and
+      # never a file of the pull request (#786).
+      - name: Retrieve the base commit's coverage map
+        if: ${{ needs.discover.outputs.carry-over != '' }}
+        env:
+          REPO: ${{ github.repository }}
+          BASE_RUN: ${{ needs.discover.outputs.base-run }}
+        run: |
+          set -eu
+          mkdir -p coverage/base-map
+          url=$(curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/actions/runs/$BASE_RUN/artifacts?per_page=100" \
+            | python3 -c "import json, sys; print(next(a['archive_url'] for a in json.load(sys.stdin)['artifacts'] if a['name'] == 'coverage-map'))")
+          curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" "$url" -o coverage/base-map.zip
+          unzip -o -q coverage/base-map.zip -d coverage/base-map
+
+      # The recorded coverage of the carried-over tests, one exec per test, rebuilt against this
+      # run's core classes from the base commit's map. The tool fails the run when a class the
+      # map names changed under it, or a test the selection carried over is not in the map, and
+      # both are the direction that runs more: the loader jobs already skipped the tests, so a
+      # map that cannot be applied is a red run, never a gate that counted less (#786).
+      - name: Reconstruct the carried-over coverage
+        if: ${{ needs.discover.outputs.carry-over != '' }}
+        run: |
+          set -eu
+          mkdir -p coverage/carry-over
+          echo "${{ needs.discover.outputs.carry-over }}" | tr ',' '\n' > coverage/carry-over/tests.txt
+          java -cp coverage/tools/coverage-map-tool.jar \
+            net.grug.minecraft.covmap.CoverageMapTool reconstruct \
+            --map coverage/base-map/coverage/coverage-map.json \
+            --classes coverage/artifacts/coverage-classes-core \
+            --tests coverage/carry-over/tests.txt \
+            --out-dir coverage/carry-over
+
       - name: Combine the coverage data and require 100%
         run: |
+          set -eu
+          carry=
+          for exec in coverage/carry-over/*.exec; do
+            [ -e "$exec" ] || continue
+            carry="$carry --carry-over $exec"
+          done
           python3 .github/scripts/combine-coverage.py \
             --artifacts coverage/artifacts \
             --jacoco-cli coverage/tools/jacoco-cli.jar \
             --output coverage/report \
-            --require-100
+            --require-100 \
+            $carry
+
+      # The map of what each coverage test of this run covered, from this run's own per-test exec
+      # data against this run's own core classes: the pull requests that base on this commit carry
+      # it over. A pull request builds it too, from the tests its selection ran; the push to main
+      # that merges it rebuilds the map from the full run, which is the one a later pull request
+      # looks up. Also when the gate above failed, because the recorded coverage is still what the
+      # tests that ran covered, and the run a pull request bases on is the next one, not this one
+      # (#786).
+      - name: Build the coverage map
+        if: ${{ !cancelled() }}
+        run: |
+          set -eu
+          exec_dirs=
+          for dir in coverage/artifacts/coverage-exec-*; do
+            [ -d "$dir" ] || continue
+            [ "$dir" = "coverage/artifacts/coverage-exec-core" ] && continue
+            exec_dirs="$exec_dirs --execs $dir"
+          done
+          [ -n "$exec_dirs" ] || {
+            echo "error: no loader exec data to record the map from"
+            exit 1
+          }
+          java -cp coverage/tools/coverage-map-tool.jar \
+            net.grug.minecraft.covmap.CoverageMapTool build \
+            --classes coverage/artifacts/coverage-classes-core \
+            $exec_dirs \
+            --commit "$(git rev-parse HEAD)" \
+            --out coverage/coverage-map.json
+
+      # Refreshed on every merge, which the pull requests that base on the merge read back. The
+      # retention is the same as the coverage data it is built from, so a base commit older than
+      # that has no map, and the pull request that bases on it runs every coverage test.
+      - name: Upload the coverage map
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-map
+          path: coverage/coverage-map.json
+          if-no-files-found: error
+          retention-days: 7
 
       # Also when the 100% requirement above fails, because the per-line report is what says which
       # lines were missed.

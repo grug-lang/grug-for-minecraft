@@ -25,6 +25,12 @@ wherever it ran, because it runs once per JVM, in the segment of whichever mod's
 class, and a dropped segment's reset would otherwise leave it uncovered however well mods/coverage/
 tests the class. rescue_class_initializers compares a report of the .exec files with one of the
 .exec and .dropped files together and counts what only the second shows in a <clinit> method.
+
+The gate also counts, when a pull request did not rerun them, the coverage a coverage test recorded
+on an earlier run (#786): such a test's recorded coverage is handed to the report as a --carry-over
+exec file, and is counted for core exactly like the .exec files of the tests that ran. A pull request
+carries over only the tests a static proof shows the diff cannot affect, and the gate still fails if
+any line or branch of core has no cover, from the run or from the carried-over tests.
 """
 
 from __future__ import annotations
@@ -333,6 +339,19 @@ def main() -> int:
         action="store_true",
         help="Exit non-zero unless instruction and branch coverage are both 100%%.",
     )
+    parser.add_argument(
+        "--carry-over",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="EXEC",
+        help=(
+            "An exec file of the recorded coverage of a coverage test the run did not rerun, "
+            "carried over from the base commit's map (#786). Counted for core like the .exec "
+            "files of the tests that ran, so the gate proves 100% of core from the run plus the "
+            "carried-over tests."
+        ),
+    )
     args = parser.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -341,11 +360,19 @@ def main() -> int:
         print("error: no coverage-exec-core artifact found", file=sys.stderr)
         return 1
 
+    carry_over = [path for path in args.carry_over if path.is_file()]
+    if carry_over:
+        print(f"counting the recorded coverage of {len(carry_over)} carried-over test(s)")
+
     all_execs = [exec_file for info in runners.values() for exec_file in info.get("exec", [])]
     all_dropped = [dropped for info in runners.values() for dropped in info.get("dropped", [])]
     csv_paths: list[Path] = []
     for runner, info in sorted(runners.items()):
         execs = all_execs if runner == CORE else info.get("exec", [])
+        if runner == CORE and carry_over:
+            # The carried-over tests are counted coverage, like the .exec files of the tests that
+            # ran: the gate proves 100% of core from the run plus the tests it did not rerun.
+            execs = [*execs, *carry_over]
         dropped = all_dropped if runner == CORE else info.get("dropped", [])
         classes = info.get("classes")
         if not execs or classes is None:

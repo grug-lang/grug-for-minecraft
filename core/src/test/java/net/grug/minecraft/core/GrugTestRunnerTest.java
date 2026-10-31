@@ -663,8 +663,8 @@ class GrugTestRunnerTest {
         final List<String> events = new ArrayList<>();
 
         @Override
-        public void testStarting(String mod) {
-            events.add("starting " + mod);
+        public void testStarting(String testPath) {
+            events.add("starting " + testPath);
         }
 
         @Override
@@ -687,7 +687,7 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void tellsTheCoverageRecorderWhichModEachTestBelongsToInRunOrder() {
+    void tellsTheCoverageRecorderWhichTestEachSegmentIsForInRunOrder() {
         // Put in out of order, so the order the recorder hears is the runner's own sort by path.
         Map<String, Long> files = new LinkedHashMap<>();
         files.put("jei/code/a-Test.grug", 1L);
@@ -701,10 +701,10 @@ class GrugTestRunnerTest {
         assertTrue(runner.isFinished());
         assertEquals(
                 List.of(
-                        "starting buildcraft",
-                        "starting coverage",
-                        "starting coverage",
-                        "starting jei",
+                        "starting buildcraft/code/a-Test.grug",
+                        "starting coverage/tests/a-Test.grug",
+                        "starting coverage/tests/b-Test.grug",
+                        "starting jei/code/a-Test.grug",
                         "passed"),
                 coverage.events);
     }
@@ -719,10 +719,10 @@ class GrugTestRunnerTest {
 
         assertEquals(
                 List.of(
-                        "starting buildcraft",
-                        "starting coverage",
-                        "starting buildcraft",
-                        "starting coverage",
+                        "starting buildcraft/code/a-Test.grug",
+                        "starting coverage/tests/a-Test.grug",
+                        "starting buildcraft/code/a-Test.grug",
+                        "starting coverage/tests/a-Test.grug",
                         "passed"),
                 coverage.events);
     }
@@ -734,7 +734,7 @@ class GrugTestRunnerTest {
         CoverageLog coverage = new CoverageLog();
         runToEnd(runnerWithCoverage(ops, Map.of("coverage/tests/a-Test.grug", 1L), 1, coverage));
 
-        assertEquals(List.of("starting coverage"), coverage.events);
+        assertEquals(List.of("starting coverage/tests/a-Test.grug"), coverage.events);
     }
 
     /**
@@ -797,6 +797,27 @@ class GrugTestRunnerTest {
                 repeats,
                 log,
                 mods);
+    }
+
+    private GrugTestRunner carryingRunner(
+            FakeOps ops,
+            Map<String, Long> files,
+            int repeats,
+            Set<String> mods,
+            Set<String> carryOver,
+            CoverageLog log) {
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                new SweepLog(new ArrayList<>()),
+                repeats,
+                log,
+                mods,
+                GrugTestRunner.MAX_GAME_SPEED,
+                carryOver);
     }
 
     private static List<String> executedTests(String printed) {
@@ -931,6 +952,125 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void parsesTheCarryOverSelection() {
+        // Unset, empty and blank all carry nothing over, which is the empty set.
+        assertEquals(Set.of(), GrugTestRunner.parseCarryOverCoverageTests(null));
+        assertEquals(Set.of(), GrugTestRunner.parseCarryOverCoverageTests(""));
+        assertEquals(Set.of(), GrugTestRunner.parseCarryOverCoverageTests("  \t "));
+        assertEquals(
+                Set.of("coverage/tests/a-Test.grug"),
+                GrugTestRunner.parseCarryOverCoverageTests("coverage/tests/a-Test.grug"));
+        // Order as first seen, whitespace trimmed, duplicates dropped.
+        assertEquals(
+                List.of("coverage/tests/b-Test.grug", "coverage/tests/a-Test.grug"),
+                List.copyOf(
+                        GrugTestRunner.parseCarryOverCoverageTests(
+                                " coverage/tests/b-Test.grug ,coverage/tests/a-Test.grug"
+                                        + ",coverage/tests/b-Test.grug")));
+    }
+
+    @Test
+    void refusesACarryOverSelectionWithAnEmptyEntry() {
+        for (String value : new String[] {",", "a,", ",a", "a,,b", "a, ,b"}) {
+            IllegalStateException e =
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> GrugTestRunner.parseCarryOverCoverageTests(value));
+            assertTrue(
+                    e.getMessage().contains("GRUG_CI_COVERAGE_CARRY_OVER has an empty entry"),
+                    e.getMessage());
+        }
+    }
+
+    @Test
+    void carriesOverOnlyTheNamedCoverageTestsAndSaysSo() {
+        CoverageLog coverage = new CoverageLog();
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        carryingRunner(
+                                                new FakeOps(),
+                                                threeMods(),
+                                                1,
+                                                Set.of(),
+                                                Set.of("coverage/tests/b-Test.grug"),
+                                                coverage)));
+
+        // b-Test.grug is carried over and never started; the starts are the rest in the
+        // runner's path order, and the line says that its assertions do not rerun, which is
+        // the guarantee the carry-over loses.
+        assertEquals(
+                List.of(
+                        "starting buildcraft/code/a-Test.grug",
+                        "starting buildcraft/code/b-Test.grug",
+                        "starting coverage/tests/a-Test.grug",
+                        "starting jei/code/a-Test.grug",
+                        "passed"),
+                coverage.events);
+        assertTrue(
+                printed.contains(
+                        "[GRUG CI] Carrying over 1 coverage test(s) from the base commit's"
+                                + " recorded coverage, whose assertions do not rerun (#786):"
+                                + " coverage/tests/b-Test.grug"),
+                printed);
+        assertTrue(printed.contains("Running 4 tests..."), printed);
+        assertTrue(printed.contains("ALL 4 TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aCarryOverThatNamesANotLoadedCoverageTestFailsBeforeAnyTestRuns() {
+        FakeOps ops = new FakeOps();
+        IllegalStateException e =
+                assertThrows(
+                        IllegalStateException.class,
+                        () ->
+                                carryingRunner(
+                                        ops,
+                                        threeMods(),
+                                        1,
+                                        Set.of(),
+                                        Set.of("jei/code/a-Test.grug"),
+                                        new CoverageLog()));
+
+        // The message says which test was named and which coverage tests there are, so a typo is a
+        // one-line fix.
+        assertTrue(e.getMessage().contains("'jei/code/a-Test.grug'"), e.getMessage());
+        assertTrue(
+                e.getMessage().contains("coverage/tests/a-Test.grug, coverage/tests/b-Test.grug"),
+                e.getMessage());
+        assertEquals(0, ops.created);
+    }
+
+    @Test
+    void aCarryOverOfEveryCoverageTestStillRunsTheOthers() {
+        CoverageLog coverage = new CoverageLog();
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        carryingRunner(
+                                                new FakeOps(),
+                                                threeMods(),
+                                                1,
+                                                Set.of(),
+                                                Set.of(
+                                                        "coverage/tests/a-Test.grug",
+                                                        "coverage/tests/b-Test.grug"),
+                                                coverage)));
+
+        assertEquals(
+                List.of(
+                        "starting buildcraft/code/a-Test.grug",
+                        "starting buildcraft/code/b-Test.grug",
+                        "starting jei/code/a-Test.grug",
+                        "passed"),
+                coverage.events);
+        assertTrue(printed.contains("Running 3 tests..."), printed);
+        assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
+    }
+
+    @Test
     void theCoverageRecorderHearsOnlyTheSelectedMods() {
         CoverageLog coverage = new CoverageLog();
         runToEnd(
@@ -942,7 +1082,11 @@ class GrugTestRunnerTest {
                         coverage));
 
         assertEquals(
-                List.of("starting coverage", "starting coverage", "starting jei", "passed"),
+                List.of(
+                        "starting coverage/tests/a-Test.grug",
+                        "starting coverage/tests/b-Test.grug",
+                        "starting jei/code/a-Test.grug",
+                        "passed"),
                 coverage.events);
     }
 
@@ -955,7 +1099,7 @@ class GrugTestRunnerTest {
         runToEnd(runner);
 
         assertTrue(runner.isFinished());
-        assertEquals(List.of("starting jei", "passed"), coverage.events);
+        assertEquals(List.of("starting jei/code/a-Test.grug", "passed"), coverage.events);
     }
 
     @Test
@@ -1717,13 +1861,14 @@ class GrugTestRunnerTest {
                 1,
                 new GrugTestRunner.CoverageRecorder() {
                     @Override
-                    public void testStarting(String mod) {}
+                    public void testStarting(String testPath) {}
 
                     @Override
                     public void runPassed() {}
                 },
                 Set.of(),
-                max);
+                max,
+                Set.of());
     }
 
     /** Ticks the runner until it finishes or has been ticked {@code limit} times. */

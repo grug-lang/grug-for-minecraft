@@ -9,10 +9,12 @@
 // time, and only when GRUG_CI is set, so a plain local runClient stays uninstrumented.
 //
 // The agent writes nothing itself (output=none): run-loader.sh terminates the game as soon as the
-// tests pass, which can interrupt a shutdown-hook write. Instead GrugCoverage cuts the data into
-// segments from inside the game and writes one file per segment in grug.coverage.dir:
-// NNN-<segment>.exec for the boot and the tests of mods/coverage/, which the coverage gate counts,
-// and NNN-<segment>.dropped for the other mods' tests (#626).
+// tests pass, which can interrupt a shutdown-hook write. Instead GrugCoverage cuts the data from
+// inside the game, one segment per test rather than per mod (#786), and writes one file per
+// segment in grug.coverage.dir: NNN-<segment>.exec for the boot and the tests of mods/coverage/,
+// which the coverage gate counts, and NNN-<segment>.dropped for the other mods' tests (#626).
+// A test's segment is named for the test's flattened path, so a later run can carry over the
+// recorded coverage of the tests its diff cannot affect instead of rerunning them (#786).
 apply plugin: 'jacoco'
 
 repositories {

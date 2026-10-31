@@ -174,10 +174,12 @@ public class GrugTestRunner {
      */
     public interface CoverageRecorder {
         /**
-         * The next test, of {@code mod}, is about to start. Called before the test creates its
-         * entity, so everything the test does lands after the call.
+         * The next test, whose path is {@code testPath}, is about to start. Called before the test
+         * creates its entity, so everything the test does lands after the call. The recorder cuts
+         * the segment the previous test (or the boot) just ended here, so each test is its own
+         * segment. See #786.
          */
-        void testStarting(String mod);
+        void testStarting(String testPath);
 
         /** Every test passed. Called before the run announces it, so a failure here is seen. */
         void runPassed();
@@ -187,7 +189,7 @@ public class GrugTestRunner {
     private static final CoverageRecorder NO_COVERAGE =
             new CoverageRecorder() {
                 @Override
-                public void testStarting(String mod) {}
+                public void testStarting(String testPath) {}
 
                 @Override
                 public void runPassed() {}
@@ -401,7 +403,8 @@ public class GrugTestRunner {
                 repeatsFromEnv(),
                 GrugCoverage.fromEnvironment(),
                 modsFromEnv(),
-                maxGameSpeedFromEnv());
+                maxGameSpeedFromEnv(),
+                carryOverCoverageTestsFromEnv());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -463,7 +466,7 @@ public class GrugTestRunner {
 
     /**
      * Visible for tests: the same, running only the tests of {@code selectedMods}, where an empty
-     * set selects every mod. See {@link #parseMods}.
+     * set selects every mod. See {@link #parseMods}. No coverage test is carried over.
      */
     public GrugTestRunner(
             Map<String, Long> fileIds,
@@ -483,12 +486,15 @@ public class GrugTestRunner {
                 repeats,
                 coverage,
                 selectedMods,
-                MAX_GAME_SPEED);
+                MAX_GAME_SPEED,
+                Collections.emptySet());
     }
 
     /**
      * Visible for tests: the same, with the fastest game speed a test may run at, which is what
-     * {@code GRUG_CI_MAX_GAME_SPEED} sets. See {@link #parseMaxGameSpeed}.
+     * {@code GRUG_CI_MAX_GAME_SPEED} sets, and with the coverage tests to carry over, which is what
+     * {@code GRUG_CI_COVERAGE_CARRY_OVER} sets. See {@link #parseMaxGameSpeed} and {@link
+     * #parseCarryOverCoverageTests}.
      */
     public GrugTestRunner(
             Map<String, Long> fileIds,
@@ -499,7 +505,8 @@ public class GrugTestRunner {
             int repeats,
             CoverageRecorder coverage,
             Set<String> selectedMods,
-            int maxGameSpeed) {
+            int maxGameSpeed,
+            Set<String> carryOverCoverageTests) {
         this.maxGameSpeed = maxGameSpeed;
         this.ops = ops;
         this.coverage = coverage;
@@ -535,10 +542,12 @@ public class GrugTestRunner {
             GrugErrors.runtimeErrorQueue.clear();
         }
         checkSelectedModsExist(selectedMods, fileIds);
+        checkCarryOverTestsExist(carryOverCoverageTests, fileIds);
         for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
             if (entry.getKey().endsWith(GrugFileIndex.TEST_SUFFIX)
-                    && (selectedMods.isEmpty()
-                            || selectedMods.contains(owningMod(entry.getKey())))) {
+                    && (selectedMods.isEmpty() || selectedMods.contains(owningMod(entry.getKey())))
+                    && (carryOverCoverageTests.isEmpty()
+                            || !carryOverCoverageTests.contains(entry.getKey()))) {
                 tests.add(entry);
             }
         }
@@ -556,6 +565,17 @@ public class GrugTestRunner {
             System.out.println(
                     "[GRUG CI] Only the tests of these mods run: "
                             + String.join(", ", selectedMods));
+        }
+        if (!carryOverCoverageTests.isEmpty()) {
+            // The guarantee the carry-over loses (#786), said in the log the run is read in: a
+            // skipped test's assertions do not rerun, so the run's proof rests on the recorded
+            // coverage of the tests it skipped.
+            System.out.println(
+                    "[GRUG CI] Carrying over "
+                            + carryOverCoverageTests.size()
+                            + " coverage test(s) from the base commit's recorded coverage, whose"
+                            + " assertions do not rerun (#786): "
+                            + String.join(", ", carryOverCoverageTests));
         }
         System.out.println("[GRUG CI] " + startMsg);
 
@@ -646,6 +666,42 @@ public class GrugTestRunner {
     }
 
     /**
+     * The coverage tests {@code GRUG_CI_COVERAGE_CARRY_OVER} carries over instead of runs (#786): a
+     * comma separated list of runner paths of coverage tests, in the order given with duplicates
+     * dropped. Unset, empty or only whitespace carries nothing over, which is returned as the empty
+     * set and runs every coverage test.
+     *
+     * <p>Each carried-over test is not rerun at all: the coverage gate counts its recorded coverage
+     * from the base commit's run in its place, which is the guarantee the carry-over loses. That is
+     * why the proof that a test may be carried over is conservative, and a doubt runs the test
+     * rather than carrying it over.
+     *
+     * <p>A non-empty list with an empty entry, such as {@code coverage/tests/a-Test.grug,}, is
+     * fatal: it is what a shell variable that expanded to nothing leaves behind, and running fewer
+     * tests than the author meant while reporting green is the one outcome to avoid.
+     */
+    static Set<String> parseCarryOverCoverageTests(String value) {
+        Set<String> tests = new LinkedHashSet<>();
+        if (value == null || value.trim().isEmpty()) return tests;
+        for (String path : value.split(",", -1)) {
+            String test = path.trim();
+            if (test.isEmpty()) {
+                throw Grug.fatal(
+                        "GRUG_CI_COVERAGE_CARRY_OVER has an empty entry, but each has to name a"
+                                + " coverage test: '"
+                                + value
+                                + "'");
+            }
+            tests.add(test);
+        }
+        return tests;
+    }
+
+    private static Set<String> carryOverCoverageTestsFromEnv() {
+        return parseCarryOverCoverageTests(System.getenv("GRUG_CI_COVERAGE_CARRY_OVER"));
+    }
+
+    /**
      * The fastest game speed {@code GRUG_CI_MAX_GAME_SPEED} allows a test, or {@link
      * #MAX_GAME_SPEED} when it is unset or empty. {@code 1} keeps every test in real time, which is
      * how a run is compared with and without the speed-up, or tells a flake from the clock.
@@ -694,6 +750,32 @@ public class GrugTestRunner {
                         "GRUG_CI_MODS names the mod '"
                                 + mod
                                 + "', but the mods loaded are: "
+                                + String.join(", ", loaded));
+            }
+        }
+    }
+
+    /**
+     * Fails when a carried-over coverage test is not among the coverage tests that were loaded,
+     * because the run would then carry over a test that does not exist, or run a test it was meant
+     * to skip. See {@link #parseCarryOverCoverageTests}.
+     */
+    private static void checkCarryOverTestsExist(
+            Set<String> carryOverCoverageTests, Map<String, Long> fileIds) {
+        if (carryOverCoverageTests.isEmpty()) return;
+        Set<String> loaded = new TreeSet<>();
+        for (String path : fileIds.keySet()) {
+            if (path.startsWith(GrugCoverage.COUNTED_MOD + "/")
+                    && path.endsWith(GrugFileIndex.TEST_SUFFIX)) {
+                loaded.add(path);
+            }
+        }
+        for (String test : carryOverCoverageTests) {
+            if (!loaded.contains(test)) {
+                throw Grug.fatal(
+                        "GRUG_CI_COVERAGE_CARRY_OVER names the coverage test '"
+                                + test
+                                + "', but the loaded coverage tests are: "
                                 + String.join(", ", loaded));
             }
         }
@@ -1190,10 +1272,10 @@ public class GrugTestRunner {
         Map.Entry<String, Long> entry = tests.get(nextTestIndex);
         String path = entry.getKey();
 
-        // Before anything the test does, so the test's entity and init land in its mod's segment of
-        // the coverage. The tests are sorted by path, so the mods follow one another in blocks and
-        // this cuts only where the mod changes. See #626.
-        coverage.testStarting(owningMod(path));
+        // Before anything the test does, so the test's entity and init land in its own segment of
+        // the coverage: the previous test's (or the boot's) segment is cut here, one segment per
+        // test, so a later run can carry over the coverage of the tests it does not rerun (#786).
+        coverage.testStarting(path);
 
         // Started before the entity exists, so the time includes the setup a test needs rather than
         // reporting only the part after it, which would make the cheapest test look free.

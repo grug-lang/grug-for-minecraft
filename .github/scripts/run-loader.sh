@@ -245,6 +245,61 @@ if [ -n "${GRUG_CI_MODS//[[:space:]]/}" ]; then
 else
   EXPECTED_TESTS=$(find "$MODS_DIR" -name "*-Test.grug" | wc -l | tr -d ' ')
 fi
+
+# GRUG_CI_COVERAGE_CARRY_OVER, a comma separated list of coverage test paths, carries over the
+# recorded coverage of those tests from the base commit's run instead of rerunning them (#786).
+# The coverage job counts the carried-over tests' exec data in the gate, and the runner in core
+# skips exactly these tests, so the count the game will report as passed has to lose them. The
+# names are checked against the tree first, like GRUG_CI_MODS: a name that is not a loaded
+# coverage test stops the script before the game starts instead of passing a run that quietly
+# skipped less, or more, than it was asked to. The list is only a carry-over when a pull
+# request's base has the recorded map; a push to main, a dispatch and the fallbacks all leave it
+# empty, which changes nothing.
+GRUG_CI_COVERAGE_CARRY_OVER="${GRUG_CI_COVERAGE_CARRY_OVER:-}"
+if [ -n "${GRUG_CI_COVERAGE_CARRY_OVER//[[:space:]]/}" ]; then
+  carried=0
+  carried_tests=" "
+  # The comma appended here keeps read from dropping a last empty entry, such as the one in "a,".
+  IFS=, read -r -a carry_over_list <<< "${GRUG_CI_COVERAGE_CARRY_OVER},"
+  for test in "${carry_over_list[@]}"; do
+    test="${test#"${test%%[![:space:]]*}"}"
+    test="${test%"${test##*[![:space:]]}"}"
+    if [ -z "$test" ]; then
+      echo "==> ERROR: GRUG_CI_COVERAGE_CARRY_OVER has an empty entry, but each has to name a coverage test: '${GRUG_CI_COVERAGE_CARRY_OVER}'" >&2
+      exit 2
+    fi
+    case "$test" in
+      coverage/*) ;;
+      *)
+        echo "==> ERROR: GRUG_CI_COVERAGE_CARRY_OVER names '${test}', which is not a coverage test: each has to name a test under coverage/." >&2
+        exit 2
+        ;;
+    esac
+    if [ ! -f "${MODS_DIR}/${test}" ]; then
+      echo "==> ERROR: GRUG_CI_COVERAGE_CARRY_OVER names '${test}', but ${MODS_DIR} has no such coverage test." >&2
+      exit 2
+    fi
+    # A name repeated in the list counts once, as the runner treats it.
+    case "$carried_tests" in *" ${test} "*) continue ;; esac
+    carried_tests="${carried_tests}${test} "
+    carried=$((carried + 1))
+  done
+  # The carry-over subtracts only when the coverage mod's tests are counted at all: the mods
+  # selection above may have left them out, in which case there is nothing to carry over.
+  counting_coverage=true
+  if [ -n "${GRUG_CI_MODS//[[:space:]]/}" ]; then
+    case " ${selected_mods} " in *" coverage "*) ;; *) counting_coverage=false ;; esac
+  fi
+  if [ "$counting_coverage" = false ]; then
+    if [ "$carried" -gt 0 ]; then
+      echo "==> ERROR: GRUG_CI_COVERAGE_CARRY_OVER names ${carried} coverage test(s), but the mods selection runs no coverage test." >&2
+      exit 2
+    fi
+  else
+    EXPECTED_TESTS=$((EXPECTED_TESTS - carried))
+    echo "==> GRUG_CI_COVERAGE_CARRY_OVER carries over ${carried} coverage test(s) from the base commit's recorded coverage, whose assertions do not rerun:${carried_tests# }"
+  fi
+fi
 SUCCESS_MSG="[GRUG CI] ALL ${EXPECTED_TESTS} TESTS PASSED"
 BOOT_MSG="[GRUG CI] BOOT TO TITLE SCREEN SUCCESSFUL"
 GRUG_LOADED_MSG="[GRUG CI] GRUG LOADED"
