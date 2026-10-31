@@ -112,7 +112,8 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
 - **When it fails.** A task that fails twice: stop, file an issue with what was learned, move on.
-  If `main` goes red after a merge, stop merging and fix forward or revert, through a pull request.
+  If `main` goes red after a merge, do not pause: attribute it to that merge and fix forward or
+  revert, through a pull request, as the red-main section below says.
 - **Never, unattended:** publish outside the repository (for example a container image), change the
   ruleset or any repository setting (required status checks are #638), or delete anything you did
   not create (the worktree and branch of a task you just merged excepted).
@@ -147,11 +148,10 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
   done. An experiment that changes only `.github/scripts/` keeps the caches warm. Editing
   `.github/actions/setup-loader-build/action.yml`, a loader's `gradle.properties` or a build file
-  misses the exact cache keys; editing `build.yml` does not, the 1.2.5 MCP snapshot excepted until
-  #783. The Gradle dependencies fall back to the loader's previous entry (`restore-keys`), but the
-  Minecraft toolchain has no fallback, so a miss there fetches it again, about 60 s on
-  `1.20.6-forge`. The plan allows 20 concurrent jobs, shared by
-  all runs: do not dispatch a full `build.yml` while another run is going.
+  misses the exact cache keys; editing `build.yml` does not. The Gradle dependencies fall back to
+  the loader's previous entry (`restore-keys`), but the Minecraft toolchain has no fallback, so a
+  miss there fetches it again, about 60 s on `1.20.6-forge`. The plan allows 20 concurrent jobs,
+  shared by all runs: do not dispatch a full `build.yml` while another run is going.
 - A loader job restores the project's `build/` and `.gradle/`, so Gradle's up-to-date check decides
   what runs; the cache key says only where that state lives, never what is safe to reuse. A task
   reading an undeclared input is therefore a CI correctness bug, not only a local one, and moving
