@@ -1087,6 +1087,11 @@ public class GrugTestRunner {
         // top of its setup, which rebuilds the room at the radius it asks for.
         boxBuilder.build(GrugTestBox.DEFAULT_RADIUS);
 
+        // Experiment only (#760): this test has asked for no frame yet, so the level draw is
+        // skipped from here until it does. The room's own frames, drawn before this line, are
+        // counted against the test as setup.
+        GrugDrawDemand.beginTest();
+
         // After the room, so the setup that every test shares runs in real time, and before the
         // first tick, so the whole wait the test asked to speed up is sped up.
         applyGameSpeed(path);
@@ -1175,6 +1180,9 @@ public class GrugTestRunner {
         GrugTestState.testExpectedError = null;
         GrugTestState.testOrigin = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
+        // Experiment only (#760): the test is over, so the next frames draw again until the next
+        // test's room is built.
+        GrugDrawDemand.endTest();
         // Whether the test passed, expected its error or failed, because a clock left fast would
         // run the next test's room and any capture it takes at a speed it never asked for.
         restoreGameSpeed();

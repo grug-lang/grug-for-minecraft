@@ -9,6 +9,7 @@
     "grug": {
         "client": [
             "FogRendererMixin",
+            "GameRendererDrawSkipMixin",
             "GuiMixin",
             "LightTextureMixin",
             "LiquidBlockRendererMixin",
