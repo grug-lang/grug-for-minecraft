@@ -1,12 +1,15 @@
 # Covers the GUI builder calls GUI.add_player_inventory and GUI.add_text, and Color.rgb which colours the text,
 # through coverage_gui's GUI, opened the way a player opens it. Neither can be read back from the game, so each
-# is checked by what the screen shows, comparing two rectangles of one frame instead of a reference image:
-# the panel is 176 by 166 at the 1280x720 scale of 3, so its top left is at (376, 111), as in item_icon-Test.
-# The text sits at (8, 6), where crafting.png is plain, so a rectangle around it has to differ from an equal
-# rectangle of the same plain strip further right. The player's inventory is checked with a diamond held in
-# the hotbar before the GUI opens: crafting.png draws the slots empty, so the row of the hotbar has to differ
-# from the row of the main inventory above it only if the builder put the player's slots there and the menu
-# drew the diamond in one of them.
+# is checked by what the screen shows, and the two checks need different evidence. The text sits at (8, 6),
+# where crafting.png is plain, and is checked against the golden of the strip of panel (8, 6) to (38, 14): a
+# golden is the strip as the text should draw, in the colour Color.rgb(200, 0, 0) sets, so the check says
+# which colour the text drew, while a difference from the panel's plain strip would say only that some colour
+# drew at all, and a text in the wrong colour would pass it. The panel is 176 by 166 at the 1280x720 scale of 3,
+# so its top left is at (376, 111), as in item_icon-Test. The player's inventory is checked with a diamond
+# held in the hotbar before the GUI opens, comparing two rectangles of one frame instead of a reference image,
+# because the items it draws are the player's own and no golden can hold them: crafting.png draws the slots
+# empty, so the row of the hotbar has to differ from the row of the main inventory above it only if the builder
+# put the player's slots there and the menu drew the diamond in one of them.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
@@ -37,10 +40,10 @@ local _setup(ctx: TestTickContext) {
 }
 
 local _check(ctx: TestTickContext) {
-    # The text's strip of panel (8, 6) to (38, 14) against the plain strip of panel (100, 6) to (130, 14).
-    text: Screenshot = Test.screenshot().capture(400, 129, 490, 153)
-    plain: Screenshot = Test.screenshot().capture(676, 129, 766, 153)
-    text.differs_from(plain, 3)
+    # The strip of panel (8, 6) to (38, 14) where the text sits, against the golden of the same strip, so the
+    # test compares the colour the text drew with the colour it should draw, not only with the panel's plain
+    # background.
+    Test.screenshot().equals(r"screenshots/gui_builder_text", 400, 129, 490, 153)
 
     # The main inventory's third row, panel (7, 119) to (169, 137), against the hotbar, panel (7, 141) to (169, 159).
     main_row: Screenshot = Test.screenshot().capture(397, 468, 883, 522)
