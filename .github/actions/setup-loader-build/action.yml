@@ -44,7 +44,7 @@ runs:
         path: |
           core/build/generated/grug
           core/build/generated/sources/grug
-        key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py', '.github/workflows/build.yml') }}
+        key: grug-adapter-${{ runner.os }}-${{ hashFiles('mod_api.json', 'core/generate.py') }}
 
     # The dependency cache each loader's build resolves against. cache: gradle above covers this path,
     # but what it restores is whatever the job that saved it happened to resolve, and the job that
@@ -80,16 +80,21 @@ runs:
     # itself (-Dgrug.activeLoader) and so resolves nothing of the other four (#699).
     #
     # A miss still restores the loader's previous entry (restore-keys), because Gradle checks what it
-    # restores and fetches only what changed. Without it every edit of build.yml, which is most days,
-    # sent the next run of every ref to the network for everything, repo.legacyfabric.net included.
-    # The Minecraft toolchain has no such fallback: its entry names its versions.
+    # restores and fetches only what changed. The Minecraft toolchain has no such fallback: its entry
+    # names its versions.
+    #
+    # None of the three keys names the workflow (#777). A workflow names the jobs and the loader
+    # matrix; what the entries hold is decided by the files above and by the paths the steps below
+    # name, and a workflow edit changes neither. Hashing build.yml rekeyed every loader's three
+    # entries on every edit of it, which is most days, and the toolchain, which has no fallback,
+    # was fetched again on the first run after each one.
     - name: Work out the loader caches' keys
       id: keys
       shell: bash
       env:
         LOADER: ${{ inputs.loader }}
-        GRADLE_HASH: ${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', inputs.loader), format('loaders/{0}/settings.gradle', inputs.loader), format('loaders/{0}/settings.gradle.kts', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
-        MINECRAFT_HASH: ${{ hashFiles('.github/workflows/build.yml', '.github/actions/setup-loader-build/action.yml', 'gradle.properties', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
+        GRADLE_HASH: ${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', inputs.loader), format('loaders/{0}/settings.gradle', inputs.loader), format('loaders/{0}/settings.gradle.kts', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
+        MINECRAFT_HASH: ${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
         DISTS_HASH: ${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties') }}
       run: |
         {
@@ -288,6 +293,10 @@ runs:
     # Which means loaders/*/gradle.properties and not just the build files: that is where every
     # loader's minecraft_version and mappings actually live, a subproject's properties file overriding
     # the root one, so a bump there with the key unchanged restores the old Minecraft.
+    #
+    # Not the workflow, as it used to be: an edit of build.yml rekeyed this entry on every loader and
+    # the entry has no restore-keys, so the first run after every workflow edit fetched the toolchain
+    # again. The versions above and the action's own paths are what this entry holds.
     #
     # Not the assets: downloadAssets takes 1.9s from resources.download.minecraft.net, which is not
     # worth the 500MB the asset index and objects take in the entry. 1.2.5-forge is excluded
