@@ -14,6 +14,21 @@ on:
         # The runner loads every mod and runs only the tests of these. See #627.
         description: 'Comma separated mod directory names whose tests the development loader runs; empty runs every mod'
         type: string
+      coverage-only:
+        # A dispatch that checks this measures the coverage gate instead of paying the whole
+        # suite for it (#831): the development loader jobs run only the tests of mods/coverage,
+        # one game run per loader at the job's fixed cost of about 92 s plus the 14.4 s of
+        # coverage's tests, instead of the full suite's 122 s, and the coverage job still
+        # requires 100% of the same data, so the run shows the gate's result. Every other job
+        # of the dispatch runs as in a full one. The shape is a measurement, not the 100%
+        # requirement of main: the input exists only on a dispatch, a push to main and a pull
+        # request never set it, and a merge is gated by a pull request run, whose selection
+        # always includes the coverage mod, so main's requirement stays with the full runs.
+        # The gate's own inputs are all in the shape: the game boot of each loader, which the
+        # gate counts, is in it, since each loader's game boots and then runs only coverage's
+        # tests.
+        description: 'Run only the tests of mods/coverage in the development loader jobs, to measure the coverage gate at about 106 s per loader; every other job of the dispatch runs as usual'
+        type: boolean
       refresh-test-times:
         # Every game run writes its loader's test order record back to the repository it read it
         # from (#778), so set this and the loader jobs hand the records back as artifacts: the
@@ -77,10 +92,12 @@ jobs:
         id: smoke
         run: echo "matrix=$(python3 .github/scripts/universal_jar.py smoke-matrix)" >> "$GITHUB_OUTPUT"
 
-      # The mods whose tests a pull request has to run, for the loader jobs' GRUG_CI_MODS (#628). Only
-      # a pull request narrows it, by its diff against the base it was opened on: a push to main, a
-      # dispatch and any event this step does not know run every mod, and so does a base that cannot
-      # be fetched or a diff that cannot be read. affected-mods.py explains its choice in this log.
+      # The mods whose tests the development loader jobs run, for their GRUG_CI_MODS (#628, #831).
+      # A pull request narrows it, by its diff against the base it was opened on, and a dispatch
+      # narrows it to the coverage mod alone when the coverage-only input is set; otherwise a push
+      # to main, a dispatch and any event this step does not know run every mod, and so does a base
+      # that cannot be fetched or a diff that cannot be read. affected-mods.py explains the pull
+      # request's choice in this log, and this step the others'.
       # The checkout is the pull request merged into its base, a single commit, so only the base's
       # commit is fetched, and a diff of two trees needs no more.
       - name: Choose the mods whose tests run
@@ -88,9 +105,23 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          COVERAGE_ONLY: ${{ inputs.coverage-only == true }}
         run: |
           mods=
-          if [ "$EVENT" != pull_request ]; then
+          if [ "$COVERAGE_ONLY" = 'true' ]; then
+            # The coverage-only input of a dispatch (#831): the development loader jobs run only
+            # the tests of mods/coverage, a measurement of the coverage gate at the job's fixed
+            # cost of about 92 s plus the 14.4 s of coverage's tests, instead of the full suite's
+            # 122 s, while every other job of the dispatch runs as in a full one and the coverage
+            # job still requires 100%. The gate's own inputs are all in the shape, the game boot
+            # of each loader, which the game does before it runs only coverage's tests, and the
+            # tests of mods/coverage itself. The input is a measurement, not the 100% requirement
+            # of main: it exists only on a dispatch, a push to main and a pull request never set
+            # it, and a merge is gated by a pull request run, whose selection always includes the
+            # coverage mod, so main's requirement stays with the full runs.
+            echo "Selecting the coverage mod alone: the coverage-only input is set, so the development loader jobs measure the coverage gate rather than the whole suite (#831)."
+            mods=coverage
+          elif [ "$EVENT" != pull_request ]; then
             echo "Selecting every mod: this is a $EVENT run, not a pull request."
           elif [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
             echo "Selecting every mod: the pull request's base commit '$BASE_SHA' could not be fetched."
@@ -594,11 +625,12 @@ jobs:
           # repository variable GRUG_CI_REPEATS, then 1, which is what pull request runs use
           # because their inputs context is empty. See #268.
           GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
-          # Which mods' tests run: the dispatch input if it names some, else what the discover job
-          # chose from the pull request's diff (#628). Empty on a push to main and on a dispatch
-          # without the input, which run every mod. A name that is no mod fails the step before the
-          # game starts. See #627.
-          GRUG_CI_MODS: ${{ inputs.mods || needs.discover.outputs.mods }}
+          # Which mods' tests run: the discover job's choice, which narrows to the coverage mod
+          # alone when a dispatch sets the coverage-only input (#831), else, where the discover
+          # job left it empty, the dispatch's own mods input (#627, #628). Empty on a push to main
+          # and on a dispatch without the input, which run every mod. A name that is no mod fails
+          # the step before the game starts.
+          GRUG_CI_MODS: ${{ needs.discover.outputs.mods || inputs.mods }}
           # The watch covers the whole run: 300s for one pass (the slowest loader measured under 190s
           # of game time) plus 200s per extra pass. 1.2.5 is the slowest loader and took about 150s
           # per pass in the repeats runs of #583 (1068s for twenty passes when #291 measured it, before
