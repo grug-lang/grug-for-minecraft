@@ -1955,6 +1955,40 @@
 						"name": "number"
 					}
 				}
+			},
+			"static_methods": {
+				"new": {
+					"description": "Creates a new Vec3 from its three coordinates, which is what Entity.set_delta_movement takes to give a spawned entity a velocity. A coordinate has to be finite.",
+					"return_type": {
+						"name": "Vec3"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"zero": {
+					"description": "Creates a new Vec3, initialized with all zeros.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				}
 			}
 		},
 		"Player": {
@@ -2575,38 +2609,6 @@
 					"name": "resource_location_string",
 					"type": {
 						"name": "string"
-					}
-				}
-			]
-		},
-		"vec3_zero": {
-			"description": "Creates a new Vec3, initialized with all zeros.",
-			"return_type": {
-				"name": "Vec3"
-			}
-		},
-		"vec3": {
-			"description": "Creates a new Vec3 from its three coordinates, which is what Entity.set_delta_movement takes to give a spawned entity a velocity. A coordinate has to be finite.",
-			"return_type": {
-				"name": "Vec3"
-			},
-			"parameters": [
-				{
-					"name": "x",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "y",
-					"type": {
-						"name": "number"
-					}
-				},
-				{
-					"name": "z",
-					"type": {
-						"name": "number"
 					}
 				}
 			]

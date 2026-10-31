@@ -195,6 +195,8 @@ Option.new() Option[$Value]
 .x() number
 .y() number
 .z() number
+Vec3.new(x: number, y: number, z: number) Vec3
+Vec3.zero() Vec3
 
 # Host functions
 
@@ -208,5 +210,3 @@ print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)
 resource_location(resource_location_string: string) ResourceLocation
-vec3(x: number, y: number, z: number) Vec3
-vec3_zero() Vec3

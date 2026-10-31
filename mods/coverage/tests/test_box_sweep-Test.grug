@@ -16,7 +16,7 @@ export tick(ctx: TestTickContext) {
         sword: Item = item(resource_location("minecraft:diamond_sword"))
         stack: ItemStack = item_stack(sword, 3)
         entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
-        entity.entity().set_delta_movement(vec3_zero())
+        entity.entity().set_delta_movement(Vec3.zero())
         entity.entity().spawn(level)
 
         # The area reaches 16 blocks around the player and the origin is the player's position plus
@@ -30,7 +30,7 @@ export tick(ctx: TestTickContext) {
         level.place_block(px + 16, origin.y() - 1, pz, "minecraft:stone")
         edge_stack: ItemStack = item_stack(sword, 3)
         edge: ItemEntity = item_entity(level, px + 16.5, origin.y(), pz + 0.5, edge_stack)
-        edge.entity().set_delta_movement(vec3_zero())
+        edge.entity().set_delta_movement(Vec3.zero())
         edge.entity().spawn(level)
         # Without this the test ends here, since a tick() that returns without not_done() is over,
         # and the sweep below was never checked.

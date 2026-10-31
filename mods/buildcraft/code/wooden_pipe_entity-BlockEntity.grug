@@ -333,7 +333,7 @@ local _drop_moving(px: number, py: number, pz: number, direction: number, item: 
     vx: number = _dir_x(direction) * motion + level.random_gaussian() * noise
     vy: number = _dir_y(direction) * motion + level.random_gaussian() * noise
     vz: number = _dir_z(direction) * motion + level.random_gaussian() * noise
-    velocity: Vec3 = vec3(vx, vy, vz)
+    velocity: Vec3 = Vec3.new(vx, vy, vz)
     remaining: number = count
     while remaining > 0 {
         stack: ItemStack = item_stack(item, damage)
