@@ -143,7 +143,14 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   suite in one session.
 - A release takes its jar from a dispatch of `build.yml` on main, not from the push that merged the
   commit: the Windows boot jobs run only on a dispatch and for a loader a push adds (#632), so
-  `release.yml` requires that dispatch.
+  `release.yml` requires that dispatch. A docs-only push to `main` now runs only `discover` (#822),
+  so the four-hourly check below is what keeps a full run of `main` from going missing.
+- **The four-hourly `main` check.** At least every four hours, and at a task boundary, the
+  orchestrator looks at the newest full `build.yml` run on `main` (a run with the `universal` job,
+  not the docs-only one-job shape) and, if it is older than four hours or its conclusion is not
+  success, dispatches `build.yml` on `main` when no other run is in flight. The dispatch is the
+  check: a red one is a red `main`, attributed and fixed forward as usual. A release dispatch or a
+  merge whose push ran the full pipeline satisfies it for the next four hours.
 - A release is published automatically every Sunday at 12:00 CET (11:00 UTC) from `main`'s head: the
   scheduled workflow dispatches the full `build.yml`, waits for it, tags the commit and lets
   `release.yml` attach the jar. That dispatch is the one run that must be green; a failure there
