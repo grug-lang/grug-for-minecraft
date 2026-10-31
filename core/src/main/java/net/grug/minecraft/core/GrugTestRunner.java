@@ -266,6 +266,26 @@ public class GrugTestRunner {
      */
     private final Map<String, Long> testNanos = new LinkedHashMap<>();
 
+    /**
+     * Experiment only (#704): the counters of each test that finished, in the same order as {@link
+     * #testNanos}, as ticks, section rebuilds, the room build's milliseconds and rebuilds and
+     * placements, and the test's frames, placements and air probes.
+     */
+    private final Map<String, long[]> testStats = new LinkedHashMap<>();
+
+    /** Experiment only (#704): the counters as the running test's body started. */
+    private long testRebuildsAtStart;
+
+    private long testFramesAtStart;
+    private long testPlacesAtStart;
+    private long testProbesAtStart;
+
+    /** Experiment only (#704): what the running test's room build cost. */
+    private long roomBuildMillis;
+
+    private long roomBuildRebuilds;
+    private long roomBuildPlaces;
+
     private boolean finished = false;
 
     /** Whether the screen the client may have open has been closed for the first test yet. */
@@ -671,6 +691,7 @@ public class GrugTestRunner {
                                 + repeats
                                 + " complete, starting the next");
                 testNanos.clear();
+                testStats.clear();
                 return;
             }
             // Marked before the write rather than after it, so that a write which throws stops the
@@ -854,6 +875,18 @@ public class GrugTestRunner {
      */
     private void recordTestTime(String path) {
         testNanos.put(path, clock.getAsLong() - currentTestStartNanos);
+        testStats.put(
+                path,
+                new long[] {
+                    currentTick + 1,
+                    GrugTestCounters.sectionRebuilds.get() - testRebuildsAtStart,
+                    roomBuildMillis,
+                    roomBuildRebuilds,
+                    roomBuildPlaces,
+                    GrugTestCounters.frames.get() - testFramesAtStart,
+                    GrugTestCounters.placements.get() - testPlacesAtStart,
+                    GrugTestCounters.airProbes.get() - testProbesAtStart
+                });
     }
 
     /**
@@ -892,6 +925,34 @@ public class GrugTestRunner {
                                     "%" + width + "dms  %s",
                                     millis(entry.getValue()),
                                     entry.getKey()));
+        }
+
+        // Experiment only (#704): what each test caused, in the same order as the times above.
+        System.out.println(
+                "[GRUG CI] Stats: ticks rebuilds room_ms room_rebuilds room_places frames"
+                        + " places probes");
+        for (Map.Entry<String, Long> entry : slowestFirst) {
+            long[] stats = testStats.get(entry.getKey());
+            if (stats == null) continue;
+            System.out.println(
+                    "[GRUG CI] STAT "
+                            + entry.getKey()
+                            + " ticks="
+                            + stats[0]
+                            + " rebuilds="
+                            + stats[1]
+                            + " room_ms="
+                            + stats[2]
+                            + " room_rebuilds="
+                            + stats[3]
+                            + " room_places="
+                            + stats[4]
+                            + " frames="
+                            + stats[5]
+                            + " places="
+                            + stats[6]
+                            + " probes="
+                            + stats[7]);
         }
     }
 
@@ -994,6 +1055,11 @@ public class GrugTestRunner {
         // Started before the entity exists, so the time includes the setup a test needs rather than
         // reporting only the part after it, which would make the cheapest test look free.
         currentTestStartNanos = clock.getAsLong();
+        // Experiment only (#704): the counters as this test's setup begins.
+        testRebuildsAtStart = GrugTestCounters.sectionRebuilds.get();
+        testFramesAtStart = GrugTestCounters.frames.get();
+        testPlacesAtStart = GrugTestCounters.placements.get();
+        testProbesAtStart = GrugTestCounters.airProbes.get();
 
         System.out.println("[GRUG CI] Executing test: " + path);
 
@@ -1038,7 +1104,13 @@ public class GrugTestRunner {
         // Before the test's first tick, so a fixture it places at tick 0 lands inside the room. A
         // test whose fixture reaches further than the default room calls Test.set_box_radius at the
         // top of its setup, which rebuilds the room at the radius it asks for.
+        long buildStartNanos = clock.getAsLong();
+        long rebuildsBeforeBuild = GrugTestCounters.sectionRebuilds.get();
+        long placesBeforeBuild = GrugTestCounters.placements.get();
         boxBuilder.build(GrugTestBox.DEFAULT_RADIUS);
+        roomBuildMillis = (clock.getAsLong() - buildStartNanos) / 1_000_000L;
+        roomBuildRebuilds = GrugTestCounters.sectionRebuilds.get() - rebuildsBeforeBuild;
+        roomBuildPlaces = GrugTestCounters.placements.get() - placesBeforeBuild;
 
         // After the room, so the setup that every test shares runs in real time, and before the
         // first tick, so the whole wait the test asked to speed up is sped up.

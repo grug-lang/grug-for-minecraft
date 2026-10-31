@@ -50,6 +50,10 @@ if [ ! -d "$LOADER_DIR" ]; then
   exit 2
 fi
 
+# Experiment only (#759 measurement): the runner's CPU model is not in the log otherwise, and two
+# arms of a timing comparison have to say which runners they landed on.
+lscpu | grep -m1 'Model name'
+
 # Git Bash on a Windows runner reports OSTYPE=msys. Windows has no X server to start: the game opens
 # its window on the runner's desktop.
 case "${OSTYPE:-}" in msys* | cygwin*) WINDOWS=true ;; *) WINDOWS=false ;; esac
