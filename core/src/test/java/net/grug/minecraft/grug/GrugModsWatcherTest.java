@@ -115,6 +115,20 @@ class GrugModsWatcherTest {
     }
 
     /**
+     * A data file is read by the server's own data reload, which is not what a loader answers a hot
+     * reload with, so a change under data/ is counted and reloads nothing. See #704.
+     */
+    @Test
+    void aDataFileIsCountedButReloadsNothing() {
+        String path = "watcher_test/data/recipe.json";
+        String[] triggers =
+                GrugModsWatcher.applyReport(new FileInfo[0], new String[] {path}, errors::add);
+
+        assertEquals(1, GrugModsWatcher.reportedChangeCount(path));
+        assertArrayEquals(new String[0], triggers);
+    }
+
+    /**
      * An update-goldens run writes a golden into the mods tree while its tests run, and a reload of
      * the game's resources for it stalled 1.20.6's test until it timed out.
      */

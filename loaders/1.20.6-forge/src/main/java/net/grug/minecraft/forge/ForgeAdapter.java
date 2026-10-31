@@ -799,6 +799,19 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
+        Level world = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        ResourceLocation id =
+                new ResourceLocation(
+                        blockName.contains(":") ? blockName : "minecraft:" + blockName);
+        Block block = world.getBlockState(pos).getBlock();
+        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block).equals(id);
+    }
+
+    @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         net.minecraft.core.BlockPos pos =

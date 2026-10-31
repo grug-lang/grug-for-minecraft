@@ -85,7 +85,7 @@ public final class GrugModsWatcher {
 
         for (String resource : updatedResources) {
             noteReportedChange(resource);
-            if (!isScreenshotReference(resource)) {
+            if (!isScreenshotReference(resource) && isClientResource(resource)) {
                 reloadTriggers.add(resource);
             }
         }
@@ -108,6 +108,16 @@ public final class GrugModsWatcher {
      */
     private static boolean isScreenshotReference(String resource) {
         return resource.replace('\\', '/').matches("[^/]+/screenshots(/.*)?");
+    }
+
+    /**
+     * Whether a changed resource is one a client's resource reload reads, which is everything under
+     * a mod's {@code assets/} tree. A {@code data/} file is read by the server's data reload, which
+     * is not what a loader answers a hot reload with, so asking the client to reload every pack for
+     * one buys nothing and costs seconds. See #704.
+     */
+    private static boolean isClientResource(String resource) {
+        return resource.replace('\\', '/').contains("/assets/");
     }
 
     /**
