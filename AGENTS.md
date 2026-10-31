@@ -43,6 +43,9 @@ are by members only (#617).
 - **Never, unattended:** publish outside the repository (for example a container image), change the
   ruleset or any repository setting (required status checks are #638), or delete anything you did
   not create (the worktree and branch of a task you just merged excepted).
+- **This file.** A factual inaccuracy in it is fixed directly: an `AGENTS.md`-only pull request is
+  merged without waiting for CI (above), and the fix is not left for the maintainer. A substantial
+  change to it, such as which models an agent may spawn, is the maintainer's call.
 - **Report for the maintainer, when they return:** the pull request links to ctrl-click, what
   merged, what is still open, the questions as issues, and images to look at in one directory.
 
