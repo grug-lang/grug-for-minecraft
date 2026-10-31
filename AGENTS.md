@@ -59,6 +59,17 @@ data, and a day with nothing actionable says so in the log and costs no more. A 
 shows never mattered is deleted, because it costs every request, and a process improvement that
 costs a day is the failure this pass exists to prevent.
 
+**Sibling repositories.** `grug-rs` is the VM under every loader and `grug-tests` is the language
+spec, and a change there can make every run faster or settle a language question. The orchestrator
+may keep one branch per such repository, `agent/<task>`, push commits to it so a run here can fetch
+the commit, and put the language-level tests a VM change needs on its `grug-tests` branch. Pushing
+that branch is the one write allowed outside this repository; it never opens a pull request in those
+repositories, because that asks the maintainer's teammates for reviews they did not sign up for, and
+a tag or a release there is not allowed either. A pull request here that measures such a change pins
+`grugRsRevision` to the branch commit, names the branch and the commit in its body, says that no
+upstream pull request exists, and is not merged unattended: the maintainer decides whether that
+revision goes to `main`. The measurement follows the evidence rules like any other CI saving.
+
 - **Orchestrator.** Reads the issue, writes the subagent a self-contained brief, reviews the
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. The brief
   holds the issue and its acceptance points, the rules of this file that apply, the exact steps,
