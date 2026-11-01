@@ -33,3 +33,12 @@ repos:
         language: python
         files: ^(mod_api\.json|mod_api\.md|mod_api_catalog\.py)$
         pass_filenames: false
+
+      # Fails a markdown line the writing rule would have wrapped, so a rewrap is not a pull request
+      # of its own (#815, #817). A table row is exempt: markdown cannot wrap one. README.md and
+      # CONTRIBUTING.md are not wrapped today, so the hook starts with the file agents edit.
+      - id: markdown-columns
+        name: markdown columns
+        entry: python .github/scripts/markdown-columns.py
+        language: python
+        files: ^AGENTS\.md$
