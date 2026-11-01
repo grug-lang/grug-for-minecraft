@@ -729,6 +729,44 @@ public interface ModLoaderAdapter {
     boolean miningCrackForTest(Object levelObj, double x, double y, double z);
 
     /**
+     * Test only: whether the block at the given position, as the game collides with it, has a
+     * collision box that overlaps the given box.
+     *
+     * <p>The box is in block-local coordinates, 0 to 1 from the block's minimum corner, so a test
+     * can put a player-sized box where a player would stand and ask the game's own answer. It goes
+     * through the block's collision boxes rather than a grug call, so it answers for any block the
+     * loader knows, which is what lets a port ask the same question of its reference.
+     */
+    boolean blockCollisionIntersects(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double minX,
+            double minY,
+            double minZ,
+            double maxX,
+            double maxY,
+            double maxZ);
+
+    /**
+     * Test only: whether the box the game targets and outlines for the block at the given position
+     * contains the given point.
+     *
+     * <p>The point is in block-local coordinates, 0 to 1 from the block's minimum corner. Like
+     * {@link #blockCollisionIntersects} it asks the game rather than grug, so it answers for any
+     * block, a port's reference included.
+     */
+    boolean blockSelectionContains(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double pointX,
+            double pointY,
+            double pointZ);
+
+    /**
      * Captures the rectangle and compares it against the reference directory. When {@code
      * tolerancePercent} is 0 the capture must match pixel-for-pixel; otherwise it passes when at
      * most that percentage of pixels differ.

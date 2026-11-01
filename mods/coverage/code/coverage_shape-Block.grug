@@ -1,0 +1,43 @@
+# Fixture block for the shape host functions: a block whose collision and selection boxes depend on
+# what its block entity saved, so one block answers for the three cases a shape has to.
+#   mode 0: a collision box and no selection box, so the selection is the collision boxes.
+#   mode 1: the same collision box and a larger selection box, so the two differ.
+#   mode 2: the same collision box and, while "arm_bad" is 1, one box whose corners are the wrong
+#     way round. The test that expects that error arms it right before asking, so nothing else can
+#     spend it first.
+#   mode 3: a selection box and no collision box, so entities pass through it but it can be clicked.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_shape_entity")
+    ctx.set_shape()
+}
+
+export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
+    # A shape can be asked for while the chunk is still loading, before the block entity exists, and
+    # a full centre is a better answer than a runtime error that leaves the block as a full cube.
+    be_opt: Option[BlockEntity] = world.get_block_entity(x, y, z)
+    if not be_opt.has() {
+        ctx.add_collision_box(0.25, 0.25, 0.25, 0.75, 0.75, 0.75)
+        return
+    }
+
+    be: BlockEntity = be_opt.unwrap()
+    mode: number = be.get_saved_number("mode")
+    if mode == 3 {
+        # A selection box and no collision box: the block can be clicked and entities pass through
+        # it, which the versions with one collision box say with a null box.
+        ctx.add_selection_box(0.25, 0.25, 0.25, 0.75, 0.75, 0.75)
+        return
+    }
+
+    ctx.add_collision_box(0.25, 0.25, 0.25, 0.75, 0.75, 0.75)
+    if mode == 1 {
+        ctx.add_selection_box(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+    }
+
+    if be.get_saved_number("arm_bad") == 1 {
+        be.set_saved_number("arm_bad", 0)
+        ctx.add_collision_box(0.9, 0.9, 0.9, 0.1, 0.1, 0.1)
+    }
+}

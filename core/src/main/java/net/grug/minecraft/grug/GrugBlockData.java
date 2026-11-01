@@ -20,6 +20,13 @@ public class GrugBlockData {
      */
     public boolean flatLighting = false;
 
+    /**
+     * Whether the block's collision and selection boxes come from its shape export, declared by
+     * set_shape. When it does, the loader asks the script for the boxes at a position rather than
+     * using the full cube, which is what lets a shape follow its neighbours.
+     */
+    public boolean hasShape = false;
+
     public GrugBlockData(String id) {
         this.id = id;
     }

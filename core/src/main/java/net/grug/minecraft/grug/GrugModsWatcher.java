@@ -215,6 +215,7 @@ public final class GrugModsWatcher {
         blockData.blockEntityString = null;
         blockData.customRender = false;
         blockData.flatLighting = false;
+        blockData.hasShape = false;
 
         GrugDeclarations.initializeBlock(blockData, fileId);
 

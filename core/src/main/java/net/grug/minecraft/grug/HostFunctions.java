@@ -58,6 +58,48 @@ public class HostFunctions {
         GrugBlockUse.decline();
     }
 
+    public static void ShapeContext_add_collision_box(
+            long contextId, double x1, double y1, double z1, double x2, double y2, double z2) {
+        addShapeBox("ShapeContext.add_collision_box", contextId, x1, y1, z1, x2, y2, z2, true);
+    }
+
+    public static void ShapeContext_add_selection_box(
+            long contextId, double x1, double y1, double z1, double x2, double y2, double z2) {
+        addShapeBox("ShapeContext.add_selection_box", contextId, x1, y1, z1, x2, y2, z2, false);
+    }
+
+    /**
+     * Records one box a block's shape declared, on whichever of the two lists applies.
+     *
+     * <p>Both methods share this so they refuse a box the same way: the only difference between
+     * them is the list and the name in the message.
+     */
+    private static void addShapeBox(
+            String method,
+            long contextId,
+            double x1,
+            double y1,
+            double z1,
+            double x2,
+            double y2,
+            double z2,
+            boolean collision) {
+        if (!requireShapeContext(method, contextId)) return;
+
+        GrugBox box = new GrugBox(x1, y1, z1, x2, y2, z2);
+        boolean recorded =
+                collision ? GrugShapes.recordCollision(box) : GrugShapes.recordSelection(box);
+        if (!recorded) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": The box was not recorded. Its corners have to be the right way"
+                            + " round: the first of each pair is the near corner and must be no"
+                            + " greater than the second, so add it as (0, 0, 0, 1, 1, 1) and not as"
+                            + " (1, 0, 0, 0, 1, 1).");
+        }
+    }
+
     public static long Player_get_held_item(long playerId) {
         return withEntity(
                 "Player.get_held_item",
@@ -577,6 +619,50 @@ public class HostFunctions {
                 levelId,
                 level -> GrugCore.getAdapter().miningCrackForTest(level, x, y, z),
                 false);
+    }
+
+    public static boolean Test_block_collision(
+            long levelId,
+            double x,
+            double y,
+            double z,
+            double minX,
+            double minY,
+            double minZ,
+            double maxX,
+            double maxY,
+            double maxZ) {
+        return GrugCore.getAdapter()
+                .blockCollisionIntersects(
+                        GrugEntities.entityData.get(levelId).object,
+                        x,
+                        y,
+                        z,
+                        minX,
+                        minY,
+                        minZ,
+                        maxX,
+                        maxY,
+                        maxZ);
+    }
+
+    public static boolean Test_block_selection(
+            long levelId,
+            double x,
+            double y,
+            double z,
+            double pointX,
+            double pointY,
+            double pointZ) {
+        return GrugCore.getAdapter()
+                .blockSelectionContains(
+                        GrugEntities.entityData.get(levelId).object,
+                        x,
+                        y,
+                        z,
+                        pointX,
+                        pointY,
+                        pointZ);
     }
 
     public static long Test_screenshot() {
@@ -2034,6 +2120,11 @@ public class HostFunctions {
         return requireContext(method, "init", contextId, GrugTestState.initContext());
     }
 
+    /** The same rule for the context a block's {@code shape()} was passed. */
+    private static boolean requireShapeContext(String method, long contextId) {
+        return requireContext(method, "shape", contextId, GrugShapes.context());
+    }
+
     private static boolean requireContext(
             String method, String kind, long contextId, Object openContext) {
         GrugObject object = GrugEntities.entityData.get(contextId);
@@ -2564,6 +2655,13 @@ public class HostFunctions {
         if (block == null) return;
 
         block.material = materialName;
+    }
+
+    public static void BlockInitContext_set_shape(long contextId) {
+        GrugBlockData block = requireBlockInitContext("BlockInitContext.set_shape", contextId);
+        if (block == null) return;
+
+        block.hasShape = true;
     }
 
     /**

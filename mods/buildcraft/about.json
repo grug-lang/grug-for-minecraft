@@ -110,11 +110,6 @@
 					"tracking_issue": 386
 				},
 				{
-					"what": "The wooden pipe's collision and selection boxes are the full block, not the reference's centre-and-arms boxes.",
-					"why": "mod_api.json has no entry for a block's collision or selection box, so GrugBlock keeps the vanilla full cube while the reference sets both from its centre-and-arms bounds.",
-					"tracking_issue": 576
-				},
-				{
 					"what": "The redstone engine gives off no particles. 2.2.14's BlockEngine spawns four reddust particles at its sides on every random display tick while a redstone signal reaches it.",
 					"why": "mod_api.json can neither spawn a particle nor be called on a block's random display tick, and particles are random, so the screenshot runs set the game's particles to minimal rather than compare them.",
 					"tracking_issue": 581

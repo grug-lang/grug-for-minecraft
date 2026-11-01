@@ -493,6 +493,9 @@ local _set_meta(meta: number) {
     me.set_saved_number("source", meta + 1)
 }
 
+# The block script's shape() has a copy of this and of the helpers below, because a block and its
+# block entity are separate grug entities and cannot share one. Keep the two in step: the shape a
+# player is kept out of has to be the shape the pipe draws.
 local _is_inventory(side: number) bool {
     nx: number = _neighbor_x(side)
     ny: number = _neighbor_y(side)
