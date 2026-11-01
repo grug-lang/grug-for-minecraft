@@ -904,6 +904,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        if (true) {
+            return;
+        }
         World world = (World) levelObj;
         GrugRelight.sweepUntilStable(
                 () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
