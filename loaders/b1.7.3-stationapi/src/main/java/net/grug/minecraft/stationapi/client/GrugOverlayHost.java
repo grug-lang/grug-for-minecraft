@@ -19,6 +19,8 @@ import net.minecraft.client.render.platform.Lighting;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 
+import org.lwjgl.input.Keyboard;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -53,6 +55,7 @@ public final class GrugOverlayHost {
         final List<GrugObject> owner;
         final long renderFnId;
         final long clickFnId;
+        final long keyFnId;
         final String mod;
 
         Overlay(
@@ -60,11 +63,13 @@ public final class GrugOverlayHost {
                 List<GrugObject> owner,
                 long renderFnId,
                 long clickFnId,
+                long keyFnId,
                 String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
             this.renderFnId = renderFnId;
             this.clickFnId = clickFnId;
+            this.keyFnId = keyFnId;
             this.mod = mod;
         }
     }
@@ -95,6 +100,7 @@ public final class GrugOverlayHost {
                             owner,
                             Grug.getExportFnId("Overlay", "render"),
                             Grug.getExportFnId("Overlay", "click"),
+                            Grug.getExportFnId("Overlay", "key"),
                             overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
@@ -193,6 +199,78 @@ public final class GrugOverlayHost {
             }
         }
         return false;
+    }
+
+    /**
+     * Asks the overlays about one key press and answers whether one took it, recording the answer
+     * for {@code Test.press_screen_key}.
+     *
+     * <p>Only a letter or a digit key is asked, given as its upper case character code, which is
+     * the same number on every loader. A key the game reports again while it is held is a repeat
+     * and is not asked, so a toggle flips once per press.
+     */
+    public static boolean key(Screen screen, int key) {
+        if (geometry(screen) == null) return false;
+        int code = GrugOverlay.keyCodeForName(Keyboard.getKeyName(key));
+        if (code < 0 || isRepeat()) return false;
+
+        ensureCreated();
+        boolean ctrl = isControlDown();
+        for (Overlay overlay : overlays) {
+            if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, code, ctrl)) {
+                GrugOverlay.noteTestPressTaken();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether control is held, or whether the test press being delivered says it is. */
+    private static boolean isControlDown() {
+        if (testPress) return testCtrl;
+        return Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
+                || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+    }
+
+    /** Whether the key event is the game repeating a held key, or the test press says it is. */
+    private static boolean isRepeat() {
+        if (testPress) return testRepeat;
+        return Keyboard.isRepeatEvent();
+    }
+
+    private static boolean testPress = false;
+    private static boolean testCtrl = false;
+    private static boolean testRepeat = false;
+
+    /** The key a test holds down with {@code release} false, or -1. */
+    private static int testHeld = -1;
+
+    /**
+     * Test only: delivers one press of the key whose character code is {@code charCode} through the
+     * screen's own key path, so the hook that cancels the key is the one under test, and answers
+     * whether an overlay took it. A key held with {@code release} false makes the next press of it
+     * a repeat, as the game reports one.
+     */
+    public static boolean pressKey(Object screen, int charCode, boolean ctrl, boolean release) {
+        if (!(screen instanceof GrugScreenGeometry)) return false;
+        int key = Keyboard.getKeyIndex(String.valueOf((char) charCode));
+        if (key == Keyboard.KEY_NONE) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.press_screen_key: The game has no key for character code "
+                            + charCode
+                            + ".");
+            return false;
+        }
+        testPress = true;
+        testCtrl = ctrl;
+        testRepeat = key == testHeld;
+        testHeld = release ? -1 : key;
+        try {
+            return ((GrugScreenGeometry) screen).grug$pressKey(key);
+        } finally {
+            testPress = false;
+        }
     }
 
     /** Whether an overlay may draw on this screen, and the geometry it draws through. */

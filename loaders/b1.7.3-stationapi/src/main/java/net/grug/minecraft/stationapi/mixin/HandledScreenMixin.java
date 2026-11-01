@@ -76,6 +76,23 @@ public abstract class HandledScreenMixin implements GrugScreenGeometry {
         return GrugOverlay.testPressTaken();
     }
 
+    @Shadow
+    protected abstract void keyPressed(char character, int key);
+
+    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+    private void grug$takeKey(char character, int key, CallbackInfo ci) {
+        if (GrugOverlayHost.key((Screen) (Object) this, key)) {
+            ci.cancel();
+        }
+    }
+
+    @Override
+    public boolean grug$pressKey(int key) {
+        GrugOverlay.beginTestPress();
+        this.keyPressed((char) 0, key);
+        return GrugOverlay.testPressTaken();
+    }
+
     @Override
     public int grug$width() {
         return ((Screen) (Object) this).width;

@@ -20,6 +20,7 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderHelper;
 import net.minecraft.src.RenderItem;
 
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 
@@ -77,6 +78,7 @@ public final class GrugOverlayHost {
         final List<GrugObject> owner;
         final long renderFnId;
         final long clickFnId;
+        final long keyFnId;
         final String mod;
 
         Overlay(
@@ -84,11 +86,13 @@ public final class GrugOverlayHost {
                 List<GrugObject> owner,
                 long renderFnId,
                 long clickFnId,
+                long keyFnId,
                 String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
             this.renderFnId = renderFnId;
             this.clickFnId = clickFnId;
+            this.keyFnId = keyFnId;
             this.mod = mod;
         }
     }
@@ -108,7 +112,7 @@ public final class GrugOverlayHost {
      * Hands this loader's handlers to the hooks the runtime jar carries.
      *
      * <p>1.2.5's game classes are loaded by launchwrapper's parent and cannot see a mod's classes,
-     * so the build patches {@code GuiScreen} to hold these two fields and to call them from the
+     * so the build patches {@code GuiScreen} to hold these three fields and to call them from the
      * input loop and from {@code Minecraft.displayGuiScreen}. The fields are on the game's own
      * class, so the loader reaches them through it; see {@code tools/PatchGuiInput.java}.
      */
@@ -117,6 +121,8 @@ public final class GrugOverlayHost {
         try {
             Field mouse = GuiScreen.class.getField("grugMouseHook");
             mouse.set(null, (Predicate<Object>) GrugOverlayHost::handleMouseEvent);
+            Field key = GuiScreen.class.getField("grugKeyHook");
+            key.set(null, (Predicate<Object>) GrugOverlayHost::handleKeyEvent);
             Field open = GuiScreen.class.getField("grugScreenOpenHook");
             open.set(null, (Consumer<Object>) GrugOverlayHost::screenOpened);
         } catch (NoSuchFieldException | IllegalAccessException e) {
@@ -141,6 +147,7 @@ public final class GrugOverlayHost {
                             owner,
                             Grug.getExportFnId("Overlay", "render"),
                             Grug.getExportFnId("Overlay", "click"),
+                            Grug.getExportFnId("Overlay", "key"),
                             overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
@@ -273,6 +280,74 @@ public final class GrugOverlayHost {
             }
         }
         return false;
+    }
+
+    /**
+     * Routes one real key event through the overlays before the screen sees it.
+     *
+     * <p>The patched {@code GuiScreen.handleInput} calls this after {@code Keyboard.next()} has
+     * selected the event and before the screen's own handler runs. A key an overlay takes is
+     * consumed by returning true, so the screen never sees it; every other event, a release
+     * included, returns false and is handled as vanilla would.
+     */
+    public static boolean handleKeyEvent(Object screenObj) {
+        if (!Keyboard.getEventKeyState()) return false;
+        boolean ctrl =
+                Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
+                        || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+        return key((GuiScreen) screenObj, Keyboard.getEventKey(), ctrl, Keyboard.isRepeatEvent());
+    }
+
+    /**
+     * Asks the overlays about one key press and answers whether one took it, recording the answer
+     * for {@code Test.press_screen_key}.
+     *
+     * <p>Only a letter or a digit key is asked, given as its upper case character code, which is
+     * the same number on every loader. A key the game reports again while it is held is a repeat
+     * and is not asked, so a toggle flips once per press.
+     */
+    public static boolean key(GuiScreen screen, int key, boolean ctrl, boolean repeat) {
+        if (eligible(screen) == null) return false;
+        int code = GrugOverlay.keyCodeForName(Keyboard.getKeyName(key));
+        if (code < 0 || repeat) return false;
+
+        ensureCreated();
+        for (Overlay overlay : overlays) {
+            if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, code, ctrl)) {
+                GrugOverlay.noteTestPressTaken();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The key a test holds down with {@code release} false, or -1. */
+    private static int testHeld = -1;
+
+    /**
+     * Test only: delivers one press of the key whose character code is {@code charCode} to the
+     * overlays and answers whether one took it. A key held with {@code release} false makes the
+     * next press of it a repeat, as the game reports one.
+     *
+     * <p>Unlike a mouse press, a key press is not put into LWJGL's queue: the keyboard state that
+     * says whether control is held cannot be written, so the decoded event goes to {@link #key}
+     * directly, the same call the patched input loop makes.
+     */
+    public static boolean pressKey(GuiScreen screen, int charCode, boolean ctrl, boolean release) {
+        int key = Keyboard.getKeyIndex(String.valueOf((char) charCode));
+        if (key == Keyboard.KEY_NONE) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.press_screen_key: The game has no key for character code "
+                            + charCode
+                            + ".");
+            return false;
+        }
+        boolean repeat = key == testHeld;
+        testHeld = release ? -1 : key;
+        GrugOverlay.beginTestPress();
+        key(screen, key, ctrl, repeat);
+        return GrugOverlay.testPressTaken();
     }
 
     /**

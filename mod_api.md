@@ -95,7 +95,6 @@ Test.mining_crack(level: Level, x: number, y: number, z: number) bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.open_inventory(player: Player)
 Test.overlay_drawn() bool
-Test.overlay_keys_supported() bool
 Test.overlay_supported() bool
 Test.press_screen_key(key: number, ctrl: bool, release: bool) bool
 Test.registers_mod_recipes() bool

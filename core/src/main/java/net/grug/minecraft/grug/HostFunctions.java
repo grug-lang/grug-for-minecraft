@@ -577,14 +577,6 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: whether this loader hands a screen's key presses to an overlay's {@code key()}
-     * export, which a test asks before it presses a key.
-     */
-    public static boolean Test_overlay_keys_supported() {
-        return GrugOverlay.overlayKeysSupported();
-    }
-
-    /**
      * Test only: presses a key on the open screen through the same path a real key press takes, and
      * answers whether an overlay took it.
      */

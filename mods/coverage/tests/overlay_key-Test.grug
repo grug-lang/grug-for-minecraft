@@ -1,14 +1,13 @@
 # Covers the overlay's key hook through the screen's own key path: the coverage overlay takes
 # Ctrl+K and leaves every other key to the screen, so Test.press_screen_key answers true for the one
-# and false for the rest. A loader that hands no key presses to overlays returns before it opens
-# anything; the deviation is recorded in mods/jei/about.json. See #866.
+# and false for the rest. See #866.
 started: bool = false
 waited: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() or not Test.overlay_keys_supported() {
+        if not Test.overlay_supported() {
             return
         }
         Test.close_screen()

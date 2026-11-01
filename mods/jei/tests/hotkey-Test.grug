@@ -10,8 +10,7 @@ waited: number = 0
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        if not Test.overlay_supported() or not Test.overlay_keys_supported() {
-            # This loader hands no key presses to overlays; the deviation is in about.json.
+        if not Test.overlay_supported() {
             return
         }
         Test.close_screen()

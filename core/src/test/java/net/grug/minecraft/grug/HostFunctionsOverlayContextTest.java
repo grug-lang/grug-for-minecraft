@@ -290,10 +290,18 @@ class HostFunctionsOverlayContextTest {
     }
 
     @Test
-    void overlayKeysSupportedStartsFalseAndStaysTrueOnceNoted() {
-        assertFalse(HostFunctions.Test_overlay_keys_supported());
-        GrugOverlay.noteKeysSupported();
-        assertTrue(HostFunctions.Test_overlay_keys_supported());
+    void onlyALetterOrADigitKeyNameIsAKeyCode() {
+        assertEquals('O', GrugOverlay.keyCodeForName("O"));
+        assertEquals('O', GrugOverlay.keyCodeForName("o"));
+        assertEquals('7', GrugOverlay.keyCodeForName("7"));
+        assertEquals(-1, GrugOverlay.keyCodeForName(null));
+        assertEquals(-1, GrugOverlay.keyCodeForName("NUMPAD7"));
+        assertEquals(-1, GrugOverlay.keyCodeForName(""));
+        assertEquals(-1, GrugOverlay.keyCodeForName("-"));
+        assertEquals(-1, GrugOverlay.keyCodeForName("@"));
+        assertEquals(-1, GrugOverlay.keyCodeForName("["));
+        assertEquals(-1, GrugOverlay.keyCodeForName("/"));
+        assertEquals(-1, GrugOverlay.keyCodeForName(":"));
     }
 
     @Test

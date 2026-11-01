@@ -25,8 +25,9 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 /**
- * Patches the runtime so the overlay can ask about one mouse event without draining the game's
- * queue, and so a newly opened screen clears the overlay's drawn mark before its first frame.
+ * Patches the runtime so the overlay can ask about one mouse or key event without draining the
+ * game's queue, and so a newly opened screen clears the overlay's drawn mark before its first
+ * frame.
  *
  * <p>1.2.5's game classes are loaded by launchwrapper's parent loader and cannot see the mod's
  * child loader, so the injected code cannot call the loader directly. The loader instead puts two
@@ -38,6 +39,9 @@ import java.util.zip.ZipOutputStream;
  * an event and before {@code handleMouseInput} runs. A true answer skips the screen's handler for
  * that one event; a false answer lets the screen handle it exactly as vanilla would, so the wheel,
  * key state and release events are not removed from the game's input pass.
+ *
+ * <p>The key handler is asked the same way, after {@code Keyboard.next()} and before {@code
+ * handleKeyboardInput}.
  *
  * <p>{@code Minecraft.displayGuiScreen} calls the screen-open handler right after it assigns {@code
  * currentScreen}, including a null assignment, so a test cannot read the previous screen's drawn
@@ -51,6 +55,7 @@ public final class PatchGuiInput {
     private static final String MINECRAFT = "net/minecraft/client/Minecraft";
 
     private static final String MOUSE_HOOK = "grugMouseHook";
+    private static final String KEY_HOOK = "grugKeyHook";
     private static final String OPEN_HOOK = "grugScreenOpenHook";
 
     private static final String PREDICATE = "Ljava/util/function/Predicate;";
@@ -103,53 +108,64 @@ public final class PatchGuiInput {
         node.fields.add(
                 new FieldNode(
                         Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, OPEN_HOOK, CONSUMER, null, null));
+        node.fields.add(
+                new FieldNode(
+                        Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, KEY_HOOK, PREDICATE, null, null));
         node.methods.add(mouseHelper());
+        node.methods.add(keyHelper());
         node.methods.add(openHelper());
 
         MethodNode input = findMethod(node, "handleInput", "()V");
-        AbstractInsnNode mouseNext = null;
-        AbstractInsnNode openCall = null;
+        guardLoop(input, "org/lwjgl/input/Mouse", "handleMouseInput", "grugHandleMouse");
+        guardLoop(input, "org/lwjgl/input/Keyboard", "handleKeyboardInput", "grugHandleKey");
+
+        return write(node);
+    }
+
+    /**
+     * Makes one of {@code handleInput}'s event loops ask a hook first: after {@code
+     * <device>.next()} has selected an event and before the loop body calls {@code handler}, a true
+     * answer from the static helper {@code guard} jumps back to the loop head, which skips that one
+     * event.
+     */
+    private static void guardLoop(MethodNode input, String device, String handler, String guard) {
+        AbstractInsnNode next = null;
+        AbstractInsnNode handlerCall = null;
         for (AbstractInsnNode instruction = input.instructions.getFirst();
                 instruction != null;
                 instruction = instruction.getNext()) {
             if (instruction.getOpcode() == Opcodes.INVOKESTATIC) {
                 MethodInsnNode call = (MethodInsnNode) instruction;
-                if (call.owner.equals("org/lwjgl/input/Mouse") && call.name.equals("next")) {
-                    mouseNext = instruction;
+                if (call.owner.equals(device) && call.name.equals("next")) {
+                    next = instruction;
                 }
             } else if (instruction.getOpcode() == Opcodes.INVOKEVIRTUAL) {
                 MethodInsnNode call = (MethodInsnNode) instruction;
                 if (call.owner.equals(GUI_SCREEN)
-                        && call.name.equals("handleMouseInput")
+                        && call.name.equals(handler)
                         && call.desc.equals("()V")) {
-                    openCall = instruction;
+                    handlerCall = instruction;
                 }
             }
         }
-        if (mouseNext == null || openCall == null) {
-            throw new IllegalStateException("GuiScreen.handleInput has no mouse loop");
+        if (next == null || handlerCall == null) {
+            throw new IllegalStateException("GuiScreen.handleInput has no " + device + " loop");
         }
         LabelNode loop = new LabelNode();
-        input.instructions.insertBefore(mouseNext, loop);
+        input.instructions.insertBefore(next, loop);
 
-        AbstractInsnNode selfRead = openCall.getPrevious();
+        AbstractInsnNode selfRead = handlerCall.getPrevious();
         if (!(selfRead instanceof VarInsnNode) || selfRead.getOpcode() != Opcodes.ALOAD) {
             throw new IllegalStateException(
-                    "GuiScreen.handleInput's mouse handler has no receiver");
+                    "GuiScreen.handleInput's " + device + " handler has no receiver");
         }
-        InsnList guard = new InsnList();
-        guard.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        guard.add(
+        InsnList check = new InsnList();
+        check.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        check.add(
                 new MethodInsnNode(
-                        Opcodes.INVOKESTATIC,
-                        GUI_SCREEN,
-                        "grugHandleMouse",
-                        "(L" + GUI_SCREEN + ";)Z",
-                        false));
-        guard.add(new JumpInsnNode(Opcodes.IFNE, loop));
-        input.instructions.insertBefore(selfRead, guard);
-
-        return write(node);
+                        Opcodes.INVOKESTATIC, GUI_SCREEN, guard, "(L" + GUI_SCREEN + ";)Z", false));
+        check.add(new JumpInsnNode(Opcodes.IFNE, loop));
+        input.instructions.insertBefore(selfRead, check);
     }
 
     private static byte[] patchMinecraft(byte[] original) {
@@ -203,18 +219,26 @@ public final class PatchGuiInput {
     }
 
     private static MethodNode mouseHelper() {
+        return predicateHelper("grugHandleMouse", MOUSE_HOOK);
+    }
+
+    private static MethodNode keyHelper() {
+        return predicateHelper("grugHandleKey", KEY_HOOK);
+    }
+
+    private static MethodNode predicateHelper(String name, String hook) {
         MethodNode method =
                 new MethodNode(
                         Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
-                        "grugHandleMouse",
+                        name,
                         "(L" + GUI_SCREEN + ";)Z",
                         null,
                         null);
         LabelNode none = new LabelNode();
         InsnList code = method.instructions;
-        code.add(new FieldInsnNode(Opcodes.GETSTATIC, GUI_SCREEN, MOUSE_HOOK, PREDICATE));
+        code.add(new FieldInsnNode(Opcodes.GETSTATIC, GUI_SCREEN, hook, PREDICATE));
         code.add(new JumpInsnNode(Opcodes.IFNULL, none));
-        code.add(new FieldInsnNode(Opcodes.GETSTATIC, GUI_SCREEN, MOUSE_HOOK, PREDICATE));
+        code.add(new FieldInsnNode(Opcodes.GETSTATIC, GUI_SCREEN, hook, PREDICATE));
         code.add(new VarInsnNode(Opcodes.ALOAD, 0));
         code.add(
                 new MethodInsnNode(
