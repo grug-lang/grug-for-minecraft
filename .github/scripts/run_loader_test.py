@@ -192,6 +192,8 @@ class RunLoaderTest(unittest.TestCase):
         loader = self.tmp / "loaders" / "fake-loader"
         loader.mkdir(parents=True)
         (loader / "test-save.txt").write_text("fake.zip\n")
+        # A second loader a mod's declaration can name, so one mod can be left out of this run.
+        (self.tmp / "loaders" / "some-other-loader").mkdir()
 
         gradlew = self.tmp / "gradlew"
         gradlew.write_text(GRADLE)
@@ -993,6 +995,42 @@ class RunLoaderTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("mod-loaders.py could not be run", result.stdout + result.stderr)
+
+    def test_a_declaration_naming_a_loader_that_is_no_longer_there_runs_the_mod(self):
+        # A renamed or removed loader leaves its name behind in a mod's set, and validate-about.yml
+        # does not run on the pull request that removed the directory. Trusting the set would drop
+        # the mod here and the job would pass having run none of its tests.
+        self.add_mod("other", 2)
+        self.add_about("other", ["some-loader-that-was-removed"])
+
+        result = self.run_script(self.selected_log(3), 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("which is no directory under loaders/", result.stderr)
+        self.assertIn("runs on every loader", result.stderr)
+
+    def test_a_carriage_return_from_the_helper_breaks_neither_the_count_nor_the_selection(self):
+        # Windows writes the helper's line ending as \r\n. The last name would become "fake\r",
+        # which counts no test and would be handed to the game as a mod that does not exist, so the
+        # shell strips it before either uses the line.
+        self.add_mod("other", 2)
+        (self.tmp / ".github" / "scripts" / "mod-loaders.py").write_text(
+            "#!/usr/bin/env python3\nimport sys\nsys.stdout.write('fake\\r\\n')\n"
+        )
+        gradlew = self.tmp / "gradlew"
+        gradlew.write_text(
+            GRADLE.replace(
+                'cat "$FAKE_GRADLE_LOG"',
+                'cat "$FAKE_GRADLE_LOG"; echo "mods=[${GRUG_CI_MODS-unset}]"',
+            )
+        )
+
+        result = self.run_script(self.selected_log(1), 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("(1 tests)", result.stdout)
+        self.assertIn("mods=[fake]", result.stdout)
+        self.assertNotIn("mods=[fake\\r]", result.stdout)
 
     def add_coverage_tests(self, names: list[str]) -> None:
         tests = self.tmp / "mods" / "coverage" / "tests"

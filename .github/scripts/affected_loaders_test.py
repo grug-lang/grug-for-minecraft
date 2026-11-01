@@ -54,10 +54,11 @@ BASE = {
     "core/src/Main.java": "class Main {}\n",
     "mod_api.json": "{}",
     "mods/buildcraft/code/wrench-Item.grug": "on_use() {}\n",
-    # A mod that names one loader of its own, one that declares none, and one whose declaration does
-    # not parse (#910).
-    "mods/betaonly/about.json": '{"loaders": ["b1.7.3-ornithe"]}',
-    "mods/betaonly/code/thing-Block.grug": "on_tick() {}\n",
+    # affected-mods.py always selects coverage, and refuses to narrow without it, so the fixture
+    # carries it: a mod-only diff must narrow to that mod here as it does in the real repository.
+    "mods/coverage/about.json": '{"name": "coverage"}',
+    "mods/coverage/code/frame-Block.grug": "on_tick() {}\n",
+    # A mod that declares none, and one whose declaration does not parse (#910).
     "mods/everywhere/about.json": '{"name": "Everywhere"}',
     "mods/everywhere/code/other-Block.grug": "on_tick() {}\n",
     "mods/broken/about.json": "{not json",
@@ -75,14 +76,23 @@ ALL = [
 # One per mechanism a mod loader reads a jar by: the newest Forge, the 1.2.5 Forge, and of the three
 # Fabric-family loaders the one no other loader shares code with.
 REPRESENTATIVES = ["1.2.5-forge", "1.20.6-forge", "b1.7.3-stationapi"]
+# A port that runs on an Ornithe loader no family represents, which is the normal shape of one.
+PORT = {
+    "mods/betaonly/about.json": '{"loaders": ["b1.7.3-ornithe"]}',
+    "mods/betaonly/code/thing-Block.grug": "on_tick() {}\n",
+}
 
 
-class AffectedLoadersTest(unittest.TestCase):
+class SelectionCase(unittest.TestCase):
+    """A throwaway repository whose base commit is FIXTURE, and the script's answer for a diff."""
+
+    FIXTURE = BASE
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = repo_module.Repo(Path(self.tmp.name))
-        self.base = self.repo.commit(BASE, "base")
+        self.base = self.repo.commit(self.FIXTURE, "base")
 
     def select(self, changes: dict, base=None):
         """The script's stdout for a commit with these changes, as the list of loaders."""
@@ -96,6 +106,8 @@ class AffectedLoadersTest(unittest.TestCase):
         self.reason = result.stderr
         return json.loads(result.stdout)
 
+
+class AffectedLoadersTest(SelectionCase):
     # What a diff outside the loaders' own code rests on: one representative per family.
 
     def test_a_change_in_a_mod_runs_the_representatives(self):
@@ -104,27 +116,49 @@ class AffectedLoadersTest(unittest.TestCase):
             REPRESENTATIVES,
         )
 
-    # A mod's about.json loaders adds the loaders its tests have to run on (#910).
+    # A mod's about.json loaders keeps a job where its tests can run (#910).
 
     def test_a_mod_change_adds_the_loaders_it_declares(self):
         # b1.7.3-ornithe is no family's representative, so without the declaration this mod's tests
         # would never run on the loader it says they are for.
         self.assertEqual(
-            self.select({"mods/betaonly/code/thing-Block.grug": "on_tick() { x() }\n"}),
+            self.select(
+                {
+                    "mods/betaonly/about.json": '{"loaders": ["b1.7.3-ornithe"]}',
+                    "mods/betaonly/code/thing-Block.grug": "on_tick() {}\n",
+                }
+            ),
             ["1.2.5-forge", "1.20.6-forge", "b1.7.3-ornithe", "b1.7.3-stationapi"],
         )
         self.assertIn(
-            "mods/betaonly declares the loaders its tests run on: b1.7.3-ornithe", self.reason
+            "mods/betaonly declares b1.7.3-ornithe, which no chosen loader has", self.reason
         )
 
-    def test_a_change_to_a_mods_about_json_adds_the_set_it_declares(self):
+    def test_a_declared_loader_a_representative_already_has_adds_no_job(self):
         self.assertEqual(
-            self.select({"mods/betaonly/about.json": '{"loaders": ["1.20.6-forge"]}'}),
+            self.select(
+                {
+                    "mods/forgeonly/about.json": '{"loaders": ["1.20.6-forge"]}',
+                    "mods/forgeonly/code/thing-Block.grug": "on_tick() {}\n",
+                }
+            ),
             REPRESENTATIVES,
         )
+
+    def test_a_declared_loader_that_is_no_directory_adds_no_job(self):
+        # A name nothing provides cannot be run, and the mod runs on every loader instead, so the
+        # representatives are where its tests go. The log says why rather than claiming a job.
         self.assertEqual(
-            self.select({"mods/betaonly/about.json": '{"loaders": ["a1.1.2_01-ornithe"]}'}),
-            ["1.2.5-forge", "1.20.6-forge", "a1.1.2_01-ornithe", "b1.7.3-stationapi"],
+            self.select(
+                {
+                    "mods/stale/about.json": '{"loaders": ["b1.7.3-gone"]}',
+                    "mods/stale/code/thing-Block.grug": "on_tick() {}\n",
+                }
+            ),
+            REPRESENTATIVES,
+        )
+        self.assertIn(
+            "mods/stale declares b1.7.3-gone, which is no loaders/ directory", self.reason
         )
 
     def test_a_mod_that_declares_no_loader_adds_none(self):
@@ -307,6 +341,31 @@ class RepresentativesTest(unittest.TestCase):
             sorted(affected_loaders.game_of(loaders)),
             loaders,
             "universal_jar.py's GAMES names no game for a loaders/ directory",
+        )
+
+
+class DeclaredLoaderTest(SelectionCase):
+    """A pull request leaves every mod whose tests it runs at least one job where they run (#910)."""
+
+    FIXTURE = {**BASE, **PORT}
+
+    def test_a_core_change_runs_the_loader_an_ornithe_only_port_declares(self):
+        # A core change runs every mod's tests, so a port that runs only on b1.7.3-ornithe has to get
+        # a job even though no path of its own is in the diff, which is its normal shape.
+        self.assertEqual(
+            self.select({"core/src/Main.java": "class Main { int y; }\n"}),
+            ["1.2.5-forge", "1.20.6-forge", "b1.7.3-ornithe", "b1.7.3-stationapi"],
+        )
+        self.assertIn(
+            "mods/betaonly declares b1.7.3-ornithe, which no chosen loader has", self.reason
+        )
+
+    def test_a_change_to_another_mod_does_not_add_it(self):
+        # The port's tests do not run for a diff confined to buildcraft, so its loader is not paid
+        # for: only the mods whose tests the pull request runs need a job.
+        self.assertEqual(
+            self.select({"mods/buildcraft/code/wrench-Item.grug": "on_use() { x() }\n"}),
+            REPRESENTATIVES,
         )
 
 

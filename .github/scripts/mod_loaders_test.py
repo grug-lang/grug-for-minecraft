@@ -31,6 +31,10 @@ class ModLoadersTest(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.mods = Path(self.tmp.name) / "mods"
         self.mods.mkdir()
+        # The loaders a declaration can name, so a test does not depend on the repository's own.
+        self.loaders = Path(self.tmp.name) / "loaders"
+        for loader in (LOADER, OTHER):
+            (self.loaders / loader).mkdir(parents=True)
 
     def add(self, name: str, about: dict | None = None, raw: str | None = None) -> None:
         directory = self.mods / name
@@ -42,7 +46,17 @@ class ModLoadersTest(unittest.TestCase):
 
     def run_script(self, loader: str, *mods: str) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [sys.executable, str(SCRIPT), loader, "--mods-dir", str(self.mods), "--", *mods],
+            [
+                sys.executable,
+                str(SCRIPT),
+                loader,
+                "--mods-dir",
+                str(self.mods),
+                "--loaders-dir",
+                str(self.loaders),
+                "--",
+                *mods,
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -91,6 +105,38 @@ class ModLoadersTest(unittest.TestCase):
     def test_a_non_string_entry_is_ignored_rather_than_naming_a_loader(self):
         self.add("mod", {"loaders": [LOADER, 7]})
         self.assertEqual(self.run_script(LOADER, "mod").stdout, "mod\n")
+
+    def test_a_name_that_is_no_loader_directory_keeps_the_mod(self):
+        # A removed or renamed loader leaves the name behind, and validate-about.yml does not run on
+        # the pull request that removed the directory. Dropping the mod on every loader would pass a
+        # later run with none of its tests, so a set naming something that cannot be run is not
+        # trusted: the mod runs everywhere.
+        self.add("mod", {"loaders": ["b1.7.3-gone"]})
+        result = self.run_script(LOADER, "mod")
+
+        self.assertEqual(result.stdout, "mod\n")
+        self.assertIn(
+            "mod declares b1.7.3-gone, which is no directory under loaders/", result.stderr
+        )
+        self.assertIn("runs on every loader", result.stderr)
+
+    def test_one_unknown_name_makes_the_whole_set_untrusted(self):
+        # The loader it does declare would be run, but the set is asking for a job nothing can
+        # provide, so the answer is still to run the mod everywhere rather than partly trust it.
+        self.add("mod", {"loaders": [OTHER, "b1.7.3-gone"]})
+        result = self.run_script(LOADER, "mod")
+
+        self.assertEqual(result.stdout, "mod\n")
+        self.assertIn("b1.7.3-gone", result.stderr)
+
+    def test_the_answer_carries_no_carriage_return(self):
+        # Windows writes a line ending as \r\n, and run-loader.sh reads this line as a comma
+        # separated list, so a stray \r would become part of the last mod's name.
+        self.add("mod", {"loaders": [LOADER]})
+        result = self.run_script(LOADER, "mod")
+
+        self.assertNotIn("\r", result.stdout)
+        self.assertEqual(result.stdout, "mod\n")
 
     # The list it prints.
 

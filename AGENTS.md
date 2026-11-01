@@ -264,7 +264,9 @@ run timeout at the line that reports the launch, which is `Launched` from portab
   says why): a change confined to some mods' `grug` namespace runs those mods, the mods that name
   their files, and `coverage`; anything else, or a doubt, runs every mod. A dispatch (`mods` empty)
   and every push to `main` run every mod, which is how to force them. A mod whose `loaders` set
-  leaves out the loader runs none of its tests there, whichever selection chose it.
+  leaves out the loader runs none of its tests there, unless that would leave nothing to run: when
+  none of the requested mods declares the loader, every one of them runs instead of none, so an
+  explicit `mods` selection still runs a mod on a loader it leaves out.
 - The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile is reported
   the same way, but check grug syntax before pushing: `~/agent-workspaces/grug-check.sh <worktree>`
   compiles every `.grug` file with `grugc`.

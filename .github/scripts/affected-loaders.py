@@ -21,6 +21,12 @@ The rule is sound by construction, and every doubt resolves to running more, nev
   never run its tests on a pull request. An absent ``loaders`` key means every loader, which every
   representative already satisfies, so it adds nothing: the field narrows a mod's tests, and only an
   explicit list names a loader the representatives can miss;
+- every mod whose tests the pull request runs keeps at least one job where they run: when none of a
+  mod's declared loaders is already chosen, its declared loaders are added. A ``core/`` change runs
+  every mod, so an Ornithe-only port adds its own loader even though no path of its own is in the
+  diff, which is the normal shape of such a port rather than an error. A set naming a loader no
+  ``loaders/`` directory provides adds nothing, since no job can run it, and the mod then runs on
+  every loader instead;
 - every family's representative runs whatever the diff holds, because a path outside the loaders'
   own code (core/, mod_api.json, mods/, test-saves/, the scripts, the workflow) can reach every
   loader, and because the coverage gate measures core's classes through every mechanism: measured on
@@ -111,13 +117,32 @@ def shared_dirs(repo: Path, ref: str) -> dict[str, set[str]]:
     return dirs
 
 
-def mod_loaders(repo: Path, ref: str, mods: set[str]) -> dict[str, set[str] | None]:
-    """For each mod at ``ref``, the loaders its about.json declares, or None when it declares none.
+def mods_that_run(repo: Path, base: str, head: str) -> set[str]:
+    """The mods whose tests a pull request runs: affected-mods.py's selection, over the head tree.
+
+    The loader jobs run exactly these mods' tests, since GRUG_CI_MODS comes from the same script, so
+    every one of them has to be left a loader job where its tests run. That is every mod at head when
+    affected-mods selects every mod, which it does for a diff outside mods/ and whenever it cannot
+    narrow (#628).
+    """
+    affected = sibling("affected-mods")
+    try:
+        selection = affected.affected_mods(repo, base, head)
+    except Exception:  # noqa: BLE001 - a selection that cannot be narrowed runs every mod
+        selection = None
+    mods = set(affected.tree_files(repo, head))
+    return mods if selection is None else set(selection) & mods
+
+
+def mod_loaders(repo: Path, ref: str, mods: set[str], known: set[str]):
+    """For each mod at ``ref``: the loaders it declares, or None when its set cannot be trusted.
 
     Read from the tree rather than the working directory, so the answer is the one the built commit
-    holds. A mod with no about.json, or one that does not parse, answers None: nothing is added on
-    top of the representatives, which are what runs when a declaration cannot name a loader the
-    sample would otherwise miss.
+    holds. None means the mod runs on every loader, and is also what a mod with no about.json, one
+    that does not parse, and one naming something that is not a ``loaders/`` directory answers: a
+    name nothing provides cannot be run, and a set this cannot trust must not select a job. Returns
+    the declarations, and per mod the declared names that ``known``, the loaders/ directories at
+    ``ref``, does not provide.
     """
     affected = sibling("affected-mods")
     blobs = {}
@@ -129,17 +154,25 @@ def mod_loaders(repo: Path, ref: str, mods: set[str]) -> dict[str, set[str] | No
     contents = affected.read_blobs(repo, set(blobs.values()))
     declared_loaders = sibling("mod-loaders").declared_loaders
 
-    out: dict[str, set[str] | None] = {}
+    declarations: dict[str, set[str] | None] = {}
+    untrusted: dict[str, list[str]] = {}
     for mod in sorted(mods):
         blob = blobs.get(mod)
         if blob is None:
-            out[mod] = None
+            declarations[mod] = None
             continue
         try:
-            out[mod] = declared_loaders(json.loads(contents[blob]))
+            declared = declared_loaders(json.loads(contents[blob]))
         except Exception:  # noqa: BLE001 - a file that does not parse declares no loader this can read
-            out[mod] = None
-    return out
+            declarations[mod] = None
+            continue
+        if declared is not None:
+            unknown = sorted(declared - known)
+            if unknown:
+                untrusted[mod] = unknown
+                declared = None
+        declarations[mod] = declared
+    return declarations, untrusted
 
 
 def game_of(loaders: list[str], games=None) -> dict:
@@ -218,7 +251,6 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
     chosen: set[str] = set(family_of.values())
     chosen &= current
     reasons: dict[str, list[str]] = {}
-    changed_mods: set[str] = set()
     for path in paths:
         parts = PurePosixPath(path).parts
         if len(parts) >= 3 and parts[0] == LOADERS and parts[1] in loaders:
@@ -232,8 +264,6 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
                 [],
             ).append(path)
             continue
-        if len(parts) >= 3 and parts[0] == MODS:
-            changed_mods.add(parts[1])
         compilers = sorted(
             {
                 loader
@@ -254,12 +284,19 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
         ).append(path)
 
     lines = [f"{line}: {describe(group)}" for line, group in reasons.items()]
-    for mod, declared in sorted(mod_loaders(repo, head, changed_mods).items()):
-        if not declared:
-            continue
-        chosen.update(declared & current)
+    declarations, untrusted = mod_loaders(repo, head, mods_that_run(repo, base, head), current)
+    for mod, unknown in sorted(untrusted.items()):
         lines.append(
-            f"{MODS}/{mod} declares the loaders its tests run on: {', '.join(sorted(declared))}"
+            f"{MODS}/{mod} declares {', '.join(unknown)}, which is no loaders/ directory, so no job"
+            " is added and the mod runs on every loader instead"
+        )
+    for mod, declared in sorted(declarations.items()):
+        if not declared or declared & chosen:
+            continue
+        chosen.update(declared)
+        lines.append(
+            f"{MODS}/{mod} declares {', '.join(sorted(declared))}, which no chosen loader has, so"
+            " its own loader job is added"
         )
     families = ", ".join(
         f"{loader} ({family})" for family, loader in sorted(family_of.items(), key=lambda f: f[1])
