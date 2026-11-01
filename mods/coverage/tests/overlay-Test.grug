@@ -1,14 +1,15 @@
-# Covers the overlay host functions on the player's inventory screen: the context numbers, item_at,
-# give_item, the loader's open_inventory and click_screen, and the press being taken away from the
-# vanilla slot. It first presses a vanilla slot, which the screen handles but no overlay takes, and
-# checks the answer is false; then it presses the centre, where the coverage overlay draws its one
-# item and takes the click, and waits for the item to reach its hand. On a loader that draws no
-# overlays the overlay's exports are never asked, which about.json records as a deviation, and the
-# test returns before it opens a screen it cannot show. See #615.
+# Covers the overlay host functions on the player's inventory screen: the context numbers and
+# modifiers, item_at, give_item and give_item_stack, the cursor carried_item and
+# delete_carried_item, the test's own stack count and cursor helpers, the loader's open_inventory
+# and click_screen, and the press being taken away from the vanilla slot. It first presses a vanilla
+# slot, which the screen handles but no overlay takes, and checks the answer is false; then it
+# presses the centre, where the coverage overlay draws its one item and takes the click, and waits
+# for the item to reach its hand. On a loader that draws no overlays the overlay's exports are never
+# asked, which about.json records as a deviation, and the test returns before it opens a screen it
+# cannot show. See #615.
 started: bool = false
 waited: number = 0
-checked_slot: bool = false
-clicked: bool = false
+step: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -38,39 +39,70 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    if not checked_slot {
+    if step == 0 {
         # A press on a vanilla slot is handled by the screen itself, but no overlay took it, so the
         # answer has to be false: the screen's own handling is not an overlay's take. The first
         # main-inventory slot is at (133, 121) on this screen, inside the GUI and outside both the
         # coverage overlay's box and the port's grid.
         Test.clear_held_item(Test.get_player())
-        checked_slot = true
+        step = 1
         taken_by_screen: bool = Test.click_screen(137, 125, 0)
         ctx.assert(not taken_by_screen, "A press on a vanilla slot that no overlay took should answer false.")
         ctx.not_done()
         return
     }
 
-    if not clicked {
+    if step == 1 {
         # An earlier test may have left the hotbar slot filled, which would push the given item
         # somewhere the test cannot read back.
         Test.clear_held_item(Test.get_player())
-        clicked = true
+        step = 2
         taken: bool = Test.click_screen(213, 120, 0)
         ctx.assert(taken, "The overlay should take a press at the centre of the screen.")
         ctx.not_done()
         return
     }
 
-    held: Option[Item] = Test.get_player().get_held_item()
-    if not held.has() {
-        waited = waited + 1
-        ctx.assert(waited < 200, "The item the overlay gave should reach the player's hand.")
+    if step == 2 {
+        held: Option[Item] = Test.get_player().get_held_item()
+        if not held.has() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The item the overlay gave should reach the player's hand.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), item_at(0)), "The overlay should give the item it drew, not another one.")
+        ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A left click should give one item.")
+        # A middle click is the reference's stack binding.
+        Test.clear_held_item(Test.get_player())
+        step = 3
+        taken: bool = Test.click_screen(213, 120, 2)
+        ctx.assert(taken, "The overlay should take a middle click on its item.")
         ctx.not_done()
         return
     }
 
-    ctx.assert(equals(held.unwrap(), item_at(0)), "The overlay should give the item it drew, not another one.")
-    Test.clear_held_item(Test.get_player())
+    if step == 3 {
+        held: Option[Item] = Test.get_player().get_held_item()
+        if not held.has() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The stack the overlay gave should reach the player's hand.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), item_at(0)), "A middle click should give the item the overlay drew.")
+        Test.clear_held_item(Test.get_player())
+        # A left click while the cursor carries an item deletes it.
+        Test.set_carried_item(item_at(0))
+        ctx.assert(Test.get_carried_item().has(), "The test should be able to put an item on the cursor.")
+        step = 4
+        taken: bool = Test.click_screen(213, 120, 0)
+        ctx.assert(taken, "The overlay should take a left click while the cursor carries an item.")
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(not Test.get_carried_item().has(), "A left click on the overlay should delete the item on the cursor.")
+    ctx.assert(not Test.get_player().get_held_item().has(), "Deleting the carried item should not also give one.")
     Test.close_screen()
 }

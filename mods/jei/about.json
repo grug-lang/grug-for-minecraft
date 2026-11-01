@@ -103,18 +103,23 @@
 					"tracking_issue": 870
 				},
 				{
-					"what": "Hovering an item draws the reference's highlight but no tooltip, item count or mod name, and the grid draws no slot background and no search bar or button.",
+					"what": "The list is one entry per registered item except air, where JEI lists the stacks of the creative tabs: a potion, a splash potion and a lingering potion are separate entries there, and an op-only tab hides its items from a player who may not use them. The potion, splash and lingering variants are therefore missing from the port, and barrier, command block and the other op-only items are listed to every player.",
+					"why": "The host exposes one Item per registry key and no creative-tab stacks, ingredient subtypes or per-player tab permissions; listing those stacks is a change to the item list itself.",
+					"tracking_issue": 892
+				},
+				{
+					"what": "Hovering an item draws the reference's highlight but no tooltip, item count or mod name, and the grid draws no search bar or button.",
 					"why": "The overlay API has no tooltip callback or item-name source, and the first version draws no chrome beyond the icons and the highlight.",
 					"tracking_issue": 870
 				},
 				{
-					"what": "A left click always gives one item. There is no give-versus-cheat mode, no cheat permission check and no right-click delete, and the give plays no pickup sound and sends no \"Gave ... to ...\" chat message.",
-					"why": "The first version has one click behaviour, the inventory give; JEI's modes, its permission check and the sound and chat line its give sends are a separate piece.",
+					"what": "The port gives one item on a left or right click, a stack on shift+left or the middle button, and deletes the item on the cursor on a left click while it carries one. It has no give-versus-cheat mode and no cheat permission check, and the give plays no pickup sound and sends no \"Gave ... to ...\" chat message. A left click deletes whatever the cursor carries, where the reference gives one item instead when the carried stack can stack with the clicked one.",
+					"why": "The overlay host exposes the press's button and whether shift is held, but not JEI's GiveMode setting, its cheat permission, its pickup sound, its chat line or the cursor stack's count and damage, which are a separate piece.",
 					"tracking_issue": 870
 				},
 				{
-					"what": "A click gives its item only where the client runs the game's own server, which is singleplayer. On a client of a remote server the overlay takes the press and nothing is given, with no message.",
-					"why": "The give adds the item to the integrated server's player directly, as a call inside the same process, instead of sending the server a packet the way JEI's give does; a remote server is out of reach of that call.",
+					"what": "A give, and the server-side half of a cursor delete, take effect only where the client runs the game's own server, which is singleplayer or a LAN host. On a client of a remote server the overlay takes the press and nothing is given, with no message, and a delete clears the client's cursor only.",
+					"why": "The give and the delete add or clear the integrated server's player directly, as calls inside the same process, instead of sending the server a packet the way JEI does; a remote server is out of reach of those calls.",
 					"tracking_issue": 882
 				},
 				{

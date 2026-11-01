@@ -157,6 +157,19 @@ public interface ModLoaderAdapter {
                 Grug.statePtr, "give_item: This loader cannot give an item yet.");
     }
 
+    /**
+     * Gives a full stack of the item to the player, the way {@link #giveItemToPlayer} gives one. A
+     * loader that cannot give items keeps this default, which reports the call rather than dropping
+     * the stack silently.
+     */
+    @GrugGenerated(
+            "no give: only the 1.20.6 adapter gives items so far, which the overlay's own"
+                    + " deviation names")
+    default void giveItemStackToPlayer(Object playerObj, Object itemObj) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "give_item_stack: This loader cannot give an item yet.");
+    }
+
     Object createItemEntity(Object levelObj, double x, double y, double z, Object itemStackObj);
 
     Object createItemStack(Object itemObj, double damage);
@@ -211,6 +224,17 @@ public interface ModLoaderAdapter {
      * null item.
      */
     void setHeldItem(Object playerObj, Object itemObj);
+
+    /**
+     * Test only: how many items the player's main hand holds. A loader that cannot answer keeps the
+     * default, which reports the call rather than pretending the hand holds one item.
+     */
+    @GrugGenerated("test only: only the 1.20.6 adapter has an overlay test that counts a stack")
+    default double getHeldCount(Object playerObj) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.get_held_count: This loader cannot count the held stack yet.");
+        return 0.0;
+    }
 
     boolean hasNeighborSignal(Object levelObj, double x, double y, double z);
 
@@ -518,6 +542,44 @@ public interface ModLoaderAdapter {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "Test.click_screen: This loader cannot press on a screen yet.");
         return false;
+    }
+
+    /**
+     * The item on the mouse cursor of the screen that is open, or null for an empty cursor. A
+     * loader that cannot answer keeps the default, which reports the call rather than answering as
+     * if the cursor were empty.
+     */
+    @GrugGenerated("no cursor: only the 1.20.6 adapter has an overlay that reads one")
+    default Object carriedItem() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "OverlayClickContext.carried_item: This loader cannot read the"
+                        + " carried item yet.");
+        return null;
+    }
+
+    /**
+     * Test only: puts one of the item on the mouse cursor of the screen that is open, or clears it
+     * for a null item. A loader that cannot do it keeps the default, which reports the call.
+     */
+    @GrugGenerated("no cursor: only the 1.20.6 adapter has an overlay test that sets one")
+    default void setCarriedItem(Object itemObj) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "Test.set_carried_item: This loader cannot set the carried item yet.");
+    }
+
+    /**
+     * Clears the item on the mouse cursor of the screen that is open, which is what the reference
+     * does on a left click over its list. A loader that cannot do it keeps the default, which
+     * reports the call rather than leaving the item where the script asked for it to be deleted.
+     */
+    @GrugGenerated("no cursor: only the 1.20.6 adapter has an overlay that deletes one")
+    default void deleteCarriedItem() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "OverlayClickContext.delete_carried_item: This loader cannot delete the carried"
+                        + " item yet.");
     }
 
     /**

@@ -86,6 +86,14 @@ class HostFunctionsItemListTest {
         assertTrue(
                 HostFunctions.screenClickProblem(1, Double.POSITIVE_INFINITY, 0)
                         .contains("finite"));
+        // A button that is not finite is not a button: infinity passes the whole-number check,
+        // and the cast to int would turn it into the largest int.
+        assertTrue(
+                HostFunctions.screenClickProblem(1, 2, Double.POSITIVE_INFINITY)
+                        .contains("finite"));
+        assertTrue(
+                HostFunctions.screenClickProblem(1, 2, Double.NEGATIVE_INFINITY)
+                        .contains("finite"));
         assertTrue(HostFunctions.screenClickProblem(1, 2, 0.5).contains("whole number"));
         assertTrue(HostFunctions.screenClickProblem(1, 2, -1).contains("whole number"));
     }

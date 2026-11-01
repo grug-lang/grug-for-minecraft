@@ -199,7 +199,8 @@ public final class GrugOverlayHost {
                             container.getYSize(),
                             event.getMouseX(),
                             event.getMouseY(),
-                            event.getButton());
+                            event.getButton(),
+                            Screen.hasShiftDown());
             if (taken) {
                 GrugOverlay.noteTestPressTaken();
                 event.setCanceled(true);

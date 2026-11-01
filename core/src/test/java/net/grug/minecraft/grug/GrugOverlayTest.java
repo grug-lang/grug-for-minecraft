@@ -72,7 +72,7 @@ class GrugOverlayTest {
 
     @Test
     void aClickPassAnswersItsButtonAndWhetherThePressWasTaken() {
-        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 2);
+        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 2, false);
 
         assertEquals(2, GrugOverlay.button());
         assertTrue(GrugOverlay.isClick());
@@ -88,9 +88,23 @@ class GrugOverlayTest {
 
     @Test
     void aClickPassThatDidNotTakeThePressSaysSo() {
-        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 0);
+        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 0, false);
 
         assertFalse(GrugOverlay.closeClick());
+    }
+
+    @Test
+    void aClickPassAnswersWhetherShiftWasHeld() {
+        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 0, true);
+
+        assertTrue(GrugOverlay.shift());
+
+        GrugOverlay.closeClick();
+
+        // The next pass starts with shift clear even when its script does not say.
+        GrugOverlay.openRender(426, 240, 125, 37, 176, 166, 300, 20);
+        assertFalse(GrugOverlay.shift());
+        GrugOverlay.closeRender();
     }
 
     @Test
@@ -125,7 +139,9 @@ class GrugOverlayTest {
         RuntimeException error =
                 assertThrows(
                         RuntimeException.class,
-                        () -> GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 0));
+                        () ->
+                                GrugOverlay.openClick(
+                                        426, 240, 125, 37, 176, 166, 300, 20, 0, false));
         assertTrue(error.getMessage().contains("already open"), error.getMessage());
     }
 
@@ -136,7 +152,7 @@ class GrugOverlayTest {
         assertTrue(asClick.getMessage().contains("click pass"), asClick.getMessage());
         GrugOverlay.closeRender();
 
-        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 0);
+        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 0, false);
         RuntimeException asRender = assertThrows(RuntimeException.class, GrugOverlay::closeRender);
         assertTrue(asRender.getMessage().contains("render pass"), asRender.getMessage());
         GrugOverlay.closeClick();
@@ -164,7 +180,7 @@ class GrugOverlayTest {
                 GrugOverlay.render(0, 0, 426, 240, 125, 37, 176, 166, 300, 20).items().isEmpty());
         assertFalse(GrugOverlay.isOpen());
 
-        assertFalse(GrugOverlay.click(0, 0, 426, 240, 125, 37, 176, 166, 300, 20, 0));
+        assertFalse(GrugOverlay.click(0, 0, 426, 240, 125, 37, 176, 166, 300, 20, 0, false));
         assertFalse(GrugOverlay.isOpen());
     }
 
@@ -200,7 +216,8 @@ class GrugOverlayTest {
                         166,
                         300,
                         20,
-                        0));
+                        0,
+                        false));
         assertFalse(GrugOverlay.isOpen());
     }
 }

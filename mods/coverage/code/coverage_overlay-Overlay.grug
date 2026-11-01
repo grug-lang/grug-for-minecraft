@@ -1,8 +1,10 @@
-# Covers the overlay host functions through a real screen: the context's numbers, draw_item, draw_box,
-# take, and the loader's item list behind item_at. The box sits at the centre of the screen, where the
-# player's inventory also is, so the test's click lands on it; a click there gives the first item and
-# takes the press, which the test checks by the item reaching its hand. On a loader that draws no
-# overlays the exports are never asked, and the test returns before it opens anything. See #615.
+# Covers the overlay host functions through a real screen: the context's numbers and modifiers,
+# draw_item, draw_box, take, the cursor the reference deletes, give_item and give_item_stack, and the
+# loader's item list behind item_at. The box sits at the centre of the screen, where the player's
+# inventory also is, so the test's click lands on it; a click there gives the first item and takes
+# the press, a middle click gives a stack, and a left click while the cursor carries an item deletes
+# it instead. On a loader that draws no overlays the exports are never asked, and the test returns
+# before it opens anything. See #615.
 export render(ctx: OverlayRenderContext) {
     box_x: number = Math.floor(ctx.screen_width() / 2) - 9
     box_y: number = Math.floor(ctx.screen_height() / 2) - 9
@@ -16,14 +18,26 @@ export render(ctx: OverlayRenderContext) {
 }
 
 export click(ctx: OverlayClickContext) {
+    shift_held: bool = ctx.shift()
+    carrying: bool = ctx.carried_item().has()
     inside_screen: bool = ctx.mouse_x() >= 0 and ctx.mouse_x() < ctx.screen_width() and ctx.mouse_y() >= 0 and ctx.mouse_y() < ctx.screen_height()
     over_gui_x: bool = ctx.mouse_x() >= ctx.gui_left() and ctx.mouse_x() < ctx.gui_left() + ctx.gui_width()
     inside_gui: bool = over_gui_x and ctx.mouse_y() >= ctx.gui_top() and ctx.mouse_y() < ctx.gui_top() + ctx.gui_height()
     box_x: number = Math.floor(ctx.screen_width() / 2) - 9
     box_y: number = Math.floor(ctx.screen_height() / 2) - 9
     over_box: bool = ctx.mouse_x() >= box_x and ctx.mouse_x() < box_x + 18 and ctx.mouse_y() >= box_y and ctx.mouse_y() < box_y + 18
-    if inside_screen and inside_gui and over_box and ctx.button() == 0 {
-        give_item(item_at(0))
+    if inside_screen and inside_gui and over_box {
+        if ctx.button() == 0 and carrying {
+            ctx.delete_carried_item()
+        } else if ctx.button() == 0 and shift_held {
+            give_item_stack(item_at(0))
+        } else if ctx.button() == 2 {
+            give_item_stack(item_at(0))
+        } else if ctx.button() == 0 {
+            give_item(item_at(0))
+        } else {
+            return
+        }
         ctx.take()
     }
 }
