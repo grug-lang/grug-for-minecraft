@@ -21,7 +21,6 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.GrugBoxRenderer;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
-import net.grug.minecraft.stationapi.client.GrugOverlayHost;
 import net.grug.minecraft.stationapi.client.GrugScreenGeometry;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
@@ -879,12 +878,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * has no give command and its client is the server in singleplayer, so the inventory write is
      * the give.
      */
-    @GrugGenerated(
-            "the null-player and full-inventory arms: a run gives to the player it just cleared")
+    @GrugGenerated("the null-player arm: a run gives to the player it just cleared")
     private void giveItemToPlayer(PlayerEntity player, Item item, int count) {
         if (player == null) return;
         ItemStack stack = new ItemStack(item, count);
-        if (!player.inventory.addStack(stack) && stack.count > 0) {
+        // StationAPI's addStack returns true as soon as any part of the stack fits, and leaves the
+        // rest in stack.count. The return value does not say whether all of it fit, so the
+        // remainder is dropped whatever the add answered, as the reference does.
+        player.inventory.addStack(stack);
+        if (stack.count > 0) {
             player.dropItem(stack, false);
         }
     }
@@ -1216,7 +1218,10 @@ public class StationApiAdapter implements ModLoaderAdapter {
                     Grug.statePtr, "Test.click_screen: There is no screen open to click.");
             return false;
         }
-        return GrugOverlayHost.click(mc.currentScreen, (int) x, (int) y, (int) button, false);
+        if (mc.currentScreen instanceof GrugScreenGeometry geometry) {
+            return geometry.grug$click((int) x, (int) y, (int) button);
+        }
+        return false;
     }
 
     @Override

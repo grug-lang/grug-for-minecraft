@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.mixin;
 
+import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
@@ -32,6 +33,9 @@ public abstract class InventoryMenuScreenMixin implements GrugScreenGeometry {
 
     @Shadow protected int backgroundHeight;
 
+    @Shadow
+    protected abstract void mouseClicked(int mouseX, int mouseY, int button);
+
     @Inject(method = "render", at = @At("TAIL"))
     private void grug$drawOverlay(int mouseX, int mouseY, float tickDelta, CallbackInfo ci) {
         Screen screen = (Screen) (Object) this;
@@ -54,6 +58,13 @@ public abstract class InventoryMenuScreenMixin implements GrugScreenGeometry {
         if (GrugOverlayHost.click((Screen) (Object) this, mouseX, mouseY, button, shift)) {
             ci.cancel();
         }
+    }
+
+    @Override
+    public boolean grug$click(int mouseX, int mouseY, int button) {
+        GrugOverlay.beginTestPress();
+        this.mouseClicked(mouseX, mouseY, button);
+        return GrugOverlay.testPressTaken();
     }
 
     @Override

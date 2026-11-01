@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi.mixin;
 
+import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.stationapi.client.GrugOverlayHost;
 import net.grug.minecraft.stationapi.client.GrugScreenGeometry;
@@ -31,6 +32,19 @@ public abstract class HandledScreenMixin implements GrugScreenGeometry {
 
     @Shadow protected int backgroundHeight;
 
+    @Shadow
+    protected abstract void mouseClicked(int mouseX, int mouseY, int button);
+
+    @Inject(method = "init", at = @At("TAIL"))
+    private void grug$screenOpened(CallbackInfo ci) {
+        GrugOverlayHost.screenOpened((Screen) (Object) this);
+    }
+
+    @Inject(method = "removed", at = @At("TAIL"))
+    private void grug$screenClosed(CallbackInfo ci) {
+        GrugOverlayHost.screenClosed();
+    }
+
     @Inject(method = "render", at = @At("TAIL"))
     private void grug$drawOverlay(int mouseX, int mouseY, float tickDelta, CallbackInfo ci) {
         Screen screen = (Screen) (Object) this;
@@ -53,6 +67,13 @@ public abstract class HandledScreenMixin implements GrugScreenGeometry {
         if (GrugOverlayHost.click((Screen) (Object) this, mouseX, mouseY, button, shift)) {
             ci.cancel();
         }
+    }
+
+    @Override
+    public boolean grug$click(int mouseX, int mouseY, int button) {
+        GrugOverlay.beginTestPress();
+        this.mouseClicked(mouseX, mouseY, button);
+        return GrugOverlay.testPressTaken();
     }
 
     @Override

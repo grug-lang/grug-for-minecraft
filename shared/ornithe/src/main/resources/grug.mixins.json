@@ -13,6 +13,7 @@
         "TitleScreenMixin",
         "GameRendererMixin",
         "InventoryMenuScreenMixin",
+        "ScreenMixin",
         "GrugFillInvoker"
     ],
     "injectors": {

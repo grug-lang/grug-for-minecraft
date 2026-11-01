@@ -1,0 +1,55 @@
+# Covers the click hook through the game's own press path: the overlay takes a press on the first
+# hotbar slot, which holds the player's held item, so a press that also reached the vanilla slot
+# would pick that item up onto the cursor. The overlay takes the press without changing anything,
+# and the held item staying in place is what proves the hook cancelled the screen's handling too.
+# The press is delivered through GuiScreen.handleInput on 1.2.5 and through the screen's own
+# mouseClicked on the other loaders, never straight to the overlay host. See #863.
+started: bool = false
+waited: number = 0
+step: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() {
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        Test.clear_carried_item()
+        Test.set_held_item(Test.get_player(), item_at(0))
+        ctx.assert(Test.get_player().get_held_item().has(), "The player should hold the item the hotbar press uses.")
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    # These tests run at 427x240 scaled pixels, where the 166-pixel GUI starts at y 37; the first
+    # hotbar slot is 15 pixels above the GUI's bottom and 17 from its left.
+    hotbar_x: number = Test.gui_left() + 17
+    hotbar_y: number = 188
+    taken: bool = Test.click_screen(hotbar_x, hotbar_y, 0)
+    ctx.assert(taken, "The overlay should take a press on the hotbar slot it covers.")
+    ctx.assert(Test.get_player().get_held_item().has(), "A taken press should not also pick the hotbar item up.")
+    ctx.assert(not Test.get_carried_item().has(), "A taken press should not put the hotbar item on the cursor.")
+    Test.close_screen()
+}

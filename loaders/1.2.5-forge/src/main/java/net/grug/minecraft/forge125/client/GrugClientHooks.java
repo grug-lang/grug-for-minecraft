@@ -245,9 +245,6 @@ public class GrugClientHooks implements ITickHandler {
     public void tickStart(EnumSet<TickType> types, Object... data) {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         if (types.contains(TickType.GAME)) {
-            // Before the game's own input pass: an overlay's press has to reach the screen only if
-            // no overlay took it. See GrugOverlayHost.
-            GrugOverlayHost.handleMouse(minecraft);
             gameTick(minecraft);
         }
         if (types.contains(TickType.RENDER)) {
