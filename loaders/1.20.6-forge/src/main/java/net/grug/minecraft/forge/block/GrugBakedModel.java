@@ -164,14 +164,23 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
         // worker holds no monitor of its own while it waits for the lock. That matters because the
         // lock is refused to a worker while a test's call waits on the client thread (#836), and
         // the client thread's own draw must not queue behind a worker that is waiting for it.
+        // The removal check is repeated under the lock: the wait for it can be long (a test's call
+        // that waits on the client thread keeps the workers out), and the client thread removes a
+        // block entity and destroys its grug entity meanwhile. The removal marks the block entity
+        // removed before it takes the lock, so a removed one is never drawn with a destroyed
+        // entity.
         GrugEntities.runLocked(
-                () ->
+                () -> {
+                    if (!blockEntity.isRemoved()) {
                         drawn[0] =
                                 GrugBlockGeometry.draw(
                                         blockEntity.getGrugEntityHandle(),
                                         blockEntity.getRenderFnId(),
-                                        describe(state, pos)));
+                                        describe(state, pos));
+                    }
+                });
         GrugGeometry geometry = drawn[0];
+        if (geometry == null) return List.of();
 
         // A flat block gets no shade per side and no smooth lighting, and ModelBlockRendererMixin
         // lights its quads at the block's own position, so its faces share one brightness instead
