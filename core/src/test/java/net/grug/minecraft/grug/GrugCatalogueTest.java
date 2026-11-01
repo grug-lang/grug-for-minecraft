@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -64,7 +65,13 @@ class GrugCatalogueTest {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
             for (int i = 0; i < namesAndContents.length; i += 2) {
-                zip.putNextEntry(new ZipEntry(namesAndContents[i]));
+                ZipEntry entry = new ZipEntry(namesAndContents[i]);
+                // ZipOutputStream writes the wall clock into an entry that has no time of its own,
+                // in steps of two seconds, so the same zip built later held other bytes and another
+                // SHA-256 (#828). Zero is before 1980, the earliest date an entry records, so every
+                // time zone writes the same one.
+                entry.setTime(0);
+                zip.putNextEntry(entry);
                 zip.write(namesAndContents[i + 1].getBytes(StandardCharsets.UTF_8));
                 zip.closeEntry();
             }
@@ -96,6 +103,20 @@ class GrugCatalogueTest {
 
     private void installAlpha(GrugCatalogue catalogue) throws IOException {
         catalogue.install("alpha", catalogue.fetch().get("alpha"), target);
+    }
+
+    @Test
+    void aZipOfTheSameEntriesHoldsTheSameBytesWheneverItIsBuilt() throws Exception {
+        byte[] first = zip("alpha/about.json", "{}", "alpha/code/a.grug", "a");
+        // A zip entry's time moves in steps of two seconds, so wait for the step to turn over:
+        // a zip stamped with the wall clock holds other bytes, and so another hash, after that.
+        long now = System.currentTimeMillis();
+        Thread.sleep((now / 2000 + 1) * 2000 - now + 100);
+
+        assertArrayEquals(
+                first,
+                zip("alpha/about.json", "{}", "alpha/code/a.grug", "a"),
+                "the bytes of a zip must depend on its entries alone");
     }
 
     @Test
