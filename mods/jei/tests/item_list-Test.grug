@@ -16,6 +16,11 @@
 # because the grid is aligned right. The rectangle is computed from the GUI the screen reports
 # rather than written down.
 
+# The rectangle is inset one scaled pixel on every side, which drops the padding at the row's outer
+# edge and leaves the 16 pixel icon of each kept cell and the 2 pixel gaps between cells, 264 by 48
+# pixels. The padding is where the world behind the grid changed between two runs of one loader, by
+# up to two levels (#961), while the icons and the gaps were identical.
+
 # The first two rows are left out because the later versions' item lists start with the fluids,
 # whose icons are animated textures: water and lava change frame every client tick, so a capture that
 # includes them differs from run to run and is no golden. The rows below the third are left out
@@ -122,10 +127,10 @@ export tick(ctx: TestTickContext) {
     }
 
     grid_right: number = _grid_x() + _columns() * 18
-    left: number = (grid_right - crop_columns * 18) * frame_scale
-    top: number = (_grid_y() + first_row * 18) * frame_scale
-    right: number = grid_right * frame_scale
-    bottom: number = (_grid_y() + (first_row + row_count) * 18) * frame_scale
+    left: number = (grid_right - crop_columns * 18 + 1) * frame_scale
+    top: number = (_grid_y() + first_row * 18 + 1) * frame_scale
+    right: number = (grid_right - 1) * frame_scale
+    bottom: number = (_grid_y() + (first_row + row_count) * 18 - 1) * frame_scale
     if Test.is_reference() {
         Test.screenshot().equals(r"screenshots/jei_item_list_reference", left, top, right, bottom)
     } else {
