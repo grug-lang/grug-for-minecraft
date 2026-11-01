@@ -89,10 +89,25 @@ struct grug_init_settings {
 // reads. See #190.
 #define GRUG_POLL_INTERVAL_MS 100
 
+// Mirrors grug_compile_settings in the pinned grug-rs's grug.h. grug's mode is per file and fixed
+// when the file compiles, so the call that compiles the files takes the whole decision, and it
+// takes it per mod: grug-rs asks is_unsafe_mod for the first directory component of each file it
+// compiles, on the thread that made the call.
+struct grug_compile_settings {
+    bool (*is_unsafe_mod)(void* user_data, const char* mod_name, size_t mod_name_len);
+    void* user_data;
+};
+
+// Every file compiles in safe mode, because no mod's mode reaches the compiler yet: which mods a
+// player granted unsafe mode is what the next phase of #334 passes here, from GrugModModes, and a
+// mode a user never granted must not be given. A NULL is_unsafe_mod is grug-rs' safe mode for
+// every file, which is the one mode this repository had before grug-rs could take another.
+static const struct grug_compile_settings GRUG_COMPILE_SAFE = {0};
+
 extern void* grug_init(struct grug_init_settings settings, struct grug_error* out_error);
 extern struct grug_init_settings grug_default_settings(void);
 extern struct grug_error* grug_all_host_fns_registered(void* state);
-extern struct grug_files_slice grug_compile_all_files(void* state);
+extern struct grug_files_slice grug_compile_all_files(void* state, struct grug_compile_settings settings);
 
 // --- JNI Caching (declared extern in adapter_shared.h) ---
 jint jni_version;
@@ -196,7 +211,7 @@ Java_net_grug_minecraft_grug_GrugNative_nativeInit(JNIEnv *env, jclass clazz, js
 
 JNIEXPORT jobjectArray JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeCompileAllFiles(JNIEnv *env, jclass clazz, jlong statePtr) {
-    struct grug_files_slice files = grug_compile_all_files((void*)(intptr_t)statePtr);
+    struct grug_files_slice files = grug_compile_all_files((void*)(intptr_t)statePtr, GRUG_COMPILE_SAFE);
     jclass fileInfoClass = (*env)->FindClass(env, "net/grug/minecraft/grug/FileInfo");
     jmethodID constructor = (*env)->GetMethodID(env, fileInfoClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V");
     jobjectArray array = (*env)->NewObjectArray(env, files.len, fileInfoClass, NULL);
@@ -271,11 +286,11 @@ Java_net_grug_minecraft_grug_GrugNative_nativeDestroyEntity(JNIEnv *env, jclass 
     grug_deinit_entity((void*)(intptr_t)statePtr, (void*)(intptr_t)entityHandle);
 }
 
-extern struct grug_files_slice grug_update(void* state);
+extern struct grug_files_slice grug_update(void* state, struct grug_compile_settings settings);
 
 JNIEXPORT jobjectArray JNICALL
 Java_net_grug_minecraft_grug_GrugNative_nativeUpdate(JNIEnv *env, jclass clazz, jlong statePtr) {
-    struct grug_files_slice files = grug_update((void*)(intptr_t)statePtr);
+    struct grug_files_slice files = grug_update((void*)(intptr_t)statePtr, GRUG_COMPILE_SAFE);
     jclass fileInfoClass = (*env)->FindClass(env, "net/grug/minecraft/grug/FileInfo");
     jmethodID constructor = (*env)->GetMethodID(env, fileInfoClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JLjava/lang/String;)V");
     jobjectArray array = (*env)->NewObjectArray(env, files.len, fileInfoClass, NULL);

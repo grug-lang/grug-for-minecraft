@@ -69,8 +69,9 @@ void grug_report_host_argument_threw(JNIEnv* env, void* state, const char* funct
 
 // The argument conversions run before the call, so an exception between them is this adapter's
 // failure rather than the function's. The wrapper answers with the value the aborted call would
-// have had, and the runtime error makes it meaningless to the script: aborted is that value, which
-// has to be valid (an empty string rather than a null pointer) because the VM keeps using it.
+// have had, and it has to be valid (an empty string rather than a null pointer) because the VM
+// keeps using it: a file in safe mode is unwound at that call by the runtime error this reports,
+// but a file running in unsafe mode has no unwinding and carries on with that value (#334).
 #define HOST_ARG_CHECK(env, state, function, aborted) if ((*env)->ExceptionCheck(env)) { \
     grug_report_host_argument_threw(env, state, function); \
     return aborted; \
