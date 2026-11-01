@@ -98,13 +98,12 @@ class GrugDisplayTicksTest {
     }
 
     @Test
-    void onlyTheParticlesTheGamesAllHaveAreKnown() {
-        for (String name : new String[] {"reddust", "smoke", "flame"}) {
-            assertNull(GrugDisplayTicks.particleProblem(name, 0, 0, 0, 0, 0, 0), name);
-        }
+    void onlyTheParticlesAPortAsksForAreKnown() {
+        assertNull(GrugDisplayTicks.particleProblem("reddust", 0, 0, 0, 0, 0, 0));
+        assertTrue(GrugDisplayTicks.particleProblem("smoke", 0, 0, 0, 0, 0, 0).contains("reddust"));
         String problem = GrugDisplayTicks.particleProblem("heart", 0, 0, 0, 0, 0, 0);
         assertTrue(problem.contains("no particle called \"heart\""), problem);
-        assertTrue(problem.contains("flame, reddust, smoke"), problem);
+        assertTrue(problem.contains("The particles are reddust."), problem);
     }
 
     @Test
@@ -119,7 +118,7 @@ class GrugDisplayTicksTest {
         };
         for (double[] c : cases) {
             String problem =
-                    GrugDisplayTicks.particleProblem("smoke", c[0], c[1], c[2], c[3], c[4], c[5]);
+                    GrugDisplayTicks.particleProblem("reddust", c[0], c[1], c[2], c[3], c[4], c[5]);
             assertTrue(problem.contains("must be finite"), problem);
         }
     }
@@ -166,14 +165,14 @@ class GrugDisplayTicksTest {
     void aRecordedParticleCanBeReadBack() {
         GrugDisplayTicks.startRecording();
         // Recorded the way the context does, minus the loader call that needs a game.
-        GrugDisplayTicks.record("smoke", 1, 2, 3, 0, 0.1, 0);
-        GrugDisplayTicks.record("flame", 9, 9, 9, 0, 0, 0);
+        GrugDisplayTicks.record("reddust", 1, 2, 3, 0, 0.1, 0);
+        GrugDisplayTicks.record("reddust", 9, 9, 9, 0, 0, 0);
         GrugDisplayTicks.stopRecording();
-        GrugDisplayTicks.record("flame", 8, 8, 8, 0, 0, 0);
+        GrugDisplayTicks.record("reddust", 8, 8, 8, 0, 0, 0);
 
         assertEquals(2, GrugDisplayTicks.recordedCount());
         GrugDisplayTicks.Particle particle = GrugDisplayTicks.recorded(0);
-        assertEquals("smoke", particle.name);
+        assertEquals("reddust", particle.name);
         assertEquals(1, particle.x);
         assertEquals(2, particle.y);
         assertEquals(3, particle.z);

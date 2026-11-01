@@ -2327,23 +2327,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    public void addParticle(
-            Object levelObj,
-            String name,
-            double x,
-            double y,
-            double z,
-            double vx,
-            double vy,
-            double vz) {
-        // The three numbers after the position are the particle's colour for reddust, so they are
-        // zero to get the game's red, and its motion for the others.
-        World world = (World) levelObj;
-        if (name.equals("reddust")) {
-            world.spawnParticle(name, x, y, z, 0, 0, 0);
-        } else {
-            world.spawnParticle(name, x, y, z, vx, vy, vz);
-        }
+    public void addRedstoneDust(Object levelObj, double x, double y, double z) {
+        // The three numbers after the position are the particle's colour, so zero gives the game's
+        // red.
+        ((World) levelObj).spawnParticle("reddust", x, y, z, 0, 0, 0);
     }
 
     @Override

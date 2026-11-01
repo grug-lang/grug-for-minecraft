@@ -105,6 +105,11 @@ class HostFunctionsStaleIdTest {
         assertEquals(List.of(staleMessage("Test.tick_level", "level", level)), reports);
 
         reports.clear();
+        assertEquals(0.0, HostFunctions.Test_display_tick(level, 1, 2, 3, 4));
+        assertEquals(List.of(staleMessage("Test.display_tick", "level", level)), reports);
+        assertEquals(0, GrugDisplayTicks.recordedCount());
+
+        reports.clear();
         HostFunctions.Entity_spawn(live(GrugEntityType.Entity, "the entity"), level);
         assertEquals(List.of(staleMessage("Entity.spawn", "level", level)), reports);
     }

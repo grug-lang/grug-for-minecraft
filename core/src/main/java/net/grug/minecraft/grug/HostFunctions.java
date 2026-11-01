@@ -835,15 +835,20 @@ public class HostFunctions {
 
     public static double Test_display_tick(
             long levelId, double x, double y, double z, double seed) {
-        GrugDisplayTicks.startRecording();
-        try {
-            GrugCore.getAdapter()
-                    .displayTickForTest(
-                            GrugEntities.entityData.get(levelId).object, x, y, z, (long) seed);
-        } finally {
-            GrugDisplayTicks.stopRecording();
-        }
-        return GrugDisplayTicks.recordedCount();
+        return withEntity(
+                "Test.display_tick",
+                "level",
+                levelId,
+                level -> {
+                    GrugDisplayTicks.startRecording();
+                    try {
+                        GrugCore.getAdapter().displayTickForTest(level, x, y, z, (long) seed);
+                    } finally {
+                        GrugDisplayTicks.stopRecording();
+                    }
+                    return (double) GrugDisplayTicks.recordedCount();
+                },
+                0.0);
     }
 
     public static long Test_particle_position(double index) {

@@ -1798,23 +1798,10 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public void addParticle(
-            Object levelObj,
-            String name,
-            double x,
-            double y,
-            double z,
-            double vx,
-            double vy,
-            double vz) {
-        // The three numbers after the position are the particle's colour for reddust, so they are
-        // zero to get the game's red, and its motion for the others.
-        World world = (World) levelObj;
-        if (name.equals("reddust")) {
-            spawnUnlessCiRun(world, name, x, y, z, 0, 0, 0);
-        } else {
-            spawnUnlessCiRun(world, name, x, y, z, vx, vy, vz);
-        }
+    public void addRedstoneDust(Object levelObj, double x, double y, double z) {
+        // The three numbers after the position are the particle's colour, so zero gives the game's
+        // red.
+        spawnUnlessCiRun((World) levelObj, x, y, z);
     }
 
     /**
@@ -1824,17 +1811,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * drops them the same way.
      */
     @GrugGenerated("the CI run is the only run these paths are measured in, and it drops them")
-    private static void spawnUnlessCiRun(
-            World world,
-            String name,
-            double x,
-            double y,
-            double z,
-            double vx,
-            double vy,
-            double vz) {
+    private static void spawnUnlessCiRun(World world, double x, double y, double z) {
         if (!"true".equals(System.getenv("GRUG_CI"))) {
-            world.addParticle(name, x, y, z, vx, vy, vz);
+            world.addParticle("reddust", x, y, z, 0, 0, 0);
         }
     }
 
