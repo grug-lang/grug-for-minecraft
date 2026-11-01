@@ -166,6 +166,7 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
             RandomSource rand,
             ModelData data,
             @Nullable RenderType renderType) {
+        net.grug.minecraft.forge.block.entity.GrugBlockEntityRenderer.debug("chunk", blockEntity);
         // A block that declared set_frame_render draws all of its geometry from render_frame(), so
         // the chunk's mesh holds none of it. That is a block that drew what it declared, not one
         // that drew nothing, which is why no pass runs and nothing is reported.

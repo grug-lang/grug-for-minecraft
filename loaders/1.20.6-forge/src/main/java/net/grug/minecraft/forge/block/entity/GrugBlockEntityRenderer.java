@@ -62,6 +62,7 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
             MultiBufferSource buffer,
             int packedLight,
             int packedOverlay) {
+        debug("frame", blockEntity);
         BlockState state = blockEntity.getBlockState();
         if (!(state.getBlock() instanceof GrugBlock grugBlock)
                 || !grugBlock.drawsCustomGeometry()) {
@@ -86,6 +87,34 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
                 drawItem(blockEntity, item, poseStack, buffer, packedLight, yaw);
             }
         }
+    }
+
+    /** Temporary: what the frame pass sees of the block entity it draws. */
+    private static final java.util.concurrent.atomic.AtomicInteger DEBUG_LEFT =
+            new java.util.concurrent.atomic.AtomicInteger(80);
+
+    public static void debug(String pass, GrugBlockEntity blockEntity) {
+        if (DEBUG_LEFT.getAndDecrement() <= 0) return;
+        StringBuilder lists = new StringBuilder();
+        for (java.util.Map.Entry<String, java.util.List<net.grug.minecraft.grug.GrugSavedLists.Record>>
+                entry : net.grug.minecraft.grug.GrugSavedLists.snapshot(blockEntity).entrySet()) {
+            lists.append(entry.getKey()).append('=').append(entry.getValue().size()).append(' ');
+        }
+        System.out.println(
+                "FRAMEDBG "
+                        + pass
+                        + " pos="
+                        + blockEntity.getBlockPos()
+                        + " id="
+                        + System.identityHashCode(blockEntity)
+                        + " clientside="
+                        + (blockEntity.getLevel() != null && blockEntity.getLevel().isClientSide())
+                        + " numbers="
+                        + new java.util.TreeMap<>(
+                                net.grug.minecraft.grug.GrugSavedNumbers.snapshot(blockEntity))
+                        + " lists={"
+                        + lists
+                        + "}");
     }
 
     /**
