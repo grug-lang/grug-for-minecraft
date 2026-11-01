@@ -23,10 +23,13 @@ saving exist so that no saving is claimed falsely; they are not a reason to slow
 measurement runs while the next task is under way.
 
 Work is pipelined rather than strictly serial, so the runner is the bottleneck and not the
-orchestrator's attention: an implementation subagent works alone on its area, a second may start on a
-disjoint area while the first waits on CI, and research subagents run in parallel freely. A full
-`build.yml` dispatch still waits for any run in flight, and pull request runs may overlap only while
-the 20 shared job slots allow it. The orchestrator may change its own process without asking, unless
+orchestrator's attention: **five subagent sessions run at once** whenever queued work exists, each on
+a disjoint area, and the next one starts the moment another finishes or waits on CI. Five is the
+floor, not a cap, and a subagent that would edit the same files as another is the one reason to wait
+instead. The review queue is the orchestrator's own bottleneck, so it merges as work reports rather
+than letting a backlog build; when five disjoint tasks cannot be named, the handoff says which area
+is blocked and why rather than starting overlapping work. A full `build.yml` dispatch still waits for
+any run in flight, and pull request runs may overlap only while the 20 shared job slots allow it. The orchestrator may change its own process without asking, unless
 the change is drastic, such as a different model or servers the maintainer would have to rent: it
 applies the optimization, records it here or in the handoff, and reports what it changed.
 
