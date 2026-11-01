@@ -6,6 +6,7 @@ import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.ornithe.block.GrugBlocks;
 import net.grug.minecraft.ornithe.client.GrugModelRenderer;
+import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugStaticTexture;
 import net.grug.minecraft.ornithe.resource.GrugResourcePackProvider;
 import net.minecraft.client.Minecraft;
@@ -43,6 +44,8 @@ public class ClientGrugModLoader implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        GrugOverlayHost.init(GrugModLoader.overlayFiles, GrugModLoader.overlayMods);
+
         ClientResourceLoaderEvents.INIT_RESOURCE_PACK_REPOSITORY.register(
                 repo -> {
                     repo.addSource(new GrugResourcePackProvider());

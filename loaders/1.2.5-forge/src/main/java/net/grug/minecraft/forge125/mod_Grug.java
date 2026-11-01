@@ -7,6 +7,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.GrugBlocks;
 import net.grug.minecraft.forge125.block.GrugBoxRenderer;
 import net.grug.minecraft.forge125.client.GrugClientHooks;
+import net.grug.minecraft.forge125.client.GrugOverlayHost;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
@@ -47,6 +48,11 @@ public class mod_Grug extends BaseMod {
     public static final Map<String, Long> blockFiles = new TreeMap<>();
 
     public static final Map<String, Long> itemFiles = new TreeMap<>();
+
+    /** The overlay files, by clean name, and the mod each belongs to. */
+    public static final Map<String, Long> overlayFiles = new TreeMap<>();
+
+    public static final Map<String, String> overlayMods = new TreeMap<>();
 
     /**
      * The mod each registered block and item comes from, by the name the maps above key it by, so a
@@ -97,8 +103,10 @@ public class mod_Grug extends BaseMod {
 
         blockFiles.clear();
         itemFiles.clear();
+        overlayFiles.clear();
         blockMods.clear();
         itemMods.clear();
+        overlayMods.clear();
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
             GrugModsWatcher.fileIds.put(file.path(), file.fileId());
@@ -111,8 +119,16 @@ public class mod_Grug extends BaseMod {
             } else if ("Item".equals(entityType)) {
                 itemFiles.put(entry.cleanName(), file.fileId());
                 itemMods.put(entry.cleanName(), entry.mod());
+            } else if ("Overlay".equals(entityType)) {
+                overlayFiles.put(entry.cleanName(), file.fileId());
+                overlayMods.put(entry.cleanName(), entry.mod());
             }
         }
+
+        // Only the client draws screens, and 1.2.5's tick handler is client-only. The overlay's
+        // entity is created on the first eligible screen, after every item is registered; see
+        // GrugOverlayHost.
+        GrugOverlayHost.init(overlayFiles, overlayMods);
 
         LOGGER.info("Compiled " + files.length + " grug files successfully.");
 

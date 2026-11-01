@@ -78,6 +78,7 @@ Test.force_gc()
 Test.get_carried_item() Option[Item]
 Test.get_client_level() Level
 Test.get_held_count(player: Player) number
+Test.get_item_max_stack(item: Item) number
 Test.get_origin() Vec3
 Test.get_player() Player
 Test.gui_left() number

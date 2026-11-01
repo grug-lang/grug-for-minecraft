@@ -11,7 +11,9 @@
         "GameGuiMixin",
         "MinecraftMixin",
         "TitleScreenMixin",
-        "GameRendererMixin"
+        "GameRendererMixin",
+        "InventoryMenuScreenMixin",
+        "GrugFillInvoker"
     ],
     "injectors": {
         "defaultRequire": 1

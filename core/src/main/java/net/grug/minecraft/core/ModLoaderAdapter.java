@@ -144,6 +144,15 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * The largest stack the item can come in, which the overlay's give and a test that checks a
+     * full stack need. A loader with no item list answers 0.
+     */
+    @GrugGenerated("no item list: a loader that cannot enumerate items cannot be asked about one")
+    default int getItemMaxStack(Object itemObj) {
+        return 0;
+    }
+
+    /**
      * Gives one of the item to the player, the way the game gives a player an item: into their
      * inventory, and dropped at their feet if it is full. A loader that cannot give items keeps
      * this default, which reports the call rather than dropping the item silently, so a mod hears

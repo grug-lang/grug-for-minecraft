@@ -149,6 +149,20 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: the largest stack the item can come in, so a test of an overlay can tell a full
+     * stack from one item without knowing which item this version's list puts first.
+     */
+    @GrugGenerated("asks the adapter about the game's own items: a unit test has no game")
+    public static double Test_get_item_max_stack(long itemId) {
+        return withEntity(
+                "Test.get_item_max_stack",
+                "item",
+                itemId,
+                item -> (double) GrugCore.getAdapter().getItemMaxStack(item),
+                0.0);
+    }
+
+    /**
      * Test only: puts one of the item on the mouse cursor of the open container screen, which is
      * where the reference reads the stack a left click deletes.
      */

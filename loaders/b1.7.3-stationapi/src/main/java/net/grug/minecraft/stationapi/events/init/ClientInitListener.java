@@ -5,6 +5,7 @@ import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.GrugBlockModels;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.grug.minecraft.stationapi.client.GrugFrameRenderer;
+import net.grug.minecraft.stationapi.client.GrugOverlayHost;
 import net.grug.minecraft.stationapi.gui.GrugScreen;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
 import net.grug.minecraft.stationapi.gui.StationGuiHelper;
@@ -32,6 +33,7 @@ public class ClientInitListener {
 
     @EventListener
     public void registerKeyBindings(KeyBindingRegisterEvent event) {
+        GrugOverlayHost.init(InitListener.overlayFiles, InitListener.overlayMods);
         runTestsKey = new KeyBinding("key.grug.run_tests", Keyboard.KEY_R);
         event.keyBindings.add(runTestsKey);
         forceResolutionKey = new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);

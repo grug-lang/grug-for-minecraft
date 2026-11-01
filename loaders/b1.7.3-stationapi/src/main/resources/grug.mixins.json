@@ -17,7 +17,9 @@
     "MinecraftMixin",
     "ResourcePackManagerMixin",
     "TitleScreenMixin",
-    "GameRendererMixin"
+    "GameRendererMixin",
+    "HandledScreenMixin",
+    "GrugFillInvoker"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -21,6 +21,8 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.GrugBoxRenderer;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
+import net.grug.minecraft.stationapi.client.GrugOverlayHost;
+import net.grug.minecraft.stationapi.client.GrugScreenGeometry;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
@@ -29,6 +31,7 @@ import net.grug.minecraft.stationapi.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.chunk.ChunkBuilder;
 import net.minecraft.entity.Entity;
@@ -54,6 +57,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class StationApiAdapter implements ModLoaderAdapter {
@@ -818,6 +822,91 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double getHeldCount(Object playerObj) {
+        ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
+        return stack == null ? 0.0 : stack.count;
+    }
+
+    /** The items this loader lists, in item id order, built once because the list never changes. */
+    private List<Item> itemsByIdCache = null;
+
+    private List<Item> itemsById() {
+        if (itemsByIdCache == null) {
+            List<Item> items = new ArrayList<>();
+            for (int id = 0; id < Item.ITEMS.length; id++) {
+                Item item = Item.ITEMS[id];
+                if (item != null) {
+                    items.add(item);
+                }
+            }
+            itemsByIdCache = items;
+        }
+        return itemsByIdCache;
+    }
+
+    @Override
+    public int itemCount() {
+        return itemsById().size();
+    }
+
+    @Override
+    public Object itemByIndex(int index) {
+        List<Item> items = itemsById();
+        return index >= 0 && index < items.size() ? items.get(index) : null;
+    }
+
+    @Override
+    public int getItemMaxStack(Object itemObj) {
+        return ((Item) itemObj).getMaxCount();
+    }
+
+    @Override
+    public void giveItemToPlayer(Object playerObj, Object itemObj) {
+        giveItemToPlayer((PlayerEntity) playerObj, (Item) itemObj, 1);
+    }
+
+    @Override
+    public void giveItemStackToPlayer(Object playerObj, Object itemObj) {
+        Item item = (Item) itemObj;
+        giveItemToPlayer((PlayerEntity) playerObj, item, item.getMaxCount());
+    }
+
+    /**
+     * Adds the stack to the player's inventory, dropping whatever does not fit at their feet. Beta
+     * has no give command and its client is the server in singleplayer, so the inventory write is
+     * the give.
+     */
+    private void giveItemToPlayer(PlayerEntity player, Item item, int count) {
+        if (player == null) return;
+        ItemStack stack = new ItemStack(item, count);
+        if (!player.inventory.addStack(stack) && stack.count > 0) {
+            player.dropItem(stack, false);
+        }
+    }
+
+    @Override
+    public Object carriedItem() {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return null;
+        ItemStack stack = player.inventory.getCursorStack();
+        return stack == null ? null : stack.getItem();
+    }
+
+    @Override
+    public void setCarriedItem(Object itemObj) {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
+        player.inventory.setCursorStack(itemObj == null ? null : new ItemStack((Item) itemObj));
+    }
+
+    @Override
+    public void deleteCarriedItem() {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
+        player.inventory.setCursorStack(null);
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.isPowered((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
@@ -1098,6 +1187,57 @@ public class StationApiAdapter implements ModLoaderAdapter {
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         return mc.currentScreen != null;
+    }
+
+    @Override
+    public void openInventory(Object playerObj) {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        mc.setScreen(new InventoryScreen((PlayerEntity) playerObj));
+    }
+
+    @Override
+    public boolean clickScreen(double x, double y, double button) {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (mc.currentScreen == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.click_screen: There is no screen open to click.");
+            return false;
+        }
+        return GrugOverlayHost.click(mc.currentScreen, (int) x, (int) y, (int) button, false);
+    }
+
+    @Override
+    public double screenWidthForTest() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        return mc.currentScreen == null ? 0.0 : mc.currentScreen.width;
+    }
+
+    @Override
+    public double guiLeftForTest() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (mc.currentScreen instanceof GrugScreenGeometry geometry) {
+            return geometry.grug$guiLeft();
+        }
+        return 0.0;
+    }
+
+    @Override
+    public double guiWidthForTest() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (mc.currentScreen instanceof GrugScreenGeometry geometry) {
+            return geometry.grug$guiWidth();
+        }
+        return 0.0;
     }
 
     @Override

@@ -58,11 +58,6 @@
 			},
 			"deviations": [
 				{
-					"what": "The item list is drawn on 1.20.6-forge only. The 1.2.5-forge, b1.7.3-ornithe, b1.7.3-stationapi and a1.1.2_01-ornithe adapters never ask the Overlay exports, so the list is absent there, a click gives nothing, and Test.overlay_supported answers false.",
-					"why": "Only the 1.20.6 adapter registers overlay files and hooks its screen events in the first version. Alpha and Beta have no creative inventory, no give command and no singleplayer chat, so the list and its give matter most there, but neither has a screen hook yet.",
-					"tracking_issue": 863
-				},
-				{
 					"what": "The list is not drawn on a grug mod's own container screens; it is drawn on the player's inventory and on every other container screen, vanilla or another mod's, that is not a GrugScreen.",
 					"why": "The first version targets the screens the issue names, and drawing on a mod's own GrugScreen would change that mod's GUI goldens. JEI draws its list on every container screen.",
 					"tracking_issue": 872
@@ -98,8 +93,8 @@
 					"tracking_issue": 869
 				},
 				{
-					"what": "The items are ordered by registry key, with the minecraft namespace first and everything else alphabetically, where JEI orders by creative tab and then by mod name. The same item therefore sits at a different place.",
-					"why": "A stable key order is what a committed golden needs, and the host exposes no creative tabs; JEI's order is recorded as the difference.",
+					"what": "The items are ordered by registry key on 1.20.6, with the minecraft namespace first and everything else alphabetically, and by numeric item id on 1.2.5, Beta and Alpha, which have no registry key; JEI orders by creative tab and then by mod name. The same item therefore sits at a different place.",
+					"why": "A stable key order is what a committed golden needs, and the host exposes no creative tabs; the older versions only have the numeric id, so that is the order they use. JEI's order is recorded as the difference.",
 					"tracking_issue": 870
 				},
 				{
