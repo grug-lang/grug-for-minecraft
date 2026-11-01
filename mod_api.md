@@ -97,7 +97,7 @@ Test.open_inventory(player: Player)
 Test.overlay_drawn() bool
 Test.overlay_keys_supported() bool
 Test.overlay_supported() bool
-Test.press_screen_key(key: number, ctrl: bool) bool
+Test.press_screen_key(key: number, ctrl: bool, release: bool) bool
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
 Test.round_trip_nbt(block_entity: BlockEntity)

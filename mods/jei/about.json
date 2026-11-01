@@ -73,7 +73,7 @@
 					"tracking_issue": 865
 				},
 				{
-					"what": "Ctrl+O hides and shows the overlay on 1.20.6 only. On 1.2.5, Beta and Alpha it cannot be hidden. The key is fixed and cannot be rebound, and there is no config option for the overlay's visibility to persist.",
+					"what": "Ctrl+O hides and shows the overlay on 1.20.6 only. On 1.2.5, Beta and Alpha it cannot be hidden. The key is fixed and cannot be rebound, and the list is hidden entirely, where JEI keeps drawing its config button while its list is hidden.",
 					"why": "Only the 1.20.6 loader hands a screen's key presses to an overlay yet; the older loaders need their own key hooks. The host has no key binding or config API for a mod to register a rebindable key.",
 					"tracking_issue": 990
 				},

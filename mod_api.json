@@ -908,7 +908,7 @@
 			]
 		},
 		"Overlay": {
-			"description": "An overlay drawn over the player's inventory screen and over container screens, such as a chest's or a crafting table's. The game asks its exports while such a screen is open: render once per frame, click once per mouse press and key once per key press, so a mod can draw on the screen and take a click or a key away from the screen under it. A screen the overlay may draw on is the player's own inventory screen and every screen the game opens for a container, and a loader that does not draw overlays on them simply never asks the exports, which a test can tell from Test.overlay_supported (and from Test.overlay_keys_supported for key).",
+			"description": "An overlay drawn over the player's inventory screen and over container screens, such as a chest's or a crafting table's. The game asks its exports while such a screen is open: render once per frame, click once per mouse press and key once per letter or digit key press, so a mod can draw on the screen and take a click or a key away from the screen under it. A screen the overlay may draw on is the player's own inventory screen and every screen the game opens for a container, and a loader that does not draw overlays on them simply never asks the exports, which a test can tell from Test.overlay_supported (and from Test.overlay_keys_supported for key).",
 			"export_functions": [
 				{
 					"name": "render",
@@ -938,7 +938,7 @@
 				},
 				{
 					"name": "key",
-					"description": "Called by the game when a key is pressed while a screen the overlay may draw on is open, before the screen gets the key. `ctx.take()` keeps the key from reaching the screen. Return without taking it and the screen handles the key as if the overlay had not seen it. It is asked for every key press, and an overlay script without this export is declined without a report, so the screen always gets its key. A mod uses it for a hotkey, such as the one that hides JEI's list. A loader that does not hand key presses to overlays never asks it, which a test can tell from Test.overlay_keys_supported.",
+					"description": "Called by the game when a key is pressed while a screen the overlay may draw on is open, before the screen gets the key. `ctx.take()` keeps the key from reaching the screen. Return without taking it and the screen handles the key as if the overlay had not seen it. It is asked for the press of a letter or a digit key only, with a key held down asked once per press rather than once per repeat, and an overlay script without this export is declined without a report, so the screen always gets its key. A mod uses it for a hotkey, such as the one that hides JEI's list. A loader that does not hand key presses to overlays never asks it, which a test can tell from Test.overlay_keys_supported.",
 					"engine_called": true,
 					"parameters": [
 						{
@@ -1429,7 +1429,7 @@
 					}
 				},
 				"press_screen_key": {
-					"description": "Presses a key on the screen that is open, through the same path a real key press takes, and answers whether an overlay took the key. True means an overlay took it, so the screen never saw it; false means no overlay took it, even when the screen handled the key itself. The key is the number OverlayKeyContext.key answers. Only legal where Test.overlay_keys_supported is true. Test only.",
+					"description": "Presses a key on the screen that is open, through the same path a real key press takes, and answers whether an overlay took the key. True means an overlay took it, so the screen never saw it; false means no overlay took it, even when the screen handled the key itself. The key is the number OverlayKeyContext.key answers. The key is released again after the press when `release` is true; with `release` false it stays held, so pressing the same key again is a key repeat, which an overlay is not asked about (it answers false), until a press with `release` true lets go. Only legal where Test.overlay_keys_supported is true. Test only.",
 					"return_type": {
 						"name": "bool"
 					},
@@ -1442,6 +1442,12 @@
 						},
 						{
 							"name": "ctrl",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "release",
 							"type": {
 								"name": "bool"
 							}

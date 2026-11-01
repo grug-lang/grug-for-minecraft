@@ -590,13 +590,13 @@ public class HostFunctions {
      */
     @GrugGenerated(
             "asks the adapter to press a key on the game's own screen: a unit test has no game")
-    public static boolean Test_press_screen_key(double key, boolean ctrl) {
+    public static boolean Test_press_screen_key(double key, boolean ctrl, boolean release) {
         String problem = screenKeyProblem(key);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
             return false;
         }
-        return GrugCore.getAdapter().pressScreenKey((int) key, ctrl);
+        return GrugCore.getAdapter().pressScreenKey((int) key, ctrl, release);
     }
 
     /** Why Test.press_screen_key refuses this key, or null when it can drive it. */
