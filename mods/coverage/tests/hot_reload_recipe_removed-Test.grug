@@ -1,22 +1,29 @@
-# Deletes a recipe file, so the StationAPI loader's recipe-removal path runs, then restores it. A
-# deletion reaches the loaders as the file on the event-based watcher and as its parent directory on
-# the polling one, so the test waits for either to be reported.
+# Deletes a recipe file, so the StationAPI loader's recipe-removal path runs, then restores it, and
+# repeats that four times: one deletion samples the race between it and the engine's walk of the mods
+# tree only once, and losing that race aborted the whole run inside grug-rs (#675). A deletion
+# reaches the loaders as the file on the event-based watcher and as its parent directory on the
+# polling one, so the test waits for either to be reported.
 file_path: string = "coverage/data/grug/recipes/crafting/result_item.json"
 dir_path: string = "coverage/data/grug/recipes/crafting"
 file_baseline: number = -1
 dir_baseline: number = -1
+remaining: number = 4
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.not_done()
-    } else if ctx.current_tick() == 1 {
+    } else if remaining > 0 and file_baseline < 0 {
         file_baseline = Test.hot_reload_count(file_path)
         dir_baseline = Test.hot_reload_count(dir_path)
         Test.set_mod_file_state(file_path, "deleted")
         ctx.not_done()
-    } else if Test.hot_reload_count(file_path) <= file_baseline and Test.hot_reload_count(dir_path) <= dir_baseline {
+    } else if remaining > 0 and Test.hot_reload_count(file_path) <= file_baseline and Test.hot_reload_count(dir_path) <= dir_baseline {
         ctx.not_done()
-    } else {
+    } else if remaining > 0 {
+        # The deletion was reported, so put the file back, and delete it again on a later tick.
         Test.set_mod_file_state(file_path, "normal")
+        file_baseline = -1
+        remaining = remaining - 1
+        ctx.not_done()
     }
 }

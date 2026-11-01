@@ -118,13 +118,14 @@ if [ -e "${crash_reports[0]}" ]; then
 fi
 
 # The file watcher's thread panics when something else in the process closed the descriptor its
-# directory stream owns (#562). The panic is std's, raised on the watcher thread, so it is not #123.
+# directory stream owns (#562). The panic is std's, raised on the watcher thread, so it is not the
+# panic #675 tracks.
 if printf '%s\n' "$PANIC_MESSAGE" | grep -q "unexpected error during closedir"; then
   echo "==> This is the file watcher's closedir panic: other code in the process closed the descriptor"
   echo "==> its directory stream owned. #562 identified jinput's nClose(0) as a cause; a new"
   echo "==> occurrence needs investigation to identify the closer."
 else
   echo "==> The panic itself is in grug-lang/grug-rs; this repository only sees the abort."
-  echo "==> Tracked as grug-lang/grug-for-minecraft#123, whose report carries the analysis."
+  echo "==> Tracked as grug-lang/grug-for-minecraft#675, whose report carries the analysis."
 fi
 echo "==> Full log: ${LOG_FILE}"
