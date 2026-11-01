@@ -139,6 +139,23 @@ public final class GrugQuad {
         return positions[corner * 3];
     }
 
+    /**
+     * The corner a frame draw submits in the place of {@code corner}, as an index into {@link #x},
+     * {@link #u} and their neighbours.
+     *
+     * <p>A chunk pass has no use for this: the game bakes its quads and splits them into triangles
+     * itself. A frame draw submits the face to the same rasteriser a reference's box renderer does,
+     * and the vertex a quad starts at decides which of its two triangles it is split into. Where
+     * two surfaces cross at one depth, that split decides which of them a pixel on the crossing
+     * shows, so a frame draw starts a face where that box renderer starts it: a side face at the
+     * baker's second corner and an up or down face at the baker's fourth. ModelBox has done so
+     * since Alpha, so every loader draws a frame model this way.
+     */
+    public int submittedCorner(int corner) {
+        int first = side <= 1 ? 3 : 1;
+        return (first + corner) & 3;
+    }
+
     public double y(int corner) {
         return positions[corner * 3 + 1];
     }

@@ -13,7 +13,9 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Covers the bookkeeping around a block entity's render pass: recording, order and nesting. */
 class GrugRenderPassTest {
@@ -206,6 +208,26 @@ class GrugRenderPassTest {
                 GrugRenderPass.recordModel(mods.toFile(), path, 0, 0, 90, 0, 0, 0)
                         .contains("no elements"));
         assertTrue(GrugRenderPass.close().isEmpty());
+    }
+
+    @Test
+    void aFrameDrawSubmitsEachFaceFromTheCornerTheBoxRendererStartsItAt() throws Exception {
+        GrugRenderPass.open();
+        GrugRenderPass.recordModel(mods.toFile(), writePlate(), 0, 0, 0, 0, 0, 0);
+        List<GrugQuad> quads = GrugRenderPass.close().quads();
+        assertEquals(2, quads.size(), "the plate's up and north faces");
+
+        for (GrugQuad quad : quads) {
+            // A box renderer starts an up or down face at the fourth of the baker's corners and a
+            // side face at its second, so the quad is split along the other diagonal, which is what
+            // decides the pixel where two surfaces cross at one depth.
+            int first = quad.side() <= 1 ? 3 : 1;
+            assertEquals(first, quad.submittedCorner(0));
+            Set<Integer> used = new HashSet<>();
+            for (int corner = 0; corner < 4; corner++) {
+                assertTrue(used.add(quad.submittedCorner(corner)), "every corner is used once");
+            }
+        }
     }
 
     @Test
