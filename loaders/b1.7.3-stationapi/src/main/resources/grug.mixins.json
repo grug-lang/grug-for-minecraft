@@ -22,6 +22,9 @@
     "TitleScreenMixin",
     "GameRendererMixin",
     "HandledScreenMixin",
+    "SpriteContentsMixin",
+    "SpriteMixin",
+    "TextureStitcherHolderMixin",
     "GrugFillInvoker"
   ],
   "injectors": {
