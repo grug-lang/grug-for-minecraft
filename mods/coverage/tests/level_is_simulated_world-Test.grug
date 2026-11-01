@@ -1,0 +1,28 @@
+# The Level a test gets from Test.get_client_level is the world the game simulates, the same one on
+# every loader. On 1.20.6 that is the integrated server's level, whose block entities the game ticks;
+# the client's level is a mirror nothing ticks. A placed block entity that ticks on its own therefore
+# counts its ticks in the block entity this level hands back, which only holds when the test's world
+# is the simulated one. The test waits for that count rather than for a number of runner ticks. See #803.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    if ctx.current_tick() == 0 {
+        level.place_block(x, y, z, "grug:coverage_neighbor_block")
+        ctx.not_done()
+        return
+    }
+
+    block_opt: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_opt.has(), "The neighbour-coverage block should have a block entity.")
+    block: BlockEntity = block_opt.unwrap()
+
+    if block.get_saved_number("ticks") < 3 {
+        ctx.not_done()
+    } else {
+        ctx.assert(true, "The block entity the test's level hands back was ticked by the game.")
+    }
+}
