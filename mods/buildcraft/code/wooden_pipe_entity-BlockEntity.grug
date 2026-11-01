@@ -24,6 +24,13 @@
 # because PipeLogicWood.isPipeConnected refuses one unless the pipes.alwaysConnect config is true and
 # its default is false. So two wooden pipes never hand an item to each other, and handing to another
 # pipe is left to the pipe type that does connect, which this mod does not have yet.
+
+# Connection and extraction are two different questions in the reference, and the port keeps them
+# apart: Pipe.isPipeConnected decides the arm the pipe draws and the box it declares, and it accepts
+# any inventory whatever it holds, while PipeLogicWood.isInput decides the source side and only
+# matters if there is something to take. _is_connected is the first and _offers_items the second, so
+# a chest that is empty right now, or a machine whose slots are all closed, still has an arm and a
+# box face, as the reference draws it.
 level: Level = me.level()
 pos: BlockPos = me.block_pos()
 center: Vec3 = pos.center()
@@ -117,7 +124,7 @@ local _draw_travelling(ctx: RenderFrameContext, index: number) {
 # One arm of the centre-and-arms shape, if this side has a connection. The source side's arm is the
 # plain texture, which is prepareTextureFor's switch away from the base pipe texture.
 local _draw_arm(ctx: RenderContext, side: number) {
-    if not _is_inventory(side) {
+    if not _is_connected(side) {
         return
     }
     if side == _meta() {
@@ -449,29 +456,30 @@ local _input_side() number {
     return meta
 }
 
-# PipeLogicWood.switchSourceIfNeeded: a pipe with no side, or whose side no longer holds an
-# inventory, looks for another.
+# PipeLogicWood.switchSourceIfNeeded: a pipe with no side, or whose side no longer offers it
+# anything, looks for another.
 local _switch_source_if_needed() {
     meta: number = _meta()
     if meta > 5 {
         _switch_source()
         return
     }
-    if not _is_inventory(meta) {
+    if not _offers_items(meta) {
         _switch_source()
     }
 }
 
 # PipeLogicWood.switchSource, which a fresh pipe and the wrench share: the search starts at the side
 # after the current one and wraps round, so the current side is the last one tried, and with no
-# inventory around the pipe has no side.
+# inventory around the pipe has no side. It looks for a side the pipe can take from rather than for a
+# connected one, so an inventory that holds nothing to take does not become the source.
 local _switch_source() {
     meta: number = _meta()
     last: number = meta + 6
     i: number = meta + 1
     while i <= last {
         side: number = Math.remainder(i, 6)
-        if _is_inventory(side) {
+        if _offers_items(side) {
             _set_meta(side)
             return
         }
@@ -496,7 +504,44 @@ local _set_meta(meta: number) {
 # The block script's shape() has a copy of this and of the helpers below, because a block and its
 # block entity are separate grug entities and cannot share one. Keep the two in step: the shape a
 # player is kept out of has to be the shape the pipe draws.
-local _is_inventory(side: number) bool {
+# This is Pipe.isPipeConnected's transport half, PipeTransportItems.isPipeConnected, which accepts
+# any `io`, any IPipeEntry and any TileGenericPipe: what the neighbour is, not what it holds right
+# now. So a chest that is empty, a machine whose slots are all closed, and 2.2.14's redstone engine,
+# a TileEngine with one slot, all give the pipe an arm and a box face. The reference's other half,
+# PipeLogicWood.isPipeConnected, is the wooden pipe refusal below, and its IMachine/manageSolids
+# branch has no model here: no ported block is such a machine.
+local _is_connected(side: number) bool {
+    nx: number = _neighbor_x(side)
+    ny: number = _neighbor_y(side)
+    nz: number = _neighbor_z(side)
+    if _is_pipe(nx, ny, nz) {
+        return false
+    }
+
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+    return _is_inventory(neighbor_opt.unwrap(), _reverse(side))
+}
+
+# Whether a neighbour is an inventory at all, which is the `io` branch of
+# PipeTransportItems.isPipeConnected. A machine that answers for itself is one too, whatever its
+# slots allow and whatever it holds, and asking takes nothing. An inventory with no slots at all is
+# not one in the port's model, which is why the redstone engine declares the slot the reference
+# gives it.
+local _is_inventory(neighbor: BlockEntity, from_side: number) bool {
+    if neighbor.ask_extract_item(from_side) >= 0 {
+        return true
+    }
+    return neighbor.get_inventory_size() > 0
+}
+
+# Whether the inventory on this side offers the pipe something to take, which is
+# PipeItemsWood.doWork's own check of the source side: PipeLogicWood.isInput accepts any `io`, but
+# the pipe can only extract from a slot the inventory lets it have. A machine that answers for
+# itself is a source whatever it holds right now, as every inventory is in the reference.
+local _offers_items(side: number) bool {
     nx: number = _neighbor_x(side)
     ny: number = _neighbor_y(side)
     nz: number = _neighbor_z(side)
@@ -522,8 +567,8 @@ local _reverse(side: number) number {
 
 # Whether this inventory offers a pipe anything. The slot after the last inventory slot is the
 # crafting result, which is not an inventory slot but is what a machine like the autocrafting table
-# offers, and an inventory with no slots at all offers nothing, which is what keeps the redstone
-# engine out of the pipe's way.
+# offers. An inventory whose slots are all closed, or which has none, offers nothing: it is still
+# connected, because that is what the block is, but it cannot be the pipe's source.
 local _has_extractable_slot(neighbor: BlockEntity, from_side: number) bool {
     # A machine that answers for itself is a source whatever it holds right now, as every inventory
     # is in the reference. Asking takes nothing.

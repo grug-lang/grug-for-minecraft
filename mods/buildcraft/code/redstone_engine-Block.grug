@@ -7,6 +7,12 @@ export init(ctx: BlockInitContext) {
     ctx.set_block_entity(e"redstone_engine_entity")
     ctx.set_custom_render()
     ctx.set_flat_lighting()
+    # TileEngine is an IInventory with one slot, the itemInInventory field, which is why a wooden
+    # pipe beside it draws an arm and declares a box face there, as 2.2.14 does: PipeTransportItems
+    # connects to any `io` without asking what it holds. The port keeps the slot so the engine is an
+    # inventory for that rule; the block entity closes it to other blocks, which is a deviation
+    # recorded in about.json.
+    ctx.set_inventory_size(1)
 }
 
 # BlockEngine.b: a right click with the wrench turns the engine to the next side with a power

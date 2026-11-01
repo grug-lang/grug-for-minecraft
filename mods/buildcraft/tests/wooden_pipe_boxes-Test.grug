@@ -8,8 +8,11 @@
 # pipe used while mod_api.json had no shape.
 # Every box and ray is asked of the game rather than of the script, in block-local coordinates from
 # the block's minimum corner, so the reference pipe answers the same questions through the same code.
-# The fixture is a straight run, a corner and then a pipe with no neighbour at all, all three from
-# the one pipe so every answer comes from the same world state a player would see.
+# The fixture is a straight run, a corner, a pipe with no neighbour, two wooden pipes side by side
+# and a pipe beside a redstone engine, all from the one pipe so every answer comes from the same
+# world state a player would see. The last two pin the two halves of Pipe.isPipeConnected:
+# PipeLogicWood refuses another wooden pipe, and PipeTransportItems accepts any inventory, the
+# engine included, without asking what it holds.
 origin_x: number = 0
 origin_y: number = 0
 origin_z: number = 0
@@ -42,6 +45,19 @@ export tick(ctx: TestTickContext) {
     level.place_block(origin_x + 1, origin_y, origin_z, "minecraft:air")
     level.place_block(origin_x, origin_y, origin_z - 1, "minecraft:air")
     _check_alone(ctx, level, origin_x, origin_y, origin_z)
+
+    # Two wooden pipes side by side: PipeLogicWood.isPipeConnected refuses another wooden pipe
+    # unless the pipes.alwaysConnect config is on, and its default is off, so neither draws an arm
+    # toward the other and neither has a box face there.
+    _place_pipe(level, origin_x + 1, origin_y, origin_z)
+    _check_two_pipes(ctx, level, origin_x, origin_y, origin_z)
+
+    # A redstone engine beside the pipe: 2.2.14's TileEngine is an IInventory with one slot, and
+    # PipeTransportItems.isPipeConnected accepts any IInventory without asking what it holds, so the
+    # arm and the box face are there even though the engine has nothing to give.
+    level.place_block(origin_x + 1, origin_y, origin_z, "minecraft:air")
+    _place_engine(level, origin_x + 1, origin_y, origin_z)
+    _check_engine(ctx, level, origin_x, origin_y, origin_z)
 }
 
 # The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
@@ -59,6 +75,19 @@ local _place_pipe(level: Level, x: number, y: number, z: number) {
     Test.use_block(level, x, y - 1, z)
     Test.clear_held_item(player)
     level.place_block(x, y - 1, z, "minecraft:air")
+}
+
+# The reference's engine is reachable by the name its item gives it, tile.engineWood, which the
+# adapter's reference lookup answers, and it is placed the way the other reference fixtures place a
+# BuildCraft block. It is not powered: PipeTransportItems connects to an IInventory whatever it holds
+# and whichever stage the engine's piston is in. Its block entity has to be there, because that is
+# the tile the reference's connection test asks.
+local _place_engine(level: Level, x: number, y: number, z: number) {
+    if Test.is_reference() {
+        level.place_block(x, y, z, "buildcraft:engineWood")
+        return
+    }
+    level.place_block(x, y, z, "grug:redstone_engine")
 }
 
 # A straight run along x: the centre and the two arms collide, the space above and below the pipe
@@ -116,4 +145,40 @@ local _check_alone(ctx: TestTickContext, level: Level, x: number, y: number, z: 
     ctx.assert(not Test.block_selection(level, x, y, z, 0.1, 0.5, 0.5), "A pipe with no neighbour should not be selected at a side.")
     ctx.assert(Test.block_ray_trace(level, x, y, z, 0.5, 0.01, 0.5, 0.5, 0.99, 0.5), "A ray through a lone pipe's centre should hit it.")
     ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a lone pipe's empty corner should go past it.")
+}
+
+# Two wooden pipes side by side: the pair refuse each other, so the pipe that was already there has
+# no east arm and the one placed beside it has no west arm. The pair's own centres still collide,
+# which is what shows the assertion is about the connection and not about the pipes failing to
+# place. The refusal is the one half of the rule that gets narrower than a full cube's neighbour.
+local _check_two_pipes(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    ctx.assert(Test.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "The first of two wooden pipes should still collide at its centre.")
+    ctx.assert(not Test.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A wooden pipe beside another wooden pipe should have no arm toward it.")
+    ctx.assert(Test.block_collision(level, x + 1, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "The second of two wooden pipes should collide at its centre.")
+    ctx.assert(not Test.block_collision(level, x + 1, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "The second wooden pipe should have no arm back toward the first.")
+
+    ctx.assert(not Test.block_selection(level, x, y, z, 0.95, 0.5, 0.5), "A wooden pipe beside another wooden pipe should not be selected toward it.")
+    ctx.assert(not Test.block_selection(level, x + 1, y, z, 0.05, 0.5, 0.5), "The second wooden pipe should not be selected back toward the first.")
+
+    ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.9, 0.01, 0.5, 0.9, 0.99, 0.5), "A ray through the space between two wooden pipes should go past the first.")
+    ctx.assert(not Test.block_ray_trace(level, x + 1, y, z, 0.1, 0.01, 0.5, 0.1, 0.99, 0.5), "A ray through the space between two wooden pipes should go past the second.")
+}
+
+# A redstone engine beside the pipe: the engine is an inventory in 2.2.14, so the pipe connects to
+# it, and that is the engine's only role here: it is not the source side and it is not a
+# destination, because the port's engine slot is closed to other blocks (see about.json). The arm,
+# its selection and a click through it are what the reference gives, so all three are asserted.
+local _check_engine(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+    engine_opt: Option[BlockEntity] = level.get_block_entity(x + 1, y, z)
+    ctx.assert(engine_opt.has(), "The redstone engine should have a block entity.")
+    ctx.assert(engine_opt.unwrap().get_inventory_size() == 1, "The redstone engine should be an inventory with one slot, as 2.2.14's TileEngine is.")
+
+    ctx.assert(Test.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A pipe beside a redstone engine should have an arm toward it.")
+    ctx.assert(not Test.block_collision(level, x, y, z, 0.3, 0.0, 0.3, 0.7, 0.2, 0.7), "The space under a pipe beside an engine should stay empty.")
+
+    ctx.assert(Test.block_selection(level, x, y, z, 0.95, 0.5, 0.5), "A pipe beside a redstone engine should be selected toward it.")
+    ctx.assert(not Test.block_selection(level, x, y, z, 0.5, 0.1, 0.5), "A pipe beside a redstone engine should not be selected under it.")
+
+    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.9, 0.01, 0.5, 0.9, 0.99, 0.5), "A ray through the arm toward a redstone engine should hit the pipe.")
+    ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.1, 0.01, 0.1, 0.1, 0.99, 0.1), "A ray through a pipe's empty corner should still go past it beside an engine.")
 }

@@ -34,10 +34,9 @@ export on_break(world: Level, x: number, y: number, z: number) {
 # bounds it just set are never read and the union is what entities actually collide with. c() is also
 # the box the outline and the ray trace use, so the port declares that one union once, as the
 # collision box, and its selection box defaults to it. The box starts at the centre's own corners and
-# reaches
-# this block's face on every side the pipe connects to, which is the same connection the
-# reference's pipe render draws an arm for. The arms follow the neighbours, which is why the
-# shape is asked for again on every query rather than saved here.
+# reaches this block's face on every side the pipe connects to, which is the same connection the
+# reference's pipe render draws an arm for. The arms follow the neighbours, which is why the shape is
+# asked for again on every query rather than saved here.
 export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
     min_x: number = 0.25
     min_y: number = 0.25
@@ -46,22 +45,22 @@ export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
     max_y: number = 0.75
     max_z: number = 0.75
 
-    if _is_inventory(world, x, y, z, 4) {
+    if _is_connected(world, x, y, z, 4) {
         min_x = 0.0
     }
-    if _is_inventory(world, x, y, z, 5) {
+    if _is_connected(world, x, y, z, 5) {
         max_x = 1.0
     }
-    if _is_inventory(world, x, y, z, 0) {
+    if _is_connected(world, x, y, z, 0) {
         min_y = 0.0
     }
-    if _is_inventory(world, x, y, z, 1) {
+    if _is_connected(world, x, y, z, 1) {
         max_y = 1.0
     }
-    if _is_inventory(world, x, y, z, 2) {
+    if _is_connected(world, x, y, z, 2) {
         min_z = 0.0
     }
-    if _is_inventory(world, x, y, z, 3) {
+    if _is_connected(world, x, y, z, 3) {
         max_z = 1.0
     }
 
@@ -114,11 +113,13 @@ local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: Bloc
     }
 }
 
-# The same connection test as the block entity's _is_inventory, which its render uses to decide
+# The same connection test as the block entity's _is_connected, which its render uses to decide
 # where to draw an arm. A block and its block entity are separate grug entities and cannot share a
 # helper, so this copy has to stay in step with that one: the shape a player is kept out of has to
-# be the shape the pipe draws.
-local _is_inventory(world: Level, x: number, y: number, z: number, side: number) bool {
+# be the shape the pipe draws. It accepts any inventory, whatever its slots allow and whatever it
+# holds right now, which is PipeTransportItems.isPipeConnected's `io` branch: a machine whose slots
+# are all closed, or a chest that is empty, still has a box face.
+local _is_connected(world: Level, x: number, y: number, z: number, side: number) bool {
     nx: number = _neighbor_x(x, side)
     ny: number = _neighbor_y(y, side)
     nz: number = _neighbor_z(z, side)
@@ -130,7 +131,17 @@ local _is_inventory(world: Level, x: number, y: number, z: number, side: number)
     if not neighbor_opt.has() {
         return false
     }
-    return _has_extractable_slot(neighbor_opt.unwrap(), _reverse(side))
+    return _is_inventory(neighbor_opt.unwrap(), _reverse(side))
+}
+
+# Whether a neighbour is an inventory at all, as the block entity's copy of this says. A machine
+# that answers for itself is one too, whatever its slots allow and whatever it holds, and asking
+# takes nothing.
+local _is_inventory(neighbor: BlockEntity, from_side: number) bool {
+    if neighbor.ask_extract_item(from_side) >= 0 {
+        return true
+    }
+    return neighbor.get_inventory_size() > 0
 }
 
 # The side of a neighbour that faces the pipe, given the side of the pipe the neighbour is on. The
@@ -140,29 +151,6 @@ local _reverse(side: number) number {
         return side + 1
     }
     return side - 1
-}
-
-# Whether this inventory offers a pipe anything, as the block entity's copy of this says. A machine
-# that answers for itself is a source whatever it holds right now, and the slot after the last
-# inventory slot is the crafting result a machine like the autocrafting table offers.
-local _has_extractable_slot(neighbor: BlockEntity, from_side: number) bool {
-    if neighbor.ask_extract_item(from_side) >= 0 {
-        return true
-    }
-
-    size: number = neighbor.get_inventory_size()
-    if size <= 0 {
-        return false
-    }
-
-    slot: number = 0
-    while slot <= size {
-        if neighbor.is_slot_extractable(slot) {
-            return true
-        }
-        slot = slot + 1
-    }
-    return false
 }
 
 local _is_pipe(world: Level, nx: number, ny: number, nz: number) bool {

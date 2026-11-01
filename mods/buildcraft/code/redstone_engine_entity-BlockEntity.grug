@@ -30,6 +30,14 @@ progress_part: number = 0
 export init(ctx: BlockEntityInitContext) {
     ctx.set_power_receiver(1000)
     me.extract_energy(1000)
+    # The reference's engine slot is a plain IInventory slot a pipe can fill and empty. The port
+    # closes it to other blocks, for the reason about.json records: a pipe's source side is chosen
+    # every tick here rather than at placement, and its destination pick is random rather than
+    # deterministic, so an open engine slot beside a pipe would take the source away from a real
+    # chest and turn a route between an engine and a chest into a coin toss. The slot stays so the
+    # engine is an inventory to the pipe's connection rule, which is what draws the arm.
+    ctx.set_extractable_slots(0, -1)
+    ctx.set_insertable_slots(0, -1)
 }
 
 # The engine as RenderEngine draws it, turned to face the way the engine does, with the trunk in its
