@@ -42,9 +42,24 @@ extern jint jni_version;
 extern jclass host_functions_class;
 
 #define FILL_ENV(env) (*jvm)->GetEnv(jvm, (void**)&env, jni_version)
+// For the calls this adapter makes itself: an exception there is its own bug rather than a script's,
+// and raising a runtime error from inside the runtime error reporting that is already running could
+// recurse, so it describes the stack and carries on.
 #define CHECK(env) if ((*env)->ExceptionCheck(env)) { \
     (*env)->ExceptionDescribe(env); \
     (*env)->ExceptionClear(env); \
+}
+
+// The exception check of a generated host function wrapper (see generate.py). A host function that
+// throws a Java exception is a defect in this side rather than in the script, and grug-rs cannot
+// unwind the exception through its Rust frames, so the wrapper hands it back to Java, which turns it
+// into a grug runtime error: the script stops at the call that made it and the test that made it
+// fails by name. Clearing it and carrying on with a zero value, which is what the wrapper did before
+// #890, let the test report PASS and left the log with a stack that named no test.
+void grug_report_host_function_threw(JNIEnv* env, void* state);
+
+#define HOST_CHECK(env, state) if ((*env)->ExceptionCheck(env)) { \
+    grug_report_host_function_threw(env, state); \
 }
 
 extern struct grug_error* grug_register_host_fn(void* state, const char* fn_name, host_fn func);
