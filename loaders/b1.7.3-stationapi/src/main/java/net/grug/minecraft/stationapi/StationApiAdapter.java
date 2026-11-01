@@ -841,6 +841,16 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void clearInventoryOf(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        Inventory inventory = player.inventory;
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            inventory.setStack(slot, null);
+        }
+        player.inventory.selectedSlot = 0;
+    }
+
+    @Override
     public double getHeldCount(Object playerObj) {
         ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
         return stack == null ? 0.0 : stack.count;

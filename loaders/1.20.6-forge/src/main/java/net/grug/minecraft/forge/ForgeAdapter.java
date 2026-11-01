@@ -1004,6 +1004,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void clearInventoryOf(Object playerObj) {
+        net.minecraft.world.entity.player.Inventory inventory =
+                serverSideOf((Player) playerObj).getInventory();
+        inventory.clearContent();
+        inventory.selected = 0;
+    }
+
+    @Override
     public double getHeldCount(Object playerObj) {
         return serverSideOf((Player) playerObj).getMainHandItem().getCount();
     }

@@ -1990,6 +1990,11 @@ class GrugTestRunnerTest {
         }
 
         @Override
+        public void resetPlayerInventory() {
+            log.add("reset");
+        }
+
+        @Override
         public void build(int radius) {
             log.add("build");
         }
@@ -2577,7 +2582,8 @@ class GrugTestRunnerTest {
         files.put("mymod/code/a-Test.grug", 1L);
         files.put("mymod/code/b-Test.grug", 2L);
         List<String> log = runWithSweepLog(new FakeOps(), files);
-        assertEquals(List.of("snap", "build", "sweep", "snap", "build", "sweep"), log);
+        assertEquals(
+                List.of("snap", "reset", "build", "sweep", "snap", "reset", "build", "sweep"), log);
     }
 
     @Test
@@ -2585,7 +2591,7 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
         List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
-        assertEquals(List.of("snap", "build", "sweep"), log);
+        assertEquals(List.of("snap", "reset", "build", "sweep"), log);
     }
 
     @Test
@@ -2593,7 +2599,7 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.completed = false;
         List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
-        assertEquals(List.of("snap", "build", "sweep"), log);
+        assertEquals(List.of("snap", "reset", "build", "sweep"), log);
     }
 
     @Test
@@ -2602,7 +2608,7 @@ class GrugTestRunnerTest {
         int[] calls = {0};
         ops.onCall = () -> GrugTestState.testNotDone = ++calls[0] < 3;
         List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
-        assertEquals(List.of("snap", "build", "sweep"), log);
+        assertEquals(List.of("snap", "reset", "build", "sweep"), log);
     }
 
     @Test
