@@ -263,7 +263,8 @@ run timeout at the line that reports the launch, which is `Launched` from portab
   A pull request's selection is chosen by `.github/scripts/affected-mods.py` from its diff (its CI log
   says why): a change confined to some mods' `grug` namespace runs those mods, the mods that name
   their files, and `coverage`; anything else, or a doubt, runs every mod. A dispatch (`mods` empty)
-  and every push to `main` run every mod, which is how to force them.
+  and every push to `main` run every mod, which is how to force them. A mod whose `loaders` set
+  leaves out the loader runs none of its tests there, whichever selection chose it.
 - The suite fails fast at the first `[GRUG CI] FAIL`. A grug file that fails to compile is reported
   the same way, but check grug syntax before pushing: `~/agent-workspaces/grug-check.sh <worktree>`
   compiles every `.grug` file with `grugc`.
@@ -327,7 +328,7 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
 | `mod_api.md` | generated names-only overview of `mod_api.json`: read it before writing grug or adding a host function, never edit it by hand |
 | `mods/<mod>/code/*.grug` | the mod: `X-Block.grug`, `X_entity-BlockEntity.grug`, `X-Item.grug` |
 | `mods/<mod>/tests/*.grug` | tests: `X-Test.grug`; one outside `tests/` is an err that fails the run |
-| `mods/<mod>/about.json` | metadata, including the recreation fields on the first `derived_from` entry |
+| `mods/<mod>/about.json` | metadata, including the recreation fields on the first `derived_from` entry, and the `loaders` set a port that supports only some loaders declares (absent means every loader) |
 | `mods/<mod>/screenshots/` | golden references: a directory at any depth, `screenshots/` itself included, holds either only subdirectories or only PNGs named after the loader that produced them (`GrugScreenshots.validateReferenceTrees`) |
 | `loaders/<loader>/` | one per Minecraft version and mod loader |
 | `test-saves/<name>.zip`, `loaders/<loader>/test-save.txt` | the world a loader's tests start from |

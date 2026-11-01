@@ -59,6 +59,26 @@ def load_recreation(about_path: Path) -> dict | None:
     return entry
 
 
+def declared_loaders(about: dict) -> set | None:
+    """The loaders a mod's about.json declares, or None when it declares none.
+
+    None means every loader, which is also what a declaration that cannot be read answers, since a
+    selection driven by it has to run more rather than fewer, and about_schema.py is what rejects a
+    malformed field on a committed file. The top-level ``loaders`` key is the mod's own set; a mod
+    that runs everywhere leaves it out rather than listing every directory.
+    """
+    loaders = about.get("loaders")
+    if not isinstance(loaders, list):
+        return None
+    names = {loader for loader in loaders if isinstance(loader, str)}
+    return names or None
+
+
+def loaders_of(about_path: Path) -> set | None:
+    """The loaders the mod at about_path declares, or None when it declares none."""
+    return declared_loaders(json.loads(about_path.read_text(encoding="utf-8")))
+
+
 def artifacts_of(entry: dict) -> list:
     """The entry's artifacts, one per file the reference ships."""
     artifacts = entry.get("artifacts")
@@ -106,8 +126,13 @@ def download_artifact(artifact: dict, destination: Path) -> None:
         shutil.copyfileobj(response, out)
 
 
-def install_plan(entry: dict) -> str:
-    """A human-readable description of what installing and running the reference involves."""
+def install_plan(entry: dict, loaders: set | None = None) -> str:
+    """A human-readable description of what installing and running the reference involves.
+
+    ``loaders`` is the mod's declared set, or None when it declares none: the plan says which
+    loaders the port claims, since that is what the tests are selected by and what the reference's
+    own runtime has to be one of.
+    """
     runtime = entry["runtime"]
     install = entry["install"]
     operation = INSTALL_SUMMARIES[install["type"]]
@@ -123,6 +148,8 @@ def install_plan(entry: dict) -> str:
         reference + ".",
         f"Install ({install['type']}): {operation}",
     ]
+    if loaders is not None:
+        lines.append(f"Declared loaders: {', '.join(sorted(loaders))}.")
     for field in ("files", "libs", "jvm_args"):
         for value in install.get(field, []):
             lines.append(f"  {field}: {value}")
@@ -335,7 +362,7 @@ def main() -> int:
         return 1
 
     if args.command == "plan":
-        print(install_plan(entry))
+        print(install_plan(entry, loaders_of(args.path)))
         return 0
 
     if args.command == "stage":

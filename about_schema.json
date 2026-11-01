@@ -21,6 +21,16 @@
         "game_version": {
             "type": "string"
         },
+        "loaders": {
+            "description": "The loader directories this mod supports, named as run-loader.sh takes them, for example b1.7.3-stationapi. A loader that is not in the set never runs this mod's tests, because a test there would assert that loader's version of the mod's blocks and its goldens. Absent means every loader, so a mod that runs everywhere says nothing at all, and an empty list is refused rather than read as supporting none. This selects runs and never waives one: the coverage gate is per loader and runs every loader whatever the sets say.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+                "type": "string",
+                "minLength": 1
+            }
+        },
         "authors": {
             "type": "array",
             "minItems": 1,

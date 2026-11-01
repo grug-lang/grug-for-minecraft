@@ -11,6 +11,7 @@ may carry the recreation fields.
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -61,7 +62,9 @@ def base_mod() -> dict:
     }
 
 
-class RecreationSchemaTest(unittest.TestCase):
+class SchemaCase(unittest.TestCase):
+    """The schema, plus the rules about_schema.py enforces over the parsed file."""
+
     @classmethod
     def setUpClass(cls):
         schema = json.loads((ROOT / "about_schema.json").read_text(encoding="utf-8"))
@@ -69,10 +72,13 @@ class RecreationSchemaTest(unittest.TestCase):
         validator_cls.check_schema(schema)
         cls.validator = validator_cls(schema)
 
-    def errors(self, data: dict) -> list:
+    def errors(self, data: dict, loaders_dir=None) -> list:
         messages = [error.message for error in self.validator.iter_errors(data)]
         messages += [
             message for _, message in about_schema.recreation_errors(data.get("derived_from"))
+        ]
+        messages += [
+            message for _, message in about_schema.loaders_errors(data, loaders_dir=loaders_dir)
         ]
         return messages
 
@@ -86,6 +92,8 @@ class RecreationSchemaTest(unittest.TestCase):
             f"expected {fragment!r} in {errors!r}",
         )
 
+
+class RecreationSchemaTest(SchemaCase):
     def mod_with(self, entry: dict) -> dict:
         mod = base_mod()
         mod["derived_from"] = [entry]
@@ -249,6 +257,78 @@ class RecreationSchemaTest(unittest.TestCase):
         entry = base_entry()
         entry["bogus"] = 1
         self.assertInvalid(self.mod_with(entry), "Additional properties are not allowed")
+
+
+class LoadersTest(SchemaCase):
+    """The top-level loader set: which loaders a mod's tests run on (#910)."""
+
+    def test_a_declared_set_is_valid(self):
+        # The reference's own loader has to be in it, but the other loaders are the port's choice.
+        mod = base_mod()
+        mod["loaders"] = ["b1.7.3-stationapi", "1.20.6-forge"]
+        self.assertValid(mod)
+
+    def test_an_absent_set_is_valid_and_means_every_loader(self):
+        mod = base_mod()
+        mod.pop("loaders", None)
+        self.assertValid(mod)
+
+    def test_a_mod_without_a_recreation_entry_may_declare_a_set(self):
+        # coverage and examplemod recreate nothing, and a port that runs on a subset of the loaders
+        # says so the same way whether or not it has a reference.
+        mod = base_mod()
+        del mod["derived_from"]
+        mod["loaders"] = ["a1.1.2_01-ornithe", "b1.7.3-ornithe"]
+        self.assertValid(mod)
+
+    def test_a_declared_loader_must_be_a_loader_directory(self):
+        mod = base_mod()
+        mod["loaders"] = ["b1.7.3-stationapi", "no-such-loader"]
+        self.assertInvalid(mod, "is not a directory under loaders/")
+
+    def test_the_error_names_the_entry_that_is_wrong(self):
+        mod = base_mod()
+        mod["loaders"] = ["b1.7.3-stationapi", "no-such-loader"]
+        paths = [
+            path
+            for path, message in about_schema.loaders_errors(mod)
+            if "no-such-loader" in message
+        ]
+        self.assertEqual(["/loaders/1"], paths)
+
+    def test_a_declared_loader_needs_a_minecraft_version(self):
+        # Every directory under loaders/ is in LOADER_MINECRAFT today; a loader added without its
+        # table row is what this refuses, so the case is driven with a directory of its own.
+        with tempfile.TemporaryDirectory() as loaders_dir:
+            Path(loaders_dir, "fake-loader").mkdir()
+            mod = base_mod()
+            mod["loaders"] = ["b1.7.3-stationapi", "fake-loader"]
+            errors = self.errors(mod, loaders_dir=Path(loaders_dir))
+        self.assertTrue(
+            any("has no Minecraft version in LOADER_MINECRAFT" in error for error in errors), errors
+        )
+
+    def test_the_runtime_loader_must_be_in_the_declared_set(self):
+        mod = base_mod()
+        mod["loaders"] = ["1.20.6-forge"]
+        self.assertInvalid(mod, "is not in the declared set")
+
+    def test_an_empty_set_is_rejected(self):
+        # An empty list would read as supporting no loader, which is what absence already says the
+        # opposite of, so there is one way to say each.
+        mod = base_mod()
+        mod["loaders"] = []
+        self.assertInvalid(mod, "should be non-empty")
+
+    def test_a_repeated_loader_is_rejected(self):
+        mod = base_mod()
+        mod["loaders"] = ["b1.7.3-stationapi", "b1.7.3-stationapi"]
+        self.assertInvalid(mod, "non-unique")
+
+    def test_a_non_string_loader_is_rejected(self):
+        mod = base_mod()
+        mod["loaders"] = ["b1.7.3-stationapi", 1]
+        self.assertInvalid(mod, "is not of type 'string'")
 
 
 if __name__ == "__main__":

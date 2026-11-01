@@ -208,15 +208,15 @@ fi
 # directory, so its count comes from there rather than from every mod in the repository.
 #
 # GRUG_CI_MODS, a comma separated list of mod directory names, runs only those mods' tests (every
-# mod is still loaded). Unset, empty or blank runs all of them. The runner in core reads the same
-# variable, and the count has to agree with it, so the names are checked here first: a name that is
-# not a mod directory, or an empty entry, stops the script before the game starts instead of passing
+# mod is still loaded). Unset, empty or blank starts from every mod. The runner in core reads the
+# same variable, and the count has to agree with it, so the names are checked here first: a name that
+# is not a mod directory, or an empty entry, stops the script before the game starts instead of passing
 # a run that quietly ran less than it was asked to.
 MODS_DIR="${GRUG_MODS_DIR:-${REPO_ROOT}/mods}"
 GRUG_CI_MODS="${GRUG_CI_MODS:-}"
+candidate_mods=()
+selected_mods=" "
 if [ -n "${GRUG_CI_MODS//[[:space:]]/}" ]; then
-  EXPECTED_TESTS=0
-  selected_mods=" "
   # The comma appended here keeps read from dropping a last empty entry, such as the one in "a,".
   IFS=, read -r -a requested_mods <<< "${GRUG_CI_MODS},"
   for mod in "${requested_mods[@]}"; do
@@ -239,11 +239,54 @@ if [ -n "${GRUG_CI_MODS//[[:space:]]/}" ]; then
     # A name repeated in the list counts once, as the runner treats it.
     case "$selected_mods" in *" ${mod} "*) continue ;; esac
     selected_mods="${selected_mods}${mod} "
-    EXPECTED_TESTS=$((EXPECTED_TESTS + $(find "${MODS_DIR}/${mod}" -name "*-Test.grug" | wc -l | tr -d ' ')))
+    candidate_mods+=("$mod")
   done
-  echo "==> GRUG_CI_MODS selects the tests of:${selected_mods}(${EXPECTED_TESTS} tests)"
 else
-  EXPECTED_TESTS=$(find "$MODS_DIR" -name "*-Test.grug" | wc -l | tr -d ' ')
+  for mod_dir in "${MODS_DIR}"/*/; do
+    [ -d "$mod_dir" ] || continue
+    candidate_mods+=("$(basename "$mod_dir")")
+  done
+fi
+
+# A mod's about.json may declare the loaders it supports (#910). A loader the mod does not declare
+# never runs its tests here: its blocks, its goldens and its rendering are that loader's own, and a
+# golden is named after the loader that produced it. A mod that declares nothing runs everywhere, and
+# so does one whose about.json cannot be read, or whose answer this cannot compute, which is the
+# direction that runs more rather than less. The rule lives in .github/scripts/mod-loaders.py, so the
+# shell consumes one answer rather than repeating it.
+PYTHON=python3
+[ "$WINDOWS" = true ] && PYTHON=python
+running_mods=("${candidate_mods[@]}")
+if [ "${#candidate_mods[@]}" -gt 0 ]; then
+  if supported=$("$PYTHON" "${REPO_ROOT}/.github/scripts/mod-loaders.py" "$LOADER" \
+    --mods-dir "$MODS_DIR" -- "${candidate_mods[@]}"); then
+    if [ -n "$supported" ]; then
+      running_mods=()
+      IFS=, read -r -a running_mods <<< "$supported"
+    else
+      echo "==> No mod that was asked for declares $LOADER, so every one of them runs," \
+        "which runs more than was asked for"
+    fi
+  else
+    echo "==> mod-loaders.py could not be run, so every mod runs on $LOADER"
+  fi
+fi
+EXPECTED_TESTS=0
+for mod in "${running_mods[@]}"; do
+  EXPECTED_TESTS=$((EXPECTED_TESTS + $(find "${MODS_DIR}/${mod}" -name "*-Test.grug" | wc -l | tr -d ' ')))
+done
+if [ "${#running_mods[@]}" -ne "${#candidate_mods[@]}" ]; then
+  # The runner has to be told the same list the count is for, and an empty GRUG_CI_MODS would mean
+  # every mod, the opposite of what the declarations left.
+  GRUG_CI_MODS=$(IFS=,; echo "${running_mods[*]}")
+  export GRUG_CI_MODS
+  selected_mods=" "
+  for mod in "${running_mods[@]}"; do
+    selected_mods="${selected_mods}${mod} "
+  done
+fi
+if [ -n "${GRUG_CI_MODS//[[:space:]]/}" ]; then
+  echo "==> GRUG_CI_MODS selects the tests of:${selected_mods}(${EXPECTED_TESTS} tests)"
 fi
 
 # GRUG_CI_COVERAGE_CARRY_OVER, a comma separated list of coverage test paths, carries over the
@@ -324,10 +367,9 @@ if [ "$PHASE" != build ]; then
   echo "==> Replacing ${GAME_DIR#"${REPO_ROOT}/"}/saves with a fresh copy of test-saves/${SAVE_ZIP}"
   rm -rf "${GAME_DIR}/saves"
   mkdir -p "${GAME_DIR}/saves/"
-  # Git Bash has no unzip, so the save is unpacked by Python, which every runner has. On Windows
-  # python3 can be a Microsoft Store stub that opens the store instead of running anything.
-  PYTHON=python3
-  [ "$WINDOWS" = true ] && PYTHON=python
+  # Git Bash has no unzip, so the save is unpacked by Python, which every runner has. PYTHON is the
+  # interpreter the mods selection above already picked (on Windows python3 can be a Microsoft Store
+  # stub that opens the store instead of running anything).
   "$PYTHON" -m zipfile -e "${REPO_ROOT}/test-saves/${SAVE_ZIP}" "${GAME_DIR}/saves/"
 fi
 

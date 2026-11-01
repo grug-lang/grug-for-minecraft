@@ -486,6 +486,7 @@ jobs:
             .github/scripts/watch_run_test.py \
             .github/scripts/affected_mods_test.py \
             .github/scripts/affected_loaders_test.py \
+            .github/scripts/mod_loaders_test.py \
             .github/scripts/select_coverage_tests_test.py \
             .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py \
