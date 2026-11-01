@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Tests main-selection.py: what a run of build.yml selects, per event, and each conservative default."""
 
+import contextlib
 import importlib.util
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "main-selection.py"
@@ -168,6 +171,24 @@ class PushTest(SelectionCase):
         # would never run on the loader it says they are for.
         self.assertEqual(outputs["build"]["b1.7.3-ornithe"], "betaonly,coverage")
         self.assertEqual(outputs["build"]["a1.1.2_01-ornithe"], "coverage")
+        self.assertEqual(sorted(outputs["installed"]), sorted([*REPRESENTATIVES, "b1.7.3-ornithe"]))
+
+    def test_a_port_declaring_a_representative_and_another_loader_runs_both(self):
+        # The declared 1.20.6-forge job is already there as its family's representative, and that is
+        # no job on b1.7.3-ornithe, which the port declares too (#920 review).
+        outputs = self.answer(
+            self.select(
+                "push",
+                {
+                    "mods/twoloaders/about.json": (
+                        '{"loaders": ["1.20.6-forge", "b1.7.3-ornithe"]}'
+                    ),
+                    "mods/twoloaders/code/thing-Block.grug": "on_tick() {}\n",
+                },
+            )
+        )
+        self.assertEqual(outputs["build"]["b1.7.3-ornithe"], "coverage,twoloaders")
+        self.assertEqual(outputs["installed"]["b1.7.3-ornithe"], "coverage,twoloaders")
         self.assertEqual(sorted(outputs["installed"]), sorted([*REPRESENTATIVES, "b1.7.3-ornithe"]))
 
     def test_a_core_change_runs_every_mod_on_the_representatives(self):
@@ -419,6 +440,55 @@ class EverythingFlagTest(unittest.TestCase):
         self.assertEqual(build, {loader: "" for loader in ALL})
         self.assertEqual(outputs["mods"], "")
         self.assertEqual((outputs["smoke"], outputs["reference"]), ("true", "true"))
+
+
+class UnreadableTreeTest(unittest.TestCase):
+    """A selection that cannot name a loader runs everything or fails, never green with nothing."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = repo_module.Repo(Path(self.tmp.name))
+        self.repo.commit(BASE, "base")
+        spec = importlib.util.spec_from_file_location("main_selection", SCRIPT)
+        self.script = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.script)
+        self.added = self.script.sibling("added-loaders")
+
+    def run_main(self):
+        """`main`'s exit code and its two streams, in this throwaway repository."""
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = self.script.main(["push", "", "--repo", str(self.repo.path)])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_a_head_tree_that_cannot_be_read_falls_back_to_the_checkout(self):
+        # A git that cannot read HEAD does not remove the loaders/ a run builds, so the checkout's own
+        # directories still name every loader and the run is a full one.
+        with (
+            mock.patch.object(self.added, "tree_loaders", side_effect=RuntimeError("no git")),
+            mock.patch.object(self.added, "loader_dirs", return_value=ALL),
+        ):
+            code, out, err = self.run_main()
+        self.assertEqual(code, 0, err)
+        outputs = {
+            key: value for key, _, value in (line.partition("=") for line in out.splitlines())
+        }
+        build = {entry["dir"]: entry["mods"] for entry in json.loads(outputs["build"])}
+        self.assertEqual(build, {loader: "" for loader in ALL})
+        self.assertIn("the checkout's loaders/ decides", err)
+
+    def test_a_tree_with_no_loader_fails_instead_of_printing_an_empty_matrix(self):
+        # `build=[]` makes build's `!= '[]'` condition skip it and coverage with it, so the run would
+        # be green with no test at all. A tree that cannot name one loader fails the step instead.
+        with (
+            mock.patch.object(self.added, "tree_loaders", side_effect=RuntimeError("no git")),
+            mock.patch.object(self.added, "loader_dirs", side_effect=RuntimeError("no loaders")),
+        ):
+            code, out, err = self.run_main()
+        self.assertEqual(code, 1)
+        self.assertNotIn("build=", out)
+        self.assertIn("this step fails", err)
 
 
 if __name__ == "__main__":

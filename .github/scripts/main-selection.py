@@ -30,7 +30,10 @@ Three rules, from #707's design (#909):
 
 A run that compares a head tree with a base commit (a push to main and a pull request) asks the
 first two; an empty base, a base it cannot read, an empty diff and any error in this script answer
-with everything, the direction that runs more.
+with everything, the direction that runs more, and the full run's loader list comes from the head
+tree or, if git cannot read that, from the checkout's own ``loaders/``. A tree that names no loader
+at all fails the step rather than print an empty matrix, which would skip every job and report a
+green run that tested nothing.
 
 What a selected loader runs is the mod axis, and what a loader the axes leave out runs is only
 ``mods/coverage``: combine-coverage.py builds each loader's report from that loader's own exec data
@@ -87,8 +90,21 @@ def every_mod_outputs(loaders: list[str]) -> dict:
 
 
 def everything(repo: Path, reason: str) -> tuple[dict, list[str]]:
-    """The full run's outputs and the line that says why this run is one."""
-    return every_mod_outputs(sorted(sibling("added-loaders").tree_loaders(repo, "HEAD"))), [reason]
+    """The full run's outputs and the line that says why this run is one.
+
+    The loaders come from the head tree, and a tree this cannot read comes from the checkout's own
+    ``loaders/``, since a git that fails does not remove the directories the run builds. A repository
+    with neither cannot name a loader at all, and ``main`` then fails the step: printing an empty
+    matrix would make the run green with nothing in it, which is the one answer this script must
+    never give.
+    """
+    added = sibling("added-loaders")
+    try:
+        loaders = sorted(added.tree_loaders(repo, "HEAD"))
+    except Exception as e:  # noqa: BLE001 - the working tree is still the tree this run builds
+        loaders = added.loader_dirs(repo)
+        reason += f"; the head tree cannot be read ({e!r}), so the checkout's loaders/ decides"
+    return every_mod_outputs(loaders), [reason]
 
 
 def inside_a_mod(path: str) -> bool:
@@ -273,11 +289,18 @@ def main(argv: list[str]) -> int:
     except Exception as e:  # noqa: BLE001 - whatever went wrong, every loader runs with every mod
         try:
             outputs, lines = everything(repo, f"{type(e).__name__}: {e}, so everything runs")
-        except Exception as missing:  # noqa: BLE001 - there is no loader directory to run
-            outputs, lines = (
-                every_mod_outputs([]),
-                [f"{type(e).__name__}: {e}, and {missing}: no loader can be named from this tree"],
+        except Exception as missing:  # noqa: BLE001 - no loader can be named, so the step fails
+            # An empty build matrix is not "everything": the build job's `build != '[]'` condition
+            # would skip it and coverage with it, and the run would go green with no test at all.
+            # Failing the step is the only honest answer left, and the workflow's fallback runs the
+            # script again before it gives up (#920 review).
+            print(
+                f"main-selection: {type(e).__name__}: {e}, and {type(missing).__name__}:"
+                f" {missing}: no loader can be named from this tree, so this step fails rather than"
+                " report a run with nothing in it",
+                file=sys.stderr,
             )
+            return 1
 
     for line in lines:
         print(f"main-selection: {line}", file=sys.stderr)
