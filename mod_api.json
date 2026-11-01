@@ -332,6 +332,20 @@
 						}
 					]
 				},
+				"append_saved_list_record": {
+					"description": "Adds an empty record at the end of the list a block entity saves under a name, creating the list when it has none, and answers the record's index, which is the list's size before the call. The record starts with no numbers and no item, so get_saved_list_number answers 0 for every key and get_saved_list_item answers an empty Option until they are set. Only a grug block entity saves lists; any other block entity is reported.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"ask_extract_item": {
 					"description": "Asks this block entity how many items a pipe on from_side would get from it, through its extract_item export, and takes nothing. Answers -1 when the block entity has no extract_item export, 0 when it refuses, and otherwise how many items it would hand out, so a caller can tell a block entity that decides for itself from one it has to read slot by slot.",
 					"return_type": {
@@ -525,50 +539,16 @@
 						}
 					]
 				},
-				"get_saved_number": {
-					"description": "The number a block entity saved under a name with set_saved_number, or 0 when it never saved one, which is the default a fresh save answers too. Only a grug block entity saves numbers; asking any other block entity is reported.",
+				"get_saved_list_item": {
+					"description": "The Item a record of a saved list holds, if it holds one. A record read back whose item no longer exists holds none, the way an inventory slot does, so the script drops the record rather than the host reporting it. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
 					"return_type": {
-						"name": "number"
-					},
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
 							}
-						}
-					]
-				},
-				"get_saved_list_size": {
-					"description": "The number of records in the list a block entity saved under a name, or 0 when it never saved one, which is the default a fresh save answers too. A record has named numbers and an optional item, and the whole list is saved with the block entity, so it survives its chunk being unloaded and loaded again. Only a grug block entity saves lists; asking any other block entity is reported.",
-					"return_type": {
-						"name": "number"
+						]
 					},
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						}
-					]
-				},
-				"append_saved_list_record": {
-					"description": "Adds an empty record at the end of the list a block entity saves under a name, creating the list when it has none, and answers the record's index, which is the list's size before the call. The record starts with no numbers and no item, so get_saved_list_number answers 0 for every key and get_saved_list_item answers an empty Option until they are set. Only a grug block entity saves lists; any other block entity is reported.",
-					"return_type": {
-						"name": "number"
-					},
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						}
-					]
-				},
-				"remove_saved_list_record": {
-					"description": "Drops the record at an index of a saved list, moving every later record one place down, so the records keep their order and the list is one shorter. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
 					"parameters": [
 						{
 							"name": "name",
@@ -610,44 +590,10 @@
 						}
 					]
 				},
-				"set_saved_list_number": {
-					"description": "Saves a number under a key in a record of a saved list, creating the key when the record has none. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "index",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "key",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "value",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"get_saved_list_item": {
-					"description": "The Item a record of a saved list holds, if it holds one. A record read back whose item no longer exists holds none, the way an inventory slot does, so the script drops the record rather than the host reporting it. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+				"get_saved_list_size": {
+					"description": "The number of records in the list a block entity saved under a name, or 0 when it never saved one, which is the default a fresh save answers too. A record has named numbers and an optional item, and the whole list is saved with the block entity, so it survives its chunk being unloaded and loaded again. Only a grug block entity saves lists; asking any other block entity is reported.",
 					"return_type": {
-						"name": "Option",
-						"generics": [
-							{
-								"name": "Item"
-							}
-						]
+						"name": "number"
 					},
 					"parameters": [
 						{
@@ -655,34 +601,19 @@
 							"type": {
 								"name": "string"
 							}
-						},
-						{
-							"name": "index",
-							"type": {
-								"name": "number"
-							}
 						}
 					]
 				},
-				"set_saved_list_item": {
-					"description": "Puts an Item in a record of a saved list, replacing the item the record held. The item's count and damage are ordinary saved numbers the caller names, because a record stores the item's identity and nothing else, which is what makes one list serve a pipe's travelling stacks and a tank's contents alike. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+				"get_saved_number": {
+					"description": "The number a block entity saved under a name with set_saved_number, or 0 when it never saved one, which is the default a fresh save answers too. Only a grug block entity saves numbers; asking any other block entity is reported.",
+					"return_type": {
+						"name": "number"
+					},
 					"parameters": [
 						{
 							"name": "name",
 							"type": {
 								"name": "string"
-							}
-						},
-						{
-							"name": "index",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
 							}
 						}
 					]
@@ -776,6 +707,23 @@
 				"redraw": {
 					"description": "Has the game build a block's geometry again, so a render function that draws from state the world does not know changed, such as a saved number, draws the new state. The game already rebuilds a block's geometry when a neighbouring block changes, so this is only for state the block entity keeps itself. A rebuild costs a chunk's worth of work, so call it when what render draws changes, not every tick. On a version whose client keeps its own copy of the block entity, this also sends that copy the block entity's saved numbers, since they are what the client's render function reads. Only a grug block entity has a render function; any other block entity is reported."
 				},
+				"remove_saved_list_record": {
+					"description": "Drops the record at an index of a saved list, moving every later record one place down, so the records keep their order and the list is one shorter. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"set_item_count_in_slot": {
 					"description": "Changes the amount of items in a specific slot.",
 					"parameters": [
@@ -827,6 +775,58 @@
 						},
 						{
 							"name": "count",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_saved_list_item": {
+					"description": "Puts an Item in a record of a saved list, replacing the item the record held. The item's count and damage are ordinary saved numbers the caller names, because a record stores the item's identity and nothing else, which is what makes one list serve a pipe's travelling stacks and a tank's contents alike. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"set_saved_list_number": {
+					"description": "Saves a number under a key in a record of a saved list, creating the key when the record has none. Reported when the block entity has no such list, or the index is not a whole number from 0 to the list's size minus one.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "key",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
 							"type": {
 								"name": "number"
 							}
@@ -969,335 +969,6 @@
 				}
 			],
 			"static_methods": {
-				"screenshot": {
-					"description": "Starts a screenshot assertion for the current frame. Returns a builder whose `equals` captures a pixel rectangle and compares it against a directory of reference PNGs. The builder compares pixel-exactly by default; call `tolerance` first to allow a small percentage of differing pixels.",
-					"return_type": {
-						"name": "Screenshot"
-					}
-				},
-				"get_client_level": {
-					"description": "Gets the current client level.",
-					"return_type": {
-						"name": "Level"
-					}
-				},
-				"get_player": {
-					"description": "Gets the local client player, for tests that need to call a method taking a Player.",
-					"return_type": {
-						"name": "Player"
-					}
-				},
-				"round_trip_nbt": {
-					"description": "Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load paths without a real world save.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						}
-					]
-				},
-				"high_block_round_trip": {
-					"description": "Test only: proves a block id above 255 survives the game's own chunk save and load. The loader's block-id search takes an id with every id in its low range taken by stand-ins, a block registers and is placed with it, and the chunk the tests run in is saved and read straight back through the game's own chunk loader. The answer is the id the loaded chunk holds, which the test checks is above 255, or -1 on a loader whose block ids never reach there: it has no such id to round trip, and -1 is a no-op rather than an err. See #518.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"tick_block_entity": {
-					"description": "Test only: runs a grug block entity's tick function the given number of times in a row, within the test's current tick, so a test can reach a state that takes the game minutes to build without waiting for them. The clock Level.get_time reads is left alone, as a machine accelerator leaves it. The ticks have to be a whole number from 0 to 2147483647, and the block entity a grug one, or it is reported.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						},
-						{
-							"name": "ticks",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"tick_level": {
-					"description": "Test only: runs the level's own tick the given number of times in a row, synchronously, at the point of the call, so a test can reach a state that takes the game minutes to build without waiting for those ticks to be drawn. It runs what the game's own tick of that level runs, in the loader's own order: the level's clock and weather, its scheduled block and fluid updates, its random block ticks, its entity ticks and its block entity ticks, including vanilla and reference ones. The clock moves one per tick and the level's random is drawn from exactly as it is on a real tick, unlike Test.tick_block_entity, which leaves both alone. It does not tick the client: no frame is drawn, no screen opens, no client packet is read by the server between the ticks and no resource reload is applied, so a test that waits for something drawn or received still waits for a real tick. The ticks have to be a whole number from 0 to 2147483647, or it is reported. The runner's own tick and budget do not move: ctx.current_tick is unchanged, and the game's own tick still runs around the test's tick, so two test ticks are one more world tick apart than the count. The budget counts the test's own ticks and this bypasses it, so the work an advance costs is bounded only by the run timeout, which is a new way for a test to hang. The answer is the number of ticks the advance ran, which is the count asked for on a loader that can advance its level, or 0 on one that cannot yet: a loader without an advance keeps a default that answers 0 and does nothing, and 0 is a documented no-op rather than an err, so a test that gets 0 falls back to waiting for the game's own ticks. A test that needs the advance reads the answer instead of assuming it.",
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "ticks",
-							"type": {
-								"name": "number"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"set_mod_file_state": {
-					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it. The record of the original contents outlives the run, so a run that ends abruptly while a file is disturbed cannot leave that file unreadable for the next one.",
-					"parameters": [
-						{
-							"name": "relative_path",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "state",
-							"description": "One of \"normal\" (restores the bytes the file was first read with), \"invalid\" (fails to compile), \"no_trailing_newline\" (still valid JSON), \"deleted\" (the file is removed), or \"swapped\" (the bytes of the sibling file whose name carries \".swap\" before the extension, which is how a binary asset such as a texture can be replaced with different content).",
-							"type": {
-								"name": "string"
-							}
-						}
-					]
-				},
-				"hot_reload_count": {
-					"description": "How many changes to relative_path the engine has reported so far, so a test can wait until its own file write has been observed instead of assuming it was.",
-					"parameters": [
-						{
-							"name": "relative_path",
-							"type": {
-								"name": "string"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"reload_count": {
-					"description": "How many times a loader has finished reloading after a change to relative_path was reported, so a test that checks what the reload rendered waits for the loader instead of a guessed number of ticks.",
-					"parameters": [
-						{
-							"name": "relative_path",
-							"type": {
-								"name": "string"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"get_origin": {
-					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row. On a side with no test player to measure from, as on a dedicated server nobody has joined, the call reports an error naming `Test.get_origin` rather than answering a position, the way `Test.get_client_level` and `Test.get_player` report without a level or a player. See #188.",
-					"return_type": {
-						"name": "Vec3"
-					}
-				},
-				"force_gc": {
-					"description": "Test only: asks the JVM for a full garbage collection, so a test can make a collected host entity deterministic instead of waiting for GC timing to line up."
-				},
-				"set_nbt_number": {
-					"description": "Test only: stages a number in a block entity's own NBT, the data it saves and loads, so a test can set up state that has no grug saved data, such as a recreation test's reference branch setting the real mod's block entity to what the port sets through its saved data. The path is the keys from the block entity's compound to the one set, joined by dots; a part of only digits is an index into a list of compounds, a list's size appends a new compound, an index is always followed by a key, and a missing key on the way is created. The number is stored as the NBT type named: byte, short, int, long, float or double, an integer type taking only a whole number in its range. Nothing changes until Test.load_nbt.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						},
-						{
-							"name": "path",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "type",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "value",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_nbt_item": {
-					"description": "Test only: stages a stack of one of the item, undamaged, in a block entity's own NBT, as the compound the game itself saves a stack as, at a path as for Test.set_nbt_number. Nothing changes until Test.load_nbt.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						},
-						{
-							"name": "path",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					]
-				},
-				"load_nbt": {
-					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the world load a block entity from the result as a chunk load does: the old block entity is removed, and a new one is created from the NBT before it enters the world, so a mod whose block entity depends on that order loads as it would from a save. The handle names the removed block entity afterwards, so get the block entity at its position again. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is replaced.",
-					"parameters": [
-						{
-							"name": "block_entity",
-							"type": {
-								"name": "BlockEntity"
-							}
-						}
-					]
-				},
-				"is_reference": {
-					"description": "Whether the test harness is driving the reference mod rather than this port, so a recreation test can take the reference branch. Set by the GRUG_REFERENCE environment variable, so one test file runs against both.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"registers_mod_recipes": {
-					"description": "Test only: whether this loader registers the crafting recipes a mod ships under `data/<namespace>/recipes`. Every loader does, each through its own version's recipe machinery: the Ornithe loaders parse the tree themselves and hand the result to the game's CraftingManager, StationAPI hands the files to its recipe registry, 1.20.6 serves the tree to Forge as a pack so the level's own recipe manager loads it, and 1.2.5 parses the tree and calls the game's own ModLoader.addRecipe and addShapelessRecipe. A test that asserts a shipped recipe asks this first, so a future loader that registers none does not fail the run for something it cannot do.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"notify_neighbors": {
-					"description": "Test only: notifies the neighbours of a position as if the block there had changed, so a test can deliver an on_neighbor_change without a non-quiet block write.",
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"close_screen": {
-					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
-				},
-				"stall": {
-					"description": "Blocks the thread the test runs on for the given number of milliseconds, the way a garbage collection pause or a world save does, and returns once they have passed. On 1.20.6 the game keeps ticking its client while the integrated server's thread is blocked, so a stall leaves the client with ticks the server has not acted on; the runner coalesces them to at most one frame's worth, but a test that waits for a packet or a frame calls this to prove it waits for the condition and not for a number of ticks. The time has to be from 0 to 10000, and anything else is reported without stalling.",
-					"parameters": [
-						{
-							"name": "milliseconds",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"screen_open": {
-					"description": "Whether the client has a screen open. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"set_box_radius": {
-					"description": "Rebuilds the sealed room the runner builds around the player before every test, with the given radius. The room is a hollow box of stone with a torch on every floor tile, so its light comes from torches rather than the sky, and a screenshot does not change with the time of day. The default room is small; a test whose fixture reaches further than that asks for a bigger one. See #253.",
-					"parameters": [
-						{
-							"name": "radius",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"world_settled": {
-					"description": "Whether the frame a capture would read is one the client had no work left in: no light it had not propagated, no chunk rebuild it did not get to, and a window already at the screenshot resolution. The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light update is still settling, so a capture taken too early can land a light step away from the reference. A screenshot test waits for this before capturing. It is sampled from each loader's own frame hook rather than from the game tick the call runs on, because the game draws fewer frames than it runs ticks and the frame a capture reads can be several ticks old. See #253 and #257.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"use_block": {
-					"description": "Right-clicks the block at the given coordinates as the local player, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. Note that the player is the one the test is already running as, so this only does anything in singleplayer.",
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"mining_crack": {
-					"description": "Test only: whether the game draws the mining crack over the block's own geometry, and leaves the block's shape a full cube afterwards. A test cannot hold the crack on screen, because the versions whose overlay follows the local player's own mining clear that state on every tick the attack button is not held; so the versions that draw the overlay from an explicit call make one overlay pass for the block at the middle of the break, and 1.20.6 asks its baked model for the quads the overlay would draw. The block is left in place.",
-					"parameters": [
-						{
-							"name": "level",
-							"type": {
-								"name": "Level"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					],
-					"return_type": {
-						"name": "bool"
-					}
-				},
 				"block_collision": {
 					"description": "Whether the block at that position, as the game collides with it, has a collision box that overlaps the given box. The box is in block-local coordinates, 0 to 1 from the block's minimum corner, so a test can put a player-sized box in a block's corner and ask whether the player would be kept out of it. It asks the game for the block's own collision boxes, so it answers for any block the loader knows, not only for grug blocks.",
 					"return_type": {
@@ -1484,131 +1155,11 @@
 						}
 					]
 				},
-				"set_held_item": {
-					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there.",
-					"parameters": [
-						{
-							"name": "player",
-							"type": {
-								"name": "Player"
-							}
-						},
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					]
-				},
-				"clear_held_item": {
-					"description": "Test only: empties the player's selected hotbar slot.",
-					"parameters": [
-						{
-							"name": "player",
-							"type": {
-								"name": "Player"
-							}
-						}
-					]
-				},
-				"get_held_count": {
-					"description": "Test only: how many items the player's selected hotbar slot holds, so a test can tell one item from a full stack. The item itself is what `Player.get_held_item` answers.",
-					"parameters": [
-						{
-							"name": "player",
-							"type": {
-								"name": "Player"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"get_item_max_stack": {
-					"description": "Test only: the largest stack the item can come in, so a test of an overlay can tell a full stack from one item without knowing which item this version's list puts first.",
-					"parameters": [
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					],
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"set_carried_item": {
-					"description": "Test only: puts one of the item on the mouse cursor of the container screen that is open, replacing what was there. A test with no container screen open does nothing.",
-					"parameters": [
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						}
-					]
-				},
-				"screen_width": {
-					"description": "Test only: the width of the open screen in scaled pixels, so a test of an overlay can work out where the screen put its GUI and display area instead of assuming a window size. A test with no screen open answers 0.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_left": {
-					"description": "Test only: the x position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_width": {
-					"description": "Test only: the width of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_top": {
-					"description": "Test only: the y position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_height": {
-					"description": "Test only: the height of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
-					"return_type": {
-						"name": "number"
-					}
-				},
 				"clear_carried_item": {
 					"description": "Test only: clears the mouse cursor of the container screen that is open, on the client and on the integrated server, so a test starts a press with nothing carried. A test with no container screen open does nothing."
 				},
-				"get_carried_item": {
-					"description": "Test only: the Item on the mouse cursor of the container screen that is open, if it carries one, and an empty Option when the cursor is empty or no container screen is open.",
-					"return_type": {
-						"name": "Option",
-						"generics": [
-							{
-								"name": "Item"
-							}
-						]
-					}
-				},
-				"overlay_supported": {
-					"description": "Whether this loader draws overlays on the inventory and container screens at all, which a test asks before it opens a screen: a loader that does not cannot open the inventory either, so a test that needs an overlay returns early there instead of driving a screen the loader cannot show. It is a property of the loader, answered from the start of a run, and a loader that draws overlays answers true whether or not a screen has been open yet.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"overlay_drawn": {
-					"description": "Whether a frame has drawn the running test's own overlay on the eligible screen that is open now, which a test waits for after it opens the screen and before it clicks. The mark is cleared when an eligible screen opens, so a test waits for a frame of its own screen rather than for one another mod drew on an earlier one. Asking also asks the client for a frame, the way `Test.world_settled` does, because the runner skips the frames of a test that never captures. The answer is set on the render thread, so waiting for it is how a test tells a screen that was really drawn from one the game closed before a frame, which a run at maximum speed can otherwise hide. Test only.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"open_inventory": {
-					"description": "Opens the player's own inventory screen, the way the inventory key does, so a test can drive an overlay that only appears there. The screen appears on the next frame, so a test waits for `screen_open` before it clicks. Test only: no mod needs to open the vanilla inventory.",
+				"clear_held_item": {
+					"description": "Test only: empties the player's selected hotbar slot.",
 					"parameters": [
 						{
 							"name": "player",
@@ -1643,11 +1194,588 @@
 							}
 						}
 					]
+				},
+				"close_screen": {
+					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
+				},
+				"force_gc": {
+					"description": "Test only: asks the JVM for a full garbage collection, so a test can make a collected host entity deterministic instead of waiting for GC timing to line up."
+				},
+				"get_carried_item": {
+					"description": "Test only: the Item on the mouse cursor of the container screen that is open, if it carries one, and an empty Option when the cursor is empty or no container screen is open.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					}
+				},
+				"get_client_level": {
+					"description": "Gets the current client level.",
+					"return_type": {
+						"name": "Level"
+					}
+				},
+				"get_held_count": {
+					"description": "Test only: how many items the player's selected hotbar slot holds, so a test can tell one item from a full stack. The item itself is what `Player.get_held_item` answers.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"get_item_max_stack": {
+					"description": "Test only: the largest stack the item can come in, so a test of an overlay can tell a full stack from one item without knowing which item this version's list puts first.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"get_origin": {
+					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row. On a side with no test player to measure from, as on a dedicated server nobody has joined, the call reports an error naming `Test.get_origin` rather than answering a position, the way `Test.get_client_level` and `Test.get_player` report without a level or a player. See #188.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
+				"get_player": {
+					"description": "Gets the local client player, for tests that need to call a method taking a Player.",
+					"return_type": {
+						"name": "Player"
+					}
+				},
+				"gui_height": {
+					"description": "Test only: the height of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_left": {
+					"description": "Test only: the x position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_top": {
+					"description": "Test only: the y position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_width": {
+					"description": "Test only: the width of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"high_block_round_trip": {
+					"description": "Test only: proves a block id above 255 survives the game's own chunk save and load. The loader's block-id search takes an id with every id in its low range taken by stand-ins, a block registers and is placed with it, and the chunk the tests run in is saved and read straight back through the game's own chunk loader. The answer is the id the loaded chunk holds, which the test checks is above 255, or -1 on a loader whose block ids never reach there: it has no such id to round trip, and -1 is a no-op rather than an err. See #518.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"hot_reload_count": {
+					"description": "How many changes to relative_path the engine has reported so far, so a test can wait until its own file write has been observed instead of assuming it was.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"is_reference": {
+					"description": "Whether the test harness is driving the reference mod rather than this port, so a recreation test can take the reference branch. Set by the GRUG_REFERENCE environment variable, so one test file runs against both.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"load_nbt": {
+					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the world load a block entity from the result as a chunk load does: the old block entity is removed, and a new one is created from the NBT before it enters the world, so a mod whose block entity depends on that order loads as it would from a save. The handle names the removed block entity afterwards, so get the block entity at its position again. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is replaced.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				},
+				"mining_crack": {
+					"description": "Test only: whether the game draws the mining crack over the block's own geometry, and leaves the block's shape a full cube afterwards. A test cannot hold the crack on screen, because the versions whose overlay follows the local player's own mining clear that state on every tick the attack button is not held; so the versions that draw the overlay from an explicit call make one overlay pass for the block at the middle of the break, and 1.20.6 asks its baked model for the quads the overlay would draw. The block is left in place.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					],
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"notify_neighbors": {
+					"description": "Test only: notifies the neighbours of a position as if the block there had changed, so a test can deliver an on_neighbor_change without a non-quiet block write.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"open_inventory": {
+					"description": "Opens the player's own inventory screen, the way the inventory key does, so a test can drive an overlay that only appears there. The screen appears on the next frame, so a test waits for `screen_open` before it clicks. Test only: no mod needs to open the vanilla inventory.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
+				},
+				"overlay_drawn": {
+					"description": "Whether a frame has drawn the running test's own overlay on the eligible screen that is open now, which a test waits for after it opens the screen and before it clicks. The mark is cleared when an eligible screen opens, so a test waits for a frame of its own screen rather than for one another mod drew on an earlier one. Asking also asks the client for a frame, the way `Test.world_settled` does, because the runner skips the frames of a test that never captures. The answer is set on the render thread, so waiting for it is how a test tells a screen that was really drawn from one the game closed before a frame, which a run at maximum speed can otherwise hide. Test only.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"overlay_supported": {
+					"description": "Whether this loader draws overlays on the inventory and container screens at all, which a test asks before it opens a screen: a loader that does not cannot open the inventory either, so a test that needs an overlay returns early there instead of driving a screen the loader cannot show. It is a property of the loader, answered from the start of a run, and a loader that draws overlays answers true whether or not a screen has been open yet.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"registers_mod_recipes": {
+					"description": "Test only: whether this loader registers the crafting recipes a mod ships under `data/<namespace>/recipes`. Every loader does, each through its own version's recipe machinery: the Ornithe loaders parse the tree themselves and hand the result to the game's CraftingManager, StationAPI hands the files to its recipe registry, 1.20.6 serves the tree to Forge as a pack so the level's own recipe manager loads it, and 1.2.5 parses the tree and calls the game's own ModLoader.addRecipe and addShapelessRecipe. A test that asserts a shipped recipe asks this first, so a future loader that registers none does not fail the run for something it cannot do.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"reload_count": {
+					"description": "How many times a loader has finished reloading after a change to relative_path was reported, so a test that checks what the reload rendered waits for the loader instead of a guessed number of ticks.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"round_trip_nbt": {
+					"description": "Serialises a block entity's NBT and reads it straight back, so tests can cover the save/load paths without a real world save.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						}
+					]
+				},
+				"screen_open": {
+					"description": "Whether the client has a screen open. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"screen_width": {
+					"description": "Test only: the width of the open screen in scaled pixels, so a test of an overlay can work out where the screen put its GUI and display area instead of assuming a window size. A test with no screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screenshot": {
+					"description": "Starts a screenshot assertion for the current frame. Returns a builder whose `equals` captures a pixel rectangle and compares it against a directory of reference PNGs. The builder compares pixel-exactly by default; call `tolerance` first to allow a small percentage of differing pixels.",
+					"return_type": {
+						"name": "Screenshot"
+					}
+				},
+				"set_box_radius": {
+					"description": "Rebuilds the sealed room the runner builds around the player before every test, with the given radius. The room is a hollow box of stone with a torch on every floor tile, so its light comes from torches rather than the sky, and a screenshot does not change with the time of day. The default room is small; a test whose fixture reaches further than that asks for a bigger one. See #253.",
+					"parameters": [
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_carried_item": {
+					"description": "Test only: puts one of the item on the mouse cursor of the container screen that is open, replacing what was there. A test with no container screen open does nothing.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"set_held_item": {
+					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"set_mod_file_state": {
+					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it. The record of the original contents outlives the run, so a run that ends abruptly while a file is disturbed cannot leave that file unreadable for the next one.",
+					"parameters": [
+						{
+							"name": "relative_path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "state",
+							"description": "One of \"normal\" (restores the bytes the file was first read with), \"invalid\" (fails to compile), \"no_trailing_newline\" (still valid JSON), \"deleted\" (the file is removed), or \"swapped\" (the bytes of the sibling file whose name carries \".swap\" before the extension, which is how a binary asset such as a texture can be replaced with different content).",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"set_nbt_item": {
+					"description": "Test only: stages a stack of one of the item, undamaged, in a block entity's own NBT, as the compound the game itself saves a stack as, at a path as for Test.set_nbt_number. Nothing changes until Test.load_nbt.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"set_nbt_number": {
+					"description": "Test only: stages a number in a block entity's own NBT, the data it saves and loads, so a test can set up state that has no grug saved data, such as a recreation test's reference branch setting the real mod's block entity to what the port sets through its saved data. The path is the keys from the block entity's compound to the one set, joined by dots; a part of only digits is an index into a list of compounds, a list's size appends a new compound, an index is always followed by a key, and a missing key on the way is created. The number is stored as the NBT type named: byte, short, int, long, float or double, an integer type taking only a whole number in its range. Nothing changes until Test.load_nbt.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "type",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"stall": {
+					"description": "Blocks the thread the test runs on for the given number of milliseconds, the way a garbage collection pause or a world save does, and returns once they have passed. On 1.20.6 the game keeps ticking its client while the integrated server's thread is blocked, so a stall leaves the client with ticks the server has not acted on; the runner coalesces them to at most one frame's worth, but a test that waits for a packet or a frame calls this to prove it waits for the condition and not for a number of ticks. The time has to be from 0 to 10000, and anything else is reported without stalling.",
+					"parameters": [
+						{
+							"name": "milliseconds",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"tick_block_entity": {
+					"description": "Test only: runs a grug block entity's tick function the given number of times in a row, within the test's current tick, so a test can reach a state that takes the game minutes to build without waiting for them. The clock Level.get_time reads is left alone, as a machine accelerator leaves it. The ticks have to be a whole number from 0 to 2147483647, and the block entity a grug one, or it is reported.",
+					"parameters": [
+						{
+							"name": "block_entity",
+							"type": {
+								"name": "BlockEntity"
+							}
+						},
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"tick_level": {
+					"description": "Test only: runs the level's own tick the given number of times in a row, synchronously, at the point of the call, so a test can reach a state that takes the game minutes to build without waiting for those ticks to be drawn. It runs what the game's own tick of that level runs, in the loader's own order: the level's clock and weather, its scheduled block and fluid updates, its random block ticks, its entity ticks and its block entity ticks, including vanilla and reference ones. The clock moves one per tick and the level's random is drawn from exactly as it is on a real tick, unlike Test.tick_block_entity, which leaves both alone. It does not tick the client: no frame is drawn, no screen opens, no client packet is read by the server between the ticks and no resource reload is applied, so a test that waits for something drawn or received still waits for a real tick. The ticks have to be a whole number from 0 to 2147483647, or it is reported. The runner's own tick and budget do not move: ctx.current_tick is unchanged, and the game's own tick still runs around the test's tick, so two test ticks are one more world tick apart than the count. The budget counts the test's own ticks and this bypasses it, so the work an advance costs is bounded only by the run timeout, which is a new way for a test to hang. The answer is the number of ticks the advance ran, which is the count asked for on a loader that can advance its level, or 0 on one that cannot yet: a loader without an advance keeps a default that answers 0 and does nothing, and 0 is a documented no-op rather than an err, so a test that gets 0 falls back to waiting for the game's own ticks. A test that needs the advance reads the answer instead of assuming it.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"use_block": {
+					"description": "Right-clicks the block at the given coordinates as the local player, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. Note that the player is the one the test is already running as, so this only does anything in singleplayer.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"world_settled": {
+					"description": "Whether the frame a capture would read is one the client had no work left in: no light it had not propagated, no chunk rebuild it did not get to, and a window already at the screenshot resolution. The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light update is still settling, so a capture taken too early can land a light step away from the reference. A screenshot test waits for this before capturing. It is sampled from each loader's own frame hook rather than from the game tick the call runs on, because the game draws fewer frames than it runs ticks and the frame a capture reads can be several ticks old. See #253 and #257.",
+					"return_type": {
+						"name": "bool"
+					}
 				}
 			}
 		}
 	},
 	"classes": {
+		"AddResponse": {
+			"description": "The answer to a pipe offering a block entity an item, passed to its add_item export. It is only valid during that call, it is answered once, and a second answer is an err even when it repeats the first. An export that returns without answering is an err too, so refusing is always an explicit refuse().",
+			"methods": {
+				"accept_into_slot": {
+					"description": "Takes the items into one inventory slot, as many as fit. The host asks again with the rest.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"refuse": {
+					"description": "Takes nothing."
+				}
+			}
+		},
+		"BlockEntityInitContext": {
+			"description": "The context of a block entity's init(), passed to it. What a block entity declares about itself once, when it is created, goes through it: whether it receives energy, and which of its slots another block may use. A declaration is not saved, so init() makes it again whenever the block entity is created. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"set_extractable_slots": {
+					"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "first",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "last",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_insertable_slots": {
+					"description": "Declares the slots of this block entity's inventory another block may put into, the first and the last inclusive. A last below the first declares no slot at all. This is a permission rather than a lock: insert_item_into_inventory fills only these slots and set_item_in_slot still writes to any of them, so a block managing its own slots is unaffected. A block entity that declares nothing is insertable everywhere, and declaring again replaces the earlier range rather than adding to it. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "first",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "last",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_power_receiver": {
+					"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. The declaration is not saved, so init() makes it again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, separately from its saved numbers, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "max_stored",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
+		},
+		"BlockInitContext": {
+			"description": "The context of a block's init(), passed to it. Everything a block declares about itself goes through it: how hard it is to mine, what it is made of, how many slots it has, which block entity it has, and how it draws. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused, because the declarations were read when init() returned.",
+			"methods": {
+				"set_block_entity": {
+					"description": "Declares the block entity script used by this block. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "entity_string",
+							"type": {
+								"name": "entity",
+								"entity_type": "BlockEntity"
+							}
+						}
+					]
+				},
+				"set_custom_render": {
+					"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+				},
+				"set_flat_lighting": {
+					"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
+				},
+				"set_hardness": {
+					"description": "Sets the mining hardness of the block. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_inventory_size": {
+					"description": "Declares how many item slots this block's block entity has. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "size",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"set_material": {
+					"description": "Sets the material of the block (e.g., 'wood', 'stone'). Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "material_name",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"set_shape": {
+					"description": "Declares that this block's collision and selection boxes come from its shape export rather than being the full cube, which is what lets a machine be a shape no model JSON can express: a pipe that reaches towards what is beside it, a slab, a fence. The block's script then has to export shape, which the game asks for the boxes at a position every time it needs them, so the boxes are not fixed at registration and may follow the block's neighbours or its state. A block that declares set_shape without a shape export, or whose shape adds no box, reports an error and keeps the full cube. A block that exports shape without declaring it is reported as well, on its first query, because the game would never run that export; the declaration is what tells the game to ask at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+				}
+			}
+		},
 		"BlockPos": {
 			"description": "A position in the world.",
 			"methods": {
@@ -1670,6 +1798,14 @@
 					"return_type": {
 						"name": "Vec3"
 					}
+				}
+			}
+		},
+		"BlockUseContext": {
+			"description": "The context of a block's use(), passed to it. A context is only valid while its use() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"decline_use": {
+					"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Only legal on the context use() was passed, while that call is running: a context saved for later is refused."
 				}
 			}
 		},
@@ -1728,6 +1864,37 @@
 							}
 						}
 					]
+				}
+			}
+		},
+		"ExtractResponse": {
+			"description": "The answer to a pipe asking a block entity for an item, passed to its extract_item export. It is only valid during that call, it is answered once, and a second answer is an err even when it repeats the first. An export that returns without answering is an err too, so refusing is always an explicit refuse().",
+			"methods": {
+				"give_crafting_result": {
+					"description": "Hands the pipe this block entity's whole crafting result, whatever its stack size, as BuildCraft's autocrafting table does. When the block entity has no result, nothing is given."
+				},
+				"give_crafting_result_consumed": {
+					"description": "Hands the pipe this block entity's whole crafting result, as it was when the pipe asked, and says that the export has already used up the ingredients itself: the host takes nothing from the block entity afterwards and does not call output_taken. This is how BuildCraft's autocrafting table answers a pipe, whose ISpecialInventory.extractItem does its own accounting, where a player taking the result from the GUI is accounted for by the slot's pickup hook, which is output_taken. The export has to consume only when remove is true, and may update the crafting result for what is left in the grid before it answers. When the block entity had no result, nothing is given."
+				},
+				"give_from_slot": {
+					"description": "Hands the pipe up to amount items from one inventory slot.",
+					"parameters": [
+						{
+							"name": "slot",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"refuse": {
+					"description": "Hands the pipe nothing."
 				}
 			}
 		},
@@ -1854,16 +2021,16 @@
 		"ItemEntity": {
 			"description": "An item entity.",
 			"methods": {
-				"entity": {
-					"description": "Takes an ItemEntity, and returns it as an Entity.",
-					"return_type": {
-						"name": "Entity"
-					}
-				},
 				"damage": {
 					"description": "The damage/metadata of the item entity's item stack.",
 					"return_type": {
 						"name": "number"
+					}
+				},
+				"entity": {
+					"description": "Takes an ItemEntity, and returns it as an Entity.",
+					"return_type": {
+						"name": "Entity"
 					}
 				}
 			}
@@ -1871,6 +2038,130 @@
 		"Level": {
 			"description": "A dimension or world.",
 			"methods": {
+				"count_item_entities": {
+					"description": "The number of item entities within radius blocks of the specified coordinates.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"explode": {
+					"description": "Creates an explosion at the given coordinates with the given power, which destroys blocks and damages entities as the game's own explosions do.",
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "power",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"find_item_entity": {
+					"description": "The first item entity within radius blocks of the specified coordinates, if any.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "ItemEntity"
+							}
+						]
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "radius",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_block": {
+					"description": "The name of the block at the specified coordinates, e.g. \"minecraft:stone\" or \"grug:wooden_pipe\".",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"get_block_entity": {
 					"description": "Gets the BlockEntity at the specified coordinates.",
 					"return_type": {
@@ -1880,6 +2171,64 @@
 								"name": "BlockEntity"
 							}
 						]
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"get_time": {
+					"description": "The world's time in ticks, which keeps counting up. In a test, the ticks Test.tick_block_entity has run are added to it, because they pass within one game tick.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"has_neighbor_signal": {
+					"description": "Whether the block at the specified coordinates is receiving a redstone signal from a neighboring block.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"is_air": {
+					"description": "Whether the block at the specified coordinates is air.",
+					"return_type": {
+						"name": "bool"
 					},
 					"parameters": [
 						{
@@ -1931,81 +2280,6 @@
 						}
 					]
 				},
-				"explode": {
-					"description": "Creates an explosion at the given coordinates with the given power, which destroys blocks and damages entities as the game's own explosions do.",
-					"parameters": [
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "power",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"has_neighbor_signal": {
-					"description": "Whether the block at the specified coordinates is receiving a redstone signal from a neighboring block.",
-					"return_type": {
-						"name": "bool"
-					},
-					"parameters": [
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"get_time": {
-					"description": "The world's time in ticks, which keeps counting up. In a test, the ticks Test.tick_block_entity has run are added to it, because they pass within one game tick.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"random_int": {
-					"description": "Draws a whole number from the level's own random, from 0 up to but not including bound, which is what Java's Random.nextInt(bound) answers. It is the same random the game uses for everything else, so drawing from it changes what the game does on that seed exactly as the reference does, and a caller that wants a repeatable pick has to account for every other draw from the level. Bound has to be a whole number from 1 to 2147483647.",
-					"return_type": {
-						"name": "number"
-					},
-					"parameters": [
-						{
-							"name": "bound",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
 				"random_float": {
 					"description": "Draws a number from the level's own random from 0 up to but not including 1, which is what Java's Random.nextFloat answers. It is the same random the game uses for everything else, so it advances the sequence random_int and random_gaussian draw from.",
 					"return_type": {
@@ -2018,121 +2292,14 @@
 						"name": "number"
 					}
 				},
-				"get_block": {
-					"description": "The name of the block at the specified coordinates, e.g. \"minecraft:stone\" or \"grug:wooden_pipe\".",
-					"return_type": {
-						"name": "string"
-					},
-					"parameters": [
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"is_air": {
-					"description": "Whether the block at the specified coordinates is air.",
-					"return_type": {
-						"name": "bool"
-					},
-					"parameters": [
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"count_item_entities": {
-					"description": "The number of item entities within radius blocks of the specified coordinates.",
+				"random_int": {
+					"description": "Draws a whole number from the level's own random, from 0 up to but not including bound, which is what Java's Random.nextInt(bound) answers. It is the same random the game uses for everything else, so drawing from it changes what the game does on that seed exactly as the reference does, and a caller that wants a repeatable pick has to account for every other draw from the level. Bound has to be a whole number from 1 to 2147483647.",
 					"return_type": {
 						"name": "number"
 					},
 					"parameters": [
 						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "radius",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"find_item_entity": {
-					"description": "The first item entity within radius blocks of the specified coordinates, if any.",
-					"return_type": {
-						"name": "Option",
-						"generics": [
-							{
-								"name": "ItemEntity"
-							}
-						]
-					},
-					"parameters": [
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "radius",
+							"name": "bound",
 							"type": {
 								"name": "number"
 							}
@@ -2226,142 +2393,129 @@
 				}
 			}
 		},
-		"Screenshot": {
-			"description": "A screenshot assertion under construction, returned by `Test.screenshot()`. Configure it with `tolerance`, then call `equals` to run the comparison.",
+		"OverlayClickContext": {
+			"description": "The context of an overlay's click() call, passed to it when the mouse is pressed while a screen the overlay may draw on is open, before the screen gets the press. The position and the button are the ones the screen would have received, and calling take() keeps the press from reaching it, so the vanilla slot under the mouse is not clicked too. Return without taking it and the screen handles the press as if the overlay had not seen it. A context is only valid while its click() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
-				"equals": {
-					"description": "Captures the given pixel rectangle of the current frame and fails the test unless the capture matches one of the reference PNGs accepted for this UI, within this builder's tolerance. `reference` names a directory of PNGs each named after the loader that produced it (b1.7.3-ornithe.png), because the same UI renders differently on each Minecraft version and each accepted appearance gets its own file. A directory with no references yet is bootstrapped: the capture is written as `<loader>.png` and accepted. A capture that matches none of an existing directory's references is written to the `grug-screenshot-artifacts` directory (with a diff image) so CI can collect it, and the test fails; copy that capture into the reference directory to accept it. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
-					"parameters": [
-						{
-							"name": "reference",
-							"type": {
-								"name": "resource",
-								"resource_extension": "",
-								"optional": true
-							}
-						},
-						{
-							"name": "x1",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y1",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "x2",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y2",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"tolerance": {
-					"description": "Sets the most any single pixel may differ before the comparison fails, as an integer percentage of the full 0 to 255 channel range, and returns this same builder so calls can be chained. A pixel's difference is the largest absolute change in any of its red, green or blue channels, and the comparison fails if any pixel changed by more than 255 * percent / 100. The default is 0, a pixel-exact comparison. The value must be the smallest integer that passes: a value higher than necessary fails with a message naming the smallest one, because a high tolerance makes the assertion always pass, at which point it stops being a test and hides real regressions instead of catching them. Tolerance is a last resort, so prefer the lowest percentage that works; a capture that is not reproducible from run to run is its own bug to fix (the crop, the camera, or the tick timing) rather than a reason to widen the tolerance. Every call must have a comment above it linking the issue that tracks the difference it absorbs and saying whether more research could remove the call. A percentage above 0 is refused outright when the mod owning the running test is an exact port, meaning its first `derived_from` entry carries recreation fields and lists no deviations, since such a port has to reproduce its reference pixel for pixel; 0 stays allowed, as does any percentage for a port that still lists deviations and for a mod that is not a port.",
+				"button": {
+					"description": "The mouse button that was pressed, the same code the screen would receive: 0 is the left button, 1 the right and 2 the middle. The reference gives one item on a left or right click, gives a full stack on a shift+left click (see shift()) or a middle click, and deletes the item on the cursor on a left click while it carries one (see carried_item() and delete_carried_item()).",
 					"return_type": {
-						"name": "Screenshot"
-					},
-					"parameters": [
-						{
-							"name": "percent",
-							"description": "A whole number from 0 to 100: the most any single pixel may differ, as a percentage of the 0 to 255 channel range. Must be the smallest integer that passes.",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
+						"name": "number"
+					}
 				},
-				"capture": {
-					"description": "Reads the given pixel rectangle of the current frame and remembers it on this screenshot, so a later `differs_from` can compare it with another capture of the same rectangle. Unlike `equals` this needs no reference images, which is what makes it the way to check that the game redrew something: one rendering is not the same on every Minecraft version and platform, so a reference image has to be accepted once per appearance, while two captures of one session agree with each other about everything except what the test changed. A pixel counts as changed only once a channel has moved by more than a small floor, so that a surface the game lights per vertex coming out a single part brighter between two captures is not reported as a change at all. A caller who wants only gross differences asks for a higher percent. Capturing replaces what this screenshot holds, so capture the earlier frame first and compare against it afterwards. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
+				"carried_item": {
+					"description": "The Item on the mouse cursor of the screen that is open, if it carries one. The reference deletes that item on a left click over its list rather than giving another one, so this is how an overlay tells a carrying press from an empty one. Only legal on the context click() was passed, while that call is running.",
 					"return_type": {
-						"name": "Screenshot"
-					},
-					"parameters": [
-						{
-							"name": "x1",
-							"type": {
-								"name": "number"
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
 							}
-						},
-						{
-							"name": "y1",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "x2",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y2",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
+						]
+					}
 				},
-				"differs_from": {
-					"description": "Fails the test unless at least `percent` of the pixels of this screenshot differ from another one, both of which have to have been read with `capture` first. This is the assertion for a change the test caused, such as a texture it swapped: a frame that still shows what it showed before changes nothing and fails, and it does not count a pixel a single lighting unit apart as changed at all, because a surface the game lights per vertex can come out one part brighter between two runs of an unchanged frame and that is not what the test is asking about. The two captures have to be the same size, which is how a test that cropped two different rectangles is caught rather than compared. Note that a percent of 0 always passes, so ask for the share of the rectangle the change is actually expected to cover: swapping a whole texture changes every pixel of it, while a change to one sprite in a sprite sheet may be a small part of the frame.",
-					"parameters": [
-						{
-							"name": "other",
-							"type": {
-								"name": "Screenshot"
-							}
-						},
-						{
-							"name": "percent",
-							"description": "A whole number from 0 to 100: the share of pixels that must differ. Note that 0 always passes.",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
+				"delete_carried_item": {
+					"description": "Clears the Item on the mouse cursor of the screen that is open. The reference deletes the carried stack on a left click over its list instead of giving a new item; call take() afterward so the screen does not also act on the press. Only legal on the context click() was passed, while that call is running."
+				},
+				"gui_height": {
+					"description": "The height of the screen's GUI, its inventory panel, in pixels, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_left": {
+					"description": "The x position, in pixels from the screen's left edge, of the left side of the screen's GUI, its inventory panel, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_top": {
+					"description": "The y position, in pixels from the screen's top edge, of the top of the screen's GUI, its inventory panel, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_width": {
+					"description": "The width of the screen's GUI, its inventory panel, in pixels, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"mouse_x": {
+					"description": "The x position of the press, in pixels from the screen's left edge, the same coordinate render() gets for the mouse, which is where the overlay decides which of its slots was pressed.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"mouse_y": {
+					"description": "The y position of the press, in pixels from the screen's top edge, the same coordinate render() gets for the mouse.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screen_height": {
+					"description": "The height of the screen in pixels, from its top edge, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screen_width": {
+					"description": "The width of the screen in pixels, from its left edge, the same measure render() is given, for an overlay that recomputes where its slots are to find the one that was pressed.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"shift": {
+					"description": "Whether shift was held when the press was made. The reference's stack binding is shift+left, so an overlay that follows its click modes reads this together with button(). Only legal on the context click() was passed, while that call is running.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"take": {
+					"description": "Keeps the press from reaching the screen, so the vanilla slot under the mouse is not clicked too. Call it when the overlay handled the press, such as by giving the item the press landed on, and return; the screen never sees it. Without it, the press goes to the screen as if the overlay had not seen it. Only legal on the context click() was passed, while that call is running: a context saved for later is refused."
 				}
 			}
 		},
-		"Vec3": {
-			"description": "A 3D vector.",
+		"OverlayRenderContext": {
+			"description": "The context of an overlay's render() call, passed to it once per frame while a screen the overlay may draw on is open. Everything drawn through it is drawn on top of that screen for that frame and is thrown away with it. A context is only valid while its render() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
-				"x": {
-					"description": "Gets the X coordinate of a Vec3.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"y": {
-					"description": "Gets the Y coordinate of a Vec3.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"z": {
-					"description": "Gets the Z coordinate of a Vec3.",
-					"return_type": {
-						"name": "number"
-					}
-				}
-			},
-			"static_methods": {
-				"new": {
-					"description": "Creates a new Vec3 from its three coordinates, which is what Entity.set_delta_movement takes to give a spawned entity a velocity. A coordinate has to be finite.",
-					"return_type": {
-						"name": "Vec3"
-					},
+				"draw_box": {
+					"description": "Draws the overlay's hover highlight, a translucent white box, from one screen pixel to the other, the reference's way of marking the slot the mouse is over. The corners have to be the right way round, the first of each pair no greater than the second, like a box. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"draw_item": {
+					"description": "Draws one item's 16 by 16 icon at the screen pixel given, the way the game draws it in an inventory slot: a block as its own inventory shape, anything else as its flat icon, unlit and full brightness. The position is the slot's top-left corner plus the slot's inner padding, which is where the reference draws the icon. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
 						{
 							"name": "x",
 							"type": {
@@ -2373,19 +2527,55 @@
 							"type": {
 								"name": "number"
 							}
-						},
-						{
-							"name": "z",
-							"type": {
-								"name": "number"
-							}
 						}
 					]
 				},
-				"zero": {
-					"description": "Creates a new Vec3, initialized with all zeros.",
+				"gui_height": {
+					"description": "The height of the screen's GUI, its inventory panel, in pixels.",
 					"return_type": {
-						"name": "Vec3"
+						"name": "number"
+					}
+				},
+				"gui_left": {
+					"description": "The x position, in pixels from the screen's left edge, of the left side of the screen's GUI, its inventory panel. The overlay's area begins at the GUI's right edge, at gui_left plus gui_width, and runs to the screen's right edge.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_top": {
+					"description": "The y position, in pixels from the screen's top edge, of the top of the screen's GUI, its inventory panel.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_width": {
+					"description": "The width of the screen's GUI, its inventory panel, in pixels. The overlay's area begins at the GUI's right edge, at gui_left plus this, and runs to the screen's right edge.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"mouse_x": {
+					"description": "The x position of the mouse, in pixels from the screen's left edge, in the same coordinates as the screen and the GUI. Where it lands on a slot the overlay drew is the slot being hovered.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"mouse_y": {
+					"description": "The y position of the mouse, in pixels from the screen's top edge, in the same coordinates as the screen and the GUI.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screen_height": {
+					"description": "The height of the screen in pixels, from its top edge. The overlay's grid runs from the top of the screen down, so it is measured from 0 to here.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screen_width": {
+					"description": "The width of the screen in pixels, from its left edge. The overlay's grid sits in the space between the screen's GUI and this edge, and runs the full height, so the grid is measured from the GUI's right edge up to here.",
+					"return_type": {
+						"name": "number"
 					}
 				}
 			}
@@ -2403,56 +2593,6 @@
 							}
 						]
 					}
-				}
-			}
-		},
-		"ExtractResponse": {
-			"description": "The answer to a pipe asking a block entity for an item, passed to its extract_item export. It is only valid during that call, it is answered once, and a second answer is an err even when it repeats the first. An export that returns without answering is an err too, so refusing is always an explicit refuse().",
-			"methods": {
-				"give_crafting_result": {
-					"description": "Hands the pipe this block entity's whole crafting result, whatever its stack size, as BuildCraft's autocrafting table does. When the block entity has no result, nothing is given."
-				},
-				"give_crafting_result_consumed": {
-					"description": "Hands the pipe this block entity's whole crafting result, as it was when the pipe asked, and says that the export has already used up the ingredients itself: the host takes nothing from the block entity afterwards and does not call output_taken. This is how BuildCraft's autocrafting table answers a pipe, whose ISpecialInventory.extractItem does its own accounting, where a player taking the result from the GUI is accounted for by the slot's pickup hook, which is output_taken. The export has to consume only when remove is true, and may update the crafting result for what is left in the grid before it answers. When the block entity had no result, nothing is given."
-				},
-				"give_from_slot": {
-					"description": "Hands the pipe up to amount items from one inventory slot.",
-					"parameters": [
-						{
-							"name": "slot",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "amount",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"refuse": {
-					"description": "Hands the pipe nothing."
-				}
-			}
-		},
-		"AddResponse": {
-			"description": "The answer to a pipe offering a block entity an item, passed to its add_item export. It is only valid during that call, it is answered once, and a second answer is an err even when it repeats the first. An export that returns without answering is an err too, so refusing is always an explicit refuse().",
-			"methods": {
-				"accept_into_slot": {
-					"description": "Takes the items into one inventory slot, as many as fit. The host asks again with the rest.",
-					"parameters": [
-						{
-							"name": "slot",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"refuse": {
-					"description": "Takes nothing."
 				}
 			}
 		},
@@ -2553,6 +2693,12 @@
 		"RenderFrameContext": {
 			"description": "The context of a frame render pass, passed to a block entity's render_frame(). Everything drawn through it is drawn on top of the chunk geometry for that frame and thrown away at the end of it. A context is only valid while its render_frame() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
+				"camera_yaw": {
+					"description": "The direction the camera looks in, in degrees, on the context render_frame() was passed, while that call is running: the game's own yaw, so 0 looks towards positive z, 90 towards negative x, and it increases clockwise seen from above. What a sprite is turned by to face the player, though `draw_item` already does that turn itself. Only legal on that context, while render_frame() is running.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"draw_item": {
 					"description": "Draws one stack the way the game draws a dropped item, on top of the chunk geometry, on the context render_frame() was passed, while that call is running. The position is block-local, from 0 to 1 measured from the block's minimum corner, the same as `draw_box`, and it is the item's own position: the lift below is added by this call. An item that is a block is drawn as the block's own inventory shape, a quarter of a block across, or half a block across for the few block shapes that fill an inventory slot where the version says so, lifted a quarter of a block and not turning with the camera. Every other item is drawn as one flat sprite half a block across and lifted a tenth of a block, turned every frame to face the player. Lighting is off, so the stack is drawn at full brightness, and the brightness is the block's own. A stack of more than 1 is drawn as 2 copies, more than 5 as 3 and more than 20 as 4, the extra copies scattered by the reference's own values: from a random re-seeded with 187 for every stack, so the copies land in the same places for every stack and every loader. A count of 0 or less draws nothing. The damage is the stack's damage, which is the block's metadata on the versions that have one. The damage and the count have to be whole numbers from 0 to 2147483647, and the position has to be finite, or the stack is reported and not drawn. Only legal on the context render_frame() was passed, while that call is running: a context saved for later is refused. What render() records is baked into the chunk's geometry once, and a stack drawn there could not turn to face the player.",
 					"parameters": [
@@ -2599,266 +2745,17 @@
 					"return_type": {
 						"name": "number"
 					}
-				},
-				"camera_yaw": {
-					"description": "The direction the camera looks in, in degrees, on the context render_frame() was passed, while that call is running: the game's own yaw, so 0 looks towards positive z, 90 towards negative x, and it increases clockwise seen from above. What a sprite is turned by to face the player, though `draw_item` already does that turn itself. Only legal on that context, while render_frame() is running.",
-					"return_type": {
-						"name": "number"
-					}
 				}
 			}
 		},
-		"TestTickContext": {
-			"description": "The context of one call to a test's tick(). The test's assertions and its tick bookkeeping go through it. A context is only valid while its tick() call is running: saving it in a member variable and using it in a later tick is refused.",
+		"Screenshot": {
+			"description": "A screenshot assertion under construction, returned by `Test.screenshot()`. Configure it with `tolerance`, then call `equals` to run the comparison.",
 			"methods": {
-				"assert": {
-					"description": "Asserts a condition is true. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "condition",
-							"type": {
-								"name": "bool"
-							}
-						},
-						{
-							"name": "message",
-							"type": {
-								"name": "string"
-							}
-						}
-					]
-				},
-				"current_tick": {
-					"description": "Returns the current tick number within this test's execution, starting at 0. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+				"capture": {
+					"description": "Reads the given pixel rectangle of the current frame and remembers it on this screenshot, so a later `differs_from` can compare it with another capture of the same rectangle. Unlike `equals` this needs no reference images, which is what makes it the way to check that the game redrew something: one rendering is not the same on every Minecraft version and platform, so a reference image has to be accepted once per appearance, while two captures of one session agree with each other about everything except what the test changed. A pixel counts as changed only once a channel has moved by more than a small floor, so that a surface the game lights per vertex coming out a single part brighter between two captures is not reported as a change at all. A caller who wants only gross differences asks for a higher percent. Capturing replaces what this screenshot holds, so capture the earlier frame first and compare against it afterwards. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
 					"return_type": {
-						"name": "number"
-					}
-				},
-				"not_done": {
-					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused."
-				},
-				"expect_error": {
-					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "message",
-							"type": {
-								"name": "string"
-							}
-						}
-					]
-				}
-			}
-		},
-		"TestInitContext": {
-			"description": "The context of a test's init(). Only calls that have to be made before the test starts live on it, so a test cannot make them twice or after it has started. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
-			"methods": {
-				"set_max_ticks": {
-					"description": "Raises how many ticks the test may take before the runner fails it, which is 200 for a test that does not ask. A test with a real duration to wait for, such as an item travelling along a pipe a hundred game ticks at a time, needs more than that. The ticks are game ticks, as counted by TestTickContext.current_tick. The budget is a length of time that the runner counts in the ticks of a real-time clock: the runner runs every test with the game's clock faster than real time on a loader that can, and then multiplies the budget by that speed, so the same wait gets the same seconds at any speed. They have to be a whole number from 200 to 2147483647: a test can raise its budget but not lower it, and anything else is reported without changing the budget. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "ticks",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				}
-			}
-		},
-		"BlockInitContext": {
-			"description": "The context of a block's init(), passed to it. Everything a block declares about itself goes through it: how hard it is to mine, what it is made of, how many slots it has, which block entity it has, and how it draws. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused, because the declarations were read when init() returned.",
-			"methods": {
-				"set_hardness": {
-					"description": "Sets the mining hardness of the block. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "value",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_material": {
-					"description": "Sets the material of the block (e.g., 'wood', 'stone'). Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "material_name",
-							"type": {
-								"name": "string"
-							}
-						}
-					]
-				},
-				"set_inventory_size": {
-					"description": "Declares how many item slots this block's block entity has. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "size",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_block_entity": {
-					"description": "Declares the block entity script used by this block. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "entity_string",
-							"type": {
-								"name": "entity",
-								"entity_type": "BlockEntity"
-							}
-						}
-					]
-				},
-				"set_custom_render": {
-					"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
-				},
-				"set_flat_lighting": {
-					"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
-				},
-				"set_shape": {
-					"description": "Declares that this block's collision and selection boxes come from its shape export rather than being the full cube, which is what lets a machine be a shape no model JSON can express: a pipe that reaches towards what is beside it, a slab, a fence. The block's script then has to export shape, which the game asks for the boxes at a position every time it needs them, so the boxes are not fixed at registration and may follow the block's neighbours or its state. A block that declares set_shape without a shape export, or whose shape adds no box, reports an error and keeps the full cube. A block that exports shape without declaring it is reported as well, on its first query, because the game would never run that export; the declaration is what tells the game to ask at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
-				}
-			}
-		},
-		"BlockUseContext": {
-			"description": "The context of a block's use(), passed to it. A context is only valid while its use() call is running: saving it in a member variable and using it later is refused.",
-			"methods": {
-				"decline_use": {
-					"description": "Called by a block's use export to say the block did not handle the click, so the game treats it as if the block had no use export: the held item is used or placed as usual. Without it, a block that exports use consumes every right click on it. Only legal on the context use() was passed, while that call is running: a context saved for later is refused."
-				}
-			}
-		},
-		"BlockEntityInitContext": {
-			"description": "The context of a block entity's init(), passed to it. What a block entity declares about itself once, when it is created, goes through it: whether it receives energy, and which of its slots another block may use. A declaration is not saved, so init() makes it again whenever the block entity is created. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
-			"methods": {
-				"set_power_receiver": {
-					"description": "Declares that this block entity can receive energy and holds at most max_stored of it, which is where energy sent to it stops adding up. The declaration is not saved, so init() makes it again whenever the block entity is created. Declaring again replaces the limit and keeps the energy already stored, cut down to the new limit if that is lower. The stored energy is saved with the block entity, separately from its saved numbers, so it survives the block entity's chunk being unloaded and loaded again. Max_stored must be a whole number from 0 to 2147483647. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "max_stored",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_extractable_slots": {
-					"description": "Declares the slots of this block entity's inventory another block may take from, the first and the last inclusive. The slot after the last inventory slot is the crafting result, so a machine can grant that one slot and nothing else, and a last below the first grants no slot at all. This is a permission rather than a lock: extract_item_from_inventory scans only these slots and take_item_from_slot still takes from any slot, so a block managing its own slots is unaffected. A block entity that declares nothing is extractable everywhere, and declaring again replaces the earlier range rather than adding to it. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "first",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "last",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"set_insertable_slots": {
-					"description": "Declares the slots of this block entity's inventory another block may put into, the first and the last inclusive. A last below the first declares no slot at all. This is a permission rather than a lock: insert_item_into_inventory fills only these slots and set_item_in_slot still writes to any of them, so a block managing its own slots is unaffected. A block entity that declares nothing is insertable everywhere, and declaring again replaces the earlier range rather than adding to it. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "first",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "last",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				}
-			}
-		},
-		"OverlayRenderContext": {
-			"description": "The context of an overlay's render() call, passed to it once per frame while a screen the overlay may draw on is open. Everything drawn through it is drawn on top of that screen for that frame and is thrown away with it. A context is only valid while its render() call is running: saving it in a member variable and using it later is refused.",
-			"methods": {
-				"screen_width": {
-					"description": "The width of the screen in pixels, from its left edge. The overlay's grid sits in the space between the screen's GUI and this edge, and runs the full height, so the grid is measured from the GUI's right edge up to here.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"screen_height": {
-					"description": "The height of the screen in pixels, from its top edge. The overlay's grid runs from the top of the screen down, so it is measured from 0 to here.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_left": {
-					"description": "The x position, in pixels from the screen's left edge, of the left side of the screen's GUI, its inventory panel. The overlay's area begins at the GUI's right edge, at gui_left plus gui_width, and runs to the screen's right edge.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_top": {
-					"description": "The y position, in pixels from the screen's top edge, of the top of the screen's GUI, its inventory panel.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_width": {
-					"description": "The width of the screen's GUI, its inventory panel, in pixels. The overlay's area begins at the GUI's right edge, at gui_left plus this, and runs to the screen's right edge.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_height": {
-					"description": "The height of the screen's GUI, its inventory panel, in pixels.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"mouse_x": {
-					"description": "The x position of the mouse, in pixels from the screen's left edge, in the same coordinates as the screen and the GUI. Where it lands on a slot the overlay drew is the slot being hovered.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"mouse_y": {
-					"description": "The y position of the mouse, in pixels from the screen's top edge, in the same coordinates as the screen and the GUI.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"draw_item": {
-					"description": "Draws one item's 16 by 16 icon at the screen pixel given, the way the game draws it in an inventory slot: a block as its own inventory shape, anything else as its flat icon, unlit and full brightness. The position is the slot's top-left corner plus the slot's inner padding, which is where the reference draws the icon. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
-					"parameters": [
-						{
-							"name": "item",
-							"type": {
-								"name": "Item"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"draw_box": {
-					"description": "Draws the overlay's hover highlight, a translucent white box, from one screen pixel to the other, the reference's way of marking the slot the mouse is over. The corners have to be the right way round, the first of each pair no greater than the second, like a box. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+						"name": "Screenshot"
+					},
 					"parameters": [
 						{
 							"name": "x1",
@@ -2885,88 +2782,76 @@
 							}
 						}
 					]
-				}
-			}
-		},
-		"OverlayClickContext": {
-			"description": "The context of an overlay's click() call, passed to it when the mouse is pressed while a screen the overlay may draw on is open, before the screen gets the press. The position and the button are the ones the screen would have received, and calling take() keeps the press from reaching it, so the vanilla slot under the mouse is not clicked too. Return without taking it and the screen handles the press as if the overlay had not seen it. A context is only valid while its click() call is running: saving it in a member variable and using it later is refused.",
-			"methods": {
-				"screen_width": {
-					"description": "The width of the screen in pixels, from its left edge, the same measure render() is given, for an overlay that recomputes where its slots are to find the one that was pressed.",
-					"return_type": {
-						"name": "number"
-					}
 				},
-				"screen_height": {
-					"description": "The height of the screen in pixels, from its top edge, the same measure render() is given.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_left": {
-					"description": "The x position, in pixels from the screen's left edge, of the left side of the screen's GUI, its inventory panel, the same measure render() is given.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_top": {
-					"description": "The y position, in pixels from the screen's top edge, of the top of the screen's GUI, its inventory panel, the same measure render() is given.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_width": {
-					"description": "The width of the screen's GUI, its inventory panel, in pixels, the same measure render() is given.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"gui_height": {
-					"description": "The height of the screen's GUI, its inventory panel, in pixels, the same measure render() is given.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"mouse_x": {
-					"description": "The x position of the press, in pixels from the screen's left edge, the same coordinate render() gets for the mouse, which is where the overlay decides which of its slots was pressed.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"mouse_y": {
-					"description": "The y position of the press, in pixels from the screen's top edge, the same coordinate render() gets for the mouse.",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"button": {
-					"description": "The mouse button that was pressed, the same code the screen would receive: 0 is the left button, 1 the right and 2 the middle. The reference gives one item on a left or right click, gives a full stack on a shift+left click (see shift()) or a middle click, and deletes the item on the cursor on a left click while it carries one (see carried_item() and delete_carried_item()).",
-					"return_type": {
-						"name": "number"
-					}
-				},
-				"shift": {
-					"description": "Whether shift was held when the press was made. The reference's stack binding is shift+left, so an overlay that follows its click modes reads this together with button(). Only legal on the context click() was passed, while that call is running.",
-					"return_type": {
-						"name": "bool"
-					}
-				},
-				"carried_item": {
-					"description": "The Item on the mouse cursor of the screen that is open, if it carries one. The reference deletes that item on a left click over its list rather than giving another one, so this is how an overlay tells a carrying press from an empty one. Only legal on the context click() was passed, while that call is running.",
-					"return_type": {
-						"name": "Option",
-						"generics": [
-							{
-								"name": "Item"
+				"differs_from": {
+					"description": "Fails the test unless at least `percent` of the pixels of this screenshot differ from another one, both of which have to have been read with `capture` first. This is the assertion for a change the test caused, such as a texture it swapped: a frame that still shows what it showed before changes nothing and fails, and it does not count a pixel a single lighting unit apart as changed at all, because a surface the game lights per vertex can come out one part brighter between two runs of an unchanged frame and that is not what the test is asking about. The two captures have to be the same size, which is how a test that cropped two different rectangles is caught rather than compared. Note that a percent of 0 always passes, so ask for the share of the rectangle the change is actually expected to cover: swapping a whole texture changes every pixel of it, while a change to one sprite in a sprite sheet may be a small part of the frame.",
+					"parameters": [
+						{
+							"name": "other",
+							"type": {
+								"name": "Screenshot"
 							}
-						]
-					}
+						},
+						{
+							"name": "percent",
+							"description": "A whole number from 0 to 100: the share of pixels that must differ. Note that 0 always passes.",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				},
-				"delete_carried_item": {
-					"description": "Clears the Item on the mouse cursor of the screen that is open. The reference deletes the carried stack on a left click over its list instead of giving a new item; call take() afterward so the screen does not also act on the press. Only legal on the context click() was passed, while that call is running."
+				"equals": {
+					"description": "Captures the given pixel rectangle of the current frame and fails the test unless the capture matches one of the reference PNGs accepted for this UI, within this builder's tolerance. `reference` names a directory of PNGs each named after the loader that produced it (b1.7.3-ornithe.png), because the same UI renders differently on each Minecraft version and each accepted appearance gets its own file. A directory with no references yet is bootstrapped: the capture is written as `<loader>.png` and accepted. A capture that matches none of an existing directory's references is written to the `grug-screenshot-artifacts` directory (with a diff image) so CI can collect it, and the test fails; copy that capture into the reference directory to accept it. Fails with a host function error if any coordinate falls outside the 1280x720 frame.",
+					"parameters": [
+						{
+							"name": "reference",
+							"type": {
+								"name": "resource",
+								"resource_extension": "",
+								"optional": true
+							}
+						},
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				},
-				"take": {
-					"description": "Keeps the press from reaching the screen, so the vanilla slot under the mouse is not clicked too. Call it when the overlay handled the press, such as by giving the item the press landed on, and return; the screen never sees it. Without it, the press goes to the screen as if the overlay had not seen it. Only legal on the context click() was passed, while that call is running: a context saved for later is refused."
+				"tolerance": {
+					"description": "Sets the most any single pixel may differ before the comparison fails, as an integer percentage of the full 0 to 255 channel range, and returns this same builder so calls can be chained. A pixel's difference is the largest absolute change in any of its red, green or blue channels, and the comparison fails if any pixel changed by more than 255 * percent / 100. The default is 0, a pixel-exact comparison. The value must be the smallest integer that passes: a value higher than necessary fails with a message naming the smallest one, because a high tolerance makes the assertion always pass, at which point it stops being a test and hides real regressions instead of catching them. Tolerance is a last resort, so prefer the lowest percentage that works; a capture that is not reproducible from run to run is its own bug to fix (the crop, the camera, or the tick timing) rather than a reason to widen the tolerance. Every call must have a comment above it linking the issue that tracks the difference it absorbs and saying whether more research could remove the call. A percentage above 0 is refused outright when the mod owning the running test is an exact port, meaning its first `derived_from` entry carries recreation fields and lists no deviations, since such a port has to reproduce its reference pixel for pixel; 0 stays allowed, as does any percentage for a port that still lists deviations and for a mod that is not a port.",
+					"return_type": {
+						"name": "Screenshot"
+					},
+					"parameters": [
+						{
+							"name": "percent",
+							"description": "A whole number from 0 to 100: the most any single pixel may differ, as a percentage of the 0 to 255 channel range. Must be the smallest integer that passes.",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},
@@ -3054,6 +2939,121 @@
 							}
 						}
 					]
+				}
+			}
+		},
+		"TestInitContext": {
+			"description": "The context of a test's init(). Only calls that have to be made before the test starts live on it, so a test cannot make them twice or after it has started. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"set_max_ticks": {
+					"description": "Raises how many ticks the test may take before the runner fails it, which is 200 for a test that does not ask. A test with a real duration to wait for, such as an item travelling along a pipe a hundred game ticks at a time, needs more than that. The ticks are game ticks, as counted by TestTickContext.current_tick. The budget is a length of time that the runner counts in the ticks of a real-time clock: the runner runs every test with the game's clock faster than real time on a loader that can, and then multiplies the budget by that speed, so the same wait gets the same seconds at any speed. They have to be a whole number from 200 to 2147483647: a test can raise its budget but not lower it, and anything else is reported without changing the budget. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
+		},
+		"TestTickContext": {
+			"description": "The context of one call to a test's tick(). The test's assertions and its tick bookkeeping go through it. A context is only valid while its tick() call is running: saving it in a member variable and using it in a later tick is refused.",
+			"methods": {
+				"assert": {
+					"description": "Asserts a condition is true. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "condition",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "message",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"current_tick": {
+					"description": "Returns the current tick number within this test's execution, starting at 0. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"expect_error": {
+					"description": "Marks the current test as expecting the next host call to fail with an error whose message contains the given substring. The runner then accepts the resulting abort as a pass, which is how the error branches of host functions are exercised. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "message",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"not_done": {
+					"description": "Requests another tick before the test is considered finished. If this isn't called during a given tick's `run`, the test is considered done as of that tick. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused."
+				}
+			}
+		},
+		"Vec3": {
+			"description": "A 3D vector.",
+			"methods": {
+				"x": {
+					"description": "Gets the X coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"y": {
+					"description": "Gets the Y coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"z": {
+					"description": "Gets the Z coordinate of a Vec3.",
+					"return_type": {
+						"name": "number"
+					}
+				}
+			},
+			"static_methods": {
+				"new": {
+					"description": "Creates a new Vec3 from its three coordinates, which is what Entity.set_delta_movement takes to give a spawned entity a velocity. A coordinate has to be finite.",
+					"return_type": {
+						"name": "Vec3"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"zero": {
+					"description": "Creates a new Vec3, initialized with all zeros.",
+					"return_type": {
+						"name": "Vec3"
+					}
 				}
 			}
 		}
