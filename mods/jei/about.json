@@ -116,11 +116,6 @@
 					"what": "On 1.20.6 a give, and the server-side half of a cursor delete, take effect only where the client runs the game's own server, which is singleplayer or a LAN host; on a client of a remote server the overlay takes the press and nothing is given. On 1.2.5, Beta and Alpha the give writes the client's copy of the player directly, so it shows in the hand but is not sent to a remote server, and a delete clears the client's cursor only.",
 					"why": "The 1.20.6 give and cursor delete add or clear the integrated server's player directly, as calls inside the same process, instead of sending the server a packet the way JEI does. The older versions write the client player because that is the copy the screen and the test hold.",
 					"tracking_issue": 882
-				},
-				{
-					"what": "No test captures a frame and compares it with the reference, so the port's drawing is not checked against real JEI's.",
-					"why": "The item order differs from JEI's on purpose, so a whole-screen golden would differ for a reason the port chose. The reference can already be staged and booted, but a capture that isolates the layout has to come first.",
-					"tracking_issue": 874
 				}
 			]
 		}
