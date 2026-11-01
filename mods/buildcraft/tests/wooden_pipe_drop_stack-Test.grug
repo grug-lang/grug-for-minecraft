@@ -54,4 +54,8 @@ export tick(ctx: TestTickContext) {
     found: Option[ItemEntity] = level.find_item_entity(x, y, z, 10)
     ctx.assert(found.has(), "The dropped stack should be on the ground.")
     ctx.assert(found.unwrap().count() == drop_stack_count, "The dropped item entity should hold the whole stack.")
+
+    # EntityPassiveItem.toEntityItem makes a thrown stack wait 20 ticks. No entity has ticked since
+    # the drop, so the delay is still the one the pipe set.
+    ctx.assert(found.unwrap().pickup_delay() == 20, "A stack thrown out of the pipe should wait 20 ticks before it can be picked up.")
 }

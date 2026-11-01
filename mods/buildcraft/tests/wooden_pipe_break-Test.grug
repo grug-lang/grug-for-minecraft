@@ -72,6 +72,10 @@ export tick(ctx: TestTickContext) {
     motion: Vec3 = stack_found.unwrap().entity().get_delta_movement()
     ctx.assert(motion.x() > -0.100001 and motion.x() < 0.100001, "The hop's x should stay within the constructor's random 0.1.")
     ctx.assert(motion.z() > -0.100001 and motion.z() < 0.100001, "The hop's z should stay within the constructor's random 0.1.")
+    # Utils.dropItems makes a broken pipe's drop wait 10 ticks, and no entity has ticked since.
+    ctx.assert(found.unwrap().pickup_delay() == 10, "A broken pipe's item should wait 10 ticks before it can be picked up.")
+    ctx.assert(stack_found.unwrap().pickup_delay() == 10, "A broken pipe's stack should wait 10 ticks before it can be picked up.")
+
     ctx.assert(motion.y() > 0.199999 and motion.y() < 0.200001, "The hop's y should be the constructor's 0.2, within a float's expansion.")
 
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")

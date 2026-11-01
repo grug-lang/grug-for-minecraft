@@ -765,6 +765,19 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double getItemEntityPickupDelay(Object itemEntityObj) {
+        // The field is private and has no getter; the saved data holds it as a short.
+        return ((ItemEntity) itemEntityObj)
+                .saveWithoutId(new net.minecraft.nbt.CompoundTag())
+                .getShort("PickupDelay");
+    }
+
+    @Override
+    public void setItemEntityPickupDelay(Object itemEntityObj, int ticks) {
+        ((ItemEntity) itemEntityObj).setPickUpDelay(ticks);
+    }
+
+    @Override
     public void clearItemEntities(
             Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
         Level world = (Level) levelObj;

@@ -198,6 +198,12 @@ public interface ModLoaderAdapter {
 
     double getItemEntityCount(Object itemEntityObj);
 
+    /** The ticks left before a player can pick the item entity up. */
+    double getItemEntityPickupDelay(Object itemEntityObj);
+
+    /** Sets the ticks left before a player can pick the item entity up. */
+    void setItemEntityPickupDelay(Object itemEntityObj, int ticks);
+
     Object findItemEntity(Object levelObj, double x, double y, double z, double radius);
 
     Object createResourceLocation(String string);

@@ -2050,6 +2050,23 @@
 					"return_type": {
 						"name": "Entity"
 					}
+				},
+				"pickup_delay": {
+					"description": "The number of ticks left before a player can pick the item entity up. It counts down by one every tick, so it reads 0 once the item entity can be picked up.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"set_pickup_delay": {
+					"description": "Sets the number of ticks before a player can pick the item entity up. An item entity made by item_entity has none, so a stack that should not be picked up at once is given its delay before it is spawned.",
+					"parameters": [
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},

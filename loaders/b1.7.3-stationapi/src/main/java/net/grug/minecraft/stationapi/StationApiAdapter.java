@@ -593,6 +593,16 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double getItemEntityPickupDelay(Object itemEntityObj) {
+        return ((ItemEntity) itemEntityObj).pickupDelay;
+    }
+
+    @Override
+    public void setItemEntityPickupDelay(Object itemEntityObj, int ticks) {
+        ((ItemEntity) itemEntityObj).pickupDelay = ticks;
+    }
+
+    @Override
     public void clearItemEntities(
             Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
         World world = (World) levelObj;

@@ -702,6 +702,16 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double getItemEntityPickupDelay(Object itemEntityObj) {
+        return ((EntityItem) itemEntityObj).delayBeforeCanPickup;
+    }
+
+    @Override
+    public void setItemEntityPickupDelay(Object itemEntityObj, int ticks) {
+        ((EntityItem) itemEntityObj).delayBeforeCanPickup = ticks;
+    }
+
+    @Override
     public void clearItemEntities(
             Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
         World world = (World) levelObj;

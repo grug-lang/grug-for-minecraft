@@ -165,6 +165,8 @@ Color.rgb(r: number, g: number, b: number) Color
 .count() number
 .damage() number
 .entity() Entity
+.pickup_delay() number
+.set_pickup_delay(ticks: number)
 
 ## Level
 .count_item_entities(x: number, y: number, z: number, radius: number) number

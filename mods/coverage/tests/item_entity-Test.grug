@@ -1,6 +1,6 @@
 # Covers item + resource_location + item_stack (with damage and count) + item_entity +
-# ItemEntity.damage + ItemEntity.count + Entity.set_delta_movement + Entity.get_delta_movement +
-# Entity.spawn + vec3_zero.
+# ItemEntity.damage + ItemEntity.count + ItemEntity.pickup_delay + ItemEntity.set_pickup_delay +
+# Entity.set_delta_movement + Entity.get_delta_movement + Entity.spawn + vec3_zero.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
@@ -24,6 +24,17 @@ export tick(ctx: TestTickContext) {
 
         entity.entity().set_delta_movement(Vec3.zero())
         entity.entity().spawn(level)
+
+        # The delay a script sets reads back unchanged until the entity ticks, and a fresh item
+        # entity has none. The test runner does not tick entities between statements.
+        pickup: ItemEntity = item_entity(level, origin.x(), origin.y() + 2, origin.z(), stack)
+        ctx.assert(pickup.pickup_delay() == 0, "A new item entity should be pickable at once.")
+        pickup.set_pickup_delay(17)
+        ctx.assert(pickup.pickup_delay() == 17, "The item entity should report the delay it was given.")
+        pickup.set_pickup_delay(0)
+        ctx.assert(pickup.pickup_delay() == 0, "A delay of 0 should make the item entity pickable at once.")
+        pickup.entity().set_delta_movement(Vec3.zero())
+        pickup.entity().spawn(level)
 
         # A stack of more than one, which is what the wooden pipe hands an item entity when nothing
         # accepts the stack it carries. Diamonds stack, so this is a state the game itself has.

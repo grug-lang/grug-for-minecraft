@@ -104,6 +104,8 @@ local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: Bloc
             dz: number = world.random_float() * 0.7 + 0.15
             stack: ItemStack = item_stack(item_opt.unwrap(), damage, count)
             dropped: ItemEntity = item_entity(world, x + dx, y + dy, z + dz, stack)
+            # Utils.dropItems sets the EntityItem's delayBeforeCanPickup to 10 before it spawns it.
+            dropped.set_pickup_delay(10)
             dropped.entity().spawn(world)
         }
         index = index + 1

@@ -1444,6 +1444,24 @@ public class HostFunctions {
                 0.0);
     }
 
+    public static double ItemEntity_pickup_delay(long itemEntityId) {
+        return withEntity(
+                "ItemEntity.pickup_delay",
+                "item entity",
+                itemEntityId,
+                itemEntity -> GrugCore.getAdapter().getItemEntityPickupDelay(itemEntity),
+                0.0);
+    }
+
+    public static void ItemEntity_set_pickup_delay(long itemEntityId, double ticks) {
+        withEntity(
+                "ItemEntity.set_pickup_delay",
+                "item entity",
+                itemEntityId,
+                itemEntity ->
+                        GrugCore.getAdapter().setItemEntityPickupDelay(itemEntity, (int) ticks));
+    }
+
     public static long Level_get_block_entity(long levelId, double x, double y, double z) {
         return withEntity(
                 "Level.get_block_entity",
