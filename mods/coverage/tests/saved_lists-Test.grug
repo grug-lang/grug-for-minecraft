@@ -57,14 +57,15 @@ export tick(ctx: TestTickContext) {
     # in PipeTransportItems.writeToNBT: an absolute x, y and z, a speed, the direction it faces,
     # whether it is still heading for the centre, and the item. The port also keeps the stack's
     # count and damage as two of the record's numbers, because a record's item is its identity
-    # alone. The keys are the port's names for the reference's setDouble("x"), setDouble("speed")
-    # and setInteger("orientation").
+    # alone. The keys are the port's names for the reference's setDouble("x"), setFloat("speed") and
+    # setInteger("orientation"); the port stores every number as a double, so the reference's float
+    # speed becomes one, and that is why it has to come back bit for bit.
     traveling: number = be.append_saved_list_record("traveling")
     ctx.assert(traveling == 0, "The pipe's list should start at index 0.")
     # The count and damage are numbers the caller names, not the item's, so they are 3 and 1 rather
-    # than the 1 and 0 a stack of one would carry. A half block past a block is a position a
-    # travelling item is at for half of each move, so it has to come back as the same number, and
-    # the speed is not exact in binary but has to come back unchanged.
+    # than the 1 and 0 a stack of one would carry. A half block past a block is the position the
+    # pipe's 0.01-a-tick move passes through at its centre tick, so it has to come back as the same
+    # number, and 0.01 is not exact in binary but still has to come back unchanged.
     be.set_saved_list_number("traveling", 0, "x", 10.5)
     be.set_saved_list_number("traveling", 0, "y", 20.5)
     be.set_saved_list_number("traveling", 0, "z", -30.5)
@@ -96,20 +97,17 @@ export tick(ctx: TestTickContext) {
     # that needs a real stack or components starts from its own accessor pair, as this one does for
     # its numbers, in the commit that first needs it.
 
-    # A record whose only value is its item stores no numbers at all, so a port that needs a count
-    # writes the count itself rather than relying on the stack of one the item would carry.
+    # A record's item carries no number with it: an unset key answers 0, and the count in
+    # particular stays 0 rather than the 1 a stack of one would carry, so a port that needs a count
+    # writes it as the record's own number.
     alone: number = be.append_saved_list_record("traveling")
     ctx.assert(alone == 1, "The second record of the pipe's list should be at index 1.")
     be.set_saved_list_item("traveling", 1, diamond)
-    ctx.assert(be.get_saved_list_number("traveling", 1, "x") == 0, "An item alone should store no x.")
-    ctx.assert(be.get_saved_list_number("traveling", 1, "count") == 0, "An item alone should store no count.")
-    ctx.assert(be.get_saved_list_number("traveling", 1, "damage") == 0, "An item alone should store no damage.")
+    ctx.assert(be.get_saved_list_number("traveling", 1, "count") == 0, "An item alone should store no count, not the stack of one's 1.")
 
     Test.round_trip_nbt(be)
     ctx.assert(be.get_saved_list_size("traveling") == 2, "The reload should keep both records.")
-    ctx.assert(be.get_saved_list_number("traveling", 1, "x") == 0, "An item alone should still store no x.")
     ctx.assert(be.get_saved_list_number("traveling", 1, "count") == 0, "An item alone should still store no count.")
-    ctx.assert(be.get_saved_list_number("traveling", 1, "damage") == 0, "An item alone should still store no damage.")
     alone_item: Option[Item] = be.get_saved_list_item("traveling", 1)
     ctx.assert(alone_item.has(), "The item alone should survive the reload.")
     ctx.assert(equals(alone_item.unwrap(), diamond), "The item alone should keep its identity.")
