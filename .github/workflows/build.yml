@@ -913,26 +913,21 @@ jobs:
           name: grug-rs-library
           path: .grug-ci
 
-      # The same entries the loader job for the loader the runtime names restores, so neither job
-      # resolves its Gradle dependencies or unpacks a Gradle distribution again. See the loader job
-      # for why each is keyed so. The expressions have to stay the same as the action's key for the
-      # selected loader, or this job reads an entry of its own that the loader job never writes.
+      # The same three entries the loader job for the loader the runtime names restores, so neither
+      # job resolves its Gradle dependencies or unpacks a Gradle distribution again. See the loader
+      # job for why each is keyed so. The action's expressions have to stay the same as the loader
+      # action's key for the selected loader, or this job reads an entry of its own that the loader
+      # job never writes.
       #
-      # The first two are the action's, which restores the distribution and the rest of Gradle's user
-      # home and writes neither. It replaces setup-java's `cache: gradle`, whose wrapper entry was a
-      # second copy of the same distribution (#825), and the inline distribution step that was here,
-      # which is the same entry the action restores.
+      # The action restores the distribution, the rest of Gradle's user home and the dependencies,
+      # and writes none of them. It replaces setup-java's `cache: gradle`, whose wrapper entry was a
+      # second copy of the same distribution (#825), the inline distribution and dependency steps
+      # that were here, which were the same two entries, and the dependency half of setup-java's
+      # cache.
       - name: Restore the Gradle caches
         uses: ./.github/actions/restore-gradle-caches
         with:
           loader: ${{ steps.select.outputs.loader }}
-
-      - name: Cache the Gradle dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-${{ steps.select.outputs.loader }}-${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', steps.select.outputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', steps.select.outputs.loader), format('loaders/{0}/settings.gradle', steps.select.outputs.loader), format('loaders/{0}/settings.gradle.kts', steps.select.outputs.loader), format('loaders/{0}/build.gradle', steps.select.outputs.loader), format('loaders/{0}/build.gradle.kts', steps.select.outputs.loader)) }}
-          restore-keys: grug-gradle-${{ runner.os }}-${{ steps.select.outputs.loader }}-
 
       - name: Cache the 1.2.5 MCP snapshot
         if: steps.select.outputs.loader == '1.2.5-forge'
