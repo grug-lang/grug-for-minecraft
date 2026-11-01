@@ -138,6 +138,7 @@ public final class GrugTestBox {
         if (roomIsWhole) {
             clearItems(
                     adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
+            adapter.relightRoom(level, minX - 1, wallBottomY, minZ - 1, maxX + 1, ceilingY, maxZ + 1);
             oweLight(adapter, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
             return;
         }
@@ -193,6 +194,7 @@ public final class GrugTestBox {
         // item in the hotbar shows in every capture that has one in frame. See #254.
         clearItems(adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
 
+        adapter.relightRoom(level, minX - 1, wallBottomY, minZ - 1, maxX + 1, ceilingY, maxZ + 1);
         oweLight(adapter, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
     }
 

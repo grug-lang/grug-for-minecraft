@@ -886,6 +886,36 @@ public class Grug125Adapter implements ModLoaderAdapter {
         batchPositionCount = 0;
     }
 
+    @Override
+    public void relightRoom(
+            Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        World world = (World) levelObj;
+        long previous = Long.MIN_VALUE;
+        int passes = 0;
+        for (; passes < 16; passes++) {
+            long hash = 0;
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    for (int x = minX; x <= maxX; x++) {
+                        world.updateAllLightTypes(x, y, z);
+                    }
+                }
+            }
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    for (int x = minX; x <= maxX; x++) {
+                        hash = hash * 31 + world.getSavedLightValue(net.minecraft.src.EnumSkyBlock.Block, x, y, z);
+                    }
+                }
+            }
+            if (hash == previous) {
+                break;
+            }
+            previous = hash;
+        }
+        net.grug.minecraft.grug.GrugDiag.note("relightRoom passes=" + passes + " hash=" + previous);
+    }
+
     /** Records a position whose relight the open batch postponed. */
     private void batchPosition(int x, int y, int z) {
         if (batchPositionCount + 3 > batchPositions.length) {

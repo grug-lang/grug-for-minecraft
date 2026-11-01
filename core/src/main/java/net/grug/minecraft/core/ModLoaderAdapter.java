@@ -229,6 +229,10 @@ public interface ModLoaderAdapter {
     /** Ends the batch {@link #beginBatch} started, doing the relight it postponed. */
     default void endBatch(Object levelObj) {}
 
+    /** Brings the block light of the room's box to the one value its blocks define. */
+    default void relightRoom(
+            Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {}
+
     /**
      * Creates an explosion of the given power at the given coordinates, which are not floored. The
      * caller has already rejected a non-finite coordinate and a negative power.
