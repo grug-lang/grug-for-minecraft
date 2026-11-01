@@ -96,7 +96,7 @@
                         }
                     },
                     "artifacts": {
-                        "description": "The reference builds to diff against, each staged under its name. Every sha256 is the authority, not the url: a moved url is fine as long as the bytes hash the same.",
+                        "description": "The reference builds to diff against, each staged under its name. Every sha256 is the authority, not the url: a moved url is fine as long as the bytes hash the same. A reference that is the game itself rather than a mod, such as vanilla Minecraft, has no build of its own to stage, so it carries neither artifacts nor install: the loader already has the reference, and runtime says which one it is.",
                         "type": "array",
                         "minItems": 1,
                         "items": {
@@ -129,17 +129,7 @@
                                 },
                                 {
                                     "required": [
-                                        "runtime"
-                                    ]
-                                },
-                                {
-                                    "required": [
                                         "install"
-                                    ]
-                                },
-                                {
-                                    "required": [
-                                        "deviations"
                                     ]
                                 }
                             ]
@@ -252,7 +242,7 @@
             }
         },
         "install": {
-            "description": "A tagged union keyed by how the reference is installed into its runtime, not a step array. files and libs are paths and coordinates the runtime resolves; config is a runtime-specific object; jvm_args are extra launcher arguments.",
+            "description": "A tagged union keyed by how the reference is installed into its runtime, not a step array. files and libs are paths and coordinates the runtime resolves; config is a runtime-specific object; jvm_args are extra launcher arguments. A reference that is the game itself needs no install, so such an entry carries no install at all rather than naming a type that does nothing.",
             "type": "object",
             "required": [
                 "type"

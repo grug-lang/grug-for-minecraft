@@ -134,8 +134,8 @@ def install_plan(entry: dict, loaders: set | None = None) -> str:
     own runtime has to be one of.
     """
     runtime = entry["runtime"]
-    install = entry["install"]
-    operation = INSTALL_SUMMARIES[install["type"]]
+    install = entry.get("install")
+    operation = INSTALL_SUMMARIES[install["type"]] if install else "nothing"
 
     revision = entry.get("revision")
     reference = f"Reference: {entry['name']}"
@@ -146,14 +146,14 @@ def install_plan(entry: dict, loaders: set | None = None) -> str:
         f"Runtime: Minecraft {runtime['minecraft']}, loader directory {runtime['loader']},"
         f" loader version {runtime['loader_version']}, Java {runtime['java']}.",
         reference + ".",
-        f"Install ({install['type']}): {operation}",
+        f"Install: {operation}" if install is None else f"Install ({install['type']}): {operation}",
     ]
     if loaders is not None:
         lines.append(f"Declared loaders: {', '.join(sorted(loaders))}.")
     for field in ("files", "libs", "jvm_args"):
-        for value in install.get(field, []):
+        for value in install.get(field, []) if install else []:
             lines.append(f"  {field}: {value}")
-    if "config" in install:
+    if install and "config" in install:
         lines.append(f"  config: {json.dumps(install['config'], sort_keys=True)}")
 
     for artifact in artifacts_of(entry):
@@ -175,7 +175,12 @@ def stage_install(entry: dict, artifacts_dir: Path, destination: Path) -> list:
     copied as that name. Only a mods_folder install is automated. The other types need a loader, a
     launcher, or a build this script cannot drive, so they are reported rather than half-done.
     """
-    install = entry["install"]
+    install = entry.get("install")
+    if install is None:
+        raise ValueError(
+            "The reference is the game itself, so there is nothing to stage:"
+            " the loader already runs it."
+        )
     if install["type"] != "mods_folder":
         raise ValueError(
             f"Staging a {install['type']} install is not automated;"

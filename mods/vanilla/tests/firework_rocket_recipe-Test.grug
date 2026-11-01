@@ -1,0 +1,70 @@
+# The firework rocket's recipe is the reference's paper and gunpowder plus a feather, for three
+# rockets, which is what 1.20.6's own FireworkRocketRecipe answers. The feather is the port's
+# departure: on 1.20.6 the reference's recipe is still registered, so a grid of one paper and one
+# gunpowder matches both recipes and the game answers whichever it reaches first, while the
+# reference's recipe rejects a feather. about.json records the departure and why it goes.
+# A reference run has no grug:firework_rocket to answer with, so it skips this file.
+# Band 9 is free: the other mods' fixtures sit at 0, 2, 5, 6, 10, 12, 15, 20, 25, 30, 35, 40, 45
+# and 50.
+export tick(ctx: TestTickContext) {
+    # A reference run has no grug recipe, and a loader that registers no mod recipe answers the grid
+    # with nothing, so both are asked rather than assumed.
+    if Test.is_reference() {
+        return
+    }
+    if not Test.registers_mod_recipes() {
+        return
+    }
+
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 9
+    z: number = origin.z()
+
+    paper: Item = item(resource_location("minecraft:paper"))
+    gunpowder: Item = item(resource_location("minecraft:gunpowder"))
+    feather: Item = item(resource_location("minecraft:feather"))
+    rocket: Item = item(resource_location("grug:firework_rocket"))
+
+    grid: BlockEntity = _grid(ctx, level, x, y, z)
+
+    # Shapeless, so the slots they sit in do not matter; the first three are the obvious ones.
+    grid.set_item_in_slot(0, paper, 1)
+    grid.set_item_in_slot(1, gunpowder, 1)
+    grid.set_item_in_slot(2, feather, 1)
+    grid.update_recipe_output(0)
+
+    result: Option[Item] = grid.get_crafting_result_item()
+    ctx.assert(result.has(), "Paper, gunpowder and a feather should craft firework rockets.")
+    ctx.assert(equals(result.unwrap(), rocket), "The rocket's recipe should answer grug:firework_rocket.")
+    ctx.assert(grid.take_crafting_result(3) == 3, "The rocket's recipe should give three rockets.")
+
+    # Paper and gunpowder without the feather is the reference's recipe and not the port's, so the
+    # check above is not passing on a grid the reference's own recipe already answers.
+    _assert_not_the_recipe(ctx, level, x, y + 1, z, paper, gunpowder, rocket)
+}
+
+# A grid of paper and gunpowder, with the feather the port's recipe adds left out, must not answer
+# grug:firework_rocket. On 1.20.6 that grid does answer the reference's own minecraft:firework_rocket,
+# which is exactly the collision the feather avoids, so this asks about the port's item rather than
+# about an empty result.
+local _assert_not_the_recipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number, paper: Item, gunpowder: Item, rocket: Item) {
+    other: BlockEntity = _grid(ctx, level, x, y, z)
+    other.set_item_in_slot(0, paper, 1)
+    other.set_item_in_slot(1, gunpowder, 1)
+    other.update_recipe_output(0)
+    other_result: Option[Item] = other.get_crafting_result_item()
+    if other_result.has() {
+        ctx.assert(not equals(other_result.unwrap(), rocket), "Paper and gunpowder alone should not craft the port's firework rocket.")
+    }
+}
+
+# The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
+# the block to place rather than a chest.
+local _grid(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    level.place_block(x, y, z, "grug:coverage_block")
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The coverage block should have a block entity after being placed.")
+    return found.unwrap()
+}
