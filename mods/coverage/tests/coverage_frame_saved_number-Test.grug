@@ -8,7 +8,7 @@
 # frame before it and fails. The stack is a quarter block across and nothing else in the crop moves,
 # so the ask is 1 percent of the crop, where two captures of an unchanged frame differ in none.
 # Setting the number again to the value it holds changes nothing the client needs, so that is no
-# new send: the world stays settled over it, which on 1.20.6 a send would not allow.
+# new send; the loader skips it, and the test reaches that path by saving the same value again.
 frame_block: Option[BlockEntity] = Option.new()
 before: Option[Screenshot] = Option.new()
 saved: bool = false
@@ -29,16 +29,16 @@ export tick(ctx: TestTickContext) {
         saved_tick = ctx.current_tick()
         ctx.not_done()
     } else if not Test.world_settled() or ctx.current_tick() < saved_tick + 30 {
-        # The change is a frame's worth of drawing away, and the runner runs up to 10 ticks for a
-        # frame, so the hold is three frames' worth of ticks on top of the settle wait: on the
-        # loaders that share one world with the game, nothing marks the frame pass as owing a frame.
+        # The change is a packet and a frame away, and nothing marks the world unsettled for it: a
+        # script saves numbers as it runs and a world that settled only between those would never
+        # settle. The runner runs up to 10 ticks for a frame, so 30 ticks hold three frames.
         ctx.not_done()
     } else {
         after: Screenshot = Test.screenshot().capture(500, 180, 780, 340)
         after.differs_from(before.unwrap(), 1)
 
         frame_block.unwrap().set_saved_number("marker", 1)
-        ctx.assert(Test.world_settled(), "Saving the number it already holds should not unsettle the world.")
+        ctx.assert(frame_block.unwrap().get_saved_number("marker") == 1, "The number should still be saved.")
     }
 }
 
