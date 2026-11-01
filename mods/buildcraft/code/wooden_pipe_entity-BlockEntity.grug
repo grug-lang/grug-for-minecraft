@@ -337,6 +337,8 @@ local _drop_moving(px: number, py: number, pz: number, direction: number, item: 
     stack: ItemStack = item_stack(item, damage, count)
     dropped: ItemEntity = item_entity(level, px, py, pz, stack)
     dropped.entity().set_delta_movement(velocity)
+    # EntityPassiveItem.toEntityItem sets the EntityItem's delayBeforeCanPickup to 20.
+    dropped.set_pickup_delay(20)
     dropped.entity().spawn(level)
 }
 
