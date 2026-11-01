@@ -1,6 +1,8 @@
-package net.minecraft.src;
+package net.grug.minecraft.forge125;
 
 import net.grug.minecraft.grug.GrugGenerated;
+import net.minecraft.src.GuiContainer;
+import net.minecraft.src.GuiScreen;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -9,9 +11,9 @@ import java.lang.reflect.Method;
  * Reads and drives the protected members of a container screen for grug's overlay.
  *
  * <p>1.2.5 has no access widener or Mixin, and its {@code GuiContainer} keeps the GUI rectangle and
- * the press handlers protected. This loader's classes are defined by ModLoader's class loader, so a
- * class in the game's package is still a different runtime package and cannot read those members
- * directly; reflection is the one route that does not patch the game classes.
+ * the press handlers protected. Reflection is the one route to them that does not patch the game
+ * classes. This is a loader class and stays in the loader's own package, because a class in the
+ * game's package would be reobfuscated to the jar root.
  */
 public final class GrugGuiAccess {
 

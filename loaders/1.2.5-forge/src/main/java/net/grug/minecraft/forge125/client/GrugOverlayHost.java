@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.client;
 
+import net.grug.minecraft.forge125.GrugGuiAccess;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -10,7 +11,6 @@ import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugTestState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.src.GrugGuiAccess;
 import net.minecraft.src.Gui;
 import net.minecraft.src.GuiContainer;
 import net.minecraft.src.GuiScreen;

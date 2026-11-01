@@ -42,7 +42,6 @@ import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.GrugGuiAccess;
 import net.minecraft.src.GuiContainer;
 import net.minecraft.src.GuiInventory;
 import net.minecraft.src.GuiScreen;
