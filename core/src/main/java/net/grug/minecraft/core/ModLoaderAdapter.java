@@ -357,6 +357,25 @@ public interface ModLoaderAdapter {
     void tickBlockEntity(Object blockEntityObj);
 
     /**
+     * Test only: runs the level's own tick {@code ticks} times in a row, at the point of the call,
+     * with no frame drawn and no client packet read between them, so a test can reach a state that
+     * takes the game minutes to build without waiting for those ticks to be drawn.
+     *
+     * <p>It runs what the game's own tick of that level runs, in this loader's own order, and moves
+     * the level's clock one per tick. It does not tick the client, so a test that waits for
+     * something drawn or received still waits for a real tick, and it does not shrink the runner's
+     * tick budget: a long advance is bounded only by the run timeout. See #753 for the semantics
+     * and #780 for the prototype.
+     *
+     * <p>A loader that cannot advance its level keeps this default of doing nothing, which is a
+     * documented no-op and not an err: a test that calls it and then waits for its condition falls
+     * back to waiting for the game's own ticks, which is what it did before the advance existed.
+     * Only 1.20.6 implements it so far, because the prototype's measurement is there; the four
+     * older loaders split a tick in two and each needs its own order before it can. See #780.
+     */
+    default void tickLevel(Object levelObj, int ticks) {}
+
+    /**
      * Test only: saves the chunk the tests run in through this loader's chunk save format and reads
      * it straight back, with a block whose id is above 255 in it, so the round trip is proven on a
      * real save. Answers the id the block got, which the loader's own block-id search hands out

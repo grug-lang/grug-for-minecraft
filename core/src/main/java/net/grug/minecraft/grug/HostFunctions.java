@@ -148,6 +148,31 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: runs the level's own tick {@code ticks} times in a row, within the one game tick
+     * the test is in.
+     *
+     * <p>A test that waits for the world to reach a state, such as an engine gathering energy and a
+     * pipe carrying an item, spends a rendered frame on every tenth tick at the speed the game's
+     * clock runs, and the advance spends none: it runs the ticks the game would have run, in the
+     * loader's order, with no frame, no screen and no client packet between them. What it cannot do
+     * is make the client catch up, so anything the client draws or receives still needs a real
+     * tick. The clock {@code Level.get_time} reads moves one per tick, unlike {@code
+     * Test.tick_block_entity}, which leaves it alone.
+     *
+     * <p>Only a whole, non-negative number of ticks means anything, so anything else is reported
+     * rather than rounded. The advances run past the runner's tick budget, which counts the test's
+     * own ticks: a long one is bounded only by the run timeout. See #753 and #780.
+     */
+    public static void Test_tick_level(long levelId, double ticks) {
+        String problem = GrugTestState.checkTickCount(ticks);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.tick_level: " + problem);
+            return;
+        }
+        GrugCore.getAdapter().tickLevel(GrugEntities.entityData.get(levelId).object, (int) ticks);
+    }
+
+    /**
      * Puts a mod file into a named state, remembering its pristine text the first time so the
      * {@code "normal"} state restores it exactly.
      *

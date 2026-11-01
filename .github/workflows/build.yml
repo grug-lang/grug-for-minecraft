@@ -659,6 +659,11 @@ jobs:
       # job pays one Gradle start and one configuration. A build failure still fails the step before
       # any game exists: the script tells it from a game that exited, and the game's time limit
       # starts when Gradle starts the runClient task. The layer job stays a build-only job.
+      # Prototype measurement only (#780): the CPU model the wall times were taken on. Not for a
+      # merge.
+      - name: Record the CPU model
+        run: lscpu | grep -E '^(Model name|Socket|Core|Thread)'
+
       - name: Build and run tests (${{ matrix.dir }})
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" build-run
         env:

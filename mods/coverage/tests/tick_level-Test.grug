@@ -1,0 +1,14 @@
+# Test.tick_level advances the level's own tick where the loader can do that, and does nothing where
+# it cannot, so this test checks the promise every loader keeps: the advance does not move the
+# runner's own tick, which is what the budget counts, and a count of 0 is allowed and runs nothing.
+# The advance's own effect on the world is measured by the buildcraft pipe tests, which need it (#780).
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    before: number = ctx.current_tick()
+
+    Test.tick_level(level, 0)
+    Test.tick_level(level, 3)
+
+    ctx.assert(ctx.current_tick() == before, "An advance should not move the runner's own tick.")
+    ctx.assert(level.get_time() > 0, "The level should still have a clock after an advance.")
+}

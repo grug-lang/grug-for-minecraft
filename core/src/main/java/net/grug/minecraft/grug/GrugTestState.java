@@ -218,10 +218,10 @@ public final class GrugTestState {
     }
 
     /**
-     * Why {@code ticks} is not a number of ticks Test.tick_block_entity can run, or null when it is
-     * one. Only a whole number from 0 to {@link Integer#MAX_VALUE} means anything, and anything
-     * else is reported rather than rounded, because a test asking for 2.5 ticks has a bug that
-     * rounding would hide. The upper bound is the {@code int} loop in {@code
+     * Why {@code ticks} is not a number of ticks Test.tick_block_entity or Test.tick_level can run,
+     * or null when it is one. Only a whole number from 0 to {@link Integer#MAX_VALUE} means
+     * anything, and anything else is reported rather than rounded, because a test asking for 2.5
+     * ticks has a bug that rounding would hide. The upper bound is the {@code int} loop in {@code
      * Test_tick_block_entity}, which a larger count could never finish.
      */
     public static String checkTickCount(double ticks) {

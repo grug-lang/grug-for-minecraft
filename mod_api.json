@@ -954,6 +954,23 @@
 						}
 					]
 				},
+				"tick_level": {
+					"description": "Test only: runs the level's own tick the given number of times in a row, at the point of the call, so a test can reach a state that takes the game minutes to build without waiting for those ticks to be drawn. It runs what the game's own tick of that level runs, in the loader's own order: the level's clock and weather, its scheduled block and fluid updates, its random block ticks, its entity ticks and its block entity ticks, including vanilla and reference ones. It does not tick the client: no frame is drawn, no screen opens, no client packet is read by the server between the ticks and no resource reload is applied, so a test that waits for something drawn or received still waits for a real tick. The ticks have to be a whole number from 0 to 2147483647, or it is reported. The runner's own tick and budget do not move: ctx.current_tick is unchanged, and the game's own tick still runs around the test's tick, so two test ticks are one more world tick apart than the count. The level's clock moves one per tick, unlike Test.tick_block_entity, which leaves it alone.",
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "ticks",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"set_mod_file_state": {
 					"description": "Puts a mod file into a named state, remembering its original contents the first time so \"normal\" restores them exactly. Idempotent, so an aborted and re-run test sets the same state again instead of flipping it. The record of the original contents outlives the run, so a run that ends abruptly while a file is disturbed cannot leave that file unreadable for the next one.",
 					"parameters": [

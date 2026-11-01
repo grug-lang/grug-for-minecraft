@@ -498,6 +498,45 @@ public class ForgeAdapter implements ModLoaderAdapter {
         ((GrugBlockEntity) blockEntityObj).tick();
     }
 
+    /**
+     * Runs the server level's own tick the given number of times, at the point of the call.
+     *
+     * <p>The test's tick is a task the server runs from {@code waitUntilNextTick}, between its own
+     * ticks, so the advance happens between server ticks rather than inside one. {@code
+     * ServerLevel.tick} is that tick: the world border, weather, the level's clock, scheduled block
+     * and fluid ticks, the chunk source with its random block ticks and natural spawning, block
+     * events, entity ticks and block entity ticks. The server's own bookkeeping around it does not
+     * run, which is the point: no {@code tickCount}, no tick rate manager, no autosave, no {@code
+     * LevelTickEvent} or {@code ServerTickEvent} listener and no packet flush per tick.
+     *
+     * <p>{@code hasTimeLeft} answers true so that the chunk source drains its whole tick instead of
+     * stopping at a deadline that the caller is the one holding. Only the server's level can be
+     * advanced here, which is what the test level is in singleplayer; a client's copy of a level
+     * belongs to a server this process does not run. See #753 and #780.
+     */
+    @Override
+    public void tickLevel(Object levelObj, int ticks) {
+        if (!(levelObj instanceof ServerLevel serverLevel)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.tick_level: Only a server level has a tick this process can run, and this"
+                            + " is not one.");
+            return;
+        }
+        long startedNanos = System.nanoTime();
+        for (int tick = 0; tick < ticks; tick++) {
+            serverLevel.tick(() -> true);
+        }
+        // Prototype measurement only (#780): the cost of an advance, which a failing run still
+        // prints when the run's own test times are lost to the failure. Not for a merge.
+        System.out.println(
+                "[GRUG CI] tick_level "
+                        + ticks
+                        + " ticks in "
+                        + (System.nanoTime() - startedNanos) / 1_000_000L
+                        + "ms");
+    }
+
     @Override
     public void redraw(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
