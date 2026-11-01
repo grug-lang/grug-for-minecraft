@@ -435,13 +435,20 @@ public class GrugBlockEntity extends BlockEntity
      * the script asks for with {@code redraw}, and a block entity with no level, or one on the
      * client, has no copy to send to.
      */
+    private boolean sendsDataToClients() {
+        if (!onServer()) {
+            return false;
+        }
+        GrugBlock block = (GrugBlock) getBlockState().getBlock();
+        return block.drawsCustomGeometry() && !block.drawsChunkGeometry();
+    }
+
     @GrugGenerated(
             "a script call only reaches a block entity in the server's level, so the no-level and"
                     + " client-side answers are defensive and no test can make them")
-    private boolean sendsDataToClients() {
-        if (level == null || level.isClientSide()) {
-            return false;
-        }
+    private boolean onServer() {
+        return level != null && !level.isClientSide();
+    }
         GrugBlock block = (GrugBlock) getBlockState().getBlock();
         return block.drawsCustomGeometry() && !block.drawsChunkGeometry();
     }
