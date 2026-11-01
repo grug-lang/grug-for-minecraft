@@ -1,0 +1,453 @@
+# The cobblestone pipe, as PipeItemsCobblestone builds it: PipeTransportItems with PipeLogicCobblestone
+# and nothing else, so it extracts nothing, needs no engine and has no energy. Items enter it from a
+# neighbouring pipe, travel to its centre, pick one of the exits that can take them and move on to that
+# neighbour's face, exactly as the wooden pipe's transport does (see wooden_pipe_entity). Every item's
+# position, direction, speed and phase is a record in the saved list "traveling", so the items survive
+# a chunk reload, and a broken pipe drops each of them where it stands.
+
+# A block and its block entity are separate grug entities and grug has no shared code, so the
+# transport below is the wooden pipe's, copied: keep the two in step.
+
+# PipeLogicCobblestone.isPipeConnected refuses only a pipe whose logic is PipeLogicStone, which is the
+# stone pipe and not this one, so with the default pipes.alwaysConnect of false a cobblestone pipe
+# connects to every pipe this mod has, another cobblestone pipe included. That is a quirk of the
+# reference (the check names the stone pipe's logic, not its own) that the port reproduces. It
+# connects to an inventory when PipeTransportItems.isPipeConnected sees an io tile.
+level: Level = me.level()
+pos: BlockPos = me.block_pos()
+center: Vec3 = pos.center()
+x: number = center.x()
+y: number = center.y()
+z: number = center.z()
+
+# RenderPipe.renderWorldBlock: the quarter-block centre, then an arm on every side the pipe connects
+# to. Drawing the shape here rather than leaving it to the model is what makes the block
+# non-opaque, so the items inside it are lit rather than sitting in an opaque block's darkness.
+export render(ctx: RenderContext) {
+    ctx.draw_box(0.25, 0.25, 0.25, 0.75, 0.75, 0.75)
+    _draw_arm(ctx, 0)
+    _draw_arm(ctx, 1)
+    _draw_arm(ctx, 2)
+    _draw_arm(ctx, 3)
+    _draw_arm(ctx, 4)
+    _draw_arm(ctx, 5)
+}
+
+# RenderPipe.renderSolids: every travelling item is drawn where its record stands, every frame,
+# because an item that is not a block is a sprite turned to face the player and cannot be baked into
+# the chunk's geometry. The record's x, y and z are world coordinates, and draw_item's are measured
+# from the block's minimum corner, so the half block between the member centre and that corner comes
+# off each axis.
+export render_frame(ctx: RenderFrameContext) {
+    index: number = 0
+    records: number = me.get_saved_list_size("traveling")
+    while index < records {
+        _draw_travelling(ctx, index)
+        index = index + 1
+    }
+}
+
+export tick() {
+    # Pipe.updateEntity moves the items of the transport. Nothing else runs: there is no power
+    # framework, so no doWork.
+    _move_items()
+}
+
+# One travelling record, if it still holds an item, drawn the way the reference's doRenderItem draws
+# a travelling item: a block as a small cube, anything else as a flat sprite facing the player.
+local _draw_travelling(ctx: RenderFrameContext, index: number) {
+    item_opt: Option[Item] = me.get_saved_list_item("traveling", index)
+    count: number = me.get_saved_list_number("traveling", index, "count")
+    if not item_opt.has() or count <= 0 {
+        return
+    }
+
+    damage: number = me.get_saved_list_number("traveling", index, "damage")
+    px: number = me.get_saved_list_number("traveling", index, "x") - x + 0.5
+    py: number = me.get_saved_list_number("traveling", index, "y") - y + 0.5
+    pz: number = me.get_saved_list_number("traveling", index, "z") - z + 0.5
+    ctx.draw_item(item_opt.unwrap(), damage, count, px, py, pz)
+}
+
+# One arm of the centre-and-arms shape, if this side has a connection.
+local _draw_arm(ctx: RenderContext, side: number) {
+    if not _is_connected(side) {
+        return
+    }
+    if side == 0 {
+        ctx.draw_box(0.25, 0.0, 0.25, 0.75, 0.25, 0.75)
+    } else if side == 1 {
+        ctx.draw_box(0.25, 0.75, 0.25, 0.75, 1.0, 0.75)
+    } else if side == 2 {
+        ctx.draw_box(0.25, 0.25, 0.0, 0.75, 0.75, 0.25)
+    } else if side == 3 {
+        ctx.draw_box(0.25, 0.25, 0.75, 0.75, 0.75, 1.0)
+    } else if side == 4 {
+        ctx.draw_box(0.0, 0.25, 0.25, 0.25, 0.75, 0.75)
+    } else if side == 5 {
+        ctx.draw_box(0.75, 0.25, 0.25, 1.0, 0.75, 0.75)
+    }
+}
+
+local _move_items() {
+    index: number = 0
+    remaining: number = me.get_saved_list_size("traveling")
+    # A record that leaves the pipe is removed, which moves the next one into the same index, so the
+    # index only advances when the record before it stayed, and the count only falls when one left.
+    while index < remaining {
+        if _move_item(index) {
+            index = index + 1
+        } else {
+            remaining = remaining - 1
+        }
+    }
+}
+
+# Moves one travelling item a single tick, as moveSolids does, and answers whether it is still in
+# the pipe. A record whose item no longer exists, or whose count is not positive, is dropped the way
+# the reference drops a corrupted item: silently, because the script handles it.
+local _move_item(index: number) bool {
+    item_opt: Option[Item] = me.get_saved_list_item("traveling", index)
+    count: number = me.get_saved_list_number("traveling", index, "count")
+    if not item_opt.has() or count <= 0 {
+        me.remove_saved_list_record("traveling", index)
+        return false
+    }
+
+    item: Item = item_opt.unwrap()
+    damage: number = me.get_saved_list_number("traveling", index, "damage")
+    speed: number = me.get_saved_list_number("traveling", index, "speed")
+    direction: number = me.get_saved_list_number("traveling", index, "direction")
+    px: number = me.get_saved_list_number("traveling", index, "x") + _dir_x(direction) * speed
+    py: number = me.get_saved_list_number("traveling", index, "y") + _dir_y(direction) * speed
+    pz: number = me.get_saved_list_number("traveling", index, "z") + _dir_z(direction) * speed
+    steps: number = me.get_saved_list_number("traveling", index, "steps") + 1
+
+    if me.get_saved_list_number("traveling", index, "to_center") == 1 {
+        # PipeTransportItems.middleReached: every axis is within speed * 1.01 of the centre. An item
+        # entering from an inventory starts 0.5 away, so 49 moves leave 0.01, inside the limit of
+        # 0.0101, while 48 leave 0.02; one entering from a pipe starts 0.49 away horizontally, so it
+        # takes 48. A record with no speed has a limit of 0 and stands still for good. The pipe
+        # floor is a quarter below the centre. This is Utils.pipeNormalSpeed = 0.01 as a float64,
+        # which is the precision rule: the reference's float32 agrees on these counts.
+        limit: number = speed * 1.01
+        if _near(px, x, limit) and _near(py, y - 0.25, limit) and _near(pz, z, limit) {
+            next: number = _pick_direction(direction, item, damage)
+            if next < 0 {
+                me.remove_saved_list_record("traveling", index)
+                _drop_moving(x, y - 0.25, z, direction, item, count, damage, speed)
+                return false
+            }
+            _save(index, x, y - 0.25, z, speed, next, 0, 0, count, damage)
+            return true
+        }
+        _save(index, px, py, pz, speed, direction, steps, 1, count, damage)
+        return true
+    }
+
+    if steps >= _end_steps(direction) {
+        # The reference sets the position before it looks at the tile, so the item is handed on, or
+        # dropped, from where this last move put it.
+        _save(index, px, py, pz, speed, direction, steps, 0, count, damage)
+        _leave(index, direction, item, count, damage, speed)
+        return false
+    }
+    _save(index, px, py, pz, speed, direction, steps, 0, count, damage)
+    return true
+}
+
+# Whether two coordinates are closer than the limit, which is Math.abs(a - b) < limit.
+local _near(a: number, b: number, limit: number) bool {
+    return a - b < limit and b - a < limit
+}
+
+# How many moves from the centre reach past the pipe's block, which is endReached: 51 horizontally,
+# where the face is 0.5 away; 76 upwards, where the centre is at y + 0.25 and the top is 0.75 away;
+# and 26 downwards, where the bottom is 0.25 away. Each is the first move strictly past the bound,
+# floor(distance / 0.01) + 1, with 0.01 as a float64.
+local _end_steps(direction: number) number {
+    if direction == 0 {
+        return 26
+    }
+    if direction == 1 {
+        return 76
+    }
+    return 51
+}
+
+# PipeTransportItems.resolveDestination: count the exits that can take the item, then take the
+# random draw below that count and return the exit it names, walking the sides in ascending order
+# both times so the two agree. The reverse of the travel direction is never an exit, which is what
+# stops an item going back into the inventory it came from.
+local _pick_direction(current: number, item: Item, damage: number) number {
+    reverse: number = _reverse(current)
+    exits: number = 0
+    direction: number = 0
+    while direction < 6 {
+        if direction != reverse and _accepts(direction, item, damage) {
+            exits = exits + 1
+        }
+        direction = direction + 1
+    }
+    if exits == 0 {
+        return -1
+    }
+
+    # The singleplayer branch of the reference draws world.r.nextInt(size), a true random pick; the
+    # multiplayer branch's deterministic formula is not reproducible there anyway. This is the same
+    # random the game uses, and no seed is fixed, because a route with one exit is the same either
+    # way and the tests assert what does not depend on the pick.
+    choice: number = level.random_int(exits)
+    direction = 0
+    while direction < 6 {
+        if direction != reverse and _accepts(direction, item, damage) {
+            if choice == 0 {
+                return direction
+            }
+            choice = choice - 1
+        }
+        direction = direction + 1
+    }
+    return -1
+}
+
+# PipeTransportItems.canReceivePipeObjects: whether the neighbour on a side would take at least one
+# of the item, which is StackUtil.checkAvailableSlot(stack, false, side). The dry run is what keeps
+# a full inventory from being picked as an exit only to have the item dropped at its face.
+local _accepts(side: number, item: Item, damage: number) bool {
+    nx: number = _neighbor_x(side)
+    ny: number = _neighbor_y(side)
+    nz: number = _neighbor_z(side)
+    kind: number = _pipe_kind(nx, ny, nz)
+    if kind != 0 {
+        return _pipe_connects(kind)
+    }
+
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    offered: number = neighbor.add_item(item, damage, 1, _reverse(side), false)
+    if offered >= 0 {
+        return offered > 0
+    }
+    return neighbor.insert_item_into_inventory(item, damage, 1, false) > 0
+}
+
+# The item has reached the neighbour's face: a pipe takes it as a travelling record of its own, and
+# an inventory takes as much of the stack as fits, as StackUtil.checkAvailableSlot(stack, true, side)
+# does, and the rest is dropped.
+local _leave(index: number, direction: number, item: Item, count: number, damage: number, speed: number) {
+    px: number = me.get_saved_list_number("traveling", index, "x")
+    py: number = me.get_saved_list_number("traveling", index, "y")
+    pz: number = me.get_saved_list_number("traveling", index, "z")
+
+    nx: number = _neighbor_x(direction)
+    ny: number = _neighbor_y(direction)
+    nz: number = _neighbor_z(direction)
+    if _pipe_kind(nx, ny, nz) != 0 {
+        me.remove_saved_list_record("traveling", index)
+        _enter_pipe(nx, ny, nz, direction, px, py, pz, speed, item, count, damage)
+        return
+    }
+
+    inserted: number = 0
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if neighbor_opt.has() {
+        neighbor: BlockEntity = neighbor_opt.unwrap()
+        inserted = neighbor.add_item(item, damage, count, _reverse(direction), true)
+        if inserted < 0 {
+            inserted = neighbor.insert_item_into_inventory(item, damage, count, true)
+        }
+    }
+
+    me.remove_saved_list_record("traveling", index)
+    if inserted < count {
+        _drop_moving(px, py, pz, direction, item, count - inserted, damage, speed)
+    }
+}
+
+# EntityPassiveItem.toEntityItem: the whole stack as one entity at the item's position, moving at
+# 0.1 + speed * 2 along the travel direction with a little Gaussian scatter. The reference hands
+# this.item, the stack it was carrying, straight to the EntityItem's constructor, so a dropped stack
+# of five is one entity holding five and not five entities the game merges back afterwards.
+local _drop_moving(px: number, py: number, pz: number, direction: number, item: Item, count: number, damage: number, speed: number) {
+    motion: number = 0.1 + speed * 2
+    noise: number = level.random_float() * 0.04 - 0.02
+    vx: number = _dir_x(direction) * motion + level.random_gaussian() * noise
+    vy: number = _dir_y(direction) * motion + level.random_gaussian() * noise
+    vz: number = _dir_z(direction) * motion + level.random_gaussian() * noise
+    velocity: Vec3 = Vec3.new(vx, vy, vz)
+    stack: ItemStack = item_stack(item, damage, count)
+    dropped: ItemEntity = item_entity(level, px, py, pz, stack)
+    dropped.entity().set_delta_movement(velocity)
+    # EntityPassiveItem.toEntityItem sets the EntityItem's delayBeforeCanPickup to 20.
+    dropped.set_pickup_delay(20)
+    dropped.entity().spawn(level)
+}
+
+# Writes the whole record but its item, which does not change while the item travels.
+local _save(index: number, px: number, py: number, pz: number, speed: number, direction: number, steps: number, to_center: number, count: number, damage: number) {
+    me.set_saved_list_number("traveling", index, "x", px)
+    me.set_saved_list_number("traveling", index, "y", py)
+    me.set_saved_list_number("traveling", index, "z", pz)
+    me.set_saved_list_number("traveling", index, "speed", speed)
+    me.set_saved_list_number("traveling", index, "direction", direction)
+    me.set_saved_list_number("traveling", index, "steps", steps)
+    me.set_saved_list_number("traveling", index, "to_center", to_center)
+    me.set_saved_list_number("traveling", index, "count", count)
+    me.set_saved_list_number("traveling", index, "damage", damage)
+}
+
+# Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe and 2 for a cobblestone pipe.
+local _pipe_kind(nx: number, ny: number, nz: number) number {
+    name: string = level.get_block(nx, ny, nz)
+    if name == "grug:wooden_pipe" {
+        return 1
+    }
+    if name == "grug:cobblestone_pipe" {
+        return 2
+    }
+    return 0
+}
+
+# PipeLogicCobblestone.isPipeConnected: every pipe this mod has connects, because the check names
+# PipeLogicStone. Another wooden pipe is refused by the wooden pipe's own logic, which the wooden pipe
+# applies, not this one.
+local _pipe_connects(kind: number) bool {
+    return true
+}
+
+# Whether the pipe draws an arm on a side and lets items through it: a pipe, or an inventory.
+local _is_connected(side: number) bool {
+    kind: number = _pipe_kind(_neighbor_x(side), _neighbor_y(side), _neighbor_z(side))
+    if kind != 0 {
+        return _pipe_connects(kind)
+    }
+    return _is_inventory(side)
+}
+
+# PipeTransportItems.isPipeConnected: a tile that is an inventory. A block entity with slots is one,
+# and so is a machine that answers the extract_item export for itself, as ISpecialInventory does. The
+# block script's shape() has a copy of this; keep the two in step.
+local _is_inventory(side: number) bool {
+    nx: number = _neighbor_x(side)
+    ny: number = _neighbor_y(side)
+    nz: number = _neighbor_z(side)
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    return neighbor.get_inventory_size() > 0 or neighbor.ask_extract_item(_reverse(side)) >= 0
+}
+
+# The side of a neighbour that faces the pipe, given the side of the pipe the neighbour is on. The
+# sides pair up as 0 and 1, 2 and 3, 4 and 5, like Orientations.reverse.
+local _reverse(side: number) number {
+    if Math.remainder(side, 2) == 0 {
+        return side + 1
+    }
+    return side - 1
+}
+
+# PipeTransportItems.entityEntering on the neighbouring pipe: the item becomes a record of that pipe,
+# at the position this pipe's last move put it, still travelling the same way and on its way to that
+# pipe's centre. readjustSpeed brings a speed back to Utils.pipeNormalSpeed, and a horizontal entry
+# puts the item at the new pipe's floor.
+local _enter_pipe(nx: number, ny: number, nz: number, direction: number, px: number, py: number, pz: number, speed: number, item: Item, count: number, damage: number) {
+    neighbor_opt: Option[BlockEntity] = level.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        _drop_moving(px, py, pz, direction, item, count, damage, speed)
+        return
+    }
+
+    entering: number = speed
+    if entering > 0.01 {
+        entering = entering - 0.01
+    }
+    if entering < 0.01 {
+        entering = 0.01
+    }
+    entry_y: number = py
+    if direction != 0 and direction != 1 {
+        entry_y = ny - 0.25
+    }
+
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    index: number = neighbor.append_saved_list_record("traveling")
+    neighbor.set_saved_list_number("traveling", index, "x", px)
+    neighbor.set_saved_list_number("traveling", index, "y", entry_y)
+    neighbor.set_saved_list_number("traveling", index, "z", pz)
+    neighbor.set_saved_list_number("traveling", index, "speed", entering)
+    neighbor.set_saved_list_number("traveling", index, "direction", direction)
+    neighbor.set_saved_list_number("traveling", index, "steps", 0)
+    neighbor.set_saved_list_number("traveling", index, "to_center", 1)
+    neighbor.set_saved_list_number("traveling", index, "count", count)
+    neighbor.set_saved_list_number("traveling", index, "damage", damage)
+    neighbor.set_saved_list_item("traveling", index, item)
+}
+
+local _neighbor_x(side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}
+
+# A side's move on one axis, which is Position.moveForwards: 0 down, 1 up, 2 north, 3 south,
+# 4 west and 5 east, as BuildCraft's Orientations numbers them.
+local _dir_x(direction: number) number {
+    if direction == 4 {
+        return -1
+    }
+    if direction == 5 {
+        return 1
+    }
+    return 0
+}
+
+local _dir_y(direction: number) number {
+    if direction == 0 {
+        return -1
+    }
+    if direction == 1 {
+        return 1
+    }
+    return 0
+}
+
+local _dir_z(direction: number) number {
+    if direction == 2 {
+        return -1
+    }
+    if direction == 3 {
+        return 1
+    }
+    return 0
+}
