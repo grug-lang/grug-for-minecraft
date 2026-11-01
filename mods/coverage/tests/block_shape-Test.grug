@@ -27,7 +27,7 @@ export tick(ctx: TestTickContext) {
     be.set_saved_number("mode", 1)
     ctx.assert(not Test.block_collision(level, x, y, z, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1), "The corner should still be empty.")
     ctx.assert(Test.block_selection(level, x, y, z, 0.1, 0.1, 0.1), "The declared selection box should reach the corner.")
-    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "The ray should follow the declared selection box, which now reaches the corner.")
+    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.05, 0.5, -0.2, 0.05, 0.5, 0.5), "A ray from the block beside it should enter the declared selection box, which now fills this one.")
 
     # Mode 3: a selection box and no collision box, so nothing collides and the block is clickable.
     be.set_saved_number("mode", 3)
@@ -41,5 +41,5 @@ export tick(ctx: TestTickContext) {
     level.place_block(x + 2, y, z, "grug:coverage_block")
     ctx.assert(Test.block_collision(level, x + 2, y, z, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1), "A block without a shape should collide in its corner.")
     ctx.assert(Test.block_selection(level, x + 2, y, z, 0.1, 0.1, 0.1), "A block without a shape should be selected in its corner.")
-    ctx.assert(Test.block_ray_trace(level, x + 2, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A block without a shape should be hit in its corner.")
+    ctx.assert(Test.block_ray_trace(level, x + 2, y, z, 0.05, 0.5, -0.2, 0.05, 0.5, 0.5), "A block without a shape should be hit on its face.")
 }
