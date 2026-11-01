@@ -193,6 +193,10 @@ public final class GrugTestBox {
         // item in the hotbar shows in every capture that has one in frame. See #254.
         clearItems(adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
 
+        // The light of a room built over the remains of another depends on the order the changes
+        // came in, so a loader that lights incrementally settles it to the one field the blocks
+        // define. A whole room that was left in place needs none: it was settled when it was built.
+        adapter.relightRoom(level, minX - 1, wallBottomY, minZ - 1, maxX + 1, ceilingY, maxZ + 1);
         oweLight(adapter, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
     }
 
