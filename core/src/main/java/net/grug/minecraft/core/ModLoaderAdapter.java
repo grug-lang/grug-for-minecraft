@@ -236,6 +236,19 @@ public interface ModLoaderAdapter {
     default void endBatch(Object levelObj) {}
 
     /**
+     * Brings the block light of a room the build has just put up, and the block around it, to the
+     * one field its blocks define, whatever order the changes that led here came in. Called once
+     * the room's blocks are all in place, with the corners of the box to settle, both inclusive.
+     *
+     * <p>A loader whose light is a pure function of the blocks keeps this a no-op. One that lights
+     * incrementally (1.2.5) recomputes every cell until nothing changes, because the light it ends
+     * with otherwise depends on the radii the room was built at before. See {@link GrugRelight} and
+     * #961.
+     */
+    default void relightRoom(
+            Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {}
+
+    /**
      * Creates an explosion of the given power at the given coordinates, which are not floored. The
      * caller has already rejected a non-finite coordinate and a negative power.
      */

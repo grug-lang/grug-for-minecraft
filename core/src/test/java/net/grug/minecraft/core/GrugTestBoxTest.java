@@ -61,6 +61,7 @@ class GrugTestBoxTest {
         int placements = 0;
         int batchBegins = 0;
         int batchEnds = 0;
+        final List<String> relights = new ArrayList<>();
         int placementsOutsideBatch = 0;
         boolean batchOpen = false;
         final boolean canTell;
@@ -95,6 +96,9 @@ class GrugTestBoxTest {
                                             case "endBatch":
                                                 batchEnds++;
                                                 batchOpen = false;
+                                                return null;
+                                            case "relightRoom":
+                                                relights.add(java.util.Arrays.toString(args));
                                                 return null;
                                             case "placeBlock":
                                                 if (!batchOpen) {
@@ -142,6 +146,28 @@ class GrugTestBoxTest {
 
         assertEquals(0, world.placements);
         assertEquals(room, world.blocks);
+    }
+
+    @Test
+    void aRebuiltRoomIsRelitOverItsWholeBoxAndAWholeRoomIsNot() {
+        FakeWorld world = new FakeWorld(true);
+
+        world.build(3);
+
+        // The room's box: the walls one block outside the radius, from the lowest wall (the torch
+        // floor four below the feet, or lower when the room is wider) to the ceiling. The feet
+        // block is (10, 64, -21), so the walls reach x 6 to 14 and z -25 to -17.
+        assertEquals(List.of("[level, 6, 60, -25, 14, 71, -17]"), world.relights);
+
+        world.build(3);
+
+        // Left in place and not relit: nothing about it changed.
+        assertEquals(1, world.relights.size());
+
+        world.build(5);
+
+        assertEquals(2, world.relights.size());
+        assertEquals("[level, 4, 58, -27, 16, 75, -15]", world.relights.get(1));
     }
 
     @Test
