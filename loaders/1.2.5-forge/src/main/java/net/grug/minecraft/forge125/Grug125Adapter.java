@@ -1069,6 +1069,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated(
+            "the out-of-range guard: the host function checks the range first, so a run"
+                    + " never reaches this arm")
     public Object itemByIndex(int index) {
         List<Item> items = itemsById();
         return index >= 0 && index < items.size() ? items.get(index) : null;
@@ -1095,6 +1098,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * has no give command and its singleplayer client is the server, so the inventory write is the
      * give.
      */
+    @GrugGenerated("the null-player arm: a run gives to the player it just cleared")
     private void giveItemToPlayer(EntityPlayer player, Item item, int count) {
         if (player == null) return;
         ItemStack stack = new ItemStack(item, count);
@@ -1108,6 +1112,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run reads the cursor of a client with a player")
     public Object carriedItem() {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         if (minecraft == null || minecraft.thePlayer == null) return null;
@@ -1116,6 +1121,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run sets the cursor of a client with a player")
     public void setCarriedItem(Object itemObj) {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         if (minecraft == null || minecraft.thePlayer == null) return;
@@ -1124,6 +1130,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run clears the cursor of a client with a player")
     public void deleteCarriedItem() {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         if (minecraft == null || minecraft.thePlayer == null) return;
@@ -1938,6 +1945,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run opens the screen of the player it was given")
     public void openInventory(Object playerObj) {
         EntityPlayer player = (EntityPlayer) playerObj;
         if (player == null) return;
@@ -1945,6 +1953,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (screen == null) {
@@ -1956,12 +1965,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double screenWidthForTest() {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         return screen == null ? 0.0 : screen.width;
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiLeftForTest() {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (!(screen instanceof GuiContainer)) return 0.0;
@@ -1969,6 +1980,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiWidthForTest() {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (!(screen instanceof GuiContainer)) return 0.0;
@@ -1976,6 +1988,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiTopForTest() {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (!(screen instanceof GuiContainer)) return 0.0;
@@ -1983,6 +1996,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiHeightForTest() {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (!(screen instanceof GuiContainer)) return 0.0;
