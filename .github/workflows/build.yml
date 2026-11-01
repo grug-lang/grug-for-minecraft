@@ -189,6 +189,9 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # A step only sees the workflow's token when it passes it in: the lookup reads the
+          # runs of the base commit with it.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           carry=
           base_run=
@@ -1727,6 +1730,9 @@ jobs:
         env:
           REPO: ${{ github.repository }}
           BASE_RUN: ${{ needs.discover.outputs.base-run }}
+          # A step only sees the workflow's token when it passes it in: both curls below need it
+          # to read another run's artifacts.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -eu
           mkdir -p coverage/base-map
