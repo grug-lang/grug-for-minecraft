@@ -44,6 +44,10 @@ minecraft {
         }
 
         server {
+            // Its own game directory, so a server and a client running at once (the multiplayer CI
+            // job, #167) do not share a log, a config or a world. run-server sits where run does,
+            // so the development mods directory ../../../mods resolves the same way.
+            workingDirectory project.file('run-server')
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
         }

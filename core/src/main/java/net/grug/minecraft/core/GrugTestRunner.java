@@ -417,7 +417,8 @@ public class GrugTestRunner {
                 GrugCoverage.fromEnvironment(),
                 modsFromEnv(),
                 maxGameSpeedFromEnv(),
-                carryOverCoverageTestsFromEnv());
+                carryOverCoverageTestsFromEnv(),
+                testsFromEnv());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -520,6 +521,36 @@ public class GrugTestRunner {
             Set<String> selectedMods,
             int maxGameSpeed,
             Set<String> carryOverCoverageTests) {
+        this(
+                fileIds,
+                referenceErrors,
+                ops,
+                clock,
+                boxBuilder,
+                repeats,
+                coverage,
+                selectedMods,
+                maxGameSpeed,
+                carryOverCoverageTests,
+                Collections.emptySet());
+    }
+
+    /**
+     * Visible for tests: the same, running only the tests of {@code selectedTests}, where an empty
+     * set selects every test. See {@link #parseTests}.
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock,
+            TestBoxBuilder boxBuilder,
+            int repeats,
+            CoverageRecorder coverage,
+            Set<String> selectedMods,
+            int maxGameSpeed,
+            Set<String> carryOverCoverageTests,
+            Set<String> selectedTests) {
         this.maxGameSpeed = maxGameSpeed;
         this.ops = ops;
         this.coverage = coverage;
@@ -556,9 +587,11 @@ public class GrugTestRunner {
         }
         checkSelectedModsExist(selectedMods, fileIds);
         checkCarryOverTestsExist(carryOverCoverageTests, fileIds);
+        checkSelectedTestsExist(selectedTests, fileIds);
         for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
             if (entry.getKey().endsWith(GrugFileIndex.TEST_SUFFIX)
                     && (selectedMods.isEmpty() || selectedMods.contains(owningMod(entry.getKey())))
+                    && (selectedTests.isEmpty() || selectedTests.contains(entry.getKey()))
                     && (carryOverCoverageTests.isEmpty()
                             || !carryOverCoverageTests.contains(entry.getKey()))) {
                 tests.add(entry);
@@ -578,6 +611,10 @@ public class GrugTestRunner {
             System.out.println(
                     "[GRUG CI] Only the tests of these mods run: "
                             + String.join(", ", selectedMods));
+        }
+        if (!selectedTests.isEmpty()) {
+            System.out.println(
+                    "[GRUG CI] Only these tests run: " + String.join(", ", selectedTests));
         }
         if (!carryOverCoverageTests.isEmpty()) {
             // The guarantee the carry-over loses (#786), said in the log the run is read in: a
@@ -708,6 +745,65 @@ public class GrugTestRunner {
             tests.add(test);
         }
         return tests;
+    }
+
+    /**
+     * The tests {@code GRUG_CI_TESTS} asks for: a comma separated list of runner paths of tests
+     * (such as {@code coverage/tests/block_pos-Test.grug}), in the order given with duplicates
+     * dropped. Unset, empty or only whitespace selects every test, which is returned as the empty
+     * set.
+     *
+     * <p>It is how a run that cannot execute every test picks the ones it can: a dedicated server
+     * has no screen to capture, so it names the tests that need none. It stands in until a test
+     * declares for itself whether it can run on a dedicated server (#168), and it combines with
+     * {@code GRUG_CI_MODS} by intersection.
+     *
+     * <p>A non-empty list with an empty entry is fatal, for the same reason as {@link
+     * #parseMods}: running fewer tests than the author meant while reporting green is the one
+     * outcome to avoid.
+     */
+    static Set<String> parseTests(String value) {
+        Set<String> tests = new LinkedHashSet<>();
+        if (value == null || value.trim().isEmpty()) return tests;
+        for (String path : value.split(",", -1)) {
+            String test = path.trim();
+            if (test.isEmpty()) {
+                throw Grug.fatal(
+                        "GRUG_CI_TESTS has an empty entry, but each has to name a test: '"
+                                + value
+                                + "'");
+            }
+            tests.add(test);
+        }
+        return tests;
+    }
+
+    private static Set<String> testsFromEnv() {
+        return parseTests(System.getenv("GRUG_CI_TESTS"));
+    }
+
+    /**
+     * Fails when a selected test is not among the tests that were loaded, because the run would
+     * otherwise pass having run less than it was asked to.
+     */
+    private static void checkSelectedTestsExist(
+            Set<String> selectedTests, Map<String, Long> fileIds) {
+        if (selectedTests.isEmpty()) return;
+        Set<String> loaded = new TreeSet<>();
+        for (String path : fileIds.keySet()) {
+            if (path.endsWith(GrugFileIndex.TEST_SUFFIX)) {
+                loaded.add(path);
+            }
+        }
+        for (String test : selectedTests) {
+            if (!loaded.contains(test)) {
+                throw Grug.fatal(
+                        "GRUG_CI_TESTS names the test '"
+                                + test
+                                + "', but the loaded tests are: "
+                                + String.join(", ", loaded));
+            }
+        }
     }
 
     private static Set<String> carryOverCoverageTestsFromEnv() {
