@@ -1176,7 +1176,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public boolean hasSound(String path) {
-        return ModLoader.getMinecraftInstance().sndManager.getSoundsPool().getRandomSoundFromSoundPool(path)
+        return ModLoader.getMinecraftInstance()
+                        .sndManager
+                        .getSoundsPool()
+                        .getRandomSoundFromSoundPool(path)
                 != null;
     }
 
@@ -1184,7 +1187,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @GrugGenerated(
             "a run downloads no sound resources, so the pool is empty and hasSound is never true")
     public void playUiSound(String path, double volume, double pitch) {
-        ModLoader.getMinecraftInstance().sndManager.playSoundFX(path, (float) volume, (float) pitch);
+        ModLoader.getMinecraftInstance()
+                .sndManager
+                .playSoundFX(path, (float) volume, (float) pitch);
     }
 
     @Override

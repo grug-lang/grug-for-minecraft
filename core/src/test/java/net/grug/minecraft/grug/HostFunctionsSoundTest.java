@@ -45,7 +45,14 @@ class HostFunctionsSoundTest {
     void aStringThatIsNotANamespaceAndAPathIsRefused() {
         for (String bad :
                 new String[] {
-                    "", "ui.button.click", ":x", "minecraft:", "a:b:c", "Minecraft:x", "a:B", "a b:c"
+                    "",
+                    "ui.button.click",
+                    ":x",
+                    "minecraft:",
+                    "a:b:c",
+                    "Minecraft:x",
+                    "a:B",
+                    "a b:c"
                 }) {
             assertTrue(
                     HostFunctions.soundNameProblem(bad).contains("namespace, a colon and a path"),

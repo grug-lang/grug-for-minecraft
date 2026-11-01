@@ -2235,8 +2235,7 @@ public class HostFunctions {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + problem);
             return;
         }
-        GrugCore.getAdapter()
-                .playUiSound(name.substring(name.indexOf(':') + 1), volume, pitch);
+        GrugCore.getAdapter().playUiSound(name.substring(name.indexOf(':') + 1), volume, pitch);
     }
 
     public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {

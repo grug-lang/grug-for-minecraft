@@ -770,9 +770,9 @@ public interface ModLoaderAdapter {
     boolean hasSound(String path);
 
     /**
-     * Plays the game's own sound {@code path} to the player as a sound of the interface rather
-     * than of the world, the way a button plays its click: it has no position, so it is heard at
-     * the same loudness wherever the player stands. The caller has already checked that {@link
+     * Plays the game's own sound {@code path} to the player as a sound of the interface rather than
+     * of the world, the way a button plays its click: it has no position, so it is heard at the
+     * same loudness wherever the player stands. The caller has already checked that {@link
      * #hasSound} is true and that the volume is from 0 to 1 and the pitch from 0.5 to 2. It runs on
      * the thread that owns the sound engine, whichever thread the mod's call came from.
      */
