@@ -27,7 +27,9 @@ import net.minecraftforge.server.ServerLifecycleHooks;
  *
  * <p>Whole class is excluded from coverage until CI launches a server: see #167.
  */
-@GrugGenerated("a dedicated server, which no CI run launches until #167")
+@GrugGenerated(
+        "a dedicated server, which only the dispatch-only multiplayer job of #167 launches, and the"
+                + " coverage gate does not count that job")
 public class ServerForgeAdapter extends ForgeAdapter {
 
     @Override
@@ -49,5 +51,39 @@ public class ServerForgeAdapter extends ForgeAdapter {
     public Object testPlayer() {
         var players = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers();
         return players.isEmpty() ? null : (ServerPlayer) players.get(0);
+    }
+
+    /**
+     * Nothing to close: the screen belongs to a client, and a dedicated server has none. The
+     * inherited answer reaches for {@code Minecraft.getInstance()}, a client class the server
+     * refuses to load, and the runner calls this before the run's first test. See #167.
+     */
+    @Override
+    public void closeOpenScreenForTest() {}
+
+    /** No screen can be open on a server. */
+    @Override
+    public boolean isScreenOpenForTest() {
+        return false;
+    }
+
+    /**
+     * A dedicated server has no client copy of any chunk, so no placement owes an update to wait
+     * for. The inherited answer reads {@code Minecraft.getInstance().level}, which is null here.
+     * See #167.
+     */
+    @Override
+    protected boolean clientHasChunk(int x, int z) {
+        return false;
+    }
+
+    /**
+     * Settled as soon as a test asks: the server's world is the one a test reads, and no client
+     * frame, light copy or block packet is owed to anyone. The inherited answer compares the
+     * client's copy of the room with the server's, and there is no client here. See #167.
+     */
+    @Override
+    public boolean isWorldSettled() {
+        return true;
     }
 }

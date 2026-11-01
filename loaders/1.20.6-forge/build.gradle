@@ -41,9 +41,18 @@ minecraft {
 
         client {
             property 'forge.enabledGameTestNamespaces', mod_id
+            // The multiplayer CI job (#167) joins a dedicated server at this address on launch,
+            // through the game's own quick play, instead of opening a world.
+            if (System.getenv('GRUG_CI_CONNECT')) {
+                args '--quickPlayMultiplayer', System.getenv('GRUG_CI_CONNECT')
+            }
         }
 
         server {
+            // Its own game directory, so a server and a client running at once (the multiplayer CI
+            // job, #167) do not share a log, a config or a world. run-server sits where run does,
+            // so the development mods directory ../../../mods resolves the same way.
+            workingDirectory project.file('run-server')
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
         }
