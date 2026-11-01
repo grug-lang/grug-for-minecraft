@@ -90,7 +90,10 @@ dependencies {
     modImplementation("net.modificationstation:StationAPI:${project.properties["stationapi_version"]}")
     modImplementation("net.glasslauncher.mods:GlassConfigAPI:${project.properties["gcapi_version"]}")
     modImplementation("net.danygames2014:modmenu:${project.properties["modmenu_version"]}")
-    modImplementation("net.glasslauncher.mods:AlwaysMoreItems:${project.properties["alwaysmoreitems_version"]}")
+    // AlwaysMoreItems is deliberately absent: it draws 3D item cubes over the inventory's item
+    // icons, so a dev runtime that loaded it drew a different item list from an installed game,
+    // which loads only this mod's declared dependencies. The port never called it, and the JEI
+    // screenshot test pins the installed rendering (mods/jei/tests/item_list-Test.grug).
 }
 
 configurations.all {
