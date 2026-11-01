@@ -13,6 +13,11 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Covers the part of a block's shape that needs no game: whether a block is asked at all, and the
@@ -52,6 +57,16 @@ class GrugShapesTest {
     private static final GrugBox CENTRE = new GrugBox(0.25, 0.25, 0.25, 0.75, 0.75, 0.75);
 
     private static final GrugBox FULL_CUBE = new GrugBox(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+
+    /** How many threads collide on one key at a time, so a check-then-act race has to show. */
+    private static final int THREADS = 8;
+
+    /**
+     * How many different keys the threads collide on. One interleaving can be lucky, so the race is
+     * given many chances rather than one; the sets are never cleared, which one more key per round
+     * costs nothing.
+     */
+    private static final int ROUNDS = 100;
 
     @BeforeEach
     @AfterEach
@@ -255,6 +270,102 @@ class GrugShapesTest {
     void aBoxOutsideACallIsNotRecorded() {
         assertFalse(GrugShapes.recordCollision(FULL_CUBE));
         assertFalse(GrugShapes.recordSelection(FULL_CUBE));
+    }
+
+    /**
+     * The client thread and the integrated server thread both ask a block for its shape, so both
+     * spend its one probe. A set that is not concurrent lets both of them win the same block, which
+     * enters the VM twice for a block that exports {@code shape()} without declaring it and can
+     * name the mismatch twice.
+     */
+    @Test
+    void aBlockIsProbedOnceWhenBothGameThreadsAskAtOnce() throws Exception {
+        ExecutorService threads = Executors.newFixedThreadPool(THREADS);
+        try {
+            for (int round = 0; round < ROUNDS; round++) {
+                // Negative, so a probe spent here cannot be a block a test or a compile handed out.
+                long blockFileId = -(round + 1);
+                int claimants = 0;
+                for (boolean claimed :
+                        runAtOnce(threads, () -> GrugShapes.probeOnce(blockFileId))) {
+                    if (claimed) {
+                        claimants++;
+                    }
+                }
+                assertEquals(
+                        1,
+                        claimants,
+                        "A block's one probe was spent by "
+                                + claimants
+                                + " threads at once, round "
+                                + round);
+            }
+        } finally {
+            threads.shutdownNow();
+        }
+    }
+
+    /**
+     * Both game threads reach a broken block's shape query too, and they reach it after the shape
+     * call that held the state lock has returned. A set that is not concurrent reports the same
+     * block more than once, which is the chat full of identical lines the set exists to prevent.
+     */
+    @Test
+    void aDefectIsReportedOnceWhenBothGameThreadsFindItAtOnce() throws Exception {
+        ExecutorService threads = Executors.newFixedThreadPool(THREADS);
+        try {
+            for (int round = 0; round < ROUNDS; round++) {
+                String description = "grug:raced_block_" + round + " at 0, 0, 0";
+                runAtOnce(
+                        threads,
+                        () -> {
+                            GrugShapes.decide(call(true, false, empty(), empty()), description);
+                            return null;
+                        });
+            }
+        } finally {
+            threads.shutdownNow();
+        }
+
+        List<String> reports = drainReports();
+        assertEquals(ROUNDS, reports.size(), "One broken block is one report, not one per query.");
+        for (int round = 0; round < ROUNDS; round++) {
+            String marker = "raced_block_" + round + " ";
+            int matching = 0;
+            for (String report : reports) {
+                if (report.contains(marker)) {
+                    matching++;
+                }
+            }
+            assertEquals(
+                    1,
+                    matching,
+                    "The block at " + marker.trim() + " was reported " + matching + " times");
+        }
+    }
+
+    /**
+     * Runs {@code task} on every thread at once, all released by one barrier so they collide rather
+     * than start one after another, and hands back what each answered.
+     */
+    private static <T> List<T> runAtOnce(ExecutorService threads, Callable<T> task)
+            throws Exception {
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<T>> answers = new ArrayList<>();
+        for (int thread = 0; thread < THREADS; thread++) {
+            answers.add(
+                    threads.submit(
+                            () -> {
+                                start.await();
+                                return task.call();
+                            }));
+        }
+        start.countDown();
+        List<T> results = new ArrayList<>();
+        for (Future<T> answer : answers) {
+            results.add(answer.get());
+        }
+        return results;
     }
 
     private static List<GrugBox> empty() {
