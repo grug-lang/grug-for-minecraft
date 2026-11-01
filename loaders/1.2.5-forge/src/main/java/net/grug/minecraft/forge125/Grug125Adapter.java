@@ -886,9 +886,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
         batchPositionCount = 0;
     }
 
+    private static final boolean RELIGHT_OFF = false;
+
     @Override
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        if (RELIGHT_OFF) {
+            return;
+        }
         World world = (World) levelObj;
         long previous = Long.MIN_VALUE;
         int passes = 0;

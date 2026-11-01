@@ -1,0 +1,51 @@
+# Throwaway diagnostic for #961: rebuilds the room at several radii and captures after each.
+step: number = 0
+waited: number = 0
+needs_build: bool = true
+
+export tick(ctx: TestTickContext) {
+    if needs_build {
+        needs_build = false
+        radius: number = 3
+        if step == 0 {
+            radius = 6
+        }
+        if step == 1 {
+            radius = 3
+        }
+        if step == 2 {
+            radius = 5
+        }
+        if step == 3 {
+            radius = 3
+        }
+        if step == 4 {
+            radius = 2
+        }
+        if step == 5 {
+            radius = 3
+        }
+        if step == 6 {
+            radius = 7
+        }
+        if step == 7 {
+            radius = 3
+        }
+        Test.set_box_radius(radius)
+        waited = 0
+        ctx.not_done()
+        return
+    }
+    waited = waited + 1
+    ctx.assert(waited < 1000, "settle")
+    if not Test.world_settled() {
+        ctx.not_done()
+        return
+    }
+    Test.screenshot().capture(0, 0, 1280, 720)
+    step = step + 1
+    if step < 8 {
+        needs_build = true
+        ctx.not_done()
+    }
+}
