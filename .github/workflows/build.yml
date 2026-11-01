@@ -257,21 +257,28 @@ jobs:
       # verification dispatch compares its branch with that commit, and windows-needed.py drops the
       # jobs when the diff cannot reach the native path or the installed jar (it explains its answer
       # in this log). A dispatch with no base is the full run a release requires, so the four-hourly
-      # check and the weekly release always get them. A pull request and the weekly schedule run
-      # neither: #632 keeps them out of a run that no release and no added loader needs, and no entry
-      # leaves the jobs a matrix GitHub refuses, so their condition skips them. The checkout is one
-      # commit deep, so the commit the diff starts from is fetched first. A base that the fetch or the
-      # read cannot reach, and a failed push, run every loader, the direction that runs more.
+      # check and the weekly release always get them, and a dispatch on main is the full run even when
+      # it names a base, since neither the release gate nor the four-hourly check can tell the two
+      # shapes apart in the API afterwards. A pull request and the weekly schedule run neither: #632
+      # keeps them out of a run that no release and no added loader needs, and no entry leaves the
+      # jobs a matrix GitHub refuses, so their condition skips them. The checkout is one commit deep,
+      # so the commit the diff starts from is fetched first. A base that the fetch or the read cannot
+      # reach, and a failed push, run every loader, the direction that runs more.
       - name: Choose the loaders the Windows jobs run
         id: windows
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
           BASE: ${{ inputs.base }}
+          REF: ${{ github.ref }}
           LOADERS: ${{ steps.discover.outputs.matrix }}
         run: |
           dirs='[]'
           if [ "$EVENT" = workflow_dispatch ]; then
+            if [ "$REF" = refs/heads/main ]; then
+              BASE=
+              echo "Running the Windows jobs on every loader: a dispatch on main is the full run."
+            fi
             if [ -z "$BASE" ]; then
               dirs="$LOADERS"
               echo "Running the Windows jobs on every loader: a dispatch with no base is the whole run."
