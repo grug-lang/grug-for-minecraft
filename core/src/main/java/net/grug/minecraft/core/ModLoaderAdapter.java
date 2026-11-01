@@ -364,14 +364,17 @@ public interface ModLoaderAdapter {
      * a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light
      * update is still settling, so a capture taken too early can land a light step away from the
      * reference. A loader answers this from its own frame hook through {@link #onFrameRendered},
-     * because a tick is not a frame and the game draws fewer frames than it runs ticks. See #253
-     * and #257.
+     * because a tick is not a frame and the game draws fewer frames than it runs ticks. The answer
+     * also waits for the client to hold every block a test has placed, because on 1.20.6 the
+     * client's copy arrives in a packet after the server's world already has the edit. See #253,
+     * #257 and #804.
      */
     boolean isWorldSettled();
 
     /**
      * One completed frame, called from the loader's own frame hook, which records whether that
-     * frame still had work in it for {@link #isWorldSettled} to answer with.
+     * frame still had work in it for {@link #isWorldSettled} to answer with, including whether the
+     * client still owed a test's block edit.
      *
      * <p>It runs once per drawn frame on the client, whatever cadence the loader's own render path
      * has, so the answer describes the frame a capture would read rather than the tick it is asked

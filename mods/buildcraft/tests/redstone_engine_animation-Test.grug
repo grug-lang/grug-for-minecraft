@@ -48,7 +48,6 @@ changed: bool = false
 # The waits before each capture, as coverage_render-Test.grug explains them. See _ready.
 settled_ticks: number = 0
 remeshed: bool = false
-remesh_ticks: number = 0
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
@@ -228,10 +227,8 @@ local _ready(ctx: TestTickContext) bool {
         remeshed = true
         return false
     }
-    if remesh_ticks < 5 {
-        remesh_ticks = remesh_ticks + 1
-        return false
-    }
+    # The swap's blocks have to reach the client and the mesh they scheduled has to be drawn, which
+    # is what the fixed tick hold used to stand in for. See coverage_render, #259 and #804.
     return Test.world_settled()
 }
 

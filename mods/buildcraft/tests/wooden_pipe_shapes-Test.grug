@@ -7,9 +7,6 @@ pipe: Option[BlockEntity] = Option.new()
 # Whether the pedestal and the wall have been meshed again from the settled light yet.
 remeshed: bool = false
 
-# How many runner ticks have passed since the swap. See the wait in tick().
-remesh_ticks: number = 0
-
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
@@ -39,13 +36,11 @@ export tick(ctx: TestTickContext) {
         _force_remesh(ctx)
         remeshed = true
         ctx.not_done()
-    } else if remesh_ticks < 5 {
-        # The loaders that mesh synchronously answer settled immediately, so their capture could be
-        # taken before the swap's mesh has been rendered.
-        remesh_ticks = remesh_ticks + 1
-        ctx.not_done()
     } else if not Test.world_settled() {
-        # Waiting for the mesh the swap scheduled. See coverage_render and #259.
+        # Waiting for the swap's blocks to reach the client and for the mesh they scheduled. The
+        # settle answer asks the client's own copy, so it is false until the chest that makes the
+        # corner is there and a frame drawn after it has been made, which is the wait the fixed
+        # tick hold used to stand in for. See coverage_render, #259 and #804.
         ctx.not_done()
     } else {
         if phase == 0 {
@@ -54,7 +49,6 @@ export tick(ctx: TestTickContext) {
             phase = 1
             _make_corner()
             remeshed = false
-            remesh_ticks = 0
             settled_ticks = 0
             ctx.not_done()
         } else {

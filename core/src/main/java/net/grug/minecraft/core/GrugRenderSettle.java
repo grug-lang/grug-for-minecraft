@@ -11,10 +11,10 @@ package net.grug.minecraft.core;
  * game draws fewer frames than it runs ticks, so a tick-based answer cannot see that difference.
  *
  * <p>The loader therefore calls {@link #onFrame} from its own frame hook, with whether the frame
- * that just finished still had work in it, and a screenshot test waits for {@link #settled}.
- * Sampling at the end of the frame is what makes the answer describe the frame a capture would
- * read: a frame that drained the work it had is one the capture may read, and a frame that did not
- * is one it may not.
+ * that just finished still had work in it and whether the client still owed a test's block edit,
+ * and a screenshot test waits for {@link #settled}. Sampling at the end of the frame is what makes
+ * the answer describe the frame a capture would read: a frame that drained the work it had is one
+ * the capture may read, and a frame that did not is one it may not.
  *
  * <p>The two calls can arrive on different threads: a capture's wait runs on the render thread
  * while a test's own wait can run on the game-tick thread. Both methods are synchronized because a
@@ -30,12 +30,18 @@ public final class GrugRenderSettle {
     /**
      * One completed frame, called from the loader's own frame hook.
      *
+     * <p>Both facts are passed in rather than combined by the loader, and their disjunction is
+     * here, so no loader carries a branch that only a frame drawn while a test edit was owed meets.
+     * A frame drawn before a test's block edit reached the client is one a capture must not read,
+     * so it counts as busy like a frame that still had work in it. See #804.
+     *
      * @param frameHadPendingWork whether that frame still had work in it: rebuilds it did not get
      *     to, light it had not propagated, or a window that was not at the size a capture reads.
+     * @param blocksPending whether the client was still owed a block a test had placed.
      */
-    public synchronized void onFrame(boolean frameHadPendingWork) {
+    public synchronized void onFrame(boolean frameHadPendingWork, boolean blocksPending) {
         frames++;
-        if (frameHadPendingWork) {
+        if (frameHadPendingWork || blocksPending) {
             lastBusyFrame = frames;
         }
     }
@@ -68,18 +74,44 @@ public final class GrugRenderSettle {
     }
 
     /**
-     * {@link #settled}, also asking the renderer now: a change that left rebuilds pending is not
-     * settled however idle the last frames were, and the frames after it are the ones that count.
+     * {@link #settled}, also asking the renderer and the client's copy of a test's blocks now. A
+     * change that left rebuilds pending is not settled however idle the last frames were, and the
+     * frames after it are the ones that count. An edit the client has not shown yet is the same:
+     * every frame counted so far describes a world without it.
+     *
+     * <p>The block answer is passed in rather than combined by the loader, so no loader carries a
+     * branch that only a poll landing while an edit is owed meets. It does not call {@link
+     * #noteBusy} itself: the frame hook already counts the frame an edit's arrival lands in, and
+     * only a frame can say the client has it. See #804.
      *
      * @param workPendingNow whether the renderer has work for a frame that has not been drawn yet,
      *     which the loader reads at the moment of the question.
+     * @param blocksIdle whether the client holds every block a test has placed.
      */
-    public synchronized boolean settledNow(boolean workPendingNow) {
+    public synchronized boolean settledNow(boolean workPendingNow, boolean blocksIdle) {
         if (workPendingNow) {
             noteBusy();
             return false;
         }
-        return settled();
+        return blocksIdle && settled();
+    }
+
+    /**
+     * Whether the client has nothing left for the frame a capture would read, given what the loader
+     * reads at the moment of the question: the light engine's queues, the client's queue of
+     * received light packets, the frames drawn, and the client's copy of the blocks a test placed.
+     *
+     * <p>Pure, so that its unit test covers every combination of the four answers, instead of each
+     * loader carrying a conjunction whose branch a run only meets when a poll lands at the right
+     * moment. A capture taken while any of them is busy reads a frame from before a change. See
+     * #424 and #804.
+     */
+    public static boolean clientSettled(
+            boolean engineHasLightWork,
+            boolean updateQueueEmpty,
+            boolean framesIdle,
+            boolean blocksIdle) {
+        return lightSettled(engineHasLightWork, updateQueueEmpty) && framesIdle && blocksIdle;
     }
 
     /**

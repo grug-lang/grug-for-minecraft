@@ -19,24 +19,17 @@ block_x: number = 0.0
 block_y: number = 0.0
 block_z: number = 0.0
 
-# How many runner ticks in a row the world has answered settled. See the wait in tick().
-settled_ticks: number = 0
-
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
     } else if not Test.world_settled() {
         # The game has to have the block on the client and its block entity running before the
-        # overlay pass can draw anything, so the wait comes first. A world that never settles runs
-        # into the test's own budget rather than asking about a block that is not there. See #259.
-        settled_ticks = 0
-        ctx.not_done()
-    } else if settled_ticks < 5 {
-        # One settled answer is not enough: 1.20.6 learns of the block from a packet, and its
-        # section and lighting have to land before the model data manager holds the block entity.
-        # Five answers in a row is well past the tick an in-flight update takes to arrive. See #259.
-        settled_ticks = settled_ticks + 1
+        # overlay pass can draw anything, so the wait comes first. The settle answer now asks the
+        # client's own copy of the block, so it stays false until the packet that carries it has
+        # arrived and a frame drawn after that has been made; one settled answer is enough. A world
+        # that never settles runs into the test's own budget rather than asking about a block that
+        # is not there. See #259 and #804.
         ctx.not_done()
     } else {
         _check(ctx)
