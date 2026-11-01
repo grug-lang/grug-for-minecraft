@@ -77,6 +77,58 @@ def runtime_errors(
     return errors
 
 
+def loaders_errors(about: dict, loaders_dir: Path | None = None) -> list:
+    """The rules for the top-level loader set that jsonschema cannot express, as (path, message).
+
+    An absent field means every loader, so a mod that runs everywhere says nothing. A declared set
+    has to name real ``loaders/`` directories, since a name nothing can run selects no job, and has
+    to contain the runtime's loader, since a port runs at least where its reference runs. The schema
+    itself refuses an empty list and a non-string entry, so those are not repeated here.
+    """
+    errors = []
+    if loaders_dir is None:
+        loaders_dir = Path(__file__).resolve().parent / "loaders"
+
+    declared = about.get("loaders")
+    if not isinstance(declared, list):
+        return errors
+
+    for index, loader in enumerate(declared):
+        if not isinstance(loader, str):
+            continue
+        if not (loaders_dir / loader).is_dir():
+            errors.append(
+                (
+                    f"/loaders/{index}",
+                    f"{loader!r} is not a directory under {loaders_dir.name}/; every declared"
+                    " loader must name a loader directory, or no job can run it.",
+                )
+            )
+        elif loader not in LOADER_MINECRAFT:
+            errors.append(
+                (
+                    f"/loaders/{index}",
+                    f"{loader!r} has no Minecraft version in LOADER_MINECRAFT;"
+                    " add the loader to that table so the declared set is one the loaders know.",
+                )
+            )
+
+    derived_from = about.get("derived_from")
+    if isinstance(derived_from, list) and derived_from and isinstance(derived_from[0], dict):
+        runtime = derived_from[0].get("runtime")
+        loader = runtime.get("loader") if isinstance(runtime, dict) else None
+        if isinstance(loader, str) and (loaders_dir / loader).is_dir() and loader not in declared:
+            errors.append(
+                (
+                    "/loaders",
+                    f"{loader!r}, the loader derived_from/0/runtime runs the reference on, is not in"
+                    " the declared set; a port runs at least on the loader its reference runs on.",
+                )
+            )
+
+    return errors
+
+
 def recreation_errors(derived_from) -> list:
     """The recreation rules jsonschema cannot express, over the derived_from array.
 
@@ -188,13 +240,14 @@ def main() -> int:
 
         errors = list(validator.iter_errors(data))
         recreation_problems = recreation_errors(data.get("derived_from"))
-        if errors or recreation_problems:
+        loaders_problems = loaders_errors(data)
+        if errors or recreation_problems or loaders_problems:
             has_error = True
             print(f"FAILED: {rel_path}", file=sys.stderr)
             for err in errors:
                 json_path = "/" + "/".join(str(p) for p in err.path) if err.path else "/"
                 print(f"  - At '{json_path}': {err.message}", file=sys.stderr)
-            for json_path, message in recreation_problems:
+            for json_path, message in recreation_problems + loaders_problems:
                 print(f"  - At '{json_path}': {message}", file=sys.stderr)
             print("", file=sys.stderr)
         else:

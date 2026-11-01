@@ -54,6 +54,14 @@ BASE = {
     "core/src/Main.java": "class Main {}\n",
     "mod_api.json": "{}",
     "mods/buildcraft/code/wrench-Item.grug": "on_use() {}\n",
+    # A mod that names one loader of its own, one that declares none, and one whose declaration does
+    # not parse (#910).
+    "mods/betaonly/about.json": '{"loaders": ["b1.7.3-ornithe"]}',
+    "mods/betaonly/code/thing-Block.grug": "on_tick() {}\n",
+    "mods/everywhere/about.json": '{"name": "Everywhere"}',
+    "mods/everywhere/code/other-Block.grug": "on_tick() {}\n",
+    "mods/broken/about.json": "{not json",
+    "mods/broken/code/third-Block.grug": "on_tick() {}\n",
     ".github/scripts/run-loader.sh": "# run\n",
     ".github/workflows/build.yml": "name: Build\n",
 }
@@ -93,6 +101,44 @@ class AffectedLoadersTest(unittest.TestCase):
     def test_a_change_in_a_mod_runs_the_representatives(self):
         self.assertEqual(
             self.select({"mods/buildcraft/code/wrench-Item.grug": "on_use() { x() }\n"}),
+            REPRESENTATIVES,
+        )
+
+    # A mod's about.json loaders adds the loaders its tests have to run on (#910).
+
+    def test_a_mod_change_adds_the_loaders_it_declares(self):
+        # b1.7.3-ornithe is no family's representative, so without the declaration this mod's tests
+        # would never run on the loader it says they are for.
+        self.assertEqual(
+            self.select({"mods/betaonly/code/thing-Block.grug": "on_tick() { x() }\n"}),
+            ["1.2.5-forge", "1.20.6-forge", "b1.7.3-ornithe", "b1.7.3-stationapi"],
+        )
+        self.assertIn(
+            "mods/betaonly declares the loaders its tests run on: b1.7.3-ornithe", self.reason
+        )
+
+    def test_a_change_to_a_mods_about_json_adds_the_set_it_declares(self):
+        self.assertEqual(
+            self.select({"mods/betaonly/about.json": '{"loaders": ["1.20.6-forge"]}'}),
+            REPRESENTATIVES,
+        )
+        self.assertEqual(
+            self.select({"mods/betaonly/about.json": '{"loaders": ["a1.1.2_01-ornithe"]}'}),
+            ["1.2.5-forge", "1.20.6-forge", "a1.1.2_01-ornithe", "b1.7.3-stationapi"],
+        )
+
+    def test_a_mod_that_declares_no_loader_adds_none(self):
+        # Absence means every loader, which every representative already satisfies, so the sample
+        # stays the sample rather than becoming every loader.
+        self.assertEqual(
+            self.select({"mods/everywhere/code/other-Block.grug": "on_tick() { x() }\n"}),
+            REPRESENTATIVES,
+        )
+
+    def test_a_declaration_that_does_not_parse_adds_none(self):
+        # It fails validate-about.py, so it never lands; the answer here runs more, never fewer.
+        self.assertEqual(
+            self.select({"mods/broken/code/third-Block.grug": "on_tick() { x() }\n"}),
             REPRESENTATIVES,
         )
 

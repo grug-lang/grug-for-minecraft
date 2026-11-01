@@ -16,6 +16,11 @@ The rule is sound by construction, and every doubt resolves to running more, nev
   Ornithe loaders through ``shared/ornithe``, which both of their builds compile);
 - a diff confined to a directory a loader's build compiles from outside its own adds the loaders
   that compile it;
+- a diff that reaches ``mods/<mod>/`` adds the loaders that mod's about.json declares (#910), when
+  it declares any, because a mod that runs only on a loader no family represents would otherwise
+  never run its tests on a pull request. An absent ``loaders`` key means every loader, which every
+  representative already satisfies, so it adds nothing: the field narrows a mod's tests, and only an
+  explicit list names a loader the representatives can miss;
 - every family's representative runs whatever the diff holds, because a path outside the loaders'
   own code (core/, mod_api.json, mods/, test-saves/, the scripts, the workflow) can reach every
   loader, and because the coverage gate measures core's classes through every mechanism: measured on
@@ -51,6 +56,8 @@ from pathlib import Path, PurePosixPath
 HERE = Path(__file__).resolve().parent
 # A loader's own code is its directory; what it compiles from outside it is code it shares.
 LOADERS = "loaders"
+# The mod directories, whose about.json declares the loaders each mod's tests run on.
+MODS = "mods"
 # The files a loader's build declares its source sets in.
 BUILD_FILES = ("build.gradle", "build.gradle.kts", "root.gradle")
 # A source directory a build declares, which is a literal path rather than a variable when it names
@@ -102,6 +109,37 @@ def shared_dirs(repo: Path, ref: str) -> dict[str, set[str]]:
             if not path.startswith(f"{LOADERS}/{loader}/"):
                 dirs.setdefault(loader, set()).add(path)
     return dirs
+
+
+def mod_loaders(repo: Path, ref: str, mods: set[str]) -> dict[str, set[str] | None]:
+    """For each mod at ``ref``, the loaders its about.json declares, or None when it declares none.
+
+    Read from the tree rather than the working directory, so the answer is the one the built commit
+    holds. A mod with no about.json, or one that does not parse, answers None: nothing is added on
+    top of the representatives, which are what runs when a declaration cannot name a loader the
+    sample would otherwise miss.
+    """
+    affected = sibling("affected-mods")
+    blobs = {}
+    files = affected.tree_files(repo, ref)
+    for mod in mods:
+        for path, blob in files.get(mod, ()):
+            if path == "about.json":
+                blobs[mod] = blob
+    contents = affected.read_blobs(repo, set(blobs.values()))
+    declared_loaders = sibling("mod-loaders").declared_loaders
+
+    out: dict[str, set[str] | None] = {}
+    for mod in sorted(mods):
+        blob = blobs.get(mod)
+        if blob is None:
+            out[mod] = None
+            continue
+        try:
+            out[mod] = declared_loaders(json.loads(contents[blob]))
+        except Exception:  # noqa: BLE001 - a file that does not parse declares no loader this can read
+            out[mod] = None
+    return out
 
 
 def game_of(loaders: list[str], games=None) -> dict:
@@ -180,6 +218,7 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
     chosen: set[str] = set(family_of.values())
     chosen &= current
     reasons: dict[str, list[str]] = {}
+    changed_mods: set[str] = set()
     for path in paths:
         parts = PurePosixPath(path).parts
         if len(parts) >= 3 and parts[0] == LOADERS and parts[1] in loaders:
@@ -193,6 +232,8 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
                 [],
             ).append(path)
             continue
+        if len(parts) >= 3 and parts[0] == MODS:
+            changed_mods.add(parts[1])
         compilers = sorted(
             {
                 loader
@@ -213,6 +254,13 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
         ).append(path)
 
     lines = [f"{line}: {describe(group)}" for line, group in reasons.items()]
+    for mod, declared in sorted(mod_loaders(repo, head, changed_mods).items()):
+        if not declared:
+            continue
+        chosen.update(declared & current)
+        lines.append(
+            f"{MODS}/{mod} declares the loaders its tests run on: {', '.join(sorted(declared))}"
+        )
     families = ", ".join(
         f"{loader} ({family})" for family, loader in sorted(family_of.items(), key=lambda f: f[1])
     )

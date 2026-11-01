@@ -18,6 +18,7 @@ the number of processes; a case named on the command line, or unittest's own opt
 process one at a time, the way the whole file did before.
 """
 
+import json
 import shlex
 import shutil
 import subprocess
@@ -170,9 +171,12 @@ class RunLoaderTest(unittest.TestCase):
 
         scripts = self.tmp / ".github" / "scripts"
         scripts.mkdir(parents=True)
-        for name in ("run-loader.sh", "report-native-abort.sh"):
+        for name in ("run-loader.sh", "report-native-abort.sh", "mod-loaders.py"):
             shutil.copy(SCRIPTS / name, scripts / name)
         (scripts / "report-native-abort.sh").chmod(0o755)
+        # The mods selection reads each mod's about.json through the repository's metadata module, so
+        # the fake repository carries it the way it carries the scripts.
+        shutil.copy(REPO_ROOT / "recreation.py", self.tmp / "recreation.py")
 
         # One test file, so the run script's expected-test count is 1 and the success message in
         # the fake log is the one it actually looks for.
@@ -859,6 +863,18 @@ class RunLoaderTest(unittest.TestCase):
         for index in range(tests):
             (code / f"t{index}-Test.grug").write_text("export run() {}\n")
 
+    def add_about(
+        self, name: str, loaders: list[str] | None = None, raw: str | None = None
+    ) -> None:
+        """Gives a mod an about.json: declaring loaders, omitting the key, or holding raw text."""
+        about = self.tmp / "mods" / name / "about.json"
+        if raw is not None:
+            about.write_text(raw)
+        elif loaders is None:
+            about.write_text("{}\n")
+        else:
+            about.write_text(json.dumps({"loaders": loaders}))
+
     def selected_log(self, count: int) -> str:
         return f"[GRUG CI] Running {count} tests...\n[GRUG CI] ALL {count} TESTS PASSED\n"
 
@@ -897,6 +913,86 @@ class RunLoaderTest(unittest.TestCase):
         result = self.run_script(self.selected_log(0), 0, {"GRUG_CI_MODS": "empty"})
 
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    # A mod's about.json loaders decides which loaders run its tests (#910).
+
+    def test_a_mod_that_does_not_declare_this_loader_runs_no_test(self):
+        # fake has 1 test and other 2, and other declares another loader, so the game prints 1 and
+        # the script has to expect that rather than 3.
+        self.add_mod("other", 2)
+        self.add_about("other", ["some-other-loader"])
+
+        result = self.run_script(self.selected_log(1), 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("other declares some-other-loader, which is not fake-loader", result.stderr)
+        self.assertIn("(1 tests)", result.stdout)
+
+    def test_a_mod_that_declares_this_loader_runs_its_tests(self):
+        self.add_mod("other", 2)
+        self.add_about("other", ["fake-loader", "some-other-loader"])
+
+        result = self.run_script(self.selected_log(3), 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("some-other-loader", result.stderr)
+
+    def test_an_about_json_without_the_key_runs_every_test(self):
+        self.add_mod("other", 2)
+        self.add_about("other")
+
+        result = self.run_script(self.selected_log(3), 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("mod-loaders", result.stderr)
+
+    def test_an_about_json_that_does_not_parse_runs_the_mod_anyway(self):
+        # A declaration that cannot be read is not evidence for skipping: the run happens.
+        self.add_mod("other", 2)
+        self.add_about("other", raw="{not json")
+
+        result = self.run_script(self.selected_log(3), 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("does not parse", result.stderr)
+
+    def test_the_narrowed_selection_reaches_the_game_through_the_environment(self):
+        self.add_mod("other", 2)
+        self.add_about("other", ["some-other-loader"])
+        gradlew = self.tmp / "gradlew"
+        gradlew.write_text(
+            GRADLE.replace(
+                'cat "$FAKE_GRADLE_LOG"',
+                'cat "$FAKE_GRADLE_LOG"; echo "mods=[${GRUG_CI_MODS-unset}]"',
+            )
+        )
+
+        result = self.run_script(self.selected_log(1), 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("mods=[fake]", result.stdout)
+
+    def test_a_selection_left_with_no_supported_mod_runs_every_one_of_them(self):
+        # Running nothing would pass the run with no test at all, which is the one answer worse
+        # than running more than was asked for.
+        self.add_mod("other", 2)
+        self.add_about("other", ["some-other-loader"])
+
+        result = self.run_script(self.selected_log(2), 0, {"GRUG_CI_MODS": "other"})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("No mod that was asked for declares fake-loader", result.stdout)
+        self.assertIn("(2 tests)", result.stdout)
+
+    def test_a_helper_that_cannot_run_keeps_every_mod(self):
+        self.add_mod("other", 2)
+        self.add_about("other", ["some-other-loader"])
+        (self.tmp / ".github" / "scripts" / "mod-loaders.py").unlink()
+
+        result = self.run_script(self.selected_log(3), 0)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("mod-loaders.py could not be run", result.stdout + result.stderr)
 
     def add_coverage_tests(self, names: list[str]) -> None:
         tests = self.tmp / "mods" / "coverage" / "tests"

@@ -98,6 +98,40 @@ class RecreationTest(unittest.TestCase):
         about.write_text(json.dumps({"derived_from": [entry]}), encoding="utf-8")
         self.assertIsNone(recreation.load_recreation(about))
 
+    # The top-level loader set (#910), which selects the loaders a mod's tests run on.
+
+    def test_declared_loaders_is_the_top_level_set(self):
+        self.assertEqual(
+            {"1.20.6-forge", "b1.7.3-stationapi"},
+            recreation.declared_loaders({"loaders": ["1.20.6-forge", "b1.7.3-stationapi"]}),
+        )
+
+    def test_declared_loaders_is_none_without_a_usable_set(self):
+        # Every one of these reads as "every loader", which is the direction that runs more: the
+        # schema refuses the last three on a committed file.
+        for about in (
+            {},
+            {"loaders": []},
+            {"loaders": "b1.7.3-stationapi"},
+            {"loaders": None},
+        ):
+            self.assertIsNone(recreation.declared_loaders(about), about)
+
+    def test_declared_loaders_keeps_only_string_entries(self):
+        self.assertEqual(
+            {"1.20.6-forge"}, recreation.declared_loaders({"loaders": [7, "1.20.6-forge"]})
+        )
+
+    def test_loaders_of_reads_a_mod(self):
+        about = Path(self.directory.name) / "about.json"
+        about.write_text(json.dumps({"loaders": ["b1.7.3-stationapi"]}), encoding="utf-8")
+        self.assertEqual({"b1.7.3-stationapi"}, recreation.loaders_of(about))
+
+    def test_loaders_of_is_none_when_the_mod_declares_none(self):
+        about = Path(self.directory.name) / "about.json"
+        about.write_text(json.dumps({"name": "Everywhere"}), encoding="utf-8")
+        self.assertIsNone(recreation.loaders_of(about))
+
     def test_recreation_mods_selects_only_mods_with_a_recreation_entry(self):
         mods = Path(self.directory.name) / "mods"
         (mods / "with").mkdir(parents=True)
@@ -133,6 +167,15 @@ class RecreationTest(unittest.TestCase):
     def test_install_plan_names_the_reference(self):
         plan = recreation.install_plan(lineage_entry())
         self.assertIn("Reference: Reference at " + "0" * 40, plan)
+
+    def test_install_plan_names_the_declared_loaders(self):
+        plan = recreation.install_plan(lineage_entry(), {"b1.7.3-stationapi", "1.20.6-forge"})
+        self.assertIn("Declared loaders: 1.20.6-forge, b1.7.3-stationapi.", plan)
+
+    def test_install_plan_says_nothing_when_no_loader_set_is_declared(self):
+        # Absence means every loader, and a plan that listed all five on every mod would say nothing
+        # the mod chose.
+        self.assertNotIn("Declared loaders", recreation.install_plan(lineage_entry()))
 
     def test_install_plan_lists_each_artifact_with_its_hash(self):
         entry = lineage_entry(
