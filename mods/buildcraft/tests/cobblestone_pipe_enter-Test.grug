@@ -25,7 +25,7 @@ export tick(ctx: TestTickContext) {
     target: BlockEntity = _entity(ctx, level, x + 2, y, z)
 
     source.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 2)
-    wooden.receive_energy(1)
+    wooden.receive_energy(2)
 
     # The pull, the 49 moves to the wooden pipe's centre and 50 of the 51 to its east face.
     Test.tick_block_entity(wooden, 1)
