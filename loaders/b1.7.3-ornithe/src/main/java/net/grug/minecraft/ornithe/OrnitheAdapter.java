@@ -1301,6 +1301,22 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double guiTopForTest() {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
+        return ((GrugScreenGeometry) minecraft.screen).grug$guiTop();
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double guiHeightForTest() {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
+        return ((GrugScreenGeometry) minecraft.screen).grug$guiHeight();
+    }
+
+    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.use_block")) return;

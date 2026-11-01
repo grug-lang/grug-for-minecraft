@@ -1074,6 +1074,20 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double guiTopForTest() {
+        AbstractContainerScreen<?> container = openContainerScreen();
+        return container == null ? 0.0 : container.getGuiTop();
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double guiHeightForTest() {
+        AbstractContainerScreen<?> container = openContainerScreen();
+        return container == null ? 0.0 : container.getYSize();
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         return world.hasNeighborSignal(

@@ -81,7 +81,9 @@ Test.get_held_count(player: Player) number
 Test.get_item_max_stack(item: Item) number
 Test.get_origin() Vec3
 Test.get_player() Player
+Test.gui_height() number
 Test.gui_left() number
+Test.gui_top() number
 Test.gui_width() number
 Test.high_block_round_trip() number
 Test.hot_reload_count(relative_path: string) number

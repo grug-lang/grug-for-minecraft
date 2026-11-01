@@ -1258,6 +1258,30 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double guiTopForTest() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (mc.currentScreen instanceof GrugScreenGeometry geometry) {
+            return geometry.grug$guiTop();
+        }
+        return 0.0;
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double guiHeightForTest() {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (mc.currentScreen instanceof GrugScreenGeometry geometry) {
+            return geometry.grug$guiHeight();
+        }
+        return 0.0;
+    }
+
+    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.use_block")) return;

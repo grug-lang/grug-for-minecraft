@@ -1976,6 +1976,20 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double guiTopForTest() {
+        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (!(screen instanceof GuiContainer)) return 0.0;
+        return GrugGuiAccess.guiTop((GuiContainer) screen);
+    }
+
+    @Override
+    public double guiHeightForTest() {
+        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (!(screen instanceof GuiContainer)) return 0.0;
+        return GrugGuiAccess.ySize((GuiContainer) screen);
+    }
+
+    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.use_block")) return;
