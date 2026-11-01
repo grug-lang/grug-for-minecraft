@@ -116,6 +116,12 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   nor the push-to-`main` run after it needs checking.
   Before merging a base pull request that another one is stacked on, retarget the other to `main`,
   or `--delete-branch` closes it.
+- **The independent review.** A non-trivial pull request is read by a review subagent before it is
+  merged: a fresh session, on the self-hosted model at its highest thinking level, given the issue,
+  the pull request and the whole diff, and asked to report defects with the file and line and how
+  each is triggered. It is a second pair of eyes, not a gate: the orchestrator still reads the diff
+  itself and verifies a finding before acting on it. Non-trivial means code, a workflow or a
+  script; prose alone and a one-line documentation edit do not need it.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
   issue (label `research`) when not; work carries on with the most conservative choice, and a pull
   request is never left blocked on an answer.
