@@ -195,8 +195,8 @@ public class GrugModLoader {
     /**
      * The client's key mappings, in a class of their own because a {@link KeyMapping} is a client
      * class that a dedicated server refuses to load, and a static field of {@code GrugModLoader}
-     * itself would be built when the server loads this class. Nothing names this class on a
-     * server. See #167.
+     * itself would be built when the server loads this class. Nothing names this class on a server.
+     * See #167.
      */
     public static final class ClientKeys {
         private ClientKeys() {}
@@ -280,7 +280,8 @@ public class GrugModLoader {
         // act on in any version that scans this class, not only the one this layer targets.
         // The suite of a dedicated server is driven from the server's tick, since there is no
         // client tick to drive it. See GrugServerRun and #167.
-        if (FMLEnvironment.dist == Dist.DEDICATED_SERVER && "true".equals(System.getenv("GRUG_CI"))) {
+        if (FMLEnvironment.dist == Dist.DEDICATED_SERVER
+                && "true".equals(System.getenv("GRUG_CI"))) {
             net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new GrugServerRun());
         }
 

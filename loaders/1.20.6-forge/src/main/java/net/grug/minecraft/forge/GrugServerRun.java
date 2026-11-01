@@ -19,15 +19,15 @@ import java.util.List;
  *
  * <p>The run starts once a player has joined and the world around them can be read, the way the
  * client waits for the chunks the tests build in. The server always has its chunks, so the wait is
- * for the player, and the deadline is what keeps a client that never connects from hanging the
- * run. The first player in the list is the test player ({@link ServerForgeAdapter#testPlayer}).
- * When the run ends, passed or failed, the server stops itself, which is what ends the process
- * {@code run-loader.sh} is watching.
+ * for the player, and the deadline is what keeps a client that never connects from hanging the run.
+ * The first player in the list is the test player ({@link ServerForgeAdapter#testPlayer}). When the
+ * run ends, passed or failed, the server stops itself, which is what ends the process {@code
+ * run-loader.sh} is watching.
  */
 public final class GrugServerRun {
     /**
-     * How long to wait for a client to join before failing the run. A client takes its time to start
-     * and connect, so this is wide; it only has to be shorter than the run's own limit.
+     * How long to wait for a client to join before failing the run. A client takes its time to
+     * start and connect, so this is wide; it only has to be shorter than the run's own limit.
      */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = 240_000;
 
@@ -67,7 +67,8 @@ public final class GrugServerRun {
         if (players.isEmpty()) {
             System.out.println("[GRUG CI] FAIL the test player left");
             System.out.println(
-                    "[GRUG CI] Every player disconnected from the dedicated server during the run.");
+                    "[GRUG CI] Every player disconnected from the dedicated server during the"
+                            + " run.");
             stop(server);
             return;
         }

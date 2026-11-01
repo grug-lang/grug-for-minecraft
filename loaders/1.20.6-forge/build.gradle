@@ -41,6 +41,11 @@ minecraft {
 
         client {
             property 'forge.enabledGameTestNamespaces', mod_id
+            // The multiplayer CI job (#167) joins a dedicated server at this address on launch,
+            // through the game's own quick play, instead of opening a world.
+            if (System.getenv('GRUG_CI_CONNECT')) {
+                args '--quickPlayMultiplayer', System.getenv('GRUG_CI_CONNECT')
+            }
         }
 
         server {
