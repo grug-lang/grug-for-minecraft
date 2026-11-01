@@ -510,10 +510,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * LevelTickEvent} or {@code ServerTickEvent} listener and no packet flush per tick.
      *
      * <p>{@code hasTimeLeft} answers true so that the chunk source drains its whole tick instead of
-     * stopping at a deadline that the caller is the one holding. Only the server's level can be
-     * advanced here, which is what the test level is in singleplayer; a client's copy of a level
-     * belongs to a server this process does not run. See #753 and #780.
+     * stopping at a deadline that the caller is the one holding. See #753 and #780.
      */
+    @GrugGenerated(
+            "which process holds a level: a test's level is the server's overworld whenever a"
+                + " server runs, which every run does, and a client's own copy otherwise, which no"
+                + " test reaches because nothing here runs a client against another server")
     @Override
     public void tickLevel(Object levelObj, int ticks) {
         if (!(levelObj instanceof ServerLevel serverLevel)) {
@@ -523,9 +525,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
                             + " is not one.");
             return;
         }
+        advanceLevelTicks(serverLevel, ticks);
+    }
+
+    /** The advance itself, which is what a test pays for and what the prototype measures. */
+    private static void advanceLevelTicks(ServerLevel level, int ticks) {
         long startedNanos = System.nanoTime();
         for (int tick = 0; tick < ticks; tick++) {
-            serverLevel.tick(() -> true);
+            level.tick(() -> true);
         }
         // Prototype measurement only (#780): the cost of an advance, which a failing run still
         // prints when the run's own test times are lost to the failure. Not for a merge.
