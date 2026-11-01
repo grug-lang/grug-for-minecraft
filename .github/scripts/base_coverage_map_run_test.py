@@ -101,15 +101,20 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         out, err = self.run_lookup(self.base)
         self.assertEqual(out.strip(), "1", err)
 
-    def test_a_map_is_carried_over_unless_it_expired(self):
-        self.assertTrue(lookup.carries_a_map({"name": "coverage-map"}))
+    def test_the_map_rule_reads_the_expired_flag(self):
+        # A listed artifact always carries `expired`, so a live map is `expired: false`. The
+        # absent case is read as live only defensively, as the lookup did before it read the
+        # flag; `expired: true` is listed only in the minutes before GitHub prunes the artifact,
+        # which is the race this rule guards.
         self.assertTrue(lookup.carries_a_map({"name": "coverage-map", "expired": False}))
+        self.assertTrue(lookup.carries_a_map({"name": "coverage-map"}))
         self.assertFalse(lookup.carries_a_map({"name": "coverage-map", "expired": True}))
-        self.assertFalse(lookup.carries_a_map({"name": "coverage-exec-core"}))
+        self.assertFalse(lookup.carries_a_map({"name": "coverage-exec-core", "expired": False}))
 
-    def test_an_expired_map_is_skipped_and_the_next_run_is_used(self):
-        # An expired artifact is still listed, but its download answers 410 Gone, so the run
-        # that holds it is not a carry-over base and the next successful one is (#947).
+    def test_a_map_expiring_mid_prune_is_skipped_and_the_next_run_is_used(self):
+        # `expired: true` on a listed entry is real only in the minutes between the artifact's
+        # expiry and GitHub pruning it from the listing. When a newer run is caught there, the
+        # older successful run with a live map is the base the pull request carries over from.
         self.server.routes["runs"] = {
             "workflow_runs": [
                 {"id": 2, "head_sha": self.base, "conclusion": "success"},
@@ -123,7 +128,10 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         out, err = self.run_lookup(self.base)
         self.assertEqual(out.strip(), "1", err)
 
-    def test_an_expired_map_only_answers_nothing(self):
+    def test_a_map_expiring_mid_prune_only_answers_nothing(self):
+        # The same race with no older map: the answer is the no-map fallback, which runs every
+        # coverage test. A routine expiry is pruned from the listing instead, which
+        # test_a_run_without_the_map_artifact_answers_nothing covers.
         self.server.routes["runs"] = {
             "workflow_runs": [{"id": 1, "head_sha": self.base, "conclusion": "success"}]
         }

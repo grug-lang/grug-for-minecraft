@@ -31,8 +31,11 @@ MAP_ARTIFACT = "coverage-map"
 def carries_a_map(artifact: dict) -> bool:
     """Whether artifact is a coverage map a pull request may carry over from.
 
-    An expired artifact is still listed by the API, but its download answers 410 Gone, so an
-    expired map is the same answer as no map: the pull request runs its own coverage tests.
+    GitHub prunes an artifact whose retention ended from the listing, so a routine expiry is
+    already the no-artifact answer. The ``expired`` flag is still read because a listing caught
+    between the expiry and the prune carries it, and its download answers 410 Gone: in that
+    minutes-wide race an expired map is the same answer as no map. The flag is required on a
+    listed artifact, and an absent one is read as live only defensively.
     """
     return artifact.get("name") == MAP_ARTIFACT and not artifact.get("expired", False)
 
