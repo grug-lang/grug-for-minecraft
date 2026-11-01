@@ -33,4 +33,9 @@ export tick(ctx: TestTickContext) {
     stack: ItemStack = item_stack(diamond, 0, count)
     entity: ItemEntity = item_entity(level, x, y + 1, z, stack)
     ctx.assert(entity.count() == count, "item_stack should accept the largest count the save keeps.")
+
+    # The game's block removal splits a container's stack into max-size pieces, so a 2147483647
+    # stack would drop 33 million entities when the room is cleared. Put the slot back to one item
+    # after the round trip; the sweep discards the item entity instead of splitting it.
+    chest.set_item_count_in_slot(0, 1)
 }
