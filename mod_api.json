@@ -1282,6 +1282,12 @@
 						"name": "bool"
 					}
 				},
+				"overlay_drawn": {
+					"description": "Whether a frame with an overlay on an eligible screen has been drawn in this run, which a test waits for after it opens the screen and before it clicks. The answer is set on the render thread, so waiting for it is how a test tells a screen that was really drawn from one the game closed before a frame, which a run at maximum speed can otherwise hide. Test only.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"open_inventory": {
 					"description": "Opens the player's own inventory screen, the way the inventory key does, so a test can drive an overlay that only appears there. The screen appears on the next frame, so a test waits for `screen_open` before it clicks. Test only: no mod needs to open the vanilla inventory.",
 					"parameters": [

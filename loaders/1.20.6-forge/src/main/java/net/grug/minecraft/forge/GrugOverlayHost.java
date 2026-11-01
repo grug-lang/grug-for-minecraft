@@ -135,6 +135,13 @@ public final class GrugOverlayHost {
                         (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
             }
         }
+
+        // A frame on an eligible screen was drawn with the overlays asked, which is what a test
+        // waits for before it clicks: at the game's maximum speed a test can open, click and close
+        // a screen before one frame renders, and then it has proved only that the click path works.
+        if (!overlays.isEmpty()) {
+            GrugOverlay.noteDrawn();
+        }
     }
 
     /**

@@ -194,4 +194,11 @@ class HostFunctionsOverlayContextTest {
         GrugOverlay.noteSupported();
         assertTrue(HostFunctions.Test_overlay_supported());
     }
+
+    @Test
+    void overlayDrawnStartsFalseAndStaysTrueOnceNoted() {
+        assertFalse(HostFunctions.Test_overlay_drawn());
+        GrugOverlay.noteDrawn();
+        assertTrue(HostFunctions.Test_overlay_drawn());
+    }
 }

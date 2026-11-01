@@ -586,7 +586,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         ResourceLocation keyB = ForgeRegistries.ITEMS.getKey(b);
                         boolean vanillaA = "minecraft".equals(keyA.getNamespace());
                         boolean vanillaB = "minecraft".equals(keyB.getNamespace());
-                        if (vanillaA != vanillaB) return vanillaA ? -1 : 1;
+                        int vanillaOrder = Boolean.compare(vanillaB, vanillaA);
+                        if (vanillaOrder != 0) return vanillaOrder;
                         return keyA.compareTo(keyB);
                     });
             itemsByNameCache = items;
@@ -1255,29 +1256,31 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
-        boolean[] missing = new boolean[1];
-        boolean[] handled = new boolean[1];
         // The same path a real press takes, fired on the client thread, so the overlay's handler
-        // and
-        // the screen's own handler see exactly what a mouse would send, including a cancellation.
-        onClientThread(
-                () -> {
-                    Screen screen = Minecraft.getInstance().screen;
-                    if (screen == null) {
-                        missing[0] = true;
-                        return;
-                    }
-                    boolean[] state = new boolean[] {false};
-                    ForgeEventFactoryClient.onScreenMouseClicked(state, screen, x, y, (int) button);
-                    handled[0] = state[0];
-                });
+        // and the screen's own handler see exactly what a mouse would send, including a
+        // cancellation. The arms live in clickOnClient so that this method has no branch for a
+        // unit test to be unable to reach.
+        boolean[] outcome = new boolean[2];
+        onClientThread(() -> clickOnClient(x, y, (int) button, outcome));
         // Reported here rather than on the client thread: the grug call runs on the server thread,
         // and a host function error raised from another thread would not reach it.
-        if (missing[0]) {
+        if (outcome[0]) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.click_screen: There is no screen open to click.");
         }
-        return handled[0];
+        return outcome[1];
+    }
+
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
+    private void clickOnClient(double x, double y, int button, boolean[] outcome) {
+        Screen screen = Minecraft.getInstance().screen;
+        if (screen == null) {
+            outcome[0] = true;
+            return;
+        }
+        boolean[] state = new boolean[] {false};
+        ForgeEventFactoryClient.onScreenMouseClicked(state, screen, x, y, button);
+        outcome[1] = state[0];
     }
 
     @Override

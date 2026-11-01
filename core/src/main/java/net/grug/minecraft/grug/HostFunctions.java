@@ -339,6 +339,16 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether a frame with an overlay on an eligible screen has been drawn in this run,
+     * which a test waits for before it clicks. It is set on the render thread, so waiting for it is
+     * the only way a test can know that the screen it opened was really drawn rather than skipped
+     * at the game's maximum speed.
+     */
+    public static boolean Test_overlay_drawn() {
+        return GrugOverlay.overlayDrawn();
+    }
+
+    /**
      * Test only: opens the player's own inventory screen, so a test can drive what an overlay draws
      * there. The screen is put up on the next frame, which is why a test waits for {@code
      * screen_open} before clicking it.

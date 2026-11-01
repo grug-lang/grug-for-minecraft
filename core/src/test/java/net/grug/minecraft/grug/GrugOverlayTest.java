@@ -155,4 +155,40 @@ class GrugOverlayTest {
         assertFalse(GrugOverlay.click(0, 0, 426, 240, 125, 37, 176, 166, 300, 20, 0));
         assertFalse(GrugOverlay.isOpen());
     }
+
+    @Test
+    void aPassWithAnEntityButNoExportCallsNothing() {
+        // The other half of the same guard: the script exists, so the handle is real, but the
+        // engine has no such export. The native call has to be skipped either way.
+        assertTrue(
+                GrugOverlay.render(
+                                123,
+                                Grug.INVALID_GRUG_EXPORT_FN_ID,
+                                426,
+                                240,
+                                125,
+                                37,
+                                176,
+                                166,
+                                300,
+                                20)
+                        .items()
+                        .isEmpty());
+        assertFalse(GrugOverlay.isOpen());
+
+        assertFalse(
+                GrugOverlay.click(
+                        123,
+                        Grug.INVALID_GRUG_EXPORT_FN_ID,
+                        426,
+                        240,
+                        125,
+                        37,
+                        176,
+                        166,
+                        300,
+                        20,
+                        0));
+        assertFalse(GrugOverlay.isOpen());
+    }
 }
