@@ -93,12 +93,12 @@ public final class GrugLightSync {
      * once it does.
      *
      * <p>Called on the server thread while it is free to tick, which is the test's own settle wait.
-     * The world's side is read from the simulated world and the client's from the client's copy:
-     * the client's light store is a synchronized map of arrays the client thread replaces and
-     * updates in place, so a read that races a light update can only see one of the two values,
-     * which makes this answer wait another tick rather than pass early. A section either side has
-     * no layer for is one at block light 0, which is why a missing layer and an all-zero one are
-     * the same light.
+     * The world's side is read from the simulated world and the client's from the client's copy,
+     * which the client thread writes. A read that races an update can therefore report the light
+     * from before it, which makes this answer wait another tick; what is compared is the bytes each
+     * side holds, so a section the client has not been sent yet compares unequal rather than
+     * passing early. A section either side has no layer for is one at block light 0, which is why a
+     * missing layer and an all-zero one are the same light.
      *
      * <p>Forgetting the debt is what makes the answer cheap once it has passed: the sections are
      * only compared while a rebuild's light is still arriving.
