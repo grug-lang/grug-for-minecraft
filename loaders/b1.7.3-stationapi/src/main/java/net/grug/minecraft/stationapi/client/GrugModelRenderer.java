@@ -326,7 +326,9 @@ public final class GrugModelRenderer {
      * lighting off for the item and this port's other loaders do the same. Marking the model front
      * lit instead would make the game draw only its south quads on the ground, where a block item's
      * dropped form is drawn, so the item is drawn here instead. Drawing the quads also keeps each
-     * face on its own texture file rather than an atlas sprite, as on every other loader. See #386.
+     * face on its own texture file rather than an atlas sprite, as on every other loader. Every
+     * other block keeps StationAPI's own draw, so its slot stays the one its reference image was
+     * made for. See #386.
      *
      * <p>The transform is the one this version's item renderer applies to a block item, so the item
      * stands where its neighbours in a slot do. It reflects the model through the plane of the
@@ -334,6 +336,8 @@ public final class GrugModelRenderer {
      * culled for it.
      */
     public static boolean drawItemFormInGui(Block block, int x, int y) {
+        if (!itemIsFlat(block)) return false;
+
         List<GrugQuad> quads = itemQuads(block);
         if (quads == null) return false;
 
@@ -347,7 +351,7 @@ public final class GrugModelRenderer {
         GL11.glRotatef(-90.0F, 0.0F, 1.0F, 0.0F);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
         GL11.glDisable(GL11.GL_CULL_FACE);
-        drawAsItem(quads, ((GrugBlock) block).drawsFlatLighting());
+        drawAsItem(quads, true);
         // The item renderer leaves culling on for whatever draws next.
         GL11.glEnable(GL11.GL_CULL_FACE);
         GL11.glPopMatrix();
@@ -369,26 +373,32 @@ public final class GrugModelRenderer {
     }
 
     /**
-     * Answers whether {@code stack} is the item form of a grug block that is drawn with OpenGL
-     * lighting off in every item render type.
+     * Whether {@code block} declares set_flat_lighting, which is what makes 2.2.14 draw its item
+     * form with OpenGL lighting off.
+     */
+    private static boolean itemIsFlat(Block block) {
+        return block instanceof GrugBlock && ((GrugBlock) block).drawsFlatLighting();
+    }
+
+    /**
+     * Whether {@code stack} is the item form of a grug block that 2.2.14 draws with OpenGL lighting
+     * off in every item render type.
      *
-     * <p>2.2.14 turns lighting off for the engine's item wherever it is drawn: {@code
-     * RenderEngine.render}, which {@code inventoryRender} and the hand and ground renderers all go
-     * through, does it for every item render type but a first-person map. This loader's baked item
-     * renderer lights a side lit model from each face's normal in all of them, so the mixin that
-     * draws those quads asks this first and turns lighting off around them. The GUI slot does not
-     * need the answer: it is drawn from the model directly. See #386.
+     * <p>2.2.14's {@code RenderEngine.render}, which its inventory, hand and ground drawing all go
+     * through, turns lighting off for every item render type but a first-person map. This loader's
+     * item renderer lights a side lit model from each face's normal as it flushes the quads, so the
+     * mixins around that flush ask this before it and turn lighting off across it. The GUI slot is
+     * drawn from the model directly by {@link #drawItemFormInGui} and does not ask.
+     *
+     * <p>The answer costs one type test and the block's own data lookup, so it stays out of the
+     * model: it runs for every block item the hand and the ground draw, not only for the one the
+     * rule is about today. A model that cannot be drawn is core's reported defect, and the game's
+     * cube for it is then unlit here rather than shaded, which is the reference's look anyway.
      */
     public static boolean drawsUnlitItem(ItemStack stack) {
         if (stack == null || !(stack.getItem() instanceof BlockItemForm)) return false;
 
-        Block block = ((BlockItemForm) stack.getItem()).getBlock();
-        if (!(block instanceof GrugBlock)) return false;
-        if (!((GrugBlock) block).drawsFlatLighting()) return false;
-
-        // A model that cannot be drawn leaves the game its own cube, which it lights like any
-        // other.
-        return itemQuads(block) != null;
+        return itemIsFlat(((BlockItemForm) stack.getItem()).getBlock());
     }
 
     /**
