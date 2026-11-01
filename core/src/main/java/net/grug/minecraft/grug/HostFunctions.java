@@ -186,6 +186,11 @@ public class HostFunctions {
         return GrugModsWatcher.loaderReloadCount(relativePath);
     }
 
+    /**
+     * Test only: the one origin a test builds from, which is the camera's position plus 3 on every
+     * loader. The runner snaps the player to the centre of their block before a test starts, so the
+     * first call in a test is already at a known place, and later calls reuse it. See #609.
+     */
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
         return GrugEntities.addEntity(
@@ -242,11 +247,6 @@ public class HostFunctions {
      */
     public static boolean Test_registers_mod_recipes() {
         return GrugCore.getAdapter().registersModRecipes();
-    }
-
-    public static long Test_setup_graphics_camera() {
-        return GrugEntities.addEntity(
-                GrugEntityType.Vec3, GrugCore.getAdapter().setupGraphicsTestCamera());
     }
 
     /** The longest {@code Test.stall} may block the game, in milliseconds. */

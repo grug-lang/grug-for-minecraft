@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
@@ -1083,18 +1084,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return new Vec3(player.x, player.y + 3.0, player.z);
     }
 
-    private boolean graphicsCameraSaved = false;
+    private boolean testPlayerSnapped = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public Vec3 setupGraphicsTestCamera() {
+    public void snapPlayerForTestOnClient() {
         PlayerEntity player = MinecraftInstance.get().player;
         if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
-            return null;
+            throw Grug.fatal(
+                    "The test runner: there is no local player to snap to their block centre.");
         }
 
         savedX = player.x;
@@ -1102,7 +1102,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         savedZ = player.z;
         savedYaw = player.yaw;
         savedPitch = player.pitch;
-        graphicsCameraSaved = true;
+        testPlayerSnapped = true;
 
         // Snap the player to the centre of their own block and level the view, so every loader
         // frames a fixture identically.
@@ -1119,22 +1119,20 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // which is what this call used to do. The runner restores the saved position when the test
         // ends.
         player.setPositionAndAngles(
-                Math.floor(savedX) + 0.5, savedY - 1.62, Math.floor(savedZ) + 0.5, 0.0F, 0.0F);
-
-        // The origin is the render camera's position plus 3, so a test that builds from it lands
-        // the same distance above the camera on every loader. This version's render camera sits at
-        // player.y, so there is nothing to convert.
-        return new Vec3(player.x, player.y + 3.0, player.z);
+                GrugTestPlayerSnap.blockCentre(savedX),
+                savedY - 1.62,
+                GrugTestPlayerSnap.blockCentre(savedZ),
+                0.0F,
+                0.0F);
     }
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void restoreCameraAfterGraphicsTest() {
-        // A no-op when the test never set the camera up, which is every test that is not a
-        // screenshot test and every test on a dedicated server, where setup refused. The runner
-        // calls this for every test that ends, so it must not report an error for those.
-        if (!graphicsCameraSaved) return;
-        graphicsCameraSaved = false;
+    public void restorePlayerAfterTest() {
+        // A no-op on a side with no client player to snap, which Alpha has no process for. The
+        // runner calls this for every test that ends, so it must not report an error for those.
+        if (!testPlayerSnapped) return;
+        testPlayerSnapped = false;
 
         PlayerEntity player = MinecraftInstance.get().player;
         if (player != null) {

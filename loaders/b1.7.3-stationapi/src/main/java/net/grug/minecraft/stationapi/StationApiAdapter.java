@@ -5,6 +5,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
@@ -1004,22 +1005,20 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return new Vec3(mc.player.x, mc.player.y + 3.0, mc.player.z);
     }
 
-    private boolean graphicsCameraSaved = false;
+    private boolean testPlayerSnapped = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public Vec3 setupGraphicsTestCamera() {
-        if (refuseWithoutAClient("Test.setup_graphics_camera")) return null;
+    public void snapPlayerForTestOnClient() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         PlayerEntity player = mc.player;
         if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
-            return null;
+            throw Grug.fatal(
+                    "The test runner: there is no local player to snap to their block centre.");
         }
 
         savedX = player.x;
@@ -1027,7 +1026,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         savedZ = player.z;
         savedYaw = player.yaw;
         savedPitch = player.pitch;
-        graphicsCameraSaved = true;
+        testPlayerSnapped = true;
 
         // Snap the player to the centre of their own block and level the view, so every loader
         // frames a fixture identically. The snap stays inside the player's own block, and therefore
@@ -1035,19 +1034,20 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // has not lit yet crashes this generation of the game. The runner restores the saved
         // position when the test ends.
         player.setPositionAndAngles(
-                Math.floor(savedX) + 0.5, savedY, Math.floor(savedZ) + 0.5, 0.0F, 0.0F);
-
-        return new Vec3(player.x, player.y + 3.0, player.z);
+                GrugTestPlayerSnap.blockCentre(savedX),
+                savedY,
+                GrugTestPlayerSnap.blockCentre(savedZ),
+                0.0F,
+                0.0F);
     }
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void restoreCameraAfterGraphicsTest() {
-        // A no-op when the test never set the camera up, which is every test that is not a
-        // screenshot test and every test on a dedicated server, where setup refused. The runner
-        // calls this for every test that ends, so it must not report an error for those.
-        if (!graphicsCameraSaved) return;
-        graphicsCameraSaved = false;
+    public void restorePlayerAfterTest() {
+        // A no-op when the snap never ran, which is every test on a side with no client player.
+        // The runner calls this for every test that ends, so it must not report an error for those.
+        if (!testPlayerSnapped) return;
+        testPlayerSnapped = false;
 
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =

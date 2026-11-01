@@ -29,7 +29,7 @@ before: Option[Screenshot] = Option.new()
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        origin: Vec3 = Test.setup_graphics_camera()
+        origin: Vec3 = Test.get_origin()
         _wall_in_front_of(origin)
         ctx.not_done()
     } else if not Test.world_settled() {

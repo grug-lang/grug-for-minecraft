@@ -6,7 +6,7 @@
 # rather than passing quietly.
 # The crop is a world-space rectangle at 1280x720, unlike the autocrafting table GUI test: nothing
 # here is a GUI panel, so there is no virtual-space scaling to undo. Where the shape and its
-# background end up is worked out from where the camera setup leaves them, in _setup.
+# background end up is worked out from where the snapped player's origin is, in _setup.
 render_block: Option[BlockEntity] = Option.new()
 
 # Whether the fixture has been meshed again from the settled light yet. See _force_remesh.
@@ -78,13 +78,13 @@ local _setup(ctx: TestTickContext) {
     # #253.
     Test.set_box_radius(6)
 
-    origin: Vec3 = Test.setup_graphics_camera()
+    origin: Vec3 = Test.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()
 
-    # The camera setup snaps the player to the centre of their block and levels the view.
-    # setup_graphics_camera returns the render camera's position plus 3, so y - 1.88 puts the run
+    # The runner snaps the player to the centre of their block and levels the view before the
+    # test starts. get_origin returns the render camera's position plus 3, so y - 1.88 puts the run
     # just above the camera, which is where the crop below expects it. yaw 0 looks towards +z, so +4
     # is in front of them rather than inside them.
     # A straight run along x, so the middle block draws arms on two opposite sides and none

@@ -13,9 +13,9 @@ remesh_ticks: number = 0
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
-# The camera's origin from _setup, which the later steps build from. Test.get_origin() is not the
-# same point on every loader: 1.20.6 answers from the player's feet and the camera's origin is
-# measured from the eye, 1.62 higher, so a step that asked again would build a block too low there.
+# The origin _setup built from, which the later steps build from too. get_origin answers from the
+# camera on every loader now, and keeps its first answer for the whole test, so asking again would
+# return the same point. See #609.
 origin_x: number = 0
 origin_y: number = 0
 origin_z: number = 0
@@ -70,7 +70,7 @@ local _setup(ctx: TestTickContext) {
     # the pipe, its two chests and the wall behind them.
     Test.set_box_radius(6)
 
-    origin: Vec3 = Test.setup_graphics_camera()
+    origin: Vec3 = Test.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

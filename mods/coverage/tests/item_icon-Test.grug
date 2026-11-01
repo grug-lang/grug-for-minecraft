@@ -27,7 +27,7 @@ export tick(ctx: TestTickContext) {
 
 local _setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
-    origin: Vec3 = Test.setup_graphics_camera()
+    origin: Vec3 = Test.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

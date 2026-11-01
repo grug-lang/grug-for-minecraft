@@ -7,6 +7,7 @@ import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugTickLockstep;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -1054,35 +1055,31 @@ public class ForgeAdapter implements ModLoaderAdapter {
             var players = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers();
             if (!players.isEmpty()) {
                 Player player = players.get(0);
-                return new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
+                return new Vec3(player.getX(), player.getEyeY() + 3.0, player.getZ());
             }
         }
         Player player = Minecraft.getInstance().player;
-        return new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
+        return new Vec3(player.getX(), player.getEyeY() + 3.0, player.getZ());
     }
 
-    private boolean graphicsCameraSaved = false;
+    private boolean testPlayerSnapped = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public Vec3 setupGraphicsTestCamera() {
-        if (refuseWithoutAClient("Test.setup_graphics_camera")) return null;
+    public void snapPlayerForTestOnClient() {
         // The test runner is driven from the integrated server thread, but the camera is the client
         // player's, so client-side work is marshalled onto the client (render) thread.
-        final Vec3[] result = new Vec3[1];
-        onClientThread(() -> setupCameraOnClient(result));
-        return result[0];
+        onClientThread(this::snapPlayerOnClient);
     }
 
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    private void setupCameraOnClient(Vec3[] result) {
+    private void snapPlayerOnClient() {
         Player player = Minecraft.getInstance().player;
         if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
-            return;
+            throw Grug.fatal(
+                    "The test runner: there is no local player to snap to their block centre.");
         }
 
         savedX = player.getX();
@@ -1090,7 +1087,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         savedZ = player.getZ();
         savedYaw = player.getYRot();
         savedPitch = player.getXRot();
-        graphicsCameraSaved = true;
+        testPlayerSnapped = true;
 
         // Snap the player to the centre of their own block and level the view, so every loader
         // frames a fixture identically and the frame does not depend on which way the player was
@@ -1099,27 +1096,25 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // into an unlit chunk. The runner restores this position when the test ends.
         player.setYRot(0.0F);
         player.setXRot(0.0F);
-        player.setPos(Math.floor(savedX) + 0.5, savedY, Math.floor(savedZ) + 0.5);
-
-        // The origin is the render camera's position plus 3, so a test that builds from it lands
-        // the same distance above the camera on every loader. The camera here is the player's eye.
-        result[0] = new Vec3(player.getX(), player.getEyeY() + 3.0, player.getZ());
+        player.setPos(
+                GrugTestPlayerSnap.blockCentre(savedX),
+                savedY,
+                GrugTestPlayerSnap.blockCentre(savedZ));
     }
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void restoreCameraAfterGraphicsTest() {
-        // A no-op when the test never set the camera up, which is every test that is not a
-        // screenshot test and every test on a dedicated server, where setup refused. The runner
-        // calls this for every test that ends, so it must not report an error for those.
-        if (!graphicsCameraSaved) return;
-        graphicsCameraSaved = false;
+    public void restorePlayerAfterTest() {
+        // A no-op on a dedicated server, where there is no client player to snap. The runner calls
+        // this for every test that ends, so it must not report an error for those.
+        if (!testPlayerSnapped) return;
+        testPlayerSnapped = false;
 
-        onClientThread(this::restoreCameraOnClient);
+        onClientThread(this::restorePlayerOnClient);
     }
 
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    private void restoreCameraOnClient() {
+    private void restorePlayerOnClient() {
         Player player = Minecraft.getInstance().player;
         if (player != null) {
             player.setPos(savedX, savedY, savedZ);

@@ -121,8 +121,8 @@ class GrugTestRunnerTest {
         GrugTestState.testRuntimeErrors.clear();
     }
 
-    /** How many times the runner asked the installed adapter to restore the camera. */
-    private final List<String> cameraRestores = new ArrayList<>();
+    /** How many times the runner asked the installed adapter to restore the player. */
+    private final List<String> playerRestores = new ArrayList<>();
 
     /** A directory the tests may put a test order record in, cleared between the tests. */
     @TempDir Path tempDir;
@@ -131,8 +131,9 @@ class GrugTestRunnerTest {
 
     /**
      * Installs a fake adapter, as the other tests that reach {@code GrugCore.getAdapter()} do,
-     * because the runner restores the camera through it whenever a test ends. Every method but the
-     * restore returns null, which is all those other tests need.
+     * because the runner restores the player through it whenever a test ends. The snap is recorded
+     * too, so a test can say it came before the room. Every other method returns null, which is all
+     * those other tests need.
      */
     @BeforeEach
     void installAdapter() throws Exception {
@@ -145,8 +146,8 @@ class GrugTestRunnerTest {
                         getClass().getClassLoader(),
                         new Class<?>[] {ModLoaderAdapter.class},
                         (proxy, method, args) -> {
-                            if (method.getName().equals("restoreCameraAfterGraphicsTest")) {
-                                cameraRestores.add("restore");
+                            if (method.getName().equals("restorePlayerAfterTest")) {
+                                playerRestores.add("restore");
                             }
                             return null;
                         }));
@@ -1655,6 +1656,11 @@ class GrugTestRunnerTest {
         }
 
         @Override
+        public void snapPlayer() {
+            log.add("snap");
+        }
+
+        @Override
         public void build(int radius) {
             log.add("build");
         }
@@ -2241,7 +2247,7 @@ class GrugTestRunnerTest {
         files.put("mymod/code/a-Test.grug", 1L);
         files.put("mymod/code/b-Test.grug", 2L);
         List<String> log = runWithSweepLog(new FakeOps(), files);
-        assertEquals(List.of("build", "sweep", "build", "sweep"), log);
+        assertEquals(List.of("snap", "build", "sweep", "snap", "build", "sweep"), log);
     }
 
     @Test
@@ -2249,7 +2255,7 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
         List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
-        assertEquals(List.of("build", "sweep"), log);
+        assertEquals(List.of("snap", "build", "sweep"), log);
     }
 
     @Test
@@ -2257,7 +2263,7 @@ class GrugTestRunnerTest {
         FakeOps ops = new FakeOps();
         ops.completed = false;
         List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
-        assertEquals(List.of("build", "sweep"), log);
+        assertEquals(List.of("snap", "build", "sweep"), log);
     }
 
     @Test
@@ -2266,13 +2272,13 @@ class GrugTestRunnerTest {
         int[] calls = {0};
         ops.onCall = () -> GrugTestState.testNotDone = ++calls[0] < 3;
         List<String> log = runWithSweepLog(ops, Map.of("mymod/code/a-Test.grug", 1L));
-        assertEquals(List.of("build", "sweep"), log);
+        assertEquals(List.of("snap", "build", "sweep"), log);
     }
 
     @Test
-    void restoresTheCameraWhenATestPasses() {
-        // The test moved the camera by calling Test.setup_graphics_camera, so the runner has to put
-        // it back for it rather than rely on the test remembering to. See #393 and #408.
+    void restoresThePlayerWhenATestPasses() {
+        // The runner snapped the player to their block centre at the start of the test, so it has
+        // to put them back for it rather than rely on the test remembering to. See #393 and #408.
         String printed =
                 capture(
                         () ->
@@ -2282,24 +2288,24 @@ class GrugTestRunnerTest {
                                                 Map.of("mymod/code/a-Test.grug", 1L))));
 
         assertTrue(printed.contains("[GRUG CI] PASS mymod/code/a-Test.grug"));
-        assertEquals(List.of("restore"), cameraRestores);
+        assertEquals(List.of("restore"), playerRestores);
     }
 
     @Test
-    void restoresTheCameraWhenATestFails() {
-        // A failed assertion or a screenshot mismatch aborts the script, and the camera the test
-        // had already moved must not be left that way for the next test.
+    void restoresThePlayerWhenATestFails() {
+        // A failed assertion or a screenshot mismatch aborts the script, and the player the runner
+        // had already snapped must not be left that way for the next test.
         FakeOps ops = new FakeOps();
         ops.completed = false;
 
         String printed = capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
 
         assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"));
-        assertEquals(List.of("restore"), cameraRestores);
+        assertEquals(List.of("restore"), playerRestores);
     }
 
     @Test
-    void restoresTheCameraWhenATestAbortsOnAnError() {
+    void restoresThePlayerWhenATestAbortsOnAnError() {
         // An error thrown out of the run call ends the test just as abruptly as a failed assertion.
         FakeOps ops = new FakeOps();
         ops.throwOnCall = new IllegalStateException("boom");
@@ -2308,11 +2314,11 @@ class GrugTestRunnerTest {
 
         assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"));
         assertTrue(printed.contains("[GRUG CI] boom"));
-        assertEquals(List.of("restore"), cameraRestores);
+        assertEquals(List.of("restore"), playerRestores);
     }
 
     @Test
-    void restoresTheCameraWhenATestEndsWithItsExpectedError() {
+    void restoresThePlayerWhenATestEndsWithItsExpectedError() {
         // An expect_error test that sees its error is a pass, and it restores like any other.
         FakeOps ops = new FakeOps();
         ops.onCall = () -> abortWithHostFunctionError(ops, "boom", "boom happened");
@@ -2320,6 +2326,6 @@ class GrugTestRunnerTest {
         String printed = capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
 
         assertTrue(printed.contains("[GRUG CI] PASS mymod/code/a-Test.grug (expected error)"));
-        assertEquals(List.of("restore"), cameraRestores);
+        assertEquals(List.of("restore"), playerRestores);
     }
 }

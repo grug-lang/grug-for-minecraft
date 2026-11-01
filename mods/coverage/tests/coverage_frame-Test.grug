@@ -54,7 +54,7 @@ local _setup(ctx: TestTickContext) {
     # fixture goes in, so the room's clearing cannot take the fixture out again.
     Test.set_box_radius(6)
 
-    origin: Vec3 = Test.setup_graphics_camera()
+    origin: Vec3 = Test.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

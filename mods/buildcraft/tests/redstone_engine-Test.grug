@@ -80,7 +80,7 @@ local _setup(ctx: TestTickContext) {
 
     Test.set_box_radius(6)
 
-    origin: Vec3 = Test.setup_graphics_camera()
+    origin: Vec3 = Test.get_origin()
     ex = origin.x()
     ey = origin.y() - 1.88
     ez = origin.z() + 4
