@@ -63,7 +63,7 @@
 					"tracking_issue": 863
 				},
 				{
-					"what": "The list is not drawn on a grug mod's own container screens, only on the player's inventory and on vanilla chest and crafting-table screens.",
+					"what": "The list is not drawn on a grug mod's own container screens; it is drawn on the player's inventory and on every other container screen, vanilla or another mod's, that is not a GrugScreen.",
 					"why": "The first version targets the screens the issue names, and drawing on a mod's own GrugScreen would change that mod's GUI goldens. JEI draws its list on every container screen.",
 					"tracking_issue": 872
 				},
@@ -111,6 +111,11 @@
 					"what": "A left click always gives one item. There is no give-versus-cheat mode, no cheat permission check and no right-click delete, and the give plays no pickup sound and sends no \"Gave ... to ...\" chat message.",
 					"why": "The first version has one click behaviour, the inventory give; JEI's modes, its permission check and the sound and chat line its give sends are a separate piece.",
 					"tracking_issue": 870
+				},
+				{
+					"what": "A click gives its item only where the client runs the game's own server, which is singleplayer. On a client of a remote server the overlay takes the press and nothing is given, with no message.",
+					"why": "The give adds the item to the integrated server's player directly, as a call inside the same process, instead of sending the server a packet the way JEI's give does; a remote server is out of reach of that call.",
+					"tracking_issue": 882
 				},
 				{
 					"what": "No test captures a frame and compares it with the reference, so the port's drawing is not checked against real JEI's.",

@@ -2753,7 +2753,7 @@
 			]
 		},
 		"item_count": {
-			"description": "How many items the host knows, for item_at to enumerate them: the count of every item the game has registered, vanilla and mods alike. An overlay asks this once and then draws its grid of items from item_at, one per slot.",
+			"description": "How many items the host knows, for item_at to enumerate them: the count of every item the game has registered, vanilla and mods alike, except air, which the game registers as an item but no list draws or gives. An overlay asks this once and then draws its grid of items from item_at, one per slot.",
 			"return_type": {
 				"name": "number"
 			}
