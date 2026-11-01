@@ -924,10 +924,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void deleteCarriedItem() {
+        // The click pass calls this on the client thread, but a test's own clear runs on the server
+        // thread, so the client's menu is touched where it belongs either way.
+        onClientThread(this::deleteCarriedItemOnClient);
+    }
+
     @GrugGenerated(
             "the no-screen and no-server arms: a run deletes from the screen it just opened"
                     + " on an integrated server")
-    public void deleteCarriedItem() {
+    private void deleteCarriedItemOnClient() {
         AbstractContainerScreen<?> container = openContainerScreen();
         if (container == null) return;
         container.getMenu().setCarried(ItemStack.EMPTY);
