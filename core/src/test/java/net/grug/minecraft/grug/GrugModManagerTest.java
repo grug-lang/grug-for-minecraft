@@ -458,6 +458,118 @@ class GrugModManagerTest {
     }
 
     @Test
+    void aGrantIsTheHostsRecordAndNotInTheModsFiles() throws Exception {
+        installRemote("1");
+        GrugModManager manager = managerOver(jar(), release("1", true));
+
+        manager.grantUnsafeMode("remote");
+
+        assertTrue(manager.isUnsafeModeGranted("remote"));
+        assertTrue(
+                read(game.resolve("grug_mods_state.json"))
+                        .contains("\"unsafe_mode_granted\":true"));
+        try (var files = Files.list(mods().resolve("remote"))) {
+            assertEquals(
+                    List.of("about.json"), files.map(f -> f.getFileName().toString()).toList());
+        }
+    }
+
+    @Test
+    void aGrantForAnInstalledModKeepsItOn() throws IOException {
+        // The state writes every mod's on flag, so the entry a grant makes has to say what the game
+        // is already doing with the mod rather than leave it reading as a request to turn it off.
+        Files.createDirectories(mods().resolve("extra"));
+        GrugModManager manager = manager();
+
+        manager.grantUnsafeMode("extra");
+
+        assertTrue(entry(manager, "extra").on());
+        assertTrue(manager.isUnsafeModeGranted("extra"));
+    }
+
+    @Test
+    void aGrantForABundledModThatIsNotInstalledDoesNotInstallIt() {
+        GrugModManager manager = manager();
+
+        manager.grantUnsafeMode("extra");
+        manager.apply();
+
+        assertFalse(entry(manager, "extra").on());
+        assertFalse(Files.exists(mods().resolve("extra")));
+    }
+
+    @Test
+    void aRevokedGrantIsForgotten() throws IOException {
+        Files.createDirectories(mods().resolve("extra"));
+        GrugModManager manager = manager();
+        manager.grantUnsafeMode("extra");
+
+        manager.revokeUnsafeMode("extra");
+
+        assertFalse(manager.isUnsafeModeGranted("extra"));
+        assertFalse(read(game.resolve("grug_mods_state.json")).contains("unsafe_mode_granted"));
+    }
+
+    @Test
+    void revokingAGrantTheStateNeverHeldWritesNothing() {
+        assertFalse(manager().isUnsafeModeGranted("extra"));
+
+        manager().revokeUnsafeMode("extra");
+
+        assertFalse(Files.exists(game.resolve("grug_mods_state.json")));
+    }
+
+    @Test
+    void grantingAgainLeavesTheStateAsItIs() throws IOException {
+        Files.createDirectories(mods().resolve("extra"));
+        GrugModManager manager = manager();
+        manager.grantUnsafeMode("extra");
+        String once = read(game.resolve("grug_mods_state.json"));
+
+        manager.grantUnsafeMode("extra");
+
+        assertEquals(once, read(game.resolve("grug_mods_state.json")));
+    }
+
+    @Test
+    void aGrantForANameThatCouldLeaveTheManagedDirectoriesIsFatal() {
+        IllegalStateException error =
+                assertThrows(IllegalStateException.class, () -> manager().grantUnsafeMode("../x"));
+
+        assertTrue(error.getMessage().contains("is not a mod name"), error.getMessage());
+    }
+
+    @Test
+    void anUpdateTakesTheGrantWithTheFilesItReplaces() throws Exception {
+        installRemote("1");
+        GrugModManager manager = managerOver(jar(), release("2", true));
+        manager.grantUnsafeMode("remote");
+        assertTrue(manager.isUnsafeModeGranted("remote"));
+        assertTrue(entry(manager, "remote").updatable());
+
+        assertNull(manager.startUpdate("remote").error());
+        manager.apply();
+
+        assertFalse(manager.isUnsafeModeGranted("remote"));
+        assertEquals("2", read(mods().resolve("remote/about.json")));
+    }
+
+    @Test
+    void aReinstallClearsTheGrant() throws Exception {
+        installRemote("1");
+        GrugModManager manager = managerOver(jar(), release("1", true));
+        manager.grantUnsafeMode("remote");
+        assertTrue(manager.isUnsafeModeGranted("remote"));
+        // The player deleted the files and installs the mod again, as the screen offers.
+        GrugModsExtractor.deleteTree(mods().resolve("remote"));
+
+        GrugModManager.Install install = manager.startInstall("remote");
+
+        assertNull(install.error());
+        assertFalse(manager.isUnsafeModeGranted("remote"));
+    }
+
+    @Test
     void anUpdateThatFailsTheHashCheckLeavesTheInstalledModAndStagesNothing() throws Exception {
         installRemote("1");
         GrugModManager manager = managerOver(jar(), release("2", false));

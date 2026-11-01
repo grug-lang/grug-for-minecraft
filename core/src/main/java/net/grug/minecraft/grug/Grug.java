@@ -31,6 +31,15 @@ public final class Grug {
         }
     }
 
+    /**
+     * Compiles every grug file under the mods directory, in each mod's mode.
+     *
+     * <p>{@link GrugModModes} has read those modes before this call, and every file of a mod has to
+     * compile in its mod's mode (#334). grug-rs has no per-file or per-mod mode in the pinned
+     * revision, so this call compiles the whole tree in the VM's one mode, the safe one: a mod the
+     * player granted unsafe mode runs safe until grug-rs takes a mode, and this call is where that
+     * mode goes. See {@link GrugNative#nativeCompileAllFiles}.
+     */
     public static FileInfo[] compileAllFiles() {
         FileInfo[] files;
         GrugStateLock.lock();

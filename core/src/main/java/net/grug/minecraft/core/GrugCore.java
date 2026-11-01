@@ -3,6 +3,7 @@ package net.grug.minecraft.core;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModFileStates;
+import net.grug.minecraft.grug.GrugModModes;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,6 +57,11 @@ public class GrugCore {
         // port is only meaningful if a test has to honour it, so whether each mod is one
         // has to be known before any test runs.
         GrugExactPorts.load(grugModsDir);
+
+        // And so is a mod's mode: a mod that asks to run unsafe only does so with the player's
+        // grant, and every file of the mod has to compile in that mode, so the mode has to be
+        // known before anything of the mod compiles (#334).
+        GrugModModes.load(grugModsDir, adapter.getGameDirectory());
 
         Grug.init(modApiJson, grugModsDir);
     }
