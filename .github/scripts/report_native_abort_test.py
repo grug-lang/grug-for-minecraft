@@ -112,7 +112,12 @@ class ReportNativeAbortTest(unittest.TestCase):
             result.stdout,
         )
         self.assertIn("grug-rs", result.stdout)
-        self.assertIn("grug-for-minecraft#123", result.stdout)
+        # It names no issue number, which went stale once, and tells the reader how to find the issue.
+        self.assertNotIn("grug-for-minecraft#", result.stdout)
+        self.assertIn(
+            'gh issue list --state open --search "gruggers/src/backend/bytecode.rs:1162:21"',
+            result.stdout,
+        )
         self.assertIn(str(log), result.stdout)
 
     def test_failed_test_log_is_not_reported_as_an_abort(self):
@@ -131,13 +136,13 @@ class ReportNativeAbortTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("printed no Rust panic", result.stdout)
         self.assertIn("exited with code 134", result.stdout)
-        # It has to say this is not the grug panic, or the next occurrence gets filed under #123.
+        # It has to say this is not the grug panic, or the next occurrence gets filed under a stale issue.
         self.assertIn("not the", result.stdout)
         self.assertNotIn("panic message:", result.stdout)
         self.assertIn("Last test progress: [GRUG CI] Running 50 tests...", result.stdout)
 
-    def test_the_watcher_closedir_panic_names_562_and_not_123(self):
-        # The same abort shape as #123 but another cause, which the report has to tell apart so
+    def test_the_watcher_closedir_panic_names_562_and_not_a_grug_rs_search(self):
+        # The same abort shape as a grug-rs panic but another cause, which the report has to tell apart so
         # nobody opens the raw log to learn which one a failed installed job was.
         log = self.write_log(
             "closedir.log",
@@ -150,7 +155,7 @@ class ReportNativeAbortTest(unittest.TestCase):
         self.assertIn("closedir panic", result.stdout)
         self.assertIn("#562", result.stdout)
         self.assertIn("needs investigation to identify the closer", result.stdout)
-        self.assertNotIn("#123", result.stdout)
+        self.assertNotIn("gh issue list", result.stdout)
 
     def test_log_without_progress_lines(self):
         log = self.write_log(
