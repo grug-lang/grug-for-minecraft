@@ -871,6 +871,37 @@
 				}
 			]
 		},
+		"Overlay": {
+			"description": "An overlay drawn over the player's inventory screen and over container screens, such as a chest's or a crafting table's. The game asks its exports while such a screen is open: render once per frame and click once per mouse press, so a mod can draw on the screen and take a click away from the vanilla slot under it. A screen the overlay may draw on is the player's own inventory screen and every screen the game opens for a container, and a loader that does not draw overlays on them simply never asks the exports, which a test can tell from Test.overlay_asked.",
+			"export_functions": [
+				{
+					"name": "render",
+					"description": "Called by the game once per frame while a screen the overlay may draw on is open, after the screen has drawn itself. Everything the export draws through `ctx` lands on top of the screen for that frame and is thrown away with it. It is asked every frame the screen is open, and an overlay script without this export is declined without a report, so a mod whose screen the player never opens costs nothing while it is closed. Drawing nothing is not an error: a frame with nothing new has nothing to draw.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "OverlayRenderContext"
+							}
+						}
+					]
+				},
+				{
+					"name": "click",
+					"description": "Called by the game when the mouse is pressed while a screen the overlay may draw on is open, before the screen gets the press. The position and the button are the ones the screen would have received, and `ctx.take()` keeps the press from reaching it, so the vanilla slot under the mouse is not clicked too. Return without taking it and the screen handles the press as if the overlay had not seen it. It is asked for every press, and an overlay script without this export is declined without a report, so the screen always gets its click.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "OverlayClickContext"
+							}
+						}
+					]
+				}
+			]
+		},
 		"Test": {
 			"description": "Utility functions for automated tests.",
 			"export_functions": [
@@ -1258,6 +1289,12 @@
 							}
 						}
 					]
+				},
+				"overlay_asked": {
+					"description": "Whether the overlay's exports were ever asked in this run, for a test that needs to know whether its loader draws overlays at all. A loader that does not draw them on the inventory and container screens never asks the exports, so this answers false there, and a test that needs the overlay to have drawn its one job is the one that checks it; a loader that does answers true once such a screen has been open, and keeps answering it.",
+					"return_type": {
+						"name": "bool"
+					}
 				}
 			}
 		}
@@ -2394,6 +2431,173 @@
 					]
 				}
 			}
+		},
+		"OverlayRenderContext": {
+			"description": "The context of an overlay's render() call, passed to it once per frame while a screen the overlay may draw on is open. Everything drawn through it is drawn on top of that screen for that frame and is thrown away with it. A context is only valid while its render() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"screen_width": {
+					"description": "The width of the screen in pixels, from its left edge. The overlay's grid sits in the space between the screen's GUI and this edge, and runs the full height, so the grid is measured from the GUI's right edge up to here.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screen_height": {
+					"description": "The height of the screen in pixels, from its top edge. The overlay's grid runs from the top of the screen down, so it is measured from 0 to here.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_left": {
+					"description": "The x position, in pixels from the screen's left edge, of the left side of the screen's GUI, its inventory panel. The overlay draws to the left of the GUI, so its area ends where the GUI begins.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_top": {
+					"description": "The y position, in pixels from the screen's top edge, of the top of the screen's GUI, its inventory panel.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_width": {
+					"description": "The width of the screen's GUI, its inventory panel, in pixels. The GUI's right edge, where the overlay's area ends, is gui_left plus this.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_height": {
+					"description": "The height of the screen's GUI, its inventory panel, in pixels.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"mouse_x": {
+					"description": "The x position of the mouse, in pixels from the screen's left edge, in the same coordinates as the screen and the GUI. Where it lands on a slot the overlay drew is the slot being hovered.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"mouse_y": {
+					"description": "The y position of the mouse, in pixels from the screen's top edge, in the same coordinates as the screen and the GUI.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"draw_item": {
+					"description": "Draws one item's 16 by 16 icon at the screen pixel given, the way the game draws it in an inventory slot: a block as its own inventory shape, anything else as its flat icon, unlit and full brightness. The position is the slot's top-left corner plus the slot's inner padding, which is where the reference draws the icon. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"draw_box": {
+					"description": "Draws the overlay's hover highlight, a translucent white box, from one screen pixel to the other, the reference's way of marking the slot the mouse is over. The corners have to be the right way round, the first of each pair no greater than the second, like a box. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			}
+		},
+		"OverlayClickContext": {
+			"description": "The context of an overlay's click() call, passed to it when the mouse is pressed while a screen the overlay may draw on is open, before the screen gets the press. The position and the button are the ones the screen would have received, and calling take() keeps the press from reaching it, so the vanilla slot under the mouse is not clicked too. Return without taking it and the screen handles the press as if the overlay had not seen it. A context is only valid while its click() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"screen_width": {
+					"description": "The width of the screen in pixels, from its left edge, the same measure render() is given, for an overlay that recomputes where its slots are to find the one that was pressed.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"screen_height": {
+					"description": "The height of the screen in pixels, from its top edge, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_left": {
+					"description": "The x position, in pixels from the screen's left edge, of the left side of the screen's GUI, its inventory panel, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_top": {
+					"description": "The y position, in pixels from the screen's top edge, of the top of the screen's GUI, its inventory panel, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_width": {
+					"description": "The width of the screen's GUI, its inventory panel, in pixels, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_height": {
+					"description": "The height of the screen's GUI, its inventory panel, in pixels, the same measure render() is given.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"mouse_x": {
+					"description": "The x position of the press, in pixels from the screen's left edge, the same coordinate render() gets for the mouse, which is where the overlay decides which of its slots was pressed.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"mouse_y": {
+					"description": "The y position of the press, in pixels from the screen's top edge, the same coordinate render() gets for the mouse.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"button": {
+					"description": "The mouse button that was pressed, the same code the screen would receive: 0 is the left button, 1 the right and 2 the middle. The reference gives one item on a left click and a full stack on a right click.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"take": {
+					"description": "Keeps the press from reaching the screen, so the vanilla slot under the mouse is not clicked too. Call it when the overlay handled the press, such as by giving the item the press landed on, and return; the screen never sees it. Without it, the press goes to the screen as if the overlay had not seen it. Only legal on the context click() was passed, while that call is running: a context saved for later is refused."
+				}
+			}
 		}
 	},
 	"host_functions": {
@@ -2451,6 +2655,17 @@
 				}
 			]
 		},
+		"give_item": {
+			"description": "Gives the player one of the item, the way the game gives an item to a player: into their inventory, and dropped at their feet if it is full. This is what an overlay's click() gives, so a click on the overlay's list of items hands one of them to the player. A loader that does not draw overlays never gets this called from one, and a click on a loader that does not draw the overlay gives nothing.",
+			"parameters": [
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				}
+			]
+		},
 		"gui": {
 			"description": "Creates a new dynamic GUI layout using the specified background texture.",
 			"return_type": {
@@ -2479,6 +2694,26 @@
 					}
 				}
 			]
+		},
+		"item_at": {
+			"description": "The item at index, from 0 up to item_count minus 1, in the order the host lists its items, which is by registry name: the vanilla items first, then the others, each in the order its name sorts. An index outside that range is reported and answers nothing, since there is no item there to hand back. An overlay's list of every item is item_count calls to item_at in order.",
+			"return_type": {
+				"name": "Item"
+			},
+			"parameters": [
+				{
+					"name": "index",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"item_count": {
+			"description": "How many items the host knows, for item_at to enumerate them: the count of every item the game has registered, vanilla and mods alike. An overlay asks this once and then draws its grid of items from item_at, one per slot.",
+			"return_type": {
+				"name": "number"
+			}
 		},
 		"item_entity": {
 			"description": "Creates a new ItemEntity.",
