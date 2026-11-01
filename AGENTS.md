@@ -132,14 +132,15 @@ Minecraft never runs on the maintainer's machine: it is pointless there and has 
 laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay local: Gradle builds,
 `javap`, the JaCoCo CLI, the Python and script tests, `pre-commit`.
 
-- A pull request runs 10 jobs of `build.yml`, 9 when every changed path is inside another mod's or
-  another loader's directory, and `discover` alone when no test can read the diff:
-  `.github/scripts/reference-needed.py` and `.github/scripts/no-tests.py` skip the `reference` and
-  the test jobs then, each saying why in its log. The jar, installed and smoke jobs and two steps of
-  the core tests run only on push to `main` and `workflow_dispatch`, and the Windows boot jobs only
-  on a dispatch and on a push that adds a loader (#632), so a green pull request says nothing about
-  them. `gh workflow run build.yml --ref <branch>` gives a branch the full pipeline, with
-  `-f repeats=<n>` to repeat the suite in one session.
+- A pull request runs 7 to 10 jobs of `build.yml`, or `discover` alone when no test can read the
+  diff: `.github/scripts/affected-loaders.py` narrows the loader jobs to the loaders its diff
+  reaches plus one representative per mechanism (#637), and `.github/scripts/reference-needed.py`
+  and `.github/scripts/no-tests.py` skip the `reference` and the test jobs a diff cannot reach, each
+  saying why in its log. The jar, installed and smoke jobs and two steps of the core tests run only
+  on push to `main` and `workflow_dispatch`, and the Windows boot jobs only on a dispatch and on a
+  push that adds a loader (#632), so a green pull request says nothing about them. `gh workflow run
+  build.yml --ref <branch>` gives a branch the full pipeline, with `-f repeats=<n>` to repeat the
+  suite in one session.
 - A release takes its jar from a dispatch of `build.yml` on main, not from the push that merged the
   commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what

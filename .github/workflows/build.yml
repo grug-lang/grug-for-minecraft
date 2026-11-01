@@ -55,11 +55,14 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Emits one matrix entry per loaders/* directory.
+  # Emits one matrix entry per loaders/* directory, and the subset of them a pull request runs (#637).
   discover:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
+      # The loader directories the test jobs run: every one on a push and a dispatch, and on a pull
+      # request the loaders its diff reaches plus one representative per mechanism (#637).
+      loaders: ${{ steps.loaders.outputs.loaders }}
       smoke: ${{ steps.smoke.outputs.matrix }}
       mods: ${{ steps.mods.outputs.mods }}
       reference: ${{ steps.reference.outputs.reference }}
@@ -98,6 +101,30 @@ jobs:
       - name: Discover smoke games
         id: smoke
         run: echo "matrix=$(python3 .github/scripts/universal_jar.py smoke-matrix)" >> "$GITHUB_OUTPUT"
+
+      # The loaders whose jobs a pull request runs (#637). Only a pull request narrows it, to the
+      # loaders its diff can reach plus one representative per mechanism a mod loader reads a jar by
+      # (affected-loaders.py explains the choice in this log); a push to main and a dispatch run
+      # every loader, as the full run a release needs, and so does a base that cannot be fetched or
+      # an error in the script. The narrowing is this output and the build job's condition rather
+      # than a workflow-level paths filter, which would leave a required check pending on a run that
+      # never starts.
+      - name: Choose the loaders the test jobs run
+        id: loaders
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          LOADERS: ${{ steps.discover.outputs.matrix }}
+        run: |
+          loaders="$LOADERS"
+          if [ "$EVENT" != pull_request ]; then
+            echo "Running every loader: this is a $EVENT run, not a pull request."
+          elif [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
+            echo "Running every loader: the pull request's base commit '$BASE_SHA' could not be fetched."
+          else
+            loaders=$(python3 .github/scripts/affected-loaders.py "$BASE_SHA" HEAD) || loaders="$LOADERS"
+          fi
+          echo "loaders=$loaders" >> "$GITHUB_OUTPUT"
 
       # The mods whose tests the development loader jobs run, for their GRUG_CI_MODS (#628, #831).
       # A pull request narrows it, by its diff against the base it was opened on, and a dispatch
@@ -411,6 +438,7 @@ jobs:
             .github/scripts/combine_coverage_test.py \
             .github/scripts/watch_run_test.py \
             .github/scripts/affected_mods_test.py \
+            .github/scripts/affected_loaders_test.py \
             .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py \
             .github/scripts/reference_selection_test.py \
@@ -560,16 +588,19 @@ jobs:
 
   build:
     name: ${{ matrix.dir }}
-    # A diff of prose alone cannot change a test's result, so the five loader jobs skip (#785).
-    # Only an explicit true skips them (see the discover job), and a dispatch never sets one.
-    if: needs.discover.outputs.no-tests != 'true'
+    # A diff of prose alone cannot change a test's result, so the loader jobs skip (#785), and a pull
+    # request runs only the loaders its diff reaches plus one representative per mechanism, which is
+    # discover's loaders output: every loader on a push to main and a dispatch (#637). An empty
+    # matrix is one GitHub refuses, so that output is a condition here too, and only an explicit
+    # true skips on no-tests (see the discover job).
+    if: needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.loaders != '[]'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ (inputs.repeats || vars.GRUG_CI_REPEATS || '1') == '1' && 15 || 90 }}
     strategy:
       fail-fast: false
       matrix:
-        dir: ${{ fromJson(needs.discover.outputs.matrix) }}
+        dir: ${{ fromJson(needs.discover.outputs.loaders) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
