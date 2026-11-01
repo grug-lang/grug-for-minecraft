@@ -656,7 +656,9 @@ jobs:
       # with the throwaway tree. The installed-game runs write their own copies and never upload
       # them, so the committed record is always what the development run last measured.
       - name: Upload the test order record the run wrote
-        if: ${{ inputs.refresh-test-times == true }}
+        # always() so a refresh dispatch still gets the record a failed run wrote, which is the run
+        # whose test times are most worth having; the job keeps its failed status regardless.
+        if: ${{ always() && inputs.refresh-test-times == true }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-times-${{ matrix.dir }}
@@ -823,7 +825,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/modules-2
-          key: grug-gradle-${{ runner.os }}-${{ steps.select.outputs.loader }}-${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', 'loaders/${{ steps.select.outputs.loader }}/gradle.properties', 'loaders/${{ steps.select.outputs.loader }}/gradle/wrapper/gradle-wrapper.properties', 'loaders/${{ steps.select.outputs.loader }}/settings.gradle', 'loaders/${{ steps.select.outputs.loader }}/settings.gradle.kts', 'loaders/${{ steps.select.outputs.loader }}/build.gradle', 'loaders/${{ steps.select.outputs.loader }}/build.gradle.kts') }}
+          key: grug-gradle-${{ runner.os }}-${{ steps.select.outputs.loader }}-${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', steps.select.outputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', steps.select.outputs.loader), format('loaders/{0}/settings.gradle', steps.select.outputs.loader), format('loaders/{0}/settings.gradle.kts', steps.select.outputs.loader), format('loaders/{0}/build.gradle', steps.select.outputs.loader), format('loaders/{0}/build.gradle.kts', steps.select.outputs.loader)) }}
           restore-keys: grug-gradle-${{ runner.os }}-${{ steps.select.outputs.loader }}-
 
       - name: Cache the 1.2.5 MCP snapshot
@@ -840,7 +842,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: reference-artifacts
-          key: grug-reference-${{ hashFiles('mods/${{ steps.select.outputs.mod }}/about.json') }}
+          key: grug-reference-${{ hashFiles(format('mods/{0}/about.json', steps.select.outputs.mod)) }}
 
       - name: Download and verify the reference artifacts
         if: steps.reference-artifacts.outputs.cache-hit != 'true'
@@ -853,7 +855,7 @@ jobs:
             --artifacts reference-artifacts \
             --destination loaders/${{ steps.select.outputs.loader }}/run/reference-mods
           echo "The reference run loads:"
-          (cd loaders/${{ steps.select.outputs.loader }}/run/reference-mods && sha256sum *)
+          (cd loaders/${{ steps.select.outputs.loader }}/run/reference-mods && sha256sum -- *)
 
       # The harness is the mod's tests that have a reference side, the ones that capture a screenshot
       # or branch on Test.is_reference(), plus about.json, LICENSE and goldens without its code, so the
