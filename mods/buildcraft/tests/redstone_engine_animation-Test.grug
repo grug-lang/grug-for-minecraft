@@ -2,9 +2,10 @@
 # the plate slides out along the facing by a step of up to 7.99 pixels, at its farthest at a progress
 # of 0.5, and a chamber box is stacked every two pixels under it. The progress is set directly
 # here, because what the engine does to it each tick is covered where it is advanced.
-# Each capture first lets the engines at rest settle and be meshed, then changes them. Both runs draw
-# the engine from a block entity renderer, so the change is on screen on the next frame and no mesh
-# has to be rebuilt for it.
+# Each capture first lets the engines at rest settle and be meshed, then changes them and meshes the
+# wall again. Both runs draw the engine from a block entity renderer, so no mesh carries the change;
+# the second swap is what makes the wait before the capture count frames drawn after it, since a
+# capture reads the frame the client drew last and up to ten game ticks pass for one of those.
 # The first capture shows six engines facing up at progress 0.1, 0.25, 0.4, 0.5, 0.75 and 0.9, with
 # +x on the left, so the plate goes out and comes back in from right to left. The second capture shows
 # the six facings at progress 0.5, facing 0 at the right and 5 at the left, since the camera looks
@@ -55,8 +56,9 @@ export tick(ctx: TestTickContext) {
     }
 
     # The scene is settled and meshed once, with every engine at rest and facing up, before anything
-    # changes. After the change only a settle is waited for: the engine is drawn from a block entity
-    # renderer in both runs, so the numbers it reads are on screen on the next frame.
+    # changes. The change itself is only numbers a renderer reads, so the wait after it meshes the
+    # wall once more: that edit is what the wait counts frames from, and the frame the capture reads
+    # therefore shows the change. See _ready.
     if not changed {
         if not _ready(ctx) {
             ctx.not_done()
@@ -69,11 +71,12 @@ export tick(ctx: TestTickContext) {
         }
         changed = true
         settled_ticks = 0
+        remeshed = false
         ctx.not_done()
         return
     }
 
-    if not _settled() {
+    if not _ready(ctx) {
         ctx.not_done()
         return
     }
@@ -123,10 +126,8 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     }
 }
 
-# Faces every engine up, with the progress for its place in the row. The port's engine draws its saved
-# numbers on the next frame, so nothing has to ask it to draw again; the reference's is loaded from
-# its NBT. The facing is given directly, as redstone_engine_facings-Test.grug does, rather than by a
-# receptor next to the engine.
+# Faces every engine up, with the progress for its place in the row. The facing is given directly,
+# as redstone_engine_facings-Test.grug does, rather than by a receptor next to the engine.
 local _show_progresses(ctx: TestTickContext) {
     i: number = 0
     while i < 6 {
@@ -190,7 +191,10 @@ local _show_facings(ctx: TestTickContext) {
 }
 
 # Whether the frame is ready for a capture: the same waits as coverage_render-Test.grug, for the
-# light to settle, for the section to be meshed again from it, and for that mesh to be drawn.
+# light to settle, for the section to be meshed again from it, and for that mesh to be drawn. Run
+# after a change it is also what anchors the wait to the change: the swap is a block edit the
+# renderer has not seen, so no settled answer can come from frames drawn before it, and the numbers
+# the engines now hold are drawn by the frame pass in those same frames.
 local _ready(ctx: TestTickContext) bool {
     if not Test.world_settled() {
         settled_ticks = 0
@@ -208,21 +212,6 @@ local _ready(ctx: TestTickContext) bool {
     # The swap's blocks have to reach the client and the mesh they scheduled has to be drawn, which
     # is what the fixed tick hold used to stand in for. See coverage_render, #259 and #804.
     return Test.world_settled()
-}
-
-# Whether the frame is settled for a capture after a change, without meshing anything again: the
-# engine is drawn per frame in both runs, so no rebuild carries the change. Five settled ticks in a
-# row, as in _ready, then the frame itself.
-local _settled() bool {
-    if not Test.world_settled() {
-        settled_ticks = 0
-        return false
-    }
-    if settled_ticks < 5 {
-        settled_ticks = settled_ticks + 1
-        return false
-    }
-    return true
 }
 
 # Dirties the wall's sections by swapping one of its blocks outside the crop and putting it back, so
