@@ -2491,7 +2491,7 @@
 					}
 				},
 				"gui_left": {
-					"description": "The x position, in pixels from the screen's left edge, of the left side of the screen's GUI, its inventory panel. The overlay draws to the left of the GUI, so its area ends where the GUI begins.",
+					"description": "The x position, in pixels from the screen's left edge, of the left side of the screen's GUI, its inventory panel. The overlay's area begins at the GUI's right edge, at gui_left plus gui_width, and runs to the screen's right edge.",
 					"return_type": {
 						"name": "number"
 					}
@@ -2503,7 +2503,7 @@
 					}
 				},
 				"gui_width": {
-					"description": "The width of the screen's GUI, its inventory panel, in pixels. The GUI's right edge, where the overlay's area ends, is gui_left plus this.",
+					"description": "The width of the screen's GUI, its inventory panel, in pixels. The overlay's area begins at the GUI's right edge, at gui_left plus this, and runs to the screen's right edge.",
 					"return_type": {
 						"name": "number"
 					}
