@@ -10,6 +10,7 @@ import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugTestState;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -174,6 +175,7 @@ public final class GrugOverlayHost {
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         if (eligible(event.getScreen()) == null) return;
+        heldKey = -1;
         GrugOverlay.screenOpened();
     }
 
@@ -232,7 +234,11 @@ public final class GrugOverlayHost {
 
         ensureCreated();
 
-        boolean ctrl = (event.getModifiers() & GLFW_MOD_CONTROL) != 0;
+        // A held key repeats the press event, and a toggle must flip once per press.
+        if (key == heldKey) return;
+        heldKey = key;
+
+        boolean ctrl = (event.getModifiers() & controlModifier()) != 0;
         for (Overlay overlay : overlays) {
             if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, key, ctrl)) {
                 GrugOverlay.noteTestPressTaken();
@@ -242,8 +248,25 @@ public final class GrugOverlayHost {
         }
     }
 
-    /** GLFW's control modifier bit, the one {@code ScreenEvent.KeyPressed} reports. */
+    /** The key held since its first press, or -1: a second press event for it is a key repeat. */
+    private static int heldKey = -1;
+
+    /** Lets go of the held key when the screen reports its release. */
+    @SubscribeEvent
+    public static void onScreenKeyReleased(ScreenEvent.KeyReleased.Pre event) {
+        if (event.getKeyCode() == heldKey) heldKey = -1;
+    }
+
+    /**
+     * The modifier bit that counts as control for the hotkey: Command on macOS and Control
+     * elsewhere, which is what {@code Screen.hasControlDown} (and JEI's CONTROL_OR_COMMAND) tests.
+     */
+    static int controlModifier() {
+        return Minecraft.ON_OSX ? GLFW_MOD_SUPER : GLFW_MOD_CONTROL;
+    }
+
     private static final int GLFW_MOD_CONTROL = 2;
+    private static final int GLFW_MOD_SUPER = 8;
 
     /**
      * The container screen an overlay may draw on, or null when this screen is not one or has no

@@ -673,7 +673,7 @@ public interface ModLoaderAdapter {
      * overlay took it. Only a loader that answers {@code Test.overlay_keys_supported} overrides it.
      */
     @GrugGenerated("default only: a loader without key support is never asked")
-    default boolean pressScreenKey(int key, boolean ctrl) {
+    default boolean pressScreenKey(int key, boolean ctrl, boolean release) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "Test.press_screen_key: This loader cannot press a key yet.");
         return false;

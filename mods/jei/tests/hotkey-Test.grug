@@ -35,12 +35,21 @@ export tick(ctx: TestTickContext) {
     }
 
     ctx.assert(_cell_taken(), "The list should be shown when the screen opens.")
-    ctx.assert(not Test.press_screen_key(79, false), "O without control should not be taken.")
-    ctx.assert(not Test.press_screen_key(80, true), "Ctrl+P should not be taken.")
+    ctx.assert(not Test.press_screen_key(79, false, true), "O without control should not be taken.")
+    ctx.assert(not Test.press_screen_key(80, true, true), "Ctrl+P should not be taken.")
     ctx.assert(_cell_taken(), "The list should still be shown after keys that are not its hotkey.")
-    ctx.assert(Test.press_screen_key(79, true), "Ctrl+O should be taken by the overlay.")
+    ctx.assert(Test.press_screen_key(79, true, true), "Ctrl+O should be taken by the overlay.")
     ctx.assert(not _cell_taken(), "The list should be hidden after Ctrl+O.")
-    ctx.assert(Test.press_screen_key(79, true), "Ctrl+O should be taken again while the list is hidden.")
+    # A held Ctrl+O repeats the key event, which must not toggle again: the first press shows the
+    # list, the repeat leaves it shown, and letting go ends the hold.
+    ctx.assert(Test.press_screen_key(79, true, false), "Ctrl+O should be taken by the overlay.")
+    ctx.assert(_cell_taken(), "The list should be shown after the first press of a held Ctrl+O.")
+    ctx.assert(not Test.press_screen_key(79, true, false), "A repeat of a held key should not be taken.")
+    ctx.assert(_cell_taken(), "A repeat of Ctrl+O should not hide the list again.")
+    ctx.assert(not Test.press_screen_key(79, true, true), "The last repeat before the release should not be taken.")
+    ctx.assert(Test.press_screen_key(79, true, true), "Ctrl+O should be taken again once it was released.")
+    ctx.assert(not _cell_taken(), "The list should be hidden after a second full press.")
+    ctx.assert(Test.press_screen_key(79, true, true), "Ctrl+O should be taken again while the list is hidden.")
     ctx.assert(_cell_taken(), "The list should be shown again after a second Ctrl+O.")
     Test.clear_held_item(Test.get_player())
     Test.close_screen()
