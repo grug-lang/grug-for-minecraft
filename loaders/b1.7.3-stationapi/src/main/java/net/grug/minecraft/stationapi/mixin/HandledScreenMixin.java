@@ -1,6 +1,5 @@
 package net.grug.minecraft.stationapi.mixin;
 
-import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.stationapi.client.GrugOverlayHost;
 import net.grug.minecraft.stationapi.client.GrugScreenGeometry;
@@ -53,13 +52,6 @@ public abstract class HandledScreenMixin implements GrugScreenGeometry {
                 Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
         if (GrugOverlayHost.click((Screen) (Object) this, mouseX, mouseY, button, shift)) {
             ci.cancel();
-        }
-    }
-
-    @Inject(method = "init", at = @At("TAIL"))
-    private void grug$screenOpened(CallbackInfo ci) {
-        if (GrugOverlayHost.geometry((Screen) (Object) this) != null) {
-            GrugOverlay.screenOpened();
         }
     }
 
