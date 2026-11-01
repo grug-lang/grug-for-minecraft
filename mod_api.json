@@ -1498,7 +1498,7 @@
 					}
 				},
 				"set_box_radius": {
-					"description": "Rebuilds the sealed room the runner builds around the player before every test, with the given radius. The room is a hollow box of stone with a torch on every floor tile, so its light comes from torches rather than the sky, and a screenshot does not change with the time of day. The default room is small; a test whose fixture reaches further than that asks for a bigger one. See #253.",
+					"description": "Rebuilds the sealed room the runner builds around the player before every test, with the given radius. The room is a hollow box of stone with a torch on every floor tile, so its light comes from torches rather than the sky, and a screenshot does not change with the time of day. The default room is small; a test whose fixture reaches further than that asks for a bigger one, up to a radius of 30: a wider room would reach chunks the client never receives. See #253 and #948.",
 					"parameters": [
 						{
 							"name": "radius",

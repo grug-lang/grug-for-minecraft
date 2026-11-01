@@ -75,6 +75,21 @@ class HostFunctionsItemListTest {
     }
 
     @Test
+    void aBoxRadiusInsideTheClientsChunksIsAcceptedAndOtherRadiiAreRefused() {
+        assertNull(HostFunctions.boxRadiusProblem(0));
+        assertNull(HostFunctions.boxRadiusProblem(10));
+        assertNull(HostFunctions.boxRadiusProblem(HostFunctions.MAX_BOX_RADIUS));
+        assertTrue(
+                HostFunctions.boxRadiusProblem(HostFunctions.MAX_BOX_RADIUS + 1)
+                        .contains("at most"));
+        assertTrue(HostFunctions.boxRadiusProblem(-1).contains("whole number"));
+        assertTrue(HostFunctions.boxRadiusProblem(2.5).contains("whole number"));
+        assertTrue(HostFunctions.boxRadiusProblem(Double.NaN).contains("whole number"));
+        assertTrue(
+                HostFunctions.boxRadiusProblem(Double.POSITIVE_INFINITY).contains("whole number"));
+    }
+
+    @Test
     void aPressWithFiniteArgumentsAndAWholeButtonIsAccepted() {
         assertNull(HostFunctions.screenClickProblem(327, 9, 0));
         assertNull(HostFunctions.screenClickProblem(0, 0, 2));

@@ -1,0 +1,6 @@
+# A room wider than the chunks the client holds could never settle on 1.20.6, so the radius is
+# refused where it is asked for, and the room that stood stays whole. See #948.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("has to be at most 30")
+    Test.set_box_radius(31)
+}
