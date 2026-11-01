@@ -14,7 +14,9 @@ export tick(ctx: TestTickContext) {
         _setup(ctx)
         _advance(ctx)
         ctx.not_done()
-    } else if not _pulled() or ctx.current_tick() < 25 {
+    } else if not _pulled() or ctx.current_tick() < 25 or (_dropped() < 2 and ctx.current_tick() < 300) {
+        # The dropped items reach the client's copy of the level a few frames after the server ran
+        # the ticks above, so the count is waited for rather than read once.
         ctx.not_done()
     } else {
         _check(ctx)
@@ -105,10 +107,14 @@ local _check(ctx: TestTickContext) {
     _sample(ctx)
     ctx.assert(chest_a.unwrap().get_item_count_in_slot(0) == 0, "The west chest should have been emptied by its pipe.")
     ctx.assert(chest_b.unwrap().get_item_count_in_slot(0) == 0, "The east chest should have been emptied by its pipe.")
-    origin: Vec3 = Test.get_origin()
-    level: Level = Test.get_client_level()
     # Each pipe has no exit, so it drops its item where it stands, on the floor under it. At least two
     # entities are counted rather than exactly two, because an item dropped by a test in a band above
     # may still be falling through the search radius.
-    ctx.assert(level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 20) >= 2, "Each pipe should have dropped its own item.")
+    ctx.assert(_dropped() >= 2, "Each pipe should have dropped its own item.")
+}
+
+local _dropped() number {
+    origin: Vec3 = Test.get_origin()
+    level: Level = Test.get_client_level()
+    return level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 20)
 }
