@@ -1,0 +1,6 @@
+# A volume beyond 0 to 1 would play as a different number than the one asked for, so it is
+# reported. See #914.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_ui_sound: The volume has to be from 0 to 1")
+    play_ui_sound("minecraft:ui.button.click", 2, 1)
+}

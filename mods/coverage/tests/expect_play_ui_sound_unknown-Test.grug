@@ -1,0 +1,5 @@
+# A sound the game does not have is reported rather than played as silence. See #914.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_ui_sound: The game has no sound named")
+    play_ui_sound("minecraft:no_such_sound", 1, 1)
+}

@@ -1,0 +1,5 @@
+# A pitch beyond 0.5 to 2 is reported for the same reason. See #914.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_ui_sound: The pitch has to be from 0.5 to 2")
+    play_ui_sound("minecraft:ui.button.click", 1, 3)
+}

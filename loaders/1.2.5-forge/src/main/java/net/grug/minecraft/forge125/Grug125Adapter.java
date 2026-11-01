@@ -1175,6 +1175,19 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean hasSound(String path) {
+        return ModLoader.getMinecraftInstance().sndManager.getSoundsPool().getRandomSoundFromSoundPool(path)
+                != null;
+    }
+
+    @Override
+    @GrugGenerated(
+            "a run downloads no sound resources, so the pool is empty and hasSound is never true")
+    public void playUiSound(String path, double volume, double pitch) {
+        ModLoader.getMinecraftInstance().sndManager.playSoundFX(path, (float) volume, (float) pitch);
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.isBlockIndirectlyGettingPowered(

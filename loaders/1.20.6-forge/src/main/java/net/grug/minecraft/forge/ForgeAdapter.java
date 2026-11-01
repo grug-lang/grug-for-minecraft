@@ -33,7 +33,9 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.SectionPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -42,6 +44,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ThreadedLevelLightEngine;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
@@ -1051,6 +1054,25 @@ public class ForgeAdapter implements ModLoaderAdapter {
         container
                 .getMenu()
                 .setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
+    }
+
+    @Override
+    public boolean hasSound(String path) {
+        return BuiltInRegistries.SOUND_EVENT.containsKey(new ResourceLocation("minecraft", path));
+    }
+
+    @Override
+    public void playUiSound(String path, double volume, double pitch) {
+        // The sound engine belongs to the client thread, and a test calls this from the server's.
+        onClientThread(
+                () -> {
+                    SoundEvent event =
+                            BuiltInRegistries.SOUND_EVENT.get(
+                                    new ResourceLocation("minecraft", path));
+                    Minecraft.getInstance()
+                            .getSoundManager()
+                            .play(SimpleSoundInstance.forUI(event, (float) pitch, (float) volume));
+                });
     }
 
     @Override

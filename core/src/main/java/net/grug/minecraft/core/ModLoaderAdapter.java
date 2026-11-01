@@ -761,6 +761,24 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Whether the game's own sound table has a sound under {@code path}, the part of a {@code
+     * minecraft:} sound name after the colon. On 1.20.6 that is a sound event in the registry, such
+     * as {@code ui.button.click}. On Alpha, Beta and 1.2.5 it is a name in the version's own sound
+     * pool, such as {@code random.click}, which holds only the sound files the game has loaded: a
+     * run with no resources downloaded has none, and answers false for every name.
+     */
+    boolean hasSound(String path);
+
+    /**
+     * Plays the game's own sound {@code path} to the player as a sound of the interface rather
+     * than of the world, the way a button plays its click: it has no position, so it is heard at
+     * the same loudness wherever the player stands. The caller has already checked that {@link
+     * #hasSound} is true and that the volume is from 0 to 1 and the pitch from 0.5 to 2. It runs on
+     * the thread that owns the sound engine, whichever thread the mod's call came from.
+     */
+    void playUiSound(String path, double volume, double pitch);
+
+    /**
      * Builds the sealed room the runner puts around the player before every test, and again when a
      * test asks for a different radius through {@code Test.set_box_radius}. See {@link GrugTestBox}
      * for what the room is and why it exists.
