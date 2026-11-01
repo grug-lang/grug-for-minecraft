@@ -1789,13 +1789,17 @@ jobs:
         run: |
           set -eu
           mkdir -p coverage/base-map
-          # The lookup that chose this run already skipped an expired map, since an expired
-          # artifact is still listed but answers 410 Gone on download. The filter here reads the
-          # same rule again, so a map that expired in between fails this step instead of
-          # downloading something that is gone.
+          # The discover lookup already skipped an expired map: GitHub prunes an artifact whose
+          # retention ended, and a listing caught mid-prune carries expired: true. This read
+          # applies the same rule, and names the minutes-wide race when the map expires between
+          # the two instead of dying on a bare StopIteration traceback.
           url=$(curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO/actions/runs/$BASE_RUN/artifacts?per_page=100" \
-            | python3 -c "import json, sys; print(next(a['archive_download_url'] for a in json.load(sys.stdin)['artifacts'] if a['name'] == 'coverage-map' and not a.get('expired', False)))")
+            | python3 -c "import json, sys; print(next((a['archive_download_url'] for a in json.load(sys.stdin)['artifacts'] if a['name'] == 'coverage-map' and not a.get('expired', False)), ''))")
+          if [ -z "$url" ]; then
+            echo "::error::the coverage-map artifact of base run $BASE_RUN expired between the discover lookup and this step, so the carry-over fell back to nothing: the loader jobs already skipped the tests it names, and this step cannot rerun them, so the run fails instead of counting less coverage."
+            exit 1
+          fi
           curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" "$url" -o coverage/base-map.zip
           unzip -o -q coverage/base-map.zip -d coverage/base-map
 
