@@ -14,10 +14,12 @@ stick: Item = item(resource_location("minecraft:stick"))
 frame_tick: number = 0
 frame_yaw: number = 0
 
-# One bad call, so the refusal path a frame pass alone can reach is exercised. The count is not a
-# whole number, which is reported and not drawn. The frame carries on afterwards, as a contained
-# script error, so the run is unaffected.
+# Two bad calls, so the refusal paths a frame pass alone can reach are exercised: a stack whose count
+# is not a whole number, and a model with no elements. Each is reported and not drawn, and each
+# happens once per block entity. The frame carries on afterwards, as a contained script error, so
+# the run is unaffected.
 refused_bad_count: bool = false
+refused_empty_model: bool = false
 
 export render_frame(ctx: RenderFrameContext) {
     frame_tick = ctx.partial_tick()
@@ -42,5 +44,8 @@ export render_frame(ctx: RenderFrameContext) {
     if not refused_bad_count {
         refused_bad_count = true
         ctx.draw_item(stick, 0, 1.5, 0.5, 0.5, 0.5)
+    } else if not refused_empty_model {
+        refused_empty_model = true
+        ctx.draw_model(r"assets/grug/models/block/coverage_model_empty.json", 0, 0, 0, 0, 0, 0)
     }
 }
