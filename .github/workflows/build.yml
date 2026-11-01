@@ -950,13 +950,13 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer.sh 1.20.6-forge
         env:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
-          # The tests of mods/coverage that need no screen. #168 replaces this with a declaration in
-          # each test.
+          # The tests of mods/coverage that need no screen and no snapped player (the server does
+          # not snap one yet, so test_origin_follows_the_test_player waits for stage 2). #168
+          # replaces this with a declaration in each test.
           GRUG_CI_TESTS: >-
             coverage/tests/block_pos-Test.grug,
             coverage/tests/chest_inventory-Test.grug,
             coverage/tests/equals-Test.grug,
-            coverage/tests/test_origin_follows_the_test_player-Test.grug,
             coverage/tests/vec3-Test.grug
           GRUG_CI_RUN_TIMEOUT: '300'
 
