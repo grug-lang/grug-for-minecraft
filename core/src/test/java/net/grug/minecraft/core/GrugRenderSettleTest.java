@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.grug.GrugScreenshots;
+
 import org.junit.jupiter.api.Test;
 
 /** Covers the frame rule in {@link GrugRenderSettle}. */
@@ -184,5 +186,41 @@ class GrugRenderSettleTest {
         // Light packets received and not applied yet, which the engine cannot see (#424).
         assertFalse(GrugRenderSettle.lightSettled(false, false));
         assertFalse(GrugRenderSettle.lightSettled(true, false));
+    }
+
+    @Test
+    void aFrameHasPendingWorkUntilTheWindowTheWorldAndTheChunksAreReady() {
+        Object renderer = new Object();
+        Object player = new Object();
+        for (int width : new int[] {GrugScreenshots.WIDTH, GrugScreenshots.WIDTH - 1}) {
+            for (int height : new int[] {GrugScreenshots.HEIGHT, GrugScreenshots.HEIGHT - 1}) {
+                for (Object renderGlobal : new Object[] {renderer, null}) {
+                    for (Object thePlayer : new Object[] {player, null}) {
+                        for (boolean chunkPending : new boolean[] {false, true}) {
+                            boolean expected =
+                                    width != GrugScreenshots.WIDTH
+                                            || height != GrugScreenshots.HEIGHT
+                                            || renderGlobal == null
+                                            || thePlayer == null
+                                            || chunkPending;
+                            assertEquals(
+                                    expected,
+                                    GrugRenderSettle.frameHadPendingWork(
+                                            width, height, renderGlobal, thePlayer, chunkPending),
+                                    "width="
+                                            + width
+                                            + " height="
+                                            + height
+                                            + " renderer="
+                                            + (renderGlobal != null)
+                                            + " player="
+                                            + (thePlayer != null)
+                                            + " chunkPending="
+                                            + chunkPending);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

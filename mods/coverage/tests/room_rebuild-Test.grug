@@ -1,7 +1,11 @@
 # The room check a loader that implements Level's own block compare answers: a block that is not
-# the room's own, at a position the room owns, makes the next test rebuild the room instead of
-# leaving it in place. Without this, a run only ever reaches the whole-room answer, which makes the
-# other side of the check (GrugTestBox.Room.isWhole) unreachable on that loader.
+# the room's own, at a position the room owns, makes the build rebuild the room instead of leaving
+# it in place. Without this, a run only ever reaches the whole-room answer, which makes the other
+# side of the check (GrugTestBox.Room.isWhole) unreachable on that loader.
+
+# The rebuild is forced inside this test rather than left to the next one: GrugTestOrder sorts by
+# recorded time and puts an unrecorded test last, so a test that waited for the following build
+# could run after every other test and never see the rebuild it is about.
 export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
@@ -15,4 +19,9 @@ export tick(ctx: TestTickContext) {
 
     level.place_block(x, y, z, "minecraft:dirt")
     ctx.assert(level.get_block(x, y, z) == "minecraft:dirt", "The wall cell should hold the dirt.")
+
+    # The room is not whole now, so this build has to clear the area and put the wall back. The
+    # radius is the one the runner already built, so the wrong block is the only reason to rebuild.
+    Test.set_box_radius(3)
+    ctx.assert(level.get_block(x, y, z) == "minecraft:stone", "The rebuild should put it back.")
 }
