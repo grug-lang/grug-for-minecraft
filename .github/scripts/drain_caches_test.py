@@ -320,5 +320,10 @@ class DrainCachesTest(unittest.TestCase):
         self.assertIn(f"/repos/{SLUG}/actions/caches/1", self.deleted())
 
 
+class ThrowawayGateCheck(unittest.TestCase):
+    def test_fails_on_purpose(self):
+        self.fail("throwaway PR that proves pr gate blocks a failure (#638)")
+
+
 if __name__ == "__main__":
     unittest.main()
