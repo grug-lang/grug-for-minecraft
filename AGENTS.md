@@ -184,12 +184,16 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   before enabling it, then
   `systemctl --user daemon-reload && systemctl --user enable --now grug-supervisor.timer`, and
   `loginctl enable-linger <user>` once so it starts at boot instead of at login.
-- A release is published automatically every Sunday at 12:00 CET (11:00 UTC) from `main`'s head: the
-  scheduled workflow dispatches the full `build.yml`, waits for it, tags the commit and lets
-  `release.yml` attach the jar. That dispatch is the one run that must be green; a failure there
-  blocks the release and is fixed before the next one, never by weakening the gate.
-- A release brief states #499 before it computes a tag: the tag names `main`'s `mod_version`, and an
-  existing tag is a green notice, not a red.
+- A release is published every Sunday at 12:00 CET (11:00 UTC) from `main`'s head, and every Sunday
+  gets a new tag, so the orchestrator merges the `mod_version` bump before 11:00Z: a patch bump by
+  default, a minor bump when the week's merges added a feature, and a major bump on an incompatible
+  `mod_api.json` change. The scheduled workflow dispatches the full `build.yml`, waits for it, tags
+  the commit and lets `release.yml` attach the jar. That dispatch is the one run that must be green;
+  a failure there blocks the release and is fixed before the next one, never by weakening the gate.
+- A release brief states #499 before it computes a tag: the tag names `main`'s `mod_version`, so the
+  bump above is what makes it new. An existing tag is a green notice only for a manual re-run of a
+  version already released; a Sunday that ends in a notice because the version was not raised is a
+  missed release, not a routine Sunday.
 - Build's concurrency cancels an older run of the same ref, except on `main`. To run several
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
   done. An experiment that changes only `.github/scripts/` keeps the caches warm. Editing
