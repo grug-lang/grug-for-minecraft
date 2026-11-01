@@ -1,9 +1,9 @@
 # A stack's count is only as good as the loader's save. The four older loaders write Count as one
-# NBT byte, so 127 is the largest count they keep, and their chests hold it; 1.20.6 writes an int,
-# but every container there clamps a stack to the item's max stack size (64 for a diamond), so its
-# chest round trip uses 64, the largest count a slot holds, and still proves the count reaches the
-# save and comes back. item_stack accepts 127 on every loader, and the item entity below proves the
-# whole count reaches the game's stack.
+# NBT byte, so 127 is the largest count they keep; 1.20.6 writes an int, so 2147483647 is. A chest
+# round trip through the game's own NBT proves the largest count reaches the save and comes back.
+# set_item_in_slot clamps a container's stack to the item's max stack size on every loader, so the
+# test puts one item in the slot and then writes the count with set_item_count_in_slot, whose
+# adapter sets the stack's own count field, the field the save writes.
 stack_save_count: number = 127
 
 export tick(ctx: TestTickContext) {
@@ -19,18 +19,18 @@ export tick(ctx: TestTickContext) {
     diamond: Item = item(resource_location("minecraft:diamond"))
     count: number = stack_save_count
     if Test.loader_name() == "1.20.6-forge" {
-        count = 64
+        count = 2147483647
     }
-    chest.set_item_in_slot(0, diamond, count)
+    chest.set_item_in_slot(0, diamond, 1)
+    chest.set_item_count_in_slot(0, count)
     ctx.assert(chest.get_item_count_in_slot(0) == count, "The chest should hold the whole stack.")
 
     Test.round_trip_nbt(chest)
 
     ctx.assert(chest.get_item_count_in_slot(0) == count, "The count should survive the save and reload.")
 
-    # The four older saves keep 127, and 1.20.6's stack itself can hold it even though a container
-    # clamps it, so the entity proves item_stack hands the whole requested count to the game.
-    stack: ItemStack = item_stack(diamond, 0, stack_save_count)
+    # item_stack accepts the same count, so a stack a mod makes is one the save keeps.
+    stack: ItemStack = item_stack(diamond, 0, count)
     entity: ItemEntity = item_entity(level, x, y + 1, z, stack)
-    ctx.assert(entity.count() == stack_save_count, "item_stack should accept the whole requested count.")
+    ctx.assert(entity.count() == count, "item_stack should accept the largest count the save keeps.")
 }
