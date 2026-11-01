@@ -85,8 +85,10 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. Its brief
   opens with the worktree and the repository's configured commit identity, then holds the issue and
   its acceptance points, the rules of this file that apply, the exact steps, that Minecraft runs
-  only in CI, and how to report. A measurement arm's brief says its instrumentation must not land
-  or must be excluded from the coverage gate; the pull request names the reds that are by design.
+  only in CI, and how to report. Every subagent runs at its default thinking level, as the review
+  subagent below does: the orchestrator sets no reasoning-effort override, whatever the task. A
+  measurement arm's brief says its instrumentation must not land or must be excluded from the
+  coverage gate; the pull request names the reds that are by design.
   A small documentation or configuration edit is the orchestrator's own work, batched into the
   next pull request that already needs one, rather than a subagent's: a subagent starts cold, so
   spending one on a paragraph costs more than the edit. After merging it removes the task's
@@ -137,8 +139,8 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   If `main` goes red after a merge, do not pause: attribute it to that merge and fix forward or
   revert, through a pull request, as the red-main section below says.
 - **Never, unattended:** publish outside the repository (for example a container image), change the
-  ruleset or any repository setting (required status checks are #638), or delete anything you did
-  not create (the worktree and branch of a task you just merged excepted).
+  ruleset or any repository setting (the ruleset requires `pr gate` and `pre-commit`, #638), or
+  delete anything you did not create (the worktree and branch of a task you just merged excepted).
 - **This file.** A factual inaccuracy in it is fixed directly, without waiting for CI (above), and
   the fix is not left for the maintainer. A substantial change to it, such as which models an agent
   may spawn, is the maintainer's call.
