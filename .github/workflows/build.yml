@@ -48,12 +48,13 @@ on:
         description: 'The mod the reference job runs, read from its first derived_from entry; empty runs the default, buildcraft'
         type: string
       base:
-        # The commit a dispatch compares its branch with (#826). The Windows boot jobs are the only
-        # run of the native path and of the installed jar on Windows, and a verification dispatch
-        # whose diff cannot reach them does not need them: windows-needed.py answers from the diff
-        # and explains its answer in this log. Empty is the full run, which is what the four-hourly
-        # check and the weekly release send, so a release always gets the native and the boots.
-        description: 'A commit this dispatch compares with to decide whether the Windows boot jobs can be affected; empty runs them, which a release requires'
+        # The commit a dispatch compares its branch with (#826), a SHA or a branch name. The Windows
+        # boot jobs are the only run of the native path and of the installed jar on Windows, and a
+        # verification dispatch whose diff cannot reach them does not need them: windows-needed.py
+        # answers from the diff and explains its answer in this log. Empty is the full run, which is
+        # what the four-hourly check and the weekly release send, so a release always gets the native
+        # and the boots, and a dispatch on main is full whatever this names.
+        description: 'A commit or branch this dispatch compares with to decide whether the Windows boot jobs can be affected; empty runs them, which a release requires'
         type: string
 
 permissions:
@@ -253,17 +254,13 @@ jobs:
       # The loader directories the Windows boot jobs run on (#632, #826). A change that boots on Linux
       # cannot fail to boot on Windows without failing on Linux first, and the two Windows jobs are
       # 219 s of a loader's 484 s on main while running no tests (#707), so a push runs them only for
-      # a loader it adds, and a dispatch runs them for all of them unless it names a base commit: a
-      # verification dispatch compares its branch with that commit, and windows-needed.py drops the
-      # jobs when the diff cannot reach the native path or the installed jar (it explains its answer
-      # in this log). A dispatch with no base is the full run a release requires, so the four-hourly
-      # check and the weekly release always get them, and a dispatch on main is the full run even when
-      # it names a base, since neither the release gate nor the four-hourly check can tell the two
-      # shapes apart in the API afterwards. A pull request and the weekly schedule run neither: #632
-      # keeps them out of a run that no release and no added loader needs, and no entry leaves the
-      # jobs a matrix GitHub refuses, so their condition skips them. The checkout is one commit deep,
-      # so the commit the diff starts from is fetched first. A base that the fetch or the read cannot
-      # reach, and a failed push, run every loader, the direction that runs more.
+      # a loader it adds. A dispatch runs them for every loader unless it names a base commit, which
+      # asks windows-needed.py whether the diff against it can reach the native path or the installed
+      # jar (it explains its answer in this log); its answer is true for a dispatch with no base and
+      # for one on main, because those are the full runs a release and the four-hourly check send and
+      # neither can tell a narrowed run from a full one afterwards. A pull request and the weekly
+      # schedule run neither: #632 keeps them out of a run that no release and no added loader needs,
+      # and no entry leaves the jobs a matrix GitHub refuses, so their condition skips them.
       - name: Choose the loaders the Windows jobs run
         id: windows
         env:
@@ -275,21 +272,34 @@ jobs:
         run: |
           dirs='[]'
           if [ "$EVENT" = workflow_dispatch ]; then
-            if [ "$REF" = refs/heads/main ]; then
-              BASE=
-              echo "Running the Windows jobs on every loader: a dispatch on main is the full run."
+            # The input takes a commit, and a branch or a remote-tracking name people type instead is
+            # resolved to the commit it names. A fetch writes FETCH_HEAD and nothing else, so only a
+            # fetch that succeeded makes what it brought in the base: a base that is no commit this
+            # checkout holds is passed on empty, the script answers every loader for it, and the
+            # warning says this dispatch did not narrow.
+            base=''
+            if [ -n "$BASE" ]; then
+              base=$(git rev-parse --verify --quiet "${BASE}^{commit}") || base=''
+              if [ -z "$base" ]; then
+                name="${BASE#origin/}"
+                if git fetch --quiet --no-tags --depth=1 origin "$name"; then
+                  base=$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}') || base=''
+                fi
+              fi
+              if [ -z "$base" ]; then
+                echo "::warning::the base '$BASE' is no commit this checkout could fetch, so the Windows jobs run."
+              fi
             fi
-            if [ -z "$BASE" ]; then
+            if [ -n "$BASE" ] && [ -z "$base" ]; then
               dirs="$LOADERS"
-              echo "Running the Windows jobs on every loader: a dispatch with no base is the whole run."
+              echo "Running the Windows jobs on every loader: the base names no commit this run can read."
             else
-              git fetch --quiet --no-tags --depth=1 origin "$BASE" || true
-              needed=$(python3 .github/scripts/windows-needed.py "$BASE" HEAD) || needed=true
+              needed=$(python3 .github/scripts/windows-needed.py --event "$EVENT" --ref "$REF" "$base" HEAD) || needed=true
               if [ "$needed" = 'false' ]; then
                 echo "Running the Windows jobs nowhere: this dispatch's diff cannot reach what they test."
               else
                 dirs="$LOADERS"
-                echo "Running the Windows jobs on every loader: this dispatch's diff can reach what they test."
+                echo "Running the Windows jobs on every loader."
               fi
             fi
           elif [ "$EVENT" = push ]; then
@@ -379,8 +389,10 @@ jobs:
   # The adapter as a Windows DLL (#528). Built on its own runner, with grug-rs compiled there for the
   # MSVC target (Rust's default on Windows, and the one grug-rs's own CI uses), because a static
   # library is built for one OS and the Linux jobs hand theirs around as an artifact.
-  # It takes the same gate as the boot jobs (#784): a dispatch and a push that adds a loader are the
-  # runs whose jar gets a Windows native, so a normal push builds none and ships a Linux jar.
+  # It takes the same gate as the boot jobs (#784, #826): a dispatch and a push that adds a loader are
+  # the runs whose jar gets a Windows native, so a normal push builds none and ships a Linux jar. A
+  # verification dispatch that names a base skips it when that diff cannot reach the native path, and
+  # a dispatch with no base, which the four-hourly check and the weekly release send, builds it.
   native-windows:
     name: adapter.dll (Windows)
     if: needs.discover.outputs.windows != '[]'
@@ -1077,9 +1089,11 @@ jobs:
   # and the other four, so the DLL, JNI, and core's Windows paths are exercised by a game that really
   # starts, in each loader's own adapter. It runs on a dispatch, the full run a release needs, and on a
   # push only for a loader the push adds (#632): a change that boots on Linux cannot fail to boot on
-  # Windows without failing on Linux first. So its matrix is discover's answer, not a list here that a
-  # loader could be added without. A pull request never runs it, and neither does it run a change
-  # confined to a mod, which reaches no native.
+  # Windows without failing on Linux first. A verification dispatch that names a base runs it only
+  # when that diff reaches the native path or the installed jar (#826), and a dispatch on main or with
+  # no base always runs it. So its matrix is discover's answer, not a list here that a loader could be
+  # added without. A pull request never runs it, and neither does it run a change confined to a mod,
+  # which reaches no native.
   windows:
     name: ${{ matrix.dir }} (Windows)
     if: needs.discover.outputs.windows != '[]'
@@ -1328,11 +1342,12 @@ jobs:
   # Its real inputs are the compiled parts, so it needs the layer matrix, core's release jar and the
   # Windows native when the run built one, and none of the test jobs: the installed and smoke jobs
   # below start while the suites are still running (#570).
-  # The native is the run's to add (#784): only a dispatch and a push that adds a loader build it, so
-  # a normal push's jar is a Linux jar. The Linux jobs below run it as it is, and the Windows ones run
-  # only on a dispatch, where the native is in it. The job therefore names each result it needs
-  # instead of relying on the default, which a skipped native-windows would otherwise fail: it waits
-  # for that artifact when there is one and assembles without it when there is none.
+  # The native is the run's to add (#784, #826): a dispatch and a push that adds a loader build it, so
+  # a normal push's jar is a Linux jar, and a verification dispatch that names a base leaves it out
+  # when the diff cannot reach the native path. The Linux jobs below run the jar as it is, and the
+  # Windows ones run it only on a dispatch that built the native. The job therefore names each result
+  # it needs instead of relying on the default, which a skipped native-windows would otherwise fail:
+  # it waits for that artifact when there is one and assembles without it when there is none.
   universal:
     name: universal jar
     if: |

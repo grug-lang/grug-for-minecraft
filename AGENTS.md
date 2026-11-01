@@ -164,8 +164,8 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   branch the full pipeline, with `-f repeats=<n>` to repeat the suite in one session and
   `-f base=<commit>` to compare the branch with the commit it started from, which drops the Windows
   boot jobs unless that diff reaches the native path or the installed jar (#826,
-  `.github/scripts/windows-needed.py`); a dispatch with no inputs, which the four-hourly check and
-  the weekly release send, always runs them.
+  `.github/scripts/windows-needed.py`); a dispatch with no inputs, or on `main`, always runs them,
+  and the four-hourly check and the weekly release send the first.
 - A release takes its jar from a dispatch of `build.yml` on main, not from the push that merged the
   commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what

@@ -63,17 +63,61 @@ class WindowsNeededTest(unittest.TestCase):
         self.repo = repo_module.Repo(Path(self.tmp.name))
         self.base = self.repo.commit(BASE, "base")
 
-    def answer(self, changes: dict, base=None) -> str:
+    def answer(self, changes: dict, base=None, *extra: str) -> str:
         """The script's stdout for a commit with these changes: ``true`` or ``false``."""
         head = self.repo.commit(changes)
         result = subprocess.run(
-            [sys.executable, str(SCRIPT), base or self.base, head, "--repo", str(self.repo.path)],
+            [
+                sys.executable,
+                str(SCRIPT),
+                self.base if base is None else base,
+                head,
+                "--repo",
+                str(self.repo.path),
+                *extra,
+            ],
             capture_output=True,
             text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.reason = result.stderr
         return result.stdout.strip()
+
+    # A dispatch answers without a diff when it is on main or names no base (#826).
+
+    def test_a_dispatch_on_main_keeps_the_jobs_whatever_base_it_names(self):
+        # The base below is a docs-only diff, which skips on a branch: the ref alone decides here.
+        changes = {"AGENTS.md": "agents2\n"}
+        self.assertEqual(
+            self.answer(changes, None, "--event", "workflow_dispatch", "--ref", "refs/heads/main"),
+            "true",
+        )
+        self.assertIn("on main", self.reason)
+        self.assertEqual(
+            self.answer(
+                {"AGENTS.md": "agents3\n"},
+                None,
+                "--event",
+                "workflow_dispatch",
+                "--ref",
+                "refs/heads/g826",
+            ),
+            "false",
+        )
+
+    def test_a_dispatch_naming_no_base_keeps_the_jobs(self):
+        self.assertEqual(
+            self.answer(
+                {"AGENTS.md": "agents4\n"},
+                "",
+                "--event",
+                "workflow_dispatch",
+                "--ref",
+                "refs/heads/g826",
+            ),
+            "true",
+        )
+        self.assertIn("names no base", self.reason)
 
     # The diffs the replay of the merged pull requests of October 2026 found, which skip.
 
@@ -93,7 +137,6 @@ class WindowsNeededTest(unittest.TestCase):
         changes = {
             "mods/buildcraft/code/wrench-Item.grug": "on_use() { }\n",
             "mods/buildcraft/tests/wrench-Test.grug": "tick() { }\n",
-            "mod_api.json": '{"x": 1}\n',
             "mod_api.md": "api\n",
         }
         self.assertEqual(self.answer(changes), "false")
@@ -130,6 +173,13 @@ class WindowsNeededTest(unittest.TestCase):
 
     def test_the_generator_of_the_adapter_c_keeps_the_jobs(self):
         self.assertEqual(self.answer({"core/generate.py": "# g\n"}), "true")
+
+    def test_the_api_the_adapter_generator_reads_keeps_the_jobs(self):
+        # core/build.gradle.kts declares mod_api.json an input of generateGrugAdapter, whose C is
+        # what MSVC compiles into adapter.dll and what grug-rs reads at boot, so an API-only change
+        # can break the Windows native and the boot with no Windows job (the review of #944).
+        self.assertEqual(self.answer({"mod_api.json": '{"host": {}}\n'}), "true")
+        self.assertIn("mod_api.json", self.reason)
 
     def test_the_core_build_and_its_grug_rs_revision_keep_the_jobs(self):
         # #592's shape: a grug-rs bump is compiled into adapter.dll by MSVC.
