@@ -491,7 +491,8 @@ jobs:
             .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py \
             .github/scripts/reference_selection_test.py \
-            .github/scripts/no_tests_test.py
+            .github/scripts/no_tests_test.py \
+            .github/scripts/markdown_columns_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory

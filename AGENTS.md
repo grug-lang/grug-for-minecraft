@@ -82,22 +82,25 @@ upstream pull request exists, and is not merged unattended: the maintainer decid
 revision goes to `main`. The measurement follows the evidence rules like any other CI saving.
 
 - **Orchestrator.** Reads the issue, writes the subagent a self-contained brief, reviews the
-  subagent's diff against the issue, watches CI, merges, and keeps its own context small. The brief
-  holds the issue and its acceptance points, the rules of this file that apply, the exact steps,
-  that Minecraft runs only in CI, and how to report. A small documentation or configuration edit is
-  the orchestrator's own work, batched into the next pull request that already needs one, rather
-  than a subagent's: a subagent starts cold, so spending one on a paragraph costs more than the
-  edit. After merging it removes the task's worktree and branch:
-  `git worktree remove --force <path>`, check `git cherry origin/main <branch>` (all lines start
-  with `-` after a rebase merge), `git branch -D <branch>`, `git worktree prune`.
+  subagent's diff against the issue, watches CI, merges, and keeps its own context small. Its brief
+  opens with the worktree and the repository's configured commit identity, then holds the issue and
+  its acceptance points, the rules of this file that apply, the exact steps, that Minecraft runs
+  only in CI, and how to report. A measurement arm's brief says its instrumentation must not land
+  or must be excluded from the coverage gate; the pull request names the reds that are by design.
+  A small documentation or configuration edit is the orchestrator's own work, batched into the
+  next pull request that already needs one, rather than a subagent's: a subagent starts cold, so
+  spending one on a paragraph costs more than the edit. After merging it removes the task's
+  worktree and branch: `git worktree remove --force <path>`, check `git cherry origin/main <branch>`
+  (all lines start with `-` after a rebase merge), `git branch -D <branch>`, `git worktree prune`.
 - **Subagent.** Implements one issue in its own worktree from a fresh `origin/main`: `git worktree
   add ~/agent-workspaces/grug-for-minecraft-<task> -b <branch> origin/main`, and works only there.
-  It opens the pull request in the same sitting with `Closes #<n>` (a draft if unfinished; the
-  workflows trigger only on `pull_request`, so a branch without one is never verified), watches CI
-  and fixes it until it is green. It reports in at most about 15 lines (pull request link, head SHA,
-  CI result, measurements, surprises) and never merges. It never closes, reopens or marks an issue
-  not planned either: whether a task is finished or should be closed is the orchestrator's decision,
-  and a subagent that finds no saving reports the numbers and its recommendation.
+  It opens the pull request in the same sitting and checks that its body opens with `Closes #<n>`
+  (a draft if unfinished; the workflows trigger only on `pull_request`, so a branch without one is
+  never verified), watches CI and fixes it until it is green. It reports in at most about 15 lines
+  (pull request link, head SHA, CI result, measurements, surprises) and never merges. It never
+  closes, reopens or marks an issue not planned either: whether a task is finished or should be
+  closed is the orchestrator's decision, and a subagent that finds no saving reports the numbers
+  and its recommendation.
 - **Merging.** The orchestrator merges by rebase (`gh pr merge <n> --rebase`) once it has read the
   diff against the issue and judged that the change is unlikely to break `main` or lower coverage.
   Read the issue, the pull request description and the whole diff, ask what the change exists for
@@ -183,6 +186,8 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   scheduled workflow dispatches the full `build.yml`, waits for it, tags the commit and lets
   `release.yml` attach the jar. That dispatch is the one run that must be green; a failure there
   blocks the release and is fixed before the next one, never by weakening the gate.
+- A release brief states #499 before it computes a tag: the tag names `main`'s `mod_version`, and an
+  existing tag is a green notice, not a red.
 - Build's concurrency cancels an older run of the same ref, except on `main`. To run several
   variants at once, push the same commit to throwaway branches and dispatch each; delete them when
   done. An experiment that changes only `.github/scripts/` keeps the caches warm. Editing
