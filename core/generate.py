@@ -65,6 +65,17 @@ def c_type(type_name: str) -> str:
     return "jlong"
 
 
+def zero_value(return_type: Optional[str]) -> str:
+    """The value an aborted call answers, which has to be valid for the VM to keep using."""
+    if return_type is None:
+        return "(union grug_value){0}"
+    if return_type in ("string", "resource", "entity"):
+        return '(union grug_value){._string = ""}'
+    field = value_union_field(return_type)
+    literal = {"_number": "0", "_bool": "false", "_id": "0"}[field]
+    return f"(union grug_value){{.{field} = {literal}}}"
+
+
 def value_union_field(type_name: str) -> str:
     if type_name == "number":
         return "_number"
@@ -142,17 +153,21 @@ def gen_wrapper(
     ]
     for i in string_indices:
         lines.append(f"    jstring arg_str_{i} = (*env)->NewStringUTF(env, args[{i}]._string);")
+        # The conversion is this adapter's own call, so an exception between them is its failure
+        # rather than the function's: the Java function never ran, and HOST_CHECK below would
+        # blame the wrong side. See HOST_ARG_CHECK.
+        lines.append(f'    HOST_ARG_CHECK(env, gst, "{java_name}", {zero_value(resolved_return)});')
 
     call_args = ", ".join(c_arg_expr(t, i) for i, t in enumerate(resolved_params))
     full_args = f"env, host_functions_class, {jm}" + (f", {call_args}" if call_args else "")
 
     if resolved_return is None:
         lines.append(f"    (*env)->CallStaticVoidMethod({full_args});")
-        lines.append("    HOST_CHECK(env, gst);")
+        lines.append(f'    HOST_CHECK(env, gst, "{java_name}");')
         result_expr = "(union grug_value){0}"
     elif resolved_return in ("string", "resource", "entity"):
         lines.append(f"    jstring res = (jstring)(*env)->CallStaticObjectMethod({full_args});")
-        lines.append("    HOST_CHECK(env, gst);")
+        lines.append(f'    HOST_CHECK(env, gst, "{java_name}");')
         lines.append(
             "    // A call that threw answers NULL, and GetStringUTFChars(NULL) would take the JVM down."
         )
@@ -177,7 +192,7 @@ def gen_wrapper(
         jni_type = {"number": "jdouble", "bool": "jboolean"}.get(resolved_return, "jlong")
         c_suffix = jni_call_suffix(resolved_return)
         lines.append(f"    {jni_type} res = (*env)->CallStatic{c_suffix}Method({full_args});")
-        lines.append("    HOST_CHECK(env, gst);")
+        lines.append(f'    HOST_CHECK(env, gst, "{java_name}");')
         field = value_union_field(resolved_return)
         cast = {"_number": "(double)res", "_bool": "(bool)res", "_id": "(uint64_t)res"}[field]
         result_expr = f"(union grug_value){{.{field} = {cast}}}"
