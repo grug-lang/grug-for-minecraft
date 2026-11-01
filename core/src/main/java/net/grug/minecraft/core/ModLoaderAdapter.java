@@ -708,23 +708,6 @@ public interface ModLoaderAdapter {
     }
 
     /**
-     * The simulated world's block light for a section, as its 2048 bytes, or null when the level
-     * has no layer stored for it, which is the same as no light at all. Only a loader whose {@link
-     * #separatesClientLight} answers true is ever asked. See #686.
-     */
-    default byte[] simulatedBlockLight(int sectionX, int sectionY, int sectionZ) {
-        return null;
-    }
-
-    /**
-     * The client's block light for a section, as its 2048 bytes, or null when it has no layer for
-     * it. Only a loader whose {@link #separatesClientLight} answers true is ever asked. See #686.
-     */
-    default byte[] clientBlockLight(int sectionX, int sectionY, int sectionZ) {
-        return null;
-    }
-
-    /**
      * Sweeps the dropped items out of the test area around the player, which the runner calls in
      * the tick every test ends so that nothing a test dropped outlives it. See {@link
      * GrugTestBox#sweepItems}.

@@ -1176,7 +1176,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         }
         if (!GrugLightSync.roomSettled(
                 (x, y, z) -> blockLightLayer(simulated, x, y, z),
-                (x, y, z) -> blockLightLayer(minecraft.level, x, y, z))) {
+                (x, y, z) -> blockLightLayer(level, x, y, z))) {
             return false;
         }
         return clientSettled(minecraft, simulated);
@@ -1185,16 +1185,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public boolean separatesClientLight() {
         return true;
-    }
-
-    @Override
-    public byte[] simulatedBlockLight(int sectionX, int sectionY, int sectionZ) {
-        return blockLightLayer(getLevel(), sectionX, sectionY, sectionZ);
-    }
-
-    @Override
-    public byte[] clientBlockLight(int sectionX, int sectionY, int sectionZ) {
-        return blockLightLayer(Minecraft.getInstance().level, sectionX, sectionY, sectionZ);
     }
 
     /**
@@ -1207,6 +1197,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * more tick. {@code DataLayer.getData} allocates the array of a layer that holds its default
      * value instead of one, which for block light is no light at all.
      */
+    @GrugGenerated(
+            "settle: a level that does not exist and a section outside the light engine's height"
+                    + " are reads a test's own room never asks for")
     private static byte[] blockLightLayer(
             Object levelObj, int sectionX, int sectionY, int sectionZ) {
         if (levelObj == null) {
