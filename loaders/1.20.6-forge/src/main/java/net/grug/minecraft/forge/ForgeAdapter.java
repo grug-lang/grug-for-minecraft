@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugBlockSync;
+import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
@@ -33,12 +34,14 @@ import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ThreadedLevelLightEngine;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
@@ -57,6 +60,7 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -1163,10 +1167,58 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // What the client owes is the simulated world's current block, not the one the test placed:
         // a clear can be refilled by water. This runs on the server thread, which owns that world.
         Object simulated = getLevel();
-        if (!clientSettled(minecraft, simulated)) {
+        // The server's half comes first: it is the half that can be about to change, and a light
+        // change the light thread applies between two reads below can then only make the light
+        // comparison fail, never pass early. The client's half is read last, because the frame it
+        // counts is the one a change dirties. See #686.
+        if (!serverSettled(minecraft, level)) {
             return false;
         }
-        return serverSettled(minecraft, level);
+        if (!GrugLightSync.roomSettled(
+                (x, y, z) -> blockLightLayer(simulated, x, y, z),
+                (x, y, z) -> blockLightLayer(minecraft.level, x, y, z))) {
+            return false;
+        }
+        return clientSettled(minecraft, simulated);
+    }
+
+    @Override
+    public boolean separatesClientLight() {
+        return true;
+    }
+
+    @Override
+    public byte[] simulatedBlockLight(int sectionX, int sectionY, int sectionZ) {
+        return blockLightLayer(getLevel(), sectionX, sectionY, sectionZ);
+    }
+
+    @Override
+    public byte[] clientBlockLight(int sectionX, int sectionY, int sectionZ) {
+        return blockLightLayer(Minecraft.getInstance().level, sectionX, sectionY, sectionZ);
+    }
+
+    /**
+     * A section's block light as its 2048 bytes, or null when the level has no layer for it, which
+     * is the same as a section nothing has lit.
+     *
+     * <p>Read from either side of the client-server pair: the client's store is a synchronized map
+     * of layers the client thread replaces wholesale and updates in place, so a read that races a
+     * light update can only report one of the two values, which makes the settle answer wait one
+     * more tick. {@code DataLayer.getData} allocates the array of a layer that holds its default
+     * value instead of one, which for block light is no light at all.
+     */
+    private static byte[] blockLightLayer(
+            Object levelObj, int sectionX, int sectionY, int sectionZ) {
+        if (levelObj == null) {
+            return null;
+        }
+        Level level = (Level) levelObj;
+        net.minecraft.world.level.chunk.DataLayer layer =
+                level.getChunkSource()
+                        .getLightEngine()
+                        .getLayerListener(LightLayer.BLOCK)
+                        .getDataLayerData(SectionPos.of(sectionX, sectionY, sectionZ));
+        return layer == null ? null : layer.getData();
     }
 
     /**
@@ -1365,19 +1417,34 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * done too: its updates reach the client as packets, and the client can look idle while the
      * server is still computing them. The lookup is loader plumbing: a client run has a server and
      * the client's own dimension, the no-server and no-level answers exist for a multiplayer
-     * client, which CI does not launch, and the server's light threads drain a fixture's work
-     * within the tick that placed it, so a run never observes them working.
+     * client, which CI does not launch.
+     *
+     * <p>The public light-engine answer counts only that engine's propagation queues, so the checks
+     * a batch has not reached yet and the batch itself are read from the engine's own state, which
+     * the mixin next to this loader's mixins exposes. See {@link
+     * GrugRenderSettle#serverLightSettled} and #686.
      */
     @GrugGenerated(
             "settle: the integrated server lookup is loader plumbing a CI client run cannot"
-                    + " observe")
+                    + " observe, and so is the arm where the engine is not the threaded one")
     private boolean serverSettled(Minecraft minecraft, ClientLevel level) {
         MinecraftServer server = minecraft.getSingleplayerServer();
         if (server == null) {
             return true;
         }
         ServerLevel serverLevel = server.getLevel(level.dimension());
-        return serverLevel == null || !serverLevel.getChunkSource().getLightEngine().hasLightWork();
+        if (serverLevel == null) {
+            return true;
+        }
+        ThreadedLevelLightEngine engine = serverLevel.getChunkSource().getLightEngine();
+        boolean tasksQueued = false;
+        boolean updateScheduled = false;
+        if (engine instanceof GrugLightEngineState state) {
+            tasksQueued = state.grug$hasQueuedLightTasks();
+            updateScheduled = state.grug$isUpdateScheduled();
+        }
+        return GrugRenderSettle.serverLightSettled(
+                engine.hasLightWork(), tasksQueued, updateScheduled);
     }
 
     @Override

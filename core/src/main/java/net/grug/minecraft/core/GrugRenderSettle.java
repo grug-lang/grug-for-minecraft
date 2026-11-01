@@ -130,6 +130,32 @@ public final class GrugRenderSettle {
     }
 
     /**
+     * Whether the integrated server has finished the light a rebuild asked for, given the three
+     * places it can be waiting: the light engine's own propagation queues, the engine's list of
+     * block and section checks it has taken but not run yet (1.20.6's {@code
+     * ThreadedLevelLightEngine.lightTasks}, drained in batches of a thousand, with its own
+     * propagation run only between batches), and that engine's flag saying a batch is already
+     * scheduled on the light thread.
+     *
+     * <p>The engine's public {@code hasLightWork} counts only the first, so it answers idle while
+     * the checks a batch has not reached yet, or the batch itself, are still queued. A client is
+     * idle while the server has not computed the light at all, so a settle answer built on that
+     * alone describes a world whose room has not been relit yet. See #686.
+     *
+     * <p>The values are passed in rather than combined by the loader, so the conjunction is a pure
+     * function its unit test covers in every combination, instead of a loader carrying a
+     * conjunction whose arms a run only meets when the light thread happens to be between batches.
+     *
+     * @param engineHasLightWork whether the light engine's propagation queues hold work
+     * @param tasksQueued whether the engine has taken checks or batch runs it has not run yet
+     * @param updateScheduled whether a batch is already scheduled on the light thread
+     */
+    public static boolean serverLightSettled(
+            boolean engineHasLightWork, boolean tasksQueued, boolean updateScheduled) {
+        return !engineHasLightWork && !tasksQueued && !updateScheduled;
+    }
+
+    /**
      * Whether the frame that just finished still had work in it: it was drawn before the window
      * reached the size a capture reads, before the renderer or the player existed, or with a chunk
      * rebuild still owed.

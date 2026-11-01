@@ -698,6 +698,33 @@ public interface ModLoaderAdapter {
     void buildTestBox(int radius);
 
     /**
+     * Whether this loader's client holds its own copy of the block light the integrated server
+     * computed, which the settle answer has to wait for after a room rebuild. True on a loader
+     * whose client is sent the server's light; false where one world's light is both sides' answer,
+     * since the two copies cannot disagree there. See #686.
+     */
+    default boolean separatesClientLight() {
+        return false;
+    }
+
+    /**
+     * The simulated world's block light for a section, as its 2048 bytes, or null when the level
+     * has no layer stored for it, which is the same as no light at all. Only a loader whose {@link
+     * #separatesClientLight} answers true is ever asked. See #686.
+     */
+    default byte[] simulatedBlockLight(int sectionX, int sectionY, int sectionZ) {
+        return null;
+    }
+
+    /**
+     * The client's block light for a section, as its 2048 bytes, or null when it has no layer for
+     * it. Only a loader whose {@link #separatesClientLight} answers true is ever asked. See #686.
+     */
+    default byte[] clientBlockLight(int sectionX, int sectionY, int sectionZ) {
+        return null;
+    }
+
+    /**
      * Sweeps the dropped items out of the test area around the player, which the runner calls in
      * the tick every test ends so that nothing a test dropped outlives it. See {@link
      * GrugTestBox#sweepItems}.

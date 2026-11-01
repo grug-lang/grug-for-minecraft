@@ -64,10 +64,16 @@ class GrugTestBoxTest {
         int placementsOutsideBatch = 0;
         boolean batchOpen = false;
         final boolean canTell;
+        final boolean separatesLight;
         final ModLoaderAdapter adapter;
 
         FakeWorld(boolean canTell) {
+            this(canTell, false);
+        }
+
+        FakeWorld(boolean canTell, boolean separatesLight) {
             this.canTell = canTell;
+            this.separatesLight = separatesLight;
             this.adapter =
                     (ModLoaderAdapter)
                             Proxy.newProxyInstance(
@@ -77,6 +83,8 @@ class GrugTestBoxTest {
                                         switch (method.getName()) {
                                             case "isAir":
                                                 return !blocks.containsKey(key(args, 1));
+                                            case "separatesClientLight":
+                                                return FakeWorld.this.separatesLight;
                                             case "isBlock":
                                                 return FakeWorld.this.canTell
                                                         && args[4].equals(blocks.get(key(args, 1)));
@@ -212,6 +220,23 @@ class GrugTestBoxTest {
         assertEquals(begins + 1, world.batchBegins);
         assertEquals(world.batchBegins, world.batchEnds);
         assertEquals(0, world.placementsOutsideBatch);
+    }
+
+    @Test
+    void aLoaderWhoseClientHasItsOwnLightOwesTheRebuildEverySectionOfTheRoom() {
+        // A loader whose client and world are one copy cannot disagree with itself, so its rebuild
+        // owes no light.
+        FakeWorld shared = new FakeWorld(true);
+        shared.build(3);
+        assertEquals(0, GrugLightSync.pendingRoomSections());
+
+        // A loader whose client keeps its own copy of the server's light owes every section the
+        // rebuilt room's light can change, and stops owing them once the client holds them.
+        FakeWorld separate = new FakeWorld(true, true);
+        separate.build(3);
+        assertTrue(GrugLightSync.pendingRoomSections() > 0);
+        assertTrue(GrugLightSync.roomSettled((x, y, z) -> null, (x, y, z) -> null));
+        assertEquals(0, GrugLightSync.pendingRoomSections());
     }
 
     @Test
