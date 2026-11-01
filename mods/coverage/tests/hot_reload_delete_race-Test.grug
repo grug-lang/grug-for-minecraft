@@ -1,10 +1,13 @@
-# Deletes a mod file and puts it back thousands of times while the engine's poll walks the mods
-# tree, which is how a walk that lists the file and then finds it gone is forced inside the game:
+# Deletes four mod files and puts them back thousands of times while the engine's poll walks the
+# mods tree, which is how a walk that lists a file and then finds it gone is forced inside the game:
 # one deletion lands in that gap about once in a thousand runs, and the grug-rs that reported the
-# gap as an IO error aborted the whole process (#675), with no failing test line. The file is under
-# data/ and nothing reads it, so each report costs the loaders nothing. Each tick stays inside the
-# time limit of a grug function, so the toggling is spread over many ticks.
-path: string = "coverage/data/racens/toggle.txt"
+# gap as an IO error aborted the whole process (#675), with no failing test line. The directory
+# holds 120 more files than the four, because the walk lists a directory in one batch and stats its
+# entries one by one, so the more it holds the longer the gap between the listing and the last
+# stat. The files are under data/ and nothing reads them, so each report costs the loaders nothing.
+# Each tick stays inside the time limit of a grug function, so the toggling is spread over many
+# ticks.
+path: string = "coverage/data/racens/toggle_1.txt"
 rounds: number = 300
 baseline: number = -1
 
@@ -15,9 +18,15 @@ export init(ctx: TestInitContext) {
 export tick(ctx: TestTickContext) {
     if rounds > 0 {
         flips: number = 0
-        while flips < 50 {
-            Test.set_mod_file_state(path, "deleted")
-            Test.set_mod_file_state(path, "normal")
+        while flips < 15 {
+            Test.set_mod_file_state("coverage/data/racens/toggle_1.txt", "deleted")
+            Test.set_mod_file_state("coverage/data/racens/toggle_2.txt", "deleted")
+            Test.set_mod_file_state("coverage/data/racens/toggle_3.txt", "deleted")
+            Test.set_mod_file_state("coverage/data/racens/toggle_4.txt", "deleted")
+            Test.set_mod_file_state("coverage/data/racens/toggle_1.txt", "normal")
+            Test.set_mod_file_state("coverage/data/racens/toggle_2.txt", "normal")
+            Test.set_mod_file_state("coverage/data/racens/toggle_3.txt", "normal")
+            Test.set_mod_file_state("coverage/data/racens/toggle_4.txt", "normal")
             flips = flips + 1
         }
         rounds = rounds - 1
