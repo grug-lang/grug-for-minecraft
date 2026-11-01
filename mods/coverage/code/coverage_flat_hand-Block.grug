@@ -1,7 +1,11 @@
 # Fixture block whose item is drawn unshaded, as the redstone engine's is, so the coverage_flat_hand
-# test can compare how each loader draws a flat-lit block item in the player's hand. See #963.
+# test can compare how each loader draws a flat-lit block item in the player's hand. It is a frame
+# block because flat lighting is only legal on a block that draws its own geometry, and its entity
+# draws nothing. See #963.
 export init(ctx: BlockInitContext) {
     ctx.set_hardness(1)
     ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_flat_hand_entity")
+    ctx.set_frame_render()
     ctx.set_flat_lighting()
 }
