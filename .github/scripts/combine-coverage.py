@@ -89,6 +89,7 @@ EXCLUDED_CLASSES = {
     "TesselatorMixin",
     "TessellatorMixin",
     "ItemRendererMixin",
+    "BakedModelRendererImplMixin",
     "BlockRenderManagerMixin",
     "WorldChunkMixin",
     "BlockEntityAccess",

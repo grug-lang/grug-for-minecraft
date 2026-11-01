@@ -15,7 +15,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.client.texture.TextureManager;
+import net.minecraft.item.ItemStack;
 import net.minecraft.world.BlockView;
+import net.modificationstation.stationapi.api.item.BlockItemForm;
 
 import org.lwjgl.opengl.GL11;
 
@@ -364,6 +366,29 @@ public final class GrugModelRenderer {
         return GrugModels.itemModel(
                 GrugCore.getAdapter().getGrugModsDirectory(),
                 GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId).id);
+    }
+
+    /**
+     * Answers whether {@code stack} is the item form of a grug block that is drawn with OpenGL
+     * lighting off in every item render type.
+     *
+     * <p>2.2.14 turns lighting off for the engine's item wherever it is drawn: {@code
+     * RenderEngine.render}, which {@code inventoryRender} and the hand and ground renderers all go
+     * through, does it for every item render type but a first-person map. This loader's baked item
+     * renderer lights a side lit model from each face's normal in all of them, so the mixin that
+     * draws those quads asks this first and turns lighting off around them. The GUI slot does not
+     * need the answer: it is drawn from the model directly. See #386.
+     */
+    public static boolean drawsUnlitItem(ItemStack stack) {
+        if (stack == null || !(stack.getItem() instanceof BlockItemForm)) return false;
+
+        Block block = ((BlockItemForm) stack.getItem()).getBlock();
+        if (!(block instanceof GrugBlock)) return false;
+        if (!((GrugBlock) block).drawsFlatLighting()) return false;
+
+        // A model that cannot be drawn leaves the game its own cube, which it lights like any
+        // other.
+        return itemQuads(block) != null;
     }
 
     /**
