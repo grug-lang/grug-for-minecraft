@@ -152,25 +152,18 @@ EXCLUDED_CLASSES = {
     "GrugBakedModel",
     # Render/model glue, like the resource-pack classes above.
     "GrugBlockModels",
-    # 1.2.5 Forge runs on Java 8 with no JaCoCo agent (the loader cannot be instrumented without a
-    # Java 8 agent and a ModLoader-aware launch), so it contributes no exec data. Its own glue is
-    # excluded for the same reason as the other loaders': the entry point, adapter, GUI and world
-    # classes only run inside a real game bootstrap.
+    # 1.2.5 Forge's own glue, for the same reason as the entries above: its entry point, its menu,
+    # its GUI bridge and its item implementation only run inside a real game bootstrap. Its adapter,
+    # its block-entity NBT accessor and the name table its tests reach are measured like every other
+    # loader's, now that the loader contributes exec data (#580).
     "mod_Grug",
-    "Grug125Adapter",
     "GlBridge",
     "GrugContainer",
-    "VanillaNames",
     "GrugItem",
     # The screen Test.close_screen displays on 1.2.5 so the headless focus check does not open the
     # in-game menu over a screenshot. Same reason as GrugScreen: GUI glue a headless CI cannot
     # measure beyond the run that uses it.
     "GrugEmptyScreen",
-    # Uploads grug textures into the two atlases 1.2.5 stitches at startup. Not excluded because the
-    # GL work is out of reach: CI does run it, and coverage/tests/hot_reload_texture-Test.grug passes
-    # here precisely because it succeeds. It is excluded for the reason given above this whole block,
-    # that 1.2.5 contributes no exec data to measure it with.
-    "GrugTextures",
 }
 
 
