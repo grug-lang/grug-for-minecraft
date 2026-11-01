@@ -1780,14 +1780,21 @@ jobs:
         run: |
           set -eu
           carry=()
-          # Every reconstructed exec is handed to combine-coverage.py, which logs one that is not a
-          # file and drops it from the count instead of failing. The loop must not skip such a path
-          # itself: a renamed or expired artifact then leaves the line naming the missing file in
-          # the job's log, and the gate fails when that test was the only cover for a line.
-          for exec in coverage/carry-over/*/*.exec; do
-            runner=$(basename "$(dirname "$exec")")
-            carry+=(--carry-over "$runner:$exec")
-          done
+          # Name every exec the reconstruction was asked to write, not the ones a glob found, so a
+          # carried-over test whose exec is missing still reaches combine-coverage.py, which logs it
+          # and drops it from the count instead of failing. reconstruct writes one exec per test and
+          # loader to coverage/carry-over/<loader>/<test path with dots>.exec, and it fails the step
+          # when a test has no recorded coverage, so a missing file here is a defect worth a line.
+          if [ -f coverage/carry-over/tests.txt ]; then
+            while IFS= read -r test; do
+              [ -n "$test" ] || continue
+              for dir in coverage/carry-over/*/; do
+                [ -d "$dir" ] || continue
+                runner=$(basename "$dir")
+                carry+=(--carry-over "$runner:$dir${test//\//.}.exec")
+              done
+            done < coverage/carry-over/tests.txt
+          fi
           python3 .github/scripts/combine-coverage.py \
             --artifacts coverage/artifacts \
             --jacoco-cli coverage/tools/jacoco-cli.jar \
