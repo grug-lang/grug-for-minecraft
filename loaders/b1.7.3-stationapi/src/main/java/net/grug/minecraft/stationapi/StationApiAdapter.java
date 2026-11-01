@@ -850,6 +850,9 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated(
+            "the out-of-range guard: the host function checks the range first, so a run"
+                    + " never reaches this arm")
     public Object itemByIndex(int index) {
         List<Item> items = itemsById();
         return index >= 0 && index < items.size() ? items.get(index) : null;
@@ -876,6 +879,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * has no give command and its client is the server in singleplayer, so the inventory write is
      * the give.
      */
+    @GrugGenerated(
+            "the null-player and full-inventory arms: a run gives to the player it just cleared")
     private void giveItemToPlayer(PlayerEntity player, Item item, int count) {
         if (player == null) return;
         ItemStack stack = new ItemStack(item, count);
@@ -885,6 +890,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run reads the cursor of the player it just cleared")
     public Object carriedItem() {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return null;
@@ -893,6 +899,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run sets the cursor of the player it just cleared")
     public void setCarriedItem(Object itemObj) {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
@@ -900,6 +907,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run clears the cursor of the player it just cleared")
     public void deleteCarriedItem() {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
@@ -1198,6 +1206,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
@@ -1211,6 +1220,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double screenWidthForTest() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
@@ -1219,6 +1229,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiLeftForTest() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
@@ -1230,6 +1241,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiWidthForTest() {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =

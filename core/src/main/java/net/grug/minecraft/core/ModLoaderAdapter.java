@@ -121,12 +121,11 @@ public interface ModLoaderAdapter {
      *
      * <p>-1 is reported by the host function rather than answered as 0, so a mod that asks on a
      * loader with no item list hears that the loader has none instead of drawing an empty list and
-     * saying nothing. Only the loaders that draw an overlay answer it so far; the others keep this
-     * default, which the overlay's deviations name in the mod's {@code about.json}.
+     * saying nothing. Every loader in this repository answers it; a new loader that cannot
+     * enumerate items keeps this default, which the overlay's deviations name in the mod's {@code
+     * about.json}.
      */
-    @GrugGenerated(
-            "no item list: only the 1.20.6 adapter enumerates items so far, which the"
-                    + " overlay's own deviation names")
+    @GrugGenerated("no item list: a new loader that cannot enumerate items keeps this default")
     default int itemCount() {
         return -1;
     }
@@ -136,9 +135,7 @@ public interface ModLoaderAdapter {
      * of range. The host function checks the range first, so a null here is a defect rather than a
      * mod's mistake.
      */
-    @GrugGenerated(
-            "no item list: only the 1.20.6 adapter enumerates items so far, which the"
-                    + " overlay's own deviation names")
+    @GrugGenerated("no item list: a new loader that cannot enumerate items keeps this default")
     default Object itemByIndex(int index) {
         return null;
     }
@@ -158,9 +155,7 @@ public interface ModLoaderAdapter {
      * this default, which reports the call rather than dropping the item silently, so a mod hears
      * which loader has no give yet.
      */
-    @GrugGenerated(
-            "no give: only the 1.20.6 adapter gives items so far, which the overlay's own"
-                    + " deviation names")
+    @GrugGenerated("no give: a new loader that cannot give items keeps this default")
     default void giveItemToPlayer(Object playerObj, Object itemObj) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "give_item: This loader cannot give an item yet.");
@@ -171,9 +166,7 @@ public interface ModLoaderAdapter {
      * loader that cannot give items keeps this default, which reports the call rather than dropping
      * the stack silently.
      */
-    @GrugGenerated(
-            "no give: only the 1.20.6 adapter gives items so far, which the overlay's own"
-                    + " deviation names")
+    @GrugGenerated("no give: a new loader that cannot give items keeps this default")
     default void giveItemStackToPlayer(Object playerObj, Object itemObj) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "give_item_stack: This loader cannot give an item yet.");
