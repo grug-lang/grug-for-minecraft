@@ -26,4 +26,11 @@ public interface GrugScreenGeometry {
 
     /** The height of the screen's GUI. */
     int grug$guiHeight();
+
+    /**
+     * Delivers one press through the screen's own click path and answers whether an overlay took
+     * it. The mixin implements this so a test can reach the hook that cancels the press instead of
+     * calling the host directly.
+     */
+    boolean grug$click(int mouseX, int mouseY, int button);
 }

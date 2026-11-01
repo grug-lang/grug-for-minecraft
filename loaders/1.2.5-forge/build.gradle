@@ -47,6 +47,7 @@ def genToolClasses = new File(buildDirFile, 'tools/vanilla-names')
 def fixToolClasses = new File(buildDirFile, 'tools/fixinherited')
 def fogToolClasses = new File(buildDirFile, 'tools/disable-fog')
 def skipFrameToolClasses = new File(buildDirFile, 'tools/skip-frame')
+def guiInputToolClasses = new File(buildDirFile, 'tools/gui-input')
 def reobfSrgFile = new File(buildDirFile, 'reobf.srg')
 def devJar = new File(buildDirFile, 'libs/grug-1.2.5-forge-dev.jar')
 def fixedJar = new File(buildDirFile, 'grug-1.2.5-forge-fixed.jar')
@@ -54,6 +55,7 @@ def finalJar = new File(buildDirFile, 'grug-1.2.5-forge.jar')
 def runtimeDevJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-dev.jar')
 def runtimeFogJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-fog.jar')
 def runtimeSkipFrameJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-skip-frame.jar')
+def runtimeGuiInputJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime-gui-input.jar')
 def runtimeJar = new File(buildDirFile, 'grug-1.2.5-forge-runtime.jar')
 def nativesDir = new File(buildDirFile, 'natives')
 def windows = System.getProperty('os.name').startsWith('Windows')
@@ -317,6 +319,15 @@ tasks.register('compileSkipFrameTool', JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
+tasks.register('compilePatchGuiInputTool', JavaCompile) {
+    description = 'Compiles tools/PatchGuiInput.java.'
+    source = fileTree(toolsDir) { include 'PatchGuiInput.java' }
+    classpath = configurations.fogPatchTool
+    destinationDirectory.set(guiInputToolClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
 tasks.register('fixInheritedJar', JavaExec) {
     description = 'Rewrites inherited member references before reobfuscation.'
     dependsOn tasks.named('jar'), 'compileFixInheritedTool', 'reobfSrg'
@@ -398,16 +409,29 @@ tasks.register('patchRuntimeSkipFrame', JavaExec) {
     }
 }
 
+tasks.register('patchRuntimeGuiInput', JavaExec) {
+    description = 'Rewrites GuiScreen and Minecraft.displayGuiScreen to call the overlay hooks.'
+    dependsOn 'patchRuntimeSkipFrame', 'compilePatchGuiInputTool'
+    inputs.file runtimeSkipFrameJar
+    outputs.file runtimeGuiInputJar
+    classpath = files(guiInputToolClasses) + configurations.fogPatchTool
+    mainClass.set('PatchGuiInput')
+    doFirst {
+        runtimeGuiInputJar.parentFile.mkdirs()
+        args = [runtimeSkipFrameJar.absolutePath, runtimeGuiInputJar.absolutePath]
+    }
+}
+
 tasks.register('obfuscateRuntime', Exec) {
     description = 'Reobfuscates the MCP dev classes into the pack-style runtime jar.'
-    dependsOn 'patchRuntimeSkipFrame', 'reobfSrg'
-    inputs.file runtimeSkipFrameJar
+    dependsOn 'patchRuntimeGuiInput', 'reobfSrg'
+    inputs.file runtimeGuiInputJar
     inputs.file reobfSrgFile
     outputs.file runtimeJar
     doFirst {
         runtimeJar.parentFile.mkdirs()
         commandLine 'java', '-jar', configurations.specialSourceTool.singleFile.absolutePath,
-            '--in-jar', runtimeSkipFrameJar.absolutePath,
+            '--in-jar', runtimeGuiInputJar.absolutePath,
             '--out-jar', runtimeJar.absolutePath,
             '--srg-in', reobfSrgFile.absolutePath
     }

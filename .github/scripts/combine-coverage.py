@@ -126,6 +126,7 @@ EXCLUDED_CLASSES = {
     "GrugOverlayHost",
     "HandledScreenMixin",
     "InventoryMenuScreenMixin",
+    "ScreenMixin",
     "GrugFillInvoker",
     # Loader startup and registration only runs inside a real game bootstrap, which a headless CI
     # cannot drive. The logic they carry beyond wiring (file classification, the LICENSE gate,

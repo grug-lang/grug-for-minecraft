@@ -23,7 +23,6 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBlockEntityNbtAccess;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
-import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.item.GrugItem;
@@ -1292,7 +1291,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     Grug.statePtr, "Test.click_screen: There is no screen open to click.");
             return false;
         }
-        return GrugOverlayHost.click(minecraft.screen, (int) x, (int) y, (int) button, false);
+        if (minecraft.screen instanceof GrugScreenGeometry) {
+            return ((GrugScreenGeometry) minecraft.screen)
+                    .grug$click((int) x, (int) y, (int) button);
+        }
+        return false;
     }
 
     @Override

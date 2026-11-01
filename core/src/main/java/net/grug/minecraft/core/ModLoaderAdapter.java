@@ -581,7 +581,7 @@ public interface ModLoaderAdapter {
      * there. A loader that cannot open it keeps the default, which reports the call rather than
      * pretending a screen is up.
      */
-    @GrugGenerated("no inventory screen: only the 1.20.6 adapter opens one so far")
+    @GrugGenerated("default only: every current adapter opens the inventory")
     default void openInventory(Object playerObj) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "Test.open_inventory: This loader cannot open the inventory yet.");
@@ -592,7 +592,7 @@ public interface ModLoaderAdapter {
      * whether a screen still took it. A loader that cannot drive a press keeps the default, which
      * reports the call rather than answering as if no screen had taken it.
      */
-    @GrugGenerated("no synthetic press: only the 1.20.6 adapter drives one so far")
+    @GrugGenerated("default only: every current adapter drives a synthetic press")
     default boolean clickScreen(double x, double y, double button) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "Test.click_screen: This loader cannot press on a screen yet.");
@@ -603,7 +603,7 @@ public interface ModLoaderAdapter {
      * Test only: the width of the open screen in scaled pixels. A loader that cannot answer keeps
      * the default, which reports the call rather than returning a size no screen has.
      */
-    @GrugGenerated("no screen geometry: only the 1.20.6 adapter has an overlay test to measure")
+    @GrugGenerated("default only: every current adapter measures a screen")
     default double screenWidthForTest() {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "Test.screen_width: This loader cannot measure a screen yet.");
@@ -611,7 +611,7 @@ public interface ModLoaderAdapter {
     }
 
     /** Test only: the x of the open container screen's GUI. */
-    @GrugGenerated("no screen geometry: only the 1.20.6 adapter has an overlay test to measure")
+    @GrugGenerated("default only: every current adapter measures a screen")
     default double guiLeftForTest() {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "Test.gui_left: This loader cannot measure a screen yet.");
@@ -619,7 +619,7 @@ public interface ModLoaderAdapter {
     }
 
     /** Test only: the width of the open container screen's GUI. */
-    @GrugGenerated("no screen geometry: only the 1.20.6 adapter has an overlay test to measure")
+    @GrugGenerated("default only: every current adapter measures a screen")
     default double guiWidthForTest() {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr, "Test.gui_width: This loader cannot measure a screen yet.");
@@ -631,7 +631,7 @@ public interface ModLoaderAdapter {
      * loader that cannot answer keeps the default, which reports the call rather than answering as
      * if the cursor were empty.
      */
-    @GrugGenerated("no cursor: only the 1.20.6 adapter has an overlay that reads one")
+    @GrugGenerated("default only: every current adapter reads the cursor")
     default Object carriedItem() {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr,
@@ -644,7 +644,7 @@ public interface ModLoaderAdapter {
      * Test only: puts one of the item on the mouse cursor of the screen that is open, or clears it
      * for a null item. A loader that cannot do it keeps the default, which reports the call.
      */
-    @GrugGenerated("no cursor: only the 1.20.6 adapter has an overlay test that sets one")
+    @GrugGenerated("default only: every current adapter sets the cursor")
     default void setCarriedItem(Object itemObj) {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr,
@@ -656,7 +656,7 @@ public interface ModLoaderAdapter {
      * does on a left click over its list. A loader that cannot do it keeps the default, which
      * reports the call rather than leaving the item where the script asked for it to be deleted.
      */
-    @GrugGenerated("no cursor: only the 1.20.6 adapter has an overlay that deletes one")
+    @GrugGenerated("default only: every current adapter deletes the cursor item")
     default void deleteCarriedItem() {
         Grug.hostFunctionErrorHappened(
                 Grug.statePtr,

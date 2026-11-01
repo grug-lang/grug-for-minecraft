@@ -23,7 +23,6 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBlockEntityNbtAccess;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
-import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.inventory.DummyCraftingInventory;
@@ -612,12 +611,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * has no give command and its client is the server in singleplayer, so the inventory write is
      * the give.
      */
-    @GrugGenerated(
-            "the null-player and full-inventory arms: a run gives to the player it just cleared")
+    @GrugGenerated("the null-player arm: a run gives to the player it just cleared")
     private void giveItemToPlayer(PlayerEntity player, Item item, int count) {
         if (player == null) return;
         ItemStack stack = new ItemStack(item, count);
-        if (!player.inventory.addItem(stack) && stack.size > 0) {
+        // Beta's addItem returns true as soon as any part of the stack fits, and leaves the rest in
+        // stack.size. The return value does not say whether all of it fit, so the remainder is
+        // dropped whatever the add answered, as the reference does.
+        player.inventory.addItem(stack);
+        if (stack.size > 0) {
             player.dropItem(stack, false);
         }
     }
@@ -1268,7 +1270,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     Grug.statePtr, "Test.click_screen: There is no screen open to click.");
             return false;
         }
-        return GrugOverlayHost.click(minecraft.screen, (int) x, (int) y, (int) button, false);
+        if (minecraft.screen instanceof GrugScreenGeometry) {
+            return ((GrugScreenGeometry) minecraft.screen)
+                    .grug$click((int) x, (int) y, (int) button);
+        }
+        return false;
     }
 
     @Override

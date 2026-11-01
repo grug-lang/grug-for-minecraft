@@ -44,9 +44,6 @@ public final class GrugOverlayHost {
     private static boolean created = false;
     private static ItemRenderer renderItem = null;
 
-    /** The last screen rendered, so a newly opened screen clears the drawn mark. */
-    private static Screen lastScreen = null;
-
     @GrugGenerated("utility class: never instantiated")
     private GrugOverlayHost() {}
 
@@ -111,15 +108,7 @@ public final class GrugOverlayHost {
      */
     public static List<GrugScreenBox> render(Screen screen, int mouseX, int mouseY) {
         GrugScreenGeometry geometry = geometry(screen);
-        if (geometry == null) {
-            lastScreen = null;
-            return Collections.emptyList();
-        }
-
-        if (screen != lastScreen) {
-            GrugOverlay.screenOpened();
-            lastScreen = screen;
-        }
+        if (geometry == null) return Collections.emptyList();
 
         ensureCreated();
         if (renderItem == null) {
@@ -162,6 +151,16 @@ public final class GrugOverlayHost {
             boxes.addAll(drawn.boxes());
         }
         return boxes;
+    }
+
+    /** Clears the drawn mark when a screen opens, before its first frame. */
+    public static void screenOpened(Object screen) {
+        GrugOverlay.screenOpened();
+    }
+
+    /** Clears the drawn mark when a screen closes. */
+    public static void screenClosed() {
+        GrugOverlay.screenOpened();
     }
 
     /**

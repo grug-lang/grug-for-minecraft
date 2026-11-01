@@ -26,6 +26,15 @@ export click(ctx: OverlayClickContext) {
     box_x: number = Math.floor(ctx.screen_width() / 2) - 9
     box_y: number = Math.floor(ctx.screen_height() / 2) - 9
     over_box: bool = ctx.mouse_x() >= box_x and ctx.mouse_x() < box_x + 18 and ctx.mouse_y() >= box_y and ctx.mouse_y() < box_y + 18
+    # The first hotbar slot, which holds the player's held item. Taking a press here without
+    # changing anything lets a test tell a cancelled press from one that also reached the slot.
+    hotbar_x: number = ctx.gui_left() + 17
+    hotbar_y: number = ctx.gui_top() + ctx.gui_height() - 15
+    over_hotbar: bool = ctx.mouse_x() >= hotbar_x - 9 and ctx.mouse_x() < hotbar_x + 9 and ctx.mouse_y() >= hotbar_y - 9 and ctx.mouse_y() < hotbar_y + 9
+    if inside_screen and inside_gui and over_hotbar {
+        ctx.take()
+        return
+    }
     if inside_screen and inside_gui and over_box {
         if ctx.button() == 0 and carrying {
             ctx.delete_carried_item()

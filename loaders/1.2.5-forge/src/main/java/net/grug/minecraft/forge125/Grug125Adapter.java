@@ -1098,7 +1098,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
     private void giveItemToPlayer(EntityPlayer player, Item item, int count) {
         if (player == null) return;
         ItemStack stack = new ItemStack(item, count);
-        if (!player.inventory.addItemStackToInventory(stack) && stack.stackSize > 0) {
+        // 1.2.5 returns true as soon as any part of the stack fits, and leaves the rest in
+        // stack.stackSize. The return value does not say whether all of it fit, so the remainder is
+        // dropped whatever the add answered, as the reference does.
+        player.inventory.addItemStackToInventory(stack);
+        if (stack.stackSize > 0) {
             player.dropPlayerItem(stack);
         }
     }
@@ -1948,7 +1952,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
                     Grug.statePtr, "Test.click_screen: There is no screen open to click.");
             return false;
         }
-        return GrugOverlayHost.click(screen, (int) x, (int) y, (int) button, false);
+        return GrugOverlayHost.clickThroughScreen(screen, (int) x, (int) y, (int) button);
     }
 
     @Override
