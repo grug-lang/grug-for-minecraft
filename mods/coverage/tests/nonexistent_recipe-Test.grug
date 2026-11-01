@@ -7,9 +7,9 @@
 # game's RecipeManager. Each has to skip it rather than report a defect, throw, or register it with a
 # null item.
 # The two iron ingots are the recipe's other ingredients. A loader that kept the recipe but dropped
-# the ingredient it could not resolve would craft it from those two, so the grid answering nothing is
-# what says the whole recipe is gone. The grid can never match the recipe as written, because the
-# item it names cannot be put in a slot, so the answer is about the recipe's absence.
+# the ingredient it could not resolve would craft this recipe's own result from those two, so the
+# result item is what is asked for. Whether the grid answers at all says less: 1.20.6 crafts its
+# heavy weighted pressure plate from two iron ingots, and no version has to agree on that.
 # Band 12 is free: the recipe and coverage tests use 0, 5, 10, 15, 20, 25, 30, 35, 40, 45 and 50.
 export tick(ctx: TestTickContext) {
     # A loader that registers no mod recipe answers the grid with nothing too, so the loader is
@@ -25,6 +25,7 @@ export tick(ctx: TestTickContext) {
     z: number = origin.z()
 
     ingot: Item = item(resource_location("minecraft:iron_ingot"))
+    coverage_item: Item = item(resource_location("grug:coverage_item"))
 
     be: BlockEntity = _grid(ctx, level, x, y, z)
     be.set_item_in_slot(0, ingot, 1)
@@ -32,7 +33,7 @@ export tick(ctx: TestTickContext) {
     be.update_recipe_output(0)
     result: Option[Item] = be.get_crafting_result_item()
 
-    ctx.assert(not result.has(), "A recipe naming an item no version has should not be registered.")
+    ctx.assert(not result.has() or not equals(result.unwrap(), coverage_item), "A recipe naming an item no version has should not be registered.")
 }
 
 # The coverage block's block entity has the nine slots a crafting grid reads, which is why this is

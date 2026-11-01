@@ -21,6 +21,7 @@ import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.grug.minecraft.stationapi.item.GrugItem;
 import net.mine_diver.unsafeevents.listener.EventListener;
+import net.mine_diver.unsafeevents.listener.ListenerPriority;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.modificationstation.stationapi.api.StationAPI;
@@ -31,10 +32,12 @@ import net.modificationstation.stationapi.api.event.recipe.RecipeRegisterEvent;
 import net.modificationstation.stationapi.api.event.registry.BlockRegistryEvent;
 import net.modificationstation.stationapi.api.event.registry.ItemRegistryEvent;
 import net.modificationstation.stationapi.api.mod.entrypoint.EntrypointManager;
+import net.modificationstation.stationapi.api.registry.ItemRegistry;
 import net.modificationstation.stationapi.api.registry.JsonRecipesRegistry;
 import net.modificationstation.stationapi.api.registry.Registry;
 import net.modificationstation.stationapi.api.util.Identifier;
 import net.modificationstation.stationapi.api.util.Namespace;
+import net.modificationstation.stationapi.api.util.exception.MissingModException;
 
 import org.apache.logging.log4j.Logger;
 
@@ -90,10 +93,12 @@ public class InitListener {
     private static final Map<String, RegisteredRecipe> registeredRecipes = new HashMap<>();
 
     private static final class RegisteredRecipe {
+        private final GrugRecipeTree.Recipe recipe;
         private final Identifier type;
         private final URL url;
 
-        RegisteredRecipe(Identifier type, URL url) {
+        RegisteredRecipe(GrugRecipeTree.Recipe recipe, Identifier type, URL url) {
+            this.recipe = recipe;
             this.type = type;
             this.url = url;
         }
@@ -246,7 +251,8 @@ public class InitListener {
      *
      * <p>The game parses the files itself, so grug only has to decide which type each one belongs
      * to and hand it over. Finding the files and judging their shape is {@link GrugRecipeTree}'s,
-     * which reports anything it can describe.
+     * which reports anything it can describe. Whether the items a recipe names exist is judged
+     * later, in {@link #dropUnresolvableRecipes}, because no game class is loaded yet here.
      */
     private static void registerAutoDiscoveredRecipes(File grugModsDir) {
         for (GrugRecipeTree.Recipe recipe : GrugRecipeTree.recipes(grugModsDir)) {
@@ -264,12 +270,93 @@ public class InitListener {
                 Registry.register(JsonRecipesRegistry.INSTANCE, recipeId, new HashSet<>());
             }
             Objects.requireNonNull(JsonRecipesRegistry.INSTANCE.get(recipeId)).add(url);
-            registeredRecipes.put(recipe.path(), new RegisteredRecipe(recipeId, url));
+            registeredRecipes.put(recipe.path(), new RegisteredRecipe(recipe, recipeId, url));
         } catch (MalformedURLException e) {
             // A URL this loader builds from a path it has just read cannot be unformable, so the
             // recipe would sit in the registry as something the game can never open.
             throw Grug.fatal("Failed to register the recipe " + recipe.path(), e);
         }
+    }
+
+    /**
+     * Drops every grug recipe the game cannot resolve, before StationAPI's own parsers see it.
+     *
+     * <p>StationAPI resolves a recipe's item names itself when it reads the JSON, and its parsers
+     * are not tolerant: an unknown key item or ingredient throws a {@code RuntimeException}, and an
+     * unknown result registers a recipe whose output is null. Both are the parser's own invariants,
+     * so grug never lets it see a name this version lacks, and drops the whole recipe instead.
+     *
+     * <p>This event is the first moment the item registry holds every vanilla, block and mod item.
+     * The startup pass cannot judge the names, because mods run before any game class is loaded and
+     * the item registry is still empty there. This listener runs at the highest priority in the
+     * same phase as StationAPI's own parser, so the dropped URLs are gone before it reads them.
+     */
+    @EventListener(phase = StationAPI.INTERNAL_PHASE, priority = ListenerPriority.HIGHEST)
+    private static void dropUnresolvableRecipes(RecipeRegisterEvent event) {
+        Set<URL> urls = JsonRecipesRegistry.INSTANCE.get(event.recipeId);
+        if (urls == null) return;
+
+        for (RegisteredRecipe registered : registeredRecipes.values()) {
+            if (!registered.type.equals(event.recipeId)) continue;
+            if (hasEveryItem(registered.recipe)) continue;
+            urls.remove(registered.url);
+        }
+    }
+
+    /**
+     * Whether this loader has every item a recipe names, reporting a name the mod cannot lack.
+     *
+     * <p>A name from {@code minecraft} or another mod is an item this version may simply not have,
+     * so the recipe that names it is dropped rather than reported: a mod written for a modern
+     * version cannot know what an old one lacks. A name in the mod's own {@code grug} namespace is
+     * different, because a mod cannot lack its own item: one of its files failed to register, so
+     * the run fails on it.
+     *
+     * <p>A tag is left to the game, which resolves one itself, so a tag that holds no item is not
+     * something this check can judge.
+     */
+    private static boolean hasEveryItem(GrugRecipeTree.Recipe recipe) {
+        for (GrugRecipeTree.Ingredient ingredient : recipe.ingredients()) {
+            if (!"item".equals(ingredient.kind())) continue;
+            if (!hasItem(recipe.path(), ingredient.id(), "needs the item")) return false;
+        }
+        return hasItem(recipe.path(), recipe.resultId(), "gives");
+    }
+
+    /**
+     * Whether the item registry has the item a name refers to, reporting it only when it is one the
+     * mod cannot lack.
+     *
+     * <p>{@code verb} is the half of the report's sentence that differs between an ingredient
+     * ({@code "needs the item"}) and a result ({@code "gives"}).
+     */
+    private static boolean hasItem(String recipePath, String itemId, String verb) {
+        Identifier id = null;
+        try {
+            id = Identifier.tryParse(itemId);
+        } catch (MissingModException e) {
+            // A name in a mod's namespace that no loaded mod claims is an item this version does
+            // not have, which is the same outcome as a name its registry simply lacks.
+        }
+        if (id != null && ItemRegistry.INSTANCE.get(id) != null) return true;
+
+        if (!"grug".equals(namespaceOf(itemId))) return false;
+        GrugModTreeDefect.report(
+                "Recipe '"
+                        + recipePath
+                        + "' "
+                        + verb
+                        + " '"
+                        + itemId
+                        + "', which this loader does not"
+                        + " know.");
+        return false;
+    }
+
+    /** The namespace an item id names, or {@code minecraft} when it names none. */
+    private static String namespaceOf(String itemId) {
+        int separator = itemId.indexOf(':');
+        return separator < 0 ? "minecraft" : itemId.substring(0, separator);
     }
 
     /**
@@ -372,10 +459,10 @@ public class InitListener {
             String path = normalized(updatedResourcePath);
             // The hot-reload path judges the one changed file the same way the startup walk does,
             // and reports a file that is no longer a recipe rather than crashing on it.
-            String rawType = GrugRecipeTree.readType(file, path);
-            if (rawType == null) return;
+            GrugRecipeTree.Recipe recipe = GrugRecipeTree.recipe(getActiveGrugModsDir(), file);
+            if (recipe == null) return;
 
-            Identifier recipeId = recipeType(rawType, path);
+            Identifier recipeId = recipeType(recipe.type(), path);
             if (recipeId == null) return;
 
             RegisteredRecipe previous = registeredRecipes.get(path);
@@ -388,7 +475,7 @@ public class InitListener {
                 Registry.register(JsonRecipesRegistry.INSTANCE, recipeId, new HashSet<>());
             }
             Objects.requireNonNull(JsonRecipesRegistry.INSTANCE.get(recipeId)).add(url);
-            registeredRecipes.put(path, new RegisteredRecipe(recipeId, url));
+            registeredRecipes.put(path, new RegisteredRecipe(recipe, recipeId, url));
 
             LOGGER.info(
                     "Re-registering recipes of type {} due to change in {}",
