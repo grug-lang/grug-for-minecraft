@@ -1,0 +1,46 @@
+name: Sweep caches
+
+# Deletes the cache entries no run can restore any more and that the merge drain (drain-caches.yml,
+# #825) never reaches: a pull request closed without merging, a branch deleted with no merged pull
+# request, and a late save the drain missed (#974, part of #699). A cache entry is readable only from
+# the ref that wrote it and from the default branch, so the refs below are dead weight in the 10 GB
+# store. The rule is in .github/scripts/sweep-caches.py: refs/pull/<n>/merge goes unless pull request
+# n is open, refs/heads/<b> goes unless the branch exists, and main and every other ref stay.
+#
+# Both triggers read this file from the default branch or from the branch a dispatch names, and no
+# code of a pull request is checked out by the schedule. A dispatch defaults to a dry run, so
+# trying the sweep deletes nothing until `-f dry_run=false` says so.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only list what would be deleted"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  # Deleting a cache entry is a write to the actions cache API.
+  actions: write
+  # The sweep lists the open pull requests.
+  pull-requests: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The log is the record: the counts, one line per dead ref with its entries and bytes, then the
+      # total. A failed deletion fails the job, which is how a sweep that stopped working is noticed.
+      - name: Delete the dead cache refs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
+        run: python3 .github/scripts/sweep-caches.py $DRY_RUN

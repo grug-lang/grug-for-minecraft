@@ -536,6 +536,7 @@ jobs:
             .github/scripts/reference_selection_test.py \
             .github/scripts/no_tests_test.py \
             .github/scripts/drain_caches_test.py \
+            .github/scripts/sweep_caches_test.py \
             .github/scripts/markdown_columns_test.py \
             .github/scripts/windows_needed_test.py
 
