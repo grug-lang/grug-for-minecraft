@@ -1815,6 +1815,20 @@ public class HostFunctions {
 
     /** Why draw_box refuses this box, or null when it can record the highlight. */
     static String overlayBoxProblem(double x1, double y1, double x2, double y2) {
+        if (!Double.isFinite(x1)
+                || !Double.isFinite(y1)
+                || !Double.isFinite(x2)
+                || !Double.isFinite(y2)) {
+            return "The box was not recorded. Its corners have to be finite, and were "
+                    + x1
+                    + ", "
+                    + y1
+                    + ", "
+                    + x2
+                    + ", "
+                    + y2
+                    + ".";
+        }
         if (x1 > x2 || y1 > y2) {
             return "The box was not recorded. Its corners have to be the right way round: the"
                     + " first of each pair is the near corner and must be no greater than the"
