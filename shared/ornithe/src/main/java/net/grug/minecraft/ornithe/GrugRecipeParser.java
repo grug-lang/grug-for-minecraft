@@ -2,9 +2,8 @@ package net.grug.minecraft.ornithe;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.grug.GrugModTreeDefect;
+import net.grug.minecraft.grug.GrugRecipeResolution;
 import net.grug.minecraft.grug.GrugRecipeTree;
-import net.grug.minecraft.grug.GrugTags;
-import net.grug.minecraft.grug.GrugTags.Resolution;
 import net.minecraft.item.ItemStack;
 
 import java.io.File;
@@ -22,9 +21,9 @@ import java.util.List;
  * {@link net.minecraft.crafting.GrugRecipeHelper} shim.
  *
  * <p>Finding the recipes and deciding which of them are in the right shape is {@link
- * GrugRecipeTree}'s job, and resolving a tag to the item that fills it is {@link GrugTags}'s. What
- * is left here is the part only a running game can answer: whether an id names something in its
- * registries, and what to hand {@code CraftingManager} once it does.
+ * GrugRecipeTree}'s job, and resolving an id to the item it names is {@link
+ * GrugRecipeResolution}'s. What is left here is the part only a running game can answer: whether an
+ * id names something in its registries, and what to hand {@code CraftingManager} once it does.
  */
 public final class GrugRecipeParser {
     private GrugRecipeParser() {}
@@ -64,7 +63,8 @@ public final class GrugRecipeParser {
      * when the missing item is in the mod's own namespace, so the run fails on a mod that names one
      * of its own items that never registered. A missing {@code minecraft} or other-mod item is the
      * ok outcome: a mod written for a modern version cannot know what an old one lacks, so the
-     * recipe is simply not registered here, and the rest of the tree still loads.
+     * recipe is simply not registered here, and the rest of the tree still loads. Every missing own
+     * item is reported, not only the first, so an external item this version lacks cannot hide one.
      */
     public static List<ParsedRecipe> parseAll(File grugModsDir) {
         List<ParsedRecipe> recipes = new ArrayList<>();
@@ -114,117 +114,20 @@ public final class GrugRecipeParser {
     /** Builds one recipe's output and ingredients, or returns null once the recipe is dropped. */
     private static ParsedRecipe parse(
             GrugRecipeTree.Recipe recipe, OrnitheAdapter adapter, File grugModsDir) {
-        Object[] inputs = inputs(recipe, adapter, grugModsDir);
-        if (inputs == null) return null;
+        GrugRecipeResolution.Resolved resolved =
+                GrugRecipeResolution.resolve(recipe, adapter, grugModsDir);
+        if (!resolved.complete()) return null;
 
-        ItemStack result =
-                buildResult(adapter, recipe.resultId(), recipe.resultCount(), recipe.path());
-        if (result == null) return null;
-
-        return new ParsedRecipe(result, inputs, recipe.kind());
+        return new ParsedRecipe(
+                buildResult(adapter, resolved.resultItem(), recipe.resultCount()),
+                resolved.inputs(),
+                recipe.kind());
     }
 
-    /**
-     * The arguments {@code CraftingManager} takes: the pattern rows and a symbol per key for a
-     * shaped recipe, or one object per ingredient for a shapeless one.
-     */
-    private static Object[] inputs(
-            GrugRecipeTree.Recipe recipe, OrnitheAdapter adapter, File grugModsDir) {
-        List<Object> inputs = new ArrayList<>();
-        if (recipe.kind() == GrugRecipeTree.Kind.SHAPED) {
-            inputs.addAll(recipe.pattern());
-        }
-
-        for (int i = 0; i < recipe.ingredients().size(); i++) {
-            GrugRecipeTree.Ingredient ingredient = recipe.ingredients().get(i);
-            Object item = resolveIngredient(ingredient, adapter, grugModsDir, recipe.path());
-            if (item == null) return null;
-
-            if (recipe.kind() == GrugRecipeTree.Kind.SHAPED) {
-                inputs.add(recipe.symbols().get(i));
-            }
-            inputs.add(item);
-        }
-
-        return inputs.toArray();
-    }
-
-    /**
-     * The game object an ingredient names, or null once the recipe has been dropped.
-     *
-     * <p>An ingredient a tag names resolves to the one item that fills it, which is what a crafting
-     * registration can hold: grug takes a single object per slot rather than a set to match
-     * against.
-     */
-    private static Object resolveIngredient(
-            GrugRecipeTree.Ingredient ingredient,
-            OrnitheAdapter adapter,
-            File grugModsDir,
-            String recipePath) {
-        String itemId;
-        if ("tag".equals(ingredient.kind())) {
-            Resolution resolution = GrugTags.firstItem(grugModsDir, ingredient.id());
-            if (!resolution.resolved()) {
-                GrugModTreeDefect.report(
-                        "Recipe '"
-                                + recipePath
-                                + "' needs the tag '"
-                                + ingredient.id()
-                                + "', and "
-                                + resolution.problem()
-                                + ".");
-                return null;
-            }
-            itemId = resolution.itemId();
-        } else {
-            itemId = ingredient.id();
-        }
-
-        Object item = adapter.getItemFromRegistry(adapter.createResourceLocation(itemId));
-        if (item == null) {
-            reportOwnItemIfNeeded(recipePath, itemId, "needs the item");
-        }
-        return item;
-    }
-
-    /** The recipe's output stack, or null once the recipe has been dropped. */
-    private static ItemStack buildResult(
-            OrnitheAdapter adapter, String resultId, int count, String recipePath) {
-        Object resultItem = adapter.getItemFromRegistry(adapter.createResourceLocation(resultId));
-        if (resultItem == null) {
-            reportOwnItemIfNeeded(recipePath, resultId, "gives");
-            return null;
-        }
-
+    /** The recipe's output stack. */
+    private static ItemStack buildResult(OrnitheAdapter adapter, Object resultItem, int count) {
         ItemStack resultStack = (ItemStack) adapter.createItemStack(resultItem, 0);
         resultStack.size = count;
         return resultStack;
-    }
-
-    /**
-     * Reports an unknown item only when it is one the mod cannot lack, and says nothing otherwise.
-     *
-     * <p>{@code verb} is the half of the report's sentence that differs between an ingredient
-     * ({@code "needs the item"}) and a result ({@code "gives"}).
-     *
-     * <p>An unknown name from {@code minecraft} or another mod is an item this version may simply
-     * not have, so the recipe that names it is dropped rather than reported: a mod written for a
-     * modern version cannot know what an old one lacks. A name in the mod's own {@code grug}
-     * namespace is different, because a mod cannot lack its own item: one of its files failed to
-     * register, so the run fails on it.
-     */
-    private static void reportOwnItemIfNeeded(String recipePath, String itemId, String verb) {
-        int separator = itemId.indexOf(':');
-        String namespace = separator < 0 ? "minecraft" : itemId.substring(0, separator);
-        if (!"grug".equals(namespace)) return;
-        GrugModTreeDefect.report(
-                "Recipe '"
-                        + recipePath
-                        + "' "
-                        + verb
-                        + " '"
-                        + itemId
-                        + "', which this loader does not"
-                        + " know.");
     }
 }
