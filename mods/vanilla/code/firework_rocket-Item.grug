@@ -1,5 +1,4 @@
 # The firework rocket's behaviour is not ported yet. 1.20.6's FireworkRocketEntity rides a gliding
 # player and adds look * 0.1 + (look * 1.5 - velocity) * 0.5 to their velocity every tick, and
-# nothing in mod_api.json spawns that entity or changes a player's velocity. The rocket's crafting
-# recipe is the reference's and is registered all the same. about.json records the gap as a
-# deviation against #915.
+# nothing in mod_api.json spawns that entity or changes a player's velocity. The rocket has no
+# recipe of its own: mods/jei spawns it in. about.json records the gap as a deviation against #915.
