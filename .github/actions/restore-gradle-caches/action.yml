@@ -1,0 +1,57 @@
+name: Restore a loader's Gradle caches
+description: >-
+  The Gradle distribution and the rest of Gradle's user home, restored from the entries the loader
+  jobs write, for a job that runs the repository's root Gradle build and nothing the loader jobs
+  already cache. Neither entry is written here.
+inputs:
+  loader:
+    description: >-
+      The loaders/* directory name the job's Gradle invocation is scoped to with
+      -Dgrug.activeLoader. Its entries hold exactly that build's caches, so a job that passes another
+      loader here restores a cache it resolves nothing from.
+    required: true
+runs:
+  using: composite
+  steps:
+    # The same entry .github/actions/setup-loader-build saves, which is why every expression here has
+    # to stay identical to that action's DISTS_HASH and home keys rather than being retyped from
+    # memory: a difference reads an entry nothing writes, which is a second copy of the very
+    # distribution and user home #825 removed. They have to be edited together.
+    #
+    # Restore-only, and it has to stay that way. A job that runs only the root build unpacks only the
+    # 8.14 root wrapper, and a cache key is written once, so saving from here would store an entry
+    # without the 9.8 that every standalone loader's own build needs, which no later job could add.
+    # 1.20.6-forge restores this entry for the same reason and never writes it.
+    #
+    # What it saves is setup-java's `cache: gradle` wrapper entry, which held the same ~/.gradle/wrapper
+    # (424.8 MB on Linux) under a second key beside this one, so the reference job downloaded both
+    # copies on every run and the store held both. The dependency half of that cache is the second
+    # step below.
+    - name: Restore the Gradle distributions
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.gradle/wrapper
+        key: grug-gradle-dists-${{ runner.os }}-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties') }}
+        restore-keys: grug-gradle-dists-${{ runner.os }}-
+
+    # Gradle's version-specific caches, which is what the dependency half of setup-java's `cache:
+    # gradle` was really holding: the compiled Kotlin build scripts, the generated Gradle API jars,
+    # the artifact transforms and the file-hash cache. Measured locally on 2026-11-01 with
+    # `GRADLE_USER_HOME=<empty> ./gradlew help -Dgrug.activeLoader=a1.1.2_01-ornithe --no-daemon`:
+    # 31 s cold, 23 s with the wrapper warm and this directory empty, 4 s warm, and 199 MB of the
+    # 208 MB the empty run leaves in ~/.gradle/caches is this directory. That is the cost a job
+    # without this entry would pay on every run, which is why removing `cache: gradle` did not simply
+    # drop it (#825).
+    #
+    # modules-2 is deliberately not here: the loader's `grug-gradle` entry holds it and is an order of
+    # magnitude larger than the plugin jars the root build needs, so a job that is not the loader job
+    # lets those few megabytes download instead of restoring them.
+    - name: Restore the rest of Gradle's user home
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.gradle/caches/[0-9]*
+          ~/.gradle/caches/jars-*
+          ~/.gradle/caches/journal-1
+        key: grug-gradle-home-${{ runner.os }}-${{ inputs.loader }}-${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', inputs.loader), format('loaders/{0}/settings.gradle', inputs.loader), format('loaders/{0}/settings.gradle.kts', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
+        restore-keys: grug-gradle-home-${{ runner.os }}-${{ inputs.loader }}-
