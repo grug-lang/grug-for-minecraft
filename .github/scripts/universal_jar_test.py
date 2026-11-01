@@ -1162,7 +1162,12 @@ class ModZipsTest(unittest.TestCase):
             prev = Path(tmp) / "prev.json"
             prev.write_text(json.dumps(first))
             base = ["mod-zips", "--commit", "b", "--mods", str(mods), "--out", str(Path(tmp) / "o")]
-            with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            with (
+                mock.patch("sys.stdout", new_callable=io.StringIO) as out,
+                mock.patch.object(
+                    universal_jar, "release_asset_lookup", return_value=lambda url: True
+                ),
+            ):
                 argv = base + ["--previous", str(prev), "--previous-tag", "v1"]
                 argv += ["--download-base", self.BASE]
                 self.assertEqual(universal_jar.main(argv), 0)
@@ -1171,26 +1176,72 @@ class ModZipsTest(unittest.TestCase):
             with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
                 self.assertEqual(universal_jar.main(base + ["--previous", str(prev)]), 1)
                 self.assertIn("--previous needs", err.getvalue())
-                prev.write_text("[]")
+
+    def test_an_unusable_previous_index_attaches_every_zip_and_says_so(self):
+        for text in ("{", "[]", '{"mods": []}', '{"mods": "x"}', "{}"):
+            with self.subTest(text=text), tempfile.TemporaryDirectory() as tmp:
+                mods = self.mods(tmp)
+                prev = Path(tmp) / "prev.json"
+                prev.write_text(text)
+                argv = ["mod-zips", "--commit", "b", "--mods", str(mods)]
+                argv += ["--out", str(Path(tmp) / "o"), "--previous", str(prev)]
+                argv += ["--previous-tag", "v1", "--download-base", self.BASE]
+                with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                    self.assertEqual(universal_jar.main(argv), 0)
+                self.assertIn("is not a usable index", out.getvalue())
                 self.assertEqual(
-                    universal_jar.main(
-                        base
-                        + ["--previous", str(prev)]
-                        + ["--previous-tag", "v", "--download-base", "b"]
-                    ),
-                    1,
+                    sorted(p.name for p in (Path(tmp) / "o").iterdir()),
+                    ["alpha.zip", "beta.zip", "index.json"],
                 )
-                self.assertIn("is not an index", err.getvalue())
-                prev.write_text("{")
-                self.assertEqual(
-                    universal_jar.main(
-                        base
-                        + ["--previous", str(prev)]
-                        + ["--previous-tag", "v", "--download-base", "b"]
-                    ),
-                    1,
+
+    def test_a_matching_entry_without_a_zip_or_size_counts_as_changed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mods = self.mods(tmp)
+            first = universal_jar.write_mod_zips(mods, "a", Path(tmp) / "one")
+            digest = first["mods"]["alpha"]["sha256"]
+            for broken in (
+                {"sha256": digest, "size": 5},
+                {"sha256": digest, "zip": "alpha.zip"},
+                {"sha256": digest, "zip": "", "size": 5},
+                {"sha256": digest, "zip": "alpha.zip", "size": 0},
+                {"sha256": digest, "zip": "alpha.zip", "size": 5, "url": 3},
+            ):
+                out = Path(tmp) / f"o{len(broken)}{broken.get('url', '')}"
+                universal_jar.write_mod_zips(
+                    mods, "b", out, {"mods": {"alpha": broken}}, "v1", self.BASE
                 )
-                self.assertIn("not a readable index", err.getvalue())
+                self.assertTrue((out / "alpha.zip").exists(), broken)
+
+    def test_an_asset_that_is_gone_is_attached_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mods = self.mods(tmp)
+            first = universal_jar.write_mod_zips(mods, "a", Path(tmp) / "one")
+            asked = []
+
+            def has_asset(url):
+                asked.append(url)
+                return url.endswith("beta.zip")
+
+            out = Path(tmp) / "two"
+            second = universal_jar.write_mod_zips(mods, "b", out, first, "v1", self.BASE, has_asset)
+            self.assertEqual(sorted(p.name for p in out.iterdir()), ["alpha.zip", "index.json"])
+            self.assertNotIn("url", second["mods"]["alpha"])
+            self.assertEqual(second["mods"]["beta"]["url"], f"{self.BASE}/v1/beta.zip")
+            self.assertEqual(len(asked), 2)
+
+    def test_the_gh_lookup_lists_a_release_once_and_treats_failure_as_gone(self):
+        lookup = universal_jar.release_asset_lookup(self.BASE)
+        ok = mock.Mock(returncode=0, stdout="alpha.zip\nindex.json\n")
+        with mock.patch("subprocess.run", return_value=ok) as run:
+            self.assertTrue(lookup(f"{self.BASE}/v1/alpha.zip"))
+            self.assertFalse(lookup(f"{self.BASE}/v1/beta.zip"))
+            self.assertEqual(run.call_count, 1)
+            self.assertIn("o/r", run.call_args.args[0])
+        failed = mock.Mock(returncode=1, stdout="")
+        with mock.patch("subprocess.run", return_value=failed):
+            self.assertFalse(lookup(f"{self.BASE}/v2/alpha.zip"))
+        self.assertFalse(lookup("https://elsewhere/x/alpha.zip"))
+        self.assertFalse(universal_jar.release_asset_lookup("https://example.com/d")("x"))
 
     def test_the_command(self):
         with tempfile.TemporaryDirectory() as tmp:

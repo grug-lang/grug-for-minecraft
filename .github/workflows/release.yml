@@ -132,7 +132,8 @@ jobs:
       # Only the zips whose SHA-256 differs from the latest release's index are attached (#523): an
       # unchanged mod's entry carries a url to the release that holds its bytes. The zips are
       # reproducible, so equal files mean equal bytes. When there is no previous release or its
-      # index cannot be fetched, every zip is attached, which is the conservative fallback.
+      # index cannot be fetched or read, every zip is attached, which is the conservative fallback;
+      # so is a zip whose asset has gone from the release the index names (checked with gh).
       - name: Zip every mod, but the ones the previous release holds
         run: |
           args=()

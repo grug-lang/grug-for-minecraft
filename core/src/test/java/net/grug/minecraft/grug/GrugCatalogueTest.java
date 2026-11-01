@@ -321,6 +321,49 @@ class GrugCatalogueTest {
         assertEquals(zip.length, items.get("alpha").size());
     }
 
+    private static String indexWithUrl(String url) {
+        return "{\"mods\":{\"alpha\":{\"zip\":\"alpha.zip\",\"size\":5,\"sha256\":\""
+                + "0".repeat(64)
+                + "\",\"url\":\""
+                + url
+                + "\"}}}";
+    }
+
+    private static GrugCatalogue catalogueOf(String index) {
+        return new GrugCatalogue(
+                (url, limit, progress) -> index.getBytes(StandardCharsets.UTF_8),
+                GrugCatalogue.INDEX_URL);
+    }
+
+    @Test
+    void aUrlOnTheIndexHostOrThisRepositorysReleasesIsAccepted() throws Exception {
+        String ok1 = "https://github.com/some/mirror/releases/download/v1/alpha.zip";
+        String ok2 = GrugCatalogue.RELEASES_PREFIX + "v1/alpha.zip";
+
+        assertEquals(ok1, catalogueOf(indexWithUrl(ok1)).fetch().get("alpha").zipUrl);
+        assertEquals(ok2, catalogueOf(indexWithUrl(ok2)).fetch().get("alpha").zipUrl);
+    }
+
+    @Test
+    void aUrlThatLeavesTheIndexHostOrIsDowngradedOrIsOddIsRefused() {
+        String[] bad = {
+            "http://github.com/grug-lang/grug-for-minecraft/releases/download/v1/alpha.zip",
+            "https://evil.example/grug-lang/grug-for-minecraft/releases/download/v1/alpha.zip",
+            "https://github.com.evil.example/x/alpha.zip",
+            "https://github.com/x/../y/alpha.zip",
+            "https://github.com/x/y/alpha.zip?token=1",
+            "https://github.com/x/y/alpha.zip#frag",
+            "https://github.com/x/y/beta.zip",
+            "https://github.com",
+        };
+        for (String url : bad) {
+            IOException error =
+                    assertThrows(IOException.class, catalogueOf(indexWithUrl(url))::fetch, url);
+
+            assertTrue(error.getMessage().contains("is not a mod index"), error.getMessage());
+        }
+    }
+
     @Test
     void aModUnchangedSinceAnOlderReleaseIsReadFromThatReleasesUrl() throws Exception {
         byte[] zip = zip("alpha/about.json", "{}");

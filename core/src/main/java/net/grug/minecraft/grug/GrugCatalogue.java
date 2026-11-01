@@ -22,15 +22,17 @@ import java.util.zip.ZipInputStream;
 /**
  * The mods a release publishes beside the jar, and how one is installed from it (#511).
  *
- * <p>A release attaches {@code <mod>.zip} for each mod and an {@code index.json} naming each zip
- * with its SHA-256, which {@code universal_jar.py mod-zips} writes:
+ * <p>A release attaches an {@code index.json} naming every mod's zip with its SHA-256, and the
+ * {@code <mod>.zip} of each mod that is new or changed since the previous release, which {@code
+ * universal_jar.py mod-zips} writes:
  *
  * <pre>{"commit": "9f2c1a...", "mods": {"buildcraft": {"zip": "buildcraft.zip", "sha256": "..."}}}
  * </pre>
  *
- * A mod unchanged since an older release has an extra {@code "url"}, an absolute http(s) URL ending
- * in {@code /<zip>} that points at the older release's asset, because a release attaches only the
- * zips whose bytes changed (#523). Without {@code "url"} the zip sits beside the index.
+ * A mod unchanged since an older release has an extra {@code "url"} that points at the older
+ * release's asset (#523): it ends in {@code /<zip>}, has no {@code ..} segment or query, and starts
+ * with the index's own scheme and host or with this repository's {@code releases/download/}.
+ * Without {@code "url"} the zip sits beside the index.
  *
  * <p>The index is read from GitHub's release CDN, not its API, so the API's hourly limit for
  * unauthenticated requests does not apply. An install downloads the zip, checks it against the
@@ -44,6 +46,10 @@ public final class GrugCatalogue {
     /** The index of the latest release. */
     public static final String INDEX_URL =
             "https://github.com/grug-lang/grug-for-minecraft/releases/latest/download/index.json";
+
+    /** Where this repository's releases keep their assets, which an older mod zip may sit in. */
+    static final String RELEASES_PREFIX =
+            "https://github.com/grug-lang/grug-for-minecraft/releases/download/";
 
     /** More than an index of any mod count a release holds, so a server cannot fill the memory. */
     static final long INDEX_LIMIT = 16L * 1024 * 1024;
@@ -89,6 +95,12 @@ public final class GrugCatalogue {
                 GrugHttp.urlConnection(), System.getProperty(URL_PROPERTY, INDEX_URL));
     }
 
+    /** The scheme and host of a URL, without a trailing slash. */
+    private static String origin(String url) {
+        int path = url.indexOf('/', url.indexOf("://") + 3);
+        return path < 0 ? url : url.substring(0, path);
+    }
+
     /** The mods of the index by name. */
     public Map<String, Item> fetch() throws IOException {
         String text =
@@ -120,7 +132,12 @@ public final class GrugCatalogue {
                 String zipUrl = base + zip;
                 if (entry.has("url")) {
                     zipUrl = entry.get("url").getAsString();
-                    if (!zipUrl.matches("https?://[^\\s]+/" + java.util.regex.Pattern.quote(zip))) {
+                    if (!zipUrl.endsWith("/" + zip)
+                            || zipUrl.indexOf('?') >= 0
+                            || zipUrl.indexOf('#') >= 0
+                            || zipUrl.contains("/../")
+                            || !(zipUrl.startsWith(origin(indexUrl) + "/")
+                                    || zipUrl.startsWith(RELEASES_PREFIX))) {
                         throw new JsonParseException(mod.getKey() + " names a bad url");
                     }
                 }
