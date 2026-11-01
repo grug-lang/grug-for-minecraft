@@ -916,9 +916,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * slots are atomic. See #804.
      */
     private static boolean clientHasChunk(int x, int z) {
-        // Unguarded like the rest of the adapter, which only runs with a level: a grug Level is
-        // taken from one. See #804.
-        return Minecraft.getInstance().level.getChunkSource().hasChunk(x >> 4, z >> 4);
+        // Control arm only: the guard is switched off so world_settled_beyond_view runs against the
+        // behaviour this pull request fixes.
+        return true;
     }
 
     @Override
