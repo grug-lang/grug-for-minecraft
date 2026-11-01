@@ -17,6 +17,9 @@ running the test, never to carrying it over:
 - a test nested under its tests directory runs every coverage test: the map flattens a test
   path into dots and names it back as <mod>/tests/<name>, so a deeper path cannot be matched
   and carrying it over would leave the gate short;
+- a test path holding a comma, a quote or a newline runs every coverage test: the carried-over
+  names travel as one comma-separated value and as one line each in a file, and such a path
+  cannot be represented in them;
 - a change to core/, the runner, the test framework or mod_api.json runs every coverage
   test, and so does any other change outside mods/ (workflows, scripts, loaders, shared/):
   the gate cannot attribute such a change to a test, and a host entry's implementation
@@ -53,6 +56,9 @@ CORE_TEST_JAVA = "core/src/test/"
 # A block or item file, by its name: adding, changing or removing one moves the ids handed
 # out after it, which the tests read.
 _BLOCK_ITEM = re.compile(r"-Block\.grug$|-Item\.grug$")
+# The carried-over names travel in one comma-separated value and one file line each, so a path
+# holding a separator or a quote cannot be represented in them.
+_UNREPRESENTABLE = re.compile("[\"',\n\r]")
 
 
 def is_block_or_item_file(repo_path: str) -> bool:
@@ -101,6 +107,16 @@ def select_coverage_tests(
         run_all(
             f"{nested[0]} is nested under its tests directory, which the map's flattened "
             f"key cannot name back, so every coverage test runs"
+        )
+        return run
+
+    # The names are written as one comma-separated value and as one file line each, so a path
+    # holding a separator or a quote cannot be carried over without corrupting the list.
+    unrepresentable = sorted(t for t in tests if _UNREPRESENTABLE.search(t))
+    if unrepresentable:
+        run_all(
+            f"{unrepresentable[0]} holds a comma, a quote or a newline, which the "
+            f"comma-separated carry-over value cannot represent, so every coverage test runs"
         )
         return run
 

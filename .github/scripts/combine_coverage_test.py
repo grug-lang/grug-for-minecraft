@@ -85,8 +85,9 @@ class RescueClassInitializersTest(unittest.TestCase):
 
 class CarryOverTest(unittest.TestCase):
     """The --carry-over path of main(): the JaCoCo CLI is stubbed, so only what each runner's
-    report is handed is under test, which is exactly what the carry-over changes: core's report
-    gains the carried-over execs and no loader's does."""
+    report is handed is under test, which is exactly what the carry-over changes: the carried exec
+    of a runner's test reaches that runner's report, where its loader classes count, and core's,
+    which unions every runner's exec data."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -100,6 +101,7 @@ class CarryOverTest(unittest.TestCase):
             (artifacts / f"coverage-classes-{runner}" / "C.class").write_bytes(b"")
         self.artifacts = artifacts
         self.output = self.root / "output"
+        self.runner = "1.20.6-forge"
         self.carry_exec = self.root / "coverage.tests.a-Test.grug.exec"
         self.carry_exec.write_bytes(b"")
         self.report_calls = []
@@ -111,7 +113,18 @@ class CarryOverTest(unittest.TestCase):
 
     def fake_report(self, cli, execs, classes, sources, csv_path, xml_path):
         self.report_calls.append((tuple(execs), csv_path.name))
-        csv_path.write_text(HEADER + self.csv_row)
+        if csv_path.name == "1.20.6-forge.csv":
+            # A loader's own class that the carried-over test alone covers: the loader's report
+            # counts it only when it was handed that test's exec, the defect this pins.
+            carried = any(path.name == self.carry_exec.name for path in execs)
+            row = (
+                "1.20.6-forge,net.grug,ForgeAdapter,0,4,0,0"
+                if carried
+                else "1.20.6-forge,net.grug,ForgeAdapter,4,0,0,0"
+            )
+            csv_path.write_text(HEADER + row + "\n")
+        else:
+            csv_path.write_text(HEADER + self.csv_row)
         xml_path.write_text('<report name="r"></report>')
 
     def run_main(self, *extra_args):
@@ -133,31 +146,71 @@ class CarryOverTest(unittest.TestCase):
     def loader_report_execs(self):
         return next(execs for execs, name in self.report_calls if name == "1.20.6-forge.csv")
 
-    def test_the_carry_over_execs_count_for_core_only(self):
+    def test_a_carried_exec_counts_for_its_own_runner_and_for_core(self):
         self.assertEqual(
-            self.run_main("--carry-over", str(self.carry_exec)),
+            self.run_main("--carry-over", f"{self.runner}:{self.carry_exec}"),
             0,
         )
         core_execs = [path.name for path in self.core_report_execs()]
         self.assertIn("coverage.tests.a-Test.grug.exec", core_execs)
         self.assertIn("000-boot.exec", core_execs)
+        # The loader's report analyses the carried exec against the loader's own classes, which
+        # is what makes a loader class the test covered count.
         loader_execs = [path.name for path in self.loader_report_execs()]
-        self.assertNotIn("coverage.tests.a-Test.grug.exec", loader_execs)
+        self.assertIn("coverage.tests.a-Test.grug.exec", loader_execs)
+
+    def test_a_carried_exec_of_another_runner_is_not_counted_for_a_loader(self):
+        # The test's coverage of a class no other loader holds cannot be analysed by this one.
+        self.assertEqual(
+            self.run_main("--carry-over", f"core:{self.carry_exec}"),
+            0,
+        )
+        self.assertIn(
+            "coverage.tests.a-Test.grug.exec", [path.name for path in self.core_report_execs()]
+        )
+        self.assertNotIn(
+            "coverage.tests.a-Test.grug.exec",
+            [path.name for path in self.loader_report_execs()],
+        )
+
+    def test_a_carried_exec_is_what_covers_a_loader_class(self):
+        # The loader's own class is covered only by the carried-over test: handed to the loader's
+        # report, the line is covered and the gate passes; named for another runner, the loader's
+        # line is missed and the gate fails, which is what the per-runner split prevents.
+        self.assertEqual(
+            self.run_main("--carry-over", f"{self.runner}:{self.carry_exec}", "--require-100"), 0
+        )
+        self.assertEqual(
+            self.run_main("--carry-over", f"another-loader:{self.carry_exec}", "--require-100"), 1
+        )
 
     def test_a_missing_carry_over_exec_is_dropped_not_fatal(self):
-        self.assertEqual(self.run_main("--carry-over", str(self.root / "gone.exec")), 0)
+        self.assertEqual(
+            self.run_main("--carry-over", f"{self.runner}:{self.root / 'gone.exec'}"), 0
+        )
         for execs, _name in self.report_calls:
             for path in execs:
                 self.assertTrue(path.is_file(), path)
 
+    def test_a_carry_over_without_a_runner_is_an_error(self):
+        # The runner names which report's classes the exec was recorded against, and a spec
+        # without one would count a loader's classes nowhere: refuse it rather than guess.
+        self.assertEqual(self.run_main("--carry-over", str(self.carry_exec)), 1)
+        self.assertEqual(self.report_calls, [])
+
     def test_the_gate_still_fails_when_the_carry_over_leaves_a_missed_line(self):
         # A carry-over counts coverage, it is not a pass: a missed line still fails the gate.
         self.csv_row = "core,net.grug,Outer,4,0,0,0\n"
-        self.assertEqual(self.run_main("--carry-over", str(self.carry_exec), "--require-100"), 1)
+        self.assertEqual(
+            self.run_main("--carry-over", f"{self.runner}:{self.carry_exec}", "--require-100"), 1
+        )
 
     def test_the_gate_passes_when_the_carry_over_covers_the_last_line(self):
         self.csv_row = "core,net.grug,Outer,0,4,0,0\n"
-        self.assertEqual(self.run_main("--carry-over", str(self.carry_exec), "--require-100"), 0)
+        self.assertEqual(
+            self.run_main("--carry-over", f"{self.runner}:{self.carry_exec}", "--require-100"),
+            0,
+        )
 
 
 if __name__ == "__main__":

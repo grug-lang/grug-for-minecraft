@@ -1740,70 +1740,90 @@ jobs:
           mkdir -p coverage/base-map
           url=$(curl -sf -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO/actions/runs/$BASE_RUN/artifacts?per_page=100" \
-            | python3 -c "import json, sys; print(next(a['archive_url'] for a in json.load(sys.stdin)['artifacts'] if a['name'] == 'coverage-map'))")
+            | python3 -c "import json, sys; print(next(a['archive_download_url'] for a in json.load(sys.stdin)['artifacts'] if a['name'] == 'coverage-map'))")
           curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" "$url" -o coverage/base-map.zip
           unzip -o -q coverage/base-map.zip -d coverage/base-map
 
-      # The recorded coverage of the carried-over tests, one exec per test, rebuilt against this
-      # run's core classes from the base commit's map. The tool fails the run when a class the
-      # map names changed under it, or a test the selection carried over is not in the map, and
-      # both are the direction that runs more: the loader jobs already skipped the tests, so a
-      # map that cannot be applied is a red run, never a gate that counted less (#786).
+      # The recorded coverage of the carried-over tests, one exec per test and loader, rebuilt
+      # against this run's own core classes and each loader's own from the base commit's map. The
+      # tool fails the run when a class the map names changed under it, or a test the selection
+      # carried over is not in the map for a loader that ran, and both are the direction that runs
+      # more: the loader jobs already skipped the tests, so a map that cannot be applied is a red
+      # run, never a gate that counted less (#786).
       - name: Reconstruct the carried-over coverage
         if: ${{ needs.discover.outputs.carry-over != '' }}
+        env:
+          # The selection's names come from a pull request's tree, so they never go into the
+          # script itself: a name with a quote or a backtick would run as code.
+          CARRY_OVER: ${{ needs.discover.outputs.carry-over }}
         run: |
           set -eu
           mkdir -p coverage/carry-over
-          echo "${{ needs.discover.outputs.carry-over }}" | tr ',' '\n' > coverage/carry-over/tests.txt
+          printf '%s\n' "$CARRY_OVER" | tr ',' '\n' > coverage/carry-over/tests.txt
+          loader_args=()
+          for dir in coverage/artifacts/coverage-exec-*; do
+            [ -d "$dir" ] || continue
+            loader=${dir##*coverage-exec-}
+            [ "$loader" = core ] && continue
+            loader_args+=(--loader "$loader" "coverage/artifacts/coverage-classes-$loader")
+          done
           java -cp coverage/tools/coverage-map-tool.jar \
             net.grug.minecraft.covmap.CoverageMapTool reconstruct \
             --map coverage/base-map/coverage-map.json \
             --classes coverage/artifacts/coverage-classes-core \
             --tests coverage/carry-over/tests.txt \
-            --out-dir coverage/carry-over
+            --out-dir coverage/carry-over \
+            "${loader_args[@]}"
 
       - name: Combine the coverage data and require 100%
         run: |
           set -eu
-          carry=
-          for exec in coverage/carry-over/*.exec; do
+          carry=()
+          for exec in coverage/carry-over/*/*.exec; do
             [ -e "$exec" ] || continue
-            carry="$carry --carry-over $exec"
+            runner=$(basename "$(dirname "$exec")")
+            carry+=(--carry-over "$runner:$exec")
           done
           python3 .github/scripts/combine-coverage.py \
             --artifacts coverage/artifacts \
             --jacoco-cli coverage/tools/jacoco-cli.jar \
             --output coverage/report \
             --require-100 \
-            $carry
+            "${carry[@]}"
 
       # The map of what each coverage test of this run covered, from this run's own per-test exec
-      # data against this run's own core classes: the pull requests that base on this commit carry
-      # it over. A pull request builds it too, from the tests its selection ran; the push to main
-      # that merges it rebuilds the map from the full run, which is the one a later pull request
-      # looks up. Also when the gate above failed, because the recorded coverage is still what the
-      # tests that ran covered, and the run a pull request bases on is the next one, not this one
-      # (#786).
+      # data against this run's own core classes and each loader's own: the pull requests that
+      # base on this commit carry it over. A pull request builds it too, from the tests its
+      # selection ran; the push to main that merges it rebuilds the map from the full run, which
+      # is the one a later pull request looks up. Also when the gate above failed, because the
+      # recorded coverage is still what the tests that ran covered, and the run a pull request
+      # bases on is the next one, not this one (#786).
       - name: Build the coverage map
         if: ${{ !cancelled() }}
         run: |
           set -eu
-          exec_dirs=
+          loader_args=()
           for dir in coverage/artifacts/coverage-exec-*; do
             [ -d "$dir" ] || continue
-            [ "$dir" = "coverage/artifacts/coverage-exec-core" ] && continue
-            exec_dirs="$exec_dirs --execs $dir"
+            loader=${dir##*coverage-exec-}
+            [ "$loader" = core ] && continue
+            classes="coverage/artifacts/coverage-classes-$loader"
+            [ -d "$classes" ] || {
+              echo "error: the run holds no class files for $loader to record the map against"
+              exit 1
+            }
+            loader_args+=(--loader "$loader" "$classes" "$dir")
           done
-          [ -n "$exec_dirs" ] || {
+          [ ${#loader_args[@]} -gt 0 ] || {
             echo "error: no loader exec data to record the map from"
             exit 1
           }
           java -cp coverage/tools/coverage-map-tool.jar \
             net.grug.minecraft.covmap.CoverageMapTool build \
             --classes coverage/artifacts/coverage-classes-core \
-            $exec_dirs \
             --commit "$(git rev-parse HEAD)" \
-            --out coverage/coverage-map.json
+            --out coverage/coverage-map.json \
+            "${loader_args[@]}"
 
       # Refreshed on every merge, which the pull requests that base on the merge read back. The
       # retention is the same as the coverage data it is built from, so a base commit older than

@@ -27,10 +27,12 @@ tests the class. rescue_class_initializers compares a report of the .exec files 
 .exec and .dropped files together and counts what only the second shows in a <clinit> method.
 
 The gate also counts, when a pull request did not rerun them, the coverage a coverage test recorded
-on an earlier run (#786): such a test's recorded coverage is handed to the report as a --carry-over
-exec file, and is counted for core exactly like the .exec files of the tests that ran. A pull request
-carries over only the tests a static proof shows the diff cannot affect, and the gate still fails if
-any line or branch of core has no cover, from the run or from the carried-over tests.
+on an earlier run (#786): such a test's recorded coverage is handed to the reports as one
+--carry-over exec per runner the test ran on. That runner's report counts it like the .exec files of
+its tests that ran, which is what makes a covered loader class count, and core's report counts it
+too, since core unions every runner's exec data. A pull request carries over only the tests a static
+proof shows the diff cannot affect, and the gate still fails if any counted line or branch has no
+cover, from the run or from the carried-over tests.
 """
 
 from __future__ import annotations
@@ -343,13 +345,13 @@ def main() -> int:
         "--carry-over",
         action="append",
         default=[],
-        type=Path,
-        metavar="EXEC",
+        metavar="RUNNER:EXEC",
         help=(
-            "An exec file of the recorded coverage of a coverage test the run did not rerun, "
-            "carried over from the base commit's map (#786). Counted for core like the .exec "
-            "files of the tests that ran, so the gate proves 100% of core from the run plus the "
-            "carried-over tests."
+            "The exec file of a coverage test's recorded coverage on one runner, carried over "
+            "from the base commit's map (#786): counted for that runner like the .exec files of "
+            "its tests that ran, and for core, which unions every runner's exec data, like the "
+            "same. The tool reconstructs one exec per test and runner, since a test's coverage of "
+            "a loader's own classes only counts for that loader."
         ),
     )
     args = parser.parse_args()
@@ -360,7 +362,20 @@ def main() -> int:
         print("error: no coverage-exec-core artifact found", file=sys.stderr)
         return 1
 
-    carry_over = [path for path in args.carry_over if path.is_file()]
+    carried: dict[str, list[Path]] = {}
+    for spec in args.carry_over:
+        runner, sep, path = spec.partition(":")
+        if not sep or not runner or not path:
+            print(
+                f"error: --carry-over needs <runner>:<exec>, not {spec!r}: a carried exec counts "
+                "for the runner whose classes it was recorded against",
+                file=sys.stderr,
+            )
+            return 1
+        exec_file = Path(path)
+        if exec_file.is_file():
+            carried.setdefault(runner, []).append(exec_file)
+    carry_over = [path for paths in carried.values() for path in paths]
     if carry_over:
         print(f"counting the recorded coverage of {len(carry_over)} carried-over test(s)")
 
@@ -369,10 +384,14 @@ def main() -> int:
     csv_paths: list[Path] = []
     for runner, info in sorted(runners.items()):
         execs = all_execs if runner == CORE else info.get("exec", [])
-        if runner == CORE and carry_over:
-            # The carried-over tests are counted coverage, like the .exec files of the tests that
-            # ran: the gate proves 100% of core from the run plus the tests it did not rerun.
+        if runner == CORE:
+            # Every carried-over exec holds the core classes its test reached on the loader it
+            # ran, and core's report unions every runner's exec data, so all of them count here.
             execs = [*execs, *carry_over]
+        else:
+            # The loader's own classes only count in that loader's report: the test's coverage of
+            # a loader class is recorded against it, and no other runner can analyse it.
+            execs = [*execs, *carried.get(runner, [])]
         dropped = all_dropped if runner == CORE else info.get("dropped", [])
         classes = info.get("classes")
         if not execs or classes is None:

@@ -95,6 +95,25 @@ class SelectCoverageTestsPureTest(unittest.TestCase):
         self.assertEqual(set(run), tests)
         self.assertTrue(all("nested" in reason for reason in run.values()))
 
+    def test_a_test_path_the_carry_over_value_cannot_hold_runs_every_test(self):
+        # The names travel as one comma-separated value and as one line each in a file, so a path
+        # holding a separator or a quote cannot be represented: every coverage test runs.
+        for name in (
+            "coverage/tests/a,b-Test.grug",
+            'coverage/tests/a"b-Test.grug',
+            "coverage/tests/a'b-Test.grug",
+            "coverage/tests/a\nb-Test.grug",
+        ):
+            with self.subTest(name=name):
+                tests = frozenset(ALL) | frozenset({name})
+                run = sel.select_coverage_tests(
+                    changed=frozenset({"mods/buildcraft/tests/wrench-Test.grug"}),
+                    coverage_tests=tests,
+                    base_coverage_tests=tests,
+                )
+                self.assertEqual(set(run), tests)
+                self.assertTrue(all("cannot represent" in reason for reason in run.values()), run)
+
     # A change confined to files no coverage test reads lets every one be carried over.
 
     def test_a_change_confined_to_another_mod_is_carried_over(self):
