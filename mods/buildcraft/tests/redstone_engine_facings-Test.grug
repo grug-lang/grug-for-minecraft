@@ -78,7 +78,6 @@ local _setup(ctx: TestTickContext) {
         if not Test.is_reference() {
             engine.set_saved_number("orientation", facing)
             engine.set_saved_number("oriented", 1)
-            engine.redraw()
         }
         facing = facing + 1
     }

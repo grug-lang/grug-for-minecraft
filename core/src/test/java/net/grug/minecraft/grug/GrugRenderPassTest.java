@@ -480,15 +480,15 @@ class GrugRenderPassTest {
 
         GrugFrameGeometry geometry = GrugRenderPass.closeFrame();
 
-        assertEquals(2, geometry.items().size());
-        GrugItemDraw first = geometry.items().get(0);
+        assertEquals(2, geometry.draws().size());
+        GrugItemDraw first = (GrugItemDraw) geometry.draws().get(0);
         assertEquals(ITEM, first.item());
         assertEquals(2, first.damage());
         assertEquals(7, first.count());
         assertEquals(0.25, first.x());
         assertEquals(0.5, first.y());
         assertEquals(0.75, first.z());
-        assertEquals("another", geometry.items().get(1).item());
+        assertEquals("another", ((GrugItemDraw) geometry.draws().get(1)).item());
     }
 
     @Test
@@ -550,30 +550,103 @@ class GrugRenderPassTest {
         GrugRenderPass.closeFrame();
 
         GrugRenderPass.openFrame(0.0, 0.0);
-        assertTrue(GrugRenderPass.closeFrame().items().isEmpty());
+        assertTrue(GrugRenderPass.closeFrame().draws().isEmpty());
     }
 
     @Test
-    void closingAChainOfFramePassesHandsTheItemsOverRatherThanAliasingThePass() {
+    void closingAChainOfFramePassesHandsTheDrawsOverRatherThanAliasingThePass() {
         GrugRenderPass.openFrame(0.0, 0.0);
         GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0);
-        List<GrugItemDraw> first = GrugRenderPass.closeFrame().items();
+        List<GrugFrameDraw> first = GrugRenderPass.closeFrame().draws();
 
         GrugRenderPass.openFrame(0.0, 0.0);
         GrugRenderPass.recordItem("another", 0, 1, 0.0, 0.0, 0.0);
         GrugRenderPass.closeFrame();
 
-        assertEquals(1, first.size(), "the next pass cannot change a closed one's items");
+        assertEquals(1, first.size(), "the next pass cannot change a closed one's draws");
     }
 
     @Test
-    void theRecordedItemsCannotBeChangedThroughTheReturnedList() {
+    void theRecordedDrawsCannotBeChangedThroughTheReturnedList() {
         GrugRenderPass.openFrame(0.0, 0.0);
         GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0);
 
-        List<GrugItemDraw> items = GrugRenderPass.closeFrame().items();
+        List<GrugFrameDraw> draws = GrugRenderPass.closeFrame().draws();
         assertThrows(
                 UnsupportedOperationException.class,
-                () -> items.add(new GrugItemDraw(ITEM, 0, 1, 0.0, 0.0, 0.0)));
+                () -> draws.add(new GrugItemDraw(ITEM, 0, 1, 0.0, 0.0, 0.0)));
+    }
+
+    @Test
+    void aFramePassRecordsAModelsTurnedFacesWithItsOffsetKeptApart() throws Exception {
+        GrugRenderPass.openFrame(0.25, 270.0);
+
+        assertEquals(
+                null,
+                GrugRenderPass.recordFrameModel(
+                        mods.toFile(), writePlate(), 0, 0, 90, 0.75, 0.5, 0.25));
+
+        List<GrugFrameDraw> draws = GrugRenderPass.closeFrame().draws();
+        assertEquals(1, draws.size());
+        GrugModelDraw draw = (GrugModelDraw) draws.get(0);
+        assertEquals(0.75, draw.x());
+        assertEquals(0.5, draw.y());
+        assertEquals(0.25, draw.z());
+        GrugQuad east = draw.quads().get(0);
+        assertEquals(5, east.side(), "the up face turned about z points east");
+        for (int corner = 0; corner < 4; corner++) {
+            assertEquals(0.25, east.x(corner), 1e-9);
+            assertTrue(
+                    east.y(corner) == 0.0 || east.y(corner) == 1.0,
+                    "the plate's width runs along y after the turn: " + east.y(corner));
+        }
+    }
+
+    @Test
+    void aFramePassDrawsInTheOrderTheScriptDrew() throws Exception {
+        GrugRenderPass.openFrame(0.0, 0.0);
+        GrugRenderPass.recordItem(ITEM, 0, 1, 0.0, 0.0, 0.0);
+        GrugRenderPass.recordFrameModel(mods.toFile(), writePlate(), 0, 0, 0, 0, 0, 0);
+        GrugRenderPass.recordItem("another", 0, 1, 0.0, 0.0, 0.0);
+
+        List<GrugFrameDraw> draws = GrugRenderPass.closeFrame().draws();
+        assertEquals(3, draws.size());
+        assertTrue(draws.get(0) instanceof GrugItemDraw);
+        assertTrue(draws.get(1) instanceof GrugModelDraw);
+        assertTrue(draws.get(2) instanceof GrugItemDraw);
+    }
+
+    @Test
+    void aFrameModelOutsideAFramePassIsRefusedWithTheReasonTheCallerReports() throws Exception {
+        GrugRenderPass.open();
+
+        assertTrue(
+                GrugRenderPass.recordFrameModel(mods.toFile(), writePlate(), 0, 0, 0, 0, 0, 0)
+                        .contains("while a block entity's render_frame() is drawing"));
+        assertTrue(GrugRenderPass.close().isEmpty());
+    }
+
+    @Test
+    void aFrameModelWithNumbersThatCannotBeDrawnRecordsNothingAndSaysWhy() throws Exception {
+        String path = writePlate();
+        GrugRenderPass.openFrame(0.0, 0.0);
+
+        assertTrue(
+                GrugRenderPass.recordFrameModel(mods.toFile(), path, 45, 0, 0, 0, 0, 0)
+                        .contains("multiples of 90"));
+        assertTrue(
+                GrugRenderPass.recordFrameModel(mods.toFile(), path, 0, 0, 0, Double.NaN, 0, 0)
+                        .contains("finite"));
+        assertTrue(GrugRenderPass.closeFrame().draws().isEmpty());
+    }
+
+    @Test
+    void aFrameModelThatCannotBeDrawnIsReportedAndNotDrawn() throws Exception {
+        GrugRenderPass.openFrame(0.0, 0.0);
+
+        assertTrue(
+                GrugRenderPass.recordFrameModel(mods.toFile(), writeModel("{}"), 0, 0, 0, 0, 0, 0)
+                        .contains("no elements"));
+        assertTrue(GrugRenderPass.closeFrame().draws().isEmpty());
     }
 }

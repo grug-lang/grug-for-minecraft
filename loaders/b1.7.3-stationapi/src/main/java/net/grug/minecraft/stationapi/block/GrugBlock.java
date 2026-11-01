@@ -77,10 +77,18 @@ public class GrugBlock extends TemplateBlockWithEntity {
 
     /**
      * Whether the block draws its own geometry from its block entity's render function, declared by
-     * set_custom_render, instead of the cube its model describes.
+     * set_custom_render or set_frame_render, instead of the cube its model describes.
      */
     public boolean drawsCustomGeometry() {
         return blockData().customRender;
+    }
+
+    /**
+     * Whether any of that geometry is baked into the chunk's mesh, which a block that declared
+     * set_frame_render draws per frame instead.
+     */
+    public boolean drawsChunkGeometry() {
+        return blockData().drawsChunkGeometry();
     }
 
     /**

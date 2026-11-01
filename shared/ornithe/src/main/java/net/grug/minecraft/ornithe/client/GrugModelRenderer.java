@@ -197,6 +197,57 @@ public final class GrugModelRenderer {
     }
 
     /**
+     * Draws {@code quads} at the camera-relative block origin the frame renderer was handed, with
+     * the model's own offset already applied to the matrix, the way a reference's block entity
+     * renderer draws its model boxes.
+     *
+     * <p>This is the per-frame half of {@link #drawInWorld}: the vertices stay beside the block
+     * instead of at its place in the world, which is what keeps an edge that moves every tick on
+     * the pixel the reference puts it on. Every face takes the block's own brightness, with no
+     * shade per side, which is how a block that declared set_flat_lighting is drawn.
+     */
+    public static void drawInFrame(
+            WorldView world, Block block, int x, int y, int z, List<GrugQuad> quads) {
+        if (quads.isEmpty()) return;
+
+        TextureManager textures = MinecraftInstance.get().textureManager;
+        Tesselator tesselator = Tesselator.INSTANCE;
+        float brightness = block.getBrightness(world, x, y, z);
+        GL11.glPushAttrib(GL11.GL_TEXTURE_BIT);
+
+        for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
+            Integer texture = texture(textures, group.getKey());
+            if (texture == null) continue;
+
+            textures.bind(texture);
+            tesselator.begin();
+            for (GrugQuad quad : group.getValue()) {
+                if (quad.cullSide() >= 0
+                        && !block.shouldRenderFace(
+                                world,
+                                x + OFFSET[quad.cullSide()][0],
+                                y + OFFSET[quad.cullSide()][1],
+                                z + OFFSET[quad.cullSide()][2],
+                                quad.cullSide())) {
+                    continue;
+                }
+                tesselator.color(brightness, brightness, brightness);
+                for (int corner = 0; corner < 4; corner++) {
+                    tesselator.vertex(
+                            quad.x(corner),
+                            quad.y(corner),
+                            quad.z(corner),
+                            quad.u(corner),
+                            quad.v(corner));
+                }
+            }
+            tesselator.end();
+        }
+
+        GL11.glPopAttrib();
+    }
+
+    /**
      * The colour the game gives each corner of {@code quad}, as red, green and blue, or null when
      * the game draws no face with the same corners.
      *

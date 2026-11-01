@@ -3,9 +3,11 @@ package net.grug.minecraft.forge125.client;
 import net.grug.minecraft.forge125.block.GrugBlock;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
 import net.grug.minecraft.grug.GrugBlockGeometry;
+import net.grug.minecraft.grug.GrugFrameDraw;
 import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
+import net.grug.minecraft.grug.GrugModelDraw;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
@@ -35,8 +37,11 @@ import java.util.Random;
  *
  * <p>The stack itself is drawn the way the reference's {@code RenderPipe.doRenderItem} draws it: a
  * block as a small cube lifted a quarter of a block, anything else as one flat sprite lifted a
- * tenth and turned to face the camera, with the reference's copy count and scatter. Lighting is off
- * for the whole pass, as the reference turns it off around its item loop.
+ * tenth and turned to face the camera, with the reference's copy count and scatter. A model the
+ * script drew with {@code draw_model} is drawn here too, at the block's camera-relative position,
+ * which is how the reference's own tile entity renderers draw their boxes and where an edge that
+ * moves every tick lands on the pixel the reference puts it on. Lighting is off for the whole pass,
+ * as the reference turns it off around its item loop.
  *
  * <p>Excluded from coverage because the class carries {@link GrugGenerated}: it draws into the
  * game's renderer. What it draws is decided by core's {@code GrugItemDraw}, which is measured
@@ -74,7 +79,7 @@ public class GrugFrameRenderer extends TileEntitySpecialRenderer {
                         blockEntity.getFrameRenderFnId(),
                         partialTicks,
                         yaw);
-        if (geometry.items().isEmpty()) return;
+        if (geometry.draws().isEmpty()) return;
 
         GL11.glPushAttrib(
                 GL11.GL_ENABLE_BIT
@@ -83,12 +88,38 @@ public class GrugFrameRenderer extends TileEntitySpecialRenderer {
                         | GL11.GL_LIGHTING_BIT);
         GL11.glDisable(GL11.GL_LIGHTING);
         try {
-            for (GrugItemDraw draw : geometry.items()) {
-                drawItem(draw, dx + draw.x(), dy + draw.y(), dz + draw.z(), yaw);
+            for (GrugFrameDraw draw : geometry.draws()) {
+                if (draw instanceof GrugModelDraw) {
+                    drawModel((GrugModelDraw) draw, dx, dy, dz, world, block, tile);
+                } else if (draw instanceof GrugItemDraw) {
+                    GrugItemDraw item = (GrugItemDraw) draw;
+                    drawItem(item, dx + item.x(), dy + item.y(), dz + item.z(), yaw);
+                }
             }
         } finally {
             GL11.glPopAttrib();
         }
+    }
+
+    /**
+     * Draws one model at the block's camera-relative position, moved by the model's own offset,
+     * which is the chain {@code RenderEngine.render} builds: the block's position, then the part's
+     * offset, then the boxes.
+     */
+    private void drawModel(
+            GrugModelDraw draw,
+            double dx,
+            double dy,
+            double dz,
+            World world,
+            Block block,
+            TileEntity tile) {
+        GL11.glPushMatrix();
+        GL11.glTranslatef((float) dx, (float) dy, (float) dz);
+        GL11.glTranslatef((float) draw.x(), (float) draw.y(), (float) draw.z());
+        GrugModelRenderer.drawInFrame(
+                world, block, tile.xCoord, tile.yCoord, tile.zCoord, draw.quads());
+        GL11.glPopMatrix();
     }
 
     /**

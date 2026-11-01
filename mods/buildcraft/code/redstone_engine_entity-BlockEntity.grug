@@ -5,10 +5,6 @@
 # The energy is a saved number rather than a member variable, because a member variable starts over
 # whenever the engine's chunk is loaded again, and the reference keeps its energy in the tile's NBT.
 
-# The progress the engine was last drawn with. A member variable, since a chunk that is loaded again
-# draws the engine from its saved progress anyway.
-drawn_progress: number = 0
-
 level: Level = me.level()
 pos: BlockPos = me.block_pos()
 center: Vec3 = pos.center()
@@ -38,9 +34,19 @@ export init(ctx: BlockEntityInitContext) {
 # _x_degrees and _z_degrees. The base and the trunk stay where they are. The plate slides along the
 # facing by the step its saved progress gives, and the chamber boxes stack from the base up to the
 # plate, which is what the reference draws while the engine works. The reference reads the same
-# progress on every frame of a tick, so the picture only changes once per tick, and a redraw per tick
-# of a stroke is as often as it needs to be drawn again. See _redraw_if_moved.
-export render(ctx: RenderContext) {
+# progress on every frame of a tick, so the picture only changes once per tick, and the frame pass is
+# asked again every frame, so nothing here has to ask for a redraw: see _redraw_if_moved's absence
+# and the block's set_frame_render().
+
+# Every part is drawn per frame rather than into the chunk's mesh, because that is the path the
+# reference draws it from and the only one that puts a plate's edge on the pixel the reference puts
+# it on. RenderEngine is a tile entity renderer: its ModelRenderer boxes get their vertices from
+# glTranslatef of the tile's camera-relative position, so they are float32 around 0.5, while a chunk
+# mesh stores its vertices as float32 at the block's world coordinates, about 75 blocks up here,
+# where half a float32 step is 3.8e-6 of a block against 3e-8. A plate edge that crosses a pixel's
+# centre in between lands on either side of it, which showed as 3 pixels of 62400 in
+# redstone_engine_progress and 1 in redstone_engine_stroke_facings. See #953.
+export render_frame(ctx: RenderFrameContext) {
     stage: number = _stage(me.get_saved_number("energy"))
     facing: number = _facing()
     x_degrees: number = _x_degrees(facing)
@@ -83,8 +89,6 @@ export render(ctx: RenderContext) {
 }
 
 export tick() {
-    _redraw_if_moved()
-
     # BlockEngine.c picks the facing when the engine is placed. The port does it on the first tick
     # instead, because the moment a block entity is created differs by loader (#187), so this is the
     # one hook that is the same everywhere. The block sets "rotate" when a player right-clicks it with
@@ -98,8 +102,6 @@ export tick() {
         me.set_saved_number("rotate", 0)
         _switch_orientation()
     }
-
-    before: number = me.get_saved_number("energy")
 
     # TileBuildCraft.n_ updates the power provider first, which is before Engine.update. Its power
     # loss comes after doWork has emptied the store, so it never has anything to take, and it is not
@@ -134,23 +136,6 @@ export tick() {
     }
 
     _stroke()
-
-    # Drawing the engine again costs a chunk's worth of work, so it is only asked for when the trunk
-    # it draws changes colour. The stroke can lower the energy too.
-    if _stage(me.get_saved_number("energy")) != _stage(before) {
-        me.redraw()
-    }
-}
-
-# Draws the engine again when its saved progress is not the one it was drawn with. This is the whole
-# cost of the animation: a stroke changes the progress every tick, so it is a redraw per tick, and an
-# engine at rest or at a stage's standstill (no stroke, progress unchanged) costs nothing.
-local _redraw_if_moved() {
-    progress: number = me.get_saved_number("progress")
-    if progress != drawn_progress {
-        drawn_progress = progress
-        me.redraw()
-    }
 }
 
 # RenderEngine's step for a progress: the plate goes out and back in once per stroke, by up to 7.99
@@ -295,9 +280,6 @@ local _switch_orientation() {
             me.set_saved_number("orientation", side)
 
             # It was drawn along the old orientation until now, so only another one needs drawing again.
-            if side != start {
-                me.redraw()
-            }
             return
         }
         i = i + 1

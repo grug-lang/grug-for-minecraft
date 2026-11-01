@@ -2,11 +2,11 @@
 # the plate slides out along the facing by a step of up to 7.99 pixels, at its farthest at a progress
 # of 0.5, and a chamber box is stacked every two pixels under it. The progress is set directly
 # here, because what the engine does to it each tick is covered where it is advanced.
-# Each capture first lets the engines at rest settle and be meshed, then changes them, so on the port
-# the capture shows the change only if the engine had itself drawn again.
+# Each capture first lets the engines at rest settle and be meshed, then changes them. Both runs draw
+# the engine from a block entity renderer, so the change is on screen on the next frame and no mesh
+# has to be rebuilt for it.
 # The first capture shows six engines facing up at progress 0.1, 0.25, 0.4, 0.5, 0.75 and 0.9, with
-# +x on the left, so the plate goes out and comes back in from right to left. It is the engine's
-# own tick that has them drawn again, as it does for every tick of a stroke. The second capture shows
+# +x on the left, so the plate goes out and comes back in from right to left. The second capture shows
 # the six facings at progress 0.5, facing 0 at the right and 5 at the left, since the camera looks
 # towards +z.
 # The capture stops high on the screen because the runner prints each test's name to the chat on
@@ -17,22 +17,11 @@
 # and redraws the block. RenderEngine is a tile entity renderer that reads both on every frame, and
 # an unpowered engine at rest leaves its progress alone, so the loaded numbers are what it draws. The
 # reference therefore needs no redraw of the engine's own, and the capture checks only its drawing.
-# The two drawing paths land the plate's edges about 2e-4 of a pixel apart, so each rendering is
-# compared exactly with pixels of its own instead of with the other's: the reference's captures are
-# in redstone_engine_progress_reference and redstone_engine_stroke_facings_reference, and the port's
-# are in the shared directories every loader reads. 1.2.5 stores a chunk mesh's vertices as float32
-# at the block's world coordinates, about 75 blocks up, where half a float32 step is 3.8e-6 of a
-# block, while RenderEngine draws its boxes from a tile entity renderer at camera-relative
-# coordinates around 0.5, where the same half step is 3e-8 to 6e-8. Both paths share the game's
-# camera transform, so only the engine's own vertices round differently, and a plate edge whose
-# crossing of a pixel's centre falls inside that difference shows the face on the far side of the
-# edge in one rendering and not in the other. That is 3 pixels of the progress capture's 62400 and 1
-# of the facings capture's; of the 15000 pixels that lie on a face boundary in those crops, a
-# whole-image displacement of 2e-4 of a pixel already flips one, which is how large the difference
-# can be. Every other capture the reference run makes is byte-identical to the port's golden.
-# AGENTS.md's precision rule makes a reference's float32 a 64-bit grug number and forbids emulating
-# its rounding, so the port cannot close those four pixels from its own side, and a tolerance would
-# record the difference without ever comparing the two renderings. See #582.
+# The port draws the engine the same way, from render_frame() at the block's own position relative to
+# the camera, so both runs compare against one set of pixels: the port's committed golden. That is
+# the reference's rendering, byte for byte, which #953 closed by drawing the engine from the path
+# RenderEngine draws it from instead of baking it into the chunk's mesh. See the engine's render_frame
+# for why the path decides a plate edge's pixel.
 # Where the leftmost engine is, which is where the row starts, one block apart towards +x.
 ex: number = 0
 ey: number = 0
@@ -66,10 +55,8 @@ export tick(ctx: TestTickContext) {
     }
 
     # The scene is settled and meshed once, with every engine at rest and facing up, before anything
-    # changes. _force_remesh builds the whole section again from whatever the engines then say, so a
-    # change made before it would be drawn by it whether or not the engine asked for a redraw. After
-    # the change only a settle is waited for: on the port only the engine's own redraw can put the
-    # change on screen, and on the reference RenderEngine draws the loaded engine on the next frame.
+    # changes. After the change only a settle is waited for: the engine is drawn from a block entity
+    # renderer in both runs, so the numbers it reads are on screen on the next frame.
     if not changed {
         if not _ready(ctx) {
             ctx.not_done()
@@ -91,25 +78,17 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    # Each rendering is compared with its own committed pixels, exactly, which is why the reference's
-    # captures live in directories of their own. See the top of this file.
+    # Both runs compare against the same committed pixels, because the port draws the engine from the
+    # path the reference does. See the top of this file.
     if capture == 0 {
-        if Test.is_reference() {
-            Test.screenshot().equals(r"screenshots/redstone_engine_progress_reference", 400, 100, 880, 230)
-        } else {
-            Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
-        }
+        Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
         capture = 1
         changed = false
         ctx.not_done()
         return
     }
 
-    if Test.is_reference() {
-        Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings_reference", 400, 100, 880, 230)
-    } else {
-        Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
-    }
+    Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
 }
 
 local _setup() {
@@ -144,9 +123,10 @@ local _wall(level: Level, x0: number, y0: number, z: number) {
     }
 }
 
-# Faces every engine up, with the progress for its place in the row. The port's engine is drawn again
-# by its own tick, which is what a stroke does every tick; the reference's is loaded from its NBT. The facing is given directly, as
-# redstone_engine_facings-Test.grug does, rather than by a receptor next to the engine.
+# Faces every engine up, with the progress for its place in the row. The port's engine draws its saved
+# numbers on the next frame, so nothing has to ask it to draw again; the reference's is loaded from
+# its NBT. The facing is given directly, as redstone_engine_facings-Test.grug does, rather than by a
+# receptor next to the engine.
 local _show_progresses(ctx: TestTickContext) {
     i: number = 0
     while i < 6 {
@@ -159,7 +139,6 @@ local _show_progresses(ctx: TestTickContext) {
             engine.set_saved_number("orientation", 1)
             engine.set_saved_number("oriented", 1)
             engine.set_saved_number("progress", _progress(i))
-            Test.tick_block_entity(engine, 1)
         }
         i = i + 1
     }
@@ -192,8 +171,8 @@ local _engine(ctx: TestTickContext, i: number) BlockEntity {
     return engine_opt.unwrap()
 }
 
-# Turns the engine in each place to the facing of the same number, all at their farthest. The
-# facing changes the drawing without the progress changing, so it is drawn again directly.
+# Turns the engine in each place to the facing of the same number, all at their farthest. The facing
+# changes what the frame pass draws without the progress changing.
 local _show_facings(ctx: TestTickContext) {
     i: number = 0
     while i < 6 {
@@ -205,7 +184,6 @@ local _show_facings(ctx: TestTickContext) {
         } else {
             engine.set_saved_number("orientation", i)
             engine.set_saved_number("progress", 0.5)
-            engine.redraw()
         }
         i = i + 1
     }
@@ -232,9 +210,9 @@ local _ready(ctx: TestTickContext) bool {
     return Test.world_settled()
 }
 
-# Whether the frame is settled for a capture after a change, without meshing anything again: on the
-# port the change has to reach the screen through the engine's own redraw. Five settled ticks in a row, as in
-# _ready, then the frame itself.
+# Whether the frame is settled for a capture after a change, without meshing anything again: the
+# engine is drawn per frame in both runs, so no rebuild carries the change. Five settled ticks in a
+# row, as in _ready, then the frame itself.
 local _settled() bool {
     if not Test.world_settled() {
         settled_ticks = 0
