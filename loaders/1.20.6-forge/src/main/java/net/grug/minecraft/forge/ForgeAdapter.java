@@ -1009,6 +1009,27 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double screenWidthForTest() {
+        Screen screen = Minecraft.getInstance().screen;
+        return screen == null ? 0.0 : screen.width;
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double guiLeftForTest() {
+        AbstractContainerScreen<?> container = openContainerScreen();
+        return container == null ? 0.0 : container.getGuiLeft();
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
+    public double guiWidthForTest() {
+        AbstractContainerScreen<?> container = openContainerScreen();
+        return container == null ? 0.0 : container.getXSize();
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         Level world = (Level) levelObj;
         return world.hasNeighborSignal(

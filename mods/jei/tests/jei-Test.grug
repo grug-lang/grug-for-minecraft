@@ -54,6 +54,7 @@ export tick(ctx: TestTickContext) {
     if step == 0 {
         # A right click gives one item, which is the reference's cheatOneItem2. An earlier test may
         # have left something on the cursor; clearing it keeps the delete check from seeing it.
+        ctx.assert(_columns() >= 3, "The test needs the grid to be at least three columns wide to click column 2.")
         Test.clear_held_item(Test.get_player())
         Test.clear_carried_item()
         step = 1
@@ -152,11 +153,10 @@ export tick(ctx: TestTickContext) {
 
 # The middle of a slot, in the scaled pixels a screen's mouse handlers take.
 
-# The run is forced into a 1280 by 720 window, and the GUI scale of 3 makes the scaled screen 426 by
-# 240, the player's 176 by 166 inventory sits at (125, 37), and the display area starts at the GUI's
-# right edge (301). The reference insets that area by 6, leaves 22 pixels at the bottom for its
-# search bar, and crops 22 at the top for its page buttons, so the 113 by 184 available space holds
-# 6 columns by 10 rows at (312, 28).
+# The reference insets the display area to the right of the GUI by 6 pixels, leaves 22 pixels at
+# the bottom for its search bar, and crops 22 at the top for its page buttons. The screen's size and
+# the GUI's position come from the open screen, because the window size and the recipe book can move
+# the GUI, so the test works out the same grid the overlay does instead of assuming a window size.
 local _cell_x(column: number) number {
     return _grid_x() + column * 18 + 9
 }
@@ -166,10 +166,8 @@ local _cell_y(row: number) number {
 }
 
 local _grid_x() number {
-    screen_width: number = Math.floor(1280 / 3)
-    gui_left: number = Math.floor((screen_width - 176) / 2)
-    display_left: number = gui_left + 176
-    available_width: number = screen_width - display_left - 12
+    display_left: number = Test.gui_left() + Test.gui_width()
+    available_width: number = Test.screen_width() - display_left - 12
     return display_left + 6 + (available_width - _columns() * 18)
 }
 
@@ -178,10 +176,7 @@ local _grid_y() number {
 }
 
 local _columns() number {
-    screen_width: number = Math.floor(1280 / 3)
-    gui_left: number = Math.floor((screen_width - 176) / 2)
-    display_left: number = gui_left + 176
-    available_width: number = screen_width - display_left - 12
+    available_width: number = Test.screen_width() - Test.gui_left() - Test.gui_width() - 12
     columns: number = Math.floor(available_width / 18)
     if columns > 9 {
         columns = 9

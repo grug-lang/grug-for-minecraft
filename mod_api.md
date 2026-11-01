@@ -76,6 +76,8 @@ Test.get_client_level() Level
 Test.get_held_count(player: Player) number
 Test.get_origin() Vec3
 Test.get_player() Player
+Test.gui_left() number
+Test.gui_width() number
 Test.high_block_round_trip() number
 Test.hot_reload_count(relative_path: string) number
 Test.is_reference() bool
@@ -89,6 +91,7 @@ Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
 Test.round_trip_nbt(block_entity: BlockEntity)
 Test.screen_open() bool
+Test.screen_width() number
 Test.screenshot() Screenshot
 Test.set_box_radius(radius: number)
 Test.set_carried_item(item: Item)
