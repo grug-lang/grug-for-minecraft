@@ -60,7 +60,7 @@
 				},
 				{
 					"what": "grug:firework_rocket is an item with no behaviour: it cannot be launched and gives no boost to a gliding player, where the reference's FireworkRocketEntity rides a gliding player and adds look * 0.1 + (look * 1.5 - velocity) * 0.5 to their velocity every tick.",
-					"why": "No host function spawns a vanilla rocket or makes a spawned entity boost the player it rides, gliding itself is not ported yet, and mod_api.json has no particle support for the rocket's trail. The rocket's own crafting recipe, paper and gunpowder for three rockets, is the reference's and is already registered.",
+					"why": "No host function spawns a vanilla rocket or makes a spawned entity boost the player it rides, gliding itself is not ported yet, and mod_api.json has no particle support for the rocket's trail.",
 					"tracking_issue": 915
 				},
 				{
