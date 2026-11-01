@@ -59,6 +59,10 @@ export tick()
 ## Item
 export init()
 
+## Overlay
+export click(ctx: OverlayClickContext)
+export render(ctx: OverlayRenderContext)
+
 ## Test
 export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
@@ -74,6 +78,7 @@ Test.is_reference() bool
 Test.load_nbt(block_entity: BlockEntity)
 Test.mining_crack(level: Level, x: number, y: number, z: number) bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
+Test.overlay_asked() bool
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
 Test.round_trip_nbt(block_entity: BlockEntity)
@@ -164,6 +169,30 @@ Math.remainder(value: number, divisor: number) number
 .unwrap() $Value
 Option.new() Option[$Value]
 
+## OverlayClickContext
+.button() number
+.gui_height() number
+.gui_left() number
+.gui_top() number
+.gui_width() number
+.mouse_x() number
+.mouse_y() number
+.screen_height() number
+.screen_width() number
+.take()
+
+## OverlayRenderContext
+.draw_box(x1: number, y1: number, x2: number, y2: number)
+.draw_item(item: Item, x: number, y: number)
+.gui_height() number
+.gui_left() number
+.gui_top() number
+.gui_width() number
+.mouse_x() number
+.mouse_y() number
+.screen_height() number
+.screen_width() number
+
 ## Player
 .get_held_item() Option[Item]
 
@@ -202,8 +231,11 @@ Vec3.zero() Vec3
 
 drop_inventory(level: Level, x: number, y: number, z: number)
 equals(a: $Type, b: $Type) bool
+give_item(item: Item)
 gui(texture_path: resource) GUI
 item(resource_location: ResourceLocation) Item
+item_at(index: number) Item
+item_count() number
 item_entity(level: Level, x: number, y: number, z: number, item_stack: ItemStack) ItemEntity
 item_stack(item: Item, damage: number) ItemStack
 print(value: $Value)
