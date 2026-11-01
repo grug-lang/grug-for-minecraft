@@ -1,8 +1,14 @@
 # item_stack makes a stack of at least one item, so a count of 0 asks for a stack that holds nothing
-# and is reported rather than made into an item entity the game would have to kill.
+# and is reported rather than made into an item entity the game would have to kill. The message names
+# the loader's own largest count, so the test asks which loader it is on.
 export tick(ctx: TestTickContext) {
     sword: Item = item(resource_location("minecraft:diamond_sword"))
 
-    ctx.expect_error("The count has to be a whole number from 1 to 2147483647")
-    stack: ItemStack = item_stack(sword, 0, 0)
+    if Test.loader_name() == "1.20.6-forge" {
+        ctx.expect_error("The count has to be a whole number from 1 to 2147483647")
+        stack: ItemStack = item_stack(sword, 0, 0)
+    } else {
+        ctx.expect_error("The count has to be a whole number from 1 to 127")
+        stack: ItemStack = item_stack(sword, 0, 0)
+    }
 }
