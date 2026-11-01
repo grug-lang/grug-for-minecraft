@@ -27,7 +27,9 @@ import net.minecraftforge.server.ServerLifecycleHooks;
  *
  * <p>Whole class is excluded from coverage until CI launches a server: see #167.
  */
-@GrugGenerated("a dedicated server, which no CI run launches until #167")
+@GrugGenerated(
+        "a dedicated server, which only the dispatch-only multiplayer job of #167 launches, and the"
+                + " coverage gate does not count that job")
 public class ServerForgeAdapter extends ForgeAdapter {
 
     @Override
