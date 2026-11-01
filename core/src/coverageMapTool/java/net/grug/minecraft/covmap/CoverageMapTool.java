@@ -29,24 +29,27 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * Records, per coverage test, what the test covered, and applies a recorded map to a run's classes
- * so a later run can carry a test's coverage over instead of rerunning the test (#786).
+ * Records, per coverage test and per loader, what the test covered, and applies a recorded map to a
+ * run's classes so a later run can carry a test's coverage over instead of rerunning the test
+ * (#786).
  *
- * <p>{@code build} analyses the per-test exec files the agent cut during a run, against the run's
- * own core classes, in one JVM (one invocation over every file, not one per file), and writes a map
- * of what each test covered: the core classes the test reached, and per class the executed methods
- * (name, descriptor) and the probes it hit. A probe is JaCoCo's marker of a basic block, so the
- * keys are class, method and block rather than line, and a body edit that keeps the flow keeps the
- * keys. The map is data from the commit it was built on, which is why it is a CI artefact and never
- * a file of the repository.
+ * <p>{@code build} analyses the per-test exec files the agent cut during a run against the run's
+ * own core classes and the classes each loader compiled, in one JVM (one invocation over every
+ * file, not one per file), and writes a map of what each test covered on each loader: the core
+ * classes the test reached and the loader's own classes, and per class the executed methods (name,
+ * descriptor) and the probes it hit. A probe is JaCoCo's marker of a basic block, so the keys are
+ * class, method and block rather than line, and a body edit that keeps the flow keeps the keys. The
+ * map is data from the commit it was built on, which is why it is a CI artefact and never a file of
+ * the repository.
  *
- * <p>{@code reconstruct} takes a map from an earlier commit and the classes of the commit being
- * built, and writes one exec file per named test, holding the probes the map says that test hit.
- * The gate then counts those exec files like the exec files of the tests that ran. Every class the
- * map names is resolved by name against the run's classes and its id checked: a class the map
- * cannot apply to is a class that changed under it, which means the change reached core and the
- * selection should have run those tests, so the tool fails the run rather than carry over coverage
- * that may not hold.
+ * <p>{@code reconstruct} takes a map from an earlier commit, the classes of the commit being built,
+ * and the loaders that run measured, and writes one exec file per named test and loader, holding
+ * the probes the map says that test hit on that loader. The gate then counts those exec files like
+ * the exec files of the tests that ran, each loader's for that loader and all of them for core.
+ * Every class the map names is resolved by name against the run's classes and its id checked: a
+ * class the map cannot apply to is a class that changed under it, which means the change reached
+ * core or a loader and the selection should have run those tests, so the tool fails the run rather
+ * than carry over coverage that may not hold.
  *
  * <p>The exec format and the class analysis are the JaCoCo core library's own, so nothing here
  * reinterprets the data the gate itself will read.
@@ -57,11 +60,11 @@ public final class CoverageMapTool {
     static final String COUNTED_MOD = "coverage";
 
     /**
-     * The per-test exec files, named NNN-<flattened test path>.exec, where flattening turns the
-     * test path's slashes into dots, so coverage/tests/a-Test.grug is 001-coverage.tests.a-Test
-     * .grug.exec.
+     * The per-test exec files, named <counter>-<flattened test path>.exec, where the counter is the
+     * segment's number, zero-padded to at least three digits and widening past 999, so
+     * coverage/tests/a-Test.grug is 001-coverage.tests.a-Test.grug.exec.
      */
-    private static final Pattern PER_TEST_EXEC = Pattern.compile("(\\d{3})-(.+)\\.exec");
+    private static final Pattern PER_TEST_EXEC = Pattern.compile("(\\d+)-(.+)\\.exec");
 
     private CoverageMapTool() {}
 
@@ -133,6 +136,18 @@ public final class CoverageMapTool {
         return builder.getClasses().iterator().next().getId();
     }
 
+    /** The id of every class the analysis records, keyed by class name. */
+    static Map<String, Long> analyzedIds(Map<String, byte[]> classes) throws IOException {
+        Map<String, Long> ids = new TreeMap<>();
+        for (Map.Entry<String, byte[]> classFile : classes.entrySet()) {
+            Long id = classIdIfAnalyzed(classFile.getValue());
+            if (id != null) {
+                ids.put(classFile.getKey(), id);
+            }
+        }
+        return ids;
+    }
+
     // The flattening is a bijection for the paths the runner hands over, which are exactly
     // mod/tests/name.grug, so the inverse is the first two dot groups as directories and the
     // rest as the file name.
@@ -185,122 +200,222 @@ public final class CoverageMapTool {
         return classes;
     }
 
+    /**
+     * The run of one loader: its name, the class files it compiled, and the directory its per-test
+     * exec segments were cut into. A loader's own classes differ from every other loader's, so the
+     * map records them per loader.
+     */
+    private record LoaderRun(String name, Path classes, Path execs) {}
+
+    /** The classes of one loader this run measured, for reconstruct. */
+    private record LoaderClasses(String name, Path classes) {}
+
+    /** What the map records for one loader: its own classes, the tests' hits and their methods. */
+    private record LoaderRecord(
+            Map<String, Long> classIds,
+            Map<String, Integer> probeCounts,
+            Map<String, Map<String, Set<Integer>>> hits,
+            Map<String, Map<String, List<String>>> methods) {}
+
     static void build(String[] args) throws IOException, ToolError {
-        Path classesDir = null;
-        List<Path> execDirs = new ArrayList<>();
+        Path coreClassesDir = null;
+        List<LoaderRun> loaders = new ArrayList<>();
         String commit = "";
         Path out = null;
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
-                case "--classes" -> classesDir = Path.of(args[++i]);
-                case "--execs" -> execDirs.add(Path.of(args[++i]));
+                case "--classes" -> coreClassesDir = Path.of(args[++i]);
                 case "--commit" -> commit = args[++i];
                 case "--out" -> out = Path.of(args[++i]);
+                case "--loader" -> {
+                    if (i + 3 >= args.length) {
+                        throw new ToolError(
+                                2,
+                                "build: --loader needs a name, its classes directory and its"
+                                        + " execs directory");
+                    }
+                    loaders.add(
+                            new LoaderRun(args[i + 1], Path.of(args[i + 2]), Path.of(args[i + 3])));
+                    i += 3;
+                }
                 default -> throw new ToolError(2, "build: unknown argument " + args[i]);
             }
         }
-        if (classesDir == null || execDirs.isEmpty() || out == null) {
+        if (coreClassesDir == null || out == null) {
             throw new ToolError(
                     2,
-                    "usage: CoverageMapTool build --classes <dir> --execs <dir>... "
-                            + "--commit <sha> --out <file>");
+                    "usage: CoverageMapTool build --classes <core directory> --commit <sha>"
+                            + " --out <file> [--loader <name> <classes dir> <execs dir>]...");
         }
 
-        Map<String, byte[]> classes = readClasses(classesDir);
-        Map<String, Long> classIds = new TreeMap<>();
-        for (Map.Entry<String, byte[]> classFile : classes.entrySet()) {
-            // A class the analysis does not record keeps no id, and the map records nothing for
-            // it: the gate does not count it either.
-            Long id = classIdIfAnalyzed(classFile.getValue());
-            if (id != null) {
-                classIds.put(classFile.getKey(), id);
+        Map<String, byte[]> coreClasses = readClasses(coreClassesDir);
+        Map<String, Long> coreIds = analyzedIds(coreClasses);
+        // Core classes are the same in every loader's run, so the map records them once, and each
+        // loader's section records only the classes that loader compiled itself.
+        Map<String, Integer> coreProbeCounts = new TreeMap<>();
+        Map<String, LoaderRecord> records = new TreeMap<>();
+        for (LoaderRun loader : loaders) {
+            Map<String, byte[]> loaderClasses = readClasses(loader.classes());
+            Map<String, byte[]> classes = new TreeMap<>(coreClasses);
+            classes.putAll(loaderClasses);
+            Map<String, Long> classIds = new TreeMap<>(coreIds);
+            classIds.putAll(analyzedIds(loaderClasses));
+            Map<String, Integer> loaderProbeCounts = new TreeMap<>();
+            Map<String, Map<String, Set<Integer>>> hits =
+                    readHits(
+                            loader,
+                            classIds,
+                            loaderClasses.keySet(),
+                            coreProbeCounts,
+                            loaderProbeCounts);
+            Map<String, Integer> probeCounts = new TreeMap<>(coreProbeCounts);
+            probeCounts.putAll(loaderProbeCounts);
+            Map<String, Long> loaderIds = new TreeMap<>();
+            for (String class_ : loaderProbeCounts.keySet()) {
+                loaderIds.put(class_, classIds.get(class_));
             }
+            records.put(
+                    loader.name(),
+                    new LoaderRecord(
+                            loaderIds,
+                            loaderProbeCounts,
+                            hits,
+                            executedMethods(classes, classIds, probeCounts, hits)));
         }
 
-        // test path -> class name -> the probes the test hit in that class, unioned over every
-        // loader's exec for the test, so the recorded coverage is what the test hit on any of
-        // them and not on all of them.
+        out.toFile().getParentFile().mkdirs();
+        try (BufferedWriter w = Files.newBufferedWriter(out)) {
+            writeMap(w, commit, coreIds, coreProbeCounts, records);
+        } catch (IOException e) {
+            throw new ToolError(1, "could not write the map to " + out + ": " + e);
+        }
+        Set<String> tests = new TreeSet<>();
+        int entries = 0;
+        int loaderClassCount = 0;
+        for (LoaderRecord record : records.values()) {
+            tests.addAll(record.hits().keySet());
+            for (Map<String, Set<Integer>> perClass : record.hits().values()) {
+                entries += perClass.size();
+            }
+            loaderClassCount += record.probeCounts().size();
+        }
+        System.out.println(
+                "coverage-map-tool: recorded "
+                        + tests.size()
+                        + " test(s) over "
+                        + records.size()
+                        + " loader(s), "
+                        + coreProbeCounts.size()
+                        + " core classes and "
+                        + loaderClassCount
+                        + " loader classes ("
+                        + entries
+                        + " test-class entries) in "
+                        + out);
+        if (tests.isEmpty()) {
+            // The selection may carry every coverage test over, which leaves no per-test data to
+            // record. That is not a failure: a pull request's map is never read back, and a green
+            // run must not go red for a map it does not need.
+            System.out.println(
+                    "coverage-map-tool: the run recorded no per-test coverage, which is what"
+                            + " carrying every coverage test over leaves: the map holds none to"
+                            + " carry over from this commit");
+        }
+    }
+
+    /**
+     * The probes each test hit under one loader's exec data, keyed by test and class, with the
+     * probe count of every class the hits are against: a core class's in coreProbeCounts, since the
+     * map records it once, and the loader's own in loaderProbeCounts.
+     */
+    static Map<String, Map<String, Set<Integer>>> readHits(
+            LoaderRun loader,
+            Map<String, Long> classIds,
+            Set<String> loaderClassNames,
+            Map<String, Integer> coreProbeCounts,
+            Map<String, Integer> loaderProbeCounts)
+            throws ToolError {
         Map<String, Map<String, Set<Integer>>> hits = new TreeMap<>();
-        Map<String, Integer> probeCounts = new TreeMap<>();
-        for (Path execDir : execDirs) {
-            List<Path> execs;
-            try (Stream<Path> walk = Files.list(execDir)) {
-                execs = walk.filter(Files::isRegularFile).toList();
-            } catch (IOException e) {
-                throw new ToolError(1, "could not read the exec files under " + execDir + ": " + e);
-            }
-            for (Path exec : execs) {
-                Matcher matcher = PER_TEST_EXEC.matcher(exec.getFileName().toString());
-                if (!matcher.matches()) {
-                    continue; // the boot's exec, a dropped file, or no exec at all
-                }
-                String flattened = matcher.group(2);
-                if (!flattened.startsWith(COUNTED_MOD + ".")) {
-                    continue;
-                }
-                String test;
-                try {
-                    test = testPathOf(flattened);
-                } catch (IllegalArgumentException e) {
-                    continue;
-                }
-                ExecutionDataStore store = new ExecutionDataStore();
-                try (InputStream in = Files.newInputStream(exec)) {
-                    ExecutionDataReader reader = new ExecutionDataReader(in);
-                    // The agent stamps every dump with its session header, which holds no
-                    // coverage to record, but the reader demands a visitor for it.
-                    reader.setSessionInfoVisitor(sessionInfo -> {});
-                    reader.setExecutionDataVisitor(store::put);
-                    while (reader.read()) {
-                        // the store took the entry
-                    }
-                } catch (IOException e) {
-                    throw new ToolError(1, "could not read the exec file " + exec + ": " + e);
-                }
-                for (ExecutionData data : store.getContents()) {
-                    String class_ = data.getName();
-                    Long id = classIds.get(class_);
-                    if (id == null) {
-                        // A class the map does not record: the loader's own, or a synthetic one
-                        // the analysis does not record and the gate does not count.
-                        continue;
-                    }
-                    if (!id.equals(data.getId())) {
-                        throw new ToolError(
-                                1,
-                                "the exec file "
-                                        + exec
-                                        + " holds "
-                                        + class_
-                                        + " with an id that is not the id of the run's own"
-                                        + " classes: the data is from another build");
-                    }
-                    probeCounts.put(class_, data.getProbes().length);
-                    Set<Integer> hit =
-                            hits.computeIfAbsent(test, k -> new TreeMap<>())
-                                    .computeIfAbsent(class_, k -> new TreeSet<>());
-                    boolean[] probes = data.getProbes();
-                    for (int p = 0; p < probes.length; p++) {
-                        if (probes[p]) {
-                            hit.add(p);
-                        }
-                    }
-                }
-            }
-        }
-        if (hits.isEmpty()) {
+        List<Path> execs;
+        try (Stream<Path> walk = Files.list(loader.execs())) {
+            execs = walk.filter(Files::isRegularFile).toList();
+        } catch (IOException e) {
             throw new ToolError(
-                    1,
-                    "no per-test coverage found under "
-                            + execDirs
-                            + ": the run held no exec data of the "
-                            + COUNTED_MOD
-                            + " mod's tests to record");
+                    1, "could not read the exec files under " + loader.execs() + ": " + e);
         }
+        for (Path exec : execs) {
+            Matcher matcher = PER_TEST_EXEC.matcher(exec.getFileName().toString());
+            if (!matcher.matches()) {
+                continue; // the boot's exec, a dropped file, or no exec at all
+            }
+            String flattened = matcher.group(2);
+            if (!flattened.startsWith(COUNTED_MOD + ".")) {
+                continue;
+            }
+            String test;
+            try {
+                test = testPathOf(flattened);
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            ExecutionDataStore store = new ExecutionDataStore();
+            try (InputStream in = Files.newInputStream(exec)) {
+                ExecutionDataReader reader = new ExecutionDataReader(in);
+                // The agent stamps every dump with its session header, which holds no coverage to
+                // record, but the reader demands a visitor for it.
+                reader.setSessionInfoVisitor(sessionInfo -> {});
+                reader.setExecutionDataVisitor(store::put);
+                while (reader.read()) {
+                    // the store took the entry
+                }
+            } catch (IOException e) {
+                throw new ToolError(1, "could not read the exec file " + exec + ": " + e);
+            }
+            for (ExecutionData data : store.getContents()) {
+                String class_ = data.getName();
+                Long id = classIds.get(class_);
+                if (id == null) {
+                    // A class the map does not record: vanilla's, or a synthetic one the analysis
+                    // does not record and the gate does not count.
+                    continue;
+                }
+                if (!id.equals(data.getId())) {
+                    throw new ToolError(
+                            1,
+                            "the exec file "
+                                    + exec
+                                    + " holds "
+                                    + class_
+                                    + " with an id that is not the id of the run's own"
+                                    + " classes: the data is from another build");
+                }
+                Map<String, Integer> counts =
+                        loaderClassNames.contains(class_) ? loaderProbeCounts : coreProbeCounts;
+                counts.put(class_, data.getProbes().length);
+                Set<Integer> hit =
+                        hits.computeIfAbsent(test, k -> new TreeMap<>())
+                                .computeIfAbsent(class_, k -> new TreeSet<>());
+                boolean[] probes = data.getProbes();
+                for (int p = 0; p < probes.length; p++) {
+                    if (probes[p]) {
+                        hit.add(p);
+                    }
+                }
+            }
+        }
+        return hits;
+    }
 
-        // The executed methods, per test and class: the JaCoCo core library assigns each probe's
-        // hit to the instructions it guards, and a method counts as executed when any of its
-        // instructions did.
+    /**
+     * The executed methods, per test and class: the JaCoCo core library assigns each probe's hit to
+     * the instructions it guards, and a method counts as executed when any of its instructions did.
+     */
+    static Map<String, Map<String, List<String>>> executedMethods(
+            Map<String, byte[]> classes,
+            Map<String, Long> classIds,
+            Map<String, Integer> probeCounts,
+            Map<String, Map<String, Set<Integer>>> hits)
+            throws ToolError {
         Map<String, Map<String, List<String>>> executedMethods = new TreeMap<>();
         for (Map.Entry<String, Map<String, Set<Integer>>> test : hits.entrySet()) {
             for (Map.Entry<String, Set<Integer>> classEntry : test.getValue().entrySet()) {
@@ -341,40 +456,44 @@ public final class CoverageMapTool {
                         .put(classEntry.getKey(), methods);
             }
         }
-
-        out.toFile().getParentFile().mkdirs();
-        try (BufferedWriter w = Files.newBufferedWriter(out)) {
-            writeMap(w, commit, classIds, probeCounts, hits, executedMethods);
-        } catch (IOException e) {
-            throw new ToolError(1, "could not write the map to " + out + ": " + e);
-        }
-        int entries = 0;
-        for (Map<String, Set<Integer>> perClass : hits.values()) {
-            entries += perClass.size();
-        }
-        System.out.println(
-                "coverage-map-tool: recorded "
-                        + hits.size()
-                        + " tests over "
-                        + classIds.size()
-                        + " core classes ("
-                        + entries
-                        + " test-class entries) in "
-                        + out);
+        return executedMethods;
     }
 
     static void writeMap(
             BufferedWriter w,
             String commit,
-            Map<String, Long> classIds,
-            Map<String, Integer> probeCounts,
-            Map<String, Map<String, Set<Integer>>> hits,
-            Map<String, Map<String, List<String>>> executedMethods)
+            Map<String, Long> coreIds,
+            Map<String, Integer> coreProbeCounts,
+            Map<String, LoaderRecord> loaders)
             throws IOException {
         w.write("{");
-        w.write("\"version\":1,");
+        w.write("\"version\":2,");
         w.write("\"commit\":\"" + json(commit) + "\",");
-        w.write("\"classes\":{");
+        w.write("\"classes\":");
+        writeClasses(w, coreIds, coreProbeCounts);
+        w.write(",\"loaders\":{");
+        boolean first = true;
+        for (Map.Entry<String, LoaderRecord> loader : loaders.entrySet()) {
+            if (!first) {
+                w.write(",");
+            }
+            first = false;
+            LoaderRecord record = loader.getValue();
+            w.write("\"" + json(loader.getKey()) + "\":{");
+            w.write("\"classes\":");
+            writeClasses(w, record.classIds(), record.probeCounts());
+            w.write(",\"tests\":");
+            writeTests(w, record.hits(), record.methods());
+            w.write("}");
+        }
+        w.write("}}");
+    }
+
+    /** Writes one class section: the class's id and the length of its probe vector. */
+    static void writeClasses(
+            BufferedWriter w, Map<String, Long> classIds, Map<String, Integer> probeCounts)
+            throws IOException {
+        w.write("{");
         boolean first = true;
         for (Map.Entry<String, Integer> probeCount : probeCounts.entrySet()) {
             if (!first) {
@@ -389,9 +508,17 @@ public final class CoverageMapTool {
             w.write("\"probes\":" + probeCount.getValue());
             w.write("}");
         }
-        w.write("},");
-        w.write("\"tests\":{");
-        first = true;
+        w.write("}");
+    }
+
+    /** Writes one tests section: per test, the classes it hit and their methods and probes. */
+    static void writeTests(
+            BufferedWriter w,
+            Map<String, Map<String, Set<Integer>>> hits,
+            Map<String, Map<String, List<String>>> executedMethods)
+            throws IOException {
+        w.write("{");
+        boolean first = true;
         for (Map.Entry<String, Map<String, Set<Integer>>> test : hits.entrySet()) {
             if (!first) {
                 w.write(",");
@@ -431,7 +558,6 @@ public final class CoverageMapTool {
             w.write("}");
         }
         w.write("}");
-        w.write("}");
     }
 
     static String json(String value) {
@@ -458,132 +584,167 @@ public final class CoverageMapTool {
 
     static void reconstruct(String[] args) throws IOException, ToolError {
         Path mapPath = null;
-        Path classesDir = null;
+        Path coreClassesDir = null;
         Path testsPath = null;
         Path outDir = null;
+        List<LoaderClasses> loaders = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
                 case "--map" -> mapPath = Path.of(args[++i]);
-                case "--classes" -> classesDir = Path.of(args[++i]);
+                case "--classes" -> coreClassesDir = Path.of(args[++i]);
                 case "--tests" -> testsPath = Path.of(args[++i]);
                 case "--out-dir" -> outDir = Path.of(args[++i]);
+                case "--loader" -> {
+                    if (i + 2 >= args.length) {
+                        throw new ToolError(
+                                2, "reconstruct: --loader needs a name and its classes directory");
+                    }
+                    loaders.add(new LoaderClasses(args[i + 1], Path.of(args[i + 2])));
+                    i += 2;
+                }
                 default -> throw new ToolError(2, "reconstruct: unknown argument " + args[i]);
             }
         }
-        if (mapPath == null || classesDir == null || testsPath == null || outDir == null) {
+        if (mapPath == null || coreClassesDir == null || testsPath == null || outDir == null) {
             throw new ToolError(
                     2,
-                    "usage: CoverageMapTool reconstruct --map <file> --classes <dir> "
-                            + "--tests <file> --out-dir <dir>");
+                    "usage: CoverageMapTool reconstruct --map <file> --classes <core dir>"
+                            + " --tests <file> --out-dir <dir> --loader <name> <classes dir>"
+                            + " [--loader ...]...");
+        }
+        if (loaders.isEmpty()) {
+            throw new ToolError(
+                    2,
+                    "reconstruct: no --loader named, so there is no runner to carry the tests"
+                            + " over on");
         }
 
         Map<String, Object> map = readMap(Files.readString(mapPath));
         @SuppressWarnings("unchecked")
-        Map<String, Map<String, Object>> classes =
+        Map<String, Map<String, Object>> coreClassInfo =
                 (Map<String, Map<String, Object>>) map.get("classes");
         @SuppressWarnings("unchecked")
-        Map<String, Map<String, Map<String, Object>>> recorded =
-                (Map<String, Map<String, Map<String, Object>>>) map.get("tests");
-        Map<String, byte[]> headClasses = readClasses(classesDir);
-        // A class the analysis does not record keeps no id here, and the map never names one:
-        // it records only what the analysis records.
-        Map<String, Long> headIds = new TreeMap<>();
-        for (String class_ : headClasses.keySet()) {
-            Long id = classIdIfAnalyzed(headClasses.get(class_));
-            if (id != null) {
-                headIds.put(class_, id);
-            }
-        }
+        Map<String, Map<String, Object>> mapLoaders =
+                (Map<String, Map<String, Object>>) map.get("loaders");
 
+        Map<String, byte[]> coreClasses = readClasses(coreClassesDir);
+        Map<String, Long> coreIds = analyzedIds(coreClasses);
         Files.createDirectories(outDir);
         List<String> tests = Files.readAllLines(testsPath);
         int written = 0;
-        for (String test : tests) {
-            if (test.isBlank()) {
-                continue;
-            }
-            Map<String, Map<String, Object>> entry = recorded.get(test);
-            if (entry == null || entry.isEmpty()) {
+        for (LoaderClasses loader : loaders) {
+            Map<String, Object> record = mapLoaders.get(loader.name());
+            if (record == null) {
                 throw new ToolError(
                         1,
-                        "the map has no recorded coverage for "
-                                + test
-                                + ", so it cannot be carried over; the selection must have run"
-                                + " it");
+                        "the map has no recorded coverage of "
+                                + loader.name()
+                                + ", which this run measured, so the tests carried over there"
+                                + " have no coverage to count; the selection must have run them");
             }
-            ExecutionDataStore store = new ExecutionDataStore();
-            for (Map.Entry<String, Map<String, Object>> classEntry : entry.entrySet()) {
-                String class_ = classEntry.getKey();
-                byte[] classBytes = headClasses.get(class_);
-                if (classBytes == null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> loaderClassInfo =
+                    (Map<String, Map<String, Object>>) record.get("classes");
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Map<String, Object>>> recorded =
+                    (Map<String, Map<String, Map<String, Object>>>) record.get("tests");
+            Map<String, byte[]> loaderClasses = readClasses(loader.classes());
+            Map<String, Long> loaderIds = analyzedIds(loaderClasses);
+            Path loaderOut = outDir.resolve(loader.name());
+            Files.createDirectories(loaderOut);
+            for (String test : tests) {
+                if (test.isBlank()) {
+                    continue;
+                }
+                Map<String, Map<String, Object>> entry = recorded.get(test);
+                if (entry == null || entry.isEmpty()) {
                     throw new ToolError(
                             1,
-                            "the recorded coverage of "
+                            "the map has no recorded coverage of "
                                     + test
-                                    + " holds the class "
-                                    + class_
-                                    + ", which is not among this run's core classes");
+                                    + " on "
+                                    + loader.name()
+                                    + ", so it cannot be carried over; the selection must have"
+                                    + " run it");
                 }
-                Map<String, Object> classInfo = classes.get(class_);
-                if (classInfo == null) {
-                    throw new ToolError(
-                            1,
-                            "the map has no class entry for "
-                                    + class_
-                                    + ", which "
-                                    + test
-                                    + " covered");
-                }
-                long storedId = Long.parseUnsignedLong((String) classInfo.get("crc64"));
-                int probeCount = (int) ((Number) classInfo.get("probes")).longValue();
-                // The map names only classes the analysis records, so a class without an id
-                // here is one that changed between the map's commit and this run.
-                Long headId = headIds.get(class_);
-                if (headId == null || headId != storedId) {
-                    throw new ToolError(
-                            1,
-                            "the class "
-                                    + class_
-                                    + " changed between the commit the map was recorded on and"
-                                    + " this run, so the recorded coverage of the tests that"
-                                    + " covered it cannot be applied; the selection must have run"
-                                    + " those tests");
-                }
-                boolean[] probes = new boolean[probeCount];
-                @SuppressWarnings("unchecked")
-                List<Number> recordedProbes = (List<Number>) classEntry.getValue().get("probes");
-                for (Number p : recordedProbes) {
-                    int probe = p.intValue();
-                    if (probe < 0 || probe >= probeCount) {
+                ExecutionDataStore store = new ExecutionDataStore();
+                for (Map.Entry<String, Map<String, Object>> classEntry : entry.entrySet()) {
+                    String class_ = classEntry.getKey();
+                    // The loader's own classes come first: a name both dirs held would be the
+                    // loader's class as far as its own report is concerned.
+                    byte[] classBytes = loaderClasses.get(class_);
+                    Map<String, Object> classInfo = loaderClassInfo.get(class_);
+                    Long headId = loaderIds.get(class_);
+                    if (classBytes == null) {
+                        classBytes = coreClasses.get(class_);
+                        classInfo = coreClassInfo.get(class_);
+                        headId = coreIds.get(class_);
+                    }
+                    if (classBytes == null) {
                         throw new ToolError(
                                 1,
-                                "the map's recorded probe "
-                                        + probe
-                                        + " of "
+                                "the recorded coverage of "
+                                        + test
+                                        + " holds the class "
                                         + class_
-                                        + " is out of range for the class's "
-                                        + probeCount
-                                        + " probes");
+                                        + ", which is not among this run's classes");
                     }
-                    probes[probe] = true;
+                    if (classInfo == null) {
+                        throw new ToolError(
+                                1,
+                                "the map has no class entry for "
+                                        + class_
+                                        + ", which "
+                                        + test
+                                        + " covered");
+                    }
+                    long storedId = Long.parseUnsignedLong((String) classInfo.get("crc64"));
+                    int probeCount = (int) ((Number) classInfo.get("probes")).longValue();
+                    // The map names only classes the analysis records, so a class without an id
+                    // here is one that changed between the map's commit and this run.
+                    if (headId == null || headId != storedId) {
+                        throw new ToolError(
+                                1,
+                                "the class "
+                                        + class_
+                                        + " changed between the commit the map was recorded on and"
+                                        + " this run, so the recorded coverage of the tests that"
+                                        + " covered it cannot be applied; the selection must have"
+                                        + " run those tests");
+                    }
+                    boolean[] probes = new boolean[probeCount];
+                    @SuppressWarnings("unchecked")
+                    List<Number> recordedProbes =
+                            (List<Number>) classEntry.getValue().get("probes");
+                    for (Number p : recordedProbes) {
+                        int probe = p.intValue();
+                        if (probe < 0 || probe >= probeCount) {
+                            throw new ToolError(
+                                    1,
+                                    "the map's recorded probe "
+                                            + probe
+                                            + " of "
+                                            + class_
+                                            + " is out of range for the class's "
+                                            + probeCount
+                                            + " probes");
+                        }
+                        probes[probe] = true;
+                    }
+                    store.put(new ExecutionData(headId, class_, probes));
                 }
-                store.put(new ExecutionData(headId, class_, probes));
+                Path exec = loaderOut.resolve(flattenedOf(test) + ".exec");
+                writeExec(exec, store);
+                written++;
+                System.out.println(
+                        "coverage-map-tool: carried over "
+                                + test
+                                + " on "
+                                + loader.name()
+                                + " from "
+                                + store.getContents().size()
+                                + " class(es)");
             }
-            Path exec = outDir.resolve(flattenedOf(test) + ".exec");
-            try (OutputStream out = Files.newOutputStream(exec)) {
-                ExecutionDataWriter writer = new ExecutionDataWriter(out);
-                for (ExecutionData data : store.getContents()) {
-                    writer.visitClassExecution(data);
-                }
-                writer.flush();
-            }
-            written++;
-            System.out.println(
-                    "coverage-map-tool: carried over "
-                            + test
-                            + " from "
-                            + store.getContents().size()
-                            + " class(es)");
         }
         if (written == 0) {
             throw new ToolError(1, "no test named to carry over, so nothing was carried over");
@@ -591,11 +752,17 @@ public final class CoverageMapTool {
         System.out.println("coverage-map-tool: wrote " + written + " exec file(s) to " + outDir);
     }
 
-    /**
-     * A minimal JSON reader for the map the writer above emits: objects, arrays, strings, numbers
-     * and the three literals, nothing else. The map holds no JSON the reader does not know, and a
-     * map of another shape is a map this tool cannot trust, so it is refused.
-     */
+    /** Writes the probes as the agent's own exec file, so the gate reads it like any other. */
+    static void writeExec(Path exec, ExecutionDataStore store) throws IOException {
+        try (OutputStream out = Files.newOutputStream(exec)) {
+            ExecutionDataWriter writer = new ExecutionDataWriter(out);
+            for (ExecutionData data : store.getContents()) {
+                writer.visitClassExecution(data);
+            }
+            writer.flush();
+        }
+    }
+
     static Map<String, Object> readMap(String text) throws IOException {
         Object value = new JsonReader(text).readValue();
         if (!(value instanceof Map)) {
@@ -605,8 +772,13 @@ public final class CoverageMapTool {
         Map<String, Object> map = (Map<String, Object>) value;
         if (!map.containsKey("version")
                 || !map.containsKey("classes")
-                || !map.containsKey("tests")) {
-            throw new IOException("the map is missing version, classes or tests");
+                || !map.containsKey("loaders")) {
+            throw new IOException("the map is missing version, classes or loaders");
+        }
+        Object version = map.get("version");
+        if (!(version instanceof Number) || ((Number) version).intValue() != 2) {
+            throw new IOException(
+                    "the map is version " + version + ", and this tool reads version 2");
         }
         return map;
     }
