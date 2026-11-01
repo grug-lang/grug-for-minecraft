@@ -12,9 +12,6 @@ render_block: Option[BlockEntity] = Option.new()
 # Whether the fixture has been meshed again from the settled light yet. See _force_remesh.
 remeshed: bool = false
 
-# How many runner ticks have passed since the swap. See the wait in tick().
-remesh_ticks: number = 0
-
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
@@ -42,22 +39,17 @@ export tick(ctx: TestTickContext) {
         _force_remesh(ctx)
         remeshed = true
         ctx.not_done()
-    } else if remesh_ticks < 5 {
-        # The loaders that mesh synchronously answer settled immediately, so their capture could
-        # otherwise be taken before the swap's mesh has been rendered, and the frame it reads would
-        # be the one from before the swap. Five runner ticks is past the frame or two those loaders
-        # take, and costs nothing on 1.20.6, where the wait below is the real one. See #259.
-        remesh_ticks = remesh_ticks + 1
-        ctx.not_done()
     } else if not Test.world_settled() {
-        # Waiting for the mesh the swap scheduled. A rebuild bakes a face's per-vertex light, and a
-        # rebuild that ran while the light was still propagating keeps that mid-propagation light
-        # until something dirties the section again: a light update only re-meshes the section it
-        # changed, not the neighbours whose faces sample it, so the stale bake would never be
-        # corrected on its own. The swap is what corrects it, and this is the wait for the fresh mesh
-        # to land. It is also the wait that replaces the old 60-tick floor: the answer is false until
-        # the fixture's frame has been drawn, so the capture no longer races a slower runner. See
-        # #257.
+        # Waiting for the swap's blocks to reach the client and for the mesh they scheduled. A
+        # rebuild bakes a face's per-vertex light, and a rebuild that ran while the light was still
+        # propagating keeps that mid-propagation light until something dirties the section again: a
+        # light update only re-meshes the section it changed, not the neighbours whose faces sample
+        # it, so the stale bake would never be corrected on its own. The swap is what corrects it,
+        # and this is the wait for the fresh mesh to land. It is also the wait that replaces the old
+        # 60-tick floor: the answer is false until the fixture's frame has been drawn, so the
+        # capture no longer races a slower runner, and it is false until the client holds the block
+        # the swap put there, which is what makes the frames that follow the ones a capture may
+        # read. See #257 and #804.
         ctx.not_done()
     } else {
         _check(ctx)

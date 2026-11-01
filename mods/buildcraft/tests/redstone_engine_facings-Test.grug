@@ -13,7 +13,6 @@
 # coverage_render-Test.grug explains them. See _ready.
 settled_ticks: number = 0
 remeshed: bool = false
-remesh_ticks: number = 0
 
 # Where the row starts, and on the reference the world's time the engines were placed at and whether
 # they have been turned yet. The real TileEngine only makes the engine its NBT is written from on its
@@ -129,10 +128,8 @@ local _ready(ctx: TestTickContext) bool {
         remeshed = true
         return false
     }
-    if remesh_ticks < 5 {
-        remesh_ticks = remesh_ticks + 1
-        return false
-    }
+    # The swap's blocks have to reach the client and the mesh they scheduled has to be drawn, which
+    # is what the fixed tick hold used to stand in for. See coverage_render, #259 and #804.
     return Test.world_settled()
 }
 
