@@ -1,6 +1,7 @@
 name: Drain caches
 
-# Deletes a merged pull request's cache refs the moment it merges (#825).
+# Deletes a merged pull request's cache refs: once when it merges, and again when a run of that pull
+# request finishes afterwards, because a job saves its caches at its end (#825).
 #
 # A cache entry is readable only from the ref that wrote it and from the default branch, so every
 # entry under refs/pull/<number>/merge and under the head branch is dead the moment the pull request
@@ -12,12 +13,26 @@ name: Drain caches
 # job set a pull request now runs cannot leave an entry behind, and a job selection that ran nothing
 # leaves the same two refs to drain.
 #
-# pull_request_target rather than pull_request: the workflow and the script it runs then come from
-# the default branch, so the code that runs with `actions: write` is the reviewed code on main, never
-# a version a pull request brought with it. No code of the pull request is checked out or run.
+# Two triggers, because the merge and the last save are different moments:
+#
+# - pull_request_target: closed drains at the merge everything the pull request had by then.
+# - workflow_run: completed drains again when a run of the pull request finishes. This repository
+#   merges on partial CI, so a job of the merged pull request is often still going and saves its
+#   cache after the closed event; the run's completion is later than every one of its saves.
+#
+# A push to main and a dispatch on a branch name no pull request, so the second job skips them; a run
+# of an unmerged pull request names one, and the script reads merged_at itself and deletes nothing.
+#
+# Both triggers read this file from the default branch (workflow_run only ever does), so the code
+# that runs with `actions: write` is the reviewed code on main, never a version a pull request
+# brought with it. No code of the pull request is checked out or run.
 on:
   pull_request_target:
     types: [closed]
+  workflow_run:
+    # The workflows that write caches. One that starts writing them belongs here too.
+    workflows: [Build, Pre-commit]
+    types: [completed]
 
 permissions:
   contents: read
@@ -27,11 +42,11 @@ permissions:
   pull-requests: read
 
 jobs:
-  drain:
+  on-merge:
     name: drain ${{ github.event.pull_request.number }}
     # A pull request closed without merging can be reopened and run again, so its entries are still
-    # its own. The script checks this again, so a run by hand cannot drain an unmerged one either.
-    if: github.event.pull_request.merged == true
+    # its own. The script reads merged_at itself, so this guard only saves the job.
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.merged == true
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -47,3 +62,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 .github/scripts/drain-caches.py "${{ github.event.pull_request.number }}"
+
+  after-run:
+    name: drain after ${{ github.event.workflow_run.head_branch }}
+    # The late save this exists for: a run that names a merged pull request. A run that names none,
+    # such as a push to main, has nothing of its own to drain.
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0] != null
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Every pull request the run names, which the script re-reads as merged before it deletes
+      # anything. A run of an unmerged pull request drains nothing, so a job that runs on every
+      # completed Build and Pre-commit is cheap and cannot empty an open pull request's entries.
+      - name: Delete the cache refs of every pull request the run names
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/drain-caches.py --run-event "$GITHUB_EVENT_PATH"

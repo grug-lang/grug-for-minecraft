@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -114,6 +115,7 @@ class DrainCachesTest(unittest.TestCase):
         self.server.requests = []
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
+        self.tmp = tempfile.TemporaryDirectory()
         self.saved_env = {name: os.environ.get(name) for name in self.ENV}
         os.environ["GITHUB_API_URL"] = f"http://127.0.0.1:{self.server.server_address[1]}"
         os.environ["GITHUB_REPOSITORY"] = SLUG
@@ -123,6 +125,7 @@ class DrainCachesTest(unittest.TestCase):
         self.server.shutdown()
         self.server.server_close()
         self.thread.join()
+        self.tmp.cleanup()
         for name, value in self.saved_env.items():
             if value is None:
                 os.environ.pop(name, None)
@@ -133,6 +136,20 @@ class DrainCachesTest(unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = drain_caches.main([str(NUMBER), *args])
+        return code, out.getvalue(), err.getvalue()
+
+    def run_event(self, *args, pull_requests=None):
+        """Run the second pass, with the payload a completed run would hand the workflow."""
+        event = {
+            "event": "pull_request",
+            "head_branch": "g825",
+            "pull_requests": [{"number": NUMBER}] if pull_requests is None else pull_requests,
+        }
+        payload = Path(self.tmp.name) / "event.json"
+        payload.write_text(json.dumps({"workflow_run": event}))
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = drain_caches.main(["--run-event", str(payload), *args])
         return code, out.getvalue(), err.getvalue()
 
     def deleted(self):
@@ -170,10 +187,28 @@ class DrainCachesTest(unittest.TestCase):
         self.assertNotIn(f"/repos/{SLUG}/actions/caches/3", self.deleted())
 
     def test_a_head_branch_named_like_the_default_branch_is_never_drained(self):
-        self.server.routes["pull"] = merged_pull(head_ref="main")
+        # The base is deliberately not main. With main as both, refs_to_drain returns at branch ==
+        # base before PROTECTED_REFS is reached, which is how this test passed while the guard could
+        # be deleted and every test stayed green.
+        self.server.routes["pull"] = merged_pull(head_ref="main", base_ref="release-x")
+        self.server.routes["caches"]["refs/heads/main"] = [entry(9, "refs/heads/main")]
+        code, out, err = self.run_script()
+        self.assertEqual(code, 0, err)
+        self.assertNotIn(f"/repos/{SLUG}/actions/caches/9", self.deleted())
+        self.assertIn(f"/repos/{SLUG}/actions/caches/1", self.deleted())
+        self.assertNotIn("refs/heads/main", out)
+
+    def test_a_head_branch_that_is_the_base_is_not_named(self):
+        # A pull request cannot have its base as its head. The early return is what stops a malformed
+        # event from naming it, and this keeps that line reachable now that the test above does not.
+        self.server.routes["pull"] = merged_pull(head_ref="release-x", base_ref="release-x")
+        self.server.routes["caches"]["refs/heads/release-x"] = [entry(9, "refs/heads/release-x")]
         code, _, err = self.run_script()
         self.assertEqual(code, 0, err)
-        self.assertNotIn(f"/repos/{SLUG}/actions/caches/3", self.deleted())
+        self.assertEqual(
+            self.deleted(),
+            [f"/repos/{SLUG}/actions/caches/1", f"/repos/{SLUG}/actions/caches/2"],
+        )
 
     def test_an_unmerged_pull_request_deletes_nothing(self):
         self.server.routes["pull"] = merged_pull(merged_at=None)
@@ -230,6 +265,59 @@ class DrainCachesTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("GITHUB_REPOSITORY is not set", err)
         self.assertEqual(self.deleted(), [])
+
+    def test_pull_requests_in_run_reads_the_run_payload(self):
+        event = {
+            "workflow_run": {
+                "pull_requests": [
+                    {"number": 933},
+                    {"number": 934},
+                    {"number": 933},
+                    {},
+                    {"number": "935"},
+                ]
+            }
+        }
+        self.assertEqual(drain_caches.pull_requests_in_run(event), [933, 934])
+        self.assertEqual(
+            drain_caches.pull_requests_in_run({"workflow_run": {"pull_requests": []}}), []
+        )
+        self.assertEqual(drain_caches.pull_requests_in_run({"workflow_run": {}}), [])
+        self.assertEqual(drain_caches.pull_requests_in_run({}), [])
+
+    def test_a_run_of_a_merged_pull_request_drains_its_refs_again(self):
+        # The run that saved a cache after the merge finished, which is the second pass's whole job.
+        code, out, err = self.run_event()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(
+            self.deleted(),
+            [
+                f"/repos/{SLUG}/actions/caches/1",
+                f"/repos/{SLUG}/actions/caches/2",
+                f"/repos/{SLUG}/actions/caches/3",
+            ],
+        )
+        self.assertIn(f"{MERGE_REF}: 2 entries, 39.0 MB deleted", out)
+
+    def test_a_run_of_an_unmerged_pull_request_drains_nothing(self):
+        self.server.routes["pull"] = merged_pull(merged_at=None)
+        code, _, err = self.run_event()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.deleted(), [])
+        self.assertIn("has not merged", err)
+
+    def test_a_run_that_names_no_pull_request_drains_nothing(self):
+        code, _, err = self.run_event(pull_requests=[])
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.deleted(), [])
+        self.assertIn("names no pull request", err)
+
+    def test_a_run_event_fails_when_a_deletion_is_refused(self):
+        self.server.routes["refuse"] = {2}
+        code, out, err = self.run_event()
+        self.assertEqual(code, 1)
+        self.assertIn("could not be deleted", err)
+        self.assertIn(f"/repos/{SLUG}/actions/caches/1", self.deleted())
 
 
 if __name__ == "__main__":
