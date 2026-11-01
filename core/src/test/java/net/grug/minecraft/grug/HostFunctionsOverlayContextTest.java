@@ -32,6 +32,8 @@ class HostFunctionsOverlayContextTest {
             GrugOverlay.closeClick();
         } else if (GrugOverlay.isKey()) {
             GrugOverlay.closeKey();
+        } else if (GrugOverlay.isScroll()) {
+            GrugOverlay.closeScroll();
         }
         GrugEntities.entityData.clear();
         drain();
@@ -310,5 +312,113 @@ class HostFunctionsOverlayContextTest {
         assertTrue(HostFunctions.screenKeyProblem(Double.NaN).contains("whole number"));
         assertTrue(HostFunctions.screenKeyProblem(-1).contains("whole number"));
         assertTrue(HostFunctions.screenKeyProblem(79.5).contains("whole number"));
+    }
+
+    private static void openScroll(double delta) {
+        GrugOverlay.openScroll(426, 240, 125, 37, 176, 166, 310, 12, delta);
+    }
+
+    private static long scrollContext() {
+        return GrugEntities.addEntity(GrugEntityType.OverlayScrollContext, GrugOverlay.context());
+    }
+
+    @Test
+    void aScrollContextAnswersTheScreensNumbersAndTheWheelAndTakesIt() {
+        openScroll(-1.5);
+        long context = scrollContext();
+
+        assertTrue(GrugOverlay.isScroll());
+        assertFalse(GrugOverlay.isClick(), "A scroll pass is not a click pass.");
+        assertFalse(GrugOverlay.isKey(), "A scroll pass is not a key pass.");
+        assertEquals(426, HostFunctions.OverlayScrollContext_screen_width(context));
+        assertEquals(240, HostFunctions.OverlayScrollContext_screen_height(context));
+        assertEquals(125, HostFunctions.OverlayScrollContext_gui_left(context));
+        assertEquals(37, HostFunctions.OverlayScrollContext_gui_top(context));
+        assertEquals(176, HostFunctions.OverlayScrollContext_gui_width(context));
+        assertEquals(166, HostFunctions.OverlayScrollContext_gui_height(context));
+        assertEquals(310, HostFunctions.OverlayScrollContext_mouse_x(context));
+        assertEquals(12, HostFunctions.OverlayScrollContext_mouse_y(context));
+        assertEquals(-1.5, HostFunctions.OverlayScrollContext_delta(context));
+        HostFunctions.OverlayScrollContext_take(context);
+
+        assertTrue(drain().isEmpty(), "A legal scroll pass reports nothing.");
+        assertTrue(GrugOverlay.closeScroll(), "The scroll was taken.");
+        assertFalse(GrugOverlay.isOpen());
+        assertEquals(0.0, GrugOverlay.scrollDelta(), "The wheel is forgotten with the pass.");
+    }
+
+    @Test
+    void aScrollThatIsNotTakenIsNotReportedTaken() {
+        openScroll(1);
+        assertEquals(1, HostFunctions.OverlayScrollContext_delta(scrollContext()));
+        assertFalse(GrugOverlay.closeScroll());
+    }
+
+    @Test
+    void aScrollMethodOutsideAScrollPassIsRefused() {
+        openScroll(1);
+        long context = scrollContext();
+        GrugOverlay.closeScroll();
+
+        HostFunctions.OverlayScrollContext_screen_width(context);
+        HostFunctions.OverlayScrollContext_screen_height(context);
+        HostFunctions.OverlayScrollContext_gui_left(context);
+        HostFunctions.OverlayScrollContext_gui_top(context);
+        HostFunctions.OverlayScrollContext_gui_width(context);
+        HostFunctions.OverlayScrollContext_gui_height(context);
+        HostFunctions.OverlayScrollContext_mouse_x(context);
+        HostFunctions.OverlayScrollContext_mouse_y(context);
+        HostFunctions.OverlayScrollContext_delta(context);
+        HostFunctions.OverlayScrollContext_take(context);
+
+        List<String> reports = drain();
+        assertEquals(10, reports.size());
+        assertTrue(reports.get(0).contains("OverlayScrollContext.screen_width"), reports.get(0));
+        assertTrue(reports.get(9).contains("OverlayScrollContext.take"), reports.get(9));
+    }
+
+    @Test
+    void aScrollContextIsRefusedByOtherPassesMethodsAndTheOtherWayRound() {
+        openScroll(1);
+        long context = scrollContext();
+        HostFunctions.OverlayClickContext_take(context);
+        HostFunctions.OverlayKeyContext_take(context);
+        assertEquals(2, drain().size());
+        assertFalse(GrugOverlay.closeScroll(), "Another pass's take did not take the scroll.");
+
+        openClick();
+        HostFunctions.OverlayScrollContext_take(clickContext());
+        assertEquals(1, drain().size());
+        assertFalse(GrugOverlay.closeClick());
+
+        openRender();
+        HostFunctions.OverlayScrollContext_delta(renderContext());
+        assertEquals(1, drain().size());
+    }
+
+    @Test
+    void passesCannotBeClosedAsAScrollPassOrTheOtherWayRound() {
+        openScroll(1);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, GrugOverlay::closeClick);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, GrugOverlay::closeKey);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, GrugOverlay::closeRender);
+        GrugOverlay.closeScroll();
+        openClick();
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, GrugOverlay::closeScroll);
+    }
+
+    @Test
+    void aScreenScrollNeedsAFinitePositionAndDelta() {
+        assertEquals(null, HostFunctions.screenScrollProblem(10, 20, -1));
+        assertEquals(null, HostFunctions.screenScrollProblem(10, 20, 0.5));
+        assertTrue(HostFunctions.screenScrollProblem(Double.NaN, 0, 1).contains("position"));
+        assertTrue(
+                HostFunctions.screenScrollProblem(0, Double.POSITIVE_INFINITY, 1)
+                        .contains("position"));
+        assertTrue(HostFunctions.screenScrollProblem(0, 0, Double.NaN).contains("delta"));
     }
 }

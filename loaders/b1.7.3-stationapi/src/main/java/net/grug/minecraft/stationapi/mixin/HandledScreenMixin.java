@@ -94,6 +94,13 @@ public abstract class HandledScreenMixin implements GrugScreenGeometry {
     }
 
     @Override
+    public boolean grug$scroll() {
+        GrugOverlay.beginTestPress();
+        ((Screen) (Object) this).onMouseEvent();
+        return GrugOverlay.testPressTaken();
+    }
+
+    @Override
     public int grug$width() {
         return ((Screen) (Object) this).width;
     }

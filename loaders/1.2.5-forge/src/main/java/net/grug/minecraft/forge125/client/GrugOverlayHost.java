@@ -79,6 +79,7 @@ public final class GrugOverlayHost {
         final long renderFnId;
         final long clickFnId;
         final long keyFnId;
+        final long scrollFnId;
         final String mod;
 
         Overlay(
@@ -87,12 +88,14 @@ public final class GrugOverlayHost {
                 long renderFnId,
                 long clickFnId,
                 long keyFnId,
+                long scrollFnId,
                 String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
             this.renderFnId = renderFnId;
             this.clickFnId = clickFnId;
             this.keyFnId = keyFnId;
+            this.scrollFnId = scrollFnId;
             this.mod = mod;
         }
     }
@@ -148,6 +151,7 @@ public final class GrugOverlayHost {
                             Grug.getExportFnId("Overlay", "render"),
                             Grug.getExportFnId("Overlay", "click"),
                             Grug.getExportFnId("Overlay", "key"),
+                            Grug.getExportFnId("Overlay", "scroll"),
                             overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
@@ -246,8 +250,44 @@ public final class GrugOverlayHost {
                         - 1;
         mouseX = x;
         mouseY = y;
+        int wheel = Mouse.getEventDWheel();
+        if (wheel != 0) return scroll(container, x, y, wheel / WHEEL_NOTCH);
         if (!Mouse.getEventButtonState()) return false;
         return click(container, x, y, Mouse.getEventButton(), GuiScreen.isShiftKeyDown());
+    }
+
+    /** LWJGL 2's wheel delta for one notch, which turns the delta into the API's notches. */
+    private static final double WHEEL_NOTCH = 120.0;
+
+    /**
+     * Asks the overlays about one wheel movement and answers whether one took it, recording the
+     * answer for {@code Test.scroll_screen}. The delta is in notches, positive up.
+     */
+    public static boolean scroll(GuiScreen screen, int x, int y, double delta) {
+        GuiContainer container = eligible(screen);
+        if (container == null) return false;
+
+        ensureCreated();
+        for (Overlay overlay : overlays) {
+            boolean taken =
+                    GrugOverlay.scroll(
+                            overlay.entityHandle,
+                            overlay.scrollFnId,
+                            container.width,
+                            container.height,
+                            GrugGuiAccess.guiLeft(container),
+                            GrugGuiAccess.guiTop(container),
+                            GrugGuiAccess.xSize(container),
+                            GrugGuiAccess.ySize(container),
+                            x,
+                            y,
+                            delta);
+            if (taken) {
+                GrugOverlay.noteTestPressTaken();
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -360,7 +400,19 @@ public final class GrugOverlayHost {
     public static boolean clickThroughScreen(GuiScreen screen, int x, int y, int button) {
         if (eligible(screen) == null) return false;
         GrugOverlay.beginTestPress();
-        appendMouseEvent(screen, x, y, button);
+        appendMouseEvent(screen, x, y, button, true, 0);
+        screen.handleInput();
+        return GrugOverlay.testPressTaken();
+    }
+
+    /**
+     * Test only: puts one wheel movement into the game's own mouse queue and runs the screen's
+     * input loop, the same patched loop a real wheel goes through.
+     */
+    public static boolean scrollThroughScreen(GuiScreen screen, int x, int y, double delta) {
+        if (eligible(screen) == null) return false;
+        GrugOverlay.beginTestPress();
+        appendMouseEvent(screen, x, y, -1, false, (int) Math.round(delta * WHEEL_NOTCH));
         screen.handleInput();
         return GrugOverlay.testPressTaken();
     }
@@ -374,7 +426,8 @@ public final class GrugOverlayHost {
      * bytes, the absolute x and y, the wheel delta and the timestamp, because the screen has
      * ungrabbed the mouse.
      */
-    private static void appendMouseEvent(GuiScreen screen, int x, int y, int button) {
+    private static void appendMouseEvent(
+            GuiScreen screen, int x, int y, int button, boolean state, int wheel) {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         int rawX = x * minecraft.displayWidth / screen.width;
         int rawY = (screen.height - y - 1) * minecraft.displayHeight / screen.height;
@@ -396,10 +449,10 @@ public final class GrugOverlayHost {
             buffer.limit(buffer.capacity());
             buffer.position(start);
             buffer.put((byte) button);
-            buffer.put((byte) 1);
+            buffer.put((byte) (state ? 1 : 0));
             buffer.putInt(rawX);
             buffer.putInt(rawY);
-            buffer.putInt(0);
+            buffer.putInt(wheel);
             buffer.putLong(System.nanoTime());
             buffer.limit(buffer.position());
             buffer.position(readPosition);

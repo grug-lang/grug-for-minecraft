@@ -19,6 +19,7 @@ import net.minecraft.item.ItemStack;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,6 +56,7 @@ public final class GrugOverlayHost {
         final long renderFnId;
         final long clickFnId;
         final long keyFnId;
+        final long scrollFnId;
         final String mod;
 
         Overlay(
@@ -63,12 +65,14 @@ public final class GrugOverlayHost {
                 long renderFnId,
                 long clickFnId,
                 long keyFnId,
+                long scrollFnId,
                 String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
             this.renderFnId = renderFnId;
             this.clickFnId = clickFnId;
             this.keyFnId = keyFnId;
+            this.scrollFnId = scrollFnId;
             this.mod = mod;
         }
     }
@@ -101,6 +105,7 @@ public final class GrugOverlayHost {
                             Grug.getExportFnId("Overlay", "render"),
                             Grug.getExportFnId("Overlay", "click"),
                             Grug.getExportFnId("Overlay", "key"),
+                            Grug.getExportFnId("Overlay", "scroll"),
                             overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
@@ -270,6 +275,74 @@ public final class GrugOverlayHost {
             return ((GrugScreenGeometry) screen).grug$pressKey(key);
         } finally {
             testPress = false;
+        }
+    }
+
+    /** LWJGL 2's wheel delta for one notch, which turns the delta into the API's notches. */
+    private static final double WHEEL_NOTCH = 120.0;
+
+    private static boolean testScroll = false;
+    private static int testX = 0;
+    private static int testY = 0;
+    private static double testDelta = 0.0;
+
+    /**
+     * Asks the overlays about the wheel movement the screen's mouse handler is looking at and
+     * answers whether one took it, recording the answer for {@code Test.scroll_screen}.
+     *
+     * <p>The screen's mouse handler runs for every mouse event, a press and a release included, so
+     * an event with no wheel movement is declined first. The delta is in notches, positive up, and
+     * the position is worked out the way the screen's own handler works out a press.
+     */
+    public static boolean wheel(Screen screen, int displayWidth, int displayHeight) {
+        double delta = testScroll ? testDelta : Mouse.getEventDWheel() / WHEEL_NOTCH;
+        if (delta == 0.0) return false;
+        GrugScreenGeometry geometry = geometry(screen);
+        if (geometry == null) return false;
+
+        int x = testScroll ? testX : Mouse.getEventX() * screen.width / displayWidth;
+        int y =
+                testScroll
+                        ? testY
+                        : screen.height - Mouse.getEventY() * screen.height / displayHeight - 1;
+        ensureCreated();
+        for (Overlay overlay : overlays) {
+            boolean taken =
+                    GrugOverlay.scroll(
+                            overlay.entityHandle,
+                            overlay.scrollFnId,
+                            geometry.grug$width(),
+                            geometry.grug$height(),
+                            geometry.grug$guiLeft(),
+                            geometry.grug$guiTop(),
+                            geometry.grug$guiWidth(),
+                            geometry.grug$guiHeight(),
+                            x,
+                            y,
+                            delta);
+            if (taken) {
+                GrugOverlay.noteTestPressTaken();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Test only: delivers one wheel movement at a position through the screen's own mouse handler,
+     * so the hook that cancels the movement is the one under test, and answers whether an overlay
+     * took it.
+     */
+    public static boolean scrollThroughScreen(Object screen, int x, int y, double delta) {
+        if (!(screen instanceof GrugScreenGeometry)) return false;
+        testScroll = true;
+        testX = x;
+        testY = y;
+        testDelta = delta;
+        try {
+            return ((GrugScreenGeometry) screen).grug$scroll();
+        } finally {
+            testScroll = false;
         }
     }
 

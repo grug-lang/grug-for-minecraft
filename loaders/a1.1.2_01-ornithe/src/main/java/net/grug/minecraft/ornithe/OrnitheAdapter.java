@@ -1350,6 +1350,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run scrolls while the screen it just opened is up")
+    public boolean scrollScreen(double x, double y, double delta) {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (minecraft.screen == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.scroll_screen: There is no screen open to scroll.");
+            return false;
+        }
+        return GrugOverlayHost.scrollThroughScreen(minecraft.screen, (int) x, (int) y, delta);
+    }
+
+    @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
         Minecraft minecraft = MinecraftInstance.get();

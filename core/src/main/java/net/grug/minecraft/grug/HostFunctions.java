@@ -681,6 +681,31 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: turns the mouse wheel at a screen position through the same path a real wheel
+     * takes, and answers whether an overlay took it.
+     */
+    @GrugGenerated("asks the adapter to scroll the game's own screen: a unit test has no game")
+    public static boolean Test_scroll_screen(double x, double y, double delta) {
+        String problem = screenScrollProblem(x, y, delta);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+            return false;
+        }
+        return GrugCore.getAdapter().scrollScreen(x, y, delta);
+    }
+
+    /** Why Test.scroll_screen refuses this movement, or null when it can drive it. */
+    static String screenScrollProblem(double x, double y, double delta) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            return "Test.scroll_screen: The position has to be finite.";
+        }
+        if (!Double.isFinite(delta)) {
+            return "Test.scroll_screen: The delta has to be finite.";
+        }
+        return null;
+    }
+
+    /**
      * Test only: rebuilds the sealed room the runner puts around the player, with a different
      * radius. The runner builds a small one before every test; a test whose fixture reaches further
      * than that calls this at the top of its setup. See #253.
@@ -2497,6 +2522,15 @@ public class HostFunctions {
         return requireContext(method, "click", contextId, GrugOverlay.context());
     }
 
+    /** The same rule for the context an overlay's {@code scroll()} was passed. */
+    private static boolean requireOverlayScrollContext(String method, long contextId) {
+        if (!GrugOverlay.isScroll()) {
+            reportRefusedContext(method, "scroll");
+            return false;
+        }
+        return requireContext(method, "scroll", contextId, GrugOverlay.context());
+    }
+
     public static void RenderContext_draw_box(
             long contextId, double x1, double y1, double z1, double x2, double y2, double z2) {
         if (!requireContext("RenderContext.draw_box", contextId)) return;
@@ -2857,6 +2891,58 @@ public class HostFunctions {
 
     public static void OverlayKeyContext_take(long contextId) {
         if (!requireOverlayKeyContext("OverlayKeyContext.take", contextId)) return;
+        GrugOverlay.take();
+    }
+
+    public static double OverlayScrollContext_screen_width(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.screen_width", contextId))
+            return 0.0;
+        return GrugOverlay.screenWidth();
+    }
+
+    public static double OverlayScrollContext_screen_height(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.screen_height", contextId))
+            return 0.0;
+        return GrugOverlay.screenHeight();
+    }
+
+    public static double OverlayScrollContext_gui_left(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.gui_left", contextId)) return 0.0;
+        return GrugOverlay.guiLeft();
+    }
+
+    public static double OverlayScrollContext_gui_top(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.gui_top", contextId)) return 0.0;
+        return GrugOverlay.guiTop();
+    }
+
+    public static double OverlayScrollContext_gui_width(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.gui_width", contextId)) return 0.0;
+        return GrugOverlay.guiWidth();
+    }
+
+    public static double OverlayScrollContext_gui_height(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.gui_height", contextId)) return 0.0;
+        return GrugOverlay.guiHeight();
+    }
+
+    public static double OverlayScrollContext_mouse_x(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.mouse_x", contextId)) return 0.0;
+        return GrugOverlay.mouseX();
+    }
+
+    public static double OverlayScrollContext_mouse_y(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.mouse_y", contextId)) return 0.0;
+        return GrugOverlay.mouseY();
+    }
+
+    public static double OverlayScrollContext_delta(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.delta", contextId)) return 0.0;
+        return GrugOverlay.scrollDelta();
+    }
+
+    public static void OverlayScrollContext_take(long contextId) {
+        if (!requireOverlayScrollContext("OverlayScrollContext.take", contextId)) return;
         GrugOverlay.take();
     }
 

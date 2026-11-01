@@ -40,4 +40,11 @@ public interface GrugScreenGeometry {
      * hook that cancels the key instead of calling the host directly.
      */
     boolean grug$pressKey(int key);
+
+    /**
+     * Runs the screen's own mouse handler for the wheel movement the host is holding for a test,
+     * and answers whether an overlay took it. The mixin implements this so a test can reach the
+     * hook that cancels the movement instead of calling the host directly.
+     */
+    boolean grug$scroll();
 }

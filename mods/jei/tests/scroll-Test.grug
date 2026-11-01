@@ -1,0 +1,166 @@
+# The item list scrolls with the mouse wheel like the reference's list: a wheel turned down over the
+# grid shows the next page and one turned up the previous page, wrapping around at the ends like the
+# page buttons, and a wheel anywhere else, or while the list is hidden, is left to the screen. The
+# test reads the page through what a press on the grid's first cell gives, because the overlay takes
+# the press and gives the item there, and the give reaches the player's hand some frames later,
+# which the test waits for rather than counting ticks. See #986.
+
+started: bool = false
+waited: number = 0
+step: number = 0
+expected_index: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    per_page: number = _columns() * _rows()
+    pages: number = Math.floor((item_count() + per_page - 1) / per_page)
+
+    if step == 0 {
+        ctx.assert(pages >= 2, "The item list should hold more than one page of items.")
+        Test.clear_carried_item()
+        # A wheel over the GUI panel, left of the list, is not the list's.
+        ctx.assert(not Test.scroll_screen(Test.gui_left() + 10, Test.gui_top() + 10, -1), "A wheel turned over the GUI should be left to the screen.")
+        # A wheel that did not move is not a movement to take.
+        ctx.assert(not Test.scroll_screen(_cell_x(0), _cell_y(0), 0), "A wheel that did not turn should be left to the screen.")
+        # Hidden, the list takes no wheel; Ctrl+O shows it again.
+        ctx.assert(Test.press_screen_key(79, true, true), "Ctrl+O should hide the list.")
+        ctx.assert(not Test.scroll_screen(_cell_x(0), _cell_y(0), -1), "A hidden list should take no wheel.")
+        ctx.assert(Test.press_screen_key(79, true, true), "Ctrl+O should show the list again.")
+        # Down shows the second page, whose first cell is the item after the first page.
+        expected_index = per_page
+        _scroll(ctx, -1)
+        _press(ctx)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step < 4 and not _arrived(ctx) {
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # Up returns to the first page.
+        Test.clear_held_item(Test.get_player())
+        expected_index = 0
+        _scroll(ctx, 1)
+        _press(ctx)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        # Up on the first page wraps around to the last page.
+        Test.clear_held_item(Test.get_player())
+        expected_index = (pages - 1) * per_page
+        _scroll(ctx, 1)
+        _press(ctx)
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        # Down on the last page wraps around to the first page.
+        Test.clear_held_item(Test.get_player())
+        expected_index = 0
+        _scroll(ctx, -1)
+        _press(ctx)
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not _arrived(ctx) {
+        ctx.not_done()
+        return
+    }
+    Test.close_screen()
+}
+
+# Whether the item the last press gave has reached the player's hand, and is the expected one.
+local _arrived(ctx: TestTickContext) bool {
+    waited = waited + 1
+    held: Option[Item] = Test.get_player().get_held_item()
+    if not held.has() {
+        ctx.assert(waited < 200, "The item a press on the list gives should reach the player's hand.")
+        return false
+    }
+    ctx.assert(equals(held.unwrap(), item_at(expected_index)), "A press on the first cell should give the first item of the page the wheel chose.")
+    return true
+}
+
+# The wheel turns over the middle of the grid's first cell, which is over the list.
+local _scroll(ctx: TestTickContext, delta: number) {
+    taken: bool = Test.scroll_screen(_cell_x(0), _cell_y(0), delta)
+    ctx.assert(taken, "The overlay should take a wheel turned over its list.")
+}
+
+local _press(ctx: TestTickContext) {
+    taken: bool = Test.click_screen(_cell_x(0), _cell_y(0), 1)
+    ctx.assert(taken, "The overlay should take a press on its item.")
+}
+
+local _cell_x(column: number) number {
+    return _grid_x() + column * 18 + 9
+}
+
+local _cell_y(row: number) number {
+    return 28 + row * 18 + 9
+}
+
+local _grid_x() number {
+    display_left: number = Test.gui_left() + Test.gui_width()
+    available_width: number = Test.screen_width() - display_left - 12
+    return display_left + 6 + (available_width - _columns() * 18)
+}
+
+local _columns() number {
+    available_width: number = Test.screen_width() - Test.gui_left() - Test.gui_width() - 12
+    columns: number = Math.floor(available_width / 18)
+    if columns > 9 {
+        columns = 9
+    }
+    return columns
+}
+
+# The screen's height is not a test value, so it is read back from the centered container GUI.
+local _rows() number {
+    screen_height: number = Test.gui_top() * 2 + Test.gui_height()
+    rows: number = Math.floor((screen_height - 22 - 22 - 12) / 18)
+    if rows > 16 {
+        rows = 16
+    }
+    return rows
+}
