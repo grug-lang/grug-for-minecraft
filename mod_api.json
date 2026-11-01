@@ -1248,7 +1248,7 @@
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
 				"display_tick": {
-					"description": "Test only: runs the display tick of the block at that position as the game does for a block it samples around the player, with a random generator seeded by `seed`, and answers how many particles it spawned. It goes through the block's own random display tick rather than a grug call, so it answers for any block the loader knows. The particles spawned are kept for Test.particle_position until the next call. Whether they are drawn depends on the player's particle setting, which the screenshot runs set to minimal.",
+					"description": "Test only: runs the display tick of the block at that position as the game does for a block it samples around the player, with a random generator seeded by `seed`, and answers how many particles it spawned. It goes through the block's own random display tick rather than a grug call, so it answers for any block the loader knows. The particles spawned are kept for Test.particle_position until the next call. Whether they are drawn depends on the player's particle setting, which the screenshot runs set to minimal, and on Alpha and Beta, which have no such setting, the CI runs drop them.",
 					"return_type": {
 						"name": "number"
 					},
@@ -1984,7 +1984,7 @@
 			"description": "The context of a block's display_tick(), passed to it. It is how a display tick draws from the game's random number generator for this tick and spawns particles. A context is only valid while its display_tick() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
 				"add_particle": {
-					"description": "Spawns one particle in the world, at an absolute world position, moving with the given velocity. `name` is one of \"reddust\" (a red dust particle, the one a powered redstone wire gives off), \"smoke\" and \"flame\"; any other name reports an error. Reddust ignores the velocity, since the game only uses those three numbers to colour it on some versions and its red is the one a port wants; smoke and flame rise with it. Like every particle the game spawns, it is dropped when the player has set particles to minimal. Only legal on the context display_tick() was passed, while that call is running: a context saved for later is refused.",
+					"description": "Spawns one particle in the world, at an absolute world position, moving with the given velocity. `name` is \"reddust\" (a red dust particle, the one a powered redstone wire gives off) and any other name reports an error; more names are added when a port needs them. Reddust ignores the velocity, since the game only uses those three numbers to colour it on some versions and its red is the one a port wants. The particle is dropped when the player has set particles to minimal, and on Alpha and Beta, which have no such setting, it is dropped in the CI runs (`GRUG_CI`), where a capture must not hold random particles. Only legal on the context display_tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
 						{
 							"name": "name",

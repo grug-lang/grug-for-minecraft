@@ -1794,28 +1794,17 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public void addParticle(
-            Object levelObj,
-            String name,
-            double x,
-            double y,
-            double z,
-            double vx,
-            double vy,
-            double vz) {
-        Level level = (Level) levelObj;
-        if (name.equals("reddust")) {
-            // The dust particle takes its colour from its options and ignores the motion, so the
-            // game's red is the one a port gets whatever velocity it passed.
-            level.addParticle(
-                    net.minecraft.core.particles.DustParticleOptions.REDSTONE, x, y, z, 0, 0, 0);
-        } else if (name.equals("smoke")) {
-            level.addParticle(
-                    net.minecraft.core.particles.ParticleTypes.SMOKE, x, y, z, vx, vy, vz);
-        } else {
-            level.addParticle(
-                    net.minecraft.core.particles.ParticleTypes.FLAME, x, y, z, vx, vy, vz);
-        }
+    public void addRedstoneDust(Object levelObj, double x, double y, double z) {
+        // The dust particle takes its colour from its options and ignores the motion.
+        ((Level) levelObj)
+                .addParticle(
+                        net.minecraft.core.particles.DustParticleOptions.REDSTONE,
+                        x,
+                        y,
+                        z,
+                        0,
+                        0,
+                        0);
     }
 
     @Override

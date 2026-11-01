@@ -23,10 +23,9 @@ import java.util.function.DoubleSupplier;
  * only a declared block enters the VM.
  */
 public final class GrugDisplayTicks {
-    /** The particles the games all have, which is what a script may name. */
+    /** The particles a script may name: only what a committed port asks for. */
     private static final Set<String> PARTICLE_NAMES =
-            Collections.unmodifiableSet(
-                    new HashSet<>(java.util.Arrays.asList("reddust", "smoke", "flame")));
+            Collections.unmodifiableSet(new HashSet<>(java.util.Arrays.asList("reddust")));
 
     /** One particle a display tick asked for. */
     public static final class Particle {
@@ -72,7 +71,7 @@ public final class GrugDisplayTicks {
         public void spawn(
                 String name, double x, double y, double z, double vx, double vy, double vz) {
             record(name, x, y, z, vx, vy, vz);
-            GrugCore.getAdapter().addParticle(world, name, x, y, z, vx, vy, vz);
+            GrugCore.getAdapter().addRedstoneDust(world, x, y, z);
         }
     }
 

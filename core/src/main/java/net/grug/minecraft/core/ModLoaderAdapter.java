@@ -898,22 +898,12 @@ public interface ModLoaderAdapter {
             double endZ);
 
     /**
-     * Spawns one particle in the client world, as the game's own {@code world.addParticle} does.
-     *
-     * <p>The name is one of the particles a script may name, which core has already checked: {@code
-     * reddust}, {@code smoke} or {@code flame}. A server has no particles, so a loader that is not
-     * drawing the world ignores the call. The particle setting the player chose still applies,
-     * because the game's own method applies it.
+     * Spawns one redstone dust particle in the client world, as the game's own {@code
+     * world.addParticle} does. The game's red is the one a port wants, whatever motion the script
+     * passed. A server has no particles, so a loader that is not drawing the world ignores the
+     * call. The particle setting the player chose still applies on the games that have one.
      */
-    void addParticle(
-            Object levelObj,
-            String name,
-            double x,
-            double y,
-            double z,
-            double vx,
-            double vy,
-            double vz);
+    void addRedstoneDust(Object levelObj, double x, double y, double z);
 
     /**
      * Test only: runs the display tick of the block at the given position, as the game does for a
