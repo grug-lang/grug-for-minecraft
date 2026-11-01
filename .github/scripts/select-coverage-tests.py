@@ -14,6 +14,9 @@ running the test, never to carrying it over:
 
 - a test runs when its own file changed, and a new test runs, since it has no recorded
   coverage to carry;
+- a test nested under its tests directory runs every coverage test: the map flattens a test
+  path into dots and names it back as <mod>/tests/<name>, so a deeper path cannot be matched
+  and carrying it over would leave the gate short;
 - a change to core/, the runner, the test framework or mod_api.json runs every coverage
   test, and so does any other change outside mods/ (workflows, scripts, loaders, shared/):
   the gate cannot attribute such a change to a test, and a host entry's implementation
@@ -88,6 +91,18 @@ def select_coverage_tests(
     def run_all(reason: str) -> None:
         for t in tests:
             run.setdefault(t, reason)
+
+    # The map keys a test by its flattened path and names it back as the first two dot groups
+    # as directories and the rest as the file name, so the only form it can hand back is
+    # <mod>/tests/<name>. A test nested deeper cannot be named back, and carrying it over would
+    # leave the gate short of its coverage with the test itself not run, so every test runs.
+    nested = sorted(t for t in tests if t.count("/") != 2)
+    if nested:
+        run_all(
+            f"{nested[0]} is nested under its tests directory, which the map's flattened "
+            f"key cannot name back, so every coverage test runs"
+        )
+        return run
 
     if not changed:
         run_all("the diff is empty, which is more likely a mistake than a no-op")

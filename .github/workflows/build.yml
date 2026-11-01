@@ -1682,7 +1682,9 @@ jobs:
     # The test jobs produce what it reads, so it skips with them (#785): a diff of prose alone
     # cannot change coverage, and main's next full run restores the global guarantee.
     if: needs.discover.outputs.no-tests != 'true'
-    needs: [core, build]
+    # discover is a need because this job reads its carry-over: the two outputs are what names
+    # the base run and the tests the loader jobs skipped (#786).
+    needs: [discover, core, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -1755,7 +1757,7 @@ jobs:
           echo "${{ needs.discover.outputs.carry-over }}" | tr ',' '\n' > coverage/carry-over/tests.txt
           java -cp coverage/tools/coverage-map-tool.jar \
             net.grug.minecraft.covmap.CoverageMapTool reconstruct \
-            --map coverage/base-map/coverage/coverage-map.json \
+            --map coverage/base-map/coverage-map.json \
             --classes coverage/artifacts/coverage-classes-core \
             --tests coverage/carry-over/tests.txt \
             --out-dir coverage/carry-over

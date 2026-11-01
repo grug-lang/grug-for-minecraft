@@ -582,6 +582,22 @@ class CoverageMapToolTest {
     }
 
     @Test
+    void buildFailsOnAUsageErrorRatherThanReportingSuccess() {
+        // A usage error must fail the step: exit 0 would let the coverage job carry on with no
+        // map, which is exactly what the tool must never report as done (#786).
+        assertEquals(2, CoverageMapTool.run(new String[] {"build", "--nope"}));
+        assertEquals(2, CoverageMapTool.run(new String[] {"build"}));
+        assertEquals(2, CoverageMapTool.run(new String[] {"build", "--classes", "."}));
+    }
+
+    @Test
+    void reconstructFailsOnAUsageErrorRatherThanReportingSuccess() {
+        assertEquals(2, CoverageMapTool.run(new String[] {"reconstruct", "--nope"}));
+        assertEquals(2, CoverageMapTool.run(new String[] {"reconstruct"}));
+        assertEquals(2, CoverageMapTool.run(new String[] {"reconstruct", "--map", "map.json"}));
+    }
+
+    @Test
     void buildRefusesARunWithNoPerTestCoverage(@TempDir Path tmp) throws Exception {
         Path classes = classesDir(tmp, sampleClass());
         Path execA = tmp.resolve("execA");
