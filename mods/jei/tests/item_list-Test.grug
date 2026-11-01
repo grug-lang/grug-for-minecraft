@@ -32,6 +32,7 @@
 frame_scale: number = 3
 
 started: bool = false
+opened: bool = false
 waited: number = 0
 
 export tick(ctx: TestTickContext) {
@@ -42,7 +43,24 @@ export tick(ctx: TestTickContext) {
             return
         }
         Test.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A world frame has to be drawn before a screen that shows the player opens: the inventory
+    # draws the player with the entity renderer, whose texture manager is only filled in when the
+    # world renders its entities, and a screen opened before that crashes the game thread on Alpha
+    # and Beta.
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 200, "The world should settle before the inventory screen opens.")
+        if not Test.world_settled() {
+            ctx.not_done()
+            return
+        }
         Test.open_inventory(Test.get_player())
+        opened = true
+        waited = 0
         ctx.not_done()
         return
     }
