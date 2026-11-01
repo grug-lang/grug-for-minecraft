@@ -1449,18 +1449,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return true;
     }
 
-    @GrugGenerated("test origin: server-vs-client player choice is loader plumbing")
     @Override
-    public Vec3 getTestOrigin() {
-        if (ServerLifecycleHooks.getCurrentServer() != null) {
-            var players = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers();
-            if (!players.isEmpty()) {
-                Player player = players.get(0);
-                return new Vec3(player.getX(), player.getEyeY() + 3.0, player.getZ());
-            }
-        }
-        Player player = Minecraft.getInstance().player;
-        return new Vec3(player.getX(), player.getEyeY() + 3.0, player.getZ());
+    public Vec3 testPlayerEye(Object playerObj) {
+        Player player = (Player) playerObj;
+        return new Vec3(player.getX(), player.getEyeY(), player.getZ());
     }
 
     private boolean testPlayerSnapped = false;

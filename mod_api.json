@@ -1088,7 +1088,7 @@
 					}
 				},
 				"get_origin": {
-					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row.",
+					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row. On a side with no test player to measure from, as on a dedicated server nobody has joined, the call reports an error naming `Test.get_origin` rather than answering a position, the way `Test.get_client_level` and `Test.get_player` report without a level or a player. See #188.",
 					"return_type": {
 						"name": "Vec3"
 					}

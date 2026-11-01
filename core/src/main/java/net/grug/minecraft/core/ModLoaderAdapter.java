@@ -53,10 +53,17 @@ public interface ModLoaderAdapter {
      * {@code HostFunctions} would have had to be excluded instead, which would have taken the
      * delegation that surrounds it out of measurement with it.
      *
+     * <p>It is excluded from the coverage gate as a whole, not only its refusal: a core test can
+     * reach the client answer through a stand-in adapter, but the refusal is what a dedicated
+     * server does, and no core test has one. The client answer is still exercised by every loader's
+     * game run, where {@code Test.use_block}, {@code Test.mining_crack} and {@code
+     * Screenshot.equals} ask it, but it is not counted; the refusal waits for the dedicated-server
+     * run of #163, which is when the exclusion can come off. See #188.
+     *
      * <p>A refusal is a host function error rather than a fatal: it names the function, it fails
      * the test that called it, and the game keeps running, which is what a mod's mistake deserves.
      */
-    @GrugGenerated("the refusal needs a dedicated server, which no CI run launches until #163")
+    @GrugGenerated("the refusal arm needs a dedicated server, which no CI run launches until #163")
     default boolean refuseWithoutAClient(String function) {
         GrugSide side = getSide();
         if (side == GrugSide.CLIENT) return false;
@@ -350,8 +357,28 @@ public interface ModLoaderAdapter {
      * The player a test anchors its fixtures to and drives {@link #openGui} with: the local player
      * on a client, or a connected player on a dedicated server. Null when this side has none yet,
      * which on a dedicated server means nobody has joined.
+     *
+     * <p>It is named {@code testPlayer} rather than {@code getTestPlayer} because it is the role,
+     * not a second getter beside {@link #getLevel}: it is the one player every part of the runtime
+     * measures from, which is why a loader makes its choice of player here and nowhere else. See
+     * #188.
      */
     Object testPlayer();
+
+    /**
+     * The eye position of {@code player}, which is the render camera on a client and the same field
+     * of the connected player on a dedicated server. It is never asked about null: {@link
+     * #getTestOrigin()} answers null for a side with no player instead.
+     *
+     * <p>The player comes in as an argument rather than being fetched from a singleton of its own,
+     * so a loader picks its test player in {@link #testPlayer()} and nowhere else: a server adapter
+     * that overrides only {@code testPlayer()} is measured from the player it chose, and {@link
+     * #getTestOrigin()} needs no override of its own.
+     *
+     * <p>It stays per loader because the mappings differ: every version before 1.20.6 keeps the
+     * player's position at the eye, while 1.20.6 keeps it at the feet and adds {@code getEyeY()}.
+     */
+    Vec3 testPlayerEye(Object player);
 
     /**
      * Whether the client has received the chunks a test setup builds in: the neighbourhood around
@@ -518,20 +545,24 @@ public interface ModLoaderAdapter {
     void redraw(Object blockEntityObj);
 
     /**
-     * The position the test bands are measured from: the player's eye, which is the render camera,
-     * plus 3 on every loader, because that is where the bands already sit in every test. Null when
-     * this side has no player, which on a dedicated server means nobody has joined.
+     * The position the test bands are measured from: {@link #testPlayerEye(Object)}, the render
+     * camera, plus {@link GrugTestOrigin#LIFT}, which is where the bands already sit in every test.
+     * Null when this side has no player, which on a dedicated server means nobody has joined, and
+     * {@code Test.get_origin} reports that null as an error rather than dereferencing it.
+     *
+     * <p>It is derived from the test player rather than read from a player of its own, so {@link
+     * #testPlayer()} is the only place a loader chooses whose position a test builds from. A
+     * dedicated server therefore inherits this answer from the client adapter it extends, measured
+     * from the connected player that adapter's {@code testPlayer()} returns.
      *
      * <p>It is asked after {@link #snapPlayerForTest}, so the player is already at the centre of
      * their block with a level view when the answer is first captured for a test. That is what
      * makes one origin answer for a test, whatever the test does with a camera. See #609.
-     *
-     * <p>It goes through a player rather than through the level on purpose, so it needs the same
-     * refusal on a dedicated server as the other client-only functions: every loader that can be a
-     * server answers this one from the server's own objects, and a loader that cannot has to say so
-     * instead of reaching for a client that is not there.
      */
-    Vec3 getTestOrigin();
+    default Vec3 getTestOrigin() {
+        Object player = testPlayer();
+        return player == null ? null : GrugTestOrigin.of(testPlayerEye(player));
+    }
 
     /**
      * Puts the player where every test starts: the centre of the block they stand in, with their

@@ -2,9 +2,7 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
-import net.grug.minecraft.grug.Vec3;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 /**
@@ -16,10 +14,11 @@ import net.minecraftforge.server.ServerLifecycleHooks;
  * process this is, is the same code: the registries have no client in them, the recipe manager has
  * no client in it, and neither has any of the inventory or entity host functions.
  *
- * <p>Only the side, the player and the origin are replaced. {@code getLevel} is not, because the
- * client adapter already prefers the running server's world when there is one, and a dedicated
- * server has one from the moment it starts. {@code getTestOrigin} has to be, because the inherited
- * one reads the local client player, which a dedicated server does not have.
+ * <p>Only the side and the player are replaced. {@code getLevel} is not, because the client adapter
+ * already prefers the running server's world when there is one, and a dedicated server has one from
+ * the moment it starts. {@code getTestOrigin} is not either: it and the client adapter's {@code
+ * testPlayerEye} go through {@link #testPlayer()}, so a server is measured from the player it chose
+ * rather than from the null local client player. See #188.
  *
  * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
  * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
@@ -42,27 +41,13 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * <p>A server has no local player, so a test that wants one to build fixtures around and to
      * right-click with has to be given one of the connected players. Which one does not matter: the
      * tests share one world and build in bands above the origin, so the choice only decides whose
-     * position {@code Test.get_origin} reports.
+     * position {@code Test.get_origin} reports. The inherited {@code testPlayerEye} and {@code
+     * getTestOrigin} both go through this answer, so choosing the player here is all a server has
+     * to do.
      */
     @Override
     public Object testPlayer() {
         var players = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers();
         return players.isEmpty() ? null : (ServerPlayer) players.get(0);
-    }
-
-    /**
-     * The player's eye, which is where a server's camera would be, plus 3, from the connected
-     * player rather than from the local client.
-     *
-     * <p>Null when nobody has joined, for the same reason {@link #testPlayer()} is null then.
-     * Leaving this one to the inherited version would throw instead of answering, because {@code
-     * Minecraft.getInstance()} is null on a dedicated server.
-     */
-    @Override
-    public Vec3 getTestOrigin() {
-        Player player = (Player) testPlayer();
-        if (player == null) return null;
-
-        return new Vec3(player.getX(), player.getEyeY() + 3.0, player.getZ());
     }
 }

@@ -377,12 +377,31 @@ public class HostFunctions {
      * Test only: the one origin a test builds from, which is the camera's position plus 3 on every
      * loader. The runner snaps the player to the centre of their block before a test starts, so the
      * first call in a test is already at a known place, and later calls reuse it. See #609.
+     *
+     * <p>With no test player to measure from, as on a dedicated server nobody has joined, it
+     * reports an error naming this function and answers 0, the way {@link #Test_get_client_level}
+     * and {@link #Test_get_player} answer without a level or a player. See #188.
      */
     // TODO: Allow tests to set their own origin, and change this to 10000,100,10000
     public static long Test_get_origin() {
-        return GrugEntities.addEntity(
-                GrugEntityType.Vec3,
+        return addOrigin(
                 GrugTestState.captureTestOrigin(() -> GrugCore.getAdapter().getTestOrigin()));
+    }
+
+    @GrugGenerated("no origin yet: only a dedicated server reaches it, and CI launches none")
+    private static long addOrigin(Vec3 origin) {
+        if (origin == null) {
+            // Which side it is matters to whoever reads this: a client has a player the moment a
+            // world is loaded, so an empty one means the test is running too early, and on a
+            // dedicated server it means nobody has joined yet.
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.get_origin: There is no test player to measure an origin from on "
+                            + GrugCore.getAdapter().getSide().description()
+                            + " yet.");
+            return 0;
+        }
+        return GrugEntities.addEntity(GrugEntityType.Vec3, origin);
     }
 
     /**

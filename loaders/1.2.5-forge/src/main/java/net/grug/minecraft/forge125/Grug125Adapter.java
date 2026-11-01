@@ -1384,10 +1384,18 @@ public class Grug125Adapter implements ModLoaderAdapter {
             return -1L;
         }
 
-        BlockPos origin = originBlock();
-        int ox = origin.x();
-        int oy = origin.y();
-        int oz = origin.z();
+        Vec3 origin = getTestOrigin();
+        if (origin == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.high_block_round_trip: There is no test player to measure the origin"
+                            + " from yet.");
+            return -1L;
+        }
+        BlockPos block = originBlock(origin);
+        int ox = block.x();
+        int oy = block.y();
+        int oz = block.z();
 
         // Every low id the pack's other mods left free is taken now, the overrun #509 hit.
         List<Integer> standIns = takeStandIns();
@@ -1469,8 +1477,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     /** The block position the test origin names, floored the way every block position is. */
-    private BlockPos originBlock() {
-        Vec3 origin = getTestOrigin();
+    private BlockPos originBlock(Vec3 origin) {
         return new BlockPos(
                 (int) Math.floor(origin.x()),
                 (int) Math.floor(origin.y()),
@@ -1865,9 +1872,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Vec3 getTestOrigin() {
-        EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
-        return new Vec3(player.posX, player.posY + 3.0, player.posZ);
+    public Vec3 testPlayerEye(Object playerObj) {
+        EntityPlayer player = (EntityPlayer) playerObj;
+        return new Vec3(player.posX, player.posY, player.posZ);
     }
 
     private boolean testPlayerSnapped = false;
