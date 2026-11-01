@@ -290,7 +290,15 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
+
+      # The root build's Gradle caches, restored from the a1.1.2_01-ornithe entries that the
+      # -Dgrug.activeLoader below scopes this job's build to, instead of setup-java's `cache: gradle`:
+      # its wrapper entry held the same ~/.gradle/wrapper as the dists entry under a second key
+      # (#825). See .github/actions/restore-gradle-caches for what each entry holds.
+      - name: Restore the Gradle caches
+        uses: ./.github/actions/restore-gradle-caches
+        with:
+          loader: a1.1.2_01-ornithe
 
       # Part of the key because it is what built the library: a .a from a different rustc carries a
       # different metadata version, which is a link error rather than a silently wrong library, but
@@ -400,7 +408,14 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
+
+      # The root build's Gradle caches, from the a1.1.2_01-ornithe entries this job's
+      # -Dgrug.activeLoader scopes its build to, instead of setup-java's `cache: gradle`, whose
+      # wrapper entry held the same ~/.gradle/wrapper as the dists entry under a second key (#825).
+      - name: Restore the Gradle caches
+        uses: ./.github/actions/restore-gradle-caches
+        with:
+          loader: a1.1.2_01-ornithe
 
       # Waits on the grug-rs job, which is why the static library is downloaded before anything runs:
       # core's tests load libadapter.so, so they need the library this commit links against.
@@ -468,6 +483,7 @@ jobs:
             .github/scripts/reference_needed_test.py \
             .github/scripts/reference_selection_test.py \
             .github/scripts/no_tests_test.py \
+            .github/scripts/drain_caches_test.py \
             .github/scripts/markdown_columns_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
@@ -555,7 +571,14 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
+
+      # The root build's Gradle caches, from the a1.1.2_01-ornithe entries this job's shadowJar
+      # invocation scopes its build to, instead of setup-java's `cache: gradle`, whose wrapper entry
+      # held the same ~/.gradle/wrapper as the dists entry under a second key (#825).
+      - name: Restore the Gradle caches
+        uses: ./.github/actions/restore-gradle-caches
+        with:
+          loader: a1.1.2_01-ornithe
 
       - name: Download the grug-rs static library
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -870,7 +893,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
 
       # The game boots on the runtime's Java, as in the loader job. buildcraft's is 8, so this sets
       # up JDK 8; a runtime on Java 21 needs none, since 21 is already the build JDK.
@@ -895,12 +917,15 @@ jobs:
       # resolves its Gradle dependencies or unpacks a Gradle distribution again. See the loader job
       # for why each is keyed so. The expressions have to stay the same as the action's key for the
       # selected loader, or this job reads an entry of its own that the loader job never writes.
-      - name: Cache the Gradle distributions
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      #
+      # The first two are the action's, which restores the distribution and the rest of Gradle's user
+      # home and writes neither. It replaces setup-java's `cache: gradle`, whose wrapper entry was a
+      # second copy of the same distribution (#825), and the inline distribution step that was here,
+      # which is the same entry the action restores.
+      - name: Restore the Gradle caches
+        uses: ./.github/actions/restore-gradle-caches
         with:
-          path: ~/.gradle/wrapper
-          key: grug-gradle-dists-${{ runner.os }}-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: grug-gradle-dists-${{ runner.os }}-
+          loader: ${{ steps.select.outputs.loader }}
 
       - name: Cache the Gradle dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
