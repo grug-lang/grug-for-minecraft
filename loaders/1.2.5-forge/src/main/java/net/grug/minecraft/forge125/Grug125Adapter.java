@@ -101,10 +101,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * net.minecraft.client.Minecraft} and Minecraft 1.2.5's server jar has no {@code
      * net.minecraft.client} package.
      *
-     * <p>That is a fact about this loader rather than a decision, so whether grug should support a
-     * 1.2.5 dedicated server is still open; see #166. There is a handle to build on: in the
-     * server's own {@code ModLoader}, {@code getMinecraftInstance()} returns {@code
-     * getMinecraftServerInstance()}.
+     * <p>A 1.2.5 dedicated server is deferred, not ruled out; see #166. It first needs this class,
+     * the block classes and the tick hooks split into a common and a client half. There is a handle
+     * to build on: in the server's own {@code ModLoader}, {@code getMinecraftInstance()} returns
+     * {@code getMinecraftServerInstance()}.
      */
     @Override
     public GrugSide getSide() {
