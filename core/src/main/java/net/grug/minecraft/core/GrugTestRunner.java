@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -1201,6 +1202,11 @@ public class GrugTestRunner {
 
         System.out.println("[GRUG CI] Executing test: " + path);
 
+        // Before the entity exists, so the test's member scope starts with a root list of its own
+        // and nothing an earlier test created is still rooted while this one runs. A test's
+        // entities then last until it ends. See #883.
+        GrugEntities.beginTestEntities();
+
         try {
             currentEntityHandle = ops.createEntity(entry.getValue());
             if (currentEntityHandle == 0) {
@@ -1337,6 +1343,9 @@ public class GrugTestRunner {
     }
 
     private void destroyCurrentEntity() {
+        // The test is over, so the host entities its member scope created are released with it,
+        // whether it passed, failed or aborted. See #883.
+        GrugEntities.endTestEntities();
         // Cleared here rather than when the next test starts, so a ctx.expect_error expectation
         // cannot outlive the test that asked for it even when that test failed partway through. A
         // leftover expectation would keep

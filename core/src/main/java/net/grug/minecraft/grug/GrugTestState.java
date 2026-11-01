@@ -5,6 +5,7 @@ import net.grug.minecraft.core.GrugTestRunner;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.function.LongPredicate;
 import java.util.function.Supplier;
 
 /**
@@ -106,19 +107,35 @@ public final class GrugTestState {
             GrugEntityType contextType,
             Supplier<Object> open,
             Runnable close) {
+        return callWithContext(
+                contextType,
+                open,
+                close,
+                contextHandle -> Grug.callExportFn(entityHandle, exportFnId, contextHandle));
+    }
+
+    /**
+     * Opens the context of one test export call, runs the call and closes the context again, with
+     * everything the call creates rooted in the running test rather than in the call.
+     *
+     * <p>A test's member scope outlives its ticks, so an entity a member keeps has to outlive them
+     * too; a per-call root list let the collector take such an entity between two of the test's
+     * ticks. See {@code GrugEntities.beginTestEntities}. The call is a parameter only so a unit
+     * test can run this rooting without the VM.
+     */
+    static boolean callWithContext(
+            GrugEntityType contextType, Supplier<Object> open, Runnable close, LongPredicate call) {
         boolean[] completed = new boolean[1];
         // The root list is process-global, and a render pass on another thread swaps it under the
         // state lock, so this swap has to be made under the same lock. See createEntityWithOwner.
         GrugEntities.runLocked(
                 () ->
-                        GrugEntities.withFreshOwner(
+                        GrugEntities.withTestOwner(
                                 () -> {
                                     long contextHandle =
                                             GrugEntities.addEntity(contextType, open.get());
                                     try {
-                                        completed[0] =
-                                                Grug.callExportFn(
-                                                        entityHandle, exportFnId, contextHandle);
+                                        completed[0] = call.test(contextHandle);
                                     } finally {
                                         GrugEntities.removeEntity(contextHandle);
                                         close.run();

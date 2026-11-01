@@ -248,6 +248,48 @@ public final class GrugEntities {
     }
 
     /**
+     * The host entities the test that is running created, rooted here so an entity one of its ticks
+     * or its {@code init()} created is still there on a later tick.
+     *
+     * <p>A test's member scope lives for the whole test, so an entity a member keeps has to live
+     * that long too. A per-call list is right for an export that runs every frame but wrong here: a
+     * screenshot captured near the start of a test and compared near its end has no other root, so
+     * the collector was free to take it in between, and the comparison then dereferenced an id that
+     * no longer resolved and took the game down. The runner swaps this list in for the test's calls
+     * and clears it when the test ends. See #883.
+     */
+    private static final List<GrugObject> testEntities = new ArrayList<>();
+
+    /**
+     * Starts the root list of the test that is starting, releasing whatever an earlier one kept.
+     */
+    public static void beginTestEntities() {
+        testEntities.clear();
+    }
+
+    /** Releases what the test that just ended created through its member scope. */
+    public static void endTestEntities() {
+        testEntities.clear();
+    }
+
+    /**
+     * Runs {@code task} with the running test's root list, then restores the previous one, so what
+     * the call creates lives until the test ends rather than until the call returns. See {@link
+     * #testEntities}.
+     *
+     * <p>The caller holds {@link GrugStateLock}, for the reason {@link #withFreshOwner} gives.
+     */
+    static void withTestOwner(Runnable task) {
+        List<GrugObject> oldFnEntities = fnEntities;
+        fnEntities = testEntities;
+        try {
+            task.run();
+        } finally {
+            fnEntities = oldFnEntities;
+        }
+    }
+
+    /**
      * Runs {@code task} under the state lock, for a caller that has to take the state lock before a
      * monitor of its own.
      *
