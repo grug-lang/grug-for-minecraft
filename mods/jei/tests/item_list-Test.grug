@@ -1,18 +1,23 @@
-# Captures the item list on the player's inventory screen, so the reference job pins what real JEI
+# Captures the item list on the open container screen, so the reference job pins what real JEI
 # draws and every loader pins what the port draws. See #874.
+
 # The crop is the grid and nothing else. Both renderers lay it out the same way (IngredientGrid,
 # IngredientGridConfig, IngredientListOverlay): the display area is everything right of the GUI, the
 # grid is inset 6 pixels, keeps 22 pixels at the bottom for the search field and crops 22 more at
 # the top for the page buttons, takes the largest whole number of 18 pixel slots that still fit, and
 # is aligned right and top. On the 1280x720 window the run forces, the game's auto GUI scale picks
-# 3, which makes a 427 by 240 screen, and the grid is therefore six columns by ten rows from scaled
-# 313 to 421 and 28 to 208. A version that rounds the scaled width down (426) puts the grid one
-# pixel left; the crop is computed from the measured GUI and screen rather than written down, so
-# either captures the whole grid.
+# 3, which makes a 427 by 240 screen. The test player is in creative mode, so 1.20.6 opens the
+# creative inventory, a 195 by 136 GUI at (116, 52): the display area to its right is 311 to 427,
+# and after the insets the grid is five columns by ten rows from scaled 331 to 421 and 28 to 208. A
+# version that opens the plain 176 wide inventory instead leaves six columns, and one that rounds
+# the scaled width down (426) puts the grid a pixel left; the crop is computed from the measured GUI
+# and screen rather than written down, so each of those captures its whole grid.
+
 # JEI's page buttons are the 22 pixels above the grid and its search field and config button the 20
 # pixels below it, so none of the reference's chrome, which the port does not draw (#870), is in the
 # crop. Neither renderer draws a background behind the grid either: IngredientGridConfig's
 # DrawBackground is off, and the port draws no slot background (#870).
+
 # The item in a cell is not the same one in the two runs. The port lists by registry key and JEI by
 # creative tab and then mod name, which is the deviation #870 records, so each rendering is compared
 # exactly with pixels of its own: the reference's in jei_item_list_reference, the port's in
@@ -54,11 +59,9 @@ export tick(ctx: TestTickContext) {
     # screen that its golden would then accept. 1280 / 3 is 426.67, which one version rounds up to
     # 427 and another down to 426, and both are a GUI scale of 3.
     ctx.assert(Test.screen_width() == 426 or Test.screen_width() == 427, "The CI window should be 1280x720 at a GUI scale of 3.")
-    ctx.assert(Test.gui_left() == 125, "The inventory's GUI should be where the crop expects it.")
-    ctx.assert(Test.gui_top() == 37, "The inventory's GUI should be where the crop expects it.")
-    ctx.assert(Test.gui_width() == 176, "The inventory's GUI should be where the crop expects it.")
-    ctx.assert(_columns() == 6, "The inventory should leave room for six columns of items.")
-    ctx.assert(_rows() == 10, "The inventory should leave room for ten rows of items.")
+    ctx.assert(Test.gui_width() > 0 and Test.gui_height() > 0, "The screen should be a container screen with a GUI.")
+    ctx.assert(_columns() >= 4, "The display area right of the GUI should leave room for the reference's minimum of four columns.")
+    ctx.assert(_rows() == 10, "The display area should leave room for ten rows of items.")
 
     # The reference run has no grug overlay to wait for, so there the settled frame is the condition.
     # On the port the frame that drew this mod's own overlay has to exist before its icons are
@@ -110,8 +113,8 @@ local _columns() number {
     return columns
 }
 
-# The screen's height is not a test value, so it is read back from the centered inventory panel,
-# which sits with an equal margin above and below it, at the same 176 by 166 size on every loader.
+# The screen's height is not a test value, so it is read back from the centered container GUI, which
+# sits with an equal margin above and below it.
 local _rows() number {
     screen_height: number = Test.gui_top() * 2 + Test.gui_height()
     available_height: number = Math.floor((screen_height - 22 - 22 - 12) / 18)
