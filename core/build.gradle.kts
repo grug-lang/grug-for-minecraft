@@ -185,7 +185,11 @@ val grugRsDir = layout.buildDirectory.dir("grug-rs").get().asFile
 val grugRsUrl = "https://github.com/grug-lang/grug-rs.git"
 
 // Pinned for stability. Bump this every so often.
-val grugRsRevision = "f7ca6a7ca0d117a5ef0455c85e52de046b6d4028"
+//
+// This revision is grug-rs' grug-for-minecraft branch, which is not merged upstream, so the
+// maintainer decides whether it becomes the pin (#334). It is the per-file safe and unsafe mode
+// the issue needs, and this repository passes no mode yet: see adapter.c.
+val grugRsRevision = "40a897aefd2c975a8ebfcf54a1b50bf2beda8fd9"
 
 // Where the adapter links grug-rs from. cloneGrugRs and buildGrugRs both write this one file.
 val libGruggers = grugRsDir.resolve(
