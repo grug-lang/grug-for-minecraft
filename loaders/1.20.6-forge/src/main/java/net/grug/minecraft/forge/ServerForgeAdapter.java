@@ -51,7 +51,8 @@ public class ServerForgeAdapter extends ForgeAdapter {
     }
 
     /**
-     * The player's position plus 3, from the connected player rather than from the local client.
+     * The player's eye, which is where a server's camera would be, plus 3, from the connected
+     * player rather than from the local client.
      *
      * <p>Null when nobody has joined, for the same reason {@link #testPlayer()} is null then.
      * Leaving this one to the inherited version would throw instead of answering, because {@code
@@ -62,6 +63,6 @@ public class ServerForgeAdapter extends ForgeAdapter {
         Player player = (Player) testPlayer();
         if (player == null) return null;
 
-        return new Vec3(player.getX(), player.getY() + 3.0, player.getZ());
+        return new Vec3(player.getX(), player.getEyeY() + 3.0, player.getZ());
     }
 }

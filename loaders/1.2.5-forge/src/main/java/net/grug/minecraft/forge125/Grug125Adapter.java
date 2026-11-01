@@ -3,6 +3,7 @@ package net.grug.minecraft.forge125;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
+import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge125.block.GrugBlock;
@@ -1379,20 +1380,18 @@ public class Grug125Adapter implements ModLoaderAdapter {
         return new Vec3(player.posX, player.posY + 3.0, player.posZ);
     }
 
-    private boolean graphicsCameraSaved = false;
+    private boolean testPlayerSnapped = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public Vec3 setupGraphicsTestCamera() {
-        if (refuseWithoutAClient("Test.setup_graphics_camera")) return null;
+    public void snapPlayerForTestOnClient() {
         Minecraft mc = ModLoader.getMinecraftInstance();
         EntityPlayer player = mc.thePlayer;
         if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.setup_graphics_camera: There is no local player to move.");
-            return null;
+            throw Grug.fatal(
+                    "The test runner: there is no local player to snap to their block centre.");
         }
 
         savedX = player.posX;
@@ -1400,7 +1399,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
         savedZ = player.posZ;
         savedYaw = player.rotationYaw;
         savedPitch = player.rotationPitch;
-        graphicsCameraSaved = true;
+        testPlayerSnapped = true;
 
         // Snap the player to the centre of their own block and level the view, so every loader
         // frames a fixture identically. The snap stays within the player's own block, so it is a
@@ -1408,22 +1407,20 @@ public class Grug125Adapter implements ModLoaderAdapter {
         // crashes this generation of the game. The runner restores the saved position when the
         // test ends.
         player.setPositionAndRotation(
-                Math.floor(savedX) + 0.5, savedY, Math.floor(savedZ) + 0.5, 0.0F, 0.0F);
-
-        // The origin is the render camera's position plus 3, so a test that builds from it lands
-        // the same distance above the camera on every loader. This version's render camera sits at
-        // the player's own position, so there is nothing to convert.
-        return new Vec3(player.posX, player.posY + 3.0, player.posZ);
+                GrugTestPlayerSnap.blockCentre(savedX),
+                savedY,
+                GrugTestPlayerSnap.blockCentre(savedZ),
+                0.0F,
+                0.0F);
     }
 
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void restoreCameraAfterGraphicsTest() {
-        // A no-op when the test never set the camera up, which is every test that is not a
-        // screenshot test and every test on a dedicated server, where setup refused. The runner
-        // calls this for every test that ends, so it must not report an error for those.
-        if (!graphicsCameraSaved) return;
-        graphicsCameraSaved = false;
+    public void restorePlayerAfterTest() {
+        // A no-op on a dedicated server, where there is no client player to snap. The runner calls
+        // this for every test that ends, so it must not report an error for those.
+        if (!testPlayerSnapped) return;
+        testPlayerSnapped = false;
 
         EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
         if (player != null) {

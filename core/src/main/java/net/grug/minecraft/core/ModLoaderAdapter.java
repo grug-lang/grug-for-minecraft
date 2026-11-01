@@ -423,9 +423,13 @@ public interface ModLoaderAdapter {
     void redraw(Object blockEntityObj);
 
     /**
-     * The position the test bands are measured from: {@link #testPlayer()} plus 3 on each loader,
-     * because that is where the bands already sit in every test. Null when this side has no player,
-     * which on a dedicated server means nobody has joined.
+     * The position the test bands are measured from: the player's eye, which is the render camera,
+     * plus 3 on every loader, because that is where the bands already sit in every test. Null when
+     * this side has no player, which on a dedicated server means nobody has joined.
+     *
+     * <p>It is asked after {@link #snapPlayerForTest}, so the player is already at the centre of
+     * their block with a level view when the answer is first captured for a test. That is what
+     * makes one origin answer for a test, whatever the test does with a camera. See #609.
      *
      * <p>It goes through a player rather than through the level on purpose, so it needs the same
      * refusal on a dedicated server as the other client-only functions: every loader that can be a
@@ -434,9 +438,31 @@ public interface ModLoaderAdapter {
      */
     Vec3 getTestOrigin();
 
-    Vec3 setupGraphicsTestCamera();
+    /**
+     * Puts the player where every test starts: the centre of the block they stand in, with their
+     * yaw and pitch at 0, so a fixture lands in the same place relative to every loader's camera
+     * and a test need not set a camera up itself. The player stays in their own block, and so
+     * inside the chunk already lit around them, because moving into a chunk that is not lit yet
+     * crashes Alpha.
+     *
+     * <p>The runner calls this before its room build and before the first {@link #getTestOrigin}
+     * answer is captured, and calls {@link #restorePlayerAfterTest} when the test ends. A dedicated
+     * server has no local player to snap, so the snap is skipped there without an error. See #609.
+     */
+    default void snapPlayerForTest() {
+        if (!GrugTestPlayerSnap.canSnap(getSide())) return;
+        snapPlayerForTestOnClient();
+    }
 
-    void restoreCameraAfterGraphicsTest();
+    /** The client half of {@link #snapPlayerForTest}, which needs a game's own player object. */
+    void snapPlayerForTestOnClient();
+
+    /**
+     * Puts the player back where {@link #snapPlayerForTest} found them, so a test's change to the
+     * camera does not outlive it. A no-op on a dedicated server, where the snap never ran. See #393
+     * and #408.
+     */
+    void restorePlayerAfterTest();
 
     /**
      * Closes whatever screen the client currently has open, so a test that captures the world is

@@ -110,6 +110,14 @@ public class GrugTestRunner {
      * runner without a game to build anything in.
      */
     public interface TestBoxBuilder {
+        /**
+         * Puts the player where a test starts: the centre of their own block, with a level view.
+         * Called before {@link #build}, so the room is built around the place the test runs in, and
+         * before the test's first {@code Test.get_origin} answer is captured. A no-op on a side
+         * with no local player. See #609.
+         */
+        default void snapPlayer() {}
+
         void build(int radius);
 
         /** Sweeps the dropped items out of the test area, in the tick a test ends. See #323. */
@@ -350,6 +358,11 @@ public class GrugTestRunner {
                 NATIVE_OPS,
                 System::nanoTime,
                 new TestBoxBuilder() {
+                    @Override
+                    public void snapPlayer() {
+                        GrugCore.getAdapter().snapPlayerForTest();
+                    }
+
                     @Override
                     public void build(int radius) {
                         GrugCore.getAdapter().buildTestBox(radius);
@@ -1212,6 +1225,10 @@ public class GrugTestRunner {
         GrugTestState.testOrigin = null;
         GrugTestState.maxTestTicks = DEFAULT_MAX_TEST_TICKS;
 
+        // Before the init, the room and the first get_origin answer, so the player is already at
+        // the centre of their block with a level view when any of them looks. See #609.
+        boxBuilder.snapPlayer();
+
         // Before the first tick, so the budget it sets is the one the whole test runs under.
         long initFnId = ops.getExportFnId("Test", "init");
         if (initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
@@ -1349,11 +1366,11 @@ public class GrugTestRunner {
             currentTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
         }
         // Every test ending passes through here, whether it passed, failed, or aborted on a host
-        // function error, so the camera a test moved is put back without the test having to ask.
-        // A test that never called Test.setup_graphics_camera never moved it and the adapter's
-        // restore is a no-op for it. A test that fails partway through no longer leaves the player
-        // moved for the next one. See #393 and #408.
-        GrugCore.getAdapter().restoreCameraAfterGraphicsTest();
+        // function error, so the player a test moved is put back without the test having to ask.
+        // The runner snapped the player to their block centre at the start of the test, so this
+        // undoes that for the next one, and a test that fails partway through no longer leaves the
+        // player moved. See #393, #408 and #609.
+        GrugCore.getAdapter().restorePlayerAfterTest();
     }
 
     /** True once the run has stopped for any reason: every test passed, or one failed. */

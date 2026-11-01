@@ -19,7 +19,8 @@ graphics_chest2: Option[BlockEntity] = Option.new()
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
-        # Runs before the camera setup, so it still builds at the player's own origin.
+        # The runner has already snapped the player, so this builds at the same origin the graphics
+        # phase below does.
         _test_logic(ctx)
 
         _test_graphics_setup(ctx)
@@ -92,7 +93,7 @@ local _test_graphics_setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     diamond_item: Item = item(resource_location("minecraft:diamond"))
 
-    origin: Vec3 = Test.setup_graphics_camera()
+    origin: Vec3 = Test.get_origin()
     x: number = origin.x()
     y: number = origin.y()
     z: number = origin.z()

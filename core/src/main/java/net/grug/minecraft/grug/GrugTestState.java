@@ -173,8 +173,9 @@ public final class GrugTestState {
     public static String currentTestMod = null;
 
     // The origin Test.get_origin() captured first for the running test, so every later call in the
-    // same test returns the same position while the player settles. GrugTestRunner clears it when a
-    // test starts and when it ends, which is what keeps a setup and its check on one row. See #158.
+    // same test returns the same position while the player settles. The runner snaps the player to
+    // their block centre before the first call and clears this when a test starts and when it ends,
+    // which is what keeps a setup and its check on one row. See #158 and #609.
     public static Vec3 testOrigin = null;
 
     /**

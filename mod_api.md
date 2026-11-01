@@ -84,7 +84,6 @@ Test.set_held_item(player: Player, item: Item)
 Test.set_mod_file_state(relative_path: string, state: string)
 Test.set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
 Test.set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
-Test.setup_graphics_camera() Vec3
 Test.stall(milliseconds: number)
 Test.tick_block_entity(block_entity: BlockEntity, ticks: number)
 Test.use_block(level: Level, x: number, y: number, z: number)

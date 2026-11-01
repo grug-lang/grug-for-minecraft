@@ -1001,7 +1001,7 @@
 					}
 				},
 				"get_origin": {
-					"description": "Gets the origin coordinates for running isolated tests. The first call in a test captures the player's position plus 3 and every later call in the same test returns that same position, so a fixture and its check cannot disagree while the player settles.",
+					"description": "Gets the origin coordinates for running isolated tests: the camera's position plus 3, the same on every loader. The runner snaps the player to the centre of their block and levels their view at the start of every test, so the first call in a test captures that position and every later call in the same test returns it, which is what keeps a fixture and its check on one row.",
 					"return_type": {
 						"name": "Vec3"
 					}
@@ -1148,12 +1148,6 @@
 					"description": "Whether the frame a capture would read is one the client had no work left in: no light it had not propagated, no chunk rebuild it did not get to, and a window already at the screenshot resolution. The mesh bakes a face's per-vertex light when its section is rebuilt, and a rebuild can run while a light update is still settling, so a capture taken too early can land a light step away from the reference. A screenshot test waits for this before capturing. It is sampled from each loader's own frame hook rather than from the game tick the call runs on, because the game draws fewer frames than it runs ticks and the frame a capture reads can be several ticks old. See #253 and #257.",
 					"return_type": {
 						"name": "bool"
-					}
-				},
-				"setup_graphics_camera": {
-					"description": "Saves the player's current position and rotation, snaps them to the centre of their own block, and levels their view, so a fixture lands in the same place relative to every loader's camera. Returns an origin point near the player, for placing test blocks. The snap stays inside the player's own block, and so inside the chunk already lit, because moving into a chunk that isn't lit yet crashes Alpha. The runner restores the saved camera when the test ends.",
-					"return_type": {
-						"name": "Vec3"
 					}
 				},
 				"use_block": {
