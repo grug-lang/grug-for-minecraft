@@ -80,7 +80,7 @@ Test.load_nbt(block_entity: BlockEntity)
 Test.mining_crack(level: Level, x: number, y: number, z: number) bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.open_inventory(player: Player)
-Test.overlay_asked() bool
+Test.overlay_supported() bool
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
 Test.round_trip_nbt(block_entity: BlockEntity)

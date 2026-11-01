@@ -489,17 +489,22 @@ class RepositoryUrlsTest(unittest.TestCase):
         self.assertTrue(sources, "buildcraft records derived_from sources")
 
     def test_a_shared_repository_url_is_checked_once(self):
-        # All three mods point at this repository, so it must be one request, not three. Getting
-        # this wrong is what makes a check look like rate limiting.
+        # Every mod points at this repository, so it must be one request, not one per mod.
+        # Getting this wrong is what makes a check look like rate limiting.
         checked, _ = dead_links.all_urls(self.mods)
         repository = "https://github.com/grug-lang/grug-for-minecraft"
         matching = [url for url, _ in checked if url == repository]
         self.assertEqual(len(matching), 1)
         shared = dict(checked)[repository]
-        self.assertEqual(len(shared), 3, "all three mods declare the repository url")
+        self.assertEqual(len(shared), 4, "every mod declares the repository url")
         self.assertEqual(
             sorted(about for about, _ in shared),
-            ["buildcraft/about.json", "coverage/about.json", "examplemod/about.json"],
+            [
+                "buildcraft/about.json",
+                "coverage/about.json",
+                "examplemod/about.json",
+                "jei/about.json",
+            ],
         )
 
 

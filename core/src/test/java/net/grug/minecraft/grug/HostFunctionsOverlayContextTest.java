@@ -189,9 +189,9 @@ class HostFunctionsOverlayContextTest {
     }
 
     @Test
-    void overlayAskedStartsFalseAndStaysTrueOnceNoted() {
-        assertFalse(HostFunctions.Test_overlay_asked());
-        GrugOverlay.noteAsked();
-        assertTrue(HostFunctions.Test_overlay_asked());
+    void overlaySupportedStartsFalseAndStaysTrueOnceNoted() {
+        assertFalse(HostFunctions.Test_overlay_supported());
+        GrugOverlay.noteSupported();
+        assertTrue(HostFunctions.Test_overlay_supported());
     }
 }

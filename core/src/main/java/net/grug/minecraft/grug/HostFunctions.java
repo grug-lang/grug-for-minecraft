@@ -334,8 +334,8 @@ public class HostFunctions {
      * answer stays false on a loader with no overlay, so a test that needs the overlay to have
      * drawn skips there rather than failing for a missing feature.
      */
-    public static boolean Test_overlay_asked() {
-        return GrugOverlay.overlayAsked();
+    public static boolean Test_overlay_supported() {
+        return GrugOverlay.overlaySupported();
     }
 
     /**

@@ -71,9 +71,13 @@ public final class GrugOverlayHost {
         }
     }
 
-    /** The overlay files to ask, by clean name, from the mod loader's file classification. */
+    /**
+     * The overlay files to ask, by clean name, from the mod loader's file classification, and the
+     * mark that this loader draws overlays at all, which a test asks before it opens a screen.
+     */
     static void init(Map<String, Long> files) {
         overlayFileIds = new TreeMap<>(files);
+        GrugOverlay.noteSupported();
     }
 
     private static void ensureCreated() {
@@ -105,7 +109,6 @@ public final class GrugOverlayHost {
         AbstractContainerScreen<?> container = eligible(event.getScreen());
         if (container == null) return;
 
-        GrugOverlay.noteAsked();
         ensureCreated();
 
         GuiGraphics graphics = event.getGuiGraphics();
@@ -146,7 +149,6 @@ public final class GrugOverlayHost {
         AbstractContainerScreen<?> container = eligible(event.getScreen());
         if (container == null) return;
 
-        GrugOverlay.noteAsked();
         ensureCreated();
 
         for (Overlay overlay : overlays) {
