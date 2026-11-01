@@ -1,0 +1,83 @@
+# The item list on the player's inventory screen: it is drawn while the screen is open, and a click
+# on its first item gives the player that item. JEI's own click sends the item to the server, so the
+# test waits for the client to receive it in the player's hand rather than reading it back at once.
+
+# The overlay is drawn on 1.20.6 only; the other four loaders never ask it, which about.json records
+# as a deviation with its own issue. There it leaves the screen alone and passes, because the test
+# cannot ask a loader that has no overlay to draw one.
+started: bool = false
+waited: number = 0
+clicked: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_asked() {
+        waited = waited + 1
+        if waited > 100 {
+            # This loader does not draw overlays; the deviation is in about.json.
+            Test.close_screen()
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    # The first item the host lists, which is what the first slot of the grid shows.
+    expected: Item = item_at(0)
+
+    if not clicked {
+        clicked = true
+        taken: bool = Test.click_screen(_first_slot_x(), _first_slot_y(), 0)
+        ctx.assert(taken, "The overlay should take a click on its first item, so that the vanilla slot under it is not clicked too.")
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    held: Option[Item] = Test.get_player().get_held_item()
+    if not held.has() {
+        ctx.assert(waited < 200, "The clicked item should reach the player's hand.")
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(equals(held.unwrap(), expected), "The item in the player's hand should be the one that was clicked.")
+    Test.close_screen()
+}
+
+# The middle of the first slot, in the scaled pixels a screen's mouse handlers take.
+
+# The run is forced into a 1280 by 720 window, and the GUI scale of 3 makes the scaled screen 426 by
+# 240, the player's 176 by 166 inventory sits at (125, 37), and the grid is right-aligned against the
+# screen's right edge starting at the top. The same constants the overlay uses (JEI's own 18 pixel
+# slot, at most 9 columns) then put the first slot at (318, 0).
+local _first_slot_x() number {
+    screen_width: number = Math.floor(1280 / 3)
+    gui_left: number = Math.floor((screen_width - 176) / 2)
+    display_left: number = gui_left + 176
+    display_width: number = screen_width - display_left
+    available: number = Math.floor(display_width / 18)
+    columns: number = 9
+    if available < 9 {
+        columns = available
+    }
+    return display_left + (display_width - columns * 18) + 9
+}
+
+local _first_slot_y() number {
+    return 9
+}

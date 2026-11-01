@@ -1295,6 +1295,43 @@
 					"return_type": {
 						"name": "bool"
 					}
+				},
+				"open_inventory": {
+					"description": "Opens the player's own inventory screen, the way the inventory key does, so a test can drive an overlay that only appears there. The screen appears on the next frame, so a test waits for `screen_open` before it clicks. Test only: no mod needs to open the vanilla inventory.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					]
+				},
+				"click_screen": {
+					"description": "Presses a mouse button at a screen position, in the same scaled pixels a screen's own mouse handlers use, through the same path a real press takes, and answers whether a screen still took it. Cancelled means an overlay took the press and the vanilla slot under it did not see it. Test only: it is how a test clicks what an overlay drew without a real mouse.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "button",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		}

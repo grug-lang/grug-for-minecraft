@@ -140,6 +140,7 @@ public class GrugModLoader {
     // Sorted by name, so the registries get their entries in the same order on every run (#599).
     private static final Map<String, Long> blockFiles = new TreeMap<>();
     private static final Map<String, Long> itemFiles = new TreeMap<>();
+    private static final Map<String, Long> overlayFiles = new TreeMap<>();
     private static final List<RegistryObject<GrugBlock>> registeredGrugBlocks = new ArrayList<>();
     private static final List<RegistryObject<? extends Item>> registeredGrugItems =
             new ArrayList<>();
@@ -269,6 +270,7 @@ public class GrugModLoader {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modEventBus.register(ClientModEvents.class);
             net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(ClientForgeEvents.class);
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(GrugOverlayHost.class);
             net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(
                     net.grug.minecraft.forge.gui.GrugTitleButton.class);
         }
@@ -334,11 +336,19 @@ public class GrugModLoader {
                 case "BlockEntity" ->
                         GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
                 case "Item" -> itemFiles.put(entry.cleanName(), file.fileId());
+                case "Overlay" -> overlayFiles.put(entry.cleanName(), file.fileId());
                 default -> {}
             }
         }
 
         registerDiscoveredBlocksAndItems();
+
+        // Only the client draws screens, so only it creates the overlay's entity. The entity is
+        // created on the first eligible screen rather than here, after every item is registered;
+        // see GrugOverlayHost.
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            GrugOverlayHost.init(overlayFiles);
+        }
     }
 
     private void registerDiscoveredBlocksAndItems() {
