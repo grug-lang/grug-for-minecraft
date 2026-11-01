@@ -9,7 +9,6 @@ import importlib.util
 import io
 import json
 import os
-import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -23,13 +22,6 @@ SPEC = importlib.util.spec_from_file_location(
 lookup = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(lookup)
 
-# affected_mods_test.py has the throwaway repository the test commits the base into.
-REPO_SPEC = importlib.util.spec_from_file_location(
-    "affected_mods_test", HERE / "affected_mods_test.py"
-)
-repo_module = importlib.util.module_from_spec(REPO_SPEC)
-REPO_SPEC.loader.exec_module(repo_module)
-
 SLUG = "test/repo"
 
 
@@ -37,7 +29,9 @@ class ApiHandler(http.server.BaseHTTPRequestHandler):
     """Serves the two endpoints the lookup reads, from the routes on the test case."""
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        self.server.requests.append(parsed.query)
         routes = self.server.routes
         if path == f"/repos/{SLUG}/actions/runs":
             if routes["runs"] is None:
@@ -68,6 +62,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
     def setUp(self):
         self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
         self.server.routes = {"runs": [], "artifacts": {}}
+        self.server.requests = []
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
         self.base_url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -75,10 +70,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         os.environ["GITHUB_API_URL"] = self.base_url
         os.environ["GITHUB_REPOSITORY"] = SLUG
         os.environ["GITHUB_TOKEN"] = "test-token"
-        self.repo_tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.repo_tmp.cleanup)
-        self.repo = repo_module.Repo(Path(self.repo_tmp.name))
-        self.base = self.repo.commit({"README.md": "readme\n"})
+        self.base = "a" * 40
 
     def tearDown(self):
         self.server.shutdown()
@@ -92,7 +84,7 @@ class BaseCoverageMapRunTest(unittest.TestCase):
     def run_lookup(self, base):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = lookup.main([base, "--repo", str(self.repo.path)])
+            code = lookup.main([base])
         self.assertEqual(code, 0, err.getvalue())
         return out.getvalue(), err.getvalue()
 
@@ -134,18 +126,25 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         self.assertEqual(out, "")
         self.assertIn("no successful run", err)
 
+    def test_the_lookup_names_the_base_commit_and_the_branch(self):
+        self.server.routes["runs"] = {
+            "workflow_runs": [{"id": 1, "head_sha": self.base, "conclusion": "success"}]
+        }
+        self.server.routes["artifacts"] = {"1": {"artifacts": [{"name": "coverage-map"}]}}
+        out, err = self.run_lookup(self.base)
+        self.assertEqual(out.strip(), "1", err)
+        runs_query = self.server.requests[0]
+        self.assertIn(f"head_sha={self.base}", runs_query)
+        self.assertIn("branch=main", runs_query)
+        # An instance may match a created date exactly rather than as "created at or after",
+        # so the lookup names the commit instead of relying on a date filter.
+        self.assertNotIn("created=", runs_query)
+
     def test_a_read_error_answers_nothing(self):
         self.server.routes["runs"] = None  # the handler answers 500 for the runs endpoint
         out, err = self.run_lookup(self.base)
         self.assertEqual(out, "")
         self.assertIn("the GitHub API could not be read", err)
-
-    def test_a_base_commit_not_in_the_repository_answers_nothing(self):
-        # A base that is not in the repository cannot be read for its committer date, and the
-        # fallback is the same as every other way to not find a map.
-        out, err = self.run_lookup("f" * 40)
-        self.assertEqual(out, "")
-        self.assertIn("could not be read", err)
 
 
 if __name__ == "__main__":

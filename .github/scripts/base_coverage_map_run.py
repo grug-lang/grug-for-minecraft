@@ -21,15 +21,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import urllib.parse
 import urllib.request
 
-# The newest-first runs of main the lookup may page through, and why: the base commit is at most
-# a few runs behind main's head, and a base older than that has no map anyway, since the map's
-# retention is shorter than the gap it would have to span.
-MAX_PAGES = 5
 MAP_ARTIFACT = "coverage-map"
 
 
@@ -49,7 +44,6 @@ def get_json(url: str, token: str):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("base", help="the commit the pull request is compared with")
-    parser.add_argument("--repo", default=".", help="the git repository (default: the current one)")
     parser.add_argument(
         "--api-base",
         default=os.environ.get("GITHUB_API_URL", "https://api.github.com"),
@@ -63,22 +57,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     token = os.environ.get("GITHUB_TOKEN", "")
 
-    try:
-        # The base commit's committer date is the earliest its push to main could have run, and
-        # it keeps the lookup from paging through main's whole history.
-        created = subprocess.run(
-            ["git", "-C", args.repo, "show", "-s", "--format=%cI", args.base],
-            capture_output=True,
-            check=True,
-            text=True,
-        ).stdout.strip()
-    except (OSError, subprocess.SubprocessError) as e:
-        print(
-            f"base-coverage-map-run: carrying over no coverage test: the base commit"
-            f" {args.base} could not be read: {e}",
-            file=sys.stderr,
-        )
-        return 0
     if not args.repo_slug:
         print(
             "base-coverage-map-run: carrying over no coverage test: GITHUB_REPOSITORY is not"
@@ -89,24 +67,19 @@ def main(argv: list[str] | None = None) -> int:
 
     runs_url = f"{args.api_base}/repos/{args.repo_slug}/actions/runs"
     try:
+        # No event filter: a push to main and a dispatch check the head out as is, and a
+        # pull request whose base is behind its head checks out the head's own code, so any
+        # kind of run whose head is the base commit is a run of the base commit's code. The
+        # commit and the branch name the run exactly, and one commit has a handful of runs on
+        # main at most, so one page holds them all. A created date is not a filter to lean on:
+        # this instance matches it exactly rather than as "created at or after".
+        params = {"branch": "main", "head_sha": args.base, "per_page": "100"}
         found = None
-        for page in range(1, MAX_PAGES + 1):
-            # No event filter: a push to main and a dispatch check the head out as is, and a
-            # pull request whose base is behind its head checks out the head's own code, so any
-            # kind of run whose head is the base commit is a run of the base commit's code.
-            params = {
-                "branch": "main",
-                "created": created,
-                "per_page": "100",
-                "page": str(page),
-            }
-            for run in get_json(runs_url + "?" + urllib.parse.urlencode(params), token)[
-                "workflow_runs"
-            ]:
-                if run["head_sha"] == args.base and run["conclusion"] == "success":
-                    found = run
-                    break
-            if found is not None:
+        for run in get_json(runs_url + "?" + urllib.parse.urlencode(params), token)[
+            "workflow_runs"
+        ]:
+            if run["head_sha"] == args.base and run["conclusion"] == "success":
+                found = run
                 break
         if found is None:
             print(
@@ -124,7 +97,8 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"base-coverage-map-run: carrying over no coverage test: the run of the base"
                 f" commit {found['id']} uploaded no {MAP_ARTIFACT} artifact, which a failed"
-                f" run or an expired retention leaves behind",
+                f" run, an expired retention or a commit older than the map's build leaves"
+                f" behind",
                 file=sys.stderr,
             )
             return 0
