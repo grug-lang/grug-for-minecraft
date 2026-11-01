@@ -898,6 +898,128 @@ class RunLoaderTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def add_coverage_tests(self, names: list[str]) -> None:
+        tests = self.tmp / "mods" / "coverage" / "tests"
+        tests.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            (tests / f"{name}-Test.grug").write_text("export tick() {}\n")
+
+    def test_a_carried_over_coverage_test_is_not_expected_to_pass(self):
+        # fake has 1 test and coverage 2, so the full run is 3. The game skips the carried-over
+        # test, so it reports 2, and the script's own count has to lose it to accept that.
+        self.add_coverage_tests(["a", "b"])
+
+        result = self.run_script(
+            self.selected_log(2), 0, {"GRUG_CI_COVERAGE_CARRY_OVER": "coverage/tests/a-Test.grug"}
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("carries over 1 coverage test(s)", result.stdout)
+        self.assertIn("coverage/tests/a-Test.grug", result.stdout)
+
+    def test_a_run_that_passed_the_uncarried_count_still_fails(self):
+        # The subtraction is what the check depends on: the same run, counted as if nothing were
+        # carried over, is a run that did not pass every test it was asked to.
+        self.add_coverage_tests(["a", "b"])
+
+        result = self.run_script(
+            self.selected_log(3), 0, {"GRUG_CI_COVERAGE_CARRY_OVER": "coverage/tests/a-Test.grug"}
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("exited", result.stderr)
+
+    def test_a_repeated_carry_over_name_counts_once(self):
+        # A repeated name is one test, as the runner treats it: subtracting it twice would expect
+        # one test fewer than the game runs and fail a green run.
+        self.add_coverage_tests(["a", "b"])
+
+        result = self.run_script(
+            self.selected_log(2),
+            0,
+            {
+                "GRUG_CI_COVERAGE_CARRY_OVER": (
+                    "coverage/tests/a-Test.grug, coverage/tests/a-Test.grug"
+                )
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("carries over 1 coverage test(s)", result.stdout)
+
+    def test_a_selection_that_includes_coverage_subtracts_its_carried_over_test(self):
+        self.add_coverage_tests(["a", "b"])
+
+        result = self.run_script(
+            self.selected_log(1),
+            0,
+            {
+                "GRUG_CI_MODS": "coverage",
+                "GRUG_CI_COVERAGE_CARRY_OVER": "coverage/tests/b-Test.grug",
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("(2 tests)", result.stdout)
+
+    def test_a_selection_that_runs_no_coverage_test_cannot_carry_one_over(self):
+        # The subtraction would expect one test fewer than the game runs, so a list of names with
+        # nothing being counted for the gate is refused rather than passed to the runner.
+        self.add_coverage_tests(["a", "b"])
+
+        result = self.run_script(
+            PASSING_LOG,
+            0,
+            {"GRUG_CI_MODS": "fake", "GRUG_CI_COVERAGE_CARRY_OVER": "coverage/tests/a-Test.grug"},
+        )
+
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("runs no coverage test", result.stderr)
+        self.assertEqual(result.gradle_args, "")
+
+    def test_an_empty_carry_over_entry_fails_before_the_game_starts(self):
+        self.add_coverage_tests(["a"])
+        for value in (
+            "coverage/tests/a-Test.grug,",
+            ",coverage/tests/a-Test.grug",
+            "coverage/tests/a-Test.grug,,coverage/tests/a-Test.grug",
+            ",",
+        ):
+            result = self.run_script(PASSING_LOG, 0, {"GRUG_CI_COVERAGE_CARRY_OVER": value})
+
+            self.assertEqual(result.returncode, 2, (value, result.stderr))
+            self.assertIn("empty entry", result.stderr)
+            self.assertEqual(result.gradle_args, "")
+            (self.tmp / "gradle-args.txt").unlink(missing_ok=True)
+
+    def test_a_carry_over_name_that_is_no_coverage_test_fails_before_the_game_starts(self):
+        self.add_coverage_tests(["a"])
+        for value, message in (
+            ("fake/tests/a-Test.grug", "not a coverage test"),
+            ("coverage/tests/missing-Test.grug", "has no such coverage test"),
+            ("coverage/code/a-Test.grug", "has no such coverage test"),
+            ("coverage/tests", "has no such coverage test"),
+        ):
+            result = self.run_script(PASSING_LOG, 0, {"GRUG_CI_COVERAGE_CARRY_OVER": value})
+
+            self.assertEqual(result.returncode, 2, (value, result.stderr))
+            self.assertIn(message, result.stderr)
+            self.assertEqual(result.gradle_args, "")
+            (self.tmp / "gradle-args.txt").unlink(missing_ok=True)
+
+    def test_an_unset_blank_or_empty_carry_over_changes_nothing(self):
+        self.add_coverage_tests(["a"])
+
+        for extra in (
+            {},
+            {"GRUG_CI_COVERAGE_CARRY_OVER": ""},
+            {"GRUG_CI_COVERAGE_CARRY_OVER": " \t "},
+        ):
+            result = self.run_script(self.selected_log(2), 0, extra)
+
+            self.assertEqual(result.returncode, 0, (extra, result.stderr))
+            self.assertNotIn("carries over", result.stdout)
+
     def test_the_selection_reaches_the_game_through_the_environment(self):
         # The game is a child of the script, so an exported variable is all it takes; a fake gradlew
         # that prints what it sees stands in for the game.
