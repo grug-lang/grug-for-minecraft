@@ -28,8 +28,8 @@ a disjoint area, and the next one starts the moment another finishes or waits on
 floor, not a cap, and a subagent that would edit the same files as another is the one reason to wait
 instead. The review queue is the orchestrator's own bottleneck, so it merges as work reports rather
 than letting a backlog build; when five disjoint tasks cannot be named, the handoff says which area
-is blocked and why rather than starting overlapping work. A full `build.yml` dispatch still waits for
-any run in flight, and pull request runs may overlap only while the 20 shared job slots allow it. The orchestrator may change its own process without asking, unless
+is blocked and why rather than starting overlapping work. Pull request runs may overlap only while
+the 20 shared job slots allow it. The orchestrator may change its own process without asking, unless
 the change is drastic, such as a different model or servers the maintainer would have to rent: it
 applies the optimization, records it here or in the handoff, and reports what it changed.
 
@@ -104,10 +104,10 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   while a change confined to `mods/`, to documentation or to a script with its own tests may merge
   on the jobs that exercise it, or on `pre-commit` alone when the orchestrator will watch the
   push-to-`main` run and fix forward. Every push to `main` is one merge, so a failure is attributed
-  to that pull request, and a temporarily red `main` is acceptable. Never wait for CodeRabbit: it
-  is slow and hits its review limit, so the review that counts is yours. Nothing is pushed to
-  `main`. A quick edit to markdown only (an `AGENTS.md` fix, say) may be merged without waiting for
-  any CI, and neither its pull request run nor the push-to-`main` run after it needs checking.
+  to that pull request. Never wait for CodeRabbit: it is slow and hits its review limit, so the
+  review that counts is yours. Nothing is pushed to `main`. A quick edit to markdown only (an
+  `AGENTS.md` fix, say) may be merged without waiting for any CI, and neither its pull request run
+  nor the push-to-`main` run after it needs checking.
   Before merging a base pull request that another one is stacked on, retarget the other to `main`,
   or `--delete-branch` closes it.
 - **Nothing waits for the maintainer.** A question goes in the chat when they are present and in an
@@ -119,10 +119,9 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
 - **Never, unattended:** publish outside the repository (for example a container image), change the
   ruleset or any repository setting (required status checks are #638), or delete anything you did
   not create (the worktree and branch of a task you just merged excepted).
-- **This file.** A factual inaccuracy in it is fixed directly: the orchestrator merges an
-  `AGENTS.md`-only pull request without waiting for CI (above), and the fix is not left for the
-  maintainer. A substantial change to it, such as which models an agent may spawn, is the
-  maintainer's call.
+- **This file.** A factual inaccuracy in it is fixed directly, without waiting for CI (above), and
+  the fix is not left for the maintainer. A substantial change to it, such as which models an agent
+  may spawn, is the maintainer's call.
 - **Report for the maintainer, when they return:** the pull request links to ctrl-click, what
   merged, what is still open, the questions as issues, and images to look at in one directory.
 
@@ -132,17 +131,18 @@ Minecraft never runs on the maintainer's machine: it is pointless there and has 
 laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay local: Gradle builds,
 `javap`, the JaCoCo CLI, the Python and script tests, `pre-commit`.
 
-- A pull request runs 10 jobs of `build.yml`, 9 when it changes only other mods and other loaders:
-  `.github/scripts/reference-needed.py` skips the `reference` job then, and its log says why. The
-  jar, installed and smoke jobs and two steps of the core tests run only on push to `main` and
-  `workflow_dispatch`, and the Windows boot jobs only on a dispatch and on a push that adds a loader
-  (#632), so a green pull request says nothing about them. `gh workflow run
-  build.yml --ref <branch>` gives a branch the full pipeline, with `-f repeats=<n>` to repeat the
-  suite in one session.
+- A pull request runs 10 jobs of `build.yml`, 9 when every changed path is inside another mod's or
+  another loader's directory, and `discover` alone when no test can read the diff:
+  `.github/scripts/reference-needed.py` and `.github/scripts/no-tests.py` skip the `reference` and
+  the test jobs then, each saying why in its log. The jar, installed and smoke jobs and two steps of
+  the core tests run only on push to `main` and `workflow_dispatch`, and the Windows boot jobs only
+  on a dispatch and on a push that adds a loader (#632), so a green pull request says nothing about
+  them. `gh workflow run build.yml --ref <branch>` gives a branch the full pipeline, with
+  `-f repeats=<n>` to repeat the suite in one session.
 - A release takes its jar from a dispatch of `build.yml` on main, not from the push that merged the
-  commit: the Windows boot jobs run only on a dispatch and for a loader a push adds (#632), so
-  `release.yml` requires that dispatch. A docs-only push to `main` now runs only `discover` (#822),
-  so the four-hourly check below is what keeps a full run of `main` from going missing.
+  commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
+  docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what
+  keeps a full run of `main` from going missing.
 - **The four-hourly `main` check.** At least every four hours, and at a task boundary, the
   orchestrator looks at the newest **dispatch** of `build.yml` on `main` and, if it is older than
   four hours or its conclusion is not success, runs `gh workflow run build.yml --ref main` when no
@@ -161,19 +161,26 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   misses the exact cache keys; editing `build.yml` does not. The Gradle dependencies fall back to
   the loader's previous entry (`restore-keys`), but the Minecraft toolchain has no fallback, so a
   miss there fetches it again, about 60 s on `1.20.6-forge`. The plan allows 20 concurrent jobs,
-  shared by all runs: do not dispatch a full `build.yml` while another run is going.
+  shared by all runs: do not dispatch a full `build.yml` while another run is going. A key miss
+  writes a new entry beside the old one, which nothing deletes, so editing the action stores every
+  entry it rekeys again: #699 measured one generation at 1.97 GB, into a store capped at 10 GB
+  where the least recently used entry goes first.
 - A loader job restores the project's `build/` and `.gradle/`, so Gradle's up-to-date check decides
   what runs; the cache key says only where that state lives, never what is safe to reuse. A task
   reading an undeclared input is therefore a CI correctness bug, not only a local one, and moving
-  outputs out of `build/` drops them from reuse, so the action's paths must be told.
+  outputs out of `build/` drops them from reuse, so the action's paths must be told. What a job
+  restores is not all named for it, so a change to one loader's entries is checked against every
+  other loader's job: dropping setup-java's shared Gradle cache cost `1.2.5-forge` 22 s until its
+  own user-home entry was enabled (#801).
 - Before pushing, check locally what can be checked: `pre-commit run --all-files`, the grug compile
   check, the Python tests. Wait with `.github/scripts/watch-run.sh <run-id>` in the background,
-  never a fixed sleep: it exits 1 at the first failed job with the last 80 lines of its failed step,
-  0 when all are green, 3 when GitHub could not be reached (no verdict). Get the id from `gh api
-  'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`; `gh pr checks --watch` fails right
-  after a push and reads stale runs after a force-push. Read a job's whole log with `gh api
-  repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a pipeline is
-  fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json mergeable`).
+  never a fixed sleep: it exits 1 at the first failed job with the 80 log lines before its first
+  error, 0 when all are green, 3 when GitHub could not be reached (no verdict). Get the id from
+  `gh api 'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`; `gh pr checks --watch`
+  fails right after a push and reads stale runs after a force-push. Read a job's whole log with
+  `gh api repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a
+  pipeline is fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json
+  mergeable`).
 - `python3 .github/scripts/ci_timing.py <run-id>` shows where a run's time went, with queue time.
 - Any time saving is welcome, but the smaller it is, the more firmly it has to be proven: a job
   varies by up to a minute between runs, so run the control and the variant interleaved on
@@ -210,16 +217,17 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 
 ## Running a loader
 
-CI runs `.github/scripts/run-loader.sh <loader> build|build-run|run|update-goldens` under
-`xvfb-run`; locally only `build` is light enough. `build-run` is `build` and `run` in one Gradle
-invocation (the loader jobs of a pull request use it); a Gradle failure before the game starts is
-reported as a failed build, and the run timeout starts when Gradle starts `runClient`. `production`
-gives the launcher's install its own limit (`GRUG_CI_INSTALL_TIMEOUT`) and starts the run timeout
-at the line that reports the launch, which is `Launched` from portablemc 5.0.6.
+CI runs `.github/scripts/run-loader.sh <loader> build|build-run|run|update-goldens|production`
+under `xvfb-run`; locally only `build` is light enough. `build-run` is `build` and `run` in one
+Gradle invocation (the loader jobs of a pull request use it); a Gradle failure before the game
+starts is reported as a failed build, and the run timeout starts when Gradle starts `runClient`.
+`production` gives the launcher's install its own limit (`GRUG_CI_INSTALL_TIMEOUT`) and starts the
+run timeout at the line that reports the launch, which is `Launched` from portablemc 5.0.6.
 
 - `run-loader.sh` is the only supported way: it resets `run/saves`, sets `GRUG_CI=true`, and
   publishes `grug-core` to `build/maven` first, which the four standalone loaders resolve. The 1.2.5
-  loader clones a 170 MB MCP snapshot per worktree; pass `-Pgrug.mcpSnapshot=<path>` to reuse one.
+  loader fetches the pinned 170 MB MCP snapshot into `loaders/1.2.5-forge/mcp125`, which a CI cache
+  entry restores; pass `-Pgrug.mcpSnapshot=<path>` to point local iteration at an existing tree.
 - `GRUG_CI_MODS=a,b` (the `mods` input of `gh workflow run build.yml`) loads every mod but runs only
   the tests of those mods, in the usual path order; an unknown name fails before the game starts. A
   selection without `coverage` leaves the coverage gate short, so use it to try a mod, not to merge.
