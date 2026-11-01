@@ -3297,7 +3297,7 @@
 			]
 		},
 		"has_sound": {
-			"description": "Whether the game has the sound the name asks for, which a mod asks before it plays a sound the versions it runs on do not all have. A name is a namespace, a colon and a path, such as \"minecraft:ui.button.click\", and a name of any other shape is reported. The namespace `minecraft` is the running game's own sound table, in that version's own names: a sound event of the registry on 1.20.6 (`ui.button.click`), and a name in the sound pool on Alpha, Beta and 1.2.5 (`random.click`), which holds only the sound files the game has loaded, so a run with no resources downloaded answers false for every one of them. A sound a mod ships itself is not supported yet, so every other namespace answers false.",
+			"description": "Whether the game has the sound the name asks for, which a mod asks before it plays a sound the versions it runs on do not all have. A name is a namespace, a colon and a path, such as \"minecraft:ui.button.click\", and a name of any other shape is reported. The namespace `minecraft` is the running game's own sound table, in that version's own names: a sound event of the registry on 1.20.6 (`ui.button.click`), and a name in the sound pool on Alpha, Beta and 1.2.5 (`random.click`), which holds only the sound files the game has loaded, so a run that downloads no resources, such as a CI run of 1.2.5, answers false for every one of them. A name with the variant digit of a sound file, such as `step.grass1`, answers false on those older versions, whose pools hold the name without the digit (`step.grass`) and pick one of its variants at random. A sound a mod ships itself is not supported yet, so every other namespace answers false.",
 			"return_type": {
 				"name": "bool"
 			},
