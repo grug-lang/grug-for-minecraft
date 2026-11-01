@@ -76,26 +76,15 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    # The reference's float32 transforms put a few plate-edge pixels on the other side of a pixel's
-    # centre from the port's float64 ones, so its captures take the smallest tolerance that passes.
-    # The port's stay pixel-exact on every loader. See #582.
     if capture == 0 {
-        if Test.is_reference() {
-            Test.screenshot().tolerance(12).equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
-        } else {
-            Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
-        }
+        Test.screenshot().equals(r"screenshots/redstone_engine_progress", 400, 100, 880, 230)
         capture = 1
         changed = false
         ctx.not_done()
         return
     }
 
-    if Test.is_reference() {
-        Test.screenshot().tolerance(6).equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
-    } else {
-        Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
-    }
+    Test.screenshot().equals(r"screenshots/redstone_engine_stroke_facings", 400, 100, 880, 230)
 }
 
 local _setup() {
