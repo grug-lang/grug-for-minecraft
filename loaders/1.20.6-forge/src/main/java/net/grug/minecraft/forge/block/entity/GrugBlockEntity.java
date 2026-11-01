@@ -449,9 +449,6 @@ public class GrugBlockEntity extends BlockEntity
     private boolean onServer() {
         return level != null && !level.isClientSide();
     }
-        GrugBlock block = (GrugBlock) getBlockState().getBlock();
-        return block.drawsCustomGeometry() && !block.drawsChunkGeometry();
-    }
 
     /** The energy this block entity holds changed, so the chunk has to be saved with it. */
     @Override
