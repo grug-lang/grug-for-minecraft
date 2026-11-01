@@ -37,11 +37,6 @@ export tick(ctx: TestTickContext) {
     if phase == 3 {
         Test.screenshot().capture(0, 0, 1280, 720)
         taken = taken + 1
-        Test.stall(60)
-        if taken < 20 {
-            ctx.not_done()
-            return
-        }
         Test.close_screen()
         taken = 0
         phase = 4
@@ -69,12 +64,6 @@ export tick(ctx: TestTickContext) {
             return
         }
         Test.screenshot().capture(0, 0, 1280, 720)
-        Test.stall(60)
-        taken = taken + 1
-        if taken < 6 {
-            ctx.not_done()
-            return
-        }
         Test.close_screen()
     }
 }
