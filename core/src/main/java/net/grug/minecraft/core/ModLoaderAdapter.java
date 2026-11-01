@@ -545,6 +545,33 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Test only: the width of the open screen in scaled pixels. A loader that cannot answer keeps
+     * the default, which reports the call rather than returning a size no screen has.
+     */
+    @GrugGenerated("no screen geometry: only the 1.20.6 adapter has an overlay test to measure")
+    default double screenWidthForTest() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.screen_width: This loader cannot measure a screen yet.");
+        return 0.0;
+    }
+
+    /** Test only: the x of the open container screen's GUI. */
+    @GrugGenerated("no screen geometry: only the 1.20.6 adapter has an overlay test to measure")
+    default double guiLeftForTest() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.gui_left: This loader cannot measure a screen yet.");
+        return 0.0;
+    }
+
+    /** Test only: the width of the open container screen's GUI. */
+    @GrugGenerated("no screen geometry: only the 1.20.6 adapter has an overlay test to measure")
+    default double guiWidthForTest() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.gui_width: This loader cannot measure a screen yet.");
+        return 0.0;
+    }
+
+    /**
      * The item on the mouse cursor of the screen that is open, or null for an empty cursor. A
      * loader that cannot answer keeps the default, which reports the call rather than answering as
      * if the cursor were empty.

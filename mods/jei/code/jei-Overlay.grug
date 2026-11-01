@@ -66,9 +66,6 @@ export click(ctx: OverlayClickContext) {
     if index < 0 {
         return
     }
-    # Temporary diagnostic: stall's refusal prints the value, which packs the click's index,
-    # columns, grid origin and mouse position. Remove with the next commit.
-    Test.stall(index + 100 * columns + 1000 * _grid_x(screen_width, ctx.gui_left(), ctx.gui_width()) + 1000000 * _grid_y() + 1000000000 * ctx.mouse_x() + 1000000000000 * ctx.mouse_y())
     if button == 0 and ctx.carried_item().has() {
         # JEI deletes the item on the cursor when the left button is pressed over the list, rather
         # than giving another one, which is what DeleteItemInputHandler does.

@@ -1301,6 +1301,24 @@
 						}
 					]
 				},
+				"screen_width": {
+					"description": "Test only: the width of the open screen in scaled pixels, so a test of an overlay can work out where the screen put its GUI and display area instead of assuming a window size. A test with no screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_left": {
+					"description": "Test only: the x position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_width": {
+					"description": "Test only: the width of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"clear_carried_item": {
 					"description": "Test only: clears the mouse cursor of the container screen that is open, on the client and on the integrated server, so a test starts a press with nothing carried. A test with no container screen open does nothing."
 				},

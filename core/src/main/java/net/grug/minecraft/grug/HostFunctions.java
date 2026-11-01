@@ -96,6 +96,29 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: the width of the open screen in scaled pixels, so a test of an overlay can work
+     * out where the screen put its GUI and its display area instead of assuming a window size.
+     */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static double Test_screen_width() {
+        return GrugCore.getAdapter().screenWidthForTest();
+    }
+
+    /** Test only: the x of the open container screen's GUI, the same measure an overlay gets. */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static double Test_gui_left() {
+        return GrugCore.getAdapter().guiLeftForTest();
+    }
+
+    /**
+     * Test only: the width of the open container screen's GUI, the same measure an overlay gets.
+     */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static double Test_gui_width() {
+        return GrugCore.getAdapter().guiWidthForTest();
+    }
+
+    /**
      * Test only: clears the mouse cursor of the open container screen, on the client and on the
      * integrated server, so a test starts a press with nothing carried.
      */
