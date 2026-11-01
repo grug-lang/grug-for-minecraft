@@ -658,7 +658,38 @@ public class HostFunctions {
      * than that calls this at the top of its setup. See #253.
      */
     public static void Test_set_box_radius(double radius) {
+        String problem = boxRadiusProblem(radius);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+            return;
+        }
         GrugCore.getAdapter().buildTestBox((int) radius);
+    }
+
+    /**
+     * The widest room the client is certain to hold. The run sets a render distance of two chunks,
+     * so the client holds the player's chunk and two on each side: at least 32 blocks from the
+     * player on every side whichever corner of its chunk they stand in. The rebuild owes the client
+     * the light of the room and of the 2 blocks around it, and a section the client holds no chunk
+     * for can never match the server's, so the settle wait would never pass. See #948.
+     */
+    static final int MAX_BOX_RADIUS = 30;
+
+    /** Why Test.set_box_radius refuses this radius, or null when it can build it. */
+    static String boxRadiusProblem(double radius) {
+        if (!Double.isFinite(radius) || radius != Math.floor(radius) || radius < 0) {
+            return "Test.set_box_radius: The radius has to be a whole number from 0 up, and was "
+                    + radius
+                    + ".";
+        }
+        if (radius > MAX_BOX_RADIUS) {
+            return "Test.set_box_radius: The radius has to be at most "
+                    + MAX_BOX_RADIUS
+                    + " so the room stays inside the chunks the client holds, and was "
+                    + radius
+                    + ".";
+        }
+        return null;
     }
 
     /**
