@@ -211,3 +211,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+# A comment, so this branch diffs from main while changing no behaviour (#825 measurement).
