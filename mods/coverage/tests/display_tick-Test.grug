@@ -1,0 +1,30 @@
+# Covers a block's display tick: the game's random display tick reaching the block's display_tick
+# export on every loader, the generator it hands over, and the particles the block spawns. The seed
+# makes the generator repeatable, so two ticks with the same seed spawn at the same place and a
+# different seed moves them. Whether a particle is drawn depends on the player's particle setting,
+# which the runs set to minimal, so the test reads what was spawned rather than looking for it.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_display_tick")
+    ctx.assert(Test.display_tick(level, x, y, z, 1) == 3, "The block should spawn one particle of each kind.")
+    first: Vec3 = Test.particle_position(0)
+    smoke: Vec3 = Test.particle_position(1)
+    ctx.assert(first.x() >= x and first.x() < x + 1, "The offset should come from the generator, from 0 up to but not 1.")
+    ctx.assert(first.y() == y + 1 and first.z() == z, "The particle should be spawned where the block said.")
+    ctx.assert(smoke.x() == first.x(), "Every particle of one tick should draw the same number.")
+
+    ctx.assert(Test.display_tick(level, x, y, z, 1) == 3, "A second tick should spawn the same particles.")
+    ctx.assert(Test.particle_position(0).x() == first.x(), "The same seed should give the same particles.")
+
+    Test.display_tick(level, x, y, z, 2)
+    ctx.assert(Test.particle_position(0).x() != first.x(), "A different seed should move the particles.")
+
+    # A block that never declared a display tick spawns nothing.
+    level.place_block(x + 2, y, z, "grug:coverage_block")
+    ctx.assert(Test.display_tick(level, x + 2, y, z, 1) == 0, "A block without a display tick should spawn nothing.")
+}

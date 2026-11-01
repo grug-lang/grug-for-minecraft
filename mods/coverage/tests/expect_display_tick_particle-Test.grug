@@ -1,0 +1,16 @@
+# A display tick that asks for a particle that does not exist is refused with an error, which is what
+# ctx.expect_error accepts here, and so is asking a test for a particle that was never spawned.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_display_tick")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    be.set_saved_number("bad", 1)
+
+    ctx.expect_error("no particle called")
+    Test.display_tick(level, x, y, z, 1)
+}

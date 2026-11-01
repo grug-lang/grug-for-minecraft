@@ -9,6 +9,7 @@ public enum GrugEntityType {
     BlockPos,
     BlockUseContext,
     Color,
+    DisplayTickContext,
     Entity,
     ExtractResponse,
     GUI,

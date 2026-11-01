@@ -7,12 +7,14 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockUse;
 import net.grug.minecraft.grug.GrugBox;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugEntityType;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugShape;
 import net.grug.minecraft.grug.GrugShapes;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
@@ -154,6 +156,18 @@ public class GrugBlock extends Block implements EntityBlock {
             }
         }
         return super.useWithoutItem(state, level, pos, player, hit);
+    }
+
+    /**
+     * The game's random display tick, which the client calls for blocks it samples around the
+     * player. A block that declared a display tick is asked with the generator the game handed
+     * over, so the script draws from the same stream the reference's display tick does.
+     */
+    @Override
+    public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
+        GrugDisplayTicks.run(
+                this.blockFileId, level, pos.getX(), pos.getY(), pos.getZ(), random::nextFloat);
+        super.animateTick(state, level, pos, random);
     }
 
     /**

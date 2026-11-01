@@ -4,6 +4,42 @@
 			"description": "A block.",
 			"export_functions": [
 				{
+					"name": "display_tick",
+					"description": "Called by the game on the client for blocks it picks at random around the player, many times a second, for a block whose init() called `set_display_tick`. It is where a block gives off particles that are not part of its state, such as the sparks of a powered machine. The game calls it for a random sample of the blocks near the player and not for every block on every tick, so a block that wants a steady stream draws from `ctx.random()` to decide what to spawn each time. Read the world through `world` in this call, since this runs on the client's copy of the world. A block that declares `set_display_tick` and exports no display_tick function reports an error.",
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "DisplayTickContext"
+							}
+						},
+						{
+							"name": "world",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
 					"name": "init",
 					"description": "Called once at registration time to declare the block's assets.",
 					"engine_called": true,
@@ -1211,6 +1247,44 @@
 				"close_screen": {
 					"description": "Closes whatever screen the client currently has open. One client serves a whole test run, so a screen a test opened outlives that test; a screenshot test that follows one which opened a GUI calls this, or it captures that panel instead of the world."
 				},
+				"display_tick": {
+					"description": "Test only: runs the display tick of the block at that position as the game does for a block it samples around the player, with a random generator seeded by `seed`, and answers how many particles it spawned. It goes through the block's own random display tick rather than a grug call, so it answers for any block the loader knows. The particles spawned are kept for Test.particle_position until the next call. Whether they are drawn depends on the player's particle setting, which the screenshot runs set to minimal.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "seed",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"force_gc": {
 					"description": "Test only: asks the JVM for a full garbage collection, so a test can make a collected host entity deterministic instead of waiting for GC timing to line up."
 				},
@@ -1421,6 +1495,20 @@
 					"return_type": {
 						"name": "bool"
 					}
+				},
+				"particle_position": {
+					"description": "Test only: where the particle with that index, counted from 0, was spawned by the last Test.display_tick, as a position in the world. An index past the last particle reports an error.",
+					"return_type": {
+						"name": "Vec3"
+					},
+					"parameters": [
+						{
+							"name": "index",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				},
 				"press_screen_key": {
 					"description": "Presses a key on the screen that is open, through the same path a real key press takes, and answers whether an overlay took the key. True means an overlay took it, so the screen never saw it; false means no overlay took it, even when the screen handled the key itself. The key is the number OverlayKeyContext.key answers. The key is released again after the press when `release` is true; with `release` false it stays held, so pressing the same key again is a key repeat, which an overlay is not asked about (it answers false), until a press with `release` true lets go. Test only.",
@@ -1780,6 +1868,9 @@
 				"set_custom_render": {
 					"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The geometry is baked into the chunk's mesh, once per rebuild, so it is the right call for a shape that only changes when a neighbouring block does; a machine whose parts move or turn every frame declares set_frame_render() instead, which draws all of its geometry from render_frame() and nothing into the chunk's mesh. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
 				},
+				"set_display_tick": {
+					"description": "Declares that this block gives off particles from its display_tick export, which the game then calls for blocks it samples at random around the player. A block that does not call this is never asked, since the game samples every block near the player and only a block that declared one is worth entering the VM for. A block that declares it and exports no display_tick function reports an error. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+				},
 				"set_flat_lighting": {
 					"description": "Declares that this block's own geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point, and it is what its item form is drawn with too. The light at the block's own position is real light because a block that draws its own geometry is not opaque, which set_custom_render and set_frame_render declare. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after one of those two calls: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
 				},
@@ -1886,6 +1977,64 @@
 							}
 						}
 					]
+				}
+			}
+		},
+		"DisplayTickContext": {
+			"description": "The context of a block's display_tick(), passed to it. It is how a display tick draws from the game's random number generator for this tick and spawns particles. A context is only valid while its display_tick() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"add_particle": {
+					"description": "Spawns one particle in the world, at an absolute world position, moving with the given velocity. `name` is one of \"reddust\" (a red dust particle, the one a powered redstone wire gives off), \"smoke\" and \"flame\"; any other name reports an error. Reddust ignores the velocity, since the game only uses those three numbers to colour it on some versions and its red is the one a port wants; smoke and flame rise with it. Like every particle the game spawns, it is dropped when the player has set particles to minimal. Only legal on the context display_tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "vx",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "vy",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "vz",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"random": {
+					"description": "The next number from the game's random generator for this tick, from 0 up to but not 1, as `Random.nextFloat` and `RandomSource.nextFloat` give it. A port consumes the generator in the order its reference does, so a test that seeds it (see Test.display_tick) gets the same particles from a port and from its reference. Only legal on the context display_tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
 				}
 			}
 		},

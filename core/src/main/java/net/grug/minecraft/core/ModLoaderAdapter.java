@@ -921,6 +921,34 @@ public interface ModLoaderAdapter {
             double endZ);
 
     /**
+     * Spawns one particle in the client world, as the game's own {@code world.addParticle} does.
+     *
+     * <p>The name is one of the particles a script may name, which core has already checked: {@code
+     * reddust}, {@code smoke} or {@code flame}. A server has no particles, so a loader that is not
+     * drawing the world ignores the call. The particle setting the player chose still applies,
+     * because the game's own method applies it.
+     */
+    void addParticle(
+            Object levelObj,
+            String name,
+            double x,
+            double y,
+            double z,
+            double vx,
+            double vy,
+            double vz);
+
+    /**
+     * Test only: runs the display tick of the block at the given position, as the game does for a
+     * block it samples around the player, with a generator seeded by {@code seed}.
+     *
+     * <p>It goes through the game's own {@code randomDisplayTick} rather than a grug call, so it
+     * answers for any block the loader knows, which is what lets a port's tests ask its reference
+     * the same question.
+     */
+    void displayTickForTest(Object levelObj, double x, double y, double z, long seed);
+
+    /**
      * Captures the rectangle and compares it against the reference directory. When {@code
      * tolerancePercent} is 0 the capture must match pixel-for-pixel; otherwise it passes when at
      * most that percentage of pixels differ.

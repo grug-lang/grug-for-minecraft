@@ -1,0 +1,52 @@
+# Covers the redstone engine's particles, after BlockEngine.b in BuildCraft 2.2.14: while a redstone
+# signal reaches the engine its random display tick spawns four reddust particles, one just outside
+# each side (0.52 from the centre along x or z, with one random offset of up to 0.3 along the side)
+# at one random height in the bottom 6/16 of the block, and while none does it spawns nothing. The
+# test runs the display tick with a seeded generator and reads the particles it spawned. The
+# reference run has no such record, so it is skipped there.
+export tick(ctx: TestTickContext) {
+    if Test.is_reference() {
+        return
+    }
+
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y - 2, z, "minecraft:stone")
+    level.place_block(x, y, z, "grug:redstone_engine")
+    ctx.assert(not level.has_neighbor_signal(x, y, z), "The engine should start unpowered.")
+    ctx.assert(Test.display_tick(level, x, y, z, 5) == 0, "An unpowered engine should give off no particle.")
+
+    level.place_block(x, y - 1, z, "minecraft:redstone_torch")
+    ctx.assert(level.has_neighbor_signal(x, y, z), "The torch under the engine should power it.")
+    ctx.assert(Test.display_tick(level, x, y, z, 5) == 4, "A powered engine should give off four particles.")
+
+    cx: number = x + 0.5
+    cz: number = z + 0.5
+    west: Vec3 = Test.particle_position(0)
+    east: Vec3 = Test.particle_position(1)
+    north: Vec3 = Test.particle_position(2)
+    south: Vec3 = Test.particle_position(3)
+
+    ctx.assert(_near(west.x(), cx - 0.52) and _near(east.x(), cx + 0.52), "The first two particles should be 0.52 beside the centre along x.")
+    ctx.assert(_near(north.z(), cz - 0.52) and _near(south.z(), cz + 0.52), "The last two particles should be 0.52 beside the centre along z.")
+
+    # One height and one offset are drawn per tick, and all four particles share them.
+    height: number = west.y() - y
+    ctx.assert(height >= 0 and height < 0.375, "The height should be in the bottom 6/16 of the block.")
+    ctx.assert(_near(east.y(), west.y()) and _near(north.y(), west.y()) and _near(south.y(), west.y()), "All four particles should share one height.")
+    offset: number = west.z() - cz
+    ctx.assert(offset >= -0.3 and offset < 0.3, "The offset should be up to 0.3 along the side.")
+    ctx.assert(_near(east.z() - cz, offset) and _near(north.x() - cx, offset) and _near(south.x() - cx, offset), "All four particles should share one offset.")
+
+    # A different seed draws different numbers.
+    Test.display_tick(level, x, y, z, 6)
+    ctx.assert(not _near(Test.particle_position(0).y(), west.y()), "A different seed should draw a different height.")
+}
+
+local _near(a: number, b: number) bool {
+    return a - b < 0.000001 and b - a < 0.000001
+}

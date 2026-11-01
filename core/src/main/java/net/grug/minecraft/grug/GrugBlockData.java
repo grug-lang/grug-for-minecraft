@@ -41,6 +41,13 @@ public class GrugBlockData {
      */
     public boolean hasShape = false;
 
+    /**
+     * Whether the block's script exports display_tick, declared by set_display_tick. The game calls
+     * a block's display tick for blocks sampled at random around the player, so only a block that
+     * declared one is asked.
+     */
+    public boolean hasDisplayTick = false;
+
     public GrugBlockData(String id) {
         this.id = id;
     }
