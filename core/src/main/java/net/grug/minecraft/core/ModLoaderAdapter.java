@@ -92,6 +92,8 @@ public interface ModLoaderAdapter {
 
     void setEntityDeltaMovement(Object entityObj, double dx, double dy, double dz);
 
+    Vec3 getEntityDeltaMovement(Object entityObj);
+
     void spawnEntity(Object levelObj, Object entityObj);
 
     void consumeCraftingIngredients(Object blockEntityObj, double startSlot);
@@ -182,6 +184,15 @@ public interface ModLoaderAdapter {
     Object createItemEntity(Object levelObj, double x, double y, double z, Object itemStackObj);
 
     Object createItemStack(Object itemObj, double damage, double count);
+
+    /**
+     * The largest count an item stack this loader saves keeps.
+     *
+     * <p>1.2.5, both b1.7.3 loaders and Alpha write the stack count as one NBT byte, so a stack
+     * beyond 127 comes back as a different count on the next load. 1.20.6 writes an int. {@code
+     * item_stack} refuses a count above this rather than make a stack whose save would corrupt it.
+     */
+    int maxItemStackCount();
 
     double getItemEntityDamage(Object itemEntityObj);
 

@@ -682,6 +682,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public int maxItemStackCount() {
+        // writeToNBT writes Count as one byte, and readFromNBT reads it back as a signed int.
+        return Byte.MAX_VALUE;
+    }
+
+    @Override
     public double getItemEntityDamage(Object itemEntityObj) {
         // A dead item entity, whose saved item id the game does not have, carries no stack: its
         // damage is 0, not a throw. See GrugItemStacks.
@@ -766,6 +772,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
         entity.motionX = dx;
         entity.motionY = dy;
         entity.motionZ = dz;
+    }
+
+    @Override
+    public Vec3 getEntityDeltaMovement(Object entityObj) {
+        Entity entity = (Entity) entityObj;
+        return new Vec3(entity.motionX, entity.motionY, entity.motionZ);
     }
 
     @Override

@@ -1319,6 +1319,12 @@
 						}
 					]
 				},
+				"loader_name": {
+					"description": "Test only: the name of the loader this run is on, such as `1.20.6-forge` or `b1.7.3-stationapi`. A test whose answer depends on the loader, such as the largest count an item stack's save keeps, asks this and checks the loader's own answer.",
+					"return_type": {
+						"name": "string"
+					}
+				},
 				"mining_crack": {
 					"description": "Test only: whether the game draws the mining crack over the block's own geometry, and leaves the block's shape a full cube afterwards. A test cannot hold the crack on screen, because the versions whose overlay follows the local player's own mining clear that state on every tick the attack button is not held; so the versions that draw the overlay from an explicit call make one overlay pass for the block at the middle of the break, and 1.20.6 asks its baked model for the quads the overlay would draw. The block is left in place.",
 					"parameters": [
@@ -1843,6 +1849,12 @@
 		"Entity": {
 			"description": "A generic entity.",
 			"methods": {
+				"get_delta_movement": {
+					"description": "The entity's delta movement, the vector it moves by on each tick.",
+					"return_type": {
+						"name": "Vec3"
+					}
+				},
 				"set_delta_movement": {
 					"description": "Sets an Entity's delta movement.",
 					"parameters": [

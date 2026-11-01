@@ -89,6 +89,7 @@ Test.high_block_round_trip() number
 Test.hot_reload_count(relative_path: string) number
 Test.is_reference() bool
 Test.load_nbt(block_entity: BlockEntity)
+Test.loader_name() string
 Test.mining_crack(level: Level, x: number, y: number, z: number) bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.open_inventory(player: Player)
@@ -143,6 +144,7 @@ Test.world_settled() bool
 Color.rgb(r: number, g: number, b: number) Color
 
 ## Entity
+.get_delta_movement() Vec3
 .set_delta_movement(vec3: Vec3)
 .spawn(level: Level)
 

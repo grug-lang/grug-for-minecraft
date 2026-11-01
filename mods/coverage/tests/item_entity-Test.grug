@@ -1,5 +1,6 @@
 # Covers item + resource_location + item_stack (with damage and count) + item_entity +
-# ItemEntity.damage + ItemEntity.count + Entity.set_delta_movement + Entity.spawn + vec3_zero.
+# ItemEntity.damage + ItemEntity.count + Entity.set_delta_movement + Entity.get_delta_movement +
+# Entity.spawn + vec3_zero.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
@@ -11,6 +12,16 @@ export tick(ctx: TestTickContext) {
         entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
         ctx.assert(entity.damage() == 3, "The item entity should carry the stack's damage.")
         ctx.assert(entity.count() == 1, "A stack of one should make an item entity of one.")
+
+        # A movement the test chose, so the answer cannot be the zero a getter that read nothing
+        # would return.
+        velocity: Vec3 = Vec3.new(0.5, 1.5, -2.5)
+        entity.entity().set_delta_movement(velocity)
+        movement: Vec3 = entity.entity().get_delta_movement()
+        ctx.assert(movement.x() == 0.5, "The entity should move by the x it was given.")
+        ctx.assert(movement.y() == 1.5, "The entity should move by the y it was given.")
+        ctx.assert(movement.z() == -2.5, "The entity should move by the z it was given.")
+
         entity.entity().set_delta_movement(Vec3.zero())
         entity.entity().spawn(level)
 

@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.GrugTags.Resolution;
 
@@ -96,12 +97,31 @@ public final class GrugRecipeResolution {
         return complete ? inputs.toArray() : null;
     }
 
-    /** The game item the recipe produces, or null once this loader does not have it. */
+    /**
+     * The game item the recipe produces, or null once this loader does not have it or its count is
+     * one the loader's save cannot keep.
+     */
     private static Object result(GrugRecipeTree.Recipe recipe, ModLoaderAdapter adapter) {
         Object item =
                 adapter.getItemFromRegistry(adapter.createResourceLocation(recipe.resultId()));
         if (item == null) {
             reportOwnItemIfNeeded(recipe.path(), recipe.resultId(), "gives");
+            return null;
+        }
+        // A stack's count is saved as a byte on the older loaders, so a recipe whose result it
+        // cannot keep is dropped rather than registered with a stack that corrupts on the next
+        // save.
+        int maxCount = adapter.maxItemStackCount();
+        if (!GrugItemStacks.countFits(recipe.resultCount(), maxCount)) {
+            GrugModTreeDefect.report(
+                    "Recipe '"
+                            + recipe.path()
+                            + "' gives "
+                            + recipe.resultCount()
+                            + " items, and this loader's save keeps at most "
+                            + maxCount
+                            + " in a stack.");
+            return null;
         }
         return item;
     }

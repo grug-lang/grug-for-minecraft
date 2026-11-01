@@ -65,6 +65,9 @@ class GrugRecipeResolutionTest {
                                 String id = (String) args[0];
                                 return known.contains(id) ? "item:" + id : null;
                             }
+                            if (method.getName().equals("maxItemStackCount")) {
+                                return (int) Byte.MAX_VALUE;
+                            }
                             return null;
                         });
     }
@@ -218,6 +221,46 @@ class GrugRecipeResolutionTest {
         assertTrue(resolved.complete());
         assertArrayEquals(
                 new Object[] {"item:minecraft:stick", "item:grug:wooden_gear"}, resolved.inputs());
+        assertEquals("item:grug:thing", resolved.resultItem());
+        assertEquals(List.of(), reported());
+    }
+
+    @Test
+    void dropsARecipeWhoseResultTheLoadersSaveCannotKeep() throws IOException {
+        GrugRecipeTree.Recipe recipe =
+                recipe(
+                        "{\"type\": \"minecraft:crafting_shapeless\","
+                                + " \"ingredients\": [{\"item\": \"minecraft:stick\"}],"
+                                + " \"result\": {\"id\": \"grug:thing\", \"count\": 128}}");
+        knows("minecraft:stick", "grug:thing");
+
+        GrugRecipeResolution.Resolved resolved = resolve(recipe);
+
+        // The byte save reads 128 back as -128, so the recipe is dropped instead of registered
+        // with a stack that corrupts on the next load.
+        assertFalse(resolved.complete());
+        assertNull(resolved.resultItem());
+        assertEquals(
+                List.of(
+                        "Recipe '"
+                                + PATH
+                                + "' gives 128 items, and this loader's save keeps at most 127 in"
+                                + " a stack."),
+                reported());
+    }
+
+    @Test
+    void resolvesARecipeAtTheLargestCountTheLoadersSaveKeeps() throws IOException {
+        GrugRecipeTree.Recipe recipe =
+                recipe(
+                        "{\"type\": \"minecraft:crafting_shapeless\","
+                                + " \"ingredients\": [{\"item\": \"minecraft:stick\"}],"
+                                + " \"result\": {\"id\": \"grug:thing\", \"count\": 127}}");
+        knows("minecraft:stick", "grug:thing");
+
+        GrugRecipeResolution.Resolved resolved = resolve(recipe);
+
+        assertTrue(resolved.complete());
         assertEquals("item:grug:thing", resolved.resultItem());
         assertEquals(List.of(), reported());
     }

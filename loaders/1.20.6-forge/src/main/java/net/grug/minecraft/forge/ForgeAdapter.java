@@ -180,6 +180,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Vec3 getEntityDeltaMovement(Object entityObj) {
+        net.minecraft.world.phys.Vec3 movement = ((Entity) entityObj).getDeltaMovement();
+        return new Vec3(movement.x, movement.y, movement.z);
+    }
+
+    @Override
     public void spawnEntity(Object levelObj, Object entityObj) {
         ((Level) levelObj).addFreshEntity((Entity) entityObj);
     }
@@ -741,6 +747,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
         ItemStack stack = new ItemStack((Item) itemObj, (int) count);
         stack.setDamageValue((int) damage);
         return stack;
+    }
+
+    @Override
+    public int maxItemStackCount() {
+        return Integer.MAX_VALUE;
     }
 
     @Override
