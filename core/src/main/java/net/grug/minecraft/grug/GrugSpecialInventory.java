@@ -83,16 +83,21 @@ final class GrugSpecialInventory {
      * Puts an item into the block entity as it answers, one slot at a time until the stack is in or
      * the block entity refuses, and returns how many went in. With {@code add} false it asks once
      * and changes nothing.
+     *
+     * <p>The item is the object its id resolves to, which the caller hands in rather than this
+     * method dereferencing again: a block entity's member can hold an item that was collected since
+     * (#93), and resolving it here put that dereference outside the id guard every host function
+     * resolves through. See #895.
      */
     static double addItem(
             Object blockEntity,
+            Object item,
             long itemId,
             double damage,
             double count,
             double fromSide,
             boolean add) {
         ModLoaderAdapter adapter = GrugCore.getAdapter();
-        Object item = GrugEntities.entityData.get(itemId).object;
         double remaining = count;
         double total = 0;
         while (remaining > 0) {
