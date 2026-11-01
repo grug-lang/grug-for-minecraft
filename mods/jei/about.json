@@ -63,9 +63,9 @@
 					"tracking_issue": 872
 				},
 				{
-					"what": "The list is paged with the back and next buttons, which are drawn as plain highlight boxes without the reference's arrows or page number, but it cannot be scrolled with the mouse wheel.",
-					"why": "The wheel needs a scroll callback on the overlay, which the host API does not have, and the buttons are pressed through click(); the buttons' look is part of the chrome the first version does not draw.",
-					"tracking_issue": 986
+					"what": "The list is paged with the back and next buttons, which are drawn as plain highlight boxes without the reference's arrows or page number.",
+					"why": "The buttons' look is part of the chrome the first version does not draw.",
+					"tracking_issue": 870
 				},
 				{
 					"what": "There is no search box, so the list cannot be filtered.",

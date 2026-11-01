@@ -47,6 +47,7 @@ public final class GrugOverlay {
     private static boolean open = false;
     private static boolean render = false;
     private static boolean keyPass = false;
+    private static boolean scrollPass = false;
     private static boolean taken = false;
     private static Context context = null;
 
@@ -63,6 +64,7 @@ public final class GrugOverlay {
     private static boolean shift = false;
     private static double keyCode = 0.0;
     private static boolean ctrl = false;
+    private static double scrollDelta = 0.0;
 
     /**
      * Whether this loader draws overlays at all, which is what {@code Test.overlay_supported}
@@ -173,12 +175,27 @@ public final class GrugOverlay {
      * Whether the open pass is a click pass, which is the only state a click's take is legal in.
      */
     public static boolean isClick() {
-        return open && !render && !keyPass;
+        return open && !render && !keyPass && !scrollPass;
     }
 
     /** Whether the open pass is a key pass, which is the only state a key's take is legal in. */
     public static boolean isKey() {
         return open && keyPass;
+    }
+
+    /**
+     * Whether the open pass is a scroll pass, which is the only state a scroll's methods are legal
+     * in.
+     */
+    public static boolean isScroll() {
+        return open && scrollPass;
+    }
+
+    /**
+     * The wheel movement the open scroll pass was given, see {@code OverlayScrollContext.delta}.
+     */
+    public static double scrollDelta() {
+        return scrollDelta;
     }
 
     /** The key the open key pass was given, see {@code OverlayKeyContext.key}. */
@@ -310,6 +327,37 @@ public final class GrugOverlay {
         GrugOverlay.ctrl = ctrl;
     }
 
+    /**
+     * Opens a scroll pass for one wheel movement at a mouse position, with nothing recorded in it,
+     * for the screen the geometry describes. The delta is in wheel notches, positive when the wheel
+     * was turned up and away from the player.
+     */
+    public static void openScroll(
+            double screenWidth,
+            double screenHeight,
+            double guiLeft,
+            double guiTop,
+            double guiWidth,
+            double guiHeight,
+            double mouseX,
+            double mouseY,
+            double delta) {
+        open(
+                true,
+                screenWidth,
+                screenHeight,
+                guiLeft,
+                guiTop,
+                guiWidth,
+                guiHeight,
+                mouseX,
+                mouseY,
+                0.0,
+                false);
+        scrollPass = true;
+        scrollDelta = delta;
+    }
+
     private static void open(
             boolean isClick,
             double screenWidth,
@@ -378,9 +426,7 @@ public final class GrugOverlay {
         return true;
     }
 
-    /**
-     * Called by the {@code OverlayClickContext.take} and {@code OverlayKeyContext.take} functions.
-     */
+    /** Called by the {@code take} functions of the click, key and scroll contexts. */
     public static void take() {
         if (open && !render) {
             taken = true;
@@ -409,7 +455,7 @@ public final class GrugOverlay {
      * reaching the screen.
      */
     public static boolean closeClick() {
-        if (render || keyPass) {
+        if (render || keyPass || scrollPass) {
             throw Grug.fatal(
                     "An overlay pass was closed as a click pass while it was not a click pass.");
         }
@@ -432,7 +478,23 @@ public final class GrugOverlay {
         return wasTaken;
     }
 
+    /**
+     * Closes a scroll pass and answers whether the scroll was taken, so the loader can keep it from
+     * reaching the screen.
+     */
+    public static boolean closeScroll() {
+        if (!scrollPass) {
+            throw Grug.fatal(
+                    "An overlay pass was closed as a scroll pass while it was not a scroll pass.");
+        }
+        boolean wasTaken = taken;
+        finish();
+        return wasTaken;
+    }
+
     private static void finish() {
+        scrollPass = false;
+        scrollDelta = 0.0;
         keyPass = false;
         keyCode = 0.0;
         ctrl = false;
@@ -567,6 +629,49 @@ public final class GrugOverlay {
                 }
             } finally {
                 wasTaken = closeKey();
+            }
+            return wasTaken;
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
+     * Runs an overlay's {@code scroll()} for one wheel movement and answers whether it took it. The
+     * loader calls this before its screen sees the wheel and cancels it when the answer is true.
+     */
+    public static boolean scroll(
+            long entityHandle,
+            long scrollFnId,
+            double screenWidth,
+            double screenHeight,
+            double guiLeft,
+            double guiTop,
+            double guiWidth,
+            double guiHeight,
+            double mouseX,
+            double mouseY,
+            double delta) {
+        GrugStateLock.lock();
+        try {
+            openScroll(
+                    screenWidth,
+                    screenHeight,
+                    guiLeft,
+                    guiTop,
+                    guiWidth,
+                    guiHeight,
+                    mouseX,
+                    mouseY,
+                    delta);
+            boolean wasTaken;
+            try {
+                if (entityHandle != 0 && scrollFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                    callExport(
+                            entityHandle, scrollFnId, GrugEntityType.OverlayScrollContext, context);
+                }
+            } finally {
+                wasTaken = closeScroll();
             }
             return wasTaken;
         } finally {

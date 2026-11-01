@@ -680,6 +680,17 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Turns the mouse wheel at a screen position through the screen's own wheel path, and answers
+     * whether an overlay took it. The delta is in wheel notches, positive for up.
+     */
+    @GrugGenerated("default only: every current adapter drives a synthetic wheel movement")
+    default boolean scrollScreen(double x, double y, double delta) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.scroll_screen: This loader cannot scroll a screen yet.");
+        return false;
+    }
+
+    /**
      * Test only: the width of the open screen in scaled pixels. A loader that cannot answer keeps
      * the default, which reports the call rather than returning a size no screen has.
      */

@@ -2031,6 +2031,18 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run scrolls while the screen it just opened is up")
+    public boolean scrollScreen(double x, double y, double delta) {
+        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (screen == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.scroll_screen: There is no screen open to scroll.");
+            return false;
+        }
+        return GrugOverlayHost.scrollThroughScreen(screen, (int) x, (int) y, delta);
+    }
+
+    @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;

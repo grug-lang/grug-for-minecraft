@@ -3,7 +3,8 @@
 # loader's item list behind item_at. The box sits at the centre of the screen, where the player's
 # inventory also is, so the test's click lands on it; a click there gives the first item and takes
 # the press, a middle click gives a stack, and a left click while the cursor carries an item deletes
-# it instead. On a loader that draws no overlays the exports are never asked, and the test returns
+# it instead. Scrolling the wheel down over the box is taken too, and so is a fast turn up of three
+# notches, while a gentler turn up is left to the screen. On a loader that draws no overlays the exports are never asked, and the test returns
 # before it opens anything. See #615.
 export render(ctx: OverlayRenderContext) {
     box_x: number = Math.floor(ctx.screen_width() / 2) - 9
@@ -55,6 +56,21 @@ export click(ctx: OverlayClickContext) {
 # handles itself. Any other key is left alone.
 export key(ctx: OverlayKeyContext) {
     if ctx.key() == 75 and ctx.ctrl() {
+        ctx.take()
+    }
+}
+
+# A wheel turned down over the box is taken, and so is one turned up by three notches or more, so a
+# test can tell a taken movement from one the screen handles itself, and can tell that the delta is
+# the wheel's own number. Everything else is left alone. See #986.
+export scroll(ctx: OverlayScrollContext) {
+    inside_screen: bool = ctx.mouse_x() >= 0 and ctx.mouse_x() < ctx.screen_width() and ctx.mouse_y() >= 0 and ctx.mouse_y() < ctx.screen_height()
+    over_gui_x: bool = ctx.mouse_x() >= ctx.gui_left() and ctx.mouse_x() < ctx.gui_left() + ctx.gui_width()
+    inside_gui: bool = over_gui_x and ctx.mouse_y() >= ctx.gui_top() and ctx.mouse_y() < ctx.gui_top() + ctx.gui_height()
+    box_x: number = Math.floor(ctx.screen_width() / 2) - 9
+    box_y: number = Math.floor(ctx.screen_height() / 2) - 9
+    over_box: bool = ctx.mouse_x() >= box_x and ctx.mouse_x() < box_x + 18 and ctx.mouse_y() >= box_y and ctx.mouse_y() < box_y + 18
+    if inside_screen and inside_gui and over_box and (ctx.delta() < 0 or ctx.delta() >= 3) {
         ctx.take()
     }
 }

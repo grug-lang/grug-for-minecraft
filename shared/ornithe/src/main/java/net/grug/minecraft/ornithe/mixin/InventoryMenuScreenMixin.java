@@ -85,6 +85,13 @@ public abstract class InventoryMenuScreenMixin implements GrugScreenGeometry {
     }
 
     @Override
+    public boolean grug$scroll() {
+        GrugOverlay.beginTestPress();
+        ((Screen) (Object) this).handleMouse();
+        return GrugOverlay.testPressTaken();
+    }
+
+    @Override
     public int grug$width() {
         return ((Screen) (Object) this).width;
     }

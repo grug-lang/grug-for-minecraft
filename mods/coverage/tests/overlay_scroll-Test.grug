@@ -1,0 +1,43 @@
+# Covers the overlay's scroll hook through the screen's own wheel path: the coverage overlay takes a
+# wheel turned down over its box, and one turned up by three notches or more, and leaves every other
+# movement to the screen, so Test.scroll_screen answers true for those and false for the rest. See
+# #986.
+started: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() {
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    # The overlay's box is at the centre of the screen, which is the middle of the GUI.
+    x: number = Math.floor(Test.screen_width() / 2)
+    y: number = Test.gui_top() + Math.floor(Test.gui_height() / 2)
+    ctx.assert(Test.scroll_screen(x, y, -1), "A wheel turned down over the box should be taken.")
+    ctx.assert(Test.scroll_screen(x, y, -0.5), "A half notch down over the box should be taken.")
+    ctx.assert(Test.scroll_screen(x, y, 3), "A wheel turned up by three notches should be taken.")
+    ctx.assert(not Test.scroll_screen(x, y, 1), "A wheel turned up by one notch should be left to the screen.")
+    ctx.assert(not Test.scroll_screen(1, 1, -1), "A wheel turned over a corner of the screen should be left to the screen.")
+    Test.close_screen()
+}

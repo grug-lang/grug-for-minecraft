@@ -68,6 +68,7 @@ public final class GrugOverlayHost {
         final long renderFnId;
         final long clickFnId;
         final long keyFnId;
+        final long scrollFnId;
         final String mod;
 
         Overlay(
@@ -76,12 +77,14 @@ public final class GrugOverlayHost {
                 long renderFnId,
                 long clickFnId,
                 long keyFnId,
+                long scrollFnId,
                 String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
             this.renderFnId = renderFnId;
             this.clickFnId = clickFnId;
             this.keyFnId = keyFnId;
+            this.scrollFnId = scrollFnId;
             this.mod = mod;
         }
     }
@@ -112,6 +115,7 @@ public final class GrugOverlayHost {
                             Grug.getExportFnId("Overlay", "render"),
                             Grug.getExportFnId("Overlay", "click"),
                             Grug.getExportFnId("Overlay", "key"),
+                            Grug.getExportFnId("Overlay", "scroll"),
                             overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
@@ -207,6 +211,41 @@ public final class GrugOverlayHost {
                             event.getMouseY(),
                             event.getButton(),
                             Screen.hasShiftDown());
+            if (taken) {
+                GrugOverlay.noteTestPressTaken();
+                event.setCanceled(true);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Lets an overlay take a mouse wheel movement before the screen's own handler sees it.
+     *
+     * <p>The movement is cancelled when an overlay answers that it took it, and asking stops at the
+     * first overlay that does. The delta is the event's vertical one, in notches, positive up.
+     */
+    @SubscribeEvent
+    public static void onScreenMouseScrolled(ScreenEvent.MouseScrolled.Pre event) {
+        AbstractContainerScreen<?> container = eligible(event.getScreen());
+        if (container == null) return;
+
+        ensureCreated();
+
+        for (Overlay overlay : overlays) {
+            boolean taken =
+                    GrugOverlay.scroll(
+                            overlay.entityHandle,
+                            overlay.scrollFnId,
+                            container.width,
+                            container.height,
+                            container.getGuiLeft(),
+                            container.getGuiTop(),
+                            container.getXSize(),
+                            container.getYSize(),
+                            event.getMouseX(),
+                            event.getMouseY(),
+                            event.getDeltaY());
             if (taken) {
                 GrugOverlay.noteTestPressTaken();
                 event.setCanceled(true);

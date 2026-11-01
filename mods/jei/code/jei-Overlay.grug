@@ -3,9 +3,11 @@
 
 # The list is paged with two buttons in the 22 pixels above the grid, the reference's back and next
 # buttons: a press on the left one shows the previous page and on the right one the next page, and
-# either wraps around at the ends like the reference's. Ctrl+O hides and shows the whole overlay, the
-# reference's default for its overlay toggle (KeyBindings.toggleOverlay). There is no mouse wheel
-# scroll, no search and no recipe categories, and the layout is the reference's own (IngredientGrid,
+# either wraps around at the ends like the reference's. The mouse wheel pages the list too, over the
+# grid and its page buttons: down shows the next page and up the previous one, which is the
+# reference's IngredientGridWithNavigation input handler. Ctrl+O hides and shows the whole overlay,
+# the reference's default for its overlay toggle (KeyBindings.toggleOverlay). There is no search and
+# no recipe categories, and the layout is the reference's own (IngredientGrid,
 # IngredientGridConfig, IngredientListOverlay): a slot is its 16 by 16 icon plus one pixel of padding on each side, the
 # grid is at most 9 columns by 16 rows and at least 4 columns by 1 row, and it sits in the display
 # area to the right of the GUI, inset 6 pixels, with 22 pixels left at the bottom for the search bar
@@ -136,6 +138,38 @@ export key(ctx: OverlayKeyContext) {
     }
 }
 
+export scroll(ctx: OverlayScrollContext) {
+    if not shown {
+        return
+    }
+    delta: number = ctx.delta()
+    if delta == 0 {
+        return
+    }
+
+    screen_width: number = ctx.screen_width()
+    columns: number = _columns(screen_width, ctx.gui_left(), ctx.gui_width())
+    rows: number = _rows(ctx.screen_height())
+    if columns < min_columns or rows < min_rows {
+        return
+    }
+    if not _over_list(ctx.mouse_x(), ctx.mouse_y(), screen_width, ctx.gui_left(), ctx.gui_width(), columns, rows) {
+        return
+    }
+
+    count: number = item_count()
+    per_page: number = columns * rows
+    _fit_page(per_page, count)
+    pages: number = _page_count(per_page, count)
+    # The wheel moves down for the next page, and wraps like the buttons do.
+    step: number = 1
+    if delta > 0 {
+        step = -1
+    }
+    page = Math.remainder(page + step + pages, pages)
+    ctx.take()
+}
+
 # A page button plays the game's button click, the way the reference's buttons do (Button's
 # playDownSound): 1.20.6's ui.button.click at volume 0.25, and the older versions' random.click at
 # full volume, which is what their buttons play. A version whose sound pool has not loaded the file
@@ -177,6 +211,16 @@ local _fit_page(per_page: number, count: number) {
     if page > last {
         page = last
     }
+}
+
+# Whether a point is over the grid or the page buttons above it, the area the reference's wheel
+# handler asks about (the grid's slots joined with its navigation).
+local _over_list(mouse_x: number, mouse_y: number, screen_width: number, gui_left: number, gui_width: number, columns: number, rows: number) bool {
+    grid_x: number = _grid_x(screen_width, gui_left, gui_width)
+    if mouse_x < grid_x or mouse_x >= grid_x + columns * slot {
+        return false
+    }
+    return mouse_y >= border_margin and mouse_y < _grid_y() + rows * slot
 }
 
 local _clicked_index(mouse_x: number, mouse_y: number, screen_width: number, gui_left: number, gui_width: number, columns: number, rows: number) number {

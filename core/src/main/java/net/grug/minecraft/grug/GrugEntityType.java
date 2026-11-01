@@ -20,6 +20,7 @@ public enum GrugEntityType {
     OverlayClickContext,
     OverlayKeyContext,
     OverlayRenderContext,
+    OverlayScrollContext,
     Player,
     RenderContext,
     ResourceLocation,

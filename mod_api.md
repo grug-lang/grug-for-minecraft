@@ -64,6 +64,7 @@ export init()
 export click(ctx: OverlayClickContext)
 export key(ctx: OverlayKeyContext)
 export render(ctx: OverlayRenderContext)
+export scroll(ctx: OverlayScrollContext)
 
 ## Test
 export init(ctx: TestInitContext)
@@ -103,6 +104,7 @@ Test.round_trip_nbt(block_entity: BlockEntity)
 Test.screen_open() bool
 Test.screen_width() number
 Test.screenshot() Screenshot
+Test.scroll_screen(x: number, y: number, delta: number) bool
 Test.set_box_radius(radius: number)
 Test.set_carried_item(item: Item)
 Test.set_held_item(player: Player, item: Item)
@@ -226,6 +228,18 @@ Option.new() Option[$Value]
 .mouse_y() number
 .screen_height() number
 .screen_width() number
+
+## OverlayScrollContext
+.delta() number
+.gui_height() number
+.gui_left() number
+.gui_top() number
+.gui_width() number
+.mouse_x() number
+.mouse_y() number
+.screen_height() number
+.screen_width() number
+.take()
 
 ## Player
 .get_held_item() Option[Item]
