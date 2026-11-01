@@ -976,9 +976,9 @@ jobs:
           if [ -f "mods/$mod/LICENSE" ]; then
             cp "mods/$mod/LICENSE" "$harness/$mod/"
           fi
-          if [ -d "mods/$mod/screenshots" ]; then
-            cp -r "mods/$mod/screenshots" "$harness/$mod/"
-          fi
+          # A capture run keeps the reference's own pixels: with no goldens staged, every capture
+          # is a miss that GRUG_UPDATE_GOLDENS accepts into this directory, and the upload below
+          # takes them.
           for test in $(grep -l -e "Test.screenshot" -e "Test.is_reference" "mods/$mod/tests/"*-Test.grug 2>/dev/null); do
             cp "$test" "$harness/$mod/tests/"
           done
@@ -1017,6 +1017,17 @@ jobs:
           GRUG_JAVA8: ${{ steps.gamejava.outputs.path }}
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '360'
+          GRUG_UPDATE_GOLDENS: '1'
+
+      # The reference's own pixels, one PNG per screenshot test, under the loader it runs as.
+      - name: Upload the reference's captures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reference-captures
+          path: reference-harness/${{ steps.select.outputs.mod }}/screenshots
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload logs and crash reports
         if: always()
