@@ -156,7 +156,10 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   other run is in flight. Only a dispatch runs every job: a push to `main` skips some of them, and
   which ones can change with the workflow, so a green push is not this check. The
   dispatch is the check itself: a red one is a red `main`, attributed and fixed forward as usual. A
-  release dispatch satisfies it for the next four hours.
+  release dispatch satisfies it for the next four hours. The dispatch is then watched in the
+  background with `.github/scripts/watch-run.sh <run-id>`, and the periodic check is armed again
+  when the watcher reports: a fixed sleep cannot tell a running pipeline from a finished one, so
+  without the watcher a red `main` waits for the next tick.
 - A release is published automatically every Sunday at 12:00 CET (11:00 UTC) from `main`'s head: the
   scheduled workflow dispatches the full `build.yml`, waits for it, tags the commit and lets
   `release.yml` attach the jar. That dispatch is the one run that must be green; a failure there
