@@ -24,7 +24,8 @@ and mods/coverage/ and no other mod's tests (#626), with one exception: a class 
 wherever it ran, because it runs once per JVM, in the segment of whichever mod's test first used its
 class, and a dropped segment's reset would otherwise leave it uncovered however well mods/coverage/
 tests the class. rescue_class_initializers compares a report of the .exec files with one of the
-.exec and .dropped files together and counts what only the second shows in a <clinit> method.
+.exec and .dropped files together and counts what only the second shows in a <clinit> method, in the
+CSV the gate reads and in the XML the per-line report comes from.
 
 The gate also counts, when a pull request did not rerun them, the coverage a coverage test recorded
 on an earlier run (#786): such a test's recorded coverage is handed to the reports as one
@@ -33,6 +34,14 @@ its tests that ran, which is what makes a covered loader class count, and core's
 too, since core unions every runner's exec data. A pull request carries over only the tests a static
 proof shows the diff cannot affect, and the gate still fails if any counted line or branch has no
 cover, from the run or from the carried-over tests.
+
+A carried-over test brings the other mods' recorded coverage of its base run with it, as one
+--carry-over-dropped exec per runner (#897): it is handed to that runner's and core's dropped data,
+never to the counted one, so rescue_class_initializers counts the class initializers that ran in
+another mod's segment and nothing else, which is what a run counts of its own dropped segments. The
+base run's map records those segments for exactly this reason: a pull request that carries every
+coverage test over runs no test at all, so without them the initializers that only another mod's test
+made run would be missed by every run of it.
 """
 
 from __future__ import annotations
@@ -221,11 +230,18 @@ def jacoco_report(
     subprocess.run(command, check=True)
 
 
+# The counters a <clinit> and its ancestors carry. INSTRUCTION and BRANCH are the gate's; the
+# others are what the uploaded report shows, and the CSV and XML have to agree on all of them, or a
+# passing run's per-line report reads as if the initializer were still missed (#897).
+COUNTERS = ("INSTRUCTION", "BRANCH", "LINE", "COMPLEXITY", "METHOD")
+CSV_COLUMNS = {kind: (f"{kind}_MISSED", f"{kind}_COVERED") for kind in COUNTERS}
+
+
 def class_initializer_counters(xml_path: Path) -> dict[tuple[str, str], dict[str, tuple[int, int]]]:
-    """The missed and covered counts of every <clinit> in a JaCoCo XML report.
+    """The counters of every <clinit> in a JaCoCo XML report.
 
     Keyed by (package, class) as the CSV names them: a nested class is Outer.Inner there and
-    Outer$Inner in the XML. The value maps INSTRUCTION and BRANCH to (missed, covered).
+    Outer$Inner in the XML. The value maps each of COUNTERS to (missed, covered).
     """
     counters: dict[tuple[str, str], dict[str, tuple[int, int]]] = {}
     for package in ET.parse(xml_path).getroot().iter("package"):
@@ -241,51 +257,196 @@ def class_initializer_counters(xml_path: Path) -> dict[tuple[str, str], dict[str
                         int(counter.get("covered", "0")),
                     )
                     for counter in method.iter("counter")
-                    if counter.get("type") in ("INSTRUCTION", "BRANCH")
+                    if counter.get("type") in COUNTERS
                 }
                 counters[(package_name, simple_name)] = counts
     return counters
 
 
+def move_counter(element: ET.Element, kind: str, gained: int) -> bool:
+    """Move one counter child of element to covered, or return False when it has none."""
+    for counter in element.findall("counter"):
+        if counter.get("type") == kind:
+            counter.set("missed", str(int(counter.get("missed", "0")) - gained))
+            counter.set("covered", str(int(counter.get("covered", "0")) + gained))
+            return True
+    return False
+
+
+def move_initializer_lines(
+    cls: ET.Element,
+    method: ET.Element,
+    gained: dict[str, int],
+    package: ET.Element,
+    everything_package: ET.Element,
+) -> None:
+    """Move a rescued <clinit>'s <line> entries to what the everything report shows them as.
+
+    The method's first line and the number of lines it gained name the lines it is expected to
+    span, and only a line the counted report has fully missed and the everything report has
+    covered is moved, so coverage another method left on one of those lines is never counted.
+    """
+    line_count = gained.get("LINE", 0)
+    source_name = cls.get("sourcefilename")
+    if not line_count or not source_name or not method.get("line"):
+        return
+    counted_source = next(
+        (source for source in package.findall("sourcefile") if source.get("name") == source_name),
+        None,
+    )
+    everything_source = next(
+        (
+            source
+            for source in everything_package.findall("sourcefile")
+            if source.get("name") == source_name
+        ),
+        None,
+    )
+    if counted_source is None or everything_source is None:
+        return
+    counted_lines = {line.get("nr"): line for line in counted_source.findall("line")}
+    everything_lines = {line.get("nr"): line for line in everything_source.findall("line")}
+    start = int(method.get("line"))
+    for number in range(start, start + line_count):
+        counted_line = counted_lines.get(str(number))
+        everything_line = everything_lines.get(str(number))
+        if counted_line is None or everything_line is None:
+            continue
+        if int(counted_line.get("ci", "0")) or not int(everything_line.get("ci", "0")):
+            continue
+        for attribute in ("mi", "ci", "mb", "cb"):
+            counted_line.set(attribute, everything_line.get(attribute, "0"))
+
+
+def correct_xml(
+    counted_xml: Path,
+    everything_xml: Path,
+    rescued: dict[tuple[str, str], dict[str, int]],
+) -> None:
+    """Move the rescued counters in the counted XML too, so the uploaded report agrees with the CSV.
+
+    The <clinit> method's counters and lines move, and every ancestor's counters move by the same
+    amounts, so the report stays internally consistent: a run whose initializer only another mod's
+    test ran no longer uploads a report that says it was missed (#897).
+    """
+    tree = ET.parse(counted_xml)
+    root = tree.getroot()
+    everything_root = ET.parse(everything_xml).getroot()
+    everything_packages = {
+        package.get("name", ""): package for package in everything_root.findall("package")
+    }
+    report_gained: dict[str, int] = {}
+    for package in root.findall("package"):
+        everything_package = everything_packages.get(package.get("name", ""))
+        if everything_package is None:
+            continue
+        package_gained: dict[str, int] = {}
+        everything_classes = {
+            cls.get("name", ""): cls for cls in everything_package.findall("class")
+        }
+        for cls in package.findall("class"):
+            key = (
+                package.get("name", "").replace("/", "."),
+                cls.get("name", "").rsplit("/", 1)[-1].replace("$", "."),
+            )
+            gained = rescued.get(key)
+            if not gained:
+                continue
+            everything_cls = everything_classes.get(cls.get("name", ""))
+            method = next(
+                (method for method in cls.findall("method") if method.get("name") == "<clinit>"),
+                None,
+            )
+            if everything_cls is None or method is None:
+                continue
+            applied = {
+                kind: amount
+                for kind, amount in gained.items()
+                if amount > 0 and move_counter(method, kind, amount)
+            }
+            for kind, amount in applied.items():
+                move_counter(cls, kind, amount)
+            # A class the initializer alone had kept uncovered is covered now, and its CLASS
+            # counter, which the CSV has no column for, has to say so at every level.
+            for counter in cls.findall("counter"):
+                if counter.get("type") == "CLASS" and int(counter.get("missed", "0")) > 0:
+                    instruction = next(
+                        (
+                            counter
+                            for counter in cls.findall("counter")
+                            if counter.get("type") == "INSTRUCTION"
+                        ),
+                        None,
+                    )
+                    if instruction is not None and int(instruction.get("covered", "0")) > 0:
+                        counter.set("missed", "0")
+                        counter.set("covered", "1")
+                        applied["CLASS"] = 1
+                    break
+            source_name = cls.get("sourcefilename")
+            source = next(
+                (
+                    source
+                    for source in package.findall("sourcefile")
+                    if source.get("name") == source_name
+                ),
+                None,
+            )
+            if source is not None:
+                for kind, amount in applied.items():
+                    move_counter(source, kind, amount)
+            for kind, amount in applied.items():
+                package_gained[kind] = package_gained.get(kind, 0) + amount
+                report_gained[kind] = report_gained.get(kind, 0) + amount
+            move_initializer_lines(cls, method, gained, package, everything_package)
+        for kind, amount in package_gained.items():
+            move_counter(package, kind, amount)
+    for kind, amount in report_gained.items():
+        move_counter(root, kind, amount)
+    tree.write(counted_xml, encoding="utf-8", xml_declaration=True)
+
+
 def rescue_class_initializers(csv_path: Path, counted_xml: Path, everything_xml: Path) -> None:
-    """Count a class initializer that ran in a dropped segment as covered, in csv_path.
+    """Count a class initializer that ran in a dropped segment as covered, in csv_path and the XML.
 
     csv_path and counted_xml are the report of the segments the gate counts, and everything_xml the
-    report of those and the dropped ones. A <clinit> that the second shows covered and the first
-    missed ran only in a dropped segment, which is where a class's initializer runs when another
-    mod's test is the first to use the class, and no test of mods/coverage/ can make it run again.
-    Only the <clinit> of a class is moved; whatever else a dropped segment reached stays uncounted.
+    report of those and the other mods' segments. A <clinit> that the second shows covered and the
+    first missed ran only in another mod's segment, which is where a class's initializer runs when
+    another mod's test is the first to use the class, and no test of mods/coverage/ can make it run
+    again. Only the <clinit> of a class is moved; whatever else such a segment reached stays
+    uncounted. The XML moves with the CSV, because it is the per-line report a failure is read from.
     """
     counted = class_initializer_counters(counted_xml)
     everything = class_initializer_counters(everything_xml)
-    columns = {
-        "INSTRUCTION": ("INSTRUCTION_MISSED", "INSTRUCTION_COVERED"),
-        "BRANCH": ("BRANCH_MISSED", "BRANCH_COVERED"),
-    }
+    rescued: dict[tuple[str, str], dict[str, int]] = {}
     with csv_path.open(newline="") as handle:
-        rows = list(csv.DictReader(handle))
-        fieldnames = rows[0].keys() if rows else []
+        reader = csv.DictReader(handle)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
     for row in rows:
         key = (row["PACKAGE"], row["CLASS"])
         if key not in counted or key not in everything:
             continue
-        rescued: dict[str, int] = {}
-        for kind, (missed_column, covered_column) in columns.items():
+        gained: dict[str, int] = {}
+        for kind, (missed_column, covered_column) in CSV_COLUMNS.items():
             # A <clinit> without a branch has no BRANCH counter at all.
-            gained = counted[key].get(kind, (0, 0))[0] - everything[key].get(kind, (0, 0))[0]
-            if gained > 0:
-                row[missed_column] = str(int(row[missed_column]) - gained)
-                row[covered_column] = str(int(row[covered_column]) + gained)
-                rescued[kind] = gained
-        if rescued:
+            gain = counted[key].get(kind, (0, 0))[0] - everything[key].get(kind, (0, 0))[0]
+            if gain > 0 and missed_column in row:
+                row[missed_column] = str(int(row[missed_column]) - gain)
+                row[covered_column] = str(int(row[covered_column]) + gain)
+                gained[kind] = gain
+        if gained:
+            rescued[key] = gained
             print(
                 f"counted the class initializer of {key[0]}.{key[1]}, which only ran in another"
-                f" mod's tests: {rescued}"
+                f" mod's tests: {gained}"
             )
     with csv_path.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(fieldnames))
         writer.writeheader()
         writer.writerows(rows)
+    if rescued:
+        correct_xml(counted_xml, everything_xml, rescued)
 
 
 def sum_csvs(csv_paths: list[Path], out_path: Path) -> None:
@@ -329,6 +490,35 @@ def print_totals(combined: Path) -> tuple[int, int, int, int]:
     return missed, covered, branch_missed, branch_covered
 
 
+def carried_by_runner(specs: list[str], option: str) -> dict[str, list[Path]] | None:
+    """The RUNNER:EXEC specs of one carry-over option, grouped by runner, or None on a bad spec.
+
+    An artifact that was renamed or expired is not a reason to fail a run: the gate then proves
+    what it can from the exec data it has, and a line the missing file was the only cover for fails
+    it, rather than passing on coverage nobody counted (#894).
+    """
+    grouped: dict[str, list[Path]] = {}
+    for spec in specs:
+        runner, sep, path = spec.partition(":")
+        if not sep or not runner or not path:
+            print(
+                f"error: {option} needs <runner>:<exec>, not {spec!r}: a carried exec counts "
+                "for the runner whose classes it was recorded against",
+                file=sys.stderr,
+            )
+            return None
+        exec_file = Path(path)
+        if exec_file.is_file():
+            grouped.setdefault(runner, []).append(exec_file)
+        else:
+            print(
+                f"warning: {option} names {exec_file} for {runner}, which is not a file: it is "
+                f"not counted, so any coverage only it held is missed",
+                file=sys.stderr,
+            )
+    return grouped
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -354,6 +544,18 @@ def main() -> int:
             "a loader's own classes only counts for that loader."
         ),
     )
+    parser.add_argument(
+        "--carry-over-dropped",
+        action="append",
+        default=[],
+        metavar="RUNNER:EXEC",
+        help=(
+            "The exec file of the other mods' recorded coverage on one runner, carried over from "
+            "the base commit's map (#897): counted for that runner and for core like the run's "
+            "own other-mod segments, which means only a class initializer it made run is counted, "
+            "through rescue_class_initializers."
+        ),
+    )
     args = parser.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -362,31 +564,23 @@ def main() -> int:
         print("error: no coverage-exec-core artifact found", file=sys.stderr)
         return 1
 
-    carried: dict[str, list[Path]] = {}
-    for spec in args.carry_over:
-        runner, sep, path = spec.partition(":")
-        if not sep or not runner or not path:
-            print(
-                f"error: --carry-over needs <runner>:<exec>, not {spec!r}: a carried exec counts "
-                "for the runner whose classes it was recorded against",
-                file=sys.stderr,
-            )
-            return 1
-        exec_file = Path(path)
-        if exec_file.is_file():
-            carried.setdefault(runner, []).append(exec_file)
-        else:
-            # An artifact that was renamed or expired is not a reason to fail a run: the gate then
-            # proves what it can from the exec data it has, and a line the missing test was the
-            # only cover for fails it, rather than passing on coverage nobody counted.
-            print(
-                f"warning: --carry-over names {exec_file} for {runner}, which is not a file: it is "
-                f"not counted, so any coverage only it held is missed",
-                file=sys.stderr,
-            )
+    carried = carried_by_runner(args.carry_over, "--carry-over")
+    carried_dropped = carried_by_runner(args.carry_over_dropped, "--carry-over-dropped")
+    if carried is None or carried_dropped is None:
+        return 1
     carry_over = [path for paths in carried.values() for path in paths]
+    carried_other_mods = [path for paths in carried_dropped.values() for path in paths]
     if carry_over:
-        print(f"counting the recorded coverage of {len(carry_over)} carried-over test(s)")
+        # One per test and runner: a test carried over on four loaders is four exec files.
+        print(
+            f"counting the recorded coverage of {len(carry_over)} carried-over exec file(s),"
+            f" one per test and runner"
+        )
+    if carried_other_mods:
+        print(
+            f"counting the class initializers of {len(carried_other_mods)} carried-over other-mod"
+            f" exec file(s)"
+        )
 
     all_execs = [exec_file for info in runners.values() for exec_file in info.get("exec", [])]
     all_dropped = [dropped for info in runners.values() for dropped in info.get("dropped", [])]
@@ -401,7 +595,12 @@ def main() -> int:
             # The loader's own classes only count in that loader's report: the test's coverage of
             # a loader class is recorded against it, and no other runner can analyse it.
             execs = [*execs, *carried.get(runner, [])]
-        dropped = all_dropped if runner == CORE else info.get("dropped", [])
+        if runner == CORE:
+            # The other mods' segments are the run's dropped data, which core unions over every
+            # runner too: their initializers count wherever they ran (#626, #897).
+            dropped = [*all_dropped, *carried_other_mods]
+        else:
+            dropped = [*info.get("dropped", []), *carried_dropped.get(runner, [])]
         classes = info.get("classes")
         if not execs or classes is None:
             print(f"warning: skipping {runner}: missing exec data or class files", file=sys.stderr)

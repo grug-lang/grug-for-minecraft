@@ -66,6 +66,13 @@ public final class CoverageMapTool {
      */
     private static final Pattern PER_TEST_EXEC = Pattern.compile("(\\d+)-(.+)\\.exec");
 
+    /**
+     * The segment of a test of another mod, which the gate does not count: its coverage is recorded
+     * as the run's other-mod data, of which only a class initializer is counted, since it runs once
+     * per JVM and whichever test first used the class cannot make it run again (#626, #897).
+     */
+    private static final Pattern OTHER_MOD_EXEC = Pattern.compile("(\\d+)-(.+)\\.dropped");
+
     private CoverageMapTool() {}
 
     /** A failure the run must stop on, with the reason the log has to say. */
@@ -215,7 +222,8 @@ public final class CoverageMapTool {
             Map<String, Long> classIds,
             Map<String, Integer> probeCounts,
             Map<String, Map<String, Set<Integer>>> hits,
-            Map<String, Map<String, List<String>>> methods) {}
+            Map<String, Map<String, List<String>>> methods,
+            Map<String, Set<Integer>> otherModHits) {}
 
     static void build(String[] args) throws IOException, ToolError {
         Path coreClassesDir = null;
@@ -261,7 +269,7 @@ public final class CoverageMapTool {
             Map<String, Long> classIds = new TreeMap<>(coreIds);
             classIds.putAll(analyzedIds(loaderClasses));
             Map<String, Integer> loaderProbeCounts = new TreeMap<>();
-            Map<String, Map<String, Set<Integer>>> hits =
+            SegmentHits segments =
                     readHits(
                             loader,
                             classIds,
@@ -279,8 +287,9 @@ public final class CoverageMapTool {
                     new LoaderRecord(
                             loaderIds,
                             loaderProbeCounts,
-                            hits,
-                            executedMethods(classes, classIds, probeCounts, hits)));
+                            segments.tests(),
+                            executedMethods(classes, classIds, probeCounts, segments.tests()),
+                            segments.otherMod()));
         }
 
         out.toFile().getParentFile().mkdirs();
@@ -323,19 +332,28 @@ public final class CoverageMapTool {
         }
     }
 
+    /** What one loader's segments recorded: the counted tests' hits, and the other mods' hits. */
+    private record SegmentHits(
+            Map<String, Map<String, Set<Integer>>> tests, Map<String, Set<Integer>> otherMod) {}
+
     /**
      * The probes each test hit under one loader's exec data, keyed by test and class, with the
      * probe count of every class the hits are against: a core class's in coreProbeCounts, since the
      * map records it once, and the loader's own in loaderProbeCounts.
+     *
+     * <p>The other mods' segments are read too, into one union per class: their coverage is not
+     * counted, but a class initializer that ran in one is, so a carried-over test needs them to
+     * count what a run counts through combine-coverage.py's rescue (#897).
      */
-    static Map<String, Map<String, Set<Integer>>> readHits(
+    static SegmentHits readHits(
             LoaderRun loader,
             Map<String, Long> classIds,
             Set<String> loaderClassNames,
             Map<String, Integer> coreProbeCounts,
             Map<String, Integer> loaderProbeCounts)
             throws ToolError {
-        Map<String, Map<String, Set<Integer>>> hits = new TreeMap<>();
+        Map<String, Map<String, Set<Integer>>> tests = new TreeMap<>();
+        Map<String, Set<Integer>> otherMod = new TreeMap<>();
         List<Path> execs;
         try (Stream<Path> walk = Files.list(loader.execs())) {
             execs = walk.filter(Files::isRegularFile).toList();
@@ -344,19 +362,23 @@ public final class CoverageMapTool {
                     1, "could not read the exec files under " + loader.execs() + ": " + e);
         }
         for (Path exec : execs) {
-            Matcher matcher = PER_TEST_EXEC.matcher(exec.getFileName().toString());
-            if (!matcher.matches()) {
-                continue; // the boot's exec, a dropped file, or no exec at all
+            String fileName = exec.getFileName().toString();
+            Matcher matcher = PER_TEST_EXEC.matcher(fileName);
+            boolean counted = matcher.matches();
+            if (counted) {
+                counted = matcher.group(2).startsWith(COUNTED_MOD + ".");
             }
-            String flattened = matcher.group(2);
-            if (!flattened.startsWith(COUNTED_MOD + ".")) {
-                continue;
+            Matcher otherModMatcher = OTHER_MOD_EXEC.matcher(fileName);
+            if (!counted && !otherModMatcher.matches()) {
+                continue; // the boot's exec, or no exec at all
             }
-            String test;
-            try {
-                test = testPathOf(flattened);
-            } catch (IllegalArgumentException e) {
-                continue;
+            String test = null;
+            if (counted) {
+                try {
+                    test = testPathOf(matcher.group(2));
+                } catch (IllegalArgumentException e) {
+                    continue;
+                }
             }
             ExecutionDataStore store = new ExecutionDataStore();
             try (InputStream in = Files.newInputStream(exec)) {
@@ -391,11 +413,27 @@ public final class CoverageMapTool {
                 }
                 Map<String, Integer> counts =
                         loaderClassNames.contains(class_) ? loaderProbeCounts : coreProbeCounts;
-                counts.put(class_, data.getProbes().length);
-                Set<Integer> hit =
-                        hits.computeIfAbsent(test, k -> new TreeMap<>())
-                                .computeIfAbsent(class_, k -> new TreeSet<>());
                 boolean[] probes = data.getProbes();
+                if (!counted) {
+                    // A class the other mods' segments never actually ran stays out of the map:
+                    // its empty probe list would name it without anything to replay.
+                    Set<Integer> classHits = otherMod.computeIfAbsent(class_, k -> new TreeSet<>());
+                    for (int p = 0; p < probes.length; p++) {
+                        if (probes[p]) {
+                            classHits.add(p);
+                        }
+                    }
+                    if (classHits.isEmpty()) {
+                        otherMod.remove(class_);
+                    } else {
+                        counts.put(class_, probes.length);
+                    }
+                    continue;
+                }
+                counts.put(class_, probes.length);
+                Set<Integer> hit =
+                        tests.computeIfAbsent(test, k -> new TreeMap<>())
+                                .computeIfAbsent(class_, k -> new TreeSet<>());
                 for (int p = 0; p < probes.length; p++) {
                     if (probes[p]) {
                         hit.add(p);
@@ -403,7 +441,7 @@ public final class CoverageMapTool {
                 }
             }
         }
-        return hits;
+        return new SegmentHits(tests, otherMod);
     }
 
     /**
@@ -484,6 +522,8 @@ public final class CoverageMapTool {
             writeClasses(w, record.classIds(), record.probeCounts());
             w.write(",\"tests\":");
             writeTests(w, record.hits(), record.methods());
+            w.write(",\"otherMods\":");
+            writeProbes(w, record.otherModHits());
             w.write("}");
         }
         w.write("}}");
@@ -560,6 +600,29 @@ public final class CoverageMapTool {
         w.write("}");
     }
 
+    /** Writes one section of class to hit probes, for the other mods' segments' union. */
+    static void writeProbes(BufferedWriter w, Map<String, Set<Integer>> hits) throws IOException {
+        w.write("{");
+        boolean first = true;
+        for (Map.Entry<String, Set<Integer>> classHits : hits.entrySet()) {
+            if (!first) {
+                w.write(",");
+            }
+            first = false;
+            // The same per-class shape a test's section has, so reconstruct reads both the same.
+            w.write("\"" + json(classHits.getKey()) + "\":{\"probes\":[");
+            List<Integer> sorted = new ArrayList<>(classHits.getValue());
+            for (int i = 0; i < sorted.size(); i++) {
+                if (i > 0) {
+                    w.write(",");
+                }
+                w.write(Integer.toString(sorted.get(i)));
+            }
+            w.write("]}");
+        }
+        w.write("}");
+    }
+
     static String json(String value) {
         StringBuilder out = new StringBuilder(value.length());
         for (int i = 0; i < value.length(); i++) {
@@ -587,6 +650,7 @@ public final class CoverageMapTool {
         Path coreClassesDir = null;
         Path testsPath = null;
         Path outDir = null;
+        Path otherModsDir = null;
         List<LoaderClasses> loaders = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
             switch (args[i]) {
@@ -594,6 +658,7 @@ public final class CoverageMapTool {
                 case "--classes" -> coreClassesDir = Path.of(args[++i]);
                 case "--tests" -> testsPath = Path.of(args[++i]);
                 case "--out-dir" -> outDir = Path.of(args[++i]);
+                case "--other-mods-dir" -> otherModsDir = Path.of(args[++i]);
                 case "--loader" -> {
                     if (i + 2 >= args.length) {
                         throw new ToolError(
@@ -605,12 +670,16 @@ public final class CoverageMapTool {
                 default -> throw new ToolError(2, "reconstruct: unknown argument " + args[i]);
             }
         }
-        if (mapPath == null || coreClassesDir == null || testsPath == null || outDir == null) {
+        if (mapPath == null
+                || coreClassesDir == null
+                || testsPath == null
+                || outDir == null
+                || otherModsDir == null) {
             throw new ToolError(
                     2,
                     "usage: CoverageMapTool reconstruct --map <file> --classes <core dir>"
-                            + " --tests <file> --out-dir <dir> --loader <name> <classes dir>"
-                            + " [--loader ...]...");
+                            + " --tests <file> --out-dir <dir> --other-mods-dir <dir>"
+                            + " --loader <name> <classes dir> [--loader ...]...");
         }
         if (loaders.isEmpty()) {
             throw new ToolError(
@@ -630,8 +699,10 @@ public final class CoverageMapTool {
         Map<String, byte[]> coreClasses = readClasses(coreClassesDir);
         Map<String, Long> coreIds = analyzedIds(coreClasses);
         Files.createDirectories(outDir);
+        Files.createDirectories(otherModsDir);
         List<String> tests = Files.readAllLines(testsPath);
         int written = 0;
+        int otherModsWritten = 0;
         for (LoaderClasses loader : loaders) {
             Map<String, Object> record = mapLoaders.get(loader.name());
             if (record == null) {
@@ -667,72 +738,18 @@ public final class CoverageMapTool {
                                     + ", so it cannot be carried over; the selection must have"
                                     + " run it");
                 }
-                ExecutionDataStore store = new ExecutionDataStore();
-                for (Map.Entry<String, Map<String, Object>> classEntry : entry.entrySet()) {
-                    String class_ = classEntry.getKey();
-                    // The loader's own classes come first: a name both dirs held would be the
-                    // loader's class as far as its own report is concerned.
-                    byte[] classBytes = loaderClasses.get(class_);
-                    Map<String, Object> classInfo = loaderClassInfo.get(class_);
-                    Long headId = loaderIds.get(class_);
-                    if (classBytes == null) {
-                        classBytes = coreClasses.get(class_);
-                        classInfo = coreClassInfo.get(class_);
-                        headId = coreIds.get(class_);
-                    }
-                    if (classBytes == null) {
-                        throw new ToolError(
-                                1,
-                                "the recorded coverage of "
-                                        + test
-                                        + " holds the class "
-                                        + class_
-                                        + ", which is not among this run's classes");
-                    }
-                    if (classInfo == null) {
-                        throw new ToolError(
-                                1,
-                                "the map has no class entry for "
-                                        + class_
-                                        + ", which "
-                                        + test
-                                        + " covered");
-                    }
-                    long storedId = Long.parseUnsignedLong((String) classInfo.get("crc64"));
-                    int probeCount = (int) ((Number) classInfo.get("probes")).longValue();
-                    // The map names only classes the analysis records, so a class without an id
-                    // here is one that changed between the map's commit and this run.
-                    if (headId == null || headId != storedId) {
-                        throw new ToolError(
-                                1,
-                                "the class "
-                                        + class_
-                                        + " changed between the commit the map was recorded on and"
-                                        + " this run, so the recorded coverage of the tests that"
-                                        + " covered it cannot be applied; the selection must have"
-                                        + " run those tests");
-                    }
-                    boolean[] probes = new boolean[probeCount];
-                    @SuppressWarnings("unchecked")
-                    List<Number> recordedProbes =
-                            (List<Number>) classEntry.getValue().get("probes");
-                    for (Number p : recordedProbes) {
-                        int probe = p.intValue();
-                        if (probe < 0 || probe >= probeCount) {
-                            throw new ToolError(
-                                    1,
-                                    "the map's recorded probe "
-                                            + probe
-                                            + " of "
-                                            + class_
-                                            + " is out of range for the class's "
-                                            + probeCount
-                                            + " probes");
-                        }
-                        probes[probe] = true;
-                    }
-                    store.put(new ExecutionData(headId, class_, probes));
-                }
+                ExecutionDataStore store =
+                        storeOf(
+                                entry,
+                                loaderClasses,
+                                loaderClassInfo,
+                                loaderIds,
+                                coreClasses,
+                                coreClassInfo,
+                                coreIds,
+                                "coverage of " + test,
+                                "the selection must have run those tests",
+                                true);
                 Path exec = loaderOut.resolve(flattenedOf(test) + ".exec");
                 writeExec(exec, store);
                 written++;
@@ -745,11 +762,171 @@ public final class CoverageMapTool {
                                 + store.getContents().size()
                                 + " class(es)");
             }
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> otherMods =
+                    (Map<String, Map<String, Object>>) record.get("otherMods");
+            if (otherMods != null && !otherMods.isEmpty()) {
+                // The other mods' segments are replayed as the gate's dropped data, never as a
+                // counted test's: combine-coverage.py counts only the class initializers they
+                // made run, which is what a run counts of them too (#897). No selection proved
+                // anything about the classes these segments touched, so the replay takes what
+                // this run's build still has unchanged and skips the rest: a class this run
+                // changed is not evidence about the class this run compiled.
+                ExecutionDataStore store =
+                        storeOf(
+                                otherMods,
+                                loaderClasses,
+                                loaderClassInfo,
+                                loaderIds,
+                                coreClasses,
+                                coreClassInfo,
+                                coreIds,
+                                "coverage of another mod's tests",
+                                "this run's classes differ from the map's",
+                                false);
+                int skipped = otherMods.size() - store.getContents().size();
+                if (skipped > 0) {
+                    System.out.println(
+                            "coverage-map-tool: skipped "
+                                    + skipped
+                                    + " class(es) of the other mods' recorded coverage of "
+                                    + loader.name()
+                                    + " that this run's build changed or no longer has");
+                }
+                if (store.getContents().isEmpty()) {
+                    System.out.println(
+                            "coverage-map-tool: nothing of the other mods' recorded coverage of "
+                                    + loader.name()
+                                    + " still applies to this run's build, so nothing was"
+                                    + " replayed");
+                } else {
+                    Path exec = otherModsDir.resolve(loader.name() + ".exec");
+                    writeExec(exec, store);
+                    otherModsWritten++;
+                    System.out.println(
+                            "coverage-map-tool: replayed the other mods' recorded coverage of "
+                                    + loader.name()
+                                    + " from "
+                                    + store.getContents().size()
+                                    + " class(es) to "
+                                    + exec);
+                }
+            }
         }
         if (written == 0) {
             throw new ToolError(1, "no test named to carry over, so nothing was carried over");
         }
-        System.out.println("coverage-map-tool: wrote " + written + " exec file(s) to " + outDir);
+        System.out.println(
+                "coverage-map-tool: wrote "
+                        + written
+                        + " exec file(s) to "
+                        + outDir
+                        + " and "
+                        + otherModsWritten
+                        + " other-mod exec file(s) to "
+                        + otherModsDir);
+    }
+
+    /**
+     * One recorded section's classes as exec data, resolved against this run's own classes and
+     * checked: a class the map names that changed under it fails the run, because the coverage
+     * recorded for it may not hold.
+     *
+     * @param what the recorded coverage the section is, for the failure messages
+     * @param hint what to do about a class that changed under the map
+     * @param required whether a class this run does not hold, or holds changed, fails the run: true
+     *     for a carried-over test, which the selection proved unaffected, and false for the other
+     *     mods' replay, which no selection proved anything about, so a class that changed since the
+     *     map was recorded is skipped rather than counted or failed on
+     */
+    static ExecutionDataStore storeOf(
+            Map<String, Map<String, Object>> entry,
+            Map<String, byte[]> loaderClasses,
+            Map<String, Map<String, Object>> loaderClassInfo,
+            Map<String, Long> loaderIds,
+            Map<String, byte[]> coreClasses,
+            Map<String, Map<String, Object>> coreClassInfo,
+            Map<String, Long> coreIds,
+            String what,
+            String hint,
+            boolean required)
+            throws ToolError {
+        ExecutionDataStore store = new ExecutionDataStore();
+        for (Map.Entry<String, Map<String, Object>> classEntry : entry.entrySet()) {
+            String class_ = classEntry.getKey();
+            // The loader's own classes come first: a name both dirs held would be the loader's
+            // class as far as its own report is concerned.
+            byte[] classBytes = loaderClasses.get(class_);
+            Map<String, Object> classInfo = loaderClassInfo.get(class_);
+            Long headId = loaderIds.get(class_);
+            if (classBytes == null) {
+                classBytes = coreClasses.get(class_);
+                classInfo = coreClassInfo.get(class_);
+                headId = coreIds.get(class_);
+            }
+            if (classBytes == null) {
+                if (!required) {
+                    continue;
+                }
+                throw new ToolError(
+                        1,
+                        "the recorded "
+                                + what
+                                + " holds the class "
+                                + class_
+                                + ", which is not among this run's classes");
+            }
+            if (classInfo == null) {
+                if (!required) {
+                    continue;
+                }
+                throw new ToolError(
+                        1,
+                        "the map has no class entry for "
+                                + class_
+                                + ", which "
+                                + what
+                                + " covered");
+            }
+            long storedId = Long.parseUnsignedLong((String) classInfo.get("crc64"));
+            int probeCount = (int) ((Number) classInfo.get("probes")).longValue();
+            // The map names only classes the analysis records, so a class without an id here is
+            // one that changed between the map's commit and this run.
+            if (headId == null || headId != storedId) {
+                if (!required) {
+                    continue;
+                }
+                throw new ToolError(
+                        1,
+                        "the class "
+                                + class_
+                                + " changed between the commit the map was recorded on and this"
+                                + " run, so the recorded "
+                                + what
+                                + " cannot be applied; "
+                                + hint);
+            }
+            boolean[] probes = new boolean[probeCount];
+            @SuppressWarnings("unchecked")
+            List<Number> recordedProbes = (List<Number>) classEntry.getValue().get("probes");
+            for (Number p : recordedProbes) {
+                int probe = p.intValue();
+                if (probe < 0 || probe >= probeCount) {
+                    throw new ToolError(
+                            1,
+                            "the map's recorded probe "
+                                    + probe
+                                    + " of "
+                                    + class_
+                                    + " is out of range for the class's "
+                                    + probeCount
+                                    + " probes");
+                }
+                probes[probe] = true;
+            }
+            store.put(new ExecutionData(headId, class_, probes));
+        }
+        return store;
     }
 
     /** Writes the probes as the agent's own exec file, so the gate reads it like any other. */

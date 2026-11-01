@@ -11,6 +11,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.jacoco.core.analysis.Analyzer;
+import org.jacoco.core.analysis.CoverageBuilder;
+import org.jacoco.core.analysis.IClassCoverage;
+import org.jacoco.core.analysis.IMethodCoverage;
 import org.jacoco.core.data.ExecutionData;
 import org.jacoco.core.data.ExecutionDataReader;
 import org.jacoco.core.data.ExecutionDataStore;
@@ -92,6 +96,64 @@ class CoverageMapToolTest {
 
     private static byte[] sampleClass() {
         return classNamed(SAMPLE);
+    }
+
+    /**
+     * A class with a static initializer and the branching method, so one probe belongs to {@code
+     * <clinit>} and the rest to a test that ran: the shape of a core class whose initializer
+     * another mod's test made run first (#897).
+     */
+    private static byte[] classWithInitializerNamed(String name) {
+        ClassWriter cw = new ClassWriter(0);
+        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, name, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "VALUE", "I", null, null).visitEnd();
+        MethodVisitor clinit = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        clinit.visitCode();
+        clinit.visitInsn(Opcodes.ICONST_1);
+        clinit.visitFieldInsn(Opcodes.PUTSTATIC, name, "VALUE", "I");
+        clinit.visitInsn(Opcodes.RETURN);
+        clinit.visitMaxs(1, 0);
+        clinit.visitEnd();
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "hit", "(I)V", null, null);
+        mv.visitCode();
+        Label branch = new Label();
+        Label merge = new Label();
+        mv.visitVarInsn(Opcodes.ILOAD, 0);
+        mv.visitJumpInsn(Opcodes.IFGT, branch);
+        mv.visitInsn(Opcodes.ICONST_1);
+        mv.visitJumpInsn(Opcodes.GOTO, merge);
+        mv.visitLabel(branch);
+        mv.visitInsn(Opcodes.ICONST_M1);
+        mv.visitLabel(merge);
+        mv.visitVarInsn(Opcodes.ISTORE, 1);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(2, 2);
+        mv.visitEnd();
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    /**
+     * The probe that covers the class's initializer: the analysis assigns each probe to the
+     * instructions it guards, so a probe set on its own shows which method it belongs to.
+     */
+    private static int initializerProbeOf(String name, byte[] classBytes, long id)
+            throws Exception {
+        int probeCount = probeCountOf(name, classBytes);
+        for (int p = 0; p < probeCount; p++) {
+            ExecutionDataStore store = new ExecutionDataStore();
+            store.put(new ExecutionData(id, name, probes(probeCount, p)));
+            CoverageBuilder coverage = new CoverageBuilder();
+            new Analyzer(store, coverage).analyzeClass(classBytes, null);
+            IClassCoverage cls = coverage.getClasses().iterator().next();
+            for (IMethodCoverage method : cls.getMethods()) {
+                if (method.getName().equals("<clinit>")
+                        && method.getInstructionCounter().getCoveredCount() > 0) {
+                    return p;
+                }
+            }
+        }
+        throw new AssertionError("no probe of " + name + " covers its initializer");
     }
 
     private static byte[] sampleClassChanged() {
@@ -269,13 +331,20 @@ class CoverageMapToolTest {
                                 "--tests",
                                 tests.toString(),
                                 "--out-dir",
-                                out.toString()));
+                                out.toString(),
+                                "--other-mods-dir",
+                                otherModsDir(out).toString()));
         for (int i = 0; i < loadersAndClasses.length; i += 2) {
             args.add("--loader");
             args.add(loadersAndClasses[i]);
             args.add(loadersAndClasses[i + 1]);
         }
         return args.toArray(String[]::new);
+    }
+
+    /** The other mods' replay directory, the workflow's sibling of the carried execs' one. */
+    private static Path otherModsDir(Path out) {
+        return out.resolveSibling(out.getFileName() + "-dropped");
     }
 
     @Test
@@ -383,10 +452,182 @@ class CoverageMapToolTest {
                 List.of(1),
                 probeList(aB.get(SAMPLE).getAsJsonObject().get("probes").getAsJsonArray()));
         assertFalse(aB.has(loaderClass), "loader A's class is not in loader B's coverage");
-        // The class the run's classes do not hold, and the dropped and boot segments, are not
-        // recorded anywhere.
+        // The class the run's classes do not hold, and the boot segment, are not recorded as any
+        // test's coverage; the other mod's dropped segment is recorded as the other-mods replay,
+        // whose only counted part is a class initializer it made run (#897).
         assertFalse(loaderB.getAsJsonObject("tests").has("loader/tests/a-Test.grug"));
         assertFalse(loaderB.getAsJsonObject("tests").has("boot"));
+        assertEquals(
+                List.of(2),
+                probeList(
+                        loaderA.getAsJsonObject("otherMods")
+                                .getAsJsonObject(SAMPLE)
+                                .getAsJsonArray("probes")),
+                "the other mod's segment's probes are recorded, but not as a test's");
+    }
+
+    @Test
+    void buildAndReconstructReplayTheInitializerAnotherModsSegmentRan(@TempDir Path tmp)
+            throws Exception {
+        // #897: an initializer runs once per JVM, in the segment of whichever test first loaded
+        // the class. When that is another mod's test, a run counts it from its dropped data, and a
+        // carried-over test's base run has to hand that data on, or a pull request that runs no
+        // test at all misses the initializer that only another mod's test made run.
+        String name = "net/grug/covmaptest/WithInitializer";
+        byte[] classBytes = classWithInitializerNamed(name);
+        long id = CoverageMapTool.classId(classBytes);
+        int probeCount = probeCountOf(name, classBytes);
+        int initializer = initializerProbeOf(name, classBytes, id);
+        int counted = (initializer + 1) % probeCount;
+        Path coreClasses = classesDir(tmp, name, classBytes);
+        Path classes = quietLoaderClasses(tmp, "loader/classes");
+        Path execA = tmp.resolve("execA");
+        writeExec(
+                execA,
+                "000-coverage.tests.a-Test.grug.exec",
+                name,
+                id,
+                probes(probeCount, counted));
+        writeExec(
+                execA,
+                "001-jei.tests.a-Test.grug.dropped",
+                name,
+                id,
+                probes(probeCount, initializer));
+
+        Path map = tmp.resolve("map.json");
+        assertEquals(
+                0,
+                CoverageMapTool.run(
+                        buildArgs(
+                                coreClasses,
+                                map,
+                                "test-loader",
+                                classes.toString(),
+                                execA.toString())));
+
+        JsonObject loader =
+                JsonParser.parseString(Files.readString(map))
+                        .getAsJsonObject()
+                        .getAsJsonObject("loaders")
+                        .getAsJsonObject("test-loader");
+        // The other mod's segment is no test's coverage, and a core class only it named is still
+        // in the map's classes section, or the replay could not be applied to this run's file.
+        assertEquals(
+                List.of(initializer),
+                probeList(
+                        loader.getAsJsonObject("otherMods")
+                                .getAsJsonObject(name)
+                                .getAsJsonArray("probes")));
+        assertEquals(
+                List.of(counted),
+                probeList(
+                        loader.getAsJsonObject("tests")
+                                .getAsJsonObject("coverage/tests/a-Test.grug")
+                                .getAsJsonObject(name)
+                                .getAsJsonArray("probes")));
+        assertEquals(
+                probeCount,
+                JsonParser.parseString(Files.readString(map))
+                        .getAsJsonObject()
+                        .getAsJsonObject("classes")
+                        .getAsJsonObject(name)
+                        .get("probes")
+                        .getAsInt());
+
+        Path outDir = tmp.resolve("carry-over");
+        Path tests = tmp.resolve("tests.txt");
+        Files.writeString(tests, "coverage/tests/a-Test.grug\n");
+        assertEquals(
+                0,
+                CoverageMapTool.run(
+                        reconstructArgs(
+                                map,
+                                coreClasses,
+                                tests,
+                                outDir,
+                                "test-loader",
+                                classes.toString())));
+
+        ExecutionDataStore replayed = readExec(otherModsDir(outDir).resolve("test-loader.exec"));
+        ExecutionData data = dataNamed(replayed, name);
+        assertEquals(id, data.getId());
+        assertTrue(data.getProbes()[initializer], "the initializer's probe is replayed");
+        for (int p = 0; p < probeCount; p++) {
+            if (p != initializer) {
+                assertFalse(data.getProbes()[p], "only the initializer's probe is replayed");
+            }
+        }
+    }
+
+    @Test
+    void reconstructSkipsAChangedClassInTheOtherModsReplay(@TempDir Path tmp) throws Exception {
+        // The replay is no carried-over test: no selection proved the classes it touched
+        // unaffected, so a class this run's build changed is skipped rather than failed on, or
+        // any core change that a base run's other mods happened to touch would make the coverage
+        // job red (#897). A skipped class's initializer is then simply not evidence for the
+        // initializer this run compiled.
+        String carried = "net/grug/covmaptest/Sample";
+        String replayedName = "net/grug/covmaptest/WithInitializer";
+        byte[] carriedBytes = classNamed(carried);
+        byte[] replayedBytes = classWithInitializerNamed(replayedName);
+        long carriedId = CoverageMapTool.classId(carriedBytes);
+        long replayedId = CoverageMapTool.classId(replayedBytes);
+        int carriedProbes = probeCountOf(carried, carriedBytes);
+        int replayedProbes = probeCountOf(replayedName, replayedBytes);
+        int initializer = initializerProbeOf(replayedName, replayedBytes, replayedId);
+        Path coreClasses = classesDir(tmp, carried, carriedBytes);
+        classesDir(tmp, replayedName, replayedBytes);
+        Path classes = quietLoaderClasses(tmp, "loader/classes");
+        Path execA = tmp.resolve("execA");
+        writeExec(
+                execA,
+                "000-coverage.tests.a-Test.grug.exec",
+                carried,
+                carriedId,
+                probes(carriedProbes, 1));
+        writeExec(
+                execA,
+                "001-jei.tests.a-Test.grug.dropped",
+                replayedName,
+                replayedId,
+                probes(replayedProbes, initializer));
+
+        Path map = tmp.resolve("map.json");
+        assertEquals(
+                0,
+                CoverageMapTool.run(
+                        buildArgs(
+                                coreClasses,
+                                map,
+                                "test-loader",
+                                classes.toString(),
+                                execA.toString())));
+
+        // This run compiled the replayed class differently, as a pull request that changed it
+        // would: its recorded coverage is not evidence about this build's class.
+        classesDir(tmp, replayedName, classChangedNamed(replayedName));
+        Path outDir = tmp.resolve("carry-over");
+        Path tests = tmp.resolve("tests.txt");
+        Files.writeString(tests, "coverage/tests/a-Test.grug\n");
+        assertEquals(
+                0,
+                CoverageMapTool.run(
+                        reconstructArgs(
+                                map,
+                                coreClasses,
+                                tests,
+                                outDir,
+                                "test-loader",
+                                classes.toString())));
+
+        assertTrue(
+                Files.isRegularFile(
+                        outDir.resolve("test-loader").resolve("coverage.tests.a-Test.grug.exec")),
+                "a changed class in the replay does not stop the carried tests");
+        assertFalse(
+                Files.exists(otherModsDir(outDir).resolve("test-loader.exec")),
+                "a changed class is not replayed, and it was the replay's only class");
     }
 
     private static List<Integer> probeList(JsonArray array) {
