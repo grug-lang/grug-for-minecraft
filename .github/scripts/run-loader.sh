@@ -414,10 +414,30 @@ crash_re='Uncaught exception in thread "Minecraft main thread"|Exception in thre
 # report-native-abort.sh for why that is worth its own status.
 ABORT_RE='panicked at .*\.rs:[0-9]+:[0-9]+'
 
+# A reference run stages the real mod's jars beside the run, in GRUG_REFERENCE_MODS_DIR. The
+# 1.2.5-forge build copies them into its own run/mods, whose prepareRunDir owns that directory;
+# every other loader's development run scans run/mods without anything writing it, so a reference
+# run puts the jars there before the game starts and takes out again exactly what it put in. A
+# normal run never sees them.
+reference_mods_staged=()
+if [ -n "${GRUG_REFERENCE_MODS_DIR:-}" ] && { [ "$PHASE" = run ] || [ "$PHASE" = build-run ]; }; then
+  mkdir -p "${GAME_DIR}/mods"
+  for reference_mod in "${GRUG_REFERENCE_MODS_DIR}"/*.jar; do
+    [ -e "$reference_mod" ] || continue
+    staged_mod="${GAME_DIR}/mods/$(basename "$reference_mod")"
+    cp -f "$reference_mod" "$staged_mod"
+    reference_mods_staged+=("$staged_mod")
+  done
+  echo "==> Staged ${#reference_mods_staged[@]} reference mod jar(s) in ${GAME_DIR#"${REPO_ROOT}/"}/mods"
+fi
+
 gradle_pid=""
 tail_pid=""
 
 cleanup() {
+  if [ "${#reference_mods_staged[@]}" -gt 0 ]; then
+    rm -f "${reference_mods_staged[@]}"
+  fi
   [ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
   [ -n "$gradle_pid" ] || return 0
   kill -TERM -- "-${gradle_pid}" 2>/dev/null || true
