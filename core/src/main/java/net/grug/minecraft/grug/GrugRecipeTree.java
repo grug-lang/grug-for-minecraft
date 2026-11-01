@@ -268,15 +268,14 @@ public final class GrugRecipeTree {
     }
 
     /**
-     * The {@code type} one recipe file declares, reporting the file when it is not a recipe and
-     * returning null for it.
+     * One recipe file, read and judged as {@link #recipes} judges the whole tree, or null once a
+     * rule it breaks has been reported.
      *
-     * <p>The hot-reload path has one changed file rather than the whole tree, so it judges that
-     * file the same way {@link #recipes} would before handing it to the game again.
+     * <p>The hot-reload path has one changed file rather than the whole tree, so it reads that file
+     * the same way startup does before handing it to the game again.
      */
-    public static String readType(File file, String path) {
-        JsonObject json = parse(file, path);
-        return json == null ? null : typeOf(json, path);
+    public static Recipe recipe(File modsDir, File file) {
+        return read(modsDir, file, relativePath(modsDir, file));
     }
 
     /**

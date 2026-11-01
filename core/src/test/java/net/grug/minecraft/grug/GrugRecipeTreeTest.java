@@ -635,40 +635,41 @@ class GrugRecipeTreeTest {
     }
 
     @Test
-    void readsOnlyTheTypeOfARecipeFile() throws IOException {
+    void readsOneRecipeFileTheWayTheTreeDoes() throws IOException {
         recipe(
                 "mymod/data/grug/recipes/a.json",
                 "{\"type\": \"minecraft:crafting_shapeless\","
                         + " \"ingredients\": [{\"item\": \"minecraft:dirt\"}],"
                         + " \"result\": {\"id\": \"minecraft:dirt\"}}");
 
-        assertEquals(
-                "minecraft:crafting_shapeless",
-                GrugRecipeTree.readType(
-                        mods.resolve("mymod/data/grug/recipes/a.json").toFile(),
-                        "mymod/data/grug/recipes/a.json"));
+        GrugRecipeTree.Recipe read =
+                GrugRecipeTree.recipe(
+                        mods.toFile(), mods.resolve("mymod/data/grug/recipes/a.json").toFile());
+
+        assertEquals("mymod/data/grug/recipes/a.json", read.path());
+        assertEquals("minecraft:crafting_shapeless", read.type());
+        assertEquals(GrugRecipeTree.Kind.SHAPELESS, read.kind());
+        assertEquals("minecraft:dirt", read.resultId());
         assertTrue(reported().isEmpty(), reported().toString());
     }
 
     @Test
-    void reportsAFileThatDoesNotParseWhenReadingOnlyItsType() throws IOException {
+    void reportsAFileThatDoesNotParseWhenReadingOneRecipeFile() throws IOException {
         recipe("mymod/data/grug/recipes/a.json", "{ not json");
 
         assertNull(
-                GrugRecipeTree.readType(
-                        mods.resolve("mymod/data/grug/recipes/a.json").toFile(),
-                        "mymod/data/grug/recipes/a.json"));
+                GrugRecipeTree.recipe(
+                        mods.toFile(), mods.resolve("mymod/data/grug/recipes/a.json").toFile()));
         assertReported("is not readable JSON");
     }
 
     @Test
-    void reportsAFileWithNoTypeWhenReadingOnlyItsType() throws IOException {
+    void reportsAFileWithNoTypeWhenReadingOneRecipeFile() throws IOException {
         recipe("mymod/data/grug/recipes/a.json", "{\"result\": {\"id\": \"minecraft:dirt\"}}");
 
         assertNull(
-                GrugRecipeTree.readType(
-                        mods.resolve("mymod/data/grug/recipes/a.json").toFile(),
-                        "mymod/data/grug/recipes/a.json"));
+                GrugRecipeTree.recipe(
+                        mods.toFile(), mods.resolve("mymod/data/grug/recipes/a.json").toFile()));
         assertReported("names no recipe 'type'");
     }
 
