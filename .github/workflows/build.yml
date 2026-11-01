@@ -47,6 +47,14 @@ on:
         # Empty runs the default, buildcraft, so a pull request's reference is unchanged.
         description: 'The mod the reference job runs, read from its first derived_from entry; empty runs the default, buildcraft'
         type: string
+      base:
+        # The commit a dispatch compares its branch with (#826). The Windows boot jobs are the only
+        # run of the native path and of the installed jar on Windows, and a verification dispatch
+        # whose diff cannot reach them does not need them: windows-needed.py answers from the diff
+        # and explains its answer in this log. Empty is the full run, which is what the four-hourly
+        # check and the weekly release send, so a release always gets the native and the boots.
+        description: 'A commit this dispatch compares with to decide whether the Windows boot jobs can be affected; empty runs them, which a release requires'
+        type: string
 
 permissions:
   contents: read
@@ -242,26 +250,41 @@ jobs:
           fi
           echo "no-tests=$no_tests" >> "$GITHUB_OUTPUT"
 
-      # The loader directories the Windows boot jobs run on (#632). A change that boots on Linux
+      # The loader directories the Windows boot jobs run on (#632, #826). A change that boots on Linux
       # cannot fail to boot on Windows without failing on Linux first, and the two Windows jobs are
       # 219 s of a loader's 484 s on main while running no tests (#707), so a push runs them only for
-      # a loader it adds, and a dispatch, the full run a release requires, runs them for all of them
-      # (added-loaders.py explains its answer in this log). A pull request and the weekly schedule
-      # run neither: #632 keeps them out of a run that no release and no added loader needs, and no
-      # entry leaves the jobs a matrix GitHub refuses, so their condition skips them. The checkout is
-      # one commit deep, so the commit the push started from is fetched first. A push with no commit
-      # before it and a fetch or a read that fails run every loader, the direction that runs more.
+      # a loader it adds, and a dispatch runs them for all of them unless it names a base commit: a
+      # verification dispatch compares its branch with that commit, and windows-needed.py drops the
+      # jobs when the diff cannot reach the native path or the installed jar (it explains its answer
+      # in this log). A dispatch with no base is the full run a release requires, so the four-hourly
+      # check and the weekly release always get them. A pull request and the weekly schedule run
+      # neither: #632 keeps them out of a run that no release and no added loader needs, and no entry
+      # leaves the jobs a matrix GitHub refuses, so their condition skips them. The checkout is one
+      # commit deep, so the commit the diff starts from is fetched first. A base that the fetch or the
+      # read cannot reach, and a failed push, run every loader, the direction that runs more.
       - name: Choose the loaders the Windows jobs run
         id: windows
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
+          BASE: ${{ inputs.base }}
           LOADERS: ${{ steps.discover.outputs.matrix }}
         run: |
           dirs='[]'
           if [ "$EVENT" = workflow_dispatch ]; then
-            dirs="$LOADERS"
-            echo "Running the Windows jobs on every loader: a dispatch is the whole run."
+            if [ -z "$BASE" ]; then
+              dirs="$LOADERS"
+              echo "Running the Windows jobs on every loader: a dispatch with no base is the whole run."
+            else
+              git fetch --quiet --no-tags --depth=1 origin "$BASE" || true
+              needed=$(python3 .github/scripts/windows-needed.py "$BASE" HEAD) || needed=true
+              if [ "$needed" = 'false' ]; then
+                echo "Running the Windows jobs nowhere: this dispatch's diff cannot reach what they test."
+              else
+                dirs="$LOADERS"
+                echo "Running the Windows jobs on every loader: this dispatch's diff can reach what they test."
+              fi
+            fi
           elif [ "$EVENT" = push ]; then
             git fetch --quiet --no-tags --depth=1 origin "$BEFORE" || true
             dirs=$(python3 .github/scripts/added-loaders.py "$BEFORE" HEAD) || dirs="$LOADERS"
@@ -489,7 +512,8 @@ jobs:
             .github/scripts/reference_selection_test.py \
             .github/scripts/no_tests_test.py \
             .github/scripts/drain_caches_test.py \
-            .github/scripts/markdown_columns_test.py
+            .github/scripts/markdown_columns_test.py \
+            .github/scripts/windows_needed_test.py
 
       # The four standalone loaders resolve core from the repository the root build publishes it
       # into. Every loader job here has one checkout, so a hand-off that reached a shared directory
