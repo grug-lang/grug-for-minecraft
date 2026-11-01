@@ -40,6 +40,8 @@ BASE = {
     "mods/buildcraft/code/wrench-Item.grug": "on_use() {}\n",
     "mods/buildcraft/code/stone_gear-Item.grug": "on_use() {}\n",
     "mods/buildcraft/code/wrench_entity-BlockEntity.grug": "export tick() {}\n",
+    # A block the loader registers from tests/ too, which allocates an id like one in code/.
+    "mods/buildcraft/tests/pipe_probe-Block.grug": "on_tick() {}\n",
     "mods/buildcraft/data/grug/recipes/crafting/wrench.json": "{}",
     "mods/buildcraft/tests/wrench-Test.grug": 'tick() { item("grug:wrench") }\n',
     "mods/examplemod/about.json": "{}",
@@ -185,6 +187,9 @@ class SelectCoverageTestsPureTest(unittest.TestCase):
             "mods/coverage/code/coverage_frame-Block.grug",
             "mods/coverage/assets/grug/lang/en_us.json",
             "mods/coverage/about.json",
+            # The loader registers a block from tests/ too, so the id it allocates moves the ids
+            # the coverage tests read, exactly as one in code/ does.
+            "mods/coverage/tests/inner_probe-Block.grug",
         ):
             with self.subTest(path=path):
                 run = select({path})
@@ -213,6 +218,22 @@ class SelectCoverageTestsPureTest(unittest.TestCase):
         )
         self.assertEqual(set(run), set(ALL))
         self.assertTrue(all("cannot attribute" in reason for reason in run.values()), run)
+
+    def test_a_block_or_item_file_under_another_mods_tests_runs_every_test(self):
+        # GrugFileIndex accepts a grug file in tests/ and the loader registers a Block or Item
+        # entry there, so one allocates an id and a change to it is no less a change to the ids.
+        path = "mods/buildcraft/tests/wrench_probe-Block.grug"
+        for status in (sel.ADDED, sel.GONE):
+            with self.subTest(status=status):
+                run = select({path}, statuses={path: status})
+                self.assertEqual(set(run), set(ALL), path)
+                self.assertTrue(all("moves the ids" in reason for reason in run.values()), run)
+
+    def test_a_modified_block_under_another_mods_tests_runs_the_tests_reading_it(self):
+        # The same scoping a modified code/ file gets: its id does not move, so only a test that
+        # reads the id can observe the change.
+        run = select({"mods/buildcraft/tests/stone_gear-Item.grug"})
+        self.assertEqual(set(run), {"coverage/tests/gear-Test.grug"})
 
     def test_another_mods_block_entity_file_runs_every_test(self):
         # A block entity is created by the block that names it, not by the test that names the
@@ -345,6 +366,30 @@ class SelectCoverageTestsScriptTest(unittest.TestCase):
             "",
         )
         self.assertIn("moves the ids", self.reason)
+
+    def test_a_new_block_file_under_another_mods_tests_carries_no_test_over(self):
+        # The loader registers a block from tests/ as well, so an addition there moves the ids
+        # just like one in code/, which the selector has to see in a real diff.
+        self.assertEqual(
+            self.select({"mods/buildcraft/tests/wrench_probe-Block.grug": "on_tick() {}\n"}),
+            "",
+        )
+        self.assertIn("moves the ids", self.reason)
+
+    def test_a_removed_block_or_item_file_carries_no_test_over(self):
+        # A real deletion, not a status injected into the pure rule: the ids after a removed file
+        # move, so every coverage test runs.
+        self.assertEqual(
+            self.select(
+                {
+                    "mods/buildcraft/code/stone_gear-Item.grug": None,
+                    "mods/buildcraft/tests/pipe_probe-Block.grug": None,
+                }
+            ),
+            "",
+        )
+        self.assertIn("moves the ids", self.reason)
+        self.assertIn("is gone", self.reason)
 
     def test_another_mods_code_that_cannot_be_scoped_carries_no_test_over(self):
         self.assertEqual(

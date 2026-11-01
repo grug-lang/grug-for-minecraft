@@ -14,12 +14,13 @@ running the test, never to carrying it over:
 
 - a test runs when its own file changed, and a new test runs, since it has no recorded
   coverage to carry;
-- a test runs when it reads the id a modified code file of another mod declares, which is the
-  file's own name: only a -Block.grug or -Item.grug file is scoped like that, and only the
+- a test runs when it reads the id a modified registered file of another mod declares, which is
+  the file's own name: only a -Block.grug or -Item.grug file is scoped like that, and only the
   tests reading it rerun, because a modification moves no id;
-- a block or item file added or removed anywhere runs every coverage test: ids are handed out
-  in name order, so one moving is not attributable to a test;
-- any other changed code file of another mod runs every coverage test: a block entity is
+- a block or item file added or removed anywhere the loader registers one, in a mod's code/ or
+  tests/, runs every coverage test: ids are handed out in name order, so one moving is not
+  attributable to a test;
+- any other changed registered file of another mod runs every coverage test: a block entity is
   created by the block that names it and a helper is called by another file, and this selector
   reads names rather than code, so it cannot attribute those to a test;
 - a file of another mod under data/ or assets/ outside the grug namespace runs every coverage
@@ -60,6 +61,9 @@ _MODS.loader.exec_module(aff)
 
 # A coverage test, as the runner names it: <mod>/tests/<name>-Test.grug. The counted mod.
 COUNTED_MOD = "coverage"
+# The directories under a mod whose .grug files the loader compiles and registers, so a block or
+# item file in either one allocates an id: GrugFileIndex accepts code/ and tests/ alike.
+REGISTERED_DIRS = ("code", "tests")
 # A changed core unit test runs in the core job, not in a game, so it cannot change what a
 # coverage test does or records: it is no run trigger for the coverage tests.
 CORE_TEST_JAVA = "core/src/test/"
@@ -86,16 +90,33 @@ def is_block_or_item_file(repo_path: str) -> bool:
     return bool(_BLOCK_ITEM.search(repo_path))
 
 
-def is_another_mod_code_file(repo_path: str) -> bool:
-    """Whether repo_path is a code file of a mod other than the counted one."""
+def is_registered_file(repo_path: str) -> bool:
+    """Whether the loader registers what repo_path declares.
+
+    GrugFileIndex accepts a grug file in a mod's code/ or tests/, so a block or item file in
+    either one allocates an id: the map's test paths and the loader's registry both see tests/.
+    A test file declares nothing, and its assertions are its own mod's tests.
+    """
     parts = repo_path.split("/")
-    return len(parts) >= 4 and parts[0] == "mods" and parts[2] == "code" and parts[1] != COUNTED_MOD
+    return (
+        len(parts) >= 4
+        and parts[0] == "mods"
+        and parts[2] in REGISTERED_DIRS
+        and parts[-1].endswith(".grug")
+        and not parts[-1].endswith("-Test.grug")
+    )
+
+
+def is_another_mod_registered_file(repo_path: str) -> bool:
+    """Whether repo_path is one of another mod's files that the loader registers."""
+    return is_registered_file(repo_path) and repo_path.split("/")[1] != COUNTED_MOD
 
 
 def declared_symbol(repo_path: str) -> str | None:
-    """The name a code file declares, which is its stem: ``code/wooden_pipe-Block.grug`` ships
-    ``wooden_pipe``, the id the file registers."""
-    return aff.shipped_name("/".join(repo_path.split("/")[2:]))
+    """The name a registered file declares, which is its stem, as the loader names it back:
+    ``code/wooden_pipe-Block.grug`` ships ``wooden_pipe``, the id the file allocates."""
+    name = repo_path.rsplit("/", 1)[-1]
+    return re.split(r"[-.]", name)[0] or None
 
 
 def referenced_symbols(text: str) -> frozenset[str]:
@@ -104,10 +125,13 @@ def referenced_symbols(text: str) -> frozenset[str]:
 
 
 def _is_coverage_mod_file(repo_path: str) -> bool:
-    # A file of the coverage mod itself, other than its tests: its blocks, entities, textures,
-    # recipes and metadata are what the coverage tests observe, so a change to one runs them all.
+    # A file of the coverage mod itself, other than a test: its blocks, entities, textures,
+    # recipes and metadata are what the coverage tests observe, so a change to one runs them all,
+    # including a block or item file it keeps under tests/, which allocates an id like any other.
     # A changed test is scoped to itself by the fine rule instead.
-    return repo_path.startswith("mods/" + COUNTED_MOD + "/") and "/tests/" not in repo_path
+    return repo_path.startswith("mods/" + COUNTED_MOD + "/") and not repo_path.endswith(
+        "-Test.grug"
+    )
 
 
 def _is_no_game_input(repo_path: str) -> bool:
@@ -177,8 +201,8 @@ def select_coverage_tests(
         break
     if any(_is_coverage_mod_file(p) for p in changed):
         run_all("a file of the coverage mod itself changed")
-    # Another mod's code and the namespaces it shares with vanilla: what the selector cannot
-    # attribute to a test, it runs every test for.
+    # Another mod's registered files and the namespaces it shares with vanilla: what the
+    # selector cannot attribute to a test, it runs every test for.
     statuses = code_status or {}
     for p in sorted(changed):
         parts = p.split("/")
@@ -192,7 +216,7 @@ def select_coverage_tests(
                     f"so every coverage test runs"
                 )
                 break
-        if not is_another_mod_code_file(p):
+        if not is_another_mod_registered_file(p):
             continue
         declared = declared_symbol(p)
         if statuses.get(p) == MODIFIED and is_block_or_item_file(p) and declared is not None:
@@ -204,8 +228,8 @@ def select_coverage_tests(
             )
         else:
             run_all(
-                f"{p} is a code file of another mod whose change the selector cannot attribute "
-                f"to a test, so every coverage test runs"
+                f"{p} is a registered file of another mod whose change the selector cannot "
+                f"attribute to a test, so every coverage test runs"
             )
         break
 
@@ -215,7 +239,7 @@ def select_coverage_tests(
     # it are exactly the ones that can observe the change.
     symbols = test_symbols or {}
     for p in sorted(changed):
-        if statuses.get(p) != MODIFIED or not is_another_mod_code_file(p):
+        if statuses.get(p) != MODIFIED or not is_another_mod_registered_file(p):
             continue
         if not is_block_or_item_file(p):
             continue

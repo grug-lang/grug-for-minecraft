@@ -1780,8 +1780,11 @@ jobs:
         run: |
           set -eu
           carry=()
+          # Every reconstructed exec is handed to combine-coverage.py, which logs one that is not a
+          # file and drops it from the count instead of failing. The loop must not skip such a path
+          # itself: a renamed or expired artifact then leaves the line naming the missing file in
+          # the job's log, and the gate fails when that test was the only cover for a line.
           for exec in coverage/carry-over/*/*.exec; do
-            [ -e "$exec" ] || continue
             runner=$(basename "$(dirname "$exec")")
             carry+=(--carry-over "$runner:$exec")
           done
