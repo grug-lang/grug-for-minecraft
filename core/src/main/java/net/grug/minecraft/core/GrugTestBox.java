@@ -138,6 +138,7 @@ public final class GrugTestBox {
         if (roomIsWhole) {
             clearItems(
                     adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
+            oweLight(adapter, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
             return;
         }
 
@@ -191,6 +192,21 @@ public final class GrugTestBox {
         // whatever else is in the area. The player picks up anything that lands near them, and an
         // item in the hotbar shows in every capture that has one in frame. See #254.
         clearItems(adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
+
+        oweLight(adapter, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
+    }
+
+    /**
+     * Records that the client owes this rebuild the light of the room's box, and the block around
+     * it that the torches' light reaches, on a loader whose client holds its own copy of the
+     * server's light. See {@link GrugLightSync} and #686.
+     */
+    private static void oweLight(
+            ModLoaderAdapter adapter, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        if (!adapter.separatesClientLight()) {
+            return;
+        }
+        GrugLightSync.oweRoom(minX - 2, minY - 1, minZ - 2, maxX + 2, maxY + 1, maxZ + 2);
     }
 
     /**

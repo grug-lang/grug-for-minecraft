@@ -189,6 +189,29 @@ class GrugRenderSettleTest {
     }
 
     @Test
+    void theServerHasLightLeftWhileAnyOfItsThreeQueuesDoes() {
+        // Every combination, because each one is a place 1.20.6's engine can hold a rebuild's light
+        // and only the first is visible through its public answer (#686).
+        for (boolean engineHasLightWork : new boolean[] {false, true}) {
+            for (boolean tasksQueued : new boolean[] {false, true}) {
+                for (boolean updateScheduled : new boolean[] {false, true}) {
+                    boolean expected = !engineHasLightWork && !tasksQueued && !updateScheduled;
+                    assertEquals(
+                            expected,
+                            GrugRenderSettle.serverLightSettled(
+                                    engineHasLightWork, tasksQueued, updateScheduled),
+                            "engineHasLightWork="
+                                    + engineHasLightWork
+                                    + " tasksQueued="
+                                    + tasksQueued
+                                    + " updateScheduled="
+                                    + updateScheduled);
+                }
+            }
+        }
+    }
+
+    @Test
     void aFrameHasPendingWorkUntilTheWindowTheWorldAndTheChunksAreReady() {
         Object renderer = new Object();
         Object player = new Object();
