@@ -56,6 +56,26 @@ install_profile() {
   curl --fail --silent --show-error --location "$url" -o "${MAIN_DIR}/versions/${id}/${id}.json"
 }
 
+# Installs Babric's launcher profile for b1.7.3 from the repository and sets BABRIC_VERSION to its
+# id, so portablemc starts a plain local version and asks neither Babric's game list nor its profile
+# endpoint at launch: meta.babric.glass-launcher.net is down for hours at times (#532). The file is
+# what that endpoint answers for the loader version, pinned like every other version here; when the
+# loader is bumped, save the new answer from
+# https://meta.babric.glass-launcher.net/v2/versions/loader/b1.7.3/<loader>/profile/json beside it.
+babric_profile() {
+  local loader="$1"
+  local id="fabric-loader-${loader}-b1.7.3"
+  local profile
+  profile="$(dirname "${BASH_SOURCE[0]}")/../launcher-profiles/${id}.json"
+  if [ ! -f "$profile" ]; then
+    echo "==> ERROR: no pinned Babric profile for loader ${loader}: expected ${profile}" >&2
+    return 1
+  fi
+  mkdir -p "${MAIN_DIR}/versions/${id}"
+  cp "$profile" "${MAIN_DIR}/versions/${id}/${id}.json"
+  BABRIC_VERSION="$id"
+}
+
 # Downloads a file into the cache once. The cache outlives the run, so a download cut off halfway
 # must not land under the file's name.
 cached_download() {

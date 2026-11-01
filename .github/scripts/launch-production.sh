@@ -99,9 +99,9 @@ case "$LOADER" in
       "https://maven.glass-launcher.net/releases/net/modificationstation/StationAPI/${stationapi}/StationAPI-${stationapi}.jar" \
       -o "${GAME_DIR}/mods/StationAPI-${stationapi}.jar"
     babric_lwjgl
+    babric_profile "$(property loader_version)"
     portablemc --version >/dev/null
-    start "${LEGACY_LIBRARIES[@]}" --jvm "$STATIONAPI_JAVA" "${BABRIC_LWJGL[@]}" \
-      "babric::$(property loader_version)"
+    start "${LEGACY_LIBRARIES[@]}" --jvm "$STATIONAPI_JAVA" "${BABRIC_LWJGL[@]}" "$BABRIC_VERSION"
     ;;
 
   a1.1.2_01-ornithe | b1.7.3-ornithe)
