@@ -293,6 +293,12 @@ class GrugCatalogueTest {
                     + "\"}}}",
             "{\"mods\":{\"alpha\":{\"zip\":\"a.zip\",\"size\":5,\"sha256\":\"abc\"}}}",
             "{",
+            "{\"mods\":{\"alpha\":{\"zip\":\"a.zip\",\"size\":5,\"sha256\":\""
+                    + "0".repeat(64)
+                    + "\",\"url\":\"ftp://x/a.zip\"}}}",
+            "{\"mods\":{\"alpha\":{\"zip\":\"a.zip\",\"size\":5,\"sha256\":\""
+                    + "0".repeat(64)
+                    + "\",\"url\":\"https://x/b.zip\"}}}",
         };
         GrugCatalogue catalogue = new GrugCatalogue(GrugHttp.urlConnection(), base + "index.json");
         for (String text : bad) {
@@ -313,6 +319,29 @@ class GrugCatalogueTest {
         assertEquals(java.util.List.of("alpha"), new java.util.ArrayList<>(items.keySet()));
         assertEquals(base + "alpha.zip", items.get("alpha").zipUrl);
         assertEquals(zip.length, items.get("alpha").size());
+    }
+
+    @Test
+    void aModUnchangedSinceAnOlderReleaseIsReadFromThatReleasesUrl() throws Exception {
+        byte[] zip = zip("alpha/about.json", "{}");
+        String old = base.replace("/release/", "/older/") + "alpha.zip";
+        String index =
+                "{\"mods\":{\"alpha\":{\"zip\":\"alpha.zip\",\"size\":"
+                        + zip.length
+                        + ",\"sha256\":\""
+                        + sha256(zip)
+                        + "\",\"url\":\""
+                        + old
+                        + "\"}}}";
+        served.put("/release/index.json", index.getBytes(StandardCharsets.UTF_8));
+        served.put("/older/alpha.zip", zip);
+        GrugCatalogue catalogue = new GrugCatalogue(GrugHttp.urlConnection(), base + "index.json");
+
+        Map<String, GrugCatalogue.Item> items = catalogue.fetch();
+        catalogue.install("alpha", items.get("alpha"), target);
+
+        assertEquals(old, items.get("alpha").zipUrl);
+        assertTrue(Files.exists(target.resolve("alpha/about.json")));
     }
 
     @Test
