@@ -1188,9 +1188,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Vec3 getTestOrigin() {
-        PlayerEntity player = MinecraftInstance.get().player;
-        return new Vec3(player.x, player.y + 3.0, player.z);
+    public Vec3 testPlayerEye(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        return new Vec3(player.x, player.y, player.z);
     }
 
     private boolean testPlayerSnapped = false;

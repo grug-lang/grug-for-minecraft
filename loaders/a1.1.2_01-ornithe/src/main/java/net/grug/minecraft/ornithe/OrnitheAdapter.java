@@ -120,6 +120,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      *       entrypoint are built against, so Ornithe would not load them on a server even if one
      *       existed.
      * </ul>
+     *
+     * <p>So this answer is complete rather than a placeholder: there is no server process in which
+     * a host function could find this adapter refusing, which is why this loader has no error
+     * naming a missing dedicated server to report. b1.7.3's adapter refuses on a server because a
+     * server for it exists; this version's cannot. See #188.
      */
     @Override
     public GrugSide getSide() {
@@ -1200,9 +1205,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Vec3 getTestOrigin() {
-        PlayerEntity player = MinecraftInstance.get().player;
-        return new Vec3(player.x, player.y + 3.0, player.z);
+    public Vec3 testPlayerEye(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        return new Vec3(player.x, player.y, player.z);
     }
 
     private boolean testPlayerSnapped = false;

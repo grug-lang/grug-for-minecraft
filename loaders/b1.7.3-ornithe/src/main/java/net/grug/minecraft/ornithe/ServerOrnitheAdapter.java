@@ -2,8 +2,6 @@ package net.grug.minecraft.ornithe;
 
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
-import net.grug.minecraft.grug.Vec3;
-import net.minecraft.entity.mob.player.PlayerEntity;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
 
 import java.util.List;
@@ -16,8 +14,8 @@ import java.util.List;
  * net.grug.minecraft.core.ModLoaderAdapter} again, because everything that is not about which
  * process this is, is the same code: the block registry has no client in it, the recipe manager has
  * no client in it, and neither has any of the inventory or entity host functions. What a server
- * cannot inherit is the pair of handles and the origin that follows from one of them, and that is
- * all this replaces.
+ * cannot inherit is the pair of handles, and that is all this replaces: the origin follows the
+ * player {@link #testPlayer()} answers, so it is inherited too.
  *
  * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
  * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
@@ -46,7 +44,9 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
      * <p>A server has no local player, so a test that wants one to build fixtures around and to
      * right-click with has to be given one of the connected players. Which one does not matter: the
      * tests share one world, and they are told to build in bands above the origin rather than at a
-     * player, so the choice only decides whose position {@code Test.get_origin} reports.
+     * player, so the choice only decides whose position {@code Test.get_origin} reports. The
+     * inherited {@code testPlayerEye} and {@code getTestOrigin} both go through this answer, so
+     * choosing the player here is all a server has to do. See #188.
      */
     @Override
     public Object testPlayer() {
@@ -57,22 +57,5 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         // method would break the client, and nothing at the call site would say why.
         List<?> players = MinecraftServerInstance.get().playerManager.players;
         return players.isEmpty() ? null : players.get(0);
-    }
-
-    /**
-     * The player's position plus 3, which is what the client adapter does and therefore what the
-     * bands the tests build in mean on a server too.
-     *
-     * <p>Null rather than an exception when nobody has joined, because {@link #testPlayer()}
-     * promises null for that case and this must not be the place that contradicts it. The runner
-     * has no reason to start before somebody is connected, so this is what a run that did anyway
-     * would report.
-     */
-    @Override
-    public Vec3 getTestOrigin() {
-        PlayerEntity player = (PlayerEntity) testPlayer();
-        if (player == null) return null;
-
-        return new Vec3(player.x, player.y + 3.0, player.z);
     }
 }

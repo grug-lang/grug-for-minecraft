@@ -427,16 +427,18 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Refuses the two handles on a dedicated server until #165 gives this loader a server-side
-     * adapter, and says whether it refused.
+     * Refuses the level, the player and the test origin on a dedicated server until #165 gives this
+     * loader a server-side adapter, and says whether it refused.
      *
      * <p>A host function error rather than a fatal, because it is the same bounded defect as a
      * missing level or a missing player: the mod asked for something this side cannot give, the
      * test that asked fails, and a server shared with other players keeps running. A fatal here
      * would take down every player on it for one test's mistake.
      *
-     * <p>The caller then reports a second, more generic message about the empty answer. Two
-     * messages for one mistake is the price of keeping this one here rather than in every caller.
+     * <p>Each caller then reports a second, more generic message naming its own function: {@code
+     * Test.get_client_level} has no level, {@code Test.get_player} has no player, and {@code
+     * Test.get_origin} has no test player to measure an origin from. Two messages for one mistake
+     * is the price of keeping this one here rather than in every caller.
      */
     @GrugGenerated("the dedicated-server answer is #165, which no CI run exercises until then")
     private boolean refusesOnADedicatedServer(String function) {
@@ -446,7 +448,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 Grug.statePtr,
                 function
                         + ": grug has no dedicated-server adapter on StationAPI yet, so a dedicated"
-                        + " server cannot answer for its level or its player. See #165.");
+                        + " server cannot answer for its level, its player or its test origin."
+                        + " See #165.");
         return true;
     }
 
@@ -1116,18 +1119,22 @@ public class StationApiAdapter implements ModLoaderAdapter {
         return true;
     }
 
-    @GrugGenerated(
-            "the dedicated-server refusal can only be taken on a server, and CI launches none until"
-                + " #165. The client path below is this loader's own way of reaching the client,"
-                + " because Fabric Loader hands it back as an Object.")
+    /**
+     * Refuses by the name the mod called, before the default derivation asks {@link #testPlayer()},
+     * whose own refusal would name {@code Test.get_player} instead.
+     */
+    @GrugGenerated("the refusal arm needs a dedicated server, which no CI run launches until #165")
     @Override
     public Vec3 getTestOrigin() {
         if (refusesOnADedicatedServer("Test.get_origin")) return null;
 
-        @SuppressWarnings("deprecation")
-        net.minecraft.client.Minecraft mc =
-                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
-        return new Vec3(mc.player.x, mc.player.y + 3.0, mc.player.z);
+        return ModLoaderAdapter.super.getTestOrigin();
+    }
+
+    @Override
+    public Vec3 testPlayerEye(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        return new Vec3(player.x, player.y, player.z);
     }
 
     private boolean testPlayerSnapped = false;
