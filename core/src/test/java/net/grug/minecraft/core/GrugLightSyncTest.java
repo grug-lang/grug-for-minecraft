@@ -123,4 +123,17 @@ class GrugLightSyncTest {
     private static GrugLightSync.SectionLight lookup(Map<Long, byte[]> sections) {
         return (x, y, z) -> sections.get(key(x, y, z));
     }
+
+    @Test
+    void theClientIsOwedOnlyTheChunksItHolds() {
+        // Player in chunk 0 at its low edge and its high edge, then in a negative chunk.
+        assertEquals(-5, GrugLightSync.clientHeldMin(0, -5));
+        assertEquals(-32, GrugLightSync.clientHeldMin(0, -100));
+        assertEquals(-32, GrugLightSync.clientHeldMin(15, -100));
+        assertEquals(47, GrugLightSync.clientHeldMax(0, 100));
+        assertEquals(47, GrugLightSync.clientHeldMax(15, 100));
+        assertEquals(20, GrugLightSync.clientHeldMax(0, 20));
+        assertEquals(-48, GrugLightSync.clientHeldMin(-1, -100));
+        assertEquals(31, GrugLightSync.clientHeldMax(-1, 100));
+    }
 }

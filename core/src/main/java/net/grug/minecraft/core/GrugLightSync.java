@@ -73,6 +73,25 @@ public final class GrugLightSync {
         ROOM.oweBox(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
+    /**
+     * How many chunks around the player's own the client is certain to hold, which is the render
+     * distance a run shrinks the view to. Anything further may never be sent. See #948.
+     */
+    public static final int CLIENT_CHUNK_RADIUS = 2;
+
+    /**
+     * The lowest block coordinate on an axis that the client holds, at least {@code wanted}, for a
+     * player standing at {@code playerBlock}. Pure, so a unit test covers every case.
+     */
+    public static int clientHeldMin(int playerBlock, int wanted) {
+        return Math.max(wanted, ((playerBlock >> 4) - CLIENT_CHUNK_RADIUS) << 4);
+    }
+
+    /** The highest block coordinate on an axis that the client holds, at most {@code wanted}. */
+    public static int clientHeldMax(int playerBlock, int wanted) {
+        return Math.min(wanted, (((playerBlock >> 4) + CLIENT_CHUNK_RADIUS) << 4) + 15);
+    }
+
     /** Whether the running client holds the world's light for the room build's sections. */
     public static boolean roomSettled(SectionLight simulated, SectionLight client) {
         return ROOM.settled(simulated, client);

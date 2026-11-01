@@ -1,0 +1,14 @@
+# A room larger than the chunks the client holds must still settle. The 1.20.6 client keeps its own
+# copy of the light and the room build owes it the light of every section the room covers, so a
+# section the client is never sent used to keep the world unsettled until the test's budget ran out.
+# The radius is wider than the two-chunk render distance the run sets, whatever block of its chunk
+# the player stands on. See #948.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        Test.set_box_radius(46)
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.assert(ctx.current_tick() < 150, "A room wider than the client's chunks must not keep the world unsettled.")
+        ctx.not_done()
+    }
+}

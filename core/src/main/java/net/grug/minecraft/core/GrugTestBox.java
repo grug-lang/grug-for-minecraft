@@ -138,7 +138,7 @@ public final class GrugTestBox {
         if (roomIsWhole) {
             clearItems(
                     adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
-            oweLight(adapter, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
+            oweLight(adapter, px, pz, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
             return;
         }
 
@@ -193,7 +193,7 @@ public final class GrugTestBox {
         // item in the hotbar shows in every capture that has one in frame. See #254.
         clearItems(adapter, level, areaMinX, wallBottomY, areaMinZ, areaMaxX, areaTopY, areaMaxZ);
 
-        oweLight(adapter, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
+        oweLight(adapter, px, pz, minX, wallBottomY, minZ, maxX, ceilingY, maxZ);
     }
 
     /**
@@ -202,11 +202,28 @@ public final class GrugTestBox {
      * server's light. See {@link GrugLightSync} and #686.
      */
     private static void oweLight(
-            ModLoaderAdapter adapter, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+            ModLoaderAdapter adapter,
+            int px,
+            int pz,
+            int minX,
+            int minY,
+            int minZ,
+            int maxX,
+            int maxY,
+            int maxZ) {
         if (!adapter.separatesClientLight()) {
             return;
         }
-        GrugLightSync.oweRoom(minX - 2, minY - 1, minZ - 2, maxX + 2, maxY + 1, maxZ + 2);
+        // A radius can reach past the chunks the client is sent, and a section it never receives
+        // can never match the server's, so only the sections inside what it holds are owed. See
+        // #948.
+        GrugLightSync.oweRoom(
+                GrugLightSync.clientHeldMin(px, minX - 2),
+                minY - 1,
+                GrugLightSync.clientHeldMin(pz, minZ - 2),
+                GrugLightSync.clientHeldMax(px, maxX + 2),
+                maxY + 1,
+                GrugLightSync.clientHeldMax(pz, maxZ + 2));
     }
 
     /**
