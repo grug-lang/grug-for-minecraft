@@ -307,18 +307,63 @@ public final class GrugModelRenderer {
      * one whose item model cannot be drawn, which core has reported.
      */
     public static boolean drawItemForm(Block block) {
-        if (!(block instanceof GrugBlock)) return false;
-        GrugBlock grugBlock = (GrugBlock) block;
-        if (!grugBlock.drawsCustomGeometry()) return false;
-
-        List<GrugQuad> quads =
-                GrugModels.itemModel(
-                        GrugCore.getAdapter().getGrugModsDirectory(),
-                        GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId).id);
+        List<GrugQuad> quads = itemQuads(block);
         if (quads == null) return false;
 
-        drawAsItem(quads, grugBlock.drawsFlatLighting());
+        drawAsItem(quads, ((GrugBlock) block).drawsFlatLighting());
         return true;
+    }
+
+    /**
+     * Draws a custom-rendered grug block's item form into the GUI slot at {@code x} and {@code y},
+     * turned the way this version turns a block item there, and answers whether it did.
+     *
+     * <p>StationAPI draws a block item itself, from the model its bake produced, and turns
+     * fixed-function lighting off only for a model whose GUI light is front. The engine's item is
+     * side lit, so the game shades each of its faces, where 2.2.14's {@code RenderEngine} turns
+     * lighting off for the item and this port's other loaders do the same. Marking the model front
+     * lit instead would make the game draw only its south quads on the ground, where a block item's
+     * dropped form is drawn, so the item is drawn here instead. Drawing the quads also keeps each
+     * face on its own texture file rather than an atlas sprite, as on every other loader. See #386.
+     *
+     * <p>The transform is the one this version's item renderer applies to a block item, so the item
+     * stands where its neighbours in a slot do. It reflects the model through the plane of the
+     * screen, which is how a GUI slot shows the far side of a box, and back faces are therefore not
+     * culled for it.
+     */
+    public static boolean drawItemFormInGui(Block block, int x, int y) {
+        List<GrugQuad> quads = itemQuads(block);
+        if (quads == null) return false;
+
+        GL11.glPushMatrix();
+        GL11.glTranslatef((float) (x - 2), (float) (y + 3), -3.0F);
+        GL11.glScalef(10.0F, 10.0F, 10.0F);
+        GL11.glTranslatef(1.0F, 0.5F, 1.0F);
+        GL11.glScalef(1.0F, 1.0F, -1.0F);
+        GL11.glRotatef(210.0F, 1.0F, 0.0F, 0.0F);
+        GL11.glRotatef(45.0F, 0.0F, 1.0F, 0.0F);
+        GL11.glRotatef(-90.0F, 0.0F, 1.0F, 0.0F);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        GL11.glDisable(GL11.GL_CULL_FACE);
+        drawAsItem(quads, ((GrugBlock) block).drawsFlatLighting());
+        // The item renderer leaves culling on for whatever draws next.
+        GL11.glEnable(GL11.GL_CULL_FACE);
+        GL11.glPopMatrix();
+        return true;
+    }
+
+    /**
+     * The quads of {@code block}'s item model, or null if it does not draw its own geometry or its
+     * model cannot be drawn, which core has reported.
+     */
+    private static List<GrugQuad> itemQuads(Block block) {
+        if (!(block instanceof GrugBlock)) return null;
+        GrugBlock grugBlock = (GrugBlock) block;
+        if (!grugBlock.drawsCustomGeometry()) return null;
+
+        return GrugModels.itemModel(
+                GrugCore.getAdapter().getGrugModsDirectory(),
+                GrugDeclarations.blockDataByFileId.get(grugBlock.blockFileId).id);
     }
 
     /**
