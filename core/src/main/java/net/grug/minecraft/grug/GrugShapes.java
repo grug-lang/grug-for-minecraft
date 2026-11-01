@@ -1,9 +1,9 @@
 package net.grug.minecraft.grug;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Asks a block's {@code shape} export for the boxes the game uses at one position.
@@ -78,16 +78,24 @@ public final class GrugShapes {
      * The blocks whose shape export has already been asked for, whether or not it ran, so a block
      * that never called {@code set_shape} enters the VM once per run rather than on every collision
      * query the game makes for it.
+     *
+     * <p>Concurrent rather than guarded by the state lock, because both game threads reach {@link
+     * #shape} and this is written before the call that takes that lock. The rule is one atomic
+     * check-and-add, which is what {@code add} answers, so nothing else has to move with it.
      */
-    private static final Set<Long> PROBED_BLOCKS = new HashSet<>();
+    private static final Set<Long> PROBED_BLOCKS = ConcurrentHashMap.newKeySet();
 
     /**
      * The blocks already reported, keyed on the same description the report carries, so a mod
      * author hears about a broken block once rather than on every collision query. Never cleared,
      * for the reason {@link GrugBlockGeometry} gives: the run has already ended at the first
      * report.
+     *
+     * <p>Concurrent for the reason {@link #PROBED_BLOCKS} gives: both threads add here after the
+     * shape call that held the lock has returned, and only the one whose add answers true reports,
+     * so a defect reaches the player once however the two interleave.
      */
-    private static final Set<String> REPORTED_BLOCKS = new HashSet<>();
+    private static final Set<String> REPORTED_BLOCKS = ConcurrentHashMap.newKeySet();
 
     @GrugGenerated("utility class: never instantiated")
     private GrugShapes() {}
@@ -154,13 +162,26 @@ public final class GrugShapes {
             // The game only asks a block that called set_shape, so a block that exports shape()
             // without declaring it would have its export run never and be a silent full cube. Ask
             // it once, on the first query the game makes for it, and report the mismatch.
-            if (PROBED_BLOCKS.add(blockFileId)) {
+            if (probeOnce(blockFileId)) {
                 reportUndeclaredShape(call(blockFileId, world, x, y, z), description);
             }
             return null;
         }
 
         return decide(call(blockFileId, world, x, y, z), description);
+    }
+
+    /**
+     * Spends {@code blockFileId}'s one probe this run, answering whether this call is the one that
+     * got it.
+     *
+     * <p>Both game threads ask, so the membership check and the insert are one atomic operation of
+     * the set rather than a {@code contains} followed by an {@code add}: only the call that answers
+     * true runs the export and reports the mismatch, so a block that exports {@code shape()}
+     * without declaring it is entered once and named once however the two threads interleave.
+     */
+    static boolean probeOnce(long blockFileId) {
+        return PROBED_BLOCKS.add(blockFileId);
     }
 
     /**
