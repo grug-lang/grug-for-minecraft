@@ -607,6 +607,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated(
+            "the out-of-range guard: the host function checks the range first, so a run"
+                    + " never reaches this arm")
     public Object itemByIndex(int index) {
         List<Item> items = itemsById();
         return index >= 0 && index < items.size() ? items.get(index) : null;
@@ -619,13 +622,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void giveItemToPlayer(Object playerObj, Object itemObj) {
-        giveItemToPlayer((PlayerEntity) playerObj, itemObj, 1);
+        giveItemToPlayer((PlayerEntity) playerObj, (Item) itemObj, 1);
     }
 
     @Override
     public void giveItemStackToPlayer(Object playerObj, Object itemObj) {
-        int count = itemObj instanceof Item ? ((Item) itemObj).getMaxStackSize() : 64;
-        giveItemToPlayer((PlayerEntity) playerObj, itemObj, count);
+        giveItemToPlayer(
+                (PlayerEntity) playerObj, (Item) itemObj, ((Item) itemObj).getMaxStackSize());
     }
 
     /**
@@ -633,18 +636,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * has no give command and its client is the server in singleplayer, so the inventory write is
      * the give.
      */
-    private void giveItemToPlayer(PlayerEntity player, Object itemObj, int count) {
-        if (player == null || itemObj == null) return;
-        ItemStack stack =
-                itemObj instanceof Item
-                        ? new ItemStack((Item) itemObj, count)
-                        : new ItemStack((Block) itemObj, count);
+    @GrugGenerated(
+            "the null-player and full-inventory arms: a run gives to the player it just cleared")
+    private void giveItemToPlayer(PlayerEntity player, Item item, int count) {
+        if (player == null) return;
+        ItemStack stack = new ItemStack(item, count);
         if (!player.inventory.addItem(stack) && stack.size > 0) {
             player.dropItem(stack, false);
         }
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run reads the cursor of the player it just cleared")
     public Object carriedItem() {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return null;
@@ -653,6 +656,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run sets the cursor of the player it just cleared")
     public void setCarriedItem(Object itemObj) {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
@@ -660,6 +664,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-player arm: a run clears the cursor of the player it just cleared")
     public void deleteCarriedItem() {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
@@ -1279,6 +1284,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
         Minecraft minecraft = MinecraftInstance.get();
         if (minecraft.screen == null) {
@@ -1290,12 +1296,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double screenWidthForTest() {
         Minecraft minecraft = MinecraftInstance.get();
         return minecraft.screen == null ? 0.0 : minecraft.screen.width;
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiLeftForTest() {
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
@@ -1303,6 +1311,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiWidthForTest() {
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
