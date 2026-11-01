@@ -101,6 +101,39 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         out, err = self.run_lookup(self.base)
         self.assertEqual(out.strip(), "1", err)
 
+    def test_a_map_is_carried_over_unless_it_expired(self):
+        self.assertTrue(lookup.carries_a_map({"name": "coverage-map"}))
+        self.assertTrue(lookup.carries_a_map({"name": "coverage-map", "expired": False}))
+        self.assertFalse(lookup.carries_a_map({"name": "coverage-map", "expired": True}))
+        self.assertFalse(lookup.carries_a_map({"name": "coverage-exec-core"}))
+
+    def test_an_expired_map_is_skipped_and_the_next_run_is_used(self):
+        # An expired artifact is still listed, but its download answers 410 Gone, so the run
+        # that holds it is not a carry-over base and the next successful one is (#947).
+        self.server.routes["runs"] = {
+            "workflow_runs": [
+                {"id": 2, "head_sha": self.base, "conclusion": "success"},
+                {"id": 1, "head_sha": self.base, "conclusion": "success"},
+            ]
+        }
+        self.server.routes["artifacts"] = {
+            "2": {"artifacts": [{"name": "coverage-map", "expired": True}]},
+            "1": {"artifacts": [{"name": "coverage-map", "expired": False}]},
+        }
+        out, err = self.run_lookup(self.base)
+        self.assertEqual(out.strip(), "1", err)
+
+    def test_an_expired_map_only_answers_nothing(self):
+        self.server.routes["runs"] = {
+            "workflow_runs": [{"id": 1, "head_sha": self.base, "conclusion": "success"}]
+        }
+        self.server.routes["artifacts"] = {
+            "1": {"artifacts": [{"name": "coverage-map", "expired": True}]}
+        }
+        out, err = self.run_lookup(self.base)
+        self.assertEqual(out, "")
+        self.assertIn("uploaded a coverage-map artifact", err)
+
     def test_a_run_that_failed_answers_nothing(self):
         self.server.routes["runs"] = {
             "workflow_runs": [{"id": 2, "head_sha": self.base, "conclusion": "failure"}]
