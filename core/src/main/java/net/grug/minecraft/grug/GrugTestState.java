@@ -169,8 +169,9 @@ public final class GrugTestState {
 
     // Set by GrugTestRunner to the mod directory holding the running *-Test.grug, so the running
     // test's own about.json decides what it is allowed to assert. The owning mod, rather than
-    // whichever mod a screenshot happens to render, is who answers for the promise.
-    public static String currentTestMod = null;
+    // whichever mod a screenshot happens to render, is who answers for the promise. Volatile
+    // because the render thread reads it to tell whether the running test's own overlay drew.
+    public static volatile String currentTestMod = null;
 
     // The origin Test.get_origin() captured first for the running test, so every later call in the
     // same test returns the same position while the player settles. GrugTestRunner clears it when a

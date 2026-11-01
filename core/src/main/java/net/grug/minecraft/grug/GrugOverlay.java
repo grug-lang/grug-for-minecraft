@@ -69,10 +69,12 @@ public final class GrugOverlay {
     private static volatile boolean overlaySupported = false;
 
     /**
-     * Whether the game has drawn a frame with an overlay asked on an eligible screen, which is what
-     * {@code Test.overlay_drawn} answers. A test waits for it before it clicks, so that the frame
-     * the overlay draws on is a frame that really was rendered rather than one the test ran past at
-     * the game's maximum speed.
+     * Whether a frame has drawn the running test's own overlay on the screen that is open now,
+     * which is what {@code Test.overlay_drawn} answers. A loader sets it when it draws an overlay
+     * belonging to the running test's mod on an eligible screen, and clears it when an eligible
+     * screen opens, so a test waits for a frame of its own screen rather than reading an earlier
+     * test's mark. The frame really was rendered rather than one the test ran past at the game's
+     * maximum speed.
      */
     private static volatile boolean overlayDrawn = false;
 
@@ -94,14 +96,24 @@ public final class GrugOverlay {
     }
 
     /**
-     * Marks that a frame's overlays were drawn, so Test.overlay_drawn can answer true from then on.
-     * Called by a loader after it drew a frame on an eligible screen, on the render thread.
+     * Marks that a frame drew the running test's overlay, so Test.overlay_drawn can answer true
+     * from then on. Called by a loader after it drew an overlay belonging to the running test's mod
+     * on an eligible screen, on the render thread.
      */
     public static void noteDrawn() {
         overlayDrawn = true;
     }
 
-    /** Whether a frame with an overlay on an eligible screen has been drawn in this run. */
+    /**
+     * Clears the drawn mark when an eligible screen opens, so Test.overlay_drawn speaks about the
+     * screen that is open now rather than about a frame an earlier test drew on an earlier screen.
+     * Called by a loader when an eligible screen initializes, on the client thread.
+     */
+    public static void screenOpened() {
+        overlayDrawn = false;
+    }
+
+    /** Whether a frame drew the running test's overlay on the screen that is open now. */
     public static boolean overlayDrawn() {
         return overlayDrawn;
     }
