@@ -669,6 +669,17 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Presses a key on the open screen through the screen's own key path, and answers whether an
+     * overlay took it. Only a loader that answers {@code Test.overlay_keys_supported} overrides it.
+     */
+    @GrugGenerated("default only: a loader without key support is never asked")
+    default boolean pressScreenKey(int key, boolean ctrl) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.press_screen_key: This loader cannot press a key yet.");
+        return false;
+    }
+
+    /**
      * Test only: the width of the open screen in scaled pixels. A loader that cannot answer keeps
      * the default, which reports the call rather than returning a size no screen has.
      */

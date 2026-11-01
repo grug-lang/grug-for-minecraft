@@ -1,0 +1,38 @@
+# Covers the overlay's key hook through the screen's own key path: the coverage overlay takes
+# Ctrl+K and leaves every other key to the screen, so Test.press_screen_key answers true for the one
+# and false for the rest. A loader that hands no key presses to overlays returns before it opens
+# anything; the deviation is recorded in mods/jei/about.json. See #866.
+started: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() or not Test.overlay_keys_supported() {
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(Test.press_screen_key(75, true), "Ctrl+K should be taken by the coverage overlay.")
+    ctx.assert(not Test.press_screen_key(75, false), "K without control should be left to the screen.")
+    ctx.assert(not Test.press_screen_key(76, true), "Ctrl+L should be left to the screen.")
+    Test.close_screen()
+}

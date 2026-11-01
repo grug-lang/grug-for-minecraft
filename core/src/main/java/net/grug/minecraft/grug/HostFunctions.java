@@ -577,6 +577,39 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether this loader hands a screen's key presses to an overlay's {@code key()}
+     * export, which a test asks before it presses a key.
+     */
+    public static boolean Test_overlay_keys_supported() {
+        return GrugOverlay.overlayKeysSupported();
+    }
+
+    /**
+     * Test only: presses a key on the open screen through the same path a real key press takes, and
+     * answers whether an overlay took it.
+     */
+    @GrugGenerated(
+            "asks the adapter to press a key on the game's own screen: a unit test has no game")
+    public static boolean Test_press_screen_key(double key, boolean ctrl) {
+        String problem = screenKeyProblem(key);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+            return false;
+        }
+        return GrugCore.getAdapter().pressScreenKey((int) key, ctrl);
+    }
+
+    /** Why Test.press_screen_key refuses this key, or null when it can drive it. */
+    static String screenKeyProblem(double key) {
+        if (!Double.isFinite(key) || key != Math.floor(key) || key < 0) {
+            return "Test.press_screen_key: The key has to be a whole number from 0 up, and was "
+                    + key
+                    + ".";
+        }
+        return null;
+    }
+
+    /**
      * Test only: opens the player's own inventory screen, so a test can drive what an overlay draws
      * there. The screen is put up on the next frame, which is why a test waits for {@code
      * screen_open} before clicking it.
@@ -2600,6 +2633,30 @@ public class HostFunctions {
             return;
         }
         GrugCore.getAdapter().deleteCarriedItem();
+    }
+
+    /** The same rule for the context an overlay's {@code key()} was passed. */
+    private static boolean requireOverlayKeyContext(String method, long contextId) {
+        if (!GrugOverlay.isKey()) {
+            reportRefusedContext(method, "key");
+            return false;
+        }
+        return requireContext(method, "key", contextId, GrugOverlay.context());
+    }
+
+    public static double OverlayKeyContext_key(long contextId) {
+        if (!requireOverlayKeyContext("OverlayKeyContext.key", contextId)) return 0.0;
+        return GrugOverlay.keyCode();
+    }
+
+    public static boolean OverlayKeyContext_ctrl(long contextId) {
+        if (!requireOverlayKeyContext("OverlayKeyContext.ctrl", contextId)) return false;
+        return GrugOverlay.ctrl();
+    }
+
+    public static void OverlayKeyContext_take(long contextId) {
+        if (!requireOverlayKeyContext("OverlayKeyContext.take", contextId)) return;
+        GrugOverlay.take();
     }
 
     public static void OverlayClickContext_take(long contextId) {

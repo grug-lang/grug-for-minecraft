@@ -73,9 +73,9 @@
 					"tracking_issue": 865
 				},
 				{
-					"what": "The overlay cannot be hidden. It is drawn whenever an inventory or container screen is open.",
-					"why": "The host API has no hotkey for a mod to register or read.",
-					"tracking_issue": 866
+					"what": "Ctrl+O hides and shows the overlay on 1.20.6 only. On 1.2.5, Beta and Alpha it cannot be hidden. The key is fixed and cannot be rebound, and there is no config option for the overlay's visibility to persist.",
+					"why": "Only the 1.20.6 loader hands a screen's key presses to an overlay yet; the older loaders need their own key hooks. The host has no key binding or config API for a mod to register a rebindable key.",
+					"tracking_issue": 990
 				},
 				{
 					"what": "Right-clicking an item does not open its uses or recipes, and there are no recipe categories or recipe screen.",

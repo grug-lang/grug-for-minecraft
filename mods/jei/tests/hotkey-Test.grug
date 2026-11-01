@@ -1,0 +1,75 @@
+# Ctrl+O hides the item list and shows it again, which is the reference's overlay toggle. A hidden
+# overlay takes no press, so the test reads whether the list is shown through whether a right click
+# on its first cell is taken: the key goes through the screen's own key path, and the answer of each
+# press is synchronous, so nothing here waits for a tick count. A key without control, or another
+# key, leaves the list shown. See #866.
+
+started: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() or not Test.overlay_keys_supported() {
+            # This loader hands no key presses to overlays; the deviation is in about.json.
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(_cell_taken(), "The list should be shown when the screen opens.")
+    ctx.assert(not Test.press_screen_key(79, false), "O without control should not be taken.")
+    ctx.assert(not Test.press_screen_key(80, true), "Ctrl+P should not be taken.")
+    ctx.assert(_cell_taken(), "The list should still be shown after keys that are not its hotkey.")
+    ctx.assert(Test.press_screen_key(79, true), "Ctrl+O should be taken by the overlay.")
+    ctx.assert(not _cell_taken(), "The list should be hidden after Ctrl+O.")
+    ctx.assert(Test.press_screen_key(79, true), "Ctrl+O should be taken again while the list is hidden.")
+    ctx.assert(_cell_taken(), "The list should be shown again after a second Ctrl+O.")
+    Test.clear_held_item(Test.get_player())
+    Test.close_screen()
+}
+
+# Whether a right click on the grid's first cell is taken, which it is only while the list is shown.
+local _cell_taken() bool {
+    return Test.click_screen(_cell_x(0), _cell_y(0), 1)
+}
+
+local _cell_x(column: number) number {
+    return _grid_x() + column * 18 + 9
+}
+
+local _cell_y(row: number) number {
+    return 28 + row * 18 + 9
+}
+
+local _grid_x() number {
+    display_left: number = Test.gui_left() + Test.gui_width()
+    available_width: number = Test.screen_width() - display_left - 12
+    return display_left + 6 + (available_width - _columns() * 18)
+}
+
+local _columns() number {
+    available_width: number = Test.screen_width() - Test.gui_left() - Test.gui_width() - 12
+    columns: number = Math.floor(available_width / 18)
+    if columns > 9 {
+        columns = 9
+    }
+    return columns
+}

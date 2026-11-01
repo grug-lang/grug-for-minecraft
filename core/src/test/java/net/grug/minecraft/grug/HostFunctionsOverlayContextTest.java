@@ -30,6 +30,8 @@ class HostFunctionsOverlayContextTest {
             GrugOverlay.closeRender();
         } else if (GrugOverlay.isClick()) {
             GrugOverlay.closeClick();
+        } else if (GrugOverlay.isKey()) {
+            GrugOverlay.closeKey();
         }
         GrugEntities.entityData.clear();
         drain();
@@ -215,5 +217,90 @@ class HostFunctionsOverlayContextTest {
         // that opened its own screen has to wait for a frame instead of reading the old mark.
         GrugOverlay.screenOpened();
         assertFalse(GrugOverlay.overlayDrawn());
+    }
+
+    private static long keyContext() {
+        return GrugEntities.addEntity(GrugEntityType.OverlayKeyContext, GrugOverlay.context());
+    }
+
+    @Test
+    void aKeyContextAnswersItsKeyAndTakesIt() {
+        GrugOverlay.openKey(79, true);
+        long context = keyContext();
+
+        assertTrue(GrugOverlay.isKey());
+        assertFalse(GrugOverlay.isClick(), "A key pass is not a click pass.");
+        assertEquals(79, HostFunctions.OverlayKeyContext_key(context));
+        assertTrue(HostFunctions.OverlayKeyContext_ctrl(context));
+        HostFunctions.OverlayKeyContext_take(context);
+
+        assertTrue(drain().isEmpty(), "A legal key pass reports nothing.");
+        assertTrue(GrugOverlay.closeKey(), "The key was taken.");
+        assertFalse(GrugOverlay.isOpen());
+    }
+
+    @Test
+    void aKeyThatIsNotTakenIsNotReportedTaken() {
+        GrugOverlay.openKey(80, false);
+        assertFalse(HostFunctions.OverlayKeyContext_ctrl(keyContext()));
+        assertFalse(GrugOverlay.closeKey());
+    }
+
+    @Test
+    void aKeyMethodOutsideAKeyPassIsRefused() {
+        GrugOverlay.openKey(79, true);
+        long context = keyContext();
+        GrugOverlay.closeKey();
+
+        HostFunctions.OverlayKeyContext_key(context);
+        HostFunctions.OverlayKeyContext_ctrl(context);
+        HostFunctions.OverlayKeyContext_take(context);
+
+        List<String> reports = drain();
+        assertEquals(3, reports.size());
+        assertTrue(reports.get(0).contains("OverlayKeyContext.key"), reports.get(0));
+        assertTrue(reports.get(2).contains("OverlayKeyContext.take"), reports.get(2));
+    }
+
+    @Test
+    void aKeyContextIsRefusedByAClickMethodAndTheOtherWayRound() {
+        GrugOverlay.openKey(79, false);
+        long context = keyContext();
+        HostFunctions.OverlayClickContext_take(context);
+        assertEquals(1, drain().size());
+        assertFalse(GrugOverlay.closeKey(), "The click method did not take the key.");
+
+        openClick();
+        HostFunctions.OverlayKeyContext_take(clickContext());
+        assertEquals(1, drain().size());
+        assertFalse(GrugOverlay.closeClick());
+    }
+
+    @Test
+    void passesCannotBeClosedAsAnotherKind() {
+        GrugOverlay.openKey(79, false);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, GrugOverlay::closeClick);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, GrugOverlay::closeRender);
+        GrugOverlay.closeKey();
+        openClick();
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, GrugOverlay::closeKey);
+    }
+
+    @Test
+    void overlayKeysSupportedStartsFalseAndStaysTrueOnceNoted() {
+        assertFalse(HostFunctions.Test_overlay_keys_supported());
+        GrugOverlay.noteKeysSupported();
+        assertTrue(HostFunctions.Test_overlay_keys_supported());
+    }
+
+    @Test
+    void aScreenKeyIsAWholeNumberFromZeroUp() {
+        assertEquals(null, HostFunctions.screenKeyProblem(79));
+        assertTrue(HostFunctions.screenKeyProblem(Double.NaN).contains("whole number"));
+        assertTrue(HostFunctions.screenKeyProblem(-1).contains("whole number"));
+        assertTrue(HostFunctions.screenKeyProblem(79.5).contains("whole number"));
     }
 }
