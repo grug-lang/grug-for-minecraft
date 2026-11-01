@@ -1,0 +1,13 @@
+The code, data, assets and tests of this mod are released under the BSD Zero Clause
+License, the same as the example mod beside it:
+
+  https://spdx.org/licenses/0BSD.html
+
+The item textures under assets/grug/textures/item/ are copies of Minecraft 1.20.6's own,
+shipped so that a version that predates them still draws the item. They are Mojang's, not
+this repository's, and Minecraft's End User License Agreement covers them:
+
+  https://www.minecraft.net/en-us/eula
+
+The content this mod recreates, the elytra and the firework rocket included, is Mojang's too.
+A notice from Mojang or Microsoft about any of it goes to the maintainer.
