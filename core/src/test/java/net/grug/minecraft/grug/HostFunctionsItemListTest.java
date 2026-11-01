@@ -61,6 +61,19 @@ class HostFunctionsItemListTest {
     }
 
     @Test
+    void anOverlayBoxCornerThatIsNotFiniteIsRefused() {
+        // NaN compares false against both edges, so the wrong-way-round check alone would record
+        // it, and the loader would cast it to an int; infinity would become the largest int.
+        assertTrue(HostFunctions.overlayBoxProblem(Double.NaN, 0, 336, 18).contains("finite"));
+        assertTrue(
+                HostFunctions.overlayBoxProblem(318, 0, Double.POSITIVE_INFINITY, 18)
+                        .contains("finite"));
+        assertTrue(
+                HostFunctions.overlayBoxProblem(318, 0, 336, Double.NEGATIVE_INFINITY)
+                        .contains("finite"));
+    }
+
+    @Test
     void aPressWithFiniteArgumentsAndAWholeButtonIsAccepted() {
         assertNull(HostFunctions.screenClickProblem(327, 9, 0));
         assertNull(HostFunctions.screenClickProblem(0, 0, 2));
