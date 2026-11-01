@@ -95,17 +95,20 @@ printf 'onboardAccessibility:false\nnarrator:0\n' > "${CLIENT_DIR}/options.txt"
 server_pid=""
 client_pid=""
 tail_pid=""
+client_tail_pid=""
 cleanup() {
   local status=$?
   # A run that did not pass leaves the stacks of both game JVMs next to the logs, which is the only
   # way to see where a process that went quiet was stuck.
   if [ "$status" -ne 0 ]; then
-    for pid in $(pgrep -f 'forge_userdev|ForgeBootstrap|BootstrapLauncher' 2>/dev/null); do
+    for pid in $(timeout 10 pgrep -f "${REPO_ROOT}.*(forge_userdev|ForgeBootstrap|BootstrapLauncher)" 2>/dev/null); do
       echo "==> Thread dump of java process ${pid}" >> "${REPO_ROOT}/${LOADER_DIR}/run-threads-ci.log"
-      jcmd "$pid" Thread.print >> "${REPO_ROOT}/${LOADER_DIR}/run-threads-ci.log" 2>&1 || true
+      timeout 20 jcmd "$pid" Thread.print >> "${REPO_ROOT}/${LOADER_DIR}/run-threads-ci.log" 2>&1 || true
     done
   fi
-  [ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
+  for pid in "$tail_pid" "$client_tail_pid"; do
+    [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+  done
   for pid in "$client_pid" "$server_pid"; do
     [ -n "$pid" ] && kill -TERM -- "-${pid}" 2>/dev/null || true
   done
@@ -145,6 +148,7 @@ echo "==> The dedicated server is ready. Starting a client that joins 127.0.0.1:
 env -u GRUG_CI -u GRUG_CI_TESTS GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew ":loaders:${LOADER}:runClient" "${gradle_args[@]}" -x test >"$CLIENT_LOG" 2>&1 &
 client_pid=$!
 tail -n +1 -F "$CLIENT_LOG" 2>/dev/null | sed -u 's/^/[client] /' &
+client_tail_pid=$!
 
 deadline=$((SECONDS + ${GRUG_CI_RUN_TIMEOUT:-300}))
 while :; do
