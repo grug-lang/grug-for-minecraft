@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The weekly full pass (#909, #310): every loader with every mod, which no selection can shrink. A
+  # break a narrower run's selection missed is found here, at most a week after it landed, or on the
+  # next full run that carries it. Monday 03:00 UTC, after the Sunday release's dispatch, so the two
+  # full runs do not queue behind each other on the 20 job slots, and the scheduled path itself is the
+  # one thing only a cron exercises: a dispatch runs the same pipeline, but not this trigger.
+  schedule:
+    - cron: '0 3 * * 1'
   workflow_dispatch:
     inputs:
       repeats:
@@ -15,19 +22,17 @@ on:
         description: 'Comma separated mod directory names whose tests the development loader runs; empty runs every mod'
         type: string
       coverage-only:
-        # A dispatch that checks this measures the coverage gate instead of paying the whole
-        # suite for it (#831): the development loader jobs run only the tests of mods/coverage,
-        # one game run per loader, instead of the full suite, and the coverage job still
-        # requires 100% of the same data, which the shape reports at 100% with 0 dropped files
-        # per loader. Every other job of the dispatch runs as in a full one. The shape costs 95
-        # to 149 s per loader, measured in this pull request's interleaved dispatch pair: the
-        # coverage mod's tests take 9.9 to 41.9 s of game clock per loader, with 1.20.6-forge
-        # the heavy one. The shape is a measurement, not the 100% requirement of main: the input
-        # exists only on a dispatch, a push to main and a pull request never set it, and a merge
-        # is gated by a pull request run, whose selection always includes the coverage mod, so
-        # main's requirement stays with the full runs. The gate's own inputs are all in the
-        # shape: the game boot of each loader, which the gate counts, is in it, since each
-        # loader's game boots and then runs only coverage's tests.
+        # A dispatch that checks this measures the coverage gate instead of paying the whole suite for
+        # it (#831): the development loader jobs run only the tests of mods/coverage, one game run per
+        # loader, and the coverage job still requires 100% of the same data, which the shape reports
+        # at 100% with 0 dropped files per loader. Every other job of the dispatch runs as in a full
+        # one. The shape costs 95 to 149 s per loader, measured in an interleaved dispatch pair on
+        # #831: the coverage mod's tests take 9.9 to 41.9 s of game clock per loader, with 1.20.6-forge
+        # the heavy one. Since #909 this is also the shape of a push to main's loader job for a loader
+        # the selection leaves out of the suite, so a dispatch with this set proves the gate at 100%
+        # in a run that does not hold the whole mod set, which is what a narrower merge now does. The
+        # gate's own inputs are all in the shape: the game boot of each loader, which the gate counts,
+        # is in it, since each loader's game boots and then runs only coverage's tests.
         description: 'Run only the tests of mods/coverage in the development loader jobs, to measure the coverage gate in 95 to 149 s per loader; every other job of the dispatch runs as usual'
         type: boolean
       refresh-test-times:
@@ -58,17 +63,25 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Emits one matrix entry per loaders/* directory, and the subset of them a pull request runs (#637).
+  # Emits one matrix entry per loaders/* directory, and what this run selects from it (#637, #909).
   discover:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
-      # The loader directories the test jobs run: every one on a push and a dispatch, and on a pull
-      # request the loaders its diff reaches plus one representative per mechanism (#637).
-      loaders: ${{ steps.loaders.outputs.loaders }}
+      # The matrix of the development loader jobs (#909): every loader on a push, each with the mods
+      # its job runs, and only the selected loaders on a pull request (#637). A loader the selection
+      # leaves out still runs, on mods/coverage's tests alone, because the coverage gate counts every
+      # loader's own classes from that loader's own report.
+      build: ${{ steps.selection.outputs.build }}
+      # The matrix of the jobs that run the suite again in a player's install: the selected loaders,
+      # with the same mods, since it is the same suite (#909).
+      installed: ${{ steps.selection.outputs.installed }}
+      # The mods the selected loaders run, empty for every mod, for the jobs that run the suite once.
+      mods: ${{ steps.selection.outputs.mods }}
       smoke: ${{ steps.smoke.outputs.matrix }}
-      mods: ${{ steps.mods.outputs.mods }}
-      reference: ${{ steps.reference.outputs.reference }}
+      # Whether the smoke games and the reference job can see anything the diff changed (#909).
+      smoke-needed: ${{ steps.selection.outputs.smoke }}
+      reference: ${{ steps.selection.outputs.reference }}
       # Whether the diff is prose alone, which no test can read (#785).
       no-tests: ${{ steps.no-tests.outputs.no-tests }}
       # The coverage tests a pull request carries over instead of rerunning, and the run of the
@@ -109,69 +122,45 @@ jobs:
         id: smoke
         run: echo "matrix=$(python3 .github/scripts/universal_jar.py smoke-matrix)" >> "$GITHUB_OUTPUT"
 
-      # The loaders whose jobs a pull request runs (#637). Only a pull request narrows it, to the
-      # loaders its diff can reach plus one representative per mechanism a mod loader reads a jar by
-      # (affected-loaders.py explains the choice in this log); a push to main and a dispatch run
-      # every loader, as the full run a release needs, and so does a base that cannot be fetched or
-      # an error in the script. The narrowing is this output and the build job's condition rather
-      # than a workflow-level paths filter, which would leave a required check pending on a run that
-      # never starts.
-      - name: Choose the loaders the test jobs run
-        id: loaders
+      # What this run selects (#909): the mods a push to main runs and the loaders that run them, as
+      # the build and installed matrices; whether the smoke games and the reference job can see the
+      # diff; and the mods the jobs that run the suite once run. One script answers for every event,
+      # so a pull request, a push, a dispatch and the weekly schedule cannot disagree about the rules;
+      # main-selection.py explains the answer in this log, and affected-mods.py and affected-loaders.py
+      # explain the two axes it composes. Every doubt runs more, never fewer: an empty or unfetchable
+      # base, a diff that cannot be read and any error in the script answer with every loader, every
+      # mod and every job. The narrowing is these outputs and the jobs' conditions, never a
+      # workflow-level paths filter, which would leave a required check pending on a run that never
+      # starts. The checkout is one commit, so only the base commit is fetched, and a diff of two
+      # trees needs no more.
+      - name: Choose what this run selects
+        id: selection
         env:
           EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          LOADERS: ${{ steps.discover.outputs.matrix }}
-        run: |
-          loaders="$LOADERS"
-          if [ "$EVENT" != pull_request ]; then
-            echo "Running every loader: this is a $EVENT run, not a pull request."
-          elif [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
-            echo "Running every loader: the pull request's base commit '$BASE_SHA' could not be fetched."
-          else
-            loaders=$(python3 .github/scripts/affected-loaders.py "$BASE_SHA" HEAD) || loaders="$LOADERS"
-          fi
-          echo "loaders=$loaders" >> "$GITHUB_OUTPUT"
-
-      # The mods whose tests the development loader jobs run, for their GRUG_CI_MODS (#628, #831).
-      # A pull request narrows it, by its diff against the base it was opened on, and a dispatch
-      # narrows it to the coverage mod alone when the coverage-only input is set; otherwise a push
-      # to main, a dispatch and any event this step does not know run every mod, and so does a base
-      # that cannot be fetched or a diff that cannot be read. affected-mods.py explains the pull
-      # request's choice in this log, and this step the others'.
-      # The checkout is the pull request merged into its base, a single commit, so only the base's
-      # commit is fetched, and a diff of two trees needs no more.
-      - name: Choose the mods whose tests run
-        id: mods
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           COVERAGE_ONLY: ${{ inputs.coverage-only == true }}
         run: |
-          mods=
-          if [ "$COVERAGE_ONLY" = 'true' ]; then
-            # The coverage-only input of a dispatch (#831): the development loader jobs run only
-            # the tests of mods/coverage, a measurement of the coverage gate, while every other
-            # job of the dispatch runs as in a full one and the coverage job still requires
-            # 100%, which the shape reports at 100% with 0 dropped files per loader. The shape
-            # costs 95 to 149 s per loader, measured in this pull request's interleaved dispatch
-            # pair: the coverage mod's tests take 9.9 to 41.9 s of game clock per loader, with
-            # 1.20.6-forge the heavy one. The gate's own inputs are all in the shape, the game
-            # boot of each loader, which the game does before it runs only coverage's tests, and
-            # the tests of mods/coverage itself. The input is a measurement, not the 100%
-            # requirement of main: it exists only on a dispatch, a push to main and a pull
-            # request never set it, and a merge is gated by a pull request run, whose selection
-            # always includes the coverage mod, so main's requirement stays with the full runs.
-            echo "Selecting the coverage mod alone: the coverage-only input is set, so the development loader jobs measure the coverage gate rather than the whole suite (#831)."
-            mods=coverage
-          elif [ "$EVENT" != pull_request ]; then
-            echo "Selecting every mod: this is a $EVENT run, not a pull request."
-          elif [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
-            echo "Selecting every mod: the pull request's base commit '$BASE_SHA' could not be fetched."
-          else
-            mods=$(python3 .github/scripts/affected-mods.py "$BASE_SHA" HEAD) || mods=
+          base="$BASE"
+          # A push to main compares against the commit it started from, which the one commit deep
+          # checkout does not hold; a pull request's base is its own commit, the same one the
+          # carry-over and no-tests steps below read.
+          if [ -n "$base" ] && [ "$EVENT" != workflow_dispatch ] && [ "$EVENT" != schedule ] \
+            && ! git fetch --quiet --no-tags --depth=1 origin "$base"; then
+            echo "::warning::the $EVENT base '$base' could not be fetched, so this run selects everything."
+            base=
           fi
-          echo "mods=$mods" >> "$GITHUB_OUTPUT"
+          args=("$EVENT" "$base")
+          if [ "$COVERAGE_ONLY" = 'true' ]; then
+            args+=(--coverage-only)
+          fi
+          python3 .github/scripts/main-selection.py "${args[@]}" > "$RUNNER_TEMP/selection.out" || true
+          # A selection that was not written cannot narrow anything, and the fallback is the shape of
+          # a full run rather than a run with no loader in it.
+          if ! grep -q '^build=' "$RUNNER_TEMP/selection.out"; then
+            echo "::warning::the selection wrote nothing, so this run selects everything."
+            python3 .github/scripts/main-selection.py --everything > "$RUNNER_TEMP/selection.out"
+          fi
+          cat "$RUNNER_TEMP/selection.out" >> "$GITHUB_OUTPUT"
 
       # The coverage tests the gate may carry over instead of rerunning (#786). A pull request
       # carries over only the tests select-coverage-tests.py proves its diff cannot affect, from
@@ -212,37 +201,13 @@ jobs:
           echo "carry-over=$carry" >> "$GITHUB_OUTPUT"
           echo "base-run=$base_run" >> "$GITHUB_OUTPUT"
 
-      # Whether the reference job runs (#631, #832). Only a pull request can skip it, and only when
-      # its diff touches nothing the reference run observes: reference-needed.py explains its answer
-      # in this log. A push to main, a dispatch, an unreachable base and any error in the script
-      # answer true, and the job's own condition skips only on an explicit false, so a step that
-      # failed to write an output runs the job too. A pull request always runs the default mod,
-      # buildcraft, on the loader its first derived_from names (1.2.5-forge), so the gate guards
-      # exactly that, as before. A dispatch names another mod with its input, but a run that is not
-      # a pull request never asks this question.
-      - name: Choose whether the reference job runs
-        id: reference
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          reference=true
-          if [ "$EVENT" != pull_request ]; then
-            echo "Running the reference job: this is a $EVENT run, not a pull request."
-          elif [ -z "$BASE_SHA" ] || ! git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"; then
-            echo "Running the reference job: the pull request's base commit '$BASE_SHA' could not be fetched."
-          else
-            reference=$(python3 .github/scripts/reference-needed.py "$BASE_SHA" HEAD) || reference=true
-          fi
-          echo "reference=$reference" >> "$GITHUB_OUTPUT"
-
       # Whether the test jobs can be skipped (#785): only when every changed path is prose no test
       # reads (no-tests.py). A pull request and a push to main narrow it, each against the commit
-      # it started from; a dispatch never does, since it is the full run a release requires, and
-      # neither does an event this step does not know, a base that cannot be fetched or an error in
-      # the script. The checkout is one commit deep, so the commit the push started from is fetched
-      # first. The test jobs' conditions skip only on an explicit true, so a step that wrote no
-      # output runs them.
+      # it started from; a dispatch and the weekly schedule never do, since they are the full runs a
+      # release and the catalogue need, and neither does an event this step does not know, a base
+      # that cannot be fetched or an error in the script. The checkout is one commit deep, so the
+      # commit the push started from is fetched first. The test jobs' conditions skip only on an
+      # explicit true, so a step that wrote no output runs them.
       - name: Choose whether the test jobs run
         id: no-tests
         env:
@@ -272,9 +237,10 @@ jobs:
       # cannot fail to boot on Windows without failing on Linux first, and the two Windows jobs are
       # 219 s of a loader's 484 s on main while running no tests (#707), so a push runs them only for
       # a loader it adds, and a dispatch, the full run a release requires, runs them for all of them
-      # (added-loaders.py explains its answer in this log). A pull request runs neither: no entry
-      # leaves the jobs a matrix GitHub refuses, so their condition skips them. The checkout is one
-      # commit deep, so the commit the push started from is fetched first. A push with no commit
+      # (added-loaders.py explains its answer in this log). A pull request and the weekly schedule
+      # run neither: #632 keeps them out of a run that no release and no added loader needs, and no
+      # entry leaves the jobs a matrix GitHub refuses, so their condition skips them. The checkout is
+      # one commit deep, so the commit the push started from is fetched first. A push with no commit
       # before it and a fetch or a read that fails run every loader, the direction that runs more.
       - name: Choose the loaders the Windows jobs run
         id: windows
@@ -487,6 +453,7 @@ jobs:
             .github/scripts/affected_mods_test.py \
             .github/scripts/affected_loaders_test.py \
             .github/scripts/mod_loaders_test.py \
+            .github/scripts/main_selection_test.py \
             .github/scripts/select_coverage_tests_test.py \
             .github/scripts/added_loaders_test.py \
             .github/scripts/reference_needed_test.py \
@@ -651,19 +618,20 @@ jobs:
 
   build:
     name: ${{ matrix.dir }}
-    # A diff of prose alone cannot change a test's result, so the loader jobs skip (#785), and a pull
-    # request runs only the loaders its diff reaches plus one representative per mechanism, which is
-    # discover's loaders output: every loader on a push to main and a dispatch (#637). An empty
-    # matrix is one GitHub refuses, so that output is a condition here too, and only an explicit
-    # true skips on no-tests (see the discover job).
-    if: needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.loaders != '[]'
+    # A diff of prose alone cannot change a test's result, so the loader jobs skip (#785), and the
+    # matrix is the run's selection (#909): a pull request runs the loaders its diff reaches plus one
+    # representative per mechanism, a push runs every loader with the mods its job was given, a
+    # dispatch and the schedule run every loader with every mod. An empty matrix is one GitHub
+    # refuses, so the output is a condition here too, and only an explicit true skips on no-tests
+    # (see the discover job).
+    if: needs.discover.outputs.no-tests != 'true' && needs.discover.outputs.build != '[]'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ (inputs.repeats || vars.GRUG_CI_REPEATS || '1') == '1' && 15 || 90 }}
     strategy:
       fail-fast: false
       matrix:
-        dir: ${{ fromJson(needs.discover.outputs.loaders) }}
+        include: ${{ fromJson(needs.discover.outputs.build) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -732,12 +700,10 @@ jobs:
           # repository variable GRUG_CI_REPEATS, then 1, which is what pull request runs use
           # because their inputs context is empty. See #268.
           GRUG_CI_REPEATS: ${{ inputs.repeats || vars.GRUG_CI_REPEATS || '1' }}
-          # Which mods' tests run: the discover job's choice, which narrows to the coverage mod
-          # alone when a dispatch sets the coverage-only input (#831), else, where the discover
-          # job left it empty, the dispatch's own mods input (#627, #628). Empty on a push to main
-          # and on a dispatch without the input, which run every mod. A name that is no mod fails
-          # the step before the game starts.
-          GRUG_CI_MODS: ${{ needs.discover.outputs.mods || inputs.mods }}
+          # Which mods' tests run: the matrix entry's own selection (#909), which is every mod where
+          # it is empty. A dispatch's input wins where the entry is empty, since a dispatch selects
+          # nothing away; a name that is no mod fails the step before the game starts.
+          GRUG_CI_MODS: ${{ matrix.mods || inputs.mods }}
           # The coverage tests the gate carries over instead of rerunning (#786), the discover
           # job's proof: a pull request's, empty otherwise. run-loader.sh checks each name
           # against the tree before the game starts and subtracts it from the expected count,
@@ -860,12 +826,14 @@ jobs:
   # after its own loader, so it cannot pass on another loader's golden.
   reference:
     name: reference
-    # A pull request that changes only other mods and other loaders skips it, which a required status
-    # check counts as passed. Only an explicit false skips it (see the discover job), so a push to
-    # main and a dispatch run it, and a diff of prose alone skips it like the game jobs (#785).
+    # A diff that touches neither the harness of the mod this job runs nor its loader cannot change
+    # what it draws, whether the run is a pull request or a push to main (#631, #909): discover asks
+    # reference-needed.py, which explains its answer in this log, and a dispatch and the weekly
+    # schedule run it as the full runs they are. Only an explicit false skips it, so a step that
+    # wrote no output runs it, and a diff of prose alone skips it like the game jobs (#785).
     if: |
       needs.discover.outputs.no-tests != 'true'
-      && (github.event_name != 'pull_request' || needs.discover.outputs.reference != 'false')
+      && needs.discover.outputs.reference != 'false'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1362,10 +1330,16 @@ jobs:
   # The suite again, in a game installed the way a player installs one, with the universal jar as its
   # only grug: no repository mods, no GRUG_MODS_DIR and no development classpath. Every loader runs
   # the very same jar, which is the smoke test that the assembled jar works and not only its layers.
+  # It is the same suite, so it runs the same selection (#909): the loaders the mod and loader axes
+  # chose, on the mods they chose, and no other loader's job, since a loader the selection leaves out
+  # runs its development job on the coverage mod alone for the gate.
   # See #487 and #488.
   production:
     name: ${{ matrix.dir }} installed
-    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    if: |
+      github.event_name != 'pull_request'
+      && needs.discover.outputs.no-tests != 'true'
+      && needs.discover.outputs.installed != '[]'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     # Both script limits can run in full now that the install has its own: up to 600 s of install
@@ -1374,7 +1348,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: ${{ fromJson(needs.discover.outputs.matrix) }}
+        include: ${{ fromJson(needs.discover.outputs.installed) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1475,6 +1449,8 @@ jobs:
         env:
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
           GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
+          # The mods this run's suite is (#909): the matrix entry's selection, empty for every mod.
+          GRUG_CI_MODS: ${{ matrix.mods }}
           # The game's own limit. The launcher's install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s
           # by default), so a slow download there cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
@@ -1504,7 +1480,9 @@ jobs:
   # The suite again in an installed 1.20.6 Forge, with JEI beside the universal jar: grug next to a
   # non-grug mod that reads and renders every registered item, grug's included, and draws over the
   # screens grug's tests open. Both have to work: the suite passes, JEI starts and logs no error.
-  # The production jobs keep grug as the game's only mod. See #501.
+  # The production jobs keep grug as the game's only mod. It runs the run's selection (#909) and every
+  # mod is still loaded, so JEI still lists every registered item; only the tests are narrowed.
+  # See #501.
   coexistence:
     name: 1.20.6-forge installed beside JEI
     if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
@@ -1558,6 +1536,9 @@ jobs:
         env:
           GRUG_BESIDE: jei
           GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
+          # The run's selection (#909): the merged mods and coverage, empty for every mod. Every mod
+          # is still loaded, so JEI still lists every registered item, which is what this job checks.
+          GRUG_CI_MODS: ${{ needs.discover.outputs.mods }}
           # The game's own limit; the install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s default),
           # so a slow download of the installer or the game cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
@@ -1605,7 +1586,13 @@ jobs:
   # asks for another game of its mechanism. See #493.
   smoke:
     name: ${{ matrix.game }} without a layer
-    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    # A mod's own files cannot reach a game grug never activates on, so a push that touched only mods
+    # skips these games (#909); everything else runs them. Only an explicit false skips, so a step
+    # that wrote no output runs them.
+    if: |
+      github.event_name != 'pull_request'
+      && needs.discover.outputs.no-tests != 'true'
+      && needs.discover.outputs.smoke-needed != 'false'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
