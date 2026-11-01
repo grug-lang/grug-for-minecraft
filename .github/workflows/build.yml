@@ -1983,3 +1983,32 @@ jobs:
           name: coverage-report
           path: coverage/report
           retention-days: 7
+
+  # The one check the ruleset requires of a pull request's Build (#638). The loader jobs are a
+  # matrix whose members `discover` picks, so a loader a diff does not reach has no job and no
+  # check under its name: requiring `1.20.6-forge` would leave such a pull request waiting forever.
+  # This job has a fixed name, always runs on a pull request and fails when any job it needs failed
+  # or was cancelled. A needed job that was skipped counts as passing, as GitHub's own required
+  # checks do. Only the jobs that run on a pull request are needed; the ones that run on main, a
+  # schedule or a dispatch never block a merge.
+  pr-gate:
+    name: pr gate
+    if: always() && github.event_name == 'pull_request'
+    needs: [discover, grug-rs, core, build, reference, coverage]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Fail when a needed job failed or was cancelled
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["NEEDS"])
+          bad = {name: need["result"] for name, need in needs.items()
+                 if need["result"] not in ("success", "skipped")}
+          for name, need in sorted(needs.items()):
+              print(f"{name}: {need['result']}")
+          if bad:
+              sys.exit(f"pr gate: not green: {bad}")
+          PY
