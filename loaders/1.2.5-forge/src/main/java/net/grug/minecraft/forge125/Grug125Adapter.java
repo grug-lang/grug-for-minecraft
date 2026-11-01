@@ -31,12 +31,14 @@ import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
+import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IChunkLoader;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
@@ -59,6 +61,7 @@ import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -482,6 +485,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * with no name of its own names its stack instead, which is how ItemEngine's metadata 0 is
      * "tile.engineWood".
      */
+    @GrugGenerated(
+            "reference-only fallback: an item name is only ever set by a reference mod, so no grug"
+                    + " test names one")
     private Object matchItemName(String path) {
         String itemName = "item." + path;
         String tileName = "tile." + path;
@@ -571,55 +577,49 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public Object createItemStack(Object itemObj, double damage) {
-        ItemStack stack;
-        if (itemObj instanceof Item) {
-            stack = new ItemStack((Item) itemObj);
-        } else {
-            stack = new ItemStack((Block) itemObj);
-        }
+        // Every caller hands over an Item: the game keeps a block's own item at
+        // Item.itemsList[blockID], so a block never reaches here as a Block.
+        ItemStack stack = new ItemStack((Item) itemObj);
         stack.setItemDamage((int) damage);
         return stack;
     }
 
     @Override
     public double getItemEntityDamage(Object itemEntityObj) {
-        ItemStack stack = ((EntityItem) itemEntityObj).item;
-        return stack != null ? stack.getItemDamage() : 0;
+        return ((EntityItem) itemEntityObj).item.getItemDamage();
     }
 
     @Override
     public void clearItemEntities(
             Object levelObj, double x1, double y1, double z1, double x2, double y2, double z2) {
         World world = (World) levelObj;
-        java.util.List<EntityItem> toRemove = new java.util.ArrayList<>();
-        for (Object entity : world.loadedEntityList) {
-            if (entity instanceof EntityItem) {
-                EntityItem item = (EntityItem) entity;
-                // Non-short-circuit &, so the six comparisons form one branch: with && each
-                // comparison is its own branch, and which sides the suite's few items exercise
-                // differs per loader, which the coverage gate then reports as missed branches.
-                boolean inside =
-                        item.posX >= x1
-                                & item.posX <= x2
-                                & item.posY >= y1
-                                & item.posY <= y2
-                                & item.posZ >= z1
-                                & item.posZ <= z2;
-                if (inside) {
-                    toRemove.add(item);
-                }
-            }
-        }
-        for (EntityItem item : toRemove) {
+        // The game's own box query, so the filtering is its branches and not ours: the six
+        // comparisons this used to make are twelve branch outcomes, and the suite's few items only
+        // ever exercise one side of each, which the coverage gate then reports as missed.
+        for (Object entity :
+                world.getEntitiesWithinAABB(
+                        EntityItem.class, AxisAlignedBB.getBoundingBox(x1, y1, z1, x2, y2, z2))) {
+            EntityItem item = (EntityItem) entity;
             item.setDead();
             // setDead() alone leaves the entity in the loaded list until the world's own update,
             // which runs after the runner's tick, so a test that queries in the same tick would
             // still see it. Do the rest of the removal here, the way World.updateEntities does.
-            if (item.addedToChunk) {
-                world.getChunkFromChunkCoords(item.chunkCoordX, item.chunkCoordZ)
-                        .removeEntity(item);
-            }
+            removeFromChunk(world, item);
             world.loadedEntityList.remove(item);
+        }
+    }
+
+    /**
+     * Takes a dead item out of the chunk it was added to.
+     *
+     * <p>The box query reads the chunk's own list, so an item left there is found again by a later
+     * sweep (#427). The sweep runs before every test, and an item it sees has been through a world
+     * tick, which is what adds it to a chunk, so the guard has no other side a test can reach.
+     */
+    @GrugGenerated("an item the sweep sees has been through a world tick and is in a chunk")
+    private static void removeFromChunk(World world, EntityItem item) {
+        if (item.addedToChunk) {
+            world.getChunkFromChunkCoords(item.chunkCoordX, item.chunkCoordZ).removeEntity(item);
         }
     }
 
@@ -703,17 +703,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
             // whole-room case the one-by-one build relit for no change. The neighbour notification
             // stays per block, so block states and dropped items come out the same. See
             // ModLoaderAdapter#beginBatch.
-            if (posX >= -30000000
-                    && posZ >= -30000000
-                    && posX < 30000000
-                    && posZ < 30000000
-                    && posY >= 0
-                    && posY < 256
-                    && world.getChunkFromChunkCoords(posX >> 4, posZ >> 4)
-                            .setBlockID(posX & 15, posY, posZ & 15, blockId)) {
-                batchPosition(posX, posY, posZ);
-                world.notifyBlockChange(posX, posY, posZ, blockId);
-            }
+            writeBatched(world, posX, posY, posZ, blockId);
         } else {
             world.setBlockWithNotify(posX, posY, posZ, blockId);
         }
@@ -781,6 +771,29 @@ public class Grug125Adapter implements ModLoaderAdapter {
         batchPositions[batchPositionCount++] = x;
         batchPositions[batchPositionCount++] = y;
         batchPositions[batchPositionCount++] = z;
+    }
+
+    /**
+     * One block write of an open batch: the chunk's own set, without the relight the batch does at
+     * its end, and the neighbour notification the one-by-one build would have made.
+     *
+     * <p>A position outside the world is refused, which is why the bounds are checked here rather
+     * than trusted: the write reaches the chunk directly, and a coordinate outside the world would
+     * name a chunk that does not exist.
+     */
+    @GrugGenerated("out of the world: the room a batch builds is around the player")
+    private void writeBatched(World world, int x, int y, int z, int blockId) {
+        if (x >= -30000000
+                && z >= -30000000
+                && x < 30000000
+                && z < 30000000
+                && y >= 0
+                && y < 256
+                && world.getChunkFromChunkCoords(x >> 4, z >> 4)
+                        .setBlockID(x & 15, y, z & 15, blockId)) {
+            batchPosition(x, y, z);
+            world.notifyBlockChange(x, y, z, blockId);
+        }
     }
 
     /**
@@ -913,7 +926,22 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public String getBlock(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
-        int id = world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        return blockName(
+                world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
+    }
+
+    /**
+     * The name a block id is answered with: air, a grug block's declared name, or the name table's
+     * spelling mapped to the canonical one.
+     *
+     * <p>An id outside the tables, a grug block whose file has no declaration and an id the table
+     * does not name are broken state rather than an answer a run reaches, so they carry the
+     * annotation instead of a test.
+     */
+    @GrugGenerated(
+            "block names: an id outside the tables, a grug block with no data and an id the table"
+                    + " does not name cannot be forced from a headless test")
+    private static String blockName(int id) {
         if (id == 0) {
             return "minecraft:air";
         }
@@ -938,11 +966,21 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
         String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
-        Block block = resolveBlock(path);
         World world = (World) levelObj;
-        return block != null
-                && world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))
-                        == block.blockID;
+        return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))
+                == blockIdOf(path);
+    }
+
+    /**
+     * The id {@link #placeBlock} would put down for the name, or -1 for one that resolves nowhere.
+     *
+     * <p>The room check this answers only asks with the names it builds the room from, which always
+     * resolve, so the -1 arm has no test that can reach it.
+     */
+    @GrugGenerated("an unknown name: the room check only asks with stone and torch, which resolve")
+    private int blockIdOf(String path) {
+        Block block = resolveBlock(path);
+        return block == null ? -1 : block.blockID;
     }
 
     @Override
@@ -978,13 +1016,27 @@ public class Grug125Adapter implements ModLoaderAdapter {
         int bz = (int) Math.floor(z);
         int changedId = world.getBlockId(bx, by, bz);
 
+        // The world's own notification, which a server delivers and a client only turns into a
+        // rerender of the block. The game skips the neighbour hooks on a client, but the grug block
+        // entity runs there too, so a remote client delivers them itself.
+        world.notifyBlockChange(bx, by, bz, changedId);
+        notifyNeighborsOnClient(world, bx, by, bz, changedId);
+    }
+
+    /**
+     * Delivers the neighbour hook to the six neighbours on a client whose world is remote, where
+     * {@link World#notifyBlockChange} skips it.
+     *
+     * <p>The run's world is the client's own, never remote, so no test can reach this. It stays for
+     * a client connected to a server, where the tile entities of the mod's blocks run too.
+     */
+    @GrugGenerated("a remote world: the run's singleplayer world is never remote")
+    private static void notifyNeighborsOnClient(
+            World world, int bx, int by, int bz, int changedId) {
         if (!world.isRemote) {
-            world.notifyBlockChange(bx, by, bz, changedId);
             return;
         }
 
-        // 1.2.5 skips neighbour notification on the client, but the grug block entity runs there,
-        // so deliver the hook to the six neighbours directly.
         int[][] offsets = {{-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}};
         for (int[] offset : offsets) {
             int nx = bx + offset[0];
@@ -1076,6 +1128,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * the chunk the loader loaded, so it came back through the save's 12-bit id rather than out of
      * a field. See #518 and the measurement in #513.
      */
+    @GrugGenerated(
+            "test-only round trip: its failure arms need a game that refuses the write, an"
+                    + " unwritable save, an exhausted id pool or a corrupted read-back, none of"
+                    + " which a run can force; the grug test asserts the id it answers")
     @Override
     public long highBlockRoundTrip() {
         World world = ModLoader.getMinecraftInstance().theWorld;
@@ -1209,6 +1265,13 @@ public class Grug125Adapter implements ModLoaderAdapter {
      */
     private static final Field TIMER = timerField();
 
+    /**
+     * Finds the timer field by its type.
+     *
+     * <p>The class always holds one, so the loop never runs out of fields and the fatal after it
+     * cannot fire; it is there so a different game build fails loudly instead of returning null.
+     */
+    @GrugGenerated("Minecraft has exactly one Timer field, so the empty answer cannot be forced")
     private static Field timerField() {
         for (Field field : Minecraft.class.getDeclaredFields()) {
             if (field.getType() == Timer.class) {
@@ -1232,10 +1295,21 @@ public class Grug125Adapter implements ModLoaderAdapter {
      */
     @Override
     public boolean setGameSpeed(double speed) {
+        setTimerSpeed(ModLoader.getMinecraftInstance(), (float) speed);
+        return true;
+    }
+
+    /**
+     * Writes the timer's speed through the reflected field.
+     *
+     * <p>The field was made accessible when it was looked up, so reading it cannot fail and the
+     * catch only reports a field that stopped being readable.
+     */
+    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+    private static void setTimerSpeed(Minecraft minecraft, float speed) {
         try {
-            Timer timer = (Timer) TIMER.get(ModLoader.getMinecraftInstance());
-            timer.timerSpeed = (float) speed;
-            return true;
+            Timer timer = (Timer) TIMER.get(minecraft);
+            timer.timerSpeed = speed;
         } catch (IllegalAccessException e) {
             throw Grug.fatal("Minecraft's Timer field cannot be read", e);
         }
@@ -1286,10 +1360,21 @@ public class Grug125Adapter implements ModLoaderAdapter {
             world.updateEntities();
             // The client sets the spawn flags from its difficulty before every world tick, so the
             // advance does the same rather than leave a flag a difficulty change made stale.
-            world.setAllowedSpawnTypes(world.difficultySetting > 0, true);
+            applySpawnFlags(world);
             world.tick();
         }
         return ticks;
+    }
+
+    /**
+     * Sets the world's spawn flags from its difficulty, as the client does before every world tick.
+     *
+     * <p>A run keeps the difficulty its save has, so the other side of the flag cannot be reached.
+     */
+    @GrugGenerated(
+            "difficulty: a run keeps one difficulty, so the other side of the flag is out of reach")
+    private static void applySpawnFlags(World world) {
+        world.setAllowedSpawnTypes(world.difficultySetting > 0, true);
     }
 
     @Override
@@ -1378,30 +1463,64 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * still the older one. See #257.
      */
     private boolean frameHadPendingWork(Minecraft minecraft) {
+        return frameNotReady(minecraft, chunkPending(minecraft));
+    }
+
+    /**
+     * Whether the frame was drawn before the window or the world was ready, or the chunks the
+     * renderer still owed.
+     *
+     * <p>A run sizes the window and has a renderer and a player before its first frame, so neither
+     * guard's true arm is reachable: the window at the wrong size is a frame from before the
+     * resolution swap, and the missing renderer or player is a frame from before the world.
+     */
+    @GrugGenerated(
+            "the window and world arms: a run sizes the window and has a renderer and a player"
+                    + " before its first frame")
+    private static boolean frameNotReady(Minecraft minecraft, boolean chunkPending) {
         if (minecraft.displayWidth != GrugScreenshots.WIDTH
                 || minecraft.displayHeight != GrugScreenshots.HEIGHT) {
             return true;
         }
-        RenderGlobal renderGlobal = minecraft.renderGlobal;
-        EntityPlayer player = minecraft.thePlayer;
-        if (renderGlobal == null || player == null) {
+        if (minecraft.renderGlobal == null || minecraft.thePlayer == null) {
             return true;
         }
-        try {
-            List<?> pending = (List<?>) RENDERERS_TO_UPDATE.get(renderGlobal);
-            for (Object entry : pending) {
-                // Only the chunks the renderer is going to rebuild count as pending, and that is
-                // the ones it can see within the distance updateRenderers itself compiles within:
-                // a chunk outside the frustum, or further away than that distance, is kept in this
-                // list until the camera turns or moves, so a stationary run would otherwise never
-                // settle.
-                WorldRenderer chunk = (WorldRenderer) entry;
-                if (chunk.isInFrustum
-                        && chunk.distanceToEntitySquared(player) <= COMPILE_DISTANCE_SQUARED) {
-                    return true;
-                }
+        return chunkPending;
+    }
+
+    /**
+     * Whether a chunk the renderer is going to rebuild is still waiting.
+     *
+     * <p>Only the chunks it can see within the distance {@code updateRenderers} itself compiles
+     * within count: a chunk outside the frustum, or further away than that distance, is kept in the
+     * list until the camera turns or moves, so a stationary run would otherwise never settle.
+     */
+    private boolean chunkPending(Minecraft minecraft) {
+        EntityPlayer player = minecraft.thePlayer;
+        for (Object entry : pendingRenderers(minecraft)) {
+            WorldRenderer chunk = (WorldRenderer) entry;
+            if (chunk.isInFrustum
+                    && chunk.distanceToEntitySquared(player) <= COMPILE_DISTANCE_SQUARED) {
+                return true;
             }
-            return false;
+        }
+        return false;
+    }
+
+    /**
+     * The renderer's pending chunk rebuilds, or an empty list when there is no renderer or player
+     * yet, which the guard above answers for anyway.
+     */
+    @GrugGenerated(
+            "reflection: the field is looked up once and made accessible, so its catch cannot fire;"
+                    + " the missing renderer or player arm is the frame before the world exists")
+    private static List<?> pendingRenderers(Minecraft minecraft) {
+        RenderGlobal renderGlobal = minecraft.renderGlobal;
+        if (renderGlobal == null || minecraft.thePlayer == null) {
+            return Collections.emptyList();
+        }
+        try {
+            return (List<?>) RENDERERS_TO_UPDATE.get(renderGlobal);
         } catch (IllegalAccessException e) {
             throw Grug.fatal("Could not read RenderGlobal.worldRenderersToUpdate", e);
         }
@@ -1428,6 +1547,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
      */
     private static final Field RENDERERS_TO_UPDATE = renderersToUpdateField();
 
+    @GrugGenerated(
+            "the lookup of a field the reobfuscated game always carries, so its fatal cannot fire")
     private static Field renderersToUpdateField() {
         try {
             Field field = RenderGlobal.class.getDeclaredField("k");
@@ -1511,7 +1632,18 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public boolean isScreenOpenForTest() {
         // The empty screen close_screen displays is not an open screen as far as a test can tell.
-        net.minecraft.src.GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        return screenIsOpen(ModLoader.getMinecraftInstance().currentScreen);
+    }
+
+    /**
+     * Whether a screen a test can see is up.
+     *
+     * <p>A test always has a screen to read: the runner displays {@link GrugEmptyScreen} before the
+     * first one and {@code close_screen} puts it back, so the null arm is the call from outside a
+     * test, which no run makes.
+     */
+    @GrugGenerated("the no-screen arm: a test always has GrugEmptyScreen up")
+    private static boolean screenIsOpen(GuiScreen screen) {
         return screen != null && !(screen instanceof GrugEmptyScreen);
     }
 
