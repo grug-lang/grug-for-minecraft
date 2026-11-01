@@ -1998,6 +1998,18 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
+    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (screen == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.press_screen_key: There is no screen open to press.");
+            return false;
+        }
+        return GrugOverlayHost.pressKey(screen, key, ctrl, release);
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
         GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
         if (screen == null) {

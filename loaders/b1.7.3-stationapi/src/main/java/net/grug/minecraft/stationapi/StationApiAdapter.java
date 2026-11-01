@@ -21,6 +21,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.GrugBoxRenderer;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
+import net.grug.minecraft.stationapi.client.GrugOverlayHost;
 import net.grug.minecraft.stationapi.client.GrugScreenGeometry;
 import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
@@ -1249,6 +1250,20 @@ public class StationApiAdapter implements ModLoaderAdapter {
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
         mc.setScreen(new InventoryScreen((PlayerEntity) playerObj));
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
+    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (mc.currentScreen == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.press_screen_key: There is no screen open to press.");
+            return false;
+        }
+        return GrugOverlayHost.pressKey(mc.currentScreen, key, ctrl, release);
     }
 
     @Override

@@ -23,6 +23,7 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBlockEntityNbtAccess;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
+import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.inventory.DummyCraftingInventory;
@@ -1297,6 +1298,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public void openInventory(Object playerObj) {
         MinecraftInstance.get().openScreen(new SurvivalInventoryScreen((PlayerEntity) playerObj));
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
+    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (minecraft.screen == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.press_screen_key: There is no screen open to press.");
+            return false;
+        }
+        return GrugOverlayHost.pressKey(minecraft.screen, key, ctrl, release);
     }
 
     @Override

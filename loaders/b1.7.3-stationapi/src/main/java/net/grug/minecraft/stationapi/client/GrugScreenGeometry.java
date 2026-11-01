@@ -33,4 +33,11 @@ public interface GrugScreenGeometry {
      * calling the host directly.
      */
     boolean grug$click(int mouseX, int mouseY, int button);
+
+    /**
+     * Delivers one press of the key with LWJGL code {@code key} through the screen's own key path
+     * and answers whether an overlay took it. The mixin implements this so a test can reach the
+     * hook that cancels the key instead of calling the host directly.
+     */
+    boolean grug$pressKey(int key);
 }

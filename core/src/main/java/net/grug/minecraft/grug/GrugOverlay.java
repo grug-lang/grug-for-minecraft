@@ -101,16 +101,19 @@ public final class GrugOverlay {
         overlaySupported = true;
     }
 
-    private static volatile boolean overlayKeysSupported = false;
-
-    /** Marks that this loader hands screen key presses to the overlays' key export. */
-    public static void noteKeysSupported() {
-        overlayKeysSupported = true;
-    }
-
-    /** Whether this loader hands screen key presses to the overlays' key export. */
-    public static boolean overlayKeysSupported() {
-        return overlayKeysSupported;
+    /**
+     * The number an overlay's {@code key()} is given for a key whose LWJGL 2 name is {@code
+     * keyName}, or -1 when the key is not asked: the upper case character code of a letter or a
+     * digit key, which is the same number on every loader. A name longer than one character (an
+     * arrow, a function key, a numpad key) and a name that is not a letter or a digit are not
+     * asked.
+     */
+    public static int keyCodeForName(String keyName) {
+        if (keyName == null || keyName.length() != 1) return -1;
+        char c = Character.toUpperCase(keyName.charAt(0));
+        boolean letter = c >= 'A' && c <= 'Z';
+        boolean digit = c >= '0' && c <= '9';
+        return letter || digit ? c : -1;
     }
 
     /** Whether this loader draws overlays on the inventory and container screens. */
