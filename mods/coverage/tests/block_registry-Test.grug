@@ -16,14 +16,14 @@ export tick(ctx: TestTickContext) {
         # Custom and vanilla items.
         custom: Item = item(resource_location("grug:coverage_item"))
         vanilla: Item = item(resource_location("minecraft:diamond"))
-        custom_stack: ItemStack = item_stack(custom, 0)
-        vanilla_stack: ItemStack = item_stack(vanilla, 0)
+        custom_stack: ItemStack = item_stack(custom, 0, 1)
+        vanilla_stack: ItemStack = item_stack(vanilla, 0, 1)
 
         # A custom block's item and a vanilla block's item.
         custom_block_item: Item = item(resource_location("grug:coverage_block"))
         vanilla_block_item: Item = item(resource_location("minecraft:stone"))
-        custom_block_stack: ItemStack = item_stack(custom_block_item, 0)
-        vanilla_block_stack: ItemStack = item_stack(vanilla_block_item, 0)
+        custom_block_stack: ItemStack = item_stack(custom_block_item, 0, 1)
+        vanilla_block_stack: ItemStack = item_stack(vanilla_block_item, 0, 1)
 
         # A block name no loader has is the script's own error, and it ends the run's test right
         # here, so it comes last. place_block reports it rather than leaving the block unplaced

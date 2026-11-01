@@ -95,7 +95,7 @@ public final class GrugBlockEntityNbtAccess implements GrugBlockEntityNbt.Access
 
     @Override
     public void putItem(Object compound, String key, Object item) {
-        ItemStack stack = (ItemStack) GrugCore.getAdapter().createItemStack(item, 0);
+        ItemStack stack = (ItemStack) GrugCore.getAdapter().createItemStack(item, 0, 1);
         ((NBTTagCompound) compound).setTag(key, stack.writeToNBT(new NBTTagCompound()));
     }
 

@@ -323,10 +323,10 @@ local _leave(index: number, direction: number, item: Item, count: number, damage
     }
 }
 
-# EntityPassiveItem.toEntityItem: one stack at the item's position, moving at 0.1 + speed * 2 along
-# the travel direction with a little Gaussian scatter. item_stack makes a stack of one, so until
-# #473 this spawns one entity per item, all at the same position and velocity, which the game then
-# merges back into a stack.
+# EntityPassiveItem.toEntityItem: the whole stack as one entity at the item's position, moving at
+# 0.1 + speed * 2 along the travel direction with a little Gaussian scatter. The reference hands
+# this.item, the stack it was carrying, straight to the EntityItem's constructor, so a dropped stack
+# of five is one entity holding five and not five entities the game merges back afterwards.
 local _drop_moving(px: number, py: number, pz: number, direction: number, item: Item, count: number, damage: number, speed: number) {
     motion: number = 0.1 + speed * 2
     noise: number = level.random_float() * 0.04 - 0.02
@@ -334,14 +334,10 @@ local _drop_moving(px: number, py: number, pz: number, direction: number, item: 
     vy: number = _dir_y(direction) * motion + level.random_gaussian() * noise
     vz: number = _dir_z(direction) * motion + level.random_gaussian() * noise
     velocity: Vec3 = Vec3.new(vx, vy, vz)
-    remaining: number = count
-    while remaining > 0 {
-        stack: ItemStack = item_stack(item, damage)
-        dropped: ItemEntity = item_entity(level, px, py, pz, stack)
-        dropped.entity().set_delta_movement(velocity)
-        dropped.entity().spawn(level)
-        remaining = remaining - 1
-    }
+    stack: ItemStack = item_stack(item, damage, count)
+    dropped: ItemEntity = item_entity(level, px, py, pz, stack)
+    dropped.entity().set_delta_movement(velocity)
+    dropped.entity().spawn(level)
 }
 
 # Writes the whole record but its item, which does not change while the item travels.

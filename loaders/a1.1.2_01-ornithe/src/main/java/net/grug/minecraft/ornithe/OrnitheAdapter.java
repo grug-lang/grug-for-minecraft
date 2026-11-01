@@ -1020,13 +1020,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemStack(Object itemObj, double damage) {
+    public Object createItemStack(Object itemObj, double damage, double count) {
         ItemStack stack;
         if (itemObj instanceof Item) {
             Item item = (Item) itemObj;
-            stack = new ItemStack(item);
+            stack = new ItemStack(item, (int) count);
         } else {
-            stack = new ItemStack((Block) itemObj);
+            stack = new ItemStack((Block) itemObj, (int) count);
         }
         stack.metadata = (int) damage;
         return stack;
@@ -1035,6 +1035,11 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public double getItemEntityDamage(Object itemEntityObj) {
         return ((ItemEntity) itemEntityObj).item.metadata;
+    }
+
+    @Override
+    public double getItemEntityCount(Object itemEntityObj) {
+        return ((ItemEntity) itemEntityObj).item.size;
     }
 
     @Override

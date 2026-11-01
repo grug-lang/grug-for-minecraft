@@ -160,6 +160,7 @@ Color.rgb(r: number, g: number, b: number) Color
 .open(player: Player, block_entity: BlockEntity)
 
 ## ItemEntity
+.count() number
 .damage() number
 .entity() Entity
 
@@ -263,7 +264,7 @@ item(resource_location: ResourceLocation) Item
 item_at(index: number) Item
 item_count() number
 item_entity(level: Level, x: number, y: number, z: number, item_stack: ItemStack) ItemEntity
-item_stack(item: Item, damage: number) ItemStack
+item_stack(item: Item, damage: number, count: number) ItemStack
 print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)

@@ -100,11 +100,6 @@
 			},
 			"deviations": [
 				{
-					"what": "A wooden pipe drops a stack that no inventory accepts as one item entity per item, instead of as one entity holding the stack.",
-					"why": "item_stack in mod_api.json makes a stack of one and has no count, so the pipe spawns an entity for each item it carries.",
-					"tracking_issue": 473
-				},
-				{
 					"what": "On b1.7.3-stationapi the redstone engine's item is unshaded in the GUI slot, which its own capture proves, but no test draws it in the hand, in third person or on the ground, so whether those drawings are unshaded like 2.2.14's is unverified. The plate sits at the reference's progress 0.25 everywhere.",
 					"why": "StationAPI accumulates a baked item model's quads and flushes them after the model draw returns, where fixed-function lighting is applied, so the reference's rule has to wrap that flush. The mixin that does it is applied on all three paths, but a capture of any of them needs its own reference run, and a dropped item rotates as it ages, so the ground one is not reproducible.",
 					"tracking_issue": 963

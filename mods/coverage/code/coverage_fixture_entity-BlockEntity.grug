@@ -20,7 +20,7 @@ export tick() {
     }
     tick = 0
 
-    item_stack: ItemStack = item_stack(item, 0)
+    item_stack: ItemStack = item_stack(item, 0, 1)
     item_entity: ItemEntity = item_entity(level, x, y, z, item_stack)
 
     # Remove the random velocity that spawned items are given

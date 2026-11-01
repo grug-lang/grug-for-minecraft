@@ -737,8 +737,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemStack(Object itemObj, double damage) {
-        ItemStack stack = new ItemStack((Item) itemObj);
+    public Object createItemStack(Object itemObj, double damage, double count) {
+        ItemStack stack = new ItemStack((Item) itemObj, (int) count);
         stack.setDamageValue((int) damage);
         return stack;
     }
@@ -746,6 +746,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public double getItemEntityDamage(Object itemEntityObj) {
         return ((ItemEntity) itemEntityObj).getItem().getDamageValue();
+    }
+
+    @Override
+    public double getItemEntityCount(Object itemEntityObj) {
+        return ((ItemEntity) itemEntityObj).getItem().getCount();
     }
 
     @Override

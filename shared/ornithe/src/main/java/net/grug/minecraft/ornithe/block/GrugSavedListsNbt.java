@@ -44,7 +44,7 @@ public final class GrugSavedListsNbt {
                 recordTag.put("Numbers", numbers);
                 if (record.item() != null) {
                     ItemStack stack =
-                            (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0);
+                            (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0, 1);
                     recordTag.put("Item", stack.writeNbt(new NbtCompound()));
                 }
                 records.addElement(recordTag);

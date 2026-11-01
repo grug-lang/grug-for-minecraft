@@ -11,7 +11,7 @@ export tick(ctx: TestTickContext) {
     ctx.assert(not level.find_item_entity(x, y, z, 2).has(), "There should be no item entity yet.")
 
     diamond: Item = item(resource_location("minecraft:diamond"))
-    stack: ItemStack = item_stack(diamond, 0)
+    stack: ItemStack = item_stack(diamond, 0, 1)
     spawned: ItemEntity = item_entity(level, x, y, z, stack)
     spawned.entity().set_delta_movement(Vec3.zero())
     spawned.entity().spawn(level)

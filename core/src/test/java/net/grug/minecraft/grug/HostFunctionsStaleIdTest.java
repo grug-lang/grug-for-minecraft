@@ -314,7 +314,7 @@ class HostFunctionsStaleIdTest {
         assertEquals(List.of(staleMessage("BlockEntity.set_item_in_slot", "item", item)), reports);
 
         reports.clear();
-        assertEquals(0L, HostFunctions.item_stack(item, 0));
+        assertEquals(0L, HostFunctions.item_stack(item, 0, 1));
         assertEquals(List.of(staleMessage("item_stack", "item", item)), reports);
     }
 

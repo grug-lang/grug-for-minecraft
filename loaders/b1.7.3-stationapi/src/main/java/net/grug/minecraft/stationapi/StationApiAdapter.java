@@ -564,8 +564,8 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemStack(Object itemObj, double damage) {
-        ItemStack stack = new ItemStack((Item) itemObj);
+    public Object createItemStack(Object itemObj, double damage, double count) {
+        ItemStack stack = new ItemStack((Item) itemObj, (int) count);
         stack.setDamage((int) damage);
         return stack;
     }
@@ -573,6 +573,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
     @Override
     public double getItemEntityDamage(Object itemEntityObj) {
         return ((ItemEntity) itemEntityObj).stack.getDamage();
+    }
+
+    @Override
+    public double getItemEntityCount(Object itemEntityObj) {
+        return ((ItemEntity) itemEntityObj).stack.count;
     }
 
     @Override
