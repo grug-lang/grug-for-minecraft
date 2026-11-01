@@ -10,7 +10,8 @@
   ],
   "server": [],
   "client": [
-    "BakedModelRendererImplMixin",
+    "ArsenicItemRendererMixin",
+    "ArsenicOverlayRendererMixin",
     "BlockItemMixin",
     "BlockRenderManagerMixin",
     "ItemRendererMixin",
