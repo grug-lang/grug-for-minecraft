@@ -95,7 +95,6 @@ public final class GrugOverlayHost {
         overlayFileIds = new TreeMap<>(files);
         overlayMods = new TreeMap<>(mods);
         GrugOverlay.noteSupported();
-        GrugOverlay.noteKeysSupported();
     }
 
     private static void ensureCreated() {
