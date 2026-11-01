@@ -766,24 +766,27 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # ForgeGradle puts the Java output in build/sourcesSets/main; the Loom loaders use
-      # build/classes/java/main. Stage whichever exists so the coverage job sees a single layout.
-      # 1.2.5-forge has no JaCoCo agent, so it has neither exec data nor a report to contribute and
-      # is skipped by the two uploads below.
+      # The coverage gate matches a class by its bytes, so it has to read the classes the agent
+      # instrumented. ForgeGradle puts the Java output in build/sourcesSets/main and the Loom
+      # loaders use build/classes/java/main; 1.2.5-forge runs reobfuscated, so its dev classes are
+      # not what ran (they still hold MCP names) and coverageClasses stages the jar's entries
+      # instead. Stage whichever the loader has so the coverage job sees a single layout.
       - name: Stage the compiled classes
-        if: matrix.dir != '1.2.5-forge'
         run: |
           mkdir -p coverage-classes
-          for dir in \
-            "loaders/${{ matrix.dir }}/build/classes/java/main" \
-            "loaders/${{ matrix.dir }}/build/sourcesSets/main"; do
-            if [ -d "$dir" ]; then
-              cp -r "$dir/." coverage-classes/
-            fi
-          done
+          if [ "${{ matrix.dir }}" = '1.2.5-forge' ]; then
+            cp -r "loaders/${{ matrix.dir }}/build/coverage-classes/." coverage-classes/
+          else
+            for dir in \
+              "loaders/${{ matrix.dir }}/build/classes/java/main" \
+              "loaders/${{ matrix.dir }}/build/sourcesSets/main"; do
+              if [ -d "$dir" ]; then
+                cp -r "$dir/." coverage-classes/
+              fi
+            done
+          fi
 
       - name: Upload the coverage exec
-        if: matrix.dir != '1.2.5-forge'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-exec-${{ matrix.dir }}
@@ -794,7 +797,6 @@ jobs:
           retention-days: 7
 
       - name: Upload the compiled classes
-        if: matrix.dir != '1.2.5-forge'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-classes-${{ matrix.dir }}

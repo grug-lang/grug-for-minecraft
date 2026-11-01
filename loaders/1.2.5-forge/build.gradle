@@ -10,7 +10,8 @@
 //   4. compile the loader to Java 8 bytecode against the MCP dev classes;
 //   5. fix inherited member references (tools/FixInherited.java) and reobfuscate with SpecialSource;
 //   6. for runClient, reobfuscate the MCP dev classes into a pack-style runtime jar and launch the
-//      game with Java 8 under the freshly built loader jar.
+//      game with Java 8 under the freshly built loader jar, with the JaCoCo agent on its command
+//      line in CI and the reobfuscated classes staged for the coverage report.
 //
 // An existing snapshot checkout can be reused with -Pgrug.mcpSnapshot=/path/to/mcp125 (used for
 // local iteration so the 170 MB tree is not cloned every time).
@@ -24,6 +25,8 @@ import java.io.ByteArrayOutputStream
 plugins {
     id 'base'
     id 'java'
+    // The coverage agent's version, so it stays the one every other loader's runClient uses.
+    id 'jacoco'
 }
 
 // The hand-off from core: the repository this resolves it from and the version it asks for both come
@@ -109,6 +112,10 @@ configurations {
     }
     // LWJGL 2 / JInput Linux natives for -Djava.library.path.
     natives
+    // The JaCoCo agent the game JVM starts with in CI. configurations.jacocoAgent resolves the
+    // unshaded artifact, which is not a valid -javaagent jar (it has no Premain-Class), so
+    // gradle/jacoco-loader.gradle resolves the runtime classifier explicitly and so does this.
+    grugJacocoAgent
 }
 
 dependencies {
@@ -153,6 +160,8 @@ dependencies {
     natives "org.lwjgl.lwjgl:lwjgl-platform:2.9.3:natives-${windows ? 'windows' : 'linux'}"
 
     natives 'net.java.jinput:jinput:2.0.10:natives-all'
+
+    grugJacocoAgent "org.jacoco:org.jacoco.agent:${jacoco.toolVersion}:runtime"
 }
 
 sourceSets {
@@ -448,6 +457,19 @@ tasks.register('prepareRunDir') {
     }
 }
 
+// The classes the coverage gate reports on must be the bytes the agent instrumented, because JaCoCo
+// identifies a class by its bytes. This loader is reobfuscated before it runs (reobfJar rewrites
+// every reference to a Minecraft class), so build/classes/java/main is not what ran: the same class
+// has different bytes there. Stage the jar's entries, which are exactly what prepareRunDir put in
+// run/mods, at the path build.yml uploads for every loader.
+tasks.register('coverageClasses', Sync) {
+    description = 'Stages the reobfuscated classes the coverage report is built from.'
+    dependsOn 'reobfJar'
+    from zipTree(finalJar)
+    include '**/*.class'
+    into new File(buildDirFile, 'coverage-classes')
+}
+
 // Resolve the Java 8 the game must run on. The build/Gradle JVM stays modern; only the game JVM
 // here has to be 8. CI installs a JDK 8 alongside the build JDK and points GRUG_JAVA8 at it.
 def findJava8 = {
@@ -478,8 +500,34 @@ def findJava8 = {
     return null
 }
 
+// The JaCoCo agent's arguments for the game JVM. gradle/jacoco-loader.gradle attaches the agent to
+// the other loaders' runClient tasks, which are JavaExecs; this loader launches the game itself on
+// Java 8 (an Exec), so the same arguments go on the command line it builds. Only CI records: a plain
+// local runClient stays uninstrumented. The agent writes nothing itself (output=none): run-loader.sh
+// terminates the game as soon as the tests pass, which can interrupt a shutdown-hook write, so
+// GrugCoverage cuts the segments from inside the game, as it does for every loader. Instrumentation
+// is limited to this project's classes, since instrumenting Minecraft would produce a huge exec for
+// no benefit; the grug class in the game's package is named on its own, because that package also
+// holds the game's own dev classes.
+def jacocoLaunchArgs = {
+    if (System.getenv('GRUG_CI') != 'true') {
+        return []
+    }
+    def execDir = new File(buildDirFile, 'jacoco')
+    // Start clean, so a segment of an earlier run cannot be combined with this one's.
+    project.delete(execDir)
+    def agent = project.configurations.grugJacocoAgent.singleFile
+    return [
+        "-Dgrug.coverage.dir=${execDir.absolutePath}",
+        "-javaagent:${agent}=output=none,dumponexit=false," +
+            // The srg maps net/minecraft/src to the default package, so this class's runtime name is
+            // the bare one, which is also the jar entry reobfJar writes.
+            'includes=net.grug.*:GrugTorchFlicker',
+    ]
+}
+
 // The java command that boots the pack-style runtime in gameDir with the given libraries.
-def launchCommand = { Iterable<File> libraries, File gameDir, File assets ->
+def launchCommand = { Iterable<File> libraries, File gameDir, File assets, boolean recordCoverage ->
     def java8 = findJava8()
     if (java8 == null) {
         throw new GradleException(
@@ -500,8 +548,11 @@ def launchCommand = { Iterable<File> libraries, File gameDir, File assets ->
     }
     command += [java8,
         "-Djava.library.path=${nativesDir.absolutePath}",
-        '-Djava.util.Arrays.useLegacyMergeSort=true',
-        '-cp', classpath.join(File.pathSeparator),
+        '-Djava.util.Arrays.useLegacyMergeSort=true']
+    if (recordCoverage) {
+        command += jacocoLaunchArgs()
+    }
+    command += ['-cp', classpath.join(File.pathSeparator),
         'net.minecraft.launchwrapper.Launch',
         '--username', 'Player',
         '--session', '0',
@@ -512,7 +563,7 @@ def launchCommand = { Iterable<File> libraries, File gameDir, File assets ->
 
 tasks.register('runClient', Exec) {
     description = 'Launches the reobfuscated loader in a pack-style 1.2.5 runtime on Java 8.'
-    dependsOn 'prepareRunDir', 'obfuscateRuntime', 'extractNatives'
+    dependsOn 'prepareRunDir', 'obfuscateRuntime', 'extractNatives', 'coverageClasses'
     workingDir = runDir
     // GRUG_CI comes from the environment: run-loader.sh exports it, so CI runs the tests while a
     // plain runClient just launches the game to play. A reference run points GRUG_MODS_DIR at a
@@ -523,7 +574,7 @@ tasks.register('runClient', Exec) {
         def assets = (assetsDir != null && !assetsDir.isEmpty())
             ? new File(assetsDir)
             : new File(runDir, 'assets')
-        commandLine launchCommand(configurations.runtimeLibs.files, runDir, assets)
+        commandLine launchCommand(configurations.runtimeLibs.files, runDir, assets, true)
     }
 }
 
@@ -542,6 +593,6 @@ tasks.register('runProduction', Exec) {
         def assets = new File(gameDir, 'assets')
         assets.mkdirs()
         workingDir = gameDir
-        commandLine launchCommand(configurations.gameLibs.files, gameDir, assets)
+        commandLine launchCommand(configurations.gameLibs.files, gameDir, assets, false)
     }
 }
