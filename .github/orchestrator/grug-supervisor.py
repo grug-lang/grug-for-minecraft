@@ -12,9 +12,8 @@ four hours while the number of working subagents does not rise; a message about
 main waits two hours between sends. Nothing is sent while the orchestrator is in
 the middle of a turn.
 
-GRUG_REPO names the checkout whose sessions are watched (the repository root
-above this file by default); running it from a worktree therefore watches the
-worktree unless the unit sets GRUG_REPO, as the service file beside it does.
+GRUG_REPO overrides the checkout whose sessions are watched; the repository root
+above this file is the default, so the installed unit needs no path of its own.
 """
 
 import datetime
@@ -23,6 +22,8 @@ import os
 import pathlib
 import shutil
 import subprocess
+import time
+import urllib.parse
 
 REPO = os.environ.get("GRUG_REPO") or str(pathlib.Path(__file__).resolve().parents[2])
 STATE = (
@@ -49,7 +50,9 @@ COOLDOWN = 45 * 60
 MAX_COOLDOWN = 4 * 3600
 MAIN_COOLDOWN = 2 * 3600
 DISPATCH_AGE = 4 * 3600
-SEND_TIMEOUT = 2 * 3600
+SEND_TIMEOUT = 90 * 60
+LIVE_MS = 2 * 3600 * 1000
+BAD_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
 DRY = os.environ.get("GRUG_SUPERVISOR_DRY") == "1"
 IGNORE_BUSY = os.environ.get("GRUG_SUPERVISOR_IGNORE_BUSY") == "1"
 
@@ -61,20 +64,46 @@ def log(text):
         handle.write("%s %s\n" % (stamp, text))
 
 
-def api(path):
-    result = subprocess.run(
-        [OPENCODE, "api", "get", path], capture_output=True, text=True, timeout=120
-    )
+def api(path, params=None):
+    if params:
+        query = "&".join(
+            "%s=%s" % (key, urllib.parse.quote(str(value), safe=""))
+            for key, value in params.items()
+        )
+        path = "%s?%s" % (path, query)
+    command = [OPENCODE, "api", "get", path]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
         raise RuntimeError("api %s failed: %s" % (path, result.stderr.strip()[:300]))
-    return json.loads(result.stdout)["data"]
+    return json.loads(result.stdout)
 
 
-def running(session):
-    """A session is working while its last update is newer than its last idle mark."""
+def sessions():
+    """Every session, following the API's cursor, so an old working one is not missed."""
+    gathered = []
+    cursor = None
+    for _ in range(20):
+        page = api("/api/session", {"cursor": cursor} if cursor else None)
+        gathered.extend(page.get("data", []))
+        cursor = (page.get("cursor") or {}).get("next")
+        if not cursor:
+            break
+    return gathered
+
+
+def running(session, now_ms=None):
+    """A session is working while its last update is newer than its last idle mark.
+
+    The two-hour liveness window is what a child killed mid-turn needs: it never gets
+    an idle mark back, so without the window it would count as a subagent forever.
+    """
+    now_ms = now_ms or time.time() * 1000
     times = session.get("time", {})
+    updated = times.get("updated", 0)
+    if now_ms - updated > LIVE_MS:
+        return False
     idle = times.get("idle")
-    return idle is None or times.get("updated", 0) > idle
+    return idle is None or updated > idle
 
 
 def when(value):
@@ -104,6 +133,7 @@ def gh_runs(extra):
             "databaseId,createdAt,conclusion,status,event,displayTitle",
         ]
         + extra,
+        cwd=REPO,
         capture_output=True,
         text=True,
         timeout=180,
@@ -128,17 +158,21 @@ def boot_time_ms():
                     return int(line.split()[1]) * 1000
     except OSError:
         pass
-    return 0
+    try:
+        with open("/proc/uptime") as handle:
+            return int(time.time() * 1000 - float(handle.read().split()[0]) * 1000)
+    except (OSError, ValueError, IndexError):
+        return 0
 
 
 def orchestrator(sessions, boot):
     """The session the maintainer is actually using, and none from before the last boot.
 
-    A pinned id wins only while it has been used since the boot. After a restart the
-    old id still exists and its children still exist, so without this a nudge would go
-    to a session nobody has opened again. With no session used since the boot the check
-    stays quiet until the maintainer continues one, which is what makes the timer safe
-    to start before the interface does.
+    A pinned id wins only while it has been used since the boot. When another root
+    session that has children is newer by more than an hour, the orchestrator moved,
+    so the newer one wins even though the old id still exists. With no session used
+    since the boot the check stays quiet until the maintainer continues one, which is
+    what makes the timer safe to start before the interface does.
     """
     candidates = [
         session
@@ -149,22 +183,37 @@ def orchestrator(sessions, boot):
     ]
     if not candidates:
         return None
+    children = {}
+    for session in sessions:
+        parent = session.get("parentID")
+        if parent:
+            children[parent] = children.get(parent, 0) + 1
+    newest = max(candidates, key=lambda session: session["time"]["updated"])
     pinned_file = STATE / "session-id"
-    if pinned_file.exists():
+    if boot and pinned_file.exists():
         pinned = pinned_file.read_text().strip()
         for session in candidates:
-            if session["id"] == pinned:
-                return session
-    return max(candidates, key=lambda session: session["time"]["updated"])
+            if session["id"] != pinned:
+                continue
+            moved = (
+                newest["id"] != session["id"]
+                and children.get(newest["id"], 0) > 0
+                and newest["time"]["updated"] - session["time"]["updated"] > 3600 * 1000
+            )
+            return newest if moved else session
+    with_children = [session for session in candidates if children.get(session["id"], 0) > 0]
+    if with_children:
+        return max(with_children, key=lambda session: session["time"]["updated"])
+    return newest
 
 
 def main():
     try:
-        sessions = api("/api/session")
+        known = sessions()
     except Exception as error:  # noqa: BLE001 - the log is the only report a timer has
         log(str(error))
         return
-    root = orchestrator(sessions, boot_time_ms())
+    root = orchestrator(known, boot_time_ms())
     if root is None:
         log("no orchestrator session has been used since boot; waiting for one")
         return
@@ -175,9 +224,7 @@ def main():
         return
 
     working = [
-        session
-        for session in sessions
-        if session.get("parentID") == root["id"] and running(session)
+        session for session in known if session.get("parentID") == root["id"] and running(session)
     ]
     now = datetime.datetime.now(datetime.UTC)
     now_epoch = now.timestamp()
@@ -232,7 +279,7 @@ def main():
             if (
                 newest
                 and newest.get("status") == "completed"
-                and newest.get("conclusion") == "failure"
+                and newest.get("conclusion") in BAD_CONCLUSIONS
             ):
                 main_lines.append(
                     "The newest run on main finished red (%s, %s). Attribute it to its "
@@ -279,31 +326,40 @@ def main():
         print(message)
         log("dry run: " + " | ".join(lines))
         return
-    result = subprocess.run(
-        [OPENCODE, "run", "-s", root["id"], "--model", MODEL, "--auto", message],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        timeout=SEND_TIMEOUT,
-    )
-    if result.returncode == 0:
-        if floor_due:
-            previous = state.get("floor_count")
-            if previous is None or len(working) > previous:
-                state["floor_delay"] = COOLDOWN
-            else:
-                state["floor_delay"] = min(floor_delay * 2, MAX_COOLDOWN)
-            state["floor_count"] = len(working)
-            state["floor_at"] = now_epoch
-        if main_due:
-            state["main_at"] = now_epoch
-        state_file.write_text(json.dumps(state) + "\n")
-        log("sent: " + " | ".join(lines))
-    else:
-        log(
-            "send failed rc=%d: %s %s"
-            % (result.returncode, (result.stdout or "")[-300:], (result.stderr or "")[-300:])
+    failure = None
+    try:
+        result = subprocess.run(
+            [OPENCODE, "run", "-s", root["id"], "--model", MODEL, "--auto", message],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            timeout=SEND_TIMEOUT,
         )
+        if result.returncode != 0:
+            failure = "rc=%d: %s %s" % (
+                result.returncode,
+                (result.stdout or "")[-300:],
+                (result.stderr or "")[-300:],
+            )
+    except (subprocess.TimeoutExpired, OSError) as error:
+        failure = str(error)[:300]
+    # Record the attempt whether or not it landed. A rejected send must not retry every
+    # ten minutes, and a message that started a turn must not be sent twice after it.
+    if floor_due:
+        previous = state.get("floor_count")
+        if previous is None or len(working) > previous:
+            state["floor_delay"] = COOLDOWN
+        else:
+            state["floor_delay"] = min(floor_delay * 2, MAX_COOLDOWN)
+        state["floor_count"] = len(working)
+        state["floor_at"] = now_epoch
+    if main_due:
+        state["main_at"] = now_epoch
+    state_file.write_text(json.dumps(state) + "\n")
+    if failure:
+        log("send failed (%s): %s" % (failure, " | ".join(lines)))
+    else:
+        log("sent: " + " | ".join(lines))
 
 
 if __name__ == "__main__":
