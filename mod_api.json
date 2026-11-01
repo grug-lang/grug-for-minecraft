@@ -685,7 +685,7 @@
 					]
 				},
 				"level": {
-					"description": "Gets the Level (dimension) a BlockEntity is in.",
+					"description": "Gets the Level (dimension) a BlockEntity is in: the world the game simulates, the same one on every loader, and the one `Test.get_client_level` returns.",
 					"return_type": {
 						"name": "Level"
 					}
@@ -1213,7 +1213,7 @@
 					}
 				},
 				"get_client_level": {
-					"description": "Gets the current client level.",
+					"description": "Gets the level a test's edits and queries reach: the world the game simulates, the same one on every loader. On 1.20.6 that is the integrated server's level, not the client's mirror of it, which nothing ticks, so a block entity placed here ticks on its own. The name is historical. See #803.",
 					"return_type": {
 						"name": "Level"
 					}
@@ -2054,7 +2054,7 @@
 			}
 		},
 		"Level": {
-			"description": "A dimension or world.",
+			"description": "A dimension or world: always the one the game simulates, the same on every loader. On 1.20.6 that is the integrated server's level, never the client's mirror, which nothing ticks.",
 			"methods": {
 				"count_item_entities": {
 					"description": "The number of item entities within radius blocks of the specified coordinates.",
