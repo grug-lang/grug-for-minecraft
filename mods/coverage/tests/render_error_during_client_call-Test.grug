@@ -1,0 +1,55 @@
+# A render err that belongs to a block must not stop the call of a test that happens to be waiting on
+# the client when the block is drawn (#583, #836). Test.close_screen waits for the client thread with
+# the state lock released, which is the moment a chunk worker can enter grug and draw. The draw of a
+# fresh coverage_render block entity reports an err the first time (a refused draw_box), and the
+# engine folds an err that ends a nested call into the call it interrupted, so without a guard the
+# worker's err stopped this test's own call.
+# The test makes that moment likely instead of waiting for it: every other tick it replaces the whole
+# cube of coverage_render blocks with fresh ones (air in between, since a block entity only starts
+# again once the block was gone), so the client keeps getting chunk rebuilds with a first draw in them,
+# and every tick it asks the client thread for something thirty times, so a worker has many chances to
+# draw while a call waits. A rebuild from the runner's own clear of the previous test is not the only
+# way in, which is why runner_clear_a_leaves_render_blocks and runner_clear_b_hammers_client alone did
+# not close this. Nothing is asserted but that the calls come back.
+export tick(ctx: TestTickContext) {
+    # A frame is only drawn for a test that asks for one (#770), and a chunk rebuild is only started by
+    # a drawn frame, so ask every tick. The answer is not the point here.
+    Test.world_settled()
+
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # Odd ticks put fresh block entities in, even ticks take them out. The packets for a change reach
+    # the client after the tick that made it, so the rebuild lands in the next tick's calls.
+    block: string = "minecraft:air"
+    if Math.remainder(ctx.current_tick(), 2) == 0 {
+        block = "grug:coverage_render"
+    }
+    dx: number = 0
+    while dx < 3 {
+        dy: number = 0
+        while dy < 3 {
+            dz: number = 0
+            while dz < 3 {
+                level.place_block(x + dx, y + 1 + dy, z + 1 + dz, block)
+                dz = dz + 1
+            }
+            dy = dy + 1
+        }
+        dx = dx + 1
+    }
+
+    i: number = 0
+    while i < 30 {
+        Test.close_screen()
+        i = i + 1
+    }
+    ctx.assert(not Test.screen_open(), "Test.close_screen should leave no screen open.")
+
+    if ctx.current_tick() < 23 {
+        ctx.not_done()
+    }
+}
