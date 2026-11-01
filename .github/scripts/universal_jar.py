@@ -33,8 +33,10 @@ Each layer jar is the layerJar output of a loader, named grug-<loader>.jar. `che
 assembled jar and this checkout's loaders/ and mods/ directories, prints every broken invariant,
 and exits 1 if there is one. It is what CI runs on the jar every production launch then uses.
 `smoke-matrix` prints the games CI boots with the jar as their only mod, one per mechanism.
-`mod-zips` writes one zip per mod under mods/ and the index.json that names each zip's SHA-256 and size, which
-a release attaches beside the jar so the in-game mod manager can install a mod on its own (#511).
+`mod-zips` writes index.json, which names every mod under mods/ with its zip's SHA-256 and size, and
+the zip of each mod that is new or differs from the previous release's index; an unchanged mod's entry
+carries a url to the older release's asset instead (#523). A release attaches them beside the jar so
+the in-game mod manager can install a mod on its own (#511).
 """
 
 import argparse
@@ -42,6 +44,7 @@ import hashlib
 import io
 import json
 import re
+import subprocess
 import sys
 import zipfile
 from dataclasses import dataclass, field
@@ -1254,25 +1257,59 @@ def mod_zip(mod_dir):
     return buffer.getvalue()
 
 
-def unchanged_entry(previous, previous_tag, download_base, name, sha256):
+def unchanged_entry(previous, previous_tag, download_base, name, sha256, has_asset=None):
     """The previous index's entry for a mod whose zip has the same SHA-256, pointing at the asset
-    that already holds its bytes, or None when the mod is new or changed (#523). A mod that has
-    already moved to an older release keeps that release's url, so a chain of releases never
-    points at a release that did not attach the zip."""
-    old = previous.get("mods", {}).get(name)
+    that already holds its bytes, or None when the mod is new or changed, the entry is unusable, or
+    has_asset(url) says the asset is gone (#523). A mod that has already moved to an older release
+    keeps that release's url, so a chain of releases never points at a release that did not attach
+    the zip."""
+    mods = previous.get("mods") if isinstance(previous, dict) else None
+    old = mods.get(name) if isinstance(mods, dict) else None
     if not isinstance(old, dict) or old.get("sha256") != sha256:
         return None
-    entry = {"zip": old["zip"], "sha256": sha256, "size": old["size"]}
-    entry["url"] = old.get("url") or f"{download_base}/{previous_tag}/{old['zip']}"
-    return entry
+    zip_name, size, url = old.get("zip"), old.get("size"), old.get("url")
+    if not isinstance(zip_name, str) or not zip_name or not isinstance(size, int) or size < 1:
+        return None
+    if url is not None and not isinstance(url, str):
+        return None
+    url = url or f"{download_base}/{previous_tag}/{zip_name}"
+    if has_asset is not None and not has_asset(url):
+        return None
+    return {"zip": zip_name, "sha256": sha256, "size": size, "url": url}
 
 
-def write_mod_zips(mods_dir, commit, out, previous=None, previous_tag=None, download_base=None):
+def release_asset_lookup(download_base):
+    """A has_asset(url) that asks GitHub, through gh, whether the release a url names still holds
+    that asset; an answer it cannot get counts as gone, so the zip is attached afresh."""
+    match = re.fullmatch(r"https://github\.com/([^/]+/[^/]+)/releases/download", download_base)
+    listed = {}
+
+    def has_asset(url):
+        parts = url.removeprefix(download_base + "/").split("/")
+        if not match or len(parts) != 2:
+            return False
+        tag, asset = parts
+        if tag not in listed:
+            result = subprocess.run(
+                ["gh", "release", "view", tag, "--repo", match.group(1), "--json", "assets",
+                 "--jq", ".assets[].name"],
+                capture_output=True, text=True, check=False,
+            )  # fmt: skip
+            listed[tag] = set(result.stdout.split()) if result.returncode == 0 else set()
+        return asset in listed[tag]
+
+    return has_asset
+
+
+def write_mod_zips(
+    mods_dir, commit, out, previous=None, previous_tag=None, download_base=None, has_asset=None
+):
     """Writes index.json, which names every mod with its zip's SHA-256 and the commit they were made
     from, and <mod>.zip for every mod under mods_dir except the test fixtures. Given the previous
     release's index (and its tag and the releases' download base URL), a mod whose zip is
     byte-identical to the previous one is not written again: its entry carries a url that points at
-    the release that holds it (#523). Returns the index."""
+    the release that holds it, if has_asset(url) confirms the asset is still there (#523). Returns
+    the index."""
     mods_dir, out = Path(mods_dir), Path(out)
     names = sorted(
         p.name for p in mods_dir.iterdir() if p.is_dir() and p.name not in UNBUNDLED_MODS
@@ -1286,7 +1323,7 @@ def write_mod_zips(mods_dir, commit, out, previous=None, previous_tag=None, down
         digest = hashlib.sha256(data).hexdigest()
         entry = None
         if previous is not None:
-            entry = unchanged_entry(previous, previous_tag, download_base, name, digest)
+            entry = unchanged_entry(previous, previous_tag, download_base, name, digest, has_asset)
         if entry is None:
             (out / f"{name}.zip").write_bytes(data)
             entry = {"zip": f"{name}.zip", "sha256": digest, "size": len(data)}
@@ -1401,12 +1438,22 @@ def main(argv=None):
                     raise AssemblyError("--previous needs --previous-tag and --download-base")
                 try:
                     previous = json.loads(args.previous.read_text())
+                    if not isinstance(previous, dict) or not isinstance(previous.get("mods"), dict):
+                        raise ValueError('it holds no "mods" object')
                 except (OSError, ValueError) as error:
-                    raise AssemblyError(f"{args.previous} is not a readable index: {error}")
-                if not isinstance(previous, dict):
-                    raise AssemblyError(f"{args.previous} is not an index")
+                    print(
+                        f"==> {args.previous} is not a usable index ({error}), "
+                        "so every mod zip is attached"
+                    )
+                    previous = None
             index = write_mod_zips(
-                args.mods, args.commit, args.out, previous, args.previous_tag, args.download_base
+                args.mods,
+                args.commit,
+                args.out,
+                previous,
+                args.previous_tag,
+                args.download_base,
+                release_asset_lookup(args.download_base) if previous else None,
             )
         except AssemblyError as error:
             print(f"==> ERROR: {error}", file=sys.stderr)
