@@ -1,7 +1,6 @@
 # The room check a loader that implements Level's own block compare answers: a block that is not
 # the room's own, at a position the room owns, makes the build rebuild the room instead of leaving
-# it in place. Without this, a run only ever reaches the whole-room answer, which makes the other
-# side of the check (GrugTestBox.Room.isWhole) unreachable on that loader.
+# it in place, and this test asserts that rebuild itself.
 
 # The rebuild is forced inside this test rather than left to the next one: GrugTestOrder sorts by
 # recorded time and puts an unrecorded test last, so a test that waited for the following build
