@@ -1,4 +1,25 @@
 # TODO: Remove this placeholder comment once https://github.com/grug-lang/grug-tests/issues/149 is merged
+# BlockEngine.b, the random display tick: while a redstone signal reaches the engine, which is what
+# EngineWood.isBurning asks, it spawns four reddust particles, one just outside each of its four
+# sides. They are 0.52 from the centre along x or z, with one random offset of up to 0.3 along the
+# side, at one random height in the bottom 6/16 of the block. The reference draws the height first
+# and the offset second, from the generator the game hands the tick, so the port reads ctx.random()
+# in the same order.
+export display_tick(ctx: DisplayTickContext, world: Level, x: number, y: number, z: number) {
+    if not world.has_neighbor_signal(x, y, z) {
+        return
+    }
+
+    cx: number = x + 0.5
+    cy: number = y + ctx.random() * 6 / 16
+    cz: number = z + 0.5
+    offset: number = ctx.random() * 0.6 - 0.3
+    ctx.add_particle("reddust", cx - 0.52, cy, cz + offset, 0, 0, 0)
+    ctx.add_particle("reddust", cx + 0.52, cy, cz + offset, 0, 0, 0)
+    ctx.add_particle("reddust", cx + offset, cy, cz - 0.52, 0, 0, 0)
+    ctx.add_particle("reddust", cx + offset, cy, cz + 0.52, 0, 0, 0)
+}
+
 # The redstone engine draws its own geometry, because which trunk it draws depends on the energy its
 # block entity has built up, and it draws all of it per frame so that a plate's edge lands on the
 # pixel BuildCraft 2.2.14's RenderEngine puts it on: a tile entity renderer's vertices are float32
@@ -10,6 +31,7 @@ export init(ctx: BlockInitContext) {
     ctx.set_block_entity(e"redstone_engine_entity")
     ctx.set_frame_render()
     ctx.set_flat_lighting()
+    ctx.set_display_tick()
 }
 
 # BlockEngine.b: a right click with the wrench turns the engine to the next side with a power

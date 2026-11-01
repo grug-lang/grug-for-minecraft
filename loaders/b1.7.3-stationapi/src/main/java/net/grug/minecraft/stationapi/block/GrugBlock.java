@@ -6,6 +6,7 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockUse;
 import net.grug.minecraft.grug.GrugBox;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugEntityType;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -24,6 +25,7 @@ import net.modificationstation.stationapi.api.util.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class GrugBlock extends TemplateBlockWithEntity {
     public final Identifier identifier;
@@ -162,6 +164,18 @@ public class GrugBlock extends TemplateBlockWithEntity {
     @Override
     protected BlockEntity createBlockEntity() {
         return new GrugBlockEntity();
+    }
+
+    /**
+     * The game's random display tick, which the client calls for blocks it samples around the
+     * player. A block that declared a display tick is asked with the generator the game handed
+     * over, so the script draws from the same stream the reference's {@code randomDisplayTick}
+     * does.
+     */
+    @Override
+    public void randomDisplayTick(World world, int x, int y, int z, Random random) {
+        GrugDisplayTicks.run(this.blockFileId, world, x, y, z, random::nextFloat);
+        super.randomDisplayTick(world, x, y, z, random);
     }
 
     /**

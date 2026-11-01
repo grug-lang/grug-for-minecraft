@@ -3,6 +3,7 @@ Generated from mod_api.json by mod_api_catalog.py; do not edit. Descriptions are
 # Entities
 
 ## Block
+export display_tick(ctx: DisplayTickContext, world: Level, x: number, y: number, z: number)
 export init(ctx: BlockInitContext)
 export on_break(world: Level, x: number, y: number, z: number)
 export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number)
@@ -75,6 +76,7 @@ Test.clear_carried_item()
 Test.clear_held_item(player: Player)
 Test.click_screen(x: number, y: number, button: number) bool
 Test.close_screen()
+Test.display_tick(level: Level, x: number, y: number, z: number, seed: number) number
 Test.force_gc()
 Test.get_carried_item() Option[Item]
 Test.get_client_level() Level
@@ -96,6 +98,7 @@ Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.open_inventory(player: Player)
 Test.overlay_drawn() bool
 Test.overlay_supported() bool
+Test.particle_position(index: number) Vec3
 Test.press_screen_key(key: number, ctrl: bool, release: bool) bool
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
@@ -129,6 +132,7 @@ Test.world_settled() bool
 ## BlockInitContext
 .set_block_entity(entity_string: entity)
 .set_custom_render()
+.set_display_tick()
 .set_flat_lighting()
 .set_frame_render()
 .set_hardness(value: number)
@@ -145,6 +149,10 @@ Test.world_settled() bool
 
 ## Color
 Color.rgb(r: number, g: number, b: number) Color
+
+## DisplayTickContext
+.add_particle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number)
+.random() number
 
 ## Entity
 .get_delta_movement() Vec3

@@ -1,0 +1,23 @@
+# Fixture block for the display tick: every call spawns one particle of each kind the API names, at
+# the position the test gave it plus the next number of the game's generator, so a test can tell a
+# generator that was not consumed from one that was. While its block entity's "bad" is 1 it asks for
+# a particle that does not exist instead, which the game refuses with an error.
+export display_tick(ctx: DisplayTickContext, world: Level, x: number, y: number, z: number) {
+    be: BlockEntity = world.get_block_entity(x, y, z).unwrap()
+    if be.get_saved_number("bad") == 1 {
+        ctx.add_particle("heart", x, y, z, 0, 0, 0)
+        return
+    }
+
+    r: number = ctx.random()
+    ctx.add_particle("reddust", x + r, y + 1, z, 0, 0, 0)
+    ctx.add_particle("smoke", x + r, y + 1, z, 0, 0.1, 0)
+    ctx.add_particle("flame", x + r, y + 1, z, 0, 0.1, 0)
+}
+
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_block_entity(e"coverage_display_tick_entity")
+    ctx.set_display_tick()
+}

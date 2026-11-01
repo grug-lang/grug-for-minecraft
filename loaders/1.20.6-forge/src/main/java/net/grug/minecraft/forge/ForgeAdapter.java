@@ -1794,6 +1794,42 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void addParticle(
+            Object levelObj,
+            String name,
+            double x,
+            double y,
+            double z,
+            double vx,
+            double vy,
+            double vz) {
+        Level level = (Level) levelObj;
+        if (name.equals("reddust")) {
+            // The dust particle takes its colour from its options and ignores the motion, so the
+            // game's red is the one a port gets whatever velocity it passed.
+            level.addParticle(
+                    net.minecraft.core.particles.DustParticleOptions.REDSTONE, x, y, z, 0, 0, 0);
+        } else if (name.equals("smoke")) {
+            level.addParticle(
+                    net.minecraft.core.particles.ParticleTypes.SMOKE, x, y, z, vx, vy, vz);
+        } else {
+            level.addParticle(
+                    net.minecraft.core.particles.ParticleTypes.FLAME, x, y, z, vx, vy, vz);
+        }
+    }
+
+    @Override
+    @GrugGenerated("test helper: it asks a game's own block for its display tick")
+    public void displayTickForTest(Object levelObj, double x, double y, double z, long seed) {
+        Level level = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        BlockState state = level.getBlockState(pos);
+        state.getBlock().animateTick(state, level, pos, RandomSource.create(seed));
+    }
+
+    @Override
     @GrugGenerated("test helper: it asks the game's own block clip for the block's shape")
     public boolean blockRayTraceHits(
             Object levelObj,

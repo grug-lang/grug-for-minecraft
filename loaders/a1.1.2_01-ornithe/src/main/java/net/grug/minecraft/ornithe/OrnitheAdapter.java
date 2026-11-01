@@ -1786,6 +1786,39 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void addParticle(
+            Object levelObj,
+            String name,
+            double x,
+            double y,
+            double z,
+            double vx,
+            double vy,
+            double vz) {
+        // The three numbers after the position are the particle's colour for reddust, so they are
+        // zero to get the game's red, and its motion for the others.
+        World world = (World) levelObj;
+        if (name.equals("reddust")) {
+            world.addParticle(name, x, y, z, 0, 0, 0);
+        } else {
+            world.addParticle(name, x, y, z, vx, vy, vz);
+        }
+    }
+
+    @Override
+    @GrugGenerated("test helper: it asks a game's own block for its display tick")
+    public void displayTickForTest(Object levelObj, double x, double y, double z, long seed) {
+        World world = (World) levelObj;
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+        Block block = blockAt(world, blockX, blockY, blockZ);
+        if (block != null) {
+            block.randomDisplayTick(world, blockX, blockY, blockZ, new java.util.Random(seed));
+        }
+    }
+
+    @Override
     @GrugGenerated("test helper: it asks a game's own block for its ray trace")
     public boolean blockRayTraceHits(
             Object levelObj,

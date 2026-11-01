@@ -1,0 +1,11 @@
+# Reading a particle past the last one the last display tick spawned is an error, which is what
+# ctx.expect_error accepts here.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+
+    ctx.assert(Test.display_tick(level, origin.x(), origin.y() + 20, origin.z(), 1) == 0, "A tick on air should spawn nothing.")
+
+    ctx.expect_error("no particle number 0")
+    Test.particle_position(0)
+}

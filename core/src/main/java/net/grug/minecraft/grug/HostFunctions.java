@@ -101,6 +101,33 @@ public class HostFunctions {
         }
     }
 
+    public static double DisplayTickContext_random(long contextId) {
+        if (!requireDisplayTickContext("DisplayTickContext.random", contextId)) return 0;
+
+        return GrugDisplayTicks.context().random();
+    }
+
+    public static void DisplayTickContext_add_particle(
+            long contextId,
+            String name,
+            double x,
+            double y,
+            double z,
+            double vx,
+            double vy,
+            double vz) {
+        String method = "DisplayTickContext.add_particle";
+        if (!requireDisplayTickContext(method, contextId)) return;
+
+        String problem = GrugDisplayTicks.particleProblem(name, x, y, z, vx, vy, vz);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, method + ": " + problem);
+            return;
+        }
+
+        GrugDisplayTicks.context().spawn(name, x, y, z, vx, vy, vz);
+    }
+
     public static long Player_get_held_item(long playerId) {
         return withEntity(
                 "Player.get_held_item",
@@ -772,6 +799,33 @@ public class HostFunctions {
                         endX,
                         endY,
                         endZ);
+    }
+
+    public static double Test_display_tick(
+            long levelId, double x, double y, double z, double seed) {
+        GrugDisplayTicks.startRecording();
+        try {
+            GrugCore.getAdapter()
+                    .displayTickForTest(
+                            GrugEntities.entityData.get(levelId).object, x, y, z, (long) seed);
+        } finally {
+            GrugDisplayTicks.stopRecording();
+        }
+        return GrugDisplayTicks.recordedCount();
+    }
+
+    public static long Test_particle_position(double index) {
+        GrugDisplayTicks.Particle particle = GrugDisplayTicks.recorded((int) index);
+        if (particle == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.particle_position: There is no particle number "
+                            + (long) index
+                            + " in the last Test.display_tick().");
+            return GrugEntities.addEntity(GrugEntityType.Vec3, new Vec3(0, 0, 0));
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.Vec3, new Vec3(particle.x, particle.y, particle.z));
     }
 
     public static long Test_screenshot() {
@@ -2277,6 +2331,11 @@ public class HostFunctions {
         return requireContext(method, "init", contextId, GrugTestState.initContext());
     }
 
+    /** The same rule for the context a block's {@code display_tick()} was passed. */
+    private static boolean requireDisplayTickContext(String method, long contextId) {
+        return requireContext(method, "display_tick", contextId, GrugDisplayTicks.context());
+    }
+
     /** The same rule for the context a block's {@code shape()} was passed. */
     private static boolean requireShapeContext(String method, long contextId) {
         return requireContext(method, "shape", contextId, GrugShapes.context());
@@ -2893,6 +2952,14 @@ public class HostFunctions {
         if (block == null) return;
 
         block.material = materialName;
+    }
+
+    public static void BlockInitContext_set_display_tick(long contextId) {
+        GrugBlockData block =
+                requireBlockInitContext("BlockInitContext.set_display_tick", contextId);
+        if (block == null) return;
+
+        block.hasDisplayTick = true;
     }
 
     public static void BlockInitContext_set_shape(long contextId) {
