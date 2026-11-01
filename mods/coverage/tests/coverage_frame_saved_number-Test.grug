@@ -1,0 +1,71 @@
+# A number a script saves on a block entity reaches the frame pass that reads it. On a version whose
+# client keeps its own copy of the block entity (1.20.6) the frame pass runs on that copy, while a
+# test's set_saved_number writes the block entity the game simulates, so the number only arrives if
+# the loader sends it. The coverage_frame block draws one more stack once its "marker" number is
+# above 0, and the assertion is that the frame changed.
+# Two captures of one session are compared, rather than one against a reference image, so this holds
+# the same on every loader and needs no golden: a frame that never saw the number looks like the
+# frame before it and fails. The stack is a quarter block across and nothing else in the crop moves,
+# so the ask is 1 percent of the crop, where two captures of an unchanged frame differ in none.
+# Setting the number again to the value it holds changes nothing the client needs, so that is no
+# new send: the world stays settled over it, which on 1.20.6 a send would not allow.
+frame_block: Option[BlockEntity] = Option.new()
+before: Option[Screenshot] = Option.new()
+saved: bool = false
+
+# The runner tick the number was saved on.
+saved_tick: number = 0
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else if not saved {
+        before.set(Test.screenshot().capture(500, 180, 780, 340))
+        frame_block.unwrap().set_saved_number("marker", 1)
+        saved = true
+        saved_tick = ctx.current_tick()
+        ctx.not_done()
+    } else if not Test.world_settled() or ctx.current_tick() < saved_tick + 30 {
+        # The change is a frame's worth of drawing away, and the runner runs up to 10 ticks for a
+        # frame, so the hold is three frames' worth of ticks on top of the settle wait: on the
+        # loaders that share one world with the game, nothing marks the frame pass as owing a frame.
+        ctx.not_done()
+    } else {
+        after: Screenshot = Test.screenshot().capture(500, 180, 780, 340)
+        after.differs_from(before.unwrap(), 1)
+
+        frame_block.unwrap().set_saved_number("marker", 1)
+        ctx.assert(Test.world_settled(), "Saving the number it already holds should not unsettle the world.")
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    Test.set_box_radius(6)
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    # The same place coverage_frame's run sits, so the crop below is the one that test compares.
+    level.place_block(x, y - 1.88, z + 4, "grug:coverage_frame")
+
+    # A wall behind it, nine across and seven high, which covers the crop at its distance. Without
+    # one the crop could hold sky, and clouds drift between two captures.
+    wy: number = y - 6
+    while wy < y + 1 {
+        wx: number = x - 4
+        while wx < x + 5 {
+            level.place_block(wx, wy, z + 6, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+
+    be_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1.88, z + 4)
+    ctx.assert(be_opt.has(), "The frame-rendered block should have a block entity.")
+    frame_block.set(be_opt.unwrap())
+}

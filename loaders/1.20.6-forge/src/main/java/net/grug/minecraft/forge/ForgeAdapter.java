@@ -563,6 +563,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return ticks;
     }
 
+    /**
+     * The client has read the data of a block entity that draws only per frame, which meshes
+     * nothing, so the frames before this say nothing about it. Called on the client's thread from
+     * the block entity's packet handler. See redraw.
+     */
+    public static void noteClientDataArrived() {
+        RENDER_SETTLE.noteBusy();
+    }
+
     @Override
     public void redraw(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
