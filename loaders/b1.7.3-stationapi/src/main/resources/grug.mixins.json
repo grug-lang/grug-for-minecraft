@@ -10,6 +10,7 @@
   ],
   "server": [],
   "client": [
+    "BakedModelRendererImplMixin",
     "BlockItemMixin",
     "BlockRenderManagerMixin",
     "ItemRendererMixin",
