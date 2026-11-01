@@ -277,61 +277,176 @@ def move_counter(element: ET.Element, kind: str, gained: int) -> bool:
     return False
 
 
-def move_initializer_lines(
-    cls: ET.Element,
-    method: ET.Element,
-    gained: dict[str, int],
-    package: ET.Element,
-    everything_package: ET.Element,
-) -> None:
-    """Move a rescued <clinit>'s <line> entries to what the everything report shows them as.
+CLASS_FILE_MAGIC = 0xCAFEBABE
 
-    The method's first line and the number of lines it gained name the lines it is expected to
-    span, and only a line the counted report has fully missed and the everything report has
-    covered is moved, so coverage another method left on one of those lines is never counted.
+
+class ClassFileReader:
+    """An in-order reader of a class file's bytes, for the parts the report needs."""
+
+    def __init__(self, data: bytes):
+        self.data = data
+        self.pos = 0
+
+    def u1(self) -> int:
+        value = self.data[self.pos]
+        self.pos += 1
+        return value
+
+    def u2(self) -> int:
+        if self.pos + 2 > len(self.data):
+            raise IndexError("truncated class file")
+        value = int.from_bytes(self.data[self.pos : self.pos + 2], "big")
+        self.pos += 2
+        return value
+
+    def u4(self) -> int:
+        if self.pos + 4 > len(self.data):
+            raise IndexError("truncated class file")
+        value = int.from_bytes(self.data[self.pos : self.pos + 4], "big")
+        self.pos += 4
+        return value
+
+    def skip(self, count: int) -> None:
+        self.pos += count
+
+    def read(self, count: int) -> bytes:
+        if self.pos + count > len(self.data):
+            raise IndexError("truncated class file")
+        value = self.data[self.pos : self.pos + count]
+        self.pos += count
+        return value
+
+
+def skip_attributes(reader: ClassFileReader) -> None:
+    """Skip a member's or class's attribute table."""
+    for _ in range(reader.u2()):
+        reader.skip(2)
+        reader.skip(reader.u4())
+
+
+def line_numbers(reader: ClassFileReader, utf8: dict[int, str]) -> list[int]:
+    """The lines of a Code attribute's LineNumberTable, read from inside the attribute."""
+    reader.skip(4)  # max_stack, max_locals
+    reader.skip(reader.u4())  # code_length
+    reader.skip(8 * reader.u2())  # exception_table
+    lines = []
+    for _ in range(reader.u2()):
+        attribute = utf8.get(reader.u2(), "")
+        length = reader.u4()
+        end = reader.pos + length
+        if attribute == "LineNumberTable":
+            for _ in range(reader.u2()):
+                reader.skip(2)  # start_pc
+                lines.append(reader.u2())
+        reader.pos = end
+    return lines
+
+
+def class_method_lines(class_file: Path) -> dict[str, set[int]] | None:
+    """The source lines each method of a class file has code on, or None when unreadable.
+
+    This is the class file's own LineNumberTable, which is where JaCoCo's report takes its line
+    numbers from. An initializer's lines are not always adjacent: a static field declared below a
+    method puts its initializer in the same <clinit> on the field's own line, so guessing a
+    contiguous span from the method's first line misses lines and can claim another's (#902).
     """
-    line_count = gained.get("LINE", 0)
+    try:
+        reader = ClassFileReader(class_file.read_bytes())
+        if reader.u4() != CLASS_FILE_MAGIC:
+            return None
+        reader.skip(4)  # minor, major
+        utf8: dict[int, str] = {}
+        count = reader.u2()
+        index = 1
+        while index < count:
+            tag = reader.u1()
+            if tag == 1:
+                utf8[index] = reader.read(reader.u2()).decode("utf-8", "replace")
+            elif tag in (3, 4, 9, 10, 11, 12, 17, 18):
+                reader.skip(4)
+            elif tag in (5, 6):
+                reader.skip(8)
+                index += 1  # a long or a double takes two constant pool slots
+            elif tag in (7, 8, 16, 19, 20):
+                reader.skip(2)
+            elif tag == 15:
+                reader.skip(3)
+            else:
+                return None
+            index += 1
+        reader.skip(6)  # access_flags, this_class, super_class
+        reader.skip(2 * reader.u2())  # interfaces
+        for _ in range(reader.u2()):  # fields
+            reader.skip(6)
+            skip_attributes(reader)
+        methods: dict[str, set[int]] = {}
+        for _ in range(reader.u2()):
+            reader.skip(2)  # access_flags
+            name = utf8.get(reader.u2(), "")
+            reader.skip(2)  # descriptor
+            lines: set[int] = set()
+            for _ in range(reader.u2()):
+                attribute = utf8.get(reader.u2(), "")
+                length = reader.u4()
+                end = reader.pos + length
+                if attribute == "Code":
+                    lines.update(line_numbers(reader, utf8))
+                reader.pos = end
+            methods.setdefault(name, set()).update(lines)
+        return methods
+    except (OSError, IndexError):
+        return None
+
+
+def initializer_source_lines(
+    cls: ET.Element, package: ET.Element, classes: Path
+) -> tuple[set[int] | None, str]:
+    """The lines the class's <clinit> alone has code on, or why the report cannot say.
+
+    A line the initializer shares with another method of this class, or with another class of the
+    same source file, is not its own: moving it would count that method's coverage too, so the
+    caller leaves the class's XML record untouched instead.
+    """
+    class_lines = class_method_lines(classes / (cls.get("name", "") + ".class"))
+    if class_lines is None:
+        return None, "its class file could not be read"
+    lines = class_lines.get("<clinit>")
+    if not lines:
+        return None, "its class file has no line table for its initializer"
+    others = set().union(*(value for name, value in class_lines.items() if name != "<clinit>"))
+    shared = lines & others
+    if shared:
+        return None, (
+            "line(s) " + ", ".join(map(str, sorted(shared))) + " also hold another method's code"
+        )
     source_name = cls.get("sourcefilename")
-    if not line_count or not source_name or not method.get("line"):
-        return
-    counted_source = next(
-        (source for source in package.findall("sourcefile") if source.get("name") == source_name),
-        None,
-    )
-    everything_source = next(
-        (
-            source
-            for source in everything_package.findall("sourcefile")
-            if source.get("name") == source_name
-        ),
-        None,
-    )
-    if counted_source is None or everything_source is None:
-        return
-    counted_lines = {line.get("nr"): line for line in counted_source.findall("line")}
-    everything_lines = {line.get("nr"): line for line in everything_source.findall("line")}
-    start = int(method.get("line"))
-    for number in range(start, start + line_count):
-        counted_line = counted_lines.get(str(number))
-        everything_line = everything_lines.get(str(number))
-        if counted_line is None or everything_line is None:
+    for other in package.findall("class"):
+        if other.get("name") == cls.get("name"):
             continue
-        if int(counted_line.get("ci", "0")) or not int(everything_line.get("ci", "0")):
+        if other.get("sourcefilename") != source_name:
             continue
-        for attribute in ("mi", "ci", "mb", "cb"):
-            counted_line.set(attribute, everything_line.get(attribute, "0"))
+        other_lines = class_method_lines(classes / (other.get("name", "") + ".class"))
+        if other_lines is None:
+            return None, f"the class file of {other.get('name')} could not be read"
+        if lines & set().union(*other_lines.values()):
+            return None, f"another class of {source_name} has code on the same line(s)"
+    return lines, ""
 
 
 def correct_xml(
     counted_xml: Path,
     everything_xml: Path,
     rescued: dict[tuple[str, str], dict[str, int]],
+    classes: Path,
 ) -> None:
     """Move the rescued counters in the counted XML too, so the uploaded report agrees with the CSV.
 
     The <clinit> method's counters and lines move, and every ancestor's counters move by the same
     amounts, so the report stays internally consistent: a run whose initializer only another mod's
-    test ran no longer uploads a report that says it was missed (#897).
+    test ran no longer uploads a report that says it was missed (#897). The lines are the ones the
+    class file's LineNumberTable gives the initializer, never a guessed span; where they cannot be
+    shown to be the initializer's alone, the class's XML is left as it was and the CSV remains the
+    gate's record, rather than claiming a line another method's code is on (#902 review).
     """
     tree = ET.parse(counted_xml)
     root = tree.getroot()
@@ -363,6 +478,51 @@ def correct_xml(
             )
             if everything_cls is None or method is None:
                 continue
+            lines, why = initializer_source_lines(cls, package, classes)
+            source_name = cls.get("sourcefilename")
+            counted_source = next(
+                (
+                    source
+                    for source in package.findall("sourcefile")
+                    if source.get("name") == source_name
+                ),
+                None,
+            )
+            everything_source = next(
+                (
+                    source
+                    for source in everything_package.findall("sourcefile")
+                    if source.get("name") == source_name
+                ),
+                None,
+            )
+            if counted_source is None or everything_source is None:
+                lines, why = None, "its source file is missing from a report"
+            counted_lines: dict[str, ET.Element] = {}
+            everything_lines: dict[str, ET.Element] = {}
+            if lines is not None:
+                counted_lines = {
+                    line.get("nr", ""): line for line in counted_source.findall("line")
+                }
+                everything_lines = {
+                    line.get("nr", ""): line for line in everything_source.findall("line")
+                }
+                missing = sorted(
+                    number
+                    for number in lines
+                    if str(number) not in counted_lines or str(number) not in everything_lines
+                )
+                if missing:
+                    lines, why = (
+                        None,
+                        ("line(s) " + ", ".join(map(str, missing)) + " missing from a report"),
+                    )
+            if lines is None:
+                print(
+                    f"left the XML record of {key[0]}.{key[1]} untouched: {why}, so the CSV"
+                    f" counts its initializer and the per-line report does not"
+                )
+                continue
             applied = {
                 kind: amount
                 for kind, amount in gained.items()
@@ -387,7 +547,6 @@ def correct_xml(
                         counter.set("covered", "1")
                         applied["CLASS"] = 1
                     break
-            source_name = cls.get("sourcefilename")
             source = next(
                 (
                     source
@@ -402,7 +561,11 @@ def correct_xml(
             for kind, amount in applied.items():
                 package_gained[kind] = package_gained.get(kind, 0) + amount
                 report_gained[kind] = report_gained.get(kind, 0) + amount
-            move_initializer_lines(cls, method, gained, package, everything_package)
+            for number in lines:
+                counted_line = counted_lines[str(number)]
+                everything_line = everything_lines[str(number)]
+                for attribute in ("mi", "ci", "mb", "cb"):
+                    counted_line.set(attribute, everything_line.get(attribute, "0"))
         for kind, amount in package_gained.items():
             move_counter(package, kind, amount)
     for kind, amount in report_gained.items():
@@ -410,7 +573,9 @@ def correct_xml(
     tree.write(counted_xml, encoding="utf-8", xml_declaration=True)
 
 
-def rescue_class_initializers(csv_path: Path, counted_xml: Path, everything_xml: Path) -> None:
+def rescue_class_initializers(
+    csv_path: Path, counted_xml: Path, everything_xml: Path, classes: Path
+) -> None:
     """Count a class initializer that ran in a dropped segment as covered, in csv_path and the XML.
 
     csv_path and counted_xml are the report of the segments the gate counts, and everything_xml the
@@ -418,7 +583,9 @@ def rescue_class_initializers(csv_path: Path, counted_xml: Path, everything_xml:
     first missed ran only in another mod's segment, which is where a class's initializer runs when
     another mod's test is the first to use the class, and no test of mods/coverage/ can make it run
     again. Only the <clinit> of a class is moved; whatever else such a segment reached stays
-    uncounted. The XML moves with the CSV, because it is the per-line report a failure is read from.
+    uncounted. The XML moves with the CSV, because it is the per-line report a failure is read
+    from, and classes is the class file tree the report analyzed, whose line tables say which
+    lines the initializer owns.
     """
     counted = class_initializer_counters(counted_xml)
     everything = class_initializer_counters(everything_xml)
@@ -450,7 +617,7 @@ def rescue_class_initializers(csv_path: Path, counted_xml: Path, everything_xml:
         writer.writeheader()
         writer.writerows(rows)
     if rescued:
-        correct_xml(counted_xml, everything_xml, rescued)
+        correct_xml(counted_xml, everything_xml, rescued, classes)
 
 
 def sum_csvs(csv_paths: list[Path], out_path: Path) -> None:
@@ -632,7 +799,9 @@ def main() -> int:
                 everything_xml.with_suffix(".csv"),
                 everything_xml,
             )
-            rescue_class_initializers(csv_path, args.output / f"{runner}.xml", everything_xml)
+            rescue_class_initializers(
+                csv_path, args.output / f"{runner}.xml", everything_xml, classes
+            )
         csv_paths.append(csv_path)
         print(f"reported {runner} from {len(execs)} exec files and {len(dropped)} dropped ones")
 

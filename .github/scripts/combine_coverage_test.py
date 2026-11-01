@@ -9,6 +9,7 @@ import contextlib
 import csv
 import importlib.util
 import io
+import struct
 import sys
 import tempfile
 import unittest
@@ -92,20 +93,167 @@ def report_xml(clinits):
     )
 
 
+def class_file(clinit_lines, method_lines=()):
+    """A minimal class file whose initializer and run() methods have these line tables.
+
+    method_lines holds one line list per run() method. The file carries a constant pool with the
+    class, field-reference and attribute-name entries a real one has, one field, and a Code
+    attribute with a LineNumberTable per method, which is the structure the report's reader walks.
+    """
+    pool = []
+
+    def utf8(value):
+        pool.append(struct.pack(">BH", 1, len(value)) + value.encode())
+        return len(pool)
+
+    def class_entry(name_index):
+        pool.append(struct.pack(">BH", 7, name_index))
+        return len(pool)
+
+    def name_and_type(name_index, desc_index):
+        pool.append(struct.pack(">BHH", 12, name_index, desc_index))
+        return len(pool)
+
+    def field_ref(class_index, nat_index):
+        pool.append(struct.pack(">BHH", 9, class_index, nat_index))
+        return len(pool)
+
+    this_name = utf8("net/grug/Outer")
+    this_class = class_entry(this_name)
+    super_name = utf8("java/lang/Object")
+    super_class = class_entry(super_name)
+    clinit_name = utf8("<clinit>")
+    descriptor = utf8("()V")
+    code_name = utf8("Code")
+    table_name = utf8("LineNumberTable")
+    run_name = utf8("run")
+    field_name = utf8("VALUE")
+    field_desc = utf8("I")
+    field_ref(this_class, name_and_type(field_name, field_desc))
+
+    def method(name_index, lines):
+        pairs = b"".join(struct.pack(">HH", i, line) for i, line in enumerate(lines))
+        table = struct.pack(">H", len(lines)) + pairs
+        attribute = struct.pack(">HI", table_name, len(table)) + table
+        body = (
+            struct.pack(">HHI", 0, 0, 0)  # max_stack, max_locals, code_length
+            + struct.pack(">H", 0)  # exception_table_length
+            + struct.pack(">H", 1)  # attributes_count
+            + attribute
+        )
+        return (
+            struct.pack(">HHHH", 0x0008, name_index, descriptor, 1)
+            + struct.pack(">HI", code_name, len(body))
+            + body
+        )
+
+    data = struct.pack(">IHHH", 0xCAFEBABE, 0, 52, len(pool) + 1) + b"".join(pool)
+    data += struct.pack(">HHH", 0x0021, this_class, super_class)
+    data += struct.pack(">H", 0)  # interfaces
+    data += struct.pack(">H", 1)  # fields
+    data += struct.pack(">HHHH", 0x0008, field_name, field_desc, 0)
+    data += struct.pack(">H", 1 + len(method_lines))  # methods
+    data += method(clinit_name, clinit_lines)
+    for lines in method_lines:
+        data += method(run_name, lines)
+    data += struct.pack(">H", 0)  # class attributes
+    return data
+
+
+def shaped_fixture(clinit_lines, clinit_ran, methods):
+    """A one-class (report XML, CSV row) pair shaped like JaCoCo's own report.
+
+    The <clinit> has one instruction per line and runs iff clinit_ran. Each other method is
+    (name, line, instructions, ran) with one line. Every counter is a sum of its parts, so the
+    class, sourcefile, package and report totals stay consistent, as JaCoCo writes them.
+    """
+    method_xmls = []
+    line_totals = {}
+    method_counters = []
+
+    def add_method(name, start, lines, ran):
+        total = sum(count for _, count in lines)
+        missed = 0 if ran else total
+        counters = {
+            "INSTRUCTION": (missed, total - missed),
+            "LINE": (0 if ran else len(lines), len(lines) if ran else 0),
+            "COMPLEXITY": (0 if ran else 1, 1 if ran else 0),
+            "METHOD": (0 if ran else 1, 1 if ran else 0),
+        }
+        shown = "&lt;clinit&gt;" if name == "<clinit>" else name
+        method_xmls.append(
+            f'<method name="{shown}" desc="()V" line="{start}">'
+            f"{counter_elements(counters)}</method>"
+        )
+        for number, count in lines:
+            line = line_totals.setdefault(number, [0, 0])
+            line[0] += 0 if ran else count
+            line[1] += count if ran else 0
+        method_counters.append(counters)
+
+    add_method("<clinit>", min(clinit_lines), [(n, 1) for n in clinit_lines], clinit_ran)
+    for name, line, instructions, ran in methods:
+        add_method(name, line, [(line, instructions)], ran)
+    totals = {
+        kind: (
+            sum(counters[kind][0] for counters in method_counters),
+            sum(counters[kind][1] for counters in method_counters),
+        )
+        for kind in ("INSTRUCTION", "LINE", "COMPLEXITY", "METHOD")
+    }
+    totals["CLASS"] = (
+        (0, 1) if any(counters["INSTRUCTION"][1] for counters in method_counters) else (1, 0)
+    )
+    shown_totals = counter_elements(totals)
+    # A sourcefile carries every counter but CLASS, which is a class-level measure.
+    source_totals = counter_elements(
+        {kind: value for kind, value in totals.items() if kind != "CLASS"}
+    )
+    line_xmls = "".join(
+        f'<line nr="{number}" mi="{line[0]}" ci="{line[1]}" mb="0" cb="0"/>'
+        for number, line in sorted(line_totals.items())
+    )
+    report = (
+        f'<report name="r"><package name="net/grug">'
+        f'<class name="net/grug/Outer" sourcefilename="Outer.java">'
+        f"{''.join(method_xmls)}{shown_totals}</class>"
+        f'<sourcefile name="Outer.java">{line_xmls}{source_totals}</sourcefile>'
+        f"{shown_totals}</package>{shown_totals}</report>"
+    )
+    row = (
+        f"core,net.grug,Outer,{totals['INSTRUCTION'][0]},{totals['INSTRUCTION'][1]},0,0,"
+        f"{totals['LINE'][0]},{totals['LINE'][1]},{totals['COMPLEXITY'][0]},"
+        f"{totals['COMPLEXITY'][1]},{totals['METHOD'][0]},{totals['METHOD'][1]}\n"
+    )
+    return report, row
+
+
 class RescueClassInitializersTest(unittest.TestCase):
-    def rescue(self, counted, everything, rows):
+    def rescue_files(self, counted_xml, everything_xml, rows, class_files):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
-            (tmp / "counted.xml").write_text(report_xml(counted))
-            (tmp / "everything.xml").write_text(report_xml(everything))
+            classes = tmp / "classes"
+            for name, data in class_files.items():
+                path = classes / f"{name}.class"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            (tmp / "counted.xml").write_text(counted_xml)
+            (tmp / "everything.xml").write_text(everything_xml)
             (tmp / "report.csv").write_text(HEADER + rows)
             combine.rescue_class_initializers(
-                tmp / "report.csv", tmp / "counted.xml", tmp / "everything.xml"
+                tmp / "report.csv", tmp / "counted.xml", tmp / "everything.xml", classes
             )
             return (
                 (tmp / "report.csv").read_text().replace("\r\n", "\n"),
                 ET.parse(tmp / "counted.xml").getroot(),
             )
+
+    def rescue(self, counted, everything, rows):
+        seen = {name for name, _, _ in counted} | {name for name, _, _ in everything}
+        class_files = {
+            f"net/grug/Outer{name}": class_file([1], method_lines=[[2]]) for name in seen
+        }
+        return self.rescue_files(report_xml(counted), report_xml(everything), rows, class_files)
 
     def test_counts_an_initializer_only_a_dropped_segment_ran(self):
         out, xml = self.rescue(
@@ -150,6 +298,138 @@ class RescueClassInitializersTest(unittest.TestCase):
         self.assertEqual(totals["INSTRUCTION"], ("4", "9"))
         self.assertEqual(totals["LINE"], ("1", "1"))
         self.assertEqual(totals["CLASS"], ("0", "1"))
+
+    def test_a_spanning_initializer_moves_every_line_it_owns(self):
+        # A static field declared below a method puts its initializer into the same <clinit> on the
+        # field's own line, so the initializer's lines 4 and 12 are not adjacent. Guessing the span
+        # [4, 4 + lines) moved line 4 and left 12 missed, contradicting the method's LINE counter.
+        lines = [4, 12]
+        counted_xml, counted_row = shaped_fixture(lines, False, [])
+        everything_xml, _ = shaped_fixture(lines, True, [])
+        out, xml = self.rescue_files(
+            counted_xml, everything_xml, counted_row, {"net/grug/Outer": class_file(lines)}
+        )
+        self.assertEqual(out, HEADER + "core,net.grug,Outer,0,2,0,0,0,2,0,1,0,1\n")
+        covered = {
+            line.get("nr"): (line.get("mi"), line.get("ci"))
+            for line in xml.findall("package/sourcefile/line")
+        }
+        self.assertEqual(covered, {"4": ("0", "1"), "12": ("0", "1")})
+        initializer = xml.find("package/class/method")
+        self.assertEqual(
+            dict(
+                (counter.get("type"), (counter.get("missed"), counter.get("covered")))
+                for counter in initializer.findall("counter")
+            )["LINE"],
+            ("0", "2"),
+        )
+
+    def test_an_initializer_span_does_not_claim_a_method_line_inside_it(self):
+        # run() is on line 5, between the initializer's lines 4 and 7, and ran only in the
+        # everything report. Guessing the span [4, 4 + 2) moved line 5 too, claiming run()'s code
+        # as counted when only another mod's segment ran it.
+        lines = [4, 7]
+        counted_xml, counted_row = shaped_fixture(lines, False, [("run", 5, 4, False)])
+        everything_xml, _ = shaped_fixture(lines, True, [("run", 5, 4, True)])
+        out, xml = self.rescue_files(
+            counted_xml,
+            everything_xml,
+            counted_row,
+            {"net/grug/Outer": class_file(lines, method_lines=[[5]])},
+        )
+        self.assertEqual(out, HEADER + "core,net.grug,Outer,4,2,0,0,1,2,1,1,1,1\n")
+        covered = {
+            line.get("nr"): (line.get("mi"), line.get("ci"))
+            for line in xml.findall("package/sourcefile/line")
+        }
+        self.assertEqual(covered["4"], ("0", "1"))
+        self.assertEqual(covered["7"], ("0", "1"))
+        self.assertEqual(
+            covered["5"], ("4", "0"), "run()'s line stays as the counted report had it"
+        )
+        methods = {
+            method.get("name"): {
+                counter.get("type"): (counter.get("missed"), counter.get("covered"))
+                for counter in method.findall("counter")
+            }
+            for method in xml.findall("package/class/method")
+        }
+        self.assertEqual(methods["run"]["INSTRUCTION"], ("4", "0"))
+        self.assertEqual(methods["run"]["LINE"], ("1", "0"))
+
+    def test_a_line_another_method_shares_leaves_the_xml_alone(self):
+        # ExtractResponse$Kind's real shape: the enum's initializer and its generated values(),
+        # valueOf() and $values() all have code on the declaration's line. Moving that line would
+        # count those methods too while their counters stay missed, so the XML is left as the
+        # counted report wrote it; the CSV, the gate, still counts the initializer.
+        lines = [4, 7]
+        counted_xml, counted_row = shaped_fixture(lines, False, [("run", 7, 4, False)])
+        everything_xml, _ = shaped_fixture(lines, True, [("run", 7, 4, True)])
+        with contextlib.redirect_stdout(io.StringIO()) as log:
+            out, xml = self.rescue_files(
+                counted_xml,
+                everything_xml,
+                counted_row,
+                {"net/grug/Outer": class_file(lines, method_lines=[[7]])},
+            )
+        self.assertIn("also hold another method's code", log.getvalue())
+        self.assertEqual(out, HEADER + "core,net.grug,Outer,4,2,0,0,1,2,1,1,1,1\n")
+        covered = {
+            line.get("nr"): (line.get("mi"), line.get("ci"))
+            for line in xml.findall("package/sourcefile/line")
+        }
+        self.assertEqual(covered["4"], ("1", "0"))
+        self.assertEqual(covered["7"], ("5", "0"))
+        initializer = xml.find("package/class/method")
+        self.assertEqual(
+            dict(
+                (counter.get("type"), (counter.get("missed"), counter.get("covered")))
+                for counter in initializer.findall("counter")
+            )["INSTRUCTION"],
+            ("2", "0"),
+        )
+
+    def test_grug_entities_shaped_initializer_moves_every_line_it_owns(self):
+        # GrugEntities' real <clinit> line table: fields at 19, 20, 22, a static block at 32, 34,
+        # 36, 39, 40, and the field declared at 170. run() is on 24, inside the span a contiguous
+        # guess would take from line 19, and ran only in the everything report.
+        lines = [19, 20, 22, 32, 34, 36, 39, 40, 170]
+        counted_xml, counted_row = shaped_fixture(lines, False, [("run", 24, 4, False)])
+        everything_xml, _ = shaped_fixture(lines, True, [("run", 24, 4, True)])
+        out, xml = self.rescue_files(
+            counted_xml,
+            everything_xml,
+            counted_row,
+            {"net/grug/Outer": class_file(lines, method_lines=[[24]])},
+        )
+        self.assertEqual(out, HEADER + "core,net.grug,Outer,4,9,0,0,1,9,1,1,1,1\n")
+        covered = {
+            line.get("nr"): (line.get("mi"), line.get("ci"))
+            for line in xml.findall("package/sourcefile/line")
+        }
+        for number in lines:
+            self.assertEqual(covered[str(number)], ("0", "1"), number)
+        self.assertEqual(covered["24"], ("4", "0"))
+
+    def test_a_class_without_a_class_file_leaves_its_xml_alone(self):
+        # Without the line table there is no safe way to know which lines the initializer owns, so
+        # the CSV still counts it (the gate) and the XML stays as it was, consistent with itself.
+        lines = [4, 12]
+        counted_xml, counted_row = shaped_fixture(lines, False, [])
+        everything_xml, _ = shaped_fixture(lines, True, [])
+        with contextlib.redirect_stdout(io.StringIO()) as log:
+            out, xml = self.rescue_files(counted_xml, everything_xml, counted_row, {})
+        self.assertIn("left the XML record of net.grug.Outer untouched", log.getvalue())
+        self.assertIn("class file could not be read", log.getvalue())
+        self.assertEqual(out, HEADER + "core,net.grug,Outer,0,2,0,0,0,2,0,1,0,1\n")
+        initializer = xml.find("package/class/method")
+        self.assertEqual(
+            dict(
+                (counter.get("type"), (counter.get("missed"), counter.get("covered")))
+                for counter in initializer.findall("counter")
+            )["INSTRUCTION"],
+            ("2", "0"),
+        )
 
     def test_leaves_an_initializer_nothing_ran(self):
         rows = "core,net.grug,Outer.Kind,13,0,2,0,2,0,2,0,2,0\n"
@@ -212,7 +492,8 @@ class CarryOverTest(unittest.TestCase):
         self.report_calls.append((tuple(execs), csv_path))
         if self.initializer_rescue and csv_path.name == "core.csv":
             # The initializer ran in the other mod's segment, which the carried replay holds, and
-            # nowhere else: the same shape a real run's dropped data gives the rescue.
+            # nowhere else: the same shape a real run's dropped data gives the rescue. The class
+            # file's line table is what tells the rescue which lines the initializer owns.
             covered = self.replay_exec is not None and self.replay_exec in execs
             row = (
                 "core,net.grug,Outer.Kind,0,9,0,0,0,1,0,1,0,1"
@@ -221,6 +502,9 @@ class CarryOverTest(unittest.TestCase):
             )
             csv_path.write_text(HEADER + row + "\n")
             xml_path.write_text(report_xml([("$Kind", 0 if covered else 9, 0)]))
+            class_path = classes / "net/grug/Outer$Kind.class"
+            class_path.parent.mkdir(parents=True, exist_ok=True)
+            class_path.write_bytes(class_file([1], method_lines=[[2]]))
             return
         if csv_path.name == "1.20.6-forge.csv":
             # A loader's own class that the carried-over test alone covers: the loader's report
