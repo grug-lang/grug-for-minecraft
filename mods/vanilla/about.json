@@ -1,0 +1,74 @@
+{
+	"name": "vanilla",
+	"version": "1.0.0",
+	"game_version": "1.20.6",
+	"authors": [
+		"MyNameIsTrez"
+	],
+	"repository": {
+		"url": "https://github.com/grug-lang/grug-for-minecraft"
+	},
+	"licenses": [
+		{
+			"name": "BSD Zero Clause License",
+			"url": "https://spdx.org/licenses/0BSD.html"
+		},
+		{
+			"name": "Minecraft End User License Agreement",
+			"url": "https://www.minecraft.net/en-us/eula",
+			"note": "The mod ships copies of the reference's item textures, the way every port here ships its reference's assets, and recreates content Mojang owns. A notice from Mojang or Microsoft about them goes to the maintainer."
+		}
+	],
+	"derived_from": [
+		{
+			"name": "minecraft",
+			"repository": {
+				"url": "https://www.minecraft.net/"
+			},
+			"licenses": [
+				{
+					"name": "Minecraft End User License Agreement",
+					"url": "https://www.minecraft.net/en-us/eula",
+					"note": "The reference is Minecraft 1.20.6 itself, the game the loader runs, so there is no build to install and nothing to download beyond the game."
+				}
+			],
+			"sources": [
+				"https://minecraft.wiki/w/Elytra",
+				"https://minecraft.wiki/w/Firework_Rocket"
+			],
+			"runtime": {
+				"minecraft": "1.20.6",
+				"loader": "1.20.6-forge",
+				"loader_version": "50.1.0",
+				"java": "21"
+			},
+			"deviations": [
+				{
+					"what": "grug:elytra is craftable from diamonds and feathers on every game version, where minecraft:elytra on 1.20.6 comes only from the loot of an End ship. A survival player on the reference version therefore has a source the reference does not have, and every version below 1.0, which has no End cities, has one at all.",
+					"why": "No version under loaders/ has End cities yet, so a port that reproduced the elytra's loot only would have no source for it anywhere, and Alpha and Beta, which predate The End entirely, would never be able to obtain it. The recipe is a deliberate departure asked for by #481 and is deliberately registered on every version rather than gated on one that has The End: once End cities are ported it gains a grug:minecraft_before 1.0 condition, or is removed once every version has a natural source.",
+					"tracking_issue": 481
+				},
+				{
+					"what": "grug:firework_rocket is crafted from paper, gunpowder and a feather for three rockets, where the reference's own recipe takes paper and gunpowder alone.",
+					"why": "On 1.20.6 the reference's paper-and-gunpowder recipe is still registered, so a grid holding one paper and one gunpowder matches both it and the port's recipe and the game answers whichever it reaches first. A feather is an ingredient the reference's own FireworkRocketRecipe rejects and every version under loaders/ has, so the port's recipe is the only match everywhere. The feather goes, and the recipe becomes the reference's own, once a recipe can be gated to the versions that predate the reference's, which needs the grug:condition the elytra deviation also waits for.",
+					"tracking_issue": 481
+				},
+				{
+					"what": "The elytra cannot be equipped and a player cannot glide, so grug:elytra is an item that can be held and crafted and does nothing else. It has no durability use either, which needs the same equipment slot.",
+					"why": "mod_api.json has no entry for a player's equipment slots, for an item stack's damage, or for a player's velocity and look angle, and no Item export runs on a tick or on a right click. The reference equips the elytra in the chest slot from ElytraItem.use, spends its durability from elytraFlightTick, and gets its glide physics from LivingEntity.travel's isFallFlying branch.",
+					"tracking_issue": 915
+				},
+				{
+					"what": "grug:firework_rocket is an item with no behaviour: it cannot be launched and gives no boost to a gliding player, where the reference's FireworkRocketEntity rides a gliding player and adds look * 0.1 + (look * 1.5 - velocity) * 0.5 to their velocity every tick.",
+					"why": "No host function spawns a vanilla rocket or makes a spawned entity boost the player it rides, gliding itself is not ported yet, and mod_api.json has no particle support for the rocket's trail.",
+					"tracking_issue": 915
+				},
+				{
+					"what": "Neither item plays a sound. The reference plays item.armor.equip_elytra when the elytra goes into the chest slot, item.elytra.flying while a player glides, and entity.firework_rocket.launch and the blast sounds for a rocket.",
+					"why": "mod_api.json has no sound host function at all, and Alpha, Beta and 1.2.5 predate these sound events, so a port has to ship the .ogg files and a sounds.json of its own as it ships textures.",
+					"tracking_issue": 914
+				}
+			]
+		}
+	]
+}

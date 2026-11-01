@@ -1,0 +1,5 @@
+# The elytra's behaviour is not ported yet. 1.20.6 equips it from ElytraItem.use, spends its
+# durability from elytraFlightTick and glides from LivingEntity.travel's isFallFlying branch, and
+# none of that is reachable from a grug Item today: the Item entity exports only init(), and a
+# player's equipment slots, an item stack's damage and a player's velocity are not in mod_api.json.
+# about.json records the gap as a deviation against #915.
