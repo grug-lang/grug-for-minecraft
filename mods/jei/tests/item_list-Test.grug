@@ -131,6 +131,7 @@ export tick(ctx: TestTickContext) {
     top: number = (_grid_y() + first_row * 18 + 1) * frame_scale
     right: number = (grid_right - 1) * frame_scale
     bottom: number = (_grid_y() + (first_row + row_count) * 18 - 1) * frame_scale
+    Test.screenshot().capture(0, 0, 1280, 720)
     if Test.is_reference() {
         Test.screenshot().equals(r"screenshots/jei_item_list_reference", left, top, right, bottom)
     } else {
