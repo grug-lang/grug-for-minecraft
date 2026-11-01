@@ -758,9 +758,8 @@ public class GrugTestRunner {
      * declares for itself whether it can run on a dedicated server (#168), and it combines with
      * {@code GRUG_CI_MODS} by intersection.
      *
-     * <p>A non-empty list with an empty entry is fatal, for the same reason as {@link
-     * #parseMods}: running fewer tests than the author meant while reporting green is the one
-     * outcome to avoid.
+     * <p>A non-empty list with an empty entry is fatal, for the same reason as {@link #parseMods}:
+     * running fewer tests than the author meant while reporting green is the one outcome to avoid.
      */
     static Set<String> parseTests(String value) {
         Set<String> tests = new LinkedHashSet<>();

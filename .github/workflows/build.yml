@@ -903,6 +903,80 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The suite on a dedicated server with a real client connected to it (#167, umbrella #36): the
+  # loader's runServer drives the tests from the server's tick and a runClient joins it through quick
+  # play, so a regression in the client and server split fails the build. Stage one of #167: it runs
+  # on a dispatch only and on one loader, with an explicit list of the tests a server can run until
+  # the tests declare that themselves (#168); it joins the pull request and push gating once it has
+  # been stable. It is one job of about 4 to 5 minutes, and a dispatch runs 15 to 20 jobs, so it fits
+  # the 20 slots the plan allows. save is off so it never writes the loader's caches beside the
+  # build job, whose entries it shares.
+  multiplayer:
+    name: 1.20.6-forge on a dedicated server
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request') && needs.discover.outputs.no-tests != 'true'
+    needs: [discover, grug-rs]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up the loader build
+        uses: ./.github/actions/setup-loader-build
+        with:
+          loader: 1.20.6-forge
+          save: 'false'
+
+      - name: Install dependencies
+        run: |
+          packages=(
+            xvfb xauth x11-xserver-utils
+            libgl1 libgl1-mesa-dri libglx-mesa0
+            libxrandr2 libxxf86vm1 libxcursor1 libx11-6 libxext6 libxrender1 libxinerama1
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            status=$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)
+            [ "$status" = 'install ok installed' ] || missing+=("$package")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            if ! sudo apt-get install -y --no-install-recommends "${missing[@]}"; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends "${missing[@]}"
+            fi
+          fi
+
+      - name: Run the tests on a dedicated server with a client connected
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer.sh 1.20.6-forge
+        env:
+          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
+          # The tests of mods/coverage that need no screen. #168 replaces this with a declaration in
+          # each test.
+          GRUG_CI_TESTS: >-
+            coverage/tests/block_pos-Test.grug,
+            coverage/tests/chest_inventory-Test.grug,
+            coverage/tests/equals-Test.grug,
+            coverage/tests/test_origin_follows_the_test_player-Test.grug,
+            coverage/tests/vec3-Test.grug
+          GRUG_CI_RUN_TIMEOUT: '300'
+
+      - name: Upload logs and crash reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: multiplayer-1.20.6-forge-logs
+          path: |
+            loaders/1.20.6-forge/run-server/logs
+            loaders/1.20.6-forge/run-server/crash-reports
+            loaders/1.20.6-forge/run-server-ci.log
+            loaders/1.20.6-forge/run/logs
+            loaders/1.20.6-forge/run/crash-reports
+            loaders/1.20.6-forge/run-client-ci.log
+            loaders/1.20.6-forge/run-server/hs_err_pid*.log
+            loaders/1.20.6-forge/run/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   # The reference run (#574, #832): the reference named by the mod under test's first derived_from
   # entry, on that entry's runtime, driven by the mod's screenshot tests and compared with the
   # committed goldens. A dispatch names the mod; every other event runs the default, buildcraft, so a
