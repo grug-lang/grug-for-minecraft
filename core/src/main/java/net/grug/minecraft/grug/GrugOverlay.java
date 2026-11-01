@@ -59,6 +59,7 @@ public final class GrugOverlay {
     private static double mouseX = 0.0;
     private static double mouseY = 0.0;
     private static double button = 0.0;
+    private static boolean shift = false;
 
     /**
      * Whether this loader draws overlays at all, which is what {@code Test.overlay_supported}
@@ -201,6 +202,11 @@ public final class GrugOverlay {
         return button;
     }
 
+    /** Whether shift was held for the press, which is half of the reference's stack binding. */
+    public static boolean shift() {
+        return shift;
+    }
+
     /**
      * Opens a render pass for one frame, with nothing recorded in it, for the screen the geometry
      * describes.
@@ -224,12 +230,13 @@ public final class GrugOverlay {
                 guiHeight,
                 mouseX,
                 mouseY,
-                0.0);
+                0.0,
+                false);
     }
 
     /**
      * Opens a click pass for one press, with nothing recorded in it, for the screen the geometry
-     * describes and the button that was pressed.
+     * describes, the button that was pressed and whether shift was held.
      */
     public static void openClick(
             double screenWidth,
@@ -240,7 +247,8 @@ public final class GrugOverlay {
             double guiHeight,
             double mouseX,
             double mouseY,
-            double button) {
+            double button,
+            boolean shift) {
         open(
                 true,
                 screenWidth,
@@ -251,7 +259,8 @@ public final class GrugOverlay {
                 guiHeight,
                 mouseX,
                 mouseY,
-                button);
+                button,
+                shift);
     }
 
     private static void open(
@@ -264,7 +273,8 @@ public final class GrugOverlay {
             double guiHeight,
             double mouseX,
             double mouseY,
-            double button) {
+            double button,
+            boolean shift) {
         if (open) {
             throw Grug.fatal("An overlay pass is already open.");
         }
@@ -282,6 +292,7 @@ public final class GrugOverlay {
         GrugOverlay.mouseX = mouseX;
         GrugOverlay.mouseY = mouseY;
         GrugOverlay.button = button;
+        GrugOverlay.shift = shift;
         open = true;
     }
 
@@ -364,6 +375,7 @@ public final class GrugOverlay {
         open = false;
         render = false;
         taken = false;
+        shift = false;
         context = null;
     }
 
@@ -444,7 +456,8 @@ public final class GrugOverlay {
             double guiHeight,
             double mouseX,
             double mouseY,
-            double button) {
+            double button,
+            boolean shift) {
         GrugStateLock.lock();
         try {
             openClick(
@@ -456,7 +469,8 @@ public final class GrugOverlay {
                     guiHeight,
                     mouseX,
                     mouseY,
-                    button);
+                    button,
+                    shift);
             boolean wasTaken;
             try {
                 if (entityHandle != 0 && clickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {

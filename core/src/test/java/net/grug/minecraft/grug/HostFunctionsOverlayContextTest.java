@@ -48,7 +48,7 @@ class HostFunctionsOverlayContextTest {
     }
 
     private static void openClick() {
-        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 310, 12, 0);
+        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 310, 12, 0, false);
     }
 
     private static long renderContext() {

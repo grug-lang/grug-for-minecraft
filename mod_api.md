@@ -70,7 +70,9 @@ Test.clear_held_item(player: Player)
 Test.click_screen(x: number, y: number, button: number) bool
 Test.close_screen()
 Test.force_gc()
+Test.get_carried_item() Option[Item]
 Test.get_client_level() Level
+Test.get_held_count(player: Player) number
 Test.get_origin() Vec3
 Test.get_player() Player
 Test.high_block_round_trip() number
@@ -88,6 +90,7 @@ Test.round_trip_nbt(block_entity: BlockEntity)
 Test.screen_open() bool
 Test.screenshot() Screenshot
 Test.set_box_radius(radius: number)
+Test.set_carried_item(item: Item)
 Test.set_held_item(player: Player, item: Item)
 Test.set_mod_file_state(relative_path: string, state: string)
 Test.set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
@@ -174,6 +177,8 @@ Option.new() Option[$Value]
 
 ## OverlayClickContext
 .button() number
+.carried_item() Option[Item]
+.delete_carried_item()
 .gui_height() number
 .gui_left() number
 .gui_top() number
@@ -182,6 +187,7 @@ Option.new() Option[$Value]
 .mouse_y() number
 .screen_height() number
 .screen_width() number
+.shift() bool
 .take()
 
 ## OverlayRenderContext
@@ -235,6 +241,7 @@ Vec3.zero() Vec3
 drop_inventory(level: Level, x: number, y: number, z: number)
 equals(a: $Type, b: $Type) bool
 give_item(item: Item)
+give_item_stack(item: Item)
 gui(texture_path: resource) GUI
 item(resource_location: ResourceLocation) Item
 item_at(index: number) Item

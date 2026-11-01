@@ -80,6 +80,35 @@ public class HostFunctions {
         GrugCore.getAdapter().setHeldItem(GrugEntities.entityData.get(playerId).object, null);
     }
 
+    /**
+     * Test only: how many items the player's main hand holds, so a test can tell one item from a
+     * full stack. The held item itself is what {@code Player.get_held_item} answers.
+     */
+    public static double Test_get_held_count(long playerId) {
+        return GrugCore.getAdapter().getHeldCount(GrugEntities.entityData.get(playerId).object);
+    }
+
+    /**
+     * Test only: puts one of the item on the mouse cursor of the open container screen, which is
+     * where the reference reads the stack a left click deletes.
+     */
+    @GrugGenerated("asks the adapter to touch the game's own screen: a unit test has no game")
+    public static void Test_set_carried_item(long itemId) {
+        GrugCore.getAdapter().setCarriedItem(GrugEntities.entityData.get(itemId).object);
+    }
+
+    /** Test only: the item on the mouse cursor of the open container screen, if it holds one. */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static long Test_get_carried_item() {
+        Object item = GrugCore.getAdapter().carriedItem();
+        if (item == null) {
+            return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.Option,
+                new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
+    }
+
     public static long Test_get_player() {
         return addPlayer(GrugCore.getAdapter().testPlayer());
     }
@@ -418,6 +447,9 @@ public class HostFunctions {
     static String screenClickProblem(double x, double y, double button) {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
             return "Test.click_screen: The position has to be finite.";
+        }
+        if (!Double.isFinite(button)) {
+            return "Test.click_screen: The button has to be finite.";
         }
         if (button != Math.floor(button) || button < 0) {
             return "Test.click_screen: The button has to be a whole number from 0 up, and was "
@@ -1400,6 +1432,27 @@ public class HostFunctions {
         GrugCore.getAdapter().giveItemToPlayer(player, item);
     }
 
+    /**
+     * Gives the player a full stack of the item, the way the game gives a player an item: into
+     * their inventory, and dropped at their feet if it is full. The stack holds the item's maximum
+     * stack size, which is the amount the reference's stack binding gives, so a tool still comes as
+     * one item and a block as 64.
+     *
+     * <p>Added to the integrated server's copy of the player for the same reason as {@code
+     * give_item}.
+     */
+    @GrugGenerated("reads the adapter's player and gives through it: a unit test has no game")
+    public static void give_item_stack(long itemId) {
+        Object item = GrugEntities.entityData.get(itemId).object;
+        Object player = GrugCore.getAdapter().testPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "give_item_stack: There is no player to give to yet.");
+            return;
+        }
+        GrugCore.getAdapter().giveItemStackToPlayer(player, item);
+    }
+
     public static long gui(String texturePath) {
         return GrugEntities.addEntity(GrugEntityType.GUI, new GrugGuiBuilder(texturePath));
     }
@@ -1884,6 +1937,42 @@ public class HostFunctions {
     public static double OverlayClickContext_button(long contextId) {
         if (!requireOverlayClickContext("OverlayClickContext.button", contextId)) return 0.0;
         return GrugOverlay.button();
+    }
+
+    public static boolean OverlayClickContext_shift(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.shift", contextId)) return false;
+        return GrugOverlay.shift();
+    }
+
+    /**
+     * The item on the mouse cursor of the screen the press is over, if it holds one. This is the
+     * stack the reference deletes on a left click, so an overlay can tell carrying from empty
+     * before it decides what the press does.
+     */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static long OverlayClickContext_carried_item(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.carried_item", contextId)) {
+            return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+        }
+        Object item = GrugCore.getAdapter().carriedItem();
+        if (item == null) {
+            return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.Option,
+                new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
+    }
+
+    /**
+     * Clears the item on the mouse cursor of the screen the press is over. The reference deletes
+     * the carried stack on a left click over its list rather than giving another item.
+     */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static void OverlayClickContext_delete_carried_item(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.delete_carried_item", contextId)) {
+            return;
+        }
+        GrugCore.getAdapter().deleteCarriedItem();
     }
 
     public static void OverlayClickContext_take(long contextId) {

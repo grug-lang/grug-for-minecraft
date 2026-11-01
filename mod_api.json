@@ -1290,6 +1290,42 @@
 						}
 					]
 				},
+				"get_held_count": {
+					"description": "Test only: how many items the player's selected hotbar slot holds, so a test can tell one item from a full stack. The item itself is what `Player.get_held_item` answers.",
+					"parameters": [
+						{
+							"name": "player",
+							"type": {
+								"name": "Player"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"set_carried_item": {
+					"description": "Test only: puts one of the item on the mouse cursor of the container screen that is open, replacing what was there. A test with no container screen open does nothing.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					]
+				},
+				"get_carried_item": {
+					"description": "Test only: the Item on the mouse cursor of the container screen that is open, if it carries one, and an empty Option when the cursor is empty or no container screen is open.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					}
+				},
 				"overlay_supported": {
 					"description": "Whether this loader draws overlays on the inventory and container screens at all, which a test asks before it opens a screen: a loader that does not cannot open the inventory either, so a test that needs an overlay returns early there instead of driving a screen the loader cannot show. It is a property of the loader, answered from the start of a run, and a loader that draws overlays answers true whether or not a screen has been open yet.",
 					"return_type": {
@@ -2632,10 +2668,30 @@
 					}
 				},
 				"button": {
-					"description": "The mouse button that was pressed, the same code the screen would receive: 0 is the left button, 1 the right and 2 the middle. The reference gives one item on a left click and a full stack on a right click.",
+					"description": "The mouse button that was pressed, the same code the screen would receive: 0 is the left button, 1 the right and 2 the middle. The reference gives one item on a left or right click, gives a full stack on a shift+left click (see shift()) or a middle click, and deletes the item on the cursor on a left click while it carries one (see carried_item() and delete_carried_item()).",
 					"return_type": {
 						"name": "number"
 					}
+				},
+				"shift": {
+					"description": "Whether shift was held when the press was made. The reference's stack binding is shift+left, so an overlay that follows its click modes reads this together with button(). Only legal on the context click() was passed, while that call is running.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
+				"carried_item": {
+					"description": "The Item on the mouse cursor of the screen that is open, if it carries one. The reference deletes that item on a left click over its list rather than giving another one, so this is how an overlay tells a carrying press from an empty one. Only legal on the context click() was passed, while that call is running.",
+					"return_type": {
+						"name": "Option",
+						"generics": [
+							{
+								"name": "Item"
+							}
+						]
+					}
+				},
+				"delete_carried_item": {
+					"description": "Clears the Item on the mouse cursor of the screen that is open. The reference deletes the carried stack on a left click over its list instead of giving a new item; call take() afterward so the screen does not also act on the press. Only legal on the context click() was passed, while that call is running."
 				},
 				"take": {
 					"description": "Keeps the press from reaching the screen, so the vanilla slot under the mouse is not clicked too. Call it when the overlay handled the press, such as by giving the item the press landed on, and return; the screen never sees it. Without it, the press goes to the screen as if the overlay had not seen it. Only legal on the context click() was passed, while that call is running: a context saved for later is refused."
@@ -2700,6 +2756,17 @@
 		},
 		"give_item": {
 			"description": "Gives the player one of the item, the way the game gives an item to a player: into their inventory, and dropped at their feet if it is full. This is what an overlay's click() gives, so a click on the overlay's list of items hands one of them to the player. A loader that does not draw overlays never gets this called from one, and a click on a loader that does not draw the overlay gives nothing.",
+			"parameters": [
+				{
+					"name": "item",
+					"type": {
+						"name": "Item"
+					}
+				}
+			]
+		},
+		"give_item_stack": {
+			"description": "Gives the player a full stack of the item, the way give_item gives one: into their inventory, and dropped at their feet if it is full. The stack holds the item's maximum stack size, so a tool still comes as one item and a block as 64, which is the amount the reference's stack binding gives. Like give_item, it needs a player, takes effect only where the client runs the game's own server, and a loader that does not draw overlays never gets it called from one.",
 			"parameters": [
 				{
 					"name": "item",

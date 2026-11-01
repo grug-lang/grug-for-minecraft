@@ -27,6 +27,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -664,8 +665,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
             "the no-server and server-thread arms: a run clicks from the client of an"
                     + " integrated server, so the give is always queued")
     public void giveItemToPlayer(Object playerObj, Object itemObj) {
-        Player player = (Player) playerObj;
+        giveItemToPlayer((Player) playerObj, (Item) itemObj, 1);
+    }
+
+    @Override
+    public void giveItemStackToPlayer(Object playerObj, Object itemObj) {
         Item item = (Item) itemObj;
+        giveItemToPlayer((Player) playerObj, item, new ItemStack(item).getMaxStackSize());
+    }
+
+    private void giveItemToPlayer(Player player, Item item, int count) {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) {
             // A dedicated server or a client with no world: there is no inventory to add to, and a
@@ -679,18 +688,18 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // for: the server thread can be blocked waiting on the client, and the waiting would be a
         // deadlock. The give lands on that thread's next tick, exactly as JEI's packet does.
         if (server.isSameThread()) {
-            giveOnServerThread(player, item);
+            giveOnServerThread(player, item, count);
             return;
         }
-        server.execute(() -> giveOnServerThread(player, item));
+        server.execute(() -> giveOnServerThread(player, item, count));
     }
 
     @GrugGenerated(
             "a full inventory and a missing dropped entity: a run has room for the one item"
-                    + " it gives")
-    private void giveOnServerThread(Player playerObj, Item item) {
+                    + " or stack it gives")
+    private void giveOnServerThread(Player playerObj, Item item, int count) {
         Player player = serverSideOf(playerObj);
-        ItemStack stack = new ItemStack(item, 1);
+        ItemStack stack = new ItemStack(item, count);
 
         // add() takes what fits and leaves the rest in the stack, so a full inventory drops exactly
         // the remainder at the player's feet rather than losing it, which is what JEI's own give
@@ -931,6 +940,66 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 .setItemInHand(
                         InteractionHand.MAIN_HAND,
                         itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj));
+    }
+
+    @Override
+    public double getHeldCount(Object playerObj) {
+        return serverSideOf((Player) playerObj).getMainHandItem().getCount();
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run reads the screen it just opened")
+    public Object carriedItem() {
+        AbstractContainerScreen<?> container = openContainerScreen();
+        if (container == null) return null;
+        ItemStack carried = container.getMenu().getCarried();
+        return carried.isEmpty() ? null : carried.getItem();
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run sets the cursor on the screen it just opened")
+    public void setCarriedItem(Object itemObj) {
+        onClientThread(
+                () -> {
+                    AbstractContainerScreen<?> container = openContainerScreen();
+                    if (container == null) return;
+                    container
+                            .getMenu()
+                            .setCarried(
+                                    itemObj == null
+                                            ? ItemStack.EMPTY
+                                            : new ItemStack((Item) itemObj, 1));
+                });
+    }
+
+    @Override
+    @GrugGenerated(
+            "the no-screen and no-server arms: a run deletes from the screen it just opened"
+                    + " on an integrated server")
+    public void deleteCarriedItem() {
+        AbstractContainerScreen<?> container = openContainerScreen();
+        if (container == null) return;
+        container.getMenu().setCarried(ItemStack.EMPTY);
+
+        // The screen's menu is the client's copy, so the server keeps its own carried stack until
+        // it is cleared too, which is the half JEI's delete packet does. A client of a remote
+        // server has no server to reach from here, which about.json records with the give.
+        Player local = Minecraft.getInstance().player;
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (local == null || server == null) return;
+        server.execute(
+                () -> {
+                    ServerPlayer serverPlayer = server.getPlayerList().getPlayer(local.getUUID());
+                    if (serverPlayer != null) {
+                        serverPlayer.containerMenu.setCarried(ItemStack.EMPTY);
+                    }
+                });
+    }
+
+    @GrugGenerated("the no-screen arm: a run reads the screen it just opened")
+    private static AbstractContainerScreen<?> openContainerScreen() {
+        Screen screen = Minecraft.getInstance().screen;
+        return screen instanceof AbstractContainerScreen<?> container ? container : null;
     }
 
     @Override

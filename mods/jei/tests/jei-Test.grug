@@ -1,13 +1,22 @@
-# The item list on the player's inventory screen: it is drawn while the screen is open, and a click
-# on its first item gives the player that item. JEI's own click sends the item to the server, so the
-# test waits for the client to receive it in the player's hand rather than reading it back at once.
+# The item list on the player's inventory screen: it is drawn while the screen is open, and its
+# clicks follow the reference's cheat-mode bindings. A left or right click gives one item, a middle
+# click or shift+left gives a stack, and a left click while the cursor carries an item deletes that
+# item instead of giving one. JEI's own give sends the item to the server, so the test waits for the
+# client to receive it in the player's hand rather than reading it back at once.
 
 # The overlay is drawn on 1.20.6 only; the other four loaders never ask it, which about.json records
 # as a deviation with its own issue. There the test returns on its first tick without opening a
 # screen, because those loaders cannot open the inventory either.
 started: bool = false
 waited: number = 0
-clicked: bool = false
+step: number = 0
+
+# The cell the one-item clicks use, and the cell whose item stacks to 64. The second is the second
+# item the host lists, acacia_button, because the host orders vanilla items by key.
+clicked_column: number = 2
+clicked_row: number = 5
+stack_column: number = 1
+stack_row: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
@@ -39,16 +48,89 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    # The first item the host lists, which is what the first slot of the grid shows.
-    expected: Item = item_at(0)
+    expected: Item = item_at(clicked_row * _columns() + clicked_column)
+    expected_stack: Item = item_at(stack_row * _columns() + stack_column)
 
-    if not clicked {
-        # An earlier test may have left the hotbar slot filled, which would push the given item
-        # somewhere the test cannot read back.
+    if step == 0 {
+        # A right click gives one item, which is the reference's cheatOneItem2.
         Test.clear_held_item(Test.get_player())
-        clicked = true
-        taken: bool = Test.click_screen(_first_slot_x(), _first_slot_y(), 0)
-        ctx.assert(taken, "The overlay should take a click on its first item, so that the vanilla slot under it is not clicked too.")
+        step = 1
+        taken: bool = Test.click_screen(_cell_x(clicked_column), _cell_y(clicked_row), 1)
+        ctx.assert(taken, "The overlay should take a right click on its item, so that the vanilla slot under it is not clicked too.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        waited = waited + 1
+        held: Option[Item] = Test.get_player().get_held_item()
+        if not held.has() {
+            ctx.assert(waited < 200, "The item a right click gives should reach the player's hand.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), expected), "A right click should give the clicked item.")
+        ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A right click should give one item.")
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        # A middle click gives a full stack, which is the reference's cheatItemStack binding; the
+        # second listed item is a 64 stack so the count can tell it from a single item.
+        ctx.assert(equals(expected_stack, item(resource_location("minecraft:acacia_button"))), "The second listed item should be acacia_button, a 64 stack.")
+        Test.clear_held_item(Test.get_player())
+        step = 3
+        taken: bool = Test.click_screen(_cell_x(stack_column), _cell_y(stack_row), 2)
+        ctx.assert(taken, "The overlay should take a middle click on its item.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        waited = waited + 1
+        held: Option[Item] = Test.get_player().get_held_item()
+        if not held.has() {
+            ctx.assert(waited < 200, "The stack a middle click gives should reach the player's hand.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(equals(held.unwrap(), expected_stack), "A middle click should give the clicked item.")
+        ctx.assert(Test.get_held_count(Test.get_player()) == 64, "A middle click should give a full stack.")
+        Test.clear_held_item(Test.get_player())
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        # A left click while the cursor carries an item deletes it, as DeleteItemInputHandler does,
+        # rather than giving another one.
+        Test.set_carried_item(expected)
+        carried: Option[Item] = Test.get_carried_item()
+        ctx.assert(carried.has(), "The test should be able to put an item on the cursor.")
+        step = 5
+        taken: bool = Test.click_screen(_cell_x(clicked_column), _cell_y(clicked_row), 0)
+        ctx.assert(taken, "The overlay should take a left click while the cursor carries an item.")
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        ctx.assert(not Test.get_carried_item().has(), "A left click on the list should delete the item on the cursor.")
+        ctx.assert(not Test.get_player().get_held_item().has(), "Deleting the carried item should not also give one.")
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        # With the cursor empty again, a left click gives one item.
+        Test.clear_held_item(Test.get_player())
+        step = 7
+        taken: bool = Test.click_screen(_cell_x(clicked_column), _cell_y(clicked_row), 0)
+        ctx.assert(taken, "The overlay should take a left click on its item, so that the vanilla slot under it is not clicked too.")
         ctx.not_done()
         return
     }
@@ -62,28 +144,45 @@ export tick(ctx: TestTickContext) {
     }
 
     ctx.assert(equals(held.unwrap(), expected), "The item in the player's hand should be the one that was clicked.")
+    ctx.assert(Test.get_held_count(Test.get_player()) == 1, "A left click should give one item.")
     Test.close_screen()
 }
 
-# The middle of the first slot, in the scaled pixels a screen's mouse handlers take.
+# The middle of a slot, in the scaled pixels a screen's mouse handlers take.
 
 # The run is forced into a 1280 by 720 window, and the GUI scale of 3 makes the scaled screen 426 by
-# 240, the player's 176 by 166 inventory sits at (125, 37), and the grid is right-aligned against the
-# screen's right edge starting at the top. The same constants the overlay uses (JEI's own 18 pixel
-# slot, at most 9 columns) then put the first slot at (318, 0).
-local _first_slot_x() number {
+# 240, the player's 176 by 166 inventory sits at (125, 37), and the display area starts at the GUI's
+# right edge (301). The reference insets that area by 6, leaves 22 pixels at the bottom for its
+# search bar, and crops 22 at the top for its page buttons, so the 113 by 184 available space holds
+# 6 columns by 10 rows at (312, 28).
+local _cell_x(column: number) number {
+    return _grid_x() + column * 18 + 9
+}
+
+local _cell_y(row: number) number {
+    return _grid_y() + row * 18 + 9
+}
+
+local _grid_x() number {
     screen_width: number = Math.floor(1280 / 3)
     gui_left: number = Math.floor((screen_width - 176) / 2)
     display_left: number = gui_left + 176
-    display_width: number = screen_width - display_left
-    available: number = Math.floor(display_width / 18)
-    columns: number = 9
-    if available < 9 {
-        columns = available
-    }
-    return display_left + (display_width - columns * 18) + 9
+    available_width: number = screen_width - display_left - 12
+    return display_left + 6 + (available_width - _columns() * 18)
 }
 
-local _first_slot_y() number {
-    return 9
+local _grid_y() number {
+    return 28
+}
+
+local _columns() number {
+    screen_width: number = Math.floor(1280 / 3)
+    gui_left: number = Math.floor((screen_width - 176) / 2)
+    display_left: number = gui_left + 176
+    available_width: number = screen_width - display_left - 12
+    columns: number = Math.floor(available_width / 18)
+    if columns > 9 {
+        columns = 9
+    }
+    return columns
 }

@@ -2,11 +2,12 @@
 # screens: every item the host lists, in a grid, where clicking one gives the player that item.
 
 # The first version is only the list. There is no paging, no search, no hotkey and no recipe
-# categories, and the constants below are the reference's own (IngredientGrid, IngredientGridConfig):
-# a slot is its 16 by 16 icon plus one pixel of padding on each side, the grid is at most 9 columns by
-# 16 rows and at least 4 columns by 1 row, and it is aligned to the right and the top of the display
-# area, which is the screen to the right of the GUI. A grid that does not fit is not drawn at all,
-# which is also what the reference does.
+# categories, and the layout is the reference's own (IngredientGrid, IngredientGridConfig,
+# IngredientListOverlay): a slot is its 16 by 16 icon plus one pixel of padding on each side, the
+# grid is at most 9 columns by 16 rows and at least 4 columns by 1 row, and it sits in the display
+# area to the right of the GUI, inset 6 pixels, with 22 pixels left at the bottom for the search bar
+# and 22 pixels reserved at the top for the page buttons. A grid that does not fit is not drawn at
+# all, which is also what the reference does.
 
 slot: number = 18
 max_columns: number = 9
@@ -14,11 +15,11 @@ max_rows: number = 16
 min_columns: number = 4
 min_rows: number = 1
 
-# The reference reserves the height of its search bar and the padding above it at the bottom of the
-# display area. The search bar is not drawn yet, but the space stays reserved so the grid sits where
-# the reference puts it.
-search_height: number = 20
-inner_padding: number = 2
+# IngredientListOverlay.BORDER_MARGIN, its 20 pixel search field plus the 2 pixel gap it leaves, and
+# the 22 pixels IngredientGridWithNavigation crops at the top for its page buttons.
+border_margin: number = 6
+search_area: number = 22
+navigation_area: number = 22
 
 export render(ctx: OverlayRenderContext) {
     screen_width: number = ctx.screen_width()
@@ -30,6 +31,7 @@ export render(ctx: OverlayRenderContext) {
     }
 
     grid_x: number = _grid_x(screen_width, ctx.gui_left(), ctx.gui_width())
+    grid_y: number = _grid_y()
     mouse_x: number = ctx.mouse_x()
     mouse_y: number = ctx.mouse_y()
     count: number = item_count()
@@ -37,7 +39,7 @@ export render(ctx: OverlayRenderContext) {
     while index < columns * rows {
         if index < count {
             slot_x: number = grid_x + _column(index, columns) * slot
-            slot_y: number = _row(index, columns) * slot
+            slot_y: number = grid_y + _row(index, columns) * slot
             ctx.draw_item(item_at(index), slot_x + 1, slot_y + 1)
             if _inside(mouse_x, mouse_y, slot_x, slot_y) {
                 ctx.draw_box(slot_x, slot_y, slot_x + slot, slot_y + slot)
@@ -48,9 +50,8 @@ export render(ctx: OverlayRenderContext) {
 }
 
 export click(ctx: OverlayClickContext) {
-    # Only the left button gives an item, which is the reference's click. A right click does nothing
-    # yet; deleting an item and JEI's cheat modes are deviations.
-    if ctx.button() != 0 {
+    button: number = ctx.button()
+    if button != 0 and button != 1 and button != 2 {
         return
     }
 
@@ -65,38 +66,76 @@ export click(ctx: OverlayClickContext) {
     if index < 0 {
         return
     }
+    if button == 0 and ctx.carried_item().has() {
+        # JEI deletes the item on the cursor when the left button is pressed over the list, rather
+        # than giving another one, which is what DeleteItemInputHandler does.
+        ctx.delete_carried_item()
+        ctx.take()
+        return
+    }
     if index >= item_count() {
         return
     }
-    give_item(item_at(index))
+    # A right click gives one, like a left click, and shift+left or the middle button gives a stack,
+    # which are the reference's cheatOneItem2 and cheatItemStack bindings.
+    if button == 2 or (button == 0 and ctx.shift()) {
+        give_item_stack(item_at(index))
+    } else {
+        give_item(item_at(index))
+    }
     ctx.take()
 }
 
+local _clicked_index(mouse_x: number, mouse_y: number, screen_width: number, gui_left: number, gui_width: number, columns: number, rows: number) number {
+    grid_x: number = _grid_x(screen_width, gui_left, gui_width)
+    grid_y: number = _grid_y()
+    if mouse_x < grid_x or mouse_x >= grid_x + columns * slot {
+        return -1
+    }
+    if mouse_y < grid_y or mouse_y >= grid_y + rows * slot {
+        return -1
+    }
+    column: number = Math.floor((mouse_x - grid_x) / slot)
+    row: number = Math.floor((mouse_y - grid_y) / slot)
+    return row * columns + column
+}
+
+local _grid_x(screen_width: number, gui_left: number, gui_width: number) number {
+    display_left: number = _display_left(gui_left, gui_width)
+    available_width: number = _available_width(screen_width, gui_left, gui_width)
+    return display_left + border_margin + (available_width - _columns(screen_width, gui_left, gui_width) * slot)
+}
+
+local _grid_y() number {
+    return border_margin + navigation_area
+}
+
 local _columns(screen_width: number, gui_left: number, gui_width: number) number {
-    display_width: number = screen_width - _display_left(gui_left, gui_width)
-    available: number = Math.floor(display_width / slot)
+    available: number = Math.floor(_available_width(screen_width, gui_left, gui_width) / slot)
     if available > max_columns {
         return max_columns
     }
     return available
 }
 
-local _display_left(gui_left: number, gui_width: number) number {
-    return gui_left + gui_width
+local _available_width(screen_width: number, gui_left: number, gui_width: number) number {
+    return screen_width - _display_left(gui_left, gui_width) - border_margin * 2
 }
 
 local _rows(screen_height: number) number {
-    available: number = Math.floor((screen_height - search_height - inner_padding) / slot)
+    available: number = Math.floor(_available_height(screen_height) / slot)
     if available > max_rows {
         return max_rows
     }
     return available
 }
 
-local _grid_x(screen_width: number, gui_left: number, gui_width: number) number {
-    display_left: number = _display_left(gui_left, gui_width)
-    display_width: number = screen_width - display_left
-    return display_left + (display_width - _columns(screen_width, gui_left, gui_width) * slot)
+local _available_height(screen_height: number) number {
+    return screen_height - search_area - navigation_area - border_margin * 2
+}
+
+local _display_left(gui_left: number, gui_width: number) number {
+    return gui_left + gui_width
 }
 
 local _column(index: number, columns: number) number {
@@ -109,17 +148,4 @@ local _row(index: number, columns: number) number {
 
 local _inside(mouse_x: number, mouse_y: number, slot_x: number, slot_y: number) bool {
     return mouse_x >= slot_x and mouse_x < slot_x + slot and mouse_y >= slot_y and mouse_y < slot_y + slot
-}
-
-local _clicked_index(mouse_x: number, mouse_y: number, screen_width: number, gui_left: number, gui_width: number, columns: number, rows: number) number {
-    grid_x: number = _grid_x(screen_width, gui_left, gui_width)
-    if mouse_x < grid_x or mouse_x >= grid_x + columns * slot {
-        return -1
-    }
-    if mouse_y < 0 or mouse_y >= rows * slot {
-        return -1
-    }
-    column: number = Math.floor((mouse_x - grid_x) / slot)
-    row: number = Math.floor(mouse_y / slot)
-    return row * columns + column
 }
