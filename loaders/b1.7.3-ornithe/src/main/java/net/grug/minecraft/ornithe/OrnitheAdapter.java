@@ -560,6 +560,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void clearInventoryOf(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        Inventory inventory = player.inventory;
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            inventory.setItem(slot, null);
+        }
+        player.inventory.selectedSlot = 0;
+    }
+
+    @Override
     public double getHeldCount(Object playerObj) {
         ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
         return stack == null ? 0.0 : stack.size;

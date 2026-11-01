@@ -1,0 +1,11 @@
+# The runner empties the player's inventory before every test (#930), the way it clears the test area.
+# This test starts with an empty hand, which on a second pass of GRUG_CI_REPEATS only holds when the
+# diamond the end of this test leaves in the hotbar was removed, then leaves that diamond there on
+# purpose for hotbar_reset_b-Test to find gone.
+export tick(ctx: TestTickContext) {
+    player: Player = Test.get_player()
+    ctx.assert(Test.get_held_count(player) == 0, "The hotbar should be empty when a test starts.")
+
+    Test.set_held_item(player, item(resource_location("minecraft:diamond")))
+    ctx.assert(Test.get_held_count(player) == 1, "The diamond just put in the hand should be held.")
+}

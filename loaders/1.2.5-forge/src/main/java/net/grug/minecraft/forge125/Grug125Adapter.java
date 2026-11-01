@@ -1059,6 +1059,15 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public void clearInventoryOf(Object playerObj) {
+        net.minecraft.src.InventoryPlayer inventory = ((EntityPlayer) playerObj).inventory;
+        for (int slot = 0; slot < inventory.getSizeInventory(); slot++) {
+            inventory.setInventorySlotContents(slot, null);
+        }
+        inventory.currentItem = 0;
+    }
+
+    @Override
     public double getHeldCount(Object playerObj) {
         ItemStack stack = ((EntityPlayer) playerObj).inventory.getCurrentItem();
         return stack == null ? 0.0 : stack.stackSize;

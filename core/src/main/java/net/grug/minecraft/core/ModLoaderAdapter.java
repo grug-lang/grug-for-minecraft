@@ -597,6 +597,25 @@ public interface ModLoaderAdapter {
     void snapPlayerForTestOnClient();
 
     /**
+     * Empties the test player's inventory and puts their selected slot back on the first, so a test
+     * starts with the hotbar the previous one did not touch, as it starts with a test area the
+     * previous one did not touch. Without it an item one test (or one pass of {@code
+     * GRUG_CI_REPEATS}) left in a hotbar slot shows in the next capture. A no-op when this side has
+     * no player yet. See #930.
+     */
+    default void resetPlayerInventoryForTest() {
+        Object player = testPlayer();
+        if (player == null) return;
+        clearInventoryOf(player);
+    }
+
+    /**
+     * Removes every item the player holds, armour included, and selects the first hotbar slot. The
+     * loader's half of {@link #resetPlayerInventoryForTest}, which needs a game's own player.
+     */
+    void clearInventoryOf(Object playerObj);
+
+    /**
      * Puts the player back where {@link #snapPlayerForTest} found them, so a test's change to the
      * camera does not outlive it. A no-op on a dedicated server, where the snap never ran. See #393
      * and #408.

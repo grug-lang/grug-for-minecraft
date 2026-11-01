@@ -119,6 +119,13 @@ public class GrugTestRunner {
          */
         default void snapPlayer() {}
 
+        /**
+         * Empties the player's inventory and selects the first hotbar slot, before every test
+         * starts, so no item an earlier test or an earlier pass of a repeated run left in a hotbar
+         * slot reaches a capture. See #930.
+         */
+        default void resetPlayerInventory() {}
+
         void build(int radius);
 
         /** Sweeps the dropped items out of the test area, in the tick a test ends. See #323. */
@@ -364,6 +371,11 @@ public class GrugTestRunner {
                     @Override
                     public void snapPlayer() {
                         GrugCore.getAdapter().snapPlayerForTest();
+                    }
+
+                    @Override
+                    public void resetPlayerInventory() {
+                        GrugCore.getAdapter().resetPlayerInventoryForTest();
                     }
 
                     @Override
@@ -1330,6 +1342,7 @@ public class GrugTestRunner {
         // Before the init, the room and the first get_origin answer, so the player is already at
         // the centre of their block with a level view when any of them looks. See #609.
         boxBuilder.snapPlayer();
+        boxBuilder.resetPlayerInventory();
 
         // Before the first tick, so the budget it sets is the one the whole test runs under.
         long initFnId = ops.getExportFnId("Test", "init");

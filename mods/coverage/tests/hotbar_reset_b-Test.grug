@@ -1,0 +1,5 @@
+# The test before this one, hotbar_reset_a-Test, leaves a diamond in the hotbar. The runner empties
+# the player's inventory before every test (#930), so none of it is here.
+export tick(ctx: TestTickContext) {
+    ctx.assert(Test.get_held_count(Test.get_player()) == 0, "The diamond an earlier test left in the hotbar should be gone.")
+}
