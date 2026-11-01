@@ -82,7 +82,7 @@ public class GrugTestRunner {
             new TestEntityOps() {
                 @Override
                 public long createEntity(long fileId) {
-                    return Grug.createEntity(fileId);
+                    return GrugEntities.createTestEntity(fileId);
                 }
 
                 @Override
