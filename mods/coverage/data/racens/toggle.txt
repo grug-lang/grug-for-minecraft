@@ -1,0 +1,1 @@
+a file the race test deletes and puts back; nothing reads it

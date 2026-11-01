@@ -1,0 +1,35 @@
+# Deletes a mod file and puts it back thousands of times while the engine's poll walks the mods
+# tree, which is how a walk that lists the file and then finds it gone is forced inside the game:
+# one deletion lands in that gap about once in a thousand runs, and the grug-rs that reported the
+# gap as an IO error aborted the whole process (#675), with no failing test line. The file is under
+# data/ and nothing reads it, so each report costs the loaders nothing. Each tick stays inside the
+# time limit of a grug function, so the toggling is spread over many ticks.
+path: string = "coverage/data/racens/toggle.txt"
+rounds: number = 300
+baseline: number = -1
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(1000)
+}
+
+export tick(ctx: TestTickContext) {
+    if rounds > 0 {
+        flips: number = 0
+        while flips < 50 {
+            Test.set_mod_file_state(path, "deleted")
+            Test.set_mod_file_state(path, "normal")
+            flips = flips + 1
+        }
+        rounds = rounds - 1
+        ctx.not_done()
+    } else if baseline < 0 {
+        # One more change after the baseline, so the wait below ends on a report that came after the
+        # last toggle and the file is whole again when the test ends.
+        baseline = Test.hot_reload_count(path)
+        Test.set_mod_file_state(path, "deleted")
+        Test.set_mod_file_state(path, "normal")
+        ctx.not_done()
+    } else if Test.hot_reload_count(path) <= baseline {
+        ctx.not_done()
+    }
+}
