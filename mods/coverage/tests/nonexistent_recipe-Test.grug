@@ -1,0 +1,45 @@
+# A recipe that names an item no version of Minecraft has is dropped silently by every loader: a
+# mod written for one version cannot know what another lacks, so the recipe simply does not exist
+# here and the run stays green.
+# The name is minecraft:nonexistent rather than an item only some versions lack, so every loader's
+# recipe path reads this same file: 1.2.5-forge parses the tree itself, both Ornithe loaders share
+# their parser, StationAPI hands the JSON to its own JsonRecipesRegistry, and 1.20.6 serves it to the
+# game's RecipeManager. Each has to skip it rather than report a defect, throw, or register it with a
+# null item.
+# The two iron ingots are the recipe's other ingredients. A loader that kept the recipe but dropped
+# the ingredient it could not resolve would craft it from those two, so the grid answering nothing is
+# what says the whole recipe is gone. The grid can never match the recipe as written, because the
+# item it names cannot be put in a slot, so the answer is about the recipe's absence.
+# Band 12 is free: the recipe and coverage tests use 0, 5, 10, 15, 20, 25, 30, 35, 40, 45 and 50.
+export tick(ctx: TestTickContext) {
+    # A loader that registers no mod recipe answers the grid with nothing too, so the loader is
+    # asked rather than assumed.
+    if not Test.registers_mod_recipes() {
+        return
+    }
+
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 12
+    z: number = origin.z()
+
+    ingot: Item = item(resource_location("minecraft:iron_ingot"))
+
+    be: BlockEntity = _grid(ctx, level, x, y, z)
+    be.set_item_in_slot(0, ingot, 1)
+    be.set_item_in_slot(1, ingot, 1)
+    be.update_recipe_output(0)
+    result: Option[Item] = be.get_crafting_result_item()
+
+    ctx.assert(not result.has(), "A recipe naming an item no version has should not be registered.")
+}
+
+# The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
+# the block to place rather than a chest or the autocrafting table.
+local _grid(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    level.place_block(x, y, z, "grug:coverage_block")
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The coverage block should have a block entity after being placed.")
+    return found.unwrap()
+}

@@ -1,7 +1,7 @@
 {
   "type": "minecraft:crafting_shapeless",
   "ingredients": [
-    { "item": "minecraft:piston" },
+    { "item": "minecraft:nonexistent" },
     { "item": "minecraft:iron_ingot" },
     { "item": "minecraft:iron_ingot" }
   ],
