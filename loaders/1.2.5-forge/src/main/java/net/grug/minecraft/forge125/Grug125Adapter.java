@@ -1241,6 +1241,52 @@ public class Grug125Adapter implements ModLoaderAdapter {
         ((GrugBlockEntity) blockEntityObj).updateEntity();
     }
 
+    /**
+     * Runs the world's own tick the given number of times, at the point of the call.
+     *
+     * <p>This version splits one game tick in two calls, in this order: {@code
+     * World.updateEntities}, which ticks the entities and the tile entities the block entities of a
+     * mod are, then {@code World.tick}, which ticks the weather, the spawner, the chunk unload, the
+     * world time, the scheduled updates, the random block ticks and the villages. A test's tick
+     * runs from FML's pre-world-tick hook, so the advance happens before the game's own world tick
+     * for that tick and two test ticks stay one world tick further apart than the count. See #753
+     * and #780.
+     */
+    @GrugGenerated(
+            "which process holds a level: this version has one world, the client's own, so the"
+                    + " check that it is a world has no other side a test could reach")
+    @Override
+    public int tickLevel(Object levelObj, int ticks) {
+        if (!(levelObj instanceof World)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.tick_level: Only a level has a tick this process can run, and this is not"
+                            + " one.");
+            return 0;
+        }
+        return advanceLevelTicks((World) levelObj, ticks);
+    }
+
+    /**
+     * The advance itself: one world tick, in the order this version's own game tick runs it, which
+     * is {@code Minecraft.runTick}'s two calls, answering how many ticks it ran.
+     *
+     * <p>No test can see the order inside one advance: the test's own tick observes the state after
+     * every tick it asked for, and grug has no way to schedule a block update that comes due at a
+     * chosen tick of the advance, so the order is checked against the client's own game tick that
+     * this method follows, not by a test.
+     */
+    private static int advanceLevelTicks(World world, int ticks) {
+        for (int tick = 0; tick < ticks; tick++) {
+            world.updateEntities();
+            // The client sets the spawn flags from its difficulty before every world tick, so the
+            // advance does the same rather than leave a flag a difficulty change made stale.
+            world.setAllowedSpawnTypes(world.difficultySetting > 0, true);
+            world.tick();
+        }
+        return ticks;
+    }
+
     @Override
     public void redraw(Object blockEntityObj) {
         TileEntity be = (TileEntity) blockEntityObj;
