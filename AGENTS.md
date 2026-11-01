@@ -143,8 +143,8 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
 - **The four-hourly `main` check.** At least every four hours, and at a task boundary, the
   orchestrator looks at the newest **dispatch** of `build.yml` on `main` and, if it is older than
   four hours or its conclusion is not success, runs `gh workflow run build.yml --ref main` when no
-  other run is in flight. Only a dispatch has the full shape: a push to `main` runs 17 jobs and
-  skips the installed, smoke, coexistence and Windows jobs, so a green push is not this check. The
+  other run is in flight. Only a dispatch runs every job: a push to `main` skips some of them, and
+  which ones can change with the workflow, so a green push is not this check. The
   dispatch is the check itself: a red one is a red `main`, attributed and fixed forward as usual. A
   release dispatch satisfies it for the next four hours.
 - A release is published automatically every Sunday at 12:00 CET (11:00 UTC) from `main`'s head: the
