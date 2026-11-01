@@ -50,3 +50,11 @@ export click(ctx: OverlayClickContext) {
         ctx.take()
     }
 }
+
+# Control and K is the key this overlay takes, so a test can tell a taken key from one the screen
+# handles itself. Any other key is left alone.
+export key(ctx: OverlayKeyContext) {
+    if ctx.key() == 75 and ctx.ctrl() {
+        ctx.take()
+    }
+}

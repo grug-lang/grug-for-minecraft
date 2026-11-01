@@ -66,6 +66,7 @@ public final class GrugOverlayHost {
         final List<GrugObject> owner;
         final long renderFnId;
         final long clickFnId;
+        final long keyFnId;
         final String mod;
 
         Overlay(
@@ -73,11 +74,13 @@ public final class GrugOverlayHost {
                 List<GrugObject> owner,
                 long renderFnId,
                 long clickFnId,
+                long keyFnId,
                 String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
             this.renderFnId = renderFnId;
             this.clickFnId = clickFnId;
+            this.keyFnId = keyFnId;
             this.mod = mod;
         }
     }
@@ -91,6 +94,7 @@ public final class GrugOverlayHost {
         overlayFileIds = new TreeMap<>(files);
         overlayMods = new TreeMap<>(mods);
         GrugOverlay.noteSupported();
+        GrugOverlay.noteKeysSupported();
     }
 
     private static void ensureCreated() {
@@ -107,6 +111,7 @@ public final class GrugOverlayHost {
                             owner,
                             Grug.getExportFnId("Overlay", "render"),
                             Grug.getExportFnId("Overlay", "click"),
+                            Grug.getExportFnId("Overlay", "key"),
                             overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
@@ -208,6 +213,37 @@ public final class GrugOverlayHost {
             }
         }
     }
+
+    /**
+     * Lets an overlay take a key press before the screen's own handler sees it.
+     *
+     * <p>Only a letter or a digit key is asked, given as its upper case character code, which is
+     * the same number on every loader; the key is cancelled when an overlay took it, and asking
+     * stops at the first overlay that does.
+     */
+    @SubscribeEvent
+    public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
+        AbstractContainerScreen<?> container = eligible(event.getScreen());
+        if (container == null) return;
+        int key = event.getKeyCode();
+        boolean letter = key >= 'A' && key <= 'Z';
+        boolean digit = key >= '0' && key <= '9';
+        if (!letter && !digit) return;
+
+        ensureCreated();
+
+        boolean ctrl = (event.getModifiers() & GLFW_MOD_CONTROL) != 0;
+        for (Overlay overlay : overlays) {
+            if (GrugOverlay.key(overlay.entityHandle, overlay.keyFnId, key, ctrl)) {
+                GrugOverlay.noteTestPressTaken();
+                event.setCanceled(true);
+                return;
+            }
+        }
+    }
+
+    /** GLFW's control modifier bit, the one {@code ScreenEvent.KeyPressed} reports. */
+    private static final int GLFW_MOD_CONTROL = 2;
 
     /**
      * The container screen an overlay may draw on, or null when this screen is not one or has no

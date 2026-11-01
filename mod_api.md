@@ -62,6 +62,7 @@ export init()
 
 ## Overlay
 export click(ctx: OverlayClickContext)
+export key(ctx: OverlayKeyContext)
 export render(ctx: OverlayRenderContext)
 
 ## Test
@@ -94,7 +95,9 @@ Test.mining_crack(level: Level, x: number, y: number, z: number) bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
 Test.open_inventory(player: Player)
 Test.overlay_drawn() bool
+Test.overlay_keys_supported() bool
 Test.overlay_supported() bool
+Test.press_screen_key(key: number, ctrl: bool) bool
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number
 Test.round_trip_nbt(block_entity: BlockEntity)
@@ -205,6 +208,11 @@ Option.new() Option[$Value]
 .screen_height() number
 .screen_width() number
 .shift() bool
+.take()
+
+## OverlayKeyContext
+.ctrl() bool
+.key() number
 .take()
 
 ## OverlayRenderContext

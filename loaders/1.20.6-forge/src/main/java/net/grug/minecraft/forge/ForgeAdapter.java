@@ -1610,6 +1610,35 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
+    public boolean pressScreenKey(int key, boolean ctrl) {
+        // The same path a real key takes: the pre event the overlay listens to, fired on the
+        // client thread, and the screen's own handler only when nothing cancelled it.
+        boolean[] outcome = new boolean[2];
+        onClientThread(() -> pressKeyOnClient(key, ctrl, outcome));
+        if (outcome[0]) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.press_screen_key: There is no screen open to press.");
+        }
+        return outcome[1];
+    }
+
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
+    private void pressKeyOnClient(int key, boolean ctrl, boolean[] outcome) {
+        Screen screen = Minecraft.getInstance().screen;
+        if (screen == null) {
+            outcome[0] = true;
+            return;
+        }
+        GrugOverlay.beginTestPress();
+        int modifiers = ctrl ? 2 : 0;
+        if (!ForgeEventFactoryClient.onScreenKeyPressedPre(screen, key, 0, modifiers)) {
+            screen.keyPressed(key, 0, modifiers);
+        }
+        outcome[1] = GrugOverlay.testPressTaken();
+    }
+
+    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.use_block")) return;

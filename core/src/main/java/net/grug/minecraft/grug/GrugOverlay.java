@@ -46,6 +46,7 @@ public final class GrugOverlay {
 
     private static boolean open = false;
     private static boolean render = false;
+    private static boolean keyPass = false;
     private static boolean taken = false;
     private static Context context = null;
 
@@ -60,6 +61,8 @@ public final class GrugOverlay {
     private static double mouseY = 0.0;
     private static double button = 0.0;
     private static boolean shift = false;
+    private static double keyCode = 0.0;
+    private static boolean ctrl = false;
 
     /**
      * Whether this loader draws overlays at all, which is what {@code Test.overlay_supported}
@@ -96,6 +99,18 @@ public final class GrugOverlay {
      */
     public static void noteSupported() {
         overlaySupported = true;
+    }
+
+    private static volatile boolean overlayKeysSupported = false;
+
+    /** Marks that this loader hands screen key presses to the overlays' key export. */
+    public static void noteKeysSupported() {
+        overlayKeysSupported = true;
+    }
+
+    /** Whether this loader hands screen key presses to the overlays' key export. */
+    public static boolean overlayKeysSupported() {
+        return overlayKeysSupported;
     }
 
     /** Whether this loader draws overlays on the inventory and container screens. */
@@ -151,9 +166,26 @@ public final class GrugOverlay {
         return open && render;
     }
 
-    /** Whether the open pass is a click pass, which is the only state a take is legal in. */
+    /**
+     * Whether the open pass is a click pass, which is the only state a click's take is legal in.
+     */
     public static boolean isClick() {
-        return open && !render;
+        return open && !render && !keyPass;
+    }
+
+    /** Whether the open pass is a key pass, which is the only state a key's take is legal in. */
+    public static boolean isKey() {
+        return open && keyPass;
+    }
+
+    /** The key the open key pass was given, see {@code OverlayKeyContext.key}. */
+    public static double keyCode() {
+        return keyCode;
+    }
+
+    /** Whether control was held for the open key pass's key. */
+    public static boolean ctrl() {
+        return ctrl;
     }
 
     /**
@@ -263,6 +295,18 @@ public final class GrugOverlay {
                 shift);
     }
 
+    /**
+     * Opens a key pass for one key press, with nothing recorded in it, for the screen the geometry
+     * describes. The key is the printable key's upper case character code, or the platform's own
+     * code for a key with no character, and {@code ctrl} says whether control was held.
+     */
+    public static void openKey(double keyCode, boolean ctrl) {
+        open(true, 0, 0, 0, 0, 0, 0, 0, 0, 0.0, false);
+        keyPass = true;
+        GrugOverlay.keyCode = keyCode;
+        GrugOverlay.ctrl = ctrl;
+    }
+
     private static void open(
             boolean isClick,
             double screenWidth,
@@ -331,9 +375,11 @@ public final class GrugOverlay {
         return true;
     }
 
-    /** Called by the {@code OverlayClickContext.take} host function. */
+    /**
+     * Called by the {@code OverlayClickContext.take} and {@code OverlayKeyContext.take} functions.
+     */
     public static void take() {
-        if (isClick()) {
+        if (open && !render) {
             taken = true;
         }
     }
@@ -347,7 +393,7 @@ public final class GrugOverlay {
     public static GrugOverlayGeometry closeRender() {
         if (!render) {
             throw Grug.fatal(
-                    "An overlay pass was closed as a render pass while it was a click pass.");
+                    "An overlay pass was closed as a render pass while it was not a render pass.");
         }
         GrugOverlayGeometry geometry =
                 new GrugOverlayGeometry(new ArrayList<>(ITEMS), new ArrayList<>(BOXES));
@@ -360,9 +406,23 @@ public final class GrugOverlay {
      * reaching the screen.
      */
     public static boolean closeClick() {
-        if (render) {
+        if (render || keyPass) {
             throw Grug.fatal(
-                    "An overlay pass was closed as a click pass while it was a render pass.");
+                    "An overlay pass was closed as a click pass while it was not a click pass.");
+        }
+        boolean wasTaken = taken;
+        finish();
+        return wasTaken;
+    }
+
+    /**
+     * Closes a key pass and answers whether the key was taken, so the loader can keep it from
+     * reaching the screen.
+     */
+    public static boolean closeKey() {
+        if (!keyPass) {
+            throw Grug.fatal(
+                    "An overlay pass was closed as a key pass while it was not a key pass.");
         }
         boolean wasTaken = taken;
         finish();
@@ -370,6 +430,9 @@ public final class GrugOverlay {
     }
 
     private static void finish() {
+        keyPass = false;
+        keyCode = 0.0;
+        ctrl = false;
         ITEMS.clear();
         BOXES.clear();
         open = false;
@@ -479,6 +542,28 @@ public final class GrugOverlay {
                 }
             } finally {
                 wasTaken = closeClick();
+            }
+            return wasTaken;
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
+     * Runs an overlay's {@code key()} for one key press and answers whether it took the key. The
+     * loader calls this before its screen sees the key and cancels the key when the answer is true.
+     */
+    public static boolean key(long entityHandle, long keyFnId, double keyCode, boolean ctrl) {
+        GrugStateLock.lock();
+        try {
+            openKey(keyCode, ctrl);
+            boolean wasTaken;
+            try {
+                if (entityHandle != 0 && keyFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                    callExport(entityHandle, keyFnId, GrugEntityType.OverlayKeyContext, context);
+                }
+            } finally {
+                wasTaken = closeKey();
             }
             return wasTaken;
         } finally {

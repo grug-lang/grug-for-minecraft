@@ -18,6 +18,7 @@ public enum GrugEntityType {
     Level,
     Option,
     OverlayClickContext,
+    OverlayKeyContext,
     OverlayRenderContext,
     Player,
     RenderContext,
