@@ -95,15 +95,15 @@ local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: Bloc
         count: number = pipe.get_saved_list_number("traveling", index, "count")
         if item_opt.has() and count > 0 {
             damage: number = pipe.get_saved_list_number("traveling", index, "damage")
-            # Utils.dropItems: each axis a random 0.15 to 0.85 into the block, no velocity. The
-            # reference hands the whole stack to one EntityItem, so a record carrying five items is
-            # one entity holding five.
+            # Utils.dropItems: each axis a random 0.15 to 0.85 into the block, and the EntityItem
+            # constructor's hop of -0.1 to 0.1 on x and z and 0.2 up, which Utils.dropItems leaves
+            # alone. The reference hands the whole stack to one EntityItem, so a record carrying
+            # five items is one entity holding five.
             dx: number = world.random_float() * 0.7 + 0.15
             dy: number = world.random_float() * 0.7 + 0.15
             dz: number = world.random_float() * 0.7 + 0.15
             stack: ItemStack = item_stack(item_opt.unwrap(), damage, count)
             dropped: ItemEntity = item_entity(world, x + dx, y + dy, z + dz, stack)
-            dropped.entity().set_delta_movement(Vec3.zero())
             dropped.entity().spawn(world)
         }
         index = index + 1

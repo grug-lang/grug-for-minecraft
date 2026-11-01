@@ -442,6 +442,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public Vec3 getEntityDeltaMovement(Object entityObj) {
+        Entity entity = (Entity) entityObj;
+        return new Vec3(entity.velocityX, entity.velocityY, entity.velocityZ);
+    }
+
+    @Override
     public void spawnEntity(Object levelObj, Object entityObj) {
         ((World) levelObj).addEntity((Entity) entityObj);
     }
@@ -1030,6 +1036,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
         stack.metadata = (int) damage;
         return stack;
+    }
+
+    @Override
+    public int maxItemStackCount() {
+        // writeNbt writes Count as one byte, and readNbt reads it back as a signed int.
+        return Byte.MAX_VALUE;
     }
 
     @Override

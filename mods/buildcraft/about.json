@@ -100,6 +100,11 @@
 			},
 			"deviations": [
 				{
+					"what": "A wooden pipe's dropped item is pickable at once, where the reference waits 20 ticks for a stack thrown out of a pipe's end and 10 for one a broken pipe drops.",
+					"why": "EntityPassiveItem.toEntityItem sets c = 20 and Utils.dropItems sets c = 10, but mod_api.json has no host function that sets an item entity's pickup delay, so item_entity leaves the game's own 0.",
+					"tracking_issue": 942
+				},
+				{
 					"what": "On b1.7.3-stationapi the redstone engine's item is unshaded in the GUI slot, which its own capture proves, but no test draws it in the hand, in third person or on the ground, so whether those drawings are unshaded like 2.2.14's is unverified. The plate sits at the reference's progress 0.25 everywhere.",
 					"why": "StationAPI accumulates a baked item model's quads and flushes them after the model draw returns, where fixed-function lighting is applied, so the reference's rule has to wrap that flush. The mixin that does it is applied on all three paths, but a capture of any of them needs its own reference run, and a dropped item rotates as it ages, so the ground one is not reproducible.",
 					"tracking_issue": 963

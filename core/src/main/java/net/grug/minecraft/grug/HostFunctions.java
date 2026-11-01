@@ -2,6 +2,7 @@ package net.grug.minecraft.grug;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugFrameRequest;
+import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
@@ -458,6 +459,17 @@ public class HostFunctions {
      */
     public static boolean Test_registers_mod_recipes() {
         return GrugCore.getAdapter().registersModRecipes();
+    }
+
+    /**
+     * Test only: the name of the loader this run is on, such as {@code 1.20.6-forge}.
+     *
+     * <p>A loader's save keeps a different number of items in a stack, so a test that asks {@code
+     * item_stack} to refuse one has to know which limit it is asserting. The name is the same one
+     * the adapter already gives the screenshot tree, so it names the loader exactly.
+     */
+    public static String Test_loader_name() {
+        return GrugCore.getAdapter().getLoaderName();
     }
 
     /** The longest {@code Test.stall} may block the game, in milliseconds. */
@@ -1300,6 +1312,18 @@ public class HostFunctions {
                 });
     }
 
+    public static long Entity_get_delta_movement(long entityId) {
+        return withEntity(
+                "Entity.get_delta_movement",
+                "entity",
+                entityId,
+                entity ->
+                        GrugEntities.addEntity(
+                                GrugEntityType.Vec3,
+                                GrugCore.getAdapter().getEntityDeltaMovement(entity)),
+                0L);
+    }
+
     public static void Entity_spawn(long entityId, long levelId) {
         withEntities(
                 "Entity.spawn",
@@ -2110,40 +2134,24 @@ public class HostFunctions {
     }
 
     public static long item_stack(long itemId, double damage, double count) {
-        String problem = itemStackCountProblem(count);
-        if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "item_stack: " + problem);
-            return 0L;
-        }
         return withEntity(
                 "item_stack",
                 "item",
                 itemId,
-                item ->
-                        GrugEntities.addEntity(
-                                GrugEntityType.ItemStack,
-                                GrugCore.getAdapter().createItemStack(item, damage, count)),
+                item -> {
+                    // The limit is asked for only after the item resolves, so a stale id is
+                    // reported before the adapter is touched at all, as every host function is.
+                    int maxCount = GrugCore.getAdapter().maxItemStackCount();
+                    String problem = GrugItemStacks.countProblem(count, maxCount);
+                    if (problem != null) {
+                        Grug.hostFunctionErrorHappened(Grug.statePtr, "item_stack: " + problem);
+                        return 0L;
+                    }
+                    return GrugEntities.addEntity(
+                            GrugEntityType.ItemStack,
+                            GrugCore.getAdapter().createItemStack(item, damage, count));
+                },
                 0L);
-    }
-
-    /**
-     * Why a count cannot be made into an item stack, or null when it can.
-     *
-     * <p>A stack holds at least one item, and the game's own field is an int, so a count below one
-     * or a fraction names no stack. There is no upper bound to enforce: the game's own constructor
-     * takes any int, and a mod that makes stacks larger than a vanilla slot holds keeps working.
-     * Kept here so a Java test can reach every refusal, which a host function's report cannot
-     * without a live grug state.
-     */
-    static String itemStackCountProblem(double count) {
-        if (count < 1 || count > Integer.MAX_VALUE || count != Math.floor(count)) {
-            return "The count has to be a whole number from 1 to "
-                    + Integer.MAX_VALUE
-                    + ", and was "
-                    + count
-                    + ".";
-        }
-        return null;
     }
 
     public static <T> void print(T a) {

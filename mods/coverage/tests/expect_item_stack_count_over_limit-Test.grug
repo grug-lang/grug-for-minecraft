@@ -1,0 +1,16 @@
+# A stack's count has to survive the loader's save. The four older loaders write Count as one NBT
+# byte, so item_stack refuses a count above 127 there; 1.20.6 writes an int and refuses only past
+# 2147483647. The error names the loader's own largest count, so the test asks which loader it is on
+# rather than accepting either message.
+export tick(ctx: TestTickContext) {
+    sword: Item = item(resource_location("minecraft:diamond_sword"))
+    loader: string = Test.loader_name()
+
+    if loader == "1.20.6-forge" {
+        ctx.expect_error("The count has to be a whole number from 1 to 2147483647")
+        stack: ItemStack = item_stack(sword, 0, 2147483648)
+    } else {
+        ctx.expect_error("The count has to be a whole number from 1 to 127")
+        stack: ItemStack = item_stack(sword, 0, 128)
+    }
+}
