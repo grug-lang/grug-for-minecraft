@@ -1,17 +1,28 @@
 # Captures the item list on the open container screen, so the reference job pins what real JEI
 # draws and every loader pins what the port draws. See #874.
 
-# The crop is the grid and nothing else. Both renderers lay it out the same way (IngredientGrid,
-# IngredientGridConfig, IngredientListOverlay): the display area is everything right of the GUI, the
-# grid is inset 6 pixels, keeps 22 pixels at the bottom for the search field and crops 22 more at
-# the top for the page buttons, takes the largest whole number of 18 pixel slots that still fit, and
-# is aligned right and top. On the 1280x720 window the run forces, the game's auto GUI scale picks
-# 3, which makes a 427 by 240 screen. The test player is in creative mode, so 1.20.6 opens the
-# creative inventory, a 195 by 136 GUI at (116, 52): the display area to its right is 311 to 427,
-# and after the insets the grid is five columns by ten rows from scaled 331 to 421 and 28 to 208. A
-# version that opens the plain 176 wide inventory instead leaves six columns, and one that rounds
-# the scaled width down (426) puts the grid a pixel left; the crop is computed from the measured GUI
-# and screen rather than written down, so each of those captures its whole grid.
+# The crop is the middle six rows of the grid, across its whole width, showing only the overlay's own
+# drawing. Both renderers lay the grid out the same way (IngredientGrid, IngredientGridConfig,
+# IngredientListOverlay): the display area is everything right of the GUI, the grid is inset 6
+# pixels, keeps 22 pixels at the bottom for the search field and crops 22 more at the top for the
+# page buttons, takes the largest whole number of 18 pixel slots that still fit, and is aligned right
+# and top. On the 1280x720 window the run forces, the game's auto GUI scale picks 3, which makes a
+# 427 by 240 screen. The test player is in creative mode, so 1.20.6 opens the creative inventory, a
+# 195 by 136 GUI at (116, 52): the display area to its right is 311 to 427, and after the insets the
+# grid is five columns by ten rows from scaled 331 to 421 and 28 to 208. A version that opens the
+# plain 176 wide inventory instead leaves six columns, and one that rounds the scaled width down
+# (426) puts the grid a pixel left; the crop is computed from the measured GUI and screen rather
+# than written down, so each of those captures its whole width.
+
+# The crop leaves out the grid's first two rows and its last two, which is what makes the frame
+# the same on every run. The later versions' item lists start with the fluids and fire, whose icons
+# are animated textures: water and lava change frame every client tick and fire's pixels are
+# regenerated at random, so a capture that includes them differs from run to run and is no golden.
+# Those entries sit in the first two rows and, because the list is long, around the fire block in
+# the last two. The 1.20.6 list is items only and holds none of them, and the reference's page of
+# wood blocks holds none either, but one crop for every loader keeps the test the same on all of
+# them. What is left still pins the grid's left and right alignment, its top position, its column
+# count and its slot pitch: any move, resize or repack of the grid changes the icons the crop holds.
 
 # JEI's page buttons are the 22 pixels above the grid and its search field and config button the 20
 # pixels below it, so none of the reference's chrome, which the port does not draw (#870), is in the
@@ -30,6 +41,10 @@
 # on the scaled width below refuses a run at any other scale rather than capturing a shifted
 # rectangle.
 frame_scale: number = 3
+
+# The rows the crop keeps, out of the ten the display area leaves. See the note at the top.
+first_row: number = 2
+row_count: number = 6
 
 started: bool = false
 opened: bool = false
@@ -53,7 +68,10 @@ export tick(ctx: TestTickContext) {
     # and Beta.
     if not opened {
         waited = waited + 1
-        ctx.assert(waited < 200, "The world should settle before the inventory screen opens.")
+        # The test box's light is queued before the test's own clock starts and the game runs ten
+        # ticks for one frame, so the first settle can take a few hundred of the test's ticks; the
+        # failure bound is what says it never came, not a wait.
+        ctx.assert(waited < 1000, "The world should settle before the inventory screen opens.")
         if not Test.world_settled() {
             ctx.not_done()
             return
@@ -97,9 +115,9 @@ export tick(ctx: TestTickContext) {
     }
 
     left: number = _grid_x() * frame_scale
-    top: number = _grid_y() * frame_scale
+    top: number = (_grid_y() + first_row * 18) * frame_scale
     right: number = (_grid_x() + _columns() * 18) * frame_scale
-    bottom: number = (_grid_y() + _rows() * 18) * frame_scale
+    bottom: number = (_grid_y() + (first_row + row_count) * 18) * frame_scale
     if Test.is_reference() {
         Test.screenshot().equals(r"screenshots/jei_item_list_reference", left, top, right, bottom)
     } else {
