@@ -674,8 +674,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated(
-            "a run downloads no sound resources, so the pool is empty and hasSound is never true")
     public void playUiSound(String path, double volume, double pitch) {
         MinecraftInstance.get().soundEngine.play(path, (float) volume, (float) pitch);
     }
