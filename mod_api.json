@@ -2021,6 +2021,12 @@
 		"ItemEntity": {
 			"description": "An item entity.",
 			"methods": {
+				"count": {
+					"description": "The number of items in the item entity's item stack.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"damage": {
 					"description": "The damage/metadata of the item entity's item stack.",
 					"return_type": {
@@ -3223,7 +3229,7 @@
 			]
 		},
 		"item_stack": {
-			"description": "Creates a new ItemStack with the given damage. Keep in mind that when two ItemStacks get close enough to each other, they merge, turning the original ItemStacks and entities into 'Air'. So if you call spawn_entity() to spawn an ItemStack, make sure that the ItemStack isn't reused later on to spawn more entities.",
+			"description": "Creates a new ItemStack with the given damage and count. The count is the number of items the stack holds, a whole number from 1 to the largest count this loader's save keeps: 2147483647 on 1.20.6, which saves the count as an int, and 127 on 1.2.5, Alpha and both b1.7.3 loaders, which save it as one byte. A count outside that range, a fraction included, is reported. Keep in mind that when two ItemStacks get close enough to each other, they merge, turning the original ItemStacks and entities into 'Air'. So if you call spawn_entity() to spawn an ItemStack, make sure that the ItemStack isn't reused later on to spawn more entities.",
 			"return_type": {
 				"name": "ItemStack"
 			},
@@ -3236,6 +3242,12 @@
 				},
 				{
 					"name": "damage",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "count",
 					"type": {
 						"name": "number"
 					}

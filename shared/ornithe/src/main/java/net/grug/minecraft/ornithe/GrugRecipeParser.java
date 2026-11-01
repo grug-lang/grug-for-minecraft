@@ -126,8 +126,6 @@ public final class GrugRecipeParser {
 
     /** The recipe's output stack. */
     private static ItemStack buildResult(OrnitheAdapter adapter, Object resultItem, int count) {
-        ItemStack resultStack = (ItemStack) adapter.createItemStack(resultItem, 0);
-        resultStack.size = count;
-        return resultStack;
+        return (ItemStack) adapter.createItemStack(resultItem, 0, count);
     }
 }

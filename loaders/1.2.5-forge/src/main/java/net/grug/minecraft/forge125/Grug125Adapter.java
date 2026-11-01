@@ -673,10 +673,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object createItemStack(Object itemObj, double damage) {
+    public Object createItemStack(Object itemObj, double damage, double count) {
         // Every caller hands over an Item: the game keeps a block's own item at
         // Item.itemsList[blockID], so a block never reaches here as a Block.
-        ItemStack stack = new ItemStack((Item) itemObj);
+        ItemStack stack = new ItemStack((Item) itemObj, (int) count);
         stack.setItemDamage((int) damage);
         return stack;
     }
@@ -685,8 +685,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
     public double getItemEntityDamage(Object itemEntityObj) {
         // A dead item entity, whose saved item id the game does not have, carries no stack: its
         // damage is 0, not a throw. See GrugItemStacks.
-        return GrugItemStacks.damageOrZero(
+        return GrugItemStacks.numberOrZero(
                 ((EntityItem) itemEntityObj).item, stack -> ((ItemStack) stack).getItemDamage());
+    }
+
+    @Override
+    public double getItemEntityCount(Object itemEntityObj) {
+        return GrugItemStacks.numberOrZero(
+                ((EntityItem) itemEntityObj).item, stack -> ((ItemStack) stack).stackSize);
     }
 
     @Override

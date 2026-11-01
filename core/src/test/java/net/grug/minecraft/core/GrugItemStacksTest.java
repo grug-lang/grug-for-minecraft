@@ -7,20 +7,20 @@ import org.junit.jupiter.api.Test;
 /** Covers the null-stack read in {@link GrugItemStacks}. */
 class GrugItemStacksTest {
 
-    /** A stack whose damage the test reads without a game. */
+    /** A stack whose own number the test reads without a game. */
     private static final class FakeStack {
-        private final double damage;
+        private final double number;
 
-        FakeStack(double damage) {
-            this.damage = damage;
+        FakeStack(double number) {
+            this.number = number;
         }
     }
 
     @Test
-    void aMissingStackCarriesNoDamage() {
+    void aMissingStackCarriesNoNumber() {
         assertEquals(
                 0.0,
-                GrugItemStacks.damageOrZero(
+                GrugItemStacks.numberOrZero(
                         null,
                         stack -> {
                             throw new AssertionError("a null stack is never read");
@@ -28,8 +28,8 @@ class GrugItemStacksTest {
     }
 
     @Test
-    void aStacksOwnDamageIsAnswered() {
+    void aStacksOwnNumberIsAnswered() {
         assertEquals(
-                7.0, GrugItemStacks.damageOrZero(new FakeStack(7.0), s -> ((FakeStack) s).damage));
+                7.0, GrugItemStacks.numberOrZero(new FakeStack(7.0), s -> ((FakeStack) s).number));
     }
 }

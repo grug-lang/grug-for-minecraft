@@ -479,7 +479,7 @@ public class GrugBlockEntity extends TileEntity
                 recordTag.setTag("Numbers", numbers);
                 if (record.item() != null) {
                     ItemStack stack =
-                            (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0);
+                            (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0, 1);
                     recordTag.setTag("Item", stack.writeToNBT(new NBTTagCompound()));
                 }
                 records.appendTag(recordTag);

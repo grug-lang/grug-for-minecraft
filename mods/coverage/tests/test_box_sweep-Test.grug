@@ -14,7 +14,7 @@ export tick(ctx: TestTickContext) {
         origin: Vec3 = Test.get_origin()
 
         sword: Item = item(resource_location("minecraft:diamond_sword"))
-        stack: ItemStack = item_stack(sword, 3)
+        stack: ItemStack = item_stack(sword, 3, 1)
         entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
         entity.entity().set_delta_movement(Vec3.zero())
         entity.entity().spawn(level)
@@ -28,7 +28,7 @@ export tick(ctx: TestTickContext) {
         # A block under it, so the item rests at a known height for the probe below instead of
         # falling to whatever the terrain there happens to be.
         level.place_block(px + 16, origin.y() - 1, pz, "minecraft:stone")
-        edge_stack: ItemStack = item_stack(sword, 3)
+        edge_stack: ItemStack = item_stack(sword, 3, 1)
         edge: ItemEntity = item_entity(level, px + 16.5, origin.y(), pz + 0.5, edge_stack)
         edge.entity().set_delta_movement(Vec3.zero())
         edge.entity().spawn(level)

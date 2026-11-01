@@ -1411,6 +1411,15 @@ public class HostFunctions {
                 0.0);
     }
 
+    public static double ItemEntity_count(long itemEntityId) {
+        return withEntity(
+                "ItemEntity.count",
+                "item entity",
+                itemEntityId,
+                itemEntity -> GrugCore.getAdapter().getItemEntityCount(itemEntity),
+                0.0);
+    }
+
     public static long Level_get_block_entity(long levelId, double x, double y, double z) {
         return withEntity(
                 "Level.get_block_entity",
@@ -2100,7 +2109,12 @@ public class HostFunctions {
                 0L);
     }
 
-    public static long item_stack(long itemId, double damage) {
+    public static long item_stack(long itemId, double damage, double count) {
+        String problem = itemStackCountProblem(count);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "item_stack: " + problem);
+            return 0L;
+        }
         return withEntity(
                 "item_stack",
                 "item",
@@ -2108,8 +2122,28 @@ public class HostFunctions {
                 item ->
                         GrugEntities.addEntity(
                                 GrugEntityType.ItemStack,
-                                GrugCore.getAdapter().createItemStack(item, damage)),
+                                GrugCore.getAdapter().createItemStack(item, damage, count)),
                 0L);
+    }
+
+    /**
+     * Why a count cannot be made into an item stack, or null when it can.
+     *
+     * <p>A stack holds at least one item, and the game's own field is an int, so a count below one
+     * or a fraction names no stack. There is no upper bound to enforce: the game's own constructor
+     * takes any int, and a mod that makes stacks larger than a vanilla slot holds keeps working.
+     * Kept here so a Java test can reach every refusal, which a host function's report cannot
+     * without a live grug state.
+     */
+    static String itemStackCountProblem(double count) {
+        if (count < 1 || count > Integer.MAX_VALUE || count != Math.floor(count)) {
+            return "The count has to be a whole number from 1 to "
+                    + Integer.MAX_VALUE
+                    + ", and was "
+                    + count
+                    + ".";
+        }
+        return null;
     }
 
     public static <T> void print(T a) {

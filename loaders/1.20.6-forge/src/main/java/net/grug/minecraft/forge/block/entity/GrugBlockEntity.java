@@ -484,7 +484,7 @@ public class GrugBlockEntity extends BlockEntity
                 recordTag.put("Numbers", numbers);
                 if (record.item() != null) {
                     ItemStack stack =
-                            (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0);
+                            (ItemStack) GrugCore.getAdapter().createItemStack(record.item(), 0, 1);
                     recordTag.put("Item", stack.save(registries));
                 }
                 records.add(recordTag);

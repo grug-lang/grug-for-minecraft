@@ -1,5 +1,5 @@
-# Covers item + resource_location + item_stack (with damage) + item_entity + ItemEntity.damage +
-# Entity.set_delta_movement + Entity.spawn + vec3_zero.
+# Covers item + resource_location + item_stack (with damage and count) + item_entity +
+# ItemEntity.damage + ItemEntity.count + Entity.set_delta_movement + Entity.spawn + vec3_zero.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
@@ -7,10 +7,21 @@ export tick(ctx: TestTickContext) {
 
         # A sword, because newer versions clamp an item stack's damage to the item's max damage.
         sword: Item = item(resource_location("minecraft:diamond_sword"))
-        stack: ItemStack = item_stack(sword, 3)
+        stack: ItemStack = item_stack(sword, 3, 1)
         entity: ItemEntity = item_entity(level, origin.x(), origin.y(), origin.z(), stack)
         ctx.assert(entity.damage() == 3, "The item entity should carry the stack's damage.")
+        ctx.assert(entity.count() == 1, "A stack of one should make an item entity of one.")
         entity.entity().set_delta_movement(Vec3.zero())
         entity.entity().spawn(level)
+
+        # A stack of more than one, which is what the wooden pipe hands an item entity when nothing
+        # accepts the stack it carries. Diamonds stack, so this is a state the game itself has.
+        diamond: Item = item(resource_location("minecraft:diamond"))
+        heap: ItemStack = item_stack(diamond, 0, 5)
+        heap_entity: ItemEntity = item_entity(level, origin.x(), origin.y() + 1, origin.z(), heap)
+        ctx.assert(heap_entity.count() == 5, "The item entity should carry the stack's count.")
+        ctx.assert(heap_entity.damage() == 0, "The count should not change the stack's damage.")
+        heap_entity.entity().set_delta_movement(Vec3.zero())
+        heap_entity.entity().spawn(level)
     }
 }
