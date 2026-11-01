@@ -97,7 +97,7 @@ abstract class BlockFaceEdgeMixin {
     @Unique private final AtomicBoolean grug$reportedV = new AtomicBoolean();
 
     /**
-     * Reports the first coordinate this moves and the sprite it moved on, once per axis.
+     * Reports the first coordinate this moves, once per axis, with the sprite it moved on.
      *
      * <p>A diagnostic of #919, not a defect report: it says whether the correction reached a face
      * at all and what range that face's coordinates are in, which is what the measurement needs. It
@@ -105,7 +105,14 @@ abstract class BlockFaceEdgeMixin {
      */
     @Unique
     private void grug$report(
-            String axis, AtomicBoolean reported, double before, double after, Sprite sprite) {
+            String axis,
+            AtomicBoolean reported,
+            double before,
+            double after,
+            Sprite sprite,
+            float min,
+            float max,
+            int texels) {
         if (before == after || !reported.compareAndSet(false, true)) return;
         InitListener.LOGGER.info(
                 "Held a {} world coordinate off its sprite's edge of the atlas: {} to {}, on a"
@@ -113,9 +120,9 @@ abstract class BlockFaceEdgeMixin {
                 axis,
                 before,
                 after,
-                sprite.getMinU(),
-                sprite.getMaxU(),
-                sprite.getContents().getWidth());
+                min,
+                max,
+                texels);
     }
 
     @Redirect(
@@ -144,8 +151,24 @@ abstract class BlockFaceEdgeMixin {
                             sprite.getMinV(),
                             sprite.getMaxV(),
                             sprite.getContents().getHeight());
-            grug$report("u", grug$reportedU, u, heldU, sprite);
-            grug$report("v", grug$reportedV, v, heldV, sprite);
+            grug$report(
+                    "u",
+                    grug$reportedU,
+                    u,
+                    heldU,
+                    sprite,
+                    sprite.getMinU(),
+                    sprite.getMaxU(),
+                    sprite.getContents().getWidth());
+            grug$report(
+                    "v",
+                    grug$reportedV,
+                    v,
+                    heldV,
+                    sprite,
+                    sprite.getMinV(),
+                    sprite.getMaxV(),
+                    sprite.getContents().getHeight());
             u = heldU;
             v = heldV;
         }
