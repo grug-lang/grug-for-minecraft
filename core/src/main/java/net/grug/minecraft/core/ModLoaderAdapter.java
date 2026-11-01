@@ -920,4 +920,14 @@ public interface ModLoaderAdapter {
      * and the same crop of the same block does not render identically on every version or platform.
      */
     BufferedImage captureScreenshot(double x1, double y1, double x2, double y2);
+
+    /**
+     * Whether this loader can glide a player, which is what an item declared with {@code
+     * ItemInitContext.set_glider} or {@code set_firework_rocket} needs. 1.20.6 does it with the
+     * game's own fall flying; the other loaders predate it and keep this default until their
+     * adapters port the glide (#915).
+     */
+    default boolean supportsGliding() {
+        return false;
+    }
 }

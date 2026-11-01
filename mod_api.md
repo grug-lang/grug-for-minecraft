@@ -58,7 +58,7 @@ export tick()
 .update_recipe_output(start_slot: number)
 
 ## Item
-export init()
+export init(ctx: ItemInitContext)
 
 ## Overlay
 export click(ctx: OverlayClickContext)
@@ -171,6 +171,11 @@ Color.rgb(r: number, g: number, b: number) Color
 .entity() Entity
 .pickup_delay() number
 .set_pickup_delay(ticks: number)
+
+## ItemInitContext
+.set_firework_rocket()
+.set_glider(max_damage: number)
+.supports_gliding() bool
 
 ## Level
 .count_item_entities(x: number, y: number, z: number, radius: number) number

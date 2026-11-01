@@ -902,8 +902,16 @@
 			"export_functions": [
 				{
 					"name": "init",
-					"description": "Called once at registration time to declare the item's assets.",
-					"engine_called": true
+					"description": "Called once at registration time to declare the item's assets and behaviour.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "ItemInitContext"
+							}
+						}
+					]
 				}
 			]
 		},
@@ -2116,6 +2124,31 @@
 							}
 						}
 					]
+				}
+			}
+		},
+		"ItemInitContext": {
+			"description": "The context of an item's init(), passed to it. What an item does beyond being held goes through it: whether it is a glider worn in the chest slot, and whether it is a firework rocket. A context is only valid while its init() call is running: saving it in a member variable and using it later is refused, because the declarations were read when init() returned.",
+			"methods": {
+				"set_firework_rocket": {
+					"description": "Declares that this item is a firework rocket: used in the air it launches a rocket, and used while its player glides it attaches to them and boosts them, the way the game's own rocket does. Reports an error on a loader that cannot glide; ask `supports_gliding` first. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+				},
+				"set_glider": {
+					"description": "Declares that this item is a glider, the way the game's elytra is: using it puts it in the chest slot, a wearer who falls and jumps again glides while its damage is below max_damage - 1, one point of damage is spent every twentieth glide tick, and the glide physics, pose, wings and camera are the game's own. max_damage is the number of damage points the item has before it breaks. Reports an error on a loader that cannot glide; ask `supports_gliding` first. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "max_damage",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"supports_gliding": {
+					"description": "Whether this loader can glide a player: whether `set_glider` and `set_firework_rocket` are honoured. A mod that runs on loaders that cannot ask this before declaring them. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "bool"
+					}
 				}
 			}
 		},

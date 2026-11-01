@@ -2834,6 +2834,44 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(handle));
     }
 
+    public static void ItemInitContext_set_glider(long contextId, double maxDamage) {
+        GrugItemData item = requireItemInitContext("ItemInitContext.set_glider", contextId);
+        if (item == null) return;
+        if (!GrugCore.getAdapter().supportsGliding()) {
+            GrugModTreeDefect.report(
+                    item.id + ": set_glider() needs a loader that can glide a player.");
+            return;
+        }
+        item.gliderMaxDamage = (int) maxDamage;
+    }
+
+    public static void ItemInitContext_set_firework_rocket(long contextId) {
+        GrugItemData item =
+                requireItemInitContext("ItemInitContext.set_firework_rocket", contextId);
+        if (item == null) return;
+        if (!GrugCore.getAdapter().supportsGliding()) {
+            GrugModTreeDefect.report(
+                    item.id + ": set_firework_rocket() needs a loader that can glide a player.");
+            return;
+        }
+        item.fireworkRocket = true;
+    }
+
+    public static boolean ItemInitContext_supports_gliding(long contextId) {
+        if (requireItemInitContext("ItemInitContext.supports_gliding", contextId) == null) {
+            return false;
+        }
+        return GrugCore.getAdapter().supportsGliding();
+    }
+
+    /** The item whose {@code init()} {@code contextId} was passed to, or null after a report. */
+    private static GrugItemData requireItemInitContext(String method, long contextId) {
+        if (!requireContext(method, "init", contextId, GrugDeclarations.itemInitContext())) {
+            return null;
+        }
+        return GrugDeclarations.itemInitContext().item;
+    }
+
     public static void BlockInitContext_set_custom_render(long contextId) {
         GrugBlockData block =
                 requireBlockInitContext("BlockInitContext.set_custom_render", contextId);

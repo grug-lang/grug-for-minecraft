@@ -14,6 +14,7 @@ public enum GrugEntityType {
     GUI,
     Item,
     ItemEntity,
+    ItemInitContext,
     ItemStack,
     Level,
     Option,

@@ -5,7 +5,6 @@ import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge125.client.GrugFrameRenderer;
 import net.grug.minecraft.forge125.item.GrugItem;
 import net.grug.minecraft.forge125.mod_Grug;
-import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockFaces;
 import net.grug.minecraft.grug.GrugDeclarations;
@@ -157,16 +156,7 @@ public final class GrugBlocks {
             String fullId = "grug:" + cleanName;
             GrugItemData itemData = new GrugItemData(fullId);
 
-            long tempEntityHandle = Grug.createEntity(itemFileId);
-            long initFnId = Grug.getExportFnId("Item", "init");
-
-            if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                Grug.callExportFn(tempEntityHandle, initFnId);
-            }
-
-            if (tempEntityHandle != 0) {
-                Grug.destroyEntity(tempEntityHandle);
-            }
+            GrugDeclarations.initializeItem(itemData, itemFileId);
 
             GrugDeclarations.declaredItems.put(fullId, itemData);
             GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);

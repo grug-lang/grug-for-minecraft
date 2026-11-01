@@ -44,17 +44,17 @@
 			},
 			"deviations": [
 				{
-					"what": "The elytra cannot be equipped and a player cannot glide, so grug:elytra is an item that can be held and does nothing else. It has no durability use either, which needs the same equipment slot.",
-					"why": "mod_api.json has no entry for a player's equipment slots, for an item stack's damage, or for a player's velocity and look angle, and no Item export runs on a tick or on a right click. The reference equips the elytra in the chest slot from ElytraItem.use, spends its durability from elytraFlightTick, and gets its glide physics from LivingEntity.travel's isFallFlying branch.",
+					"what": "On 1.2.5-forge, b1.7.3-stationapi, b1.7.3-ornithe and a1.1.2_01-ornithe, grug:elytra and grug:firework_rocket are plain items: the elytra cannot be equipped, a player cannot glide and the rocket cannot be launched or boost a glide. On 1.20.6-forge they are the reference's own ElytraItem and FireworkRocketItem.",
+					"why": "Those loaders predate fall flying, so the glide physics of LivingEntity.travel's isFallFlying branch, a player tick hook, the chest slot and the rocket entity have to be ported into each adapter behind ItemInitContext.set_glider and set_firework_rocket, which supports_gliding reports false for until they are.",
 					"tracking_issue": 915
 				},
 				{
-					"what": "grug:firework_rocket is an item with no behaviour: it cannot be launched and gives no boost to a gliding player, where the reference's FireworkRocketEntity rides a gliding player and adds look * 0.1 + (look * 1.5 - velocity) * 0.5 to their velocity every tick.",
-					"why": "No host function spawns a vanilla rocket or makes a spawned entity boost the player it rides, gliding itself is not ported yet, and mod_api.json has no particle support for the rocket's trail.",
-					"tracking_issue": 915
+					"what": "On 1.2.5-forge, b1.7.3-stationapi, b1.7.3-ornithe and a1.1.2_01-ornithe, a gliding player keeps the upright body pose in the third-person view and the elytra draws no wings, where 1.20.6 tilts the body and draws the wings. The first-person view is the scope of the ports, because only another player sees a body.",
+					"why": "The older loaders have no elytra model and no player-renderer hook yet, and drawing the body and wings only matters once other players can see them, which is the multiplayer work of #36.",
+					"tracking_issue": 985
 				},
 				{
-					"what": "Neither item plays a sound. The reference plays item.armor.equip_elytra when the elytra goes into the chest slot, item.elytra.flying while a player glides, and entity.firework_rocket.launch and the blast sounds for a rocket.",
+					"what": "On 1.2.5-forge, b1.7.3-stationapi, b1.7.3-ornithe and a1.1.2_01-ornithe, neither item plays a sound. On 1.20.6-forge the equip, glide and rocket sounds are the game's own.",
 					"why": "mod_api.json has no sound host function at all, and Alpha, Beta and 1.2.5 predate these sound events, so a port has to ship the .ogg files and a sounds.json of its own as it ships textures.",
 					"tracking_issue": 914
 				}

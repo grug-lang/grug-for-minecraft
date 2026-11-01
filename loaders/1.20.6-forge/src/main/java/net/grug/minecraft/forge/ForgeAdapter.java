@@ -1003,6 +1003,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public boolean supportsGliding() {
+        return true;
+    }
+
+    @Override
     public Object getHeldItem(Object playerObj) {
         ItemStack stack = serverSideOf((Player) playerObj).getMainHandItem();
         return !stack.isEmpty() ? stack.getItem() : null;

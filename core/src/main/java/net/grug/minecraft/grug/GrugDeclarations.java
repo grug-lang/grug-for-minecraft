@@ -52,6 +52,61 @@ public final class GrugDeclarations {
         return initContext;
     }
 
+    /** The context of one item {@code init()} call, holding the item it declares into. */
+    public static final class ItemInitContext {
+        final GrugItemData item;
+
+        ItemInitContext(GrugItemData item) {
+            this.item = item;
+        }
+    }
+
+    private static ItemInitContext itemInitContext = null;
+
+    /** Opens the context of one item {@code init()} call. */
+    static ItemInitContext openItemInitContext(GrugItemData item) {
+        itemInitContext = new ItemInitContext(item);
+        return itemInitContext;
+    }
+
+    /** Closes it again, so a saved context no longer matches. */
+    static void closeItemInitContext() {
+        itemInitContext = null;
+    }
+
+    /** The context of the item {@code init()} call that is open right now, or null otherwise. */
+    public static ItemInitContext itemInitContext() {
+        return itemInitContext;
+    }
+
+    /**
+     * Creates a temporary entity of the item's script, calls its {@code init()} with a fresh
+     * context that declares into {@code item}, and destroys the entity again, the way {@link
+     * #initializeBlock} does for a block.
+     */
+    @GrugGenerated(
+            "the call into the VM and its context entity: exercising it needs a live grug entity")
+    public static void initializeItem(GrugItemData item, long itemFileId) {
+        long tempEntityHandle = Grug.createEntity(itemFileId);
+        long initFnId = Grug.getExportFnId("Item", "init");
+
+        if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+            long contextHandle =
+                    GrugEntities.addEntity(
+                            GrugEntityType.ItemInitContext, openItemInitContext(item));
+            try {
+                Grug.callExportFn(tempEntityHandle, initFnId, contextHandle);
+            } finally {
+                GrugEntities.removeEntity(contextHandle);
+                closeItemInitContext();
+            }
+        }
+
+        if (tempEntityHandle != 0) {
+            Grug.destroyEntity(tempEntityHandle);
+        }
+    }
+
     /**
      * Creates a temporary entity of the block's script, calls its {@code init()} with a fresh
      * context that declares into {@code block}, and destroys the entity again.

@@ -36,6 +36,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.client.tutorial.TutorialSteps;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -51,8 +52,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.ElytraItem;
+import net.minecraft.world.item.FireworkRocketItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.component.Fireworks;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -391,21 +396,33 @@ public class GrugModLoader {
 
             GrugItemData itemData = new GrugItemData(MODID + ":" + cleanName);
 
-            long tempEntityHandle = Grug.createEntity(itemFileId);
-            long initFnId = Grug.getExportFnId("Item", "init");
-
-            if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                Grug.callExportFn(tempEntityHandle, initFnId);
-            }
-
-            if (tempEntityHandle != 0) {
-                Grug.destroyEntity(tempEntityHandle);
-            }
+            GrugDeclarations.initializeItem(itemData, itemFileId);
 
             GrugDeclarations.declaredItems.put(itemData.id, itemData);
             GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);
 
-            var itemReg = ITEMS.register(cleanName, () -> new Item(new Item.Properties()));
+            var itemReg =
+                    ITEMS.register(
+                            cleanName,
+                            () -> {
+                                // A glider is the game's own ElytraItem and a rocket its own
+                                // FireworkRocketItem, so equipping, the glide, the durability
+                                // spent, the wings and the boost are the reference's code.
+                                if (itemData.gliderMaxDamage > 0) {
+                                    return new ElytraItem(
+                                            new Item.Properties()
+                                                    .durability(itemData.gliderMaxDamage)
+                                                    .rarity(Rarity.UNCOMMON));
+                                }
+                                if (itemData.fireworkRocket) {
+                                    return new FireworkRocketItem(
+                                            new Item.Properties()
+                                                    .component(
+                                                            DataComponents.FIREWORKS,
+                                                            new Fireworks(1, List.of())));
+                                }
+                                return new Item(new Item.Properties());
+                            });
             registeredGrugItems.add(itemReg);
         }
     }

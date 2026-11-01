@@ -1,5 +1,9 @@
-# The elytra's behaviour is not ported yet. 1.20.6 equips it from ElytraItem.use, spends its
-# durability from elytraFlightTick and glides from LivingEntity.travel's isFallFlying branch, and
-# none of that is reachable from a grug Item today: the Item entity exports only init(), and a
-# player's equipment slots, an item stack's damage and a player's velocity are not in mod_api.json.
-# about.json records the gap as a deviation against #915.
+# The elytra is a glider with the reference's 432 damage points. On a loader that glides, the host
+# does the rest the way the reference does: the chest slot, the glide, one point of damage every
+# twentieth glide tick, the pose and the wings. A loader that cannot glide yet keeps a plain item,
+# which about.json records as a deviation against #915.
+export init(ctx: ItemInitContext) {
+    if ctx.supports_gliding() {
+        ctx.set_glider(432)
+    }
+}

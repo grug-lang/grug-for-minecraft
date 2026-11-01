@@ -1,6 +1,5 @@
 package net.grug.minecraft.ornithe.block;
 
-import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -121,16 +120,7 @@ public final class GrugBlocks {
             String fullId = "grug:" + cleanName;
             GrugItemData itemData = new GrugItemData(fullId);
 
-            long tempEntityHandle = Grug.createEntity(itemFileId);
-            long initFnId = Grug.getExportFnId("Item", "init");
-
-            if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                Grug.callExportFn(tempEntityHandle, initFnId);
-            }
-
-            if (tempEntityHandle != 0) {
-                Grug.destroyEntity(tempEntityHandle);
-            }
+            GrugDeclarations.initializeItem(itemData, itemFileId);
 
             GrugDeclarations.declaredItems.put(fullId, itemData);
             GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);

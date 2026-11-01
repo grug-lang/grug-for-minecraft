@@ -233,16 +233,7 @@ public class InitListener {
 
             GrugItemData itemData = new GrugItemData(itemId.toString());
 
-            long tempEntityHandle = Grug.createEntity(itemFileId);
-            long initFnId = Grug.getExportFnId("Item", "init");
-
-            if (tempEntityHandle != 0 && initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                Grug.callExportFn(tempEntityHandle, initFnId);
-            }
-
-            if (tempEntityHandle != 0) {
-                Grug.destroyEntity(tempEntityHandle);
-            }
+            GrugDeclarations.initializeItem(itemData, itemFileId);
 
             GrugDeclarations.declaredItems.put(itemId.toString(), itemData);
             GrugDeclarations.itemDataByFileId.put(itemFileId, itemData);

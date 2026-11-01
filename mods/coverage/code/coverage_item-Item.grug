@@ -1,4 +1,9 @@
-# Exercises the Item registration and asset path.
-export init() {
-    print("coverage_item")
+# Exercises the Item registration and asset path, and the question every item can ask its context.
+export init(ctx: ItemInitContext) {
+    # Whether this loader glides is a fact of the loader, so the answer is only used, not asserted.
+    if ctx.supports_gliding() {
+        print("coverage_item glides")
+    } else {
+        print("coverage_item")
+    }
 }
