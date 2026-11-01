@@ -1,0 +1,68 @@
+# Captures the item list on the player's inventory screen, so the reference job pins what real JEI
+# draws and every loader pins what the port draws. See #874.
+# The crop is the grid and nothing else. At 1280x720 and a GUI scale of 3 the screen is 426 by 240
+# and the inventory's 176 wide GUI leaves the display area from x=301, and both draw the list the
+# same way: six columns of 18 by 18 cells from x=312 and ten rows from y=28, which is 936 to 1260 by
+# 84 to 624 in the frame. JEI's page buttons are the 22 pixels above the grid and its search field
+# and config button the 20 pixels below it, so none of the reference's chrome, which the port does
+# not draw (#870), is in the crop. Neither renderer draws a background behind the grid either:
+# IngredientGridConfig's DrawBackground is off, and the port draws no slot background (#870).
+# The item in a cell is not the same one in the two runs. The port lists by registry key and JEI by
+# creative tab and then mod name, which is the deviation #870 records, so each rendering is compared
+# exactly with pixels of its own: the reference's in jei_item_list_reference, the port's in
+# jei_item_list. That is what makes the two committed frames comparable rather than identical: the
+# grid's edges, the pixels between its cells and the world behind them are the same area of the
+# screen in both runs, so only the icons in the cells differ.
+started: bool = false
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    # The numbers the crop is taken from are the ones the header derives, so a loader whose window or
+    # GUI is laid out otherwise fails here rather than capturing another part of the screen that its
+    # golden would then accept.
+    ctx.assert(Test.screen_width() == 426, "The CI window should be 1280x720 at a GUI scale of 3.")
+    ctx.assert(Test.gui_left() == 125, "The inventory's GUI should be where the crop expects it.")
+    ctx.assert(Test.gui_top() == 37, "The inventory's GUI should be where the crop expects it.")
+    ctx.assert(Test.gui_width() == 176, "The inventory's GUI should be where the crop expects it.")
+
+    # The reference run has no grug overlay to wait for, so there the settled frame is the condition.
+    # On the port the frame that drew this mod's own overlay has to exist before its icons are
+    # captured, as at the run's maximum game speed several ticks can pass before one is drawn.
+    if not Test.is_reference() and not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.world_settled() {
+        ctx.not_done()
+        return
+    }
+
+    if Test.is_reference() {
+        Test.screenshot().equals(r"screenshots/jei_item_list_reference", 936, 84, 1260, 624)
+    } else {
+        Test.screenshot().equals(r"screenshots/jei_item_list", 936, 84, 1260, 624)
+    }
+    Test.close_screen()
+}
