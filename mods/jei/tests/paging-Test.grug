@@ -42,7 +42,6 @@ export tick(ctx: TestTickContext) {
     if step == 0 {
         ctx.assert(pages >= 2, "The item list should hold more than one page of items.")
         ctx.assert(_columns() >= 4, "The grid should be at least four columns wide.")
-        Test.clear_held_item(Test.get_player())
         Test.clear_carried_item()
         # The next button shows the second page, whose first cell is the item after the first page.
         expected_index = per_page

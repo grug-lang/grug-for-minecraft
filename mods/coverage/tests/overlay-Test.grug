@@ -41,10 +41,8 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 0 {
-        # An earlier test may have left the hotbar slot filled, which would push the given item
-        # somewhere the test cannot read back, and may have left something on the cursor, which the
-        # overlay would delete instead of giving.
-        Test.clear_held_item(Test.get_player())
+        # An earlier test may have left something on the cursor, which the overlay would delete
+        # instead of giving.
         Test.clear_carried_item()
         ctx.assert(Test.get_item_max_stack(item_at(0)) > 0, "The first item should have a positive stack size.")
         ctx.assert(Test.get_held_count(Test.get_player()) == 0, "Clearing the held item should leave an empty hand.")
