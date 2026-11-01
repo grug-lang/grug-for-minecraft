@@ -65,6 +65,7 @@ class HostFunctionsItemListTest {
         // NaN compares false against both edges, so the wrong-way-round check alone would record
         // it, and the loader would cast it to an int; infinity would become the largest int.
         assertTrue(HostFunctions.overlayBoxProblem(Double.NaN, 0, 336, 18).contains("finite"));
+        assertTrue(HostFunctions.overlayBoxProblem(318, Double.NaN, 336, 18).contains("finite"));
         assertTrue(
                 HostFunctions.overlayBoxProblem(318, 0, Double.POSITIVE_INFINITY, 18)
                         .contains("finite"));
