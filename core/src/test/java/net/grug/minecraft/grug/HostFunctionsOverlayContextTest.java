@@ -197,8 +197,21 @@ class HostFunctionsOverlayContextTest {
 
     @Test
     void overlayDrawnStartsFalseAndStaysTrueOnceNoted() {
+        GrugOverlay.screenOpened();
         assertFalse(HostFunctions.Test_overlay_drawn());
         GrugOverlay.noteDrawn();
         assertTrue(HostFunctions.Test_overlay_drawn());
+    }
+
+    @Test
+    void aNewlyOpenedScreenHasNotBeenDrawnYet() {
+        GrugOverlay.screenOpened();
+        GrugOverlay.noteDrawn();
+        assertTrue(GrugOverlay.overlayDrawn());
+
+        // An earlier test's screen was drawn, but the one that just opened has not been, so a test
+        // that opened its own screen has to wait for a frame instead of reading the old mark.
+        GrugOverlay.screenOpened();
+        assertFalse(GrugOverlay.overlayDrawn());
     }
 }

@@ -9,6 +9,7 @@ import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
+import net.grug.minecraft.grug.GrugTestState;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -51,6 +52,9 @@ public final class GrugOverlayHost {
     /** The overlay files the loader found, by clean name, so the first screen can create them. */
     private static Map<String, Long> overlayFileIds = new TreeMap<>();
 
+    /** The mod each overlay file belongs to, by the same clean name. */
+    private static Map<String, String> overlayMods = new TreeMap<>();
+
     private static final List<Overlay> overlays = new ArrayList<>();
     private static boolean created = false;
 
@@ -62,21 +66,30 @@ public final class GrugOverlayHost {
         final List<GrugObject> owner;
         final long renderFnId;
         final long clickFnId;
+        final String mod;
 
-        Overlay(long entityHandle, List<GrugObject> owner, long renderFnId, long clickFnId) {
+        Overlay(
+                long entityHandle,
+                List<GrugObject> owner,
+                long renderFnId,
+                long clickFnId,
+                String mod) {
             this.entityHandle = entityHandle;
             this.owner = owner;
             this.renderFnId = renderFnId;
             this.clickFnId = clickFnId;
+            this.mod = mod;
         }
     }
 
     /**
-     * The overlay files to ask, by clean name, from the mod loader's file classification, and the
-     * mark that this loader draws overlays at all, which a test asks before it opens a screen.
+     * The overlay files to ask, by clean name, from the mod loader's file classification, with the
+     * mod each belongs to, and the mark that this loader draws overlays at all, which a test asks
+     * before it opens a screen.
      */
-    static void init(Map<String, Long> files) {
+    static void init(Map<String, Long> files, Map<String, String> mods) {
         overlayFileIds = new TreeMap<>(files);
+        overlayMods = new TreeMap<>(mods);
         GrugOverlay.noteSupported();
     }
 
@@ -84,16 +97,17 @@ public final class GrugOverlayHost {
         if (created) return;
         created = true;
 
-        for (Long fileId : overlayFileIds.values()) {
+        for (Map.Entry<String, Long> entry : overlayFileIds.entrySet()) {
             List<GrugObject> owner = new ArrayList<>();
-            long handle = GrugEntities.createEntityWithOwner(fileId, owner, null);
+            long handle = GrugEntities.createEntityWithOwner(entry.getValue(), owner, null);
             if (handle == 0) continue;
             overlays.add(
                     new Overlay(
                             handle,
                             owner,
                             Grug.getExportFnId("Overlay", "render"),
-                            Grug.getExportFnId("Overlay", "click")));
+                            Grug.getExportFnId("Overlay", "click"),
+                            overlayMods.getOrDefault(entry.getKey(), "")));
         }
     }
 
@@ -112,6 +126,7 @@ public final class GrugOverlayHost {
         ensureCreated();
 
         GuiGraphics graphics = event.getGuiGraphics();
+        String testMod = GrugTestState.currentTestMod;
         for (Overlay overlay : overlays) {
             GrugOverlayGeometry geometry =
                     GrugOverlay.render(
@@ -126,6 +141,16 @@ public final class GrugOverlayHost {
                             event.getMouseX(),
                             event.getMouseY());
 
+            // A test waits for its own mod's overlay, not for another mod's on the same screen: the
+            // coverage mod's overlay draws on every screen too, and would otherwise hide a port
+            // whose render export never ran or declined to draw. A render with nothing to draw is
+            // not a frame of the test's list.
+            if (!geometry.items().isEmpty() || !geometry.boxes().isEmpty()) {
+                if (overlay.mod.equals(testMod)) {
+                    GrugOverlay.noteDrawn();
+                }
+            }
+
             for (GrugScreenItemDraw item : geometry.items()) {
                 graphics.renderItem(
                         new ItemStack((Item) item.item()), (int) item.x(), (int) item.y());
@@ -135,13 +160,16 @@ public final class GrugOverlayHost {
                         (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
             }
         }
+    }
 
-        // A frame on an eligible screen was drawn with the overlays asked, which is what a test
-        // waits for before it clicks: at the game's maximum speed a test can open, click and close
-        // a screen before one frame renders, and then it has proved only that the click path works.
-        if (!overlays.isEmpty()) {
-            GrugOverlay.noteDrawn();
-        }
+    /**
+     * Clears the drawn mark when an eligible screen opens, so a test waits for a frame of the
+     * screen it just opened rather than reading a mark another test's screen left behind.
+     */
+    @SubscribeEvent
+    public static void onScreenInit(ScreenEvent.Init.Post event) {
+        if (eligible(event.getScreen()) == null) return;
+        GrugOverlay.screenOpened();
     }
 
     /**

@@ -141,6 +141,7 @@ public class GrugModLoader {
     private static final Map<String, Long> blockFiles = new TreeMap<>();
     private static final Map<String, Long> itemFiles = new TreeMap<>();
     private static final Map<String, Long> overlayFiles = new TreeMap<>();
+    private static final Map<String, String> overlayMods = new TreeMap<>();
     private static final List<RegistryObject<GrugBlock>> registeredGrugBlocks = new ArrayList<>();
     private static final List<RegistryObject<? extends Item>> registeredGrugItems =
             new ArrayList<>();
@@ -336,7 +337,10 @@ public class GrugModLoader {
                 case "BlockEntity" ->
                         GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
                 case "Item" -> itemFiles.put(entry.cleanName(), file.fileId());
-                case "Overlay" -> overlayFiles.put(entry.cleanName(), file.fileId());
+                case "Overlay" -> {
+                    overlayFiles.put(entry.cleanName(), file.fileId());
+                    overlayMods.put(entry.cleanName(), entry.mod());
+                }
                 default -> {}
             }
         }
@@ -347,7 +351,7 @@ public class GrugModLoader {
         // created on the first eligible screen rather than here, after every item is registered;
         // see GrugOverlayHost.
         if (FMLEnvironment.dist == Dist.CLIENT) {
-            GrugOverlayHost.init(overlayFiles);
+            GrugOverlayHost.init(overlayFiles, overlayMods);
         }
     }
 

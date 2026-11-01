@@ -369,9 +369,11 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: whether a frame with an overlay on an eligible screen has been drawn in this run,
-     * which a test waits for before it clicks. Asking also asks the client to draw the next frame,
-     * the way {@code Test.world_settled} does, because a test that never captures has its frames
+     * Test only: whether a frame has drawn the running test's own overlay on the eligible screen
+     * that is open now, which a test waits for before it clicks. The mark is cleared when an
+     * eligible screen opens, so a test waits for a frame of its own screen rather than for one
+     * another mod drew on an earlier one. Asking also asks the client to draw the next frame, the
+     * way {@code Test.world_settled} does, because a test that never captures has its frames
      * skipped and would otherwise wait for a frame that no test asked for. The answer is set on the
      * render thread, so waiting for it is how a test tells a screen that was really drawn from one
      * the game closed before a frame.
