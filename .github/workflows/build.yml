@@ -1641,9 +1641,12 @@ jobs:
         env:
           GRUG_BESIDE: jei
           GRUG_UNIVERSAL_JAR: ${{ github.workspace }}/universal/grug.jar
-          # The run's selection (#909): the merged mods and coverage, empty for every mod. Every mod
-          # is still loaded, so JEI still lists every registered item, which is what this job checks.
-          GRUG_CI_MODS: ${{ needs.discover.outputs.mods }}
+          # Only coverage's tests. Every mod is still loaded, so JEI still lists every registered
+          # item, which is what this job checks, but real JEI draws its own item list on the same
+          # screens and in the same rectangle as the port's JEI overlay, so a screenshot test of
+          # that overlay cannot compare here. The other mods' tests still run in the development,
+          # installed and production jobs, which install no JEI beside them.
+          GRUG_CI_MODS: coverage
           # The game's own limit; the install has its own, GRUG_CI_INSTALL_TIMEOUT (600 s default),
           # so a slow download of the installer or the game cannot spend this time (#725).
           GRUG_CI_RUN_TIMEOUT: '480'
