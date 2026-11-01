@@ -105,6 +105,11 @@
 					"tracking_issue": 473
 				},
 				{
+					"what": "On b1.7.3-stationapi the redstone engine's item is unshaded in the GUI slot, which its own capture proves, but no test draws it in the hand, in third person or on the ground, so whether those drawings are unshaded like 2.2.14's is unverified. The plate sits at the reference's progress 0.25 everywhere.",
+					"why": "StationAPI accumulates a baked item model's quads and flushes them after the model draw returns, where fixed-function lighting is applied, so the reference's rule has to wrap that flush. The mixin that does it is applied on all three paths, but a capture of any of them needs its own reference run, and a dropped item rotates as it ages, so the ground one is not reproducible.",
+					"tracking_issue": 963
+				},
+				{
 					"what": "The redstone engine gives off no particles. 2.2.14's BlockEngine spawns four reddust particles at its sides on every random display tick while a redstone signal reaches it.",
 					"why": "mod_api.json can neither spawn a particle nor be called on a block's random display tick, and particles are random, so the screenshot runs set the game's particles to minimal rather than compare them.",
 					"tracking_issue": 581
