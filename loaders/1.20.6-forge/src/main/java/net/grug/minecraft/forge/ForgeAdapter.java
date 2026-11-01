@@ -1191,11 +1191,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * A section's block light as its 2048 bytes, or null when the level has no layer for it, which
      * is the same as a section nothing has lit.
      *
-     * <p>Read from either side of the client-server pair: the client's store is a synchronized map
-     * of layers the client thread replaces wholesale and updates in place, so a read that races a
-     * light update can only report one of the two values, which makes the settle answer wait one
-     * more tick. {@code DataLayer.getData} allocates the array of a layer that holds its default
-     * value instead of one, which for block light is no light at all.
+     * <p>Read from either side of the client-server pair. The client's store is written only by the
+     * client thread, so a read taken from the server thread can see a section's layer before or
+     * after an update. A read that lands before it reports the older light, which makes the settle
+     * answer wait another tick; what is compared is the bytes the client holds, so the light it has
+     * not been sent compares unequal rather than passing early. {@code DataLayer.getData} allocates
+     * the array of a layer that holds its default value instead of one, which for block light is no
+     * light at all.
      */
     @GrugGenerated(
             "settle: a level that does not exist and a section outside the light engine's height"
