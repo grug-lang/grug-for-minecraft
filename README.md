@@ -47,8 +47,9 @@ On first launch grug creates a `grug_mods/` folder in the game directory and ins
 mod, `examplemod`, into it. The other bundled mods stay in the jar until you turn them on from the
 **Grug Mods** button on the title screen, and take effect after a restart.
 
-A recipe a mod ships may not exist on an older version of Minecraft, because the item it names is
-not there on that version. That item has to be obtained another way instead, such as a future item
+A recipe a mod ships may not exist on an older version of Minecraft, because an ingredient it names
+is not there on that version, which leaves the recipe uncraftable there. Where that version does
+have the item the recipe produces, it has to be obtained another way instead, such as a future item
 viewer (NEI) on a version with no creative inventory.
 
 Only Linux is supported for now. Windows is tracked in
