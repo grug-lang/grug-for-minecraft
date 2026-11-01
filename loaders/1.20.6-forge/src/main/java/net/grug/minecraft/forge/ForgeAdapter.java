@@ -612,9 +612,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated(
-            "the no-server and server-thread arms: a run clicks from the client of an"
-                    + " integrated server, so the give is always queued")
     public void giveItemToPlayer(Object playerObj, Object itemObj) {
         giveItemToPlayer((Player) playerObj, (Item) itemObj, 1);
     }
@@ -625,6 +622,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
         giveItemToPlayer((Player) playerObj, item, new ItemStack(item).getMaxStackSize());
     }
 
+    @GrugGenerated(
+            "the no-server and server-thread arms: a run clicks from the client of an"
+                    + " integrated server, so the give is always queued")
     private void giveItemToPlayer(Player player, Item item, int count) {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) {
@@ -910,17 +910,16 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run sets the cursor on the screen it just opened")
     public void setCarriedItem(Object itemObj) {
-        onClientThread(
-                () -> {
-                    AbstractContainerScreen<?> container = openContainerScreen();
-                    if (container == null) return;
-                    container
-                            .getMenu()
-                            .setCarried(
-                                    itemObj == null
-                                            ? ItemStack.EMPTY
-                                            : new ItemStack((Item) itemObj, 1));
-                });
+        onClientThread(() -> setCarriedItemOnClient(itemObj));
+    }
+
+    @GrugGenerated("the no-screen arm: a run sets the cursor on the screen it just opened")
+    private void setCarriedItemOnClient(Object itemObj) {
+        AbstractContainerScreen<?> container = openContainerScreen();
+        if (container == null) return;
+        container
+                .getMenu()
+                .setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
     }
 
     @Override
@@ -944,13 +943,17 @@ public class ForgeAdapter implements ModLoaderAdapter {
         Player local = Minecraft.getInstance().player;
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (local == null || server == null) return;
-        server.execute(
-                () -> {
-                    ServerPlayer serverPlayer = server.getPlayerList().getPlayer(local.getUUID());
-                    if (serverPlayer != null) {
-                        serverPlayer.containerMenu.setCarried(ItemStack.EMPTY);
-                    }
-                });
+        server.execute(() -> clearServerCarried(server, local));
+    }
+
+    @GrugGenerated(
+            "a missing server player: a run deletes from the screen it just opened on an"
+                    + " integrated server")
+    private static void clearServerCarried(MinecraftServer server, Player local) {
+        ServerPlayer serverPlayer = server.getPlayerList().getPlayer(local.getUUID());
+        if (serverPlayer != null) {
+            serverPlayer.containerMenu.setCarried(ItemStack.EMPTY);
+        }
     }
 
     @GrugGenerated("the no-screen arm: a run reads the screen it just opened")
