@@ -1114,6 +1114,84 @@ class ModZipsTest(unittest.TestCase):
             self.assertIn("examplemod", index["mods"])
             self.assertNotIn("coverage", index["mods"])
 
+    BASE = "https://github.com/o/r/releases/download"
+
+    def test_an_unchanged_mod_is_not_written_again_and_points_at_its_release(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mods = self.mods(tmp)
+            first = universal_jar.write_mod_zips(mods, "a", Path(tmp) / "one")
+            (mods / "beta" / "new.txt").write_text("changed")
+            out = Path(tmp) / "two"
+            second = universal_jar.write_mod_zips(mods, "b", out, first, "v1", self.BASE)
+
+            self.assertEqual(sorted(p.name for p in out.iterdir()), ["beta.zip", "index.json"])
+            self.assertEqual(
+                second["mods"]["alpha"],
+                {**first["mods"]["alpha"], "url": f"{self.BASE}/v1/alpha.zip"},
+            )
+            self.assertNotIn("url", second["mods"]["beta"])
+            self.assertNotEqual(second["mods"]["beta"]["sha256"], first["mods"]["beta"]["sha256"])
+
+    def test_a_url_chain_keeps_the_release_that_holds_the_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mods = self.mods(tmp)
+            first = universal_jar.write_mod_zips(mods, "a", Path(tmp) / "one")
+            second = universal_jar.write_mod_zips(
+                mods, "b", Path(tmp) / "two", first, "v1", self.BASE
+            )
+            third = universal_jar.write_mod_zips(
+                mods, "c", Path(tmp) / "three", second, "v2", self.BASE
+            )
+            self.assertEqual(third["mods"]["alpha"]["url"], f"{self.BASE}/v1/alpha.zip")
+            self.assertEqual([p.name for p in (Path(tmp) / "three").iterdir()], ["index.json"])
+
+    def test_a_previous_index_that_lacks_the_mod_or_is_odd_publishes_everything(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mods = self.mods(tmp)
+            for previous in ({}, {"mods": {"alpha": "x", "beta": {"sha256": "0"}}}):
+                out = Path(tmp) / f"o{len(previous)}"
+                universal_jar.write_mod_zips(mods, "a", out, previous, "v1", self.BASE)
+                self.assertEqual(
+                    sorted(p.name for p in out.iterdir()), ["alpha.zip", "beta.zip", "index.json"]
+                )
+
+    def test_the_command_with_a_previous_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            mods = self.mods(tmp)
+            first = universal_jar.write_mod_zips(mods, "a", Path(tmp) / "one")
+            prev = Path(tmp) / "prev.json"
+            prev.write_text(json.dumps(first))
+            base = ["mod-zips", "--commit", "b", "--mods", str(mods), "--out", str(Path(tmp) / "o")]
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                argv = base + ["--previous", str(prev), "--previous-tag", "v1"]
+                argv += ["--download-base", self.BASE]
+                self.assertEqual(universal_jar.main(argv), 0)
+            self.assertIn("Wrote 0 of 2 mod zips", out.getvalue())
+            self.assertIn("unchanged since v1", out.getvalue())
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+                self.assertEqual(universal_jar.main(base + ["--previous", str(prev)]), 1)
+                self.assertIn("--previous needs", err.getvalue())
+                prev.write_text("[]")
+                self.assertEqual(
+                    universal_jar.main(
+                        base
+                        + ["--previous", str(prev)]
+                        + ["--previous-tag", "v", "--download-base", "b"]
+                    ),
+                    1,
+                )
+                self.assertIn("is not an index", err.getvalue())
+                prev.write_text("{")
+                self.assertEqual(
+                    universal_jar.main(
+                        base
+                        + ["--previous", str(prev)]
+                        + ["--previous-tag", "v", "--download-base", "b"]
+                    ),
+                    1,
+                )
+                self.assertIn("not a readable index", err.getvalue())
+
     def test_the_command(self):
         with tempfile.TemporaryDirectory() as tmp:
             mods = self.mods(tmp)
@@ -1128,7 +1206,7 @@ class ModZipsTest(unittest.TestCase):
             ]
             with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
                 self.assertEqual(universal_jar.main(argv), 0)
-            self.assertIn("Wrote 2 mod zips", out.getvalue())
+            self.assertIn("Wrote 2 of 2 mod zips", out.getvalue())
             (mods / "alpha").rename(mods / "x")
             for child in (mods / "x", mods / "beta"):
                 for path in sorted(child.rglob("*"), reverse=True):

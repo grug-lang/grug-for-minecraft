@@ -28,7 +28,11 @@ import java.util.zip.ZipInputStream;
  * <pre>{"commit": "9f2c1a...", "mods": {"buildcraft": {"zip": "buildcraft.zip", "sha256": "..."}}}
  * </pre>
  *
- * The index is read from GitHub's release CDN, not its API, so the API's hourly limit for
+ * A mod unchanged since an older release has an extra {@code "url"}, an absolute http(s) URL ending
+ * in {@code /<zip>} that points at the older release's asset, because a release attaches only the
+ * zips whose bytes changed (#523). Without {@code "url"} the zip sits beside the index.
+ *
+ * <p>The index is read from GitHub's release CDN, not its API, so the API's hourly limit for
  * unauthenticated requests does not apply. An install downloads the zip, checks it against the
  * index, and only then unpacks it, into a hidden directory that is renamed into place, so a failure
  * anywhere installs nothing.
@@ -111,7 +115,16 @@ public final class GrugCatalogue {
                     throw new JsonParseException(
                             mod.getKey() + " names a bad zip, SHA-256 or size");
                 }
-                items.put(mod.getKey(), new Item(base + zip, sha256.toLowerCase(), size));
+                // A mod that has not changed since an older release points at that release's
+                // asset with an absolute url, so the release does not attach its zip again (#523).
+                String zipUrl = base + zip;
+                if (entry.has("url")) {
+                    zipUrl = entry.get("url").getAsString();
+                    if (!zipUrl.matches("https?://[^\\s]+/" + java.util.regex.Pattern.quote(zip))) {
+                        throw new JsonParseException(mod.getKey() + " names a bad url");
+                    }
+                }
+                items.put(mod.getKey(), new Item(zipUrl, sha256.toLowerCase(), size));
             }
         } catch (JsonParseException
                 | IllegalStateException

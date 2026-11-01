@@ -1254,9 +1254,25 @@ def mod_zip(mod_dir):
     return buffer.getvalue()
 
 
-def write_mod_zips(mods_dir, commit, out):
-    """Writes <mod>.zip for every mod under mods_dir except the test fixtures, and index.json, which
-    names each zip with its SHA-256 and the commit they were made from. Returns the index."""
+def unchanged_entry(previous, previous_tag, download_base, name, sha256):
+    """The previous index's entry for a mod whose zip has the same SHA-256, pointing at the asset
+    that already holds its bytes, or None when the mod is new or changed (#523). A mod that has
+    already moved to an older release keeps that release's url, so a chain of releases never
+    points at a release that did not attach the zip."""
+    old = previous.get("mods", {}).get(name)
+    if not isinstance(old, dict) or old.get("sha256") != sha256:
+        return None
+    entry = {"zip": old["zip"], "sha256": sha256, "size": old["size"]}
+    entry["url"] = old.get("url") or f"{download_base}/{previous_tag}/{old['zip']}"
+    return entry
+
+
+def write_mod_zips(mods_dir, commit, out, previous=None, previous_tag=None, download_base=None):
+    """Writes index.json, which names every mod with its zip's SHA-256 and the commit they were made
+    from, and <mod>.zip for every mod under mods_dir except the test fixtures. Given the previous
+    release's index (and its tag and the releases' download base URL), a mod whose zip is
+    byte-identical to the previous one is not written again: its entry carries a url that points at
+    the release that holds it (#523). Returns the index."""
     mods_dir, out = Path(mods_dir), Path(out)
     names = sorted(
         p.name for p in mods_dir.iterdir() if p.is_dir() and p.name not in UNBUNDLED_MODS
@@ -1267,12 +1283,14 @@ def write_mod_zips(mods_dir, commit, out):
     index = {"commit": commit, "mods": {}}
     for name in names:
         data = mod_zip(mods_dir / name)
-        (out / f"{name}.zip").write_bytes(data)
-        index["mods"][name] = {
-            "zip": f"{name}.zip",
-            "sha256": hashlib.sha256(data).hexdigest(),
-            "size": len(data),
-        }
+        digest = hashlib.sha256(data).hexdigest()
+        entry = None
+        if previous is not None:
+            entry = unchanged_entry(previous, previous_tag, download_base, name, digest)
+        if entry is None:
+            (out / f"{name}.zip").write_bytes(data)
+            entry = {"zip": f"{name}.zip", "sha256": digest, "size": len(data)}
+        index["mods"][name] = entry
     (out / "index.json").write_text(json.dumps(index, indent=2) + "\n")
     return index
 
@@ -1350,6 +1368,16 @@ def main(argv=None):
     zipping.add_argument(
         "--mods", default=REPO_ROOT / "mods", type=Path, help="the mods directory to read"
     )
+    zipping.add_argument(
+        "--previous",
+        type=Path,
+        help="the previous release's index.json; its unchanged zips are skipped",
+    )
+    zipping.add_argument("--previous-tag", help="the tag of the release that --previous came from")
+    zipping.add_argument(
+        "--download-base",
+        help="the repository's releases/download URL, which a skipped zip's url extends",
+    )
     noting = commands.add_parser("release-notes", help="print a release's notes for players")
     noting.add_argument("jar_name", help="the released jar's file name, grug-<version>.jar")
     noting.add_argument(
@@ -1367,11 +1395,27 @@ def main(argv=None):
 
     if args.command == "mod-zips":
         try:
-            index = write_mod_zips(args.mods, args.commit, args.out)
+            previous = None
+            if args.previous is not None:
+                if not (args.previous_tag and args.download_base):
+                    raise AssemblyError("--previous needs --previous-tag and --download-base")
+                try:
+                    previous = json.loads(args.previous.read_text())
+                except (OSError, ValueError) as error:
+                    raise AssemblyError(f"{args.previous} is not a readable index: {error}")
+                if not isinstance(previous, dict):
+                    raise AssemblyError(f"{args.previous} is not an index")
+            index = write_mod_zips(
+                args.mods, args.commit, args.out, previous, args.previous_tag, args.download_base
+            )
         except AssemblyError as error:
             print(f"==> ERROR: {error}", file=sys.stderr)
             return 1
-        print(f"==> Wrote {len(index['mods'])} mod zips and index.json to {args.out}")
+        written = len(list(args.out.glob("*.zip")))
+        print(
+            f"==> Wrote {written} of {len(index['mods'])} mod zips and index.json to {args.out}; "
+            f"the other {len(index['mods']) - written} are unchanged since {args.previous_tag}"
+        )
         return 0
 
     if args.command == "smoke-matrix":
