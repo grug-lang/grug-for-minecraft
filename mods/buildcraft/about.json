@@ -100,8 +100,8 @@
 			},
 			"deviations": [
 				{
-					"what": "On b1.7.3-stationapi the redstone engine's item is unshaded in the GUI slot, which its own capture proves, but no test draws it in the hand, in third person or on the ground, so whether those drawings are unshaded like 2.2.14's is unverified. The plate sits at the reference's progress 0.25 everywhere.",
-					"why": "StationAPI accumulates a baked item model's quads and flushes them after the model draw returns, where fixed-function lighting is applied, so the reference's rule has to wrap that flush. The mixin that does it is applied on all three paths, but a capture of any of them needs its own reference run, and a dropped item rotates as it ages, so the ground one is not reproducible.",
+					"what": "On b1.7.3-stationapi the redstone engine's item is unshaded in the GUI slot and in the player's hand, which their own captures prove, but no test draws it in third person or on the ground, so whether those drawings are unshaded like 2.2.14's is unverified. The plate sits at the reference's progress 0.25 everywhere.",
+					"why": "StationAPI accumulates a baked item model's quads and flushes them after the model draw returns, where fixed-function lighting is applied, so the reference's rule has to wrap that flush. The mixin that does it is applied on all three paths, but the hand's capture is taken, but third person needs a second entity holding the item and a camera on it, and a dropped item rotates as it ages, so the ground one is not reproducible.",
 					"tracking_issue": 963
 				},
 				{
