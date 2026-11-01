@@ -964,8 +964,6 @@ public class StationApiAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated(
-            "a run downloads no sound resources, so the pool is empty and hasSound is never true")
     public void playUiSound(String path, double volume, double pitch) {
         minecraft().soundManager.playSound(path, (float) volume, (float) pitch);
     }

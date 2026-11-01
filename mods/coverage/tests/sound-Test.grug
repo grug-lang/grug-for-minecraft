@@ -1,8 +1,8 @@
 # Covers has_sound and play_ui_sound for the game's own sounds. The 1.20.6 registry always holds the
 # button click, so there the sound exists and is played. Alpha, Beta and 1.2.5 keep their sounds in a
-# pool of the files the game has loaded, which a run with no resources downloaded leaves empty, so
-# there has_sound is the probe and the sound is played only if the pool has it. A name that is
-# another namespace's, or that nothing has, is never known. See #914.
+# pool by the name of the file, so they have random.click and not ui.button.click; a 1.2.5 run
+# downloads no sound resources and its pool is empty, so there has_sound is the probe and nothing is
+# played. A name that is another namespace's, or that nothing has, is never known. See #914.
 export tick(ctx: TestTickContext) {
     print2("has_sound ui.button.click", has_sound("minecraft:ui.button.click"))
     print2("has_sound random.click", has_sound("minecraft:random.click"))
