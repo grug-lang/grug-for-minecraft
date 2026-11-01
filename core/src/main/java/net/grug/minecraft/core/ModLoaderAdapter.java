@@ -764,6 +764,29 @@ public interface ModLoaderAdapter {
             double pointZ);
 
     /**
+     * Test only: whether the game's own ray trace from one point to another first meets the block
+     * at the given position.
+     *
+     * <p>The two points are in block-local coordinates, like the boxes of {@link
+     * #blockCollisionIntersects}, and may lie outside 0 to 1 so a test can start a ray outside the
+     * block. Each loader answers through the method its world's own ray trace calls for a block, so
+     * this is the path a player's click takes rather than a question the adapter answers itself: a
+     * loader that clips against the full cube, or against a shape it left behind on a shared block,
+     * misses a ray it should hit and hits one it should miss.
+     */
+    boolean blockRayTraceHits(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double startX,
+            double startY,
+            double startZ,
+            double endX,
+            double endY,
+            double endZ);
+
+    /**
      * Captures the rectangle and compares it against the reference directory. When {@code
      * tolerancePercent} is 0 the capture must match pixel-for-pixel; otherwise it passes when at
      * most that percentage of pixels differ.

@@ -1707,13 +1707,48 @@ public class Grug125Adapter implements ModLoaderAdapter {
                 && pz <= box.maxZ;
     }
 
+    @Override
+    @GrugGenerated("test helper: it asks a game's own block for its ray trace")
+    public boolean blockRayTraceHits(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double startX,
+            double startY,
+            double startZ,
+            double endX,
+            double endY,
+            double endZ) {
+        World world = (World) levelObj;
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+        Block block = blockAt(world, blockX, blockY, blockZ);
+        if (block == null) {
+            return false;
+        }
+
+        // The same call this version's World.rayTraceBlocks makes for the first block its ray
+        // reaches, so a click and this answer clip against the same box.
+        MovingObjectPosition hit =
+                block.collisionRayTrace(
+                        world,
+                        blockX,
+                        blockY,
+                        blockZ,
+                        Vec3D.createVector(blockX + startX, blockY + startY, blockZ + startZ),
+                        Vec3D.createVector(blockX + endX, blockY + endY, blockZ + endZ));
+        return hit != null && hit.blockX == blockX && hit.blockY == blockY && hit.blockZ == blockZ;
+    }
+
     /**
      * The block at a position, or null for air or an id nothing was registered for.
      *
-     * <p>The only callers are the two test helpers above, and an id past the table cannot come from
-     * a world, so the gate does not measure this lookup.
+     * <p>The only callers are the three test helpers above, and an id past the table cannot come
+     * from a world, so the gate does not measure this lookup.
      */
-    @GrugGenerated("test helper: the block lookup the two test helpers above share")
+    @GrugGenerated("test helper: the block lookup the three test helpers above share")
     private static Block blockAt(World world, int x, int y, int z) {
         int blockId = world.getBlockId(x, y, z);
         if (blockId <= 0 || blockId >= Block.blocksList.length) {

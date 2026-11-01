@@ -1,12 +1,13 @@
-# Covers the wooden pipe's collision and selection box: BuildCraft 2.2.14's centre-and-arms bounds,
-# which follow the same connections the pipe's render draws. The reference's collision method adds
-# getCollisionBoundingBoxFromPool, which the reference overrides to recompute the union from the
-# connections, so its collision box is the same union box its selection box is, and both of them are
-# what the port declares. A player is kept out of the space the union covers, which at a corner
-# reaches past the drawn arms, and a click outside the union misses the pipe. That is what
-# separates this from the full cube the pipe used while mod_api.json had no shape.
-# Every box is asked of the game rather than of the script, in block-local coordinates from the
-# block's minimum corner, so the reference pipe answers the same questions through the same code.
+# Covers the wooden pipe's collision and selection box and the ray trace a click takes against them:
+# BuildCraft 2.2.14's centre-and-arms bounds, which follow the same connections the pipe's render
+# draws. The reference's collision method adds getCollisionBoundingBoxFromPool, which the reference
+# overrides to recompute the union from the connections, so its collision box is the same union box
+# its selection box is, and both of them are what the port declares. A player is kept out of the
+# space the union covers, which at a corner reaches past the drawn arms, a click outside the union
+# goes past the pipe, and a click inside it hits. That is what separates this from the full cube the
+# pipe used while mod_api.json had no shape.
+# Every box and ray is asked of the game rather than of the script, in block-local coordinates from
+# the block's minimum corner, so the reference pipe answers the same questions through the same code.
 # The fixture is a straight run, a corner and then a pipe with no neighbour at all, all three from
 # the one pipe so every answer comes from the same world state a player would see.
 origin_x: number = 0
@@ -61,7 +62,10 @@ local _place_pipe(level: Level, x: number, y: number, z: number) {
 }
 
 # A straight run along x: the centre and the two arms collide, the space above and below the pipe
-# does not, and the selection box reaches both arms but no further.
+# does not, and the selection box reaches both arms but no further. The ray traces are the click a
+# player makes: one through the pipe is the first block the ray meets, and one through the corner the
+# pipe does not reach goes past it. Every loader clips that ray through its own block method, so a
+# loader that clips against the full cube, or against a box it left on a shared block, fails here.
 local _check_straight(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
     ctx.assert(Test.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "A straight run's centre should collide.")
     ctx.assert(Test.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A straight run's west arm should collide.")
@@ -74,6 +78,9 @@ local _check_straight(ctx: TestTickContext, level: Level, x: number, y: number, 
     ctx.assert(not Test.block_selection(level, x, y, z, 0.5, 0.1, 0.5), "A straight run's selection should not reach under the pipe.")
     ctx.assert(not Test.block_selection(level, x, y, z, 0.5, 0.9, 0.5), "A straight run's selection should not reach above the pipe.")
     ctx.assert(not Test.block_selection(level, x, y, z, 0.05, 0.1, 0.5), "A straight run's selection should not reach the empty corner.")
+
+    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.5, 0.01, 0.5, 0.5, 0.99, 0.5), "A ray through a straight run's centre should hit the pipe.")
+    ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a straight run's empty corner should go past the pipe.")
 }
 
 # A corner with an east arm and a north arm: the union starts at the centre's near corner and
@@ -95,6 +102,9 @@ local _check_corner(ctx: TestTickContext, level: Level, x: number, y: number, z:
     ctx.assert(not Test.block_selection(level, x, y, z, 0.1, 0.5, 0.5), "A corner's selection should not reach the west side.")
     ctx.assert(not Test.block_selection(level, x, y, z, 0.5, 0.5, 0.95), "A corner's selection should not reach the south side.")
     ctx.assert(not Test.block_selection(level, x, y, z, 0.1, 0.5, 0.9), "A corner's selection should not reach the empty corner.")
+
+    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.9, 0.01, 0.9, 0.9, 0.99, 0.9), "A ray through the corner between a corner's two arms should hit the pipe.")
+    ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a corner the pipe does not reach should go past it.")
 }
 
 # A pipe with nothing beside it: only the quarter-block centre is solid, and the selection box is
@@ -104,4 +114,6 @@ local _check_alone(ctx: TestTickContext, level: Level, x: number, y: number, z: 
     ctx.assert(not Test.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A pipe with no neighbour should have no west arm.")
     ctx.assert(Test.block_selection(level, x, y, z, 0.5, 0.5, 0.5), "A pipe with no neighbour should be selected at its centre.")
     ctx.assert(not Test.block_selection(level, x, y, z, 0.1, 0.5, 0.5), "A pipe with no neighbour should not be selected at a side.")
+    ctx.assert(Test.block_ray_trace(level, x, y, z, 0.5, 0.01, 0.5, 0.5, 0.99, 0.5), "A ray through a lone pipe's centre should hit it.")
+    ctx.assert(not Test.block_ray_trace(level, x, y, z, 0.05, 0.01, 0.05, 0.05, 0.99, 0.05), "A ray through a lone pipe's empty corner should go past it.")
 }

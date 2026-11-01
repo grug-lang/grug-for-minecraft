@@ -48,7 +48,7 @@
 				},
 				{
 					"name": "shape",
-					"description": "Called by the game whenever it needs this block's boxes at a position, for a block whose init() called `set_shape`. Declare them through `ctx`: the boxes entities collide with, and the boxes the game targets and outlines. It is asked again on every query rather than once at registration, because a shape can follow what is around it: a pipe's arms follow the inventories and pipes beside it, so read the world in this call rather than saving what it said last time. A block that declares `set_shape` and exports no shape function, or that adds no box at all, reports an error and keeps the full cube.",
+					"description": "Called by the game whenever it needs this block's boxes at a position, for a block whose init() called `set_shape`. Declare them through `ctx`: the boxes entities collide with, and the boxes the game targets and outlines. It is asked again on every query rather than once at registration, because a shape can follow what is around it: a pipe's arms follow the inventories and pipes beside it, so read the world in this call rather than saving what it said last time. A block that declares `set_shape` and exports no shape function, or that adds no box at all, reports an error and keeps the full cube. A block that exports shape without calling `set_shape` is reported too, since the game would never run its export, and keeps the full cube until it declares one.",
 					"parameters": [
 						{
 							"name": "ctx",
@@ -1366,6 +1366,74 @@
 						}
 					]
 				},
+				"block_ray_trace": {
+					"description": "Test only: whether the game's own ray trace from one point to another first meets the block at that position. The two points are in block-local coordinates, 0 to 1 from the block's minimum corner, and may lie outside them so a ray can start outside the block. It asks each loader through the method its world's own block ray trace calls, which is the path a player's click takes, rather than reading the block's boxes itself, so it answers for any block the loader knows and a loader that clips against the wrong box fails here.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "start_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "start_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "start_z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "end_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "end_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "end_z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"block_selection": {
 					"description": "Whether the box the game targets and outlines for the block at that position contains the given point. The point is in block-local coordinates, 0 to 1 from the block's minimum corner. It asks the game for the block's own selection box, so it answers for any block the loader knows, not only for grug blocks.",
 					"return_type": {
@@ -2627,7 +2695,7 @@
 					"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
 				},
 				"set_shape": {
-					"description": "Declares that this block's collision and selection boxes come from its shape export rather than being the full cube, which is what lets a machine be a shape no model JSON can express: a pipe that reaches towards what is beside it, a slab, a fence. The block's script then has to export shape, which the game asks for the boxes at a position every time it needs them, so the boxes are not fixed at registration and may follow the block's neighbours or its state. A block that declares set_shape without a shape export, or whose shape adds no box, reports an error and keeps the full cube. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+					"description": "Declares that this block's collision and selection boxes come from its shape export rather than being the full cube, which is what lets a machine be a shape no model JSON can express: a pipe that reaches towards what is beside it, a slab, a fence. The block's script then has to export shape, which the game asks for the boxes at a position every time it needs them, so the boxes are not fixed at registration and may follow the block's neighbours or its state. A block that declares set_shape without a shape export, or whose shape adds no box, reports an error and keeps the full cube. A block that exports shape without declaring it is reported as well, on its first query, because the game would never run that export; the declaration is what tells the game to ask at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
 				}
 			}
 		},
