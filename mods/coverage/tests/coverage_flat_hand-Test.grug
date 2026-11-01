@@ -1,7 +1,6 @@
-# Covers the redstone engine's item as the player sees it in their own hand, which BuildCraft 2.2.14's
-# RenderEngine.render draws with GL lighting off, so the trunk is as bright on its dark faces as on its
-# lit ones. redstone_engine_item-Test.grug covers the GUI slot only. On b1.7.3-stationapi the hand is
-# drawn by ArsenicOverlayRenderer, whose flush is the one the unshaded rule has to wrap. See #963.
+# A block item drawn unshaded, as the redstone engine's is (set_flat_lighting), in the player's own hand:
+# the loader draws the hand, not the port, so this belongs here and not in BuildCraft. On b1.7.3-stationapi
+# the hand is drawn by ArsenicOverlayRenderer, whose flush is the one the unshaded rule has to wrap. See #963.
 # Seventeen blocks square of stone fills the view behind the hand, as in redstone_engine_facings-Test.grug,
 # so the capture does not depend on the terrain. The hand is still while the player stands still and
 # holds the item, but it rises after the item is put in it, so the capture waits out that rise.
@@ -31,7 +30,7 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    Test.screenshot().equals(r"screenshots/redstone_engine_item_hand", 940, 550, 1140, 720)
+    Test.screenshot().equals(r"screenshots/coverage_flat_hand", 940, 550, 1140, 720)
     Test.clear_held_item(Test.get_player())
 }
 
@@ -49,12 +48,5 @@ local _setup(ctx: TestTickContext) {
         wy = wy + 1
     }
 
-    player: Player = Test.get_player()
-    if Test.is_reference() {
-        reference_item: Item = item(resource_location("buildcraft:engineWood"))
-        Test.set_held_item(player, reference_item)
-    } else {
-        port_item: Item = item(resource_location("grug:redstone_engine"))
-        Test.set_held_item(player, port_item)
-    }
+    Test.set_held_item(Test.get_player(), item(resource_location("grug:coverage_flat_hand")))
 }
