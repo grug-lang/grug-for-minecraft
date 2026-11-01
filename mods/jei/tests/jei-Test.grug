@@ -68,7 +68,6 @@ export tick(ctx: TestTickContext) {
         ctx.assert(stack_index >= 0, "The item list should hold an item whose full stack is 64.")
         stack_column = Math.remainder(stack_index, _columns())
         stack_row = Math.floor(stack_index / _columns())
-        Test.clear_held_item(Test.get_player())
         Test.clear_carried_item()
         step = 1
         taken: bool = Test.click_screen(_cell_x(clicked_column), _cell_y(clicked_row), 1)
