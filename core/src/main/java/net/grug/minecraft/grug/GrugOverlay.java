@@ -68,6 +68,14 @@ public final class GrugOverlay {
      */
     private static volatile boolean overlaySupported = false;
 
+    /**
+     * Whether the game has drawn a frame with an overlay asked on an eligible screen, which is what
+     * {@code Test.overlay_drawn} answers. A test waits for it before it clicks, so that the frame
+     * the overlay draws on is a frame that really was rendered rather than one the test ran past at
+     * the game's maximum speed.
+     */
+    private static volatile boolean overlayDrawn = false;
+
     @GrugGenerated("utility class: never instantiated")
     private GrugOverlay() {}
 
@@ -83,6 +91,19 @@ public final class GrugOverlay {
     /** Whether this loader draws overlays on the inventory and container screens. */
     public static boolean overlaySupported() {
         return overlaySupported;
+    }
+
+    /**
+     * Marks that a frame's overlays were drawn, so Test.overlay_drawn can answer true from then on.
+     * Called by a loader after it drew a frame on an eligible screen, on the render thread.
+     */
+    public static void noteDrawn() {
+        overlayDrawn = true;
+    }
+
+    /** Whether a frame with an overlay on an eligible screen has been drawn in this run. */
+    public static boolean overlayDrawn() {
+        return overlayDrawn;
     }
 
     /** Whether a pass is open, which is the only state a context method is legal in. */
