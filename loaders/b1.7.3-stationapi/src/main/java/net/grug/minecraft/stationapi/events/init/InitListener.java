@@ -72,6 +72,11 @@ public class InitListener {
     public static final Map<String, Long> itemFiles = new TreeMap<>();
     private static final Map<String, Long> blockFiles = new TreeMap<>();
 
+    /** The overlay files, by clean name, and the mod each belongs to. */
+    public static final Map<String, Long> overlayFiles = new TreeMap<>();
+
+    public static final Map<String, String> overlayMods = new TreeMap<>();
+
     /**
      * Every registered grug block, so the client can reach the ones that draw their own geometry
      * when a resource reload hands it a new texture atlas to point them at.
@@ -134,6 +139,8 @@ public class InitListener {
 
         blockFiles.clear();
         itemFiles.clear();
+        overlayFiles.clear();
+        overlayMods.clear();
 
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
@@ -144,6 +151,10 @@ public class InitListener {
                 case "BlockEntity" ->
                         GrugEntities.entityFileIdsByName.put(entry.cleanName(), file.fileId());
                 case "Item" -> itemFiles.put(entry.cleanName(), file.fileId());
+                case "Overlay" -> {
+                    overlayFiles.put(entry.cleanName(), file.fileId());
+                    overlayMods.put(entry.cleanName(), entry.mod());
+                }
                 default -> {}
             }
         }

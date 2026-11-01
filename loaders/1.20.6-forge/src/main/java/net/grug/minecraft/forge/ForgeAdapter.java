@@ -667,6 +667,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    public int getItemMaxStack(Object itemObj) {
+        return itemObj instanceof Block
+                ? new ItemStack(((Block) itemObj).asItem()).getMaxStackSize()
+                : new ItemStack((Item) itemObj).getMaxStackSize();
+    }
+
+    @Override
     public void giveItemToPlayer(Object playerObj, Object itemObj) {
         giveItemToPlayer((Player) playerObj, (Item) itemObj, 1);
     }

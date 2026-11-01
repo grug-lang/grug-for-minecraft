@@ -4,15 +4,15 @@
 # item instead of giving one. JEI's own give sends the item to the server, so the test waits for the
 # client to receive it in the player's hand rather than reading it back at once.
 
-# The overlay is drawn on 1.20.6 only; the other four loaders never ask it, which about.json records
-# as a deviation with its own issue. There the test returns on its first tick without opening a
-# screen, because those loaders cannot open the inventory either.
+# The overlay is drawn on every loader now; a loader that does not ask it still returns on its first
+# tick without opening a screen, so the test skips there instead of failing for a missing feature.
 started: bool = false
 waited: number = 0
 step: number = 0
 
-# The cell the one-item clicks use, and the cell whose item stacks to 64. The second is the second
-# item the host lists, acacia_button, because the host orders vanilla items by key.
+# The cell the one-item clicks use. The stack cell is found in the list itself, because the item
+# order differs by version: the first item whose full stack is 64 is the one the middle click can
+# tell from a single item.
 clicked_column: number = 2
 clicked_row: number = 5
 stack_column: number = 1
@@ -55,6 +55,19 @@ export tick(ctx: TestTickContext) {
         # A right click gives one item, which is the reference's cheatOneItem2. An earlier test may
         # have left something on the cursor; clearing it keeps the delete check from seeing it.
         ctx.assert(_columns() >= 3, "The test needs the grid to be at least three columns wide to click column 2.")
+        # The first item whose full stack is 64 is the stack the middle click uses. The list order
+        # differs by version, so scanning it is what makes the same test work on all of them.
+        stack_index: number = -1
+        search: number = 0
+        while search < item_count() and stack_index < 0 {
+            if Test.get_item_max_stack(item_at(search)) == 64 {
+                stack_index = search
+            }
+            search = search + 1
+        }
+        ctx.assert(stack_index >= 0, "The item list should hold an item whose full stack is 64.")
+        stack_column = Math.remainder(stack_index, _columns())
+        stack_row = Math.floor(stack_index / _columns())
         Test.clear_held_item(Test.get_player())
         Test.clear_carried_item()
         step = 1
@@ -80,9 +93,10 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 2 {
-        # A middle click gives a full stack, which is the reference's cheatItemStack binding; the
-        # second listed item is a 64 stack so the count can tell it from a single item.
-        ctx.assert(equals(expected_stack, item(resource_location("minecraft:acacia_button"))), "The second listed item should be acacia_button, a 64 stack.")
+        # A middle click gives a full stack, which is the reference's cheatItemStack binding. The
+        # item is the one the test found whose full stack is 64, so the count can tell it from a
+        # single item.
+        ctx.assert(Test.get_item_max_stack(expected_stack) == 64, "The stack item should be a 64 stack.")
         Test.clear_held_item(Test.get_player())
         step = 3
         taken: bool = Test.click_screen(_cell_x(stack_column), _cell_y(stack_row), 2)

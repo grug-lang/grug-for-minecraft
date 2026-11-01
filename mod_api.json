@@ -1526,6 +1526,20 @@
 						"name": "number"
 					}
 				},
+				"get_item_max_stack": {
+					"description": "Test only: the largest stack the item can come in, so a test of an overlay can tell a full stack from one item without knowing which item this version's list puts first.",
+					"parameters": [
+						{
+							"name": "item",
+							"type": {
+								"name": "Item"
+							}
+						}
+					],
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"set_carried_item": {
 					"description": "Test only: puts one of the item on the mouse cursor of the container screen that is open, replacing what was there. A test with no container screen open does nothing.",
 					"parameters": [

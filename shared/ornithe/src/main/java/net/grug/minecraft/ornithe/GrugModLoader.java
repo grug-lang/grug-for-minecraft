@@ -41,6 +41,11 @@ public class GrugModLoader implements ModInitializer {
 
     public static final Map<String, String> itemMods = new HashMap<>();
 
+    /** The overlay files, by clean name, and the mod each belongs to. */
+    public static final Map<String, Long> overlayFiles = new TreeMap<>();
+
+    public static final Map<String, String> overlayMods = new HashMap<>();
+
     @Override
     public void init() {
         LOGGER.info("Successfully loaded grug (Ornithe)!");
@@ -61,8 +66,10 @@ public class GrugModLoader implements ModInitializer {
 
         blockFiles.clear();
         itemFiles.clear();
+        overlayFiles.clear();
         blockMods.clear();
         itemMods.clear();
+        overlayMods.clear();
 
         for (GrugFileIndex.Entry entry : GrugFileIndex.classify(files)) {
             FileInfo file = entry.file();
@@ -79,6 +86,10 @@ public class GrugModLoader implements ModInitializer {
                 case "Item":
                     itemFiles.put(entry.cleanName(), file.fileId());
                     itemMods.put(entry.cleanName(), entry.mod());
+                    break;
+                case "Overlay":
+                    overlayFiles.put(entry.cleanName(), file.fileId());
+                    overlayMods.put(entry.cleanName(), entry.mod());
                     break;
                 default:
                     break;

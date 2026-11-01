@@ -23,12 +23,15 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBlockEntityNbtAccess;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
+import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
+import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.item.GrugItem;
 import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screen.inventory.menu.SurvivalInventoryScreen;
 import net.minecraft.client.render.world.RenderChunk;
 import net.minecraft.client.render.world.WorldRenderer;
 import net.minecraft.crafting.CraftingManager;
@@ -56,6 +59,7 @@ import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -572,6 +576,94 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             stack = new ItemStack((Block) itemObj);
         }
         player.inventory.setItem(player.inventory.selectedSlot, stack);
+    }
+
+    @Override
+    public double getHeldCount(Object playerObj) {
+        ItemStack stack = ((PlayerEntity) playerObj).inventory.getSelectedItem();
+        return stack == null ? 0.0 : stack.size;
+    }
+
+    /** The items this loader lists, in item id order, built once because the list never changes. */
+    private List<Item> itemsByIdCache = null;
+
+    private List<Item> itemsById() {
+        if (itemsByIdCache == null) {
+            List<Item> items = new ArrayList<>();
+            for (int id = 0; id < Item.BY_ID.length; id++) {
+                Item item = Item.BY_ID[id];
+                if (item != null) {
+                    items.add(item);
+                }
+            }
+            itemsByIdCache = items;
+        }
+        return itemsByIdCache;
+    }
+
+    @Override
+    public int itemCount() {
+        return itemsById().size();
+    }
+
+    @Override
+    public Object itemByIndex(int index) {
+        List<Item> items = itemsById();
+        return index >= 0 && index < items.size() ? items.get(index) : null;
+    }
+
+    @Override
+    public int getItemMaxStack(Object itemObj) {
+        return ((Item) itemObj).getMaxStackSize();
+    }
+
+    @Override
+    public void giveItemToPlayer(Object playerObj, Object itemObj) {
+        giveItemToPlayer((PlayerEntity) playerObj, itemObj, 1);
+    }
+
+    @Override
+    public void giveItemStackToPlayer(Object playerObj, Object itemObj) {
+        int count = itemObj instanceof Item ? ((Item) itemObj).getMaxStackSize() : 64;
+        giveItemToPlayer((PlayerEntity) playerObj, itemObj, count);
+    }
+
+    /**
+     * Adds the stack to the player's inventory, dropping whatever does not fit at their feet. Alpha
+     * has no give command and its client is the server in singleplayer, so the inventory write is
+     * the give.
+     */
+    private void giveItemToPlayer(PlayerEntity player, Object itemObj, int count) {
+        if (player == null || itemObj == null) return;
+        ItemStack stack =
+                itemObj instanceof Item
+                        ? new ItemStack((Item) itemObj, count)
+                        : new ItemStack((Block) itemObj, count);
+        if (!player.inventory.addItem(stack) && stack.size > 0) {
+            player.dropItem(stack, false);
+        }
+    }
+
+    @Override
+    public Object carriedItem() {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return null;
+        ItemStack stack = player.inventory.cursorItem;
+        return stack == null ? null : stack.getItem();
+    }
+
+    @Override
+    public void setCarriedItem(Object itemObj) {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
+        player.inventory.cursorItem = itemObj == null ? null : new ItemStack((Item) itemObj);
+    }
+
+    @Override
+    public void deleteCarriedItem() {
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
+        player.inventory.cursorItem = null;
     }
 
     @Override
@@ -1176,6 +1268,45 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public boolean isScreenOpenForTest() {
         return MinecraftInstance.get().screen != null;
+    }
+
+    @Override
+    public void openInventory(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        MinecraftInstance.get()
+                .openScreen(
+                        new SurvivalInventoryScreen(player.inventory, player.inventory.crafting));
+    }
+
+    @Override
+    public boolean clickScreen(double x, double y, double button) {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (minecraft.screen == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.click_screen: There is no screen open to click.");
+            return false;
+        }
+        return GrugOverlayHost.click(minecraft.screen, (int) x, (int) y, (int) button, false);
+    }
+
+    @Override
+    public double screenWidthForTest() {
+        Minecraft minecraft = MinecraftInstance.get();
+        return minecraft.screen == null ? 0.0 : minecraft.screen.width;
+    }
+
+    @Override
+    public double guiLeftForTest() {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
+        return ((GrugScreenGeometry) minecraft.screen).grug$guiLeft();
+    }
+
+    @Override
+    public double guiWidthForTest() {
+        Minecraft minecraft = MinecraftInstance.get();
+        if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
+        return ((GrugScreenGeometry) minecraft.screen).grug$guiWidth();
     }
 
     @Override

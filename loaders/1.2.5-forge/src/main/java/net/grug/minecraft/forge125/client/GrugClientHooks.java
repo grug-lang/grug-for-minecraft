@@ -245,6 +245,9 @@ public class GrugClientHooks implements ITickHandler {
     public void tickStart(EnumSet<TickType> types, Object... data) {
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         if (types.contains(TickType.GAME)) {
+            // Before the game's own input pass: an overlay's press has to reach the screen only if
+            // no overlay took it. See GrugOverlayHost.
+            GrugOverlayHost.handleMouse(minecraft);
             gameTick(minecraft);
         }
         if (types.contains(TickType.RENDER)) {
@@ -264,6 +267,9 @@ public class GrugClientHooks implements ITickHandler {
         // frame left the previous one where a capture would read it, so counting it would let a
         // capture through on frames nobody drew. See GrugFrameRequest and #770.
         if (types.contains(TickType.RENDER) && frameDrawn == 1) {
+            // The screen has drawn and the frame has not been presented yet, which is where an
+            // overlay's icons and highlight go. See GrugOverlayHost.
+            GrugOverlayHost.renderCurrent(ModLoader.getMinecraftInstance());
             GrugCore.getAdapter().onFrameRendered();
         }
     }

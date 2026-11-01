@@ -16,6 +16,7 @@ import net.grug.minecraft.forge125.block.GrugBoxRenderer;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge125.client.GlBridge;
 import net.grug.minecraft.forge125.client.GrugEmptyScreen;
+import net.grug.minecraft.forge125.client.GrugOverlayHost;
 import net.grug.minecraft.forge125.client.GrugScreen;
 import net.grug.minecraft.forge125.grug.DummyCraftingInventory;
 import net.grug.minecraft.forge125.grug.VanillaNames;
@@ -41,6 +42,10 @@ import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.GrugGuiAccess;
+import net.minecraft.src.GuiContainer;
+import net.minecraft.src.GuiInventory;
+import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IChunkLoader;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
@@ -1037,6 +1042,92 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
+    public double getHeldCount(Object playerObj) {
+        ItemStack stack = ((EntityPlayer) playerObj).inventory.getCurrentItem();
+        return stack == null ? 0.0 : stack.stackSize;
+    }
+
+    /** The items this loader lists, in item id order, built once because the list never changes. */
+    private List<Item> itemsByIdCache = null;
+
+    private List<Item> itemsById() {
+        if (itemsByIdCache == null) {
+            List<Item> items = new ArrayList<>();
+            for (int id = 0; id < Item.itemsList.length; id++) {
+                Item item = Item.itemsList[id];
+                if (item != null) {
+                    items.add(item);
+                }
+            }
+            itemsByIdCache = items;
+        }
+        return itemsByIdCache;
+    }
+
+    @Override
+    public int itemCount() {
+        return itemsById().size();
+    }
+
+    @Override
+    public Object itemByIndex(int index) {
+        List<Item> items = itemsById();
+        return index >= 0 && index < items.size() ? items.get(index) : null;
+    }
+
+    @Override
+    public int getItemMaxStack(Object itemObj) {
+        return ((Item) itemObj).getItemStackLimit();
+    }
+
+    @Override
+    public void giveItemToPlayer(Object playerObj, Object itemObj) {
+        giveItemToPlayer((EntityPlayer) playerObj, (Item) itemObj, 1);
+    }
+
+    @Override
+    public void giveItemStackToPlayer(Object playerObj, Object itemObj) {
+        Item item = (Item) itemObj;
+        giveItemToPlayer((EntityPlayer) playerObj, item, item.getItemStackLimit());
+    }
+
+    /**
+     * Adds the stack to the player's inventory, dropping whatever does not fit at their feet. 1.2.5
+     * has no give command and its singleplayer client is the server, so the inventory write is the
+     * give.
+     */
+    private void giveItemToPlayer(EntityPlayer player, Item item, int count) {
+        if (player == null) return;
+        ItemStack stack = new ItemStack(item, count);
+        if (!player.inventory.addItemStackToInventory(stack) && stack.stackSize > 0) {
+            player.dropPlayerItem(stack);
+        }
+    }
+
+    @Override
+    public Object carriedItem() {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft == null || minecraft.thePlayer == null) return null;
+        ItemStack stack = minecraft.thePlayer.inventory.getItemStack();
+        return stack == null ? null : stack.getItem();
+    }
+
+    @Override
+    public void setCarriedItem(Object itemObj) {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft == null || minecraft.thePlayer == null) return;
+        minecraft.thePlayer.inventory.setItemStack(
+                itemObj == null ? null : new ItemStack((Item) itemObj));
+    }
+
+    @Override
+    public void deleteCarriedItem() {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft == null || minecraft.thePlayer == null) return;
+        minecraft.thePlayer.inventory.setItemStack(null);
+    }
+
+    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.isBlockIndirectlyGettingPowered(
@@ -1841,6 +1932,44 @@ public class Grug125Adapter implements ModLoaderAdapter {
         // The empty screen close_screen displays is not an open screen as far as a test can tell.
         return GrugTestScreens.isOpen(
                 ModLoader.getMinecraftInstance().currentScreen, GrugEmptyScreen.class);
+    }
+
+    @Override
+    public void openInventory(Object playerObj) {
+        EntityPlayer player = (EntityPlayer) playerObj;
+        if (player == null) return;
+        ModLoader.getMinecraftInstance().displayGuiScreen(new GuiInventory(player));
+    }
+
+    @Override
+    public boolean clickScreen(double x, double y, double button) {
+        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (screen == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.click_screen: There is no screen open to click.");
+            return false;
+        }
+        return GrugOverlayHost.click(screen, (int) x, (int) y, (int) button, false);
+    }
+
+    @Override
+    public double screenWidthForTest() {
+        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        return screen == null ? 0.0 : screen.width;
+    }
+
+    @Override
+    public double guiLeftForTest() {
+        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (!(screen instanceof GuiContainer)) return 0.0;
+        return GrugGuiAccess.guiLeft((GuiContainer) screen);
+    }
+
+    @Override
+    public double guiWidthForTest() {
+        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
+        if (!(screen instanceof GuiContainer)) return 0.0;
+        return GrugGuiAccess.xSize((GuiContainer) screen);
     }
 
     @Override
