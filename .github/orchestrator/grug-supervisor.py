@@ -189,6 +189,12 @@ def orchestrator(sessions, boot):
         if parent:
             children[parent] = children.get(parent, 0) + 1
     newest = max(candidates, key=lambda session: session["time"]["updated"])
+    with_children = [session for session in candidates if children.get(session["id"], 0) > 0]
+    heir = (
+        max(with_children, key=lambda session: session["time"]["updated"])
+        if with_children
+        else None
+    )
     pinned_file = STATE / "session-id"
     if boot and pinned_file.exists():
         pinned = pinned_file.read_text().strip()
@@ -196,14 +202,13 @@ def orchestrator(sessions, boot):
             if session["id"] != pinned:
                 continue
             moved = (
-                newest["id"] != session["id"]
-                and children.get(newest["id"], 0) > 0
-                and newest["time"]["updated"] - session["time"]["updated"] > 3600 * 1000
+                heir is not None
+                and heir["id"] != session["id"]
+                and heir["time"]["updated"] - session["time"]["updated"] > 3600 * 1000
             )
-            return newest if moved else session
-    with_children = [session for session in candidates if children.get(session["id"], 0) > 0]
-    if with_children:
-        return max(with_children, key=lambda session: session["time"]["updated"])
+            return heir if moved else session
+    if heir is not None:
+        return heir
     return newest
 
 
