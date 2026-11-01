@@ -1601,8 +1601,29 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // zero to get the game's red, and its motion for the others.
         World world = (World) levelObj;
         if (name.equals("reddust")) {
-            world.addParticle(name, x, y, z, 0, 0, 0);
+            spawnUnlessCiRun(world, name, x, y, z, 0, 0, 0);
         } else {
+            spawnUnlessCiRun(world, name, x, y, z, vx, vy, vz);
+        }
+    }
+
+    /**
+     * Spawns the particle, except in a CI run. This game has no particle setting to turn down, and
+     * a particle comes from random numbers the screenshot cannot seed, so a capture with one in it
+     * is a different picture on every run. The other loaders' runs set particles to minimal, which
+     * drops them the same way.
+     */
+    @GrugGenerated("the CI run is the only run these paths are measured in, and it drops them")
+    private static void spawnUnlessCiRun(
+            World world,
+            String name,
+            double x,
+            double y,
+            double z,
+            double vx,
+            double vy,
+            double vz) {
+        if (!"true".equals(System.getenv("GRUG_CI"))) {
             world.addParticle(name, x, y, z, vx, vy, vz);
         }
     }

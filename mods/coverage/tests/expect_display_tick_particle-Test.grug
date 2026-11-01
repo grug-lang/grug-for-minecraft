@@ -3,9 +3,9 @@
 export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
-    x: number = origin.x()
-    y: number = origin.y() + 20
-    z: number = origin.z()
+    x: number = Math.floor(origin.x())
+    y: number = Math.floor(origin.y() + 20)
+    z: number = Math.floor(origin.z())
 
     level.place_block(x, y, z, "grug:coverage_display_tick")
     be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
