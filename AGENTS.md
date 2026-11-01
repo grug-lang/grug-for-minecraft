@@ -161,16 +161,22 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   commit, so `release.yml` requires that dispatch and refuses a jar without the Windows native. A
   docs-only push to `main` now runs only `discover` (#822), so the four-hourly check below is what
   keeps a full run of `main` from going missing.
-- **The four-hourly `main` check.** At least every four hours, and at a task boundary, the
-  orchestrator looks at the newest **dispatch** of `build.yml` on `main` and, if it is older than
-  four hours or its conclusion is not success, runs `gh workflow run build.yml --ref main` when no
-  other run is in flight. Only a dispatch runs every job: a push to `main` skips some of them, and
-  which ones can change with the workflow, so a green push is not this check. The
+- **The four-hourly `main` check.** When the supervisor below reports that the newest **dispatch**
+  of `build.yml` on `main` is older than four hours and no other run is in flight, the orchestrator
+  runs `gh workflow run build.yml --ref main` and watches it with
+  `.github/scripts/watch-run.sh <run-id>`. Only a dispatch runs every job: a push to `main` skips
+  some of them, and which ones can change with the workflow, so a green push is not this check. The
   dispatch is the check itself: a red one is a red `main`, attributed and fixed forward as usual. A
-  release dispatch satisfies it for the next four hours. The dispatch is then watched in the
-  background with `.github/scripts/watch-run.sh <run-id>`, and the periodic check is armed again
-  when the watcher reports: a fixed sleep cannot tell a running pipeline from a finished one, so
-  without the watcher a red `main` waits for the next tick.
+  release dispatch satisfies it for the next four hours. The timer checks the age every ten
+  minutes, so a missing dispatch is reported without a sleep to re-arm.
+- **The supervisor.** `.github/orchestrator/grug-supervisor.py` runs from a systemd user timer every
+  ten minutes and posts a message into the orchestrator's session when fewer than five subagents
+  are working, when the dispatch above is due, or when `main`'s newest run is red. A message starts
+  `[automatic supervisor, not the maintainer]` and is acted on as the rule it names, at the next
+  turn. It never dispatches, merges or edits anything. Install it with
+  `cp .github/orchestrator/grug-supervisor.{service,timer} ~/.config/systemd/user/`, then
+  `systemctl --user daemon-reload && systemctl --user enable --now grug-supervisor.timer`, and
+  `loginctl enable-linger <user>` once so it starts at boot instead of at login.
 - A release is published automatically every Sunday at 12:00 CET (11:00 UTC) from `main`'s head: the
   scheduled workflow dispatches the full `build.yml`, waits for it, tags the commit and lets
   `release.yml` attach the jar. That dispatch is the one run that must be green; a failure there
