@@ -102,6 +102,7 @@ class HostFunctionsOverlayContextTest {
         assertEquals(310, HostFunctions.OverlayClickContext_mouse_x(context));
         assertEquals(12, HostFunctions.OverlayClickContext_mouse_y(context));
         assertEquals(0, HostFunctions.OverlayClickContext_button(context));
+        assertFalse(HostFunctions.OverlayClickContext_shift(context));
 
         HostFunctions.OverlayClickContext_take(context);
 
@@ -150,12 +151,13 @@ class HostFunctionsOverlayContextTest {
         HostFunctions.OverlayClickContext_mouse_x(context);
         HostFunctions.OverlayClickContext_mouse_y(context);
         HostFunctions.OverlayClickContext_button(context);
+        HostFunctions.OverlayClickContext_shift(context);
         HostFunctions.OverlayClickContext_take(context);
 
         List<String> reports = drain();
-        assertEquals(10, reports.size(), "Every method names its own refusal.");
+        assertEquals(11, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("OverlayClickContext.screen_width"), reports.get(0));
-        assertTrue(reports.get(9).contains("OverlayClickContext.take"), reports.get(9));
+        assertTrue(reports.get(10).contains("OverlayClickContext.take"), reports.get(10));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }
