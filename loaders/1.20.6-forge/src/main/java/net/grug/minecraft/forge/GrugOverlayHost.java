@@ -213,9 +213,8 @@ public final class GrugOverlayHost {
      * size yet, which is what JEI's own screen check answers.
      *
      * <p>A grug mod's own {@link GrugScreen} is left out on purpose: the first version draws on the
-     * player's inventory and on vanilla chest and crafting-table screens, and drawing on a mod's
-     * own panel would change the GUI goldens of the mods that have one. JEI itself draws there, so
-     * about.json records the difference.
+     * game's other container screens, and drawing on a mod's own panel would change the GUI goldens
+     * of the mods that have one. JEI itself draws there, so about.json records the difference.
      */
     private static AbstractContainerScreen<?> eligible(Screen screen) {
         if (!(screen instanceof AbstractContainerScreen<?> container)) return null;
