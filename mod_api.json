@@ -3296,6 +3296,20 @@
 				}
 			]
 		},
+		"has_sound": {
+			"description": "Whether the game has the sound the name asks for, which a mod asks before it plays a sound the versions it runs on do not all have. A name is a namespace, a colon and a path, such as \"minecraft:ui.button.click\", and a name of any other shape is reported. The namespace `minecraft` is the running game's own sound table, in that version's own names: a sound event of the registry on 1.20.6 (`ui.button.click`), and a name in the sound pool on Alpha, Beta and 1.2.5 (`random.click`), which holds only the sound files the game has loaded, so a run with no resources downloaded answers false for every one of them. A sound a mod ships itself is not supported yet, so every other namespace answers false.",
+			"return_type": {
+				"name": "bool"
+			},
+			"parameters": [
+				{
+					"name": "sound",
+					"type": {
+						"name": "string"
+					}
+				}
+			]
+		},
 		"item": {
 			"description": "Creates a new item.",
 			"return_type": {
@@ -3388,6 +3402,29 @@
 				},
 				{
 					"name": "count",
+					"type": {
+						"name": "number"
+					}
+				}
+			]
+		},
+		"play_ui_sound": {
+			"description": "Plays one of the game's sounds to the player as a sound of the interface, the way a button plays its click: it has no position, so it is heard at the same loudness wherever the player stands. The sound is a name such as \"minecraft:ui.button.click\" (see has_sound for what a name is and for the names a version has), and a name the game does not have is reported, not played as silence. The volume is from 0 to 1 and the pitch from 0.5 to 2, and a value outside them is reported. The sound plays on the client that owns the sound engine, whichever thread the call came from.",
+			"parameters": [
+				{
+					"name": "sound",
+					"type": {
+						"name": "string"
+					}
+				},
+				{
+					"name": "volume",
+					"type": {
+						"name": "number"
+					}
+				},
+				{
+					"name": "pitch",
 					"type": {
 						"name": "number"
 					}

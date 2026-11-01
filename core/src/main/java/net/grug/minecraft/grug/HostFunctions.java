@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
 import java.awt.image.BufferedImage;
@@ -2160,6 +2161,82 @@ public class HostFunctions {
      */
     static boolean itemListMissing(int count) {
         return count < 0;
+    }
+
+    /**
+     * Why a sound name cannot be a name at all, or null when it has the shape {@code
+     * namespace:path}, both parts of lowercase letters, digits and the characters {@code . _ -},
+     * the path also allowing {@code /}. That is a resource location's shape on 1.20.6, and every
+     * name in the older versions' sound pools fits the path's.
+     */
+    static String soundNameProblem(String name) {
+        if (!name.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")) {
+            return "A sound name is a namespace, a colon and a path, such as"
+                    + " \"minecraft:ui.button.click\", and \""
+                    + name
+                    + "\" is not one.";
+        }
+        return null;
+    }
+
+    /**
+     * Why a sound cannot be played at this volume and pitch, or null when it can. Both games clamp
+     * a volume to 0 to 1 and 1.20.6 clamps a pitch to 0.5 to 2, so a value beyond them is a
+     * script's mistake that would otherwise play as a different number than the one it asked for.
+     */
+    static String soundLevelsProblem(double volume, double pitch) {
+        if (!(volume >= 0 && volume <= 1)) {
+            return "The volume has to be from 0 to 1, and was " + volume + ".";
+        }
+        if (!(pitch >= 0.5 && pitch <= 2)) {
+            return "The pitch has to be from 0.5 to 2, and was " + pitch + ".";
+        }
+        return null;
+    }
+
+    /**
+     * Whether the game has the sound a name asks for. Only the {@code minecraft} namespace is the
+     * game's own sound table; any other namespace would be a sound a mod ships, which no loader
+     * reads yet, so the adapter is not asked and the answer is no.
+     */
+    static boolean soundKnown(ModLoaderAdapter adapter, String name) {
+        int colon = name.indexOf(':');
+        return name.substring(0, colon).equals("minecraft")
+                && adapter.hasSound(name.substring(colon + 1));
+    }
+
+    /**
+     * Whether the game has a sound under this name, for a mod to ask before it plays one the
+     * versions it runs on do not all have.
+     */
+    public static boolean has_sound(String name) {
+        String problem = soundNameProblem(name);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "has_sound: " + problem);
+            return false;
+        }
+        return soundKnown(GrugCore.getAdapter(), name);
+    }
+
+    /** Plays one of the game's sounds to the player as a sound of the interface. */
+    public static void play_ui_sound(String name, double volume, double pitch) {
+        String problem = soundNameProblem(name);
+        if (problem == null) {
+            problem = soundLevelsProblem(volume, pitch);
+        }
+        if (problem == null && !soundKnown(GrugCore.getAdapter(), name)) {
+            problem =
+                    "The game has no sound named \""
+                            + name
+                            + "\". Ask has_sound first for a sound the versions the mod runs on"
+                            + " do not all have.";
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + problem);
+            return;
+        }
+        GrugCore.getAdapter()
+                .playUiSound(name.substring(name.indexOf(':') + 1), volume, pitch);
     }
 
     public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {

@@ -98,6 +98,7 @@ export click(ctx: OverlayClickContext) {
         if step != 0 {
             pages: number = _page_count(per_page, count)
             page = Math.remainder(page + step + pages, pages)
+            _play_click()
             ctx.take()
             return
         }
@@ -132,6 +133,18 @@ export key(ctx: OverlayKeyContext) {
     if ctx.key() == toggle_key and ctx.ctrl() {
         shown = not shown
         ctx.take()
+    }
+}
+
+# A page button plays the game's button click, the way the reference's buttons do (Button's
+# playDownSound): 1.20.6's ui.button.click at volume 0.25, and the older versions' random.click at
+# full volume, which is what their buttons play. A version whose sound pool has not loaded the file
+# plays nothing, which has_sound tells.
+local _play_click() {
+    if has_sound("minecraft:ui.button.click") {
+        play_ui_sound("minecraft:ui.button.click", 0.25, 1)
+    } else if has_sound("minecraft:random.click") {
+        play_ui_sound("minecraft:random.click", 1, 1)
     }
 }
 

@@ -273,11 +273,13 @@ equals(a: $Type, b: $Type) bool
 give_item(item: Item)
 give_item_stack(item: Item)
 gui(texture_path: resource) GUI
+has_sound(sound: string) bool
 item(resource_location: ResourceLocation) Item
 item_at(index: number) Item
 item_count() number
 item_entity(level: Level, x: number, y: number, z: number, item_stack: ItemStack) ItemEntity
 item_stack(item: Item, damage: number, count: number) ItemStack
+play_ui_sound(sound: string, volume: number, pitch: number)
 print(value: $Value)
 print2(a: $Value1, b: $Value2)
 print3(a: $Value1, b: $Value2, c: $Value3)

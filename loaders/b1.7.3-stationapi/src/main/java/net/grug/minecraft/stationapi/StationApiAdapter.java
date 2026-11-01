@@ -27,6 +27,7 @@ import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.grug.minecraft.stationapi.grug.DummyCraftingInventory;
 import net.grug.minecraft.stationapi.gui.GrugScreenHandler;
 import net.grug.minecraft.stationapi.gui.StationGuiHelper;
+import net.grug.minecraft.stationapi.mixin.SoundManagerAccess;
 import net.grug.minecraft.stationapi.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
@@ -955,6 +956,23 @@ public class StationApiAdapter implements ModLoaderAdapter {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
         player.inventory.setCursorStack(null);
+    }
+
+    @Override
+    public boolean hasSound(String path) {
+        return ((SoundManagerAccess) minecraft().soundManager).grug$sounds().get(path) != null;
+    }
+
+    @Override
+    @GrugGenerated(
+            "a run downloads no sound resources, so the pool is empty and hasSound is never true")
+    public void playUiSound(String path, double volume, double pitch) {
+        minecraft().soundManager.playSound(path, (float) volume, (float) pitch);
+    }
+
+    @SuppressWarnings("deprecation")
+    private static net.minecraft.client.Minecraft minecraft() {
+        return (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
     }
 
     @Override

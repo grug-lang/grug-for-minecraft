@@ -1,0 +1,6 @@
+# A namespace other than minecraft would be a sound a mod ships, which no loader reads yet, so
+# it is not known and playing it is reported. See #914.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_ui_sound: The game has no sound named")
+    play_ui_sound("grug:ui.button.click", 1, 1)
+}

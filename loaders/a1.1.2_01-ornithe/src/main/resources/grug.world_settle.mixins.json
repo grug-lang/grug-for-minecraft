@@ -4,6 +4,7 @@
     "package": "net.grug.minecraft.ornithe.mixin",
     "compatibilityLevel": "JAVA_8",
     "client": [
+        "SoundEngineAccess",
         "WorldRendererAccess"
     ],
     "injectors": {

@@ -1,0 +1,25 @@
+# Covers has_sound and play_ui_sound for the game's own sounds. The 1.20.6 registry always holds the
+# button click, so there the sound exists and is played. Alpha, Beta and 1.2.5 keep their sounds in a
+# pool of the files the game has loaded, which a run with no resources downloaded leaves empty, so
+# there has_sound is the probe and the sound is played only if the pool has it. A name that is
+# another namespace's, or that nothing has, is never known. See #914.
+export tick(ctx: TestTickContext) {
+    print2("has_sound ui.button.click", has_sound("minecraft:ui.button.click"))
+    print2("has_sound random.click", has_sound("minecraft:random.click"))
+
+    ctx.assert(not has_sound("minecraft:no_such_sound"), "The game should have no sound named no_such_sound.")
+    ctx.assert(not has_sound("grug:ui.button.click"), "A namespace other than minecraft is not the game's own sound table.")
+
+    if Test.loader_name() == "1.20.6-forge" {
+        ctx.assert(has_sound("minecraft:ui.button.click"), "1.20.6 should have the button click.")
+        ctx.assert(not has_sound("minecraft:random.click"), "1.20.6 names its sounds by event, so it has no random.click.")
+    } else {
+        ctx.assert(not has_sound("minecraft:ui.button.click"), "The older versions name their sounds by pool, so they have no ui.button.click.")
+    }
+
+    if has_sound("minecraft:ui.button.click") {
+        play_ui_sound("minecraft:ui.button.click", 0.25, 1)
+    } else if has_sound("minecraft:random.click") {
+        play_ui_sound("minecraft:random.click", 1, 1)
+    }
+}

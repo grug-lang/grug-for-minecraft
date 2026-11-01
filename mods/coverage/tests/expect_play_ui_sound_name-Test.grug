@@ -1,0 +1,5 @@
+# A string that is not namespace:path is a defect in the caller, not an unknown sound. See #914.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("play_ui_sound: A sound name is a namespace, a colon and a path")
+    play_ui_sound("ui.button.click", 1, 1)
+}

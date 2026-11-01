@@ -1,0 +1,5 @@
+# has_sound refuses a string that is not namespace:path rather than answering false. See #914.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("has_sound: A sound name is a namespace, a colon and a path")
+    known: bool = has_sound("Minecraft:UI")
+}

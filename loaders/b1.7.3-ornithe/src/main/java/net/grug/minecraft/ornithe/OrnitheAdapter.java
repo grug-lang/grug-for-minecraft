@@ -27,6 +27,7 @@ import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.inventory.DummyCraftingInventory;
+import net.grug.minecraft.ornithe.mixin.SoundEngineAccess;
 import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
@@ -664,6 +665,19 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
         player.inventory.setCursorItem(null);
+    }
+
+    @Override
+    public boolean hasSound(String path) {
+        SoundEngineAccess engine = (SoundEngineAccess) MinecraftInstance.get().soundEngine;
+        return engine.grug$sounds().getRandom(path) != null;
+    }
+
+    @Override
+    @GrugGenerated(
+            "a run downloads no sound resources, so the pool is empty and hasSound is never true")
+    public void playUiSound(String path, double volume, double pitch) {
+        MinecraftInstance.get().soundEngine.play(path, (float) volume, (float) pitch);
     }
 
     @Override
