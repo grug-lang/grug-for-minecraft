@@ -1,0 +1,26 @@
+# The firework rocket exists as an item and can be held, on every loader. A reference run asks for
+# minecraft:firework_rocket, which is what this port recreates, and every other run asks for the
+# port's own item.
+# What the item is for (the boost a gliding player gets, and the launch and blast sounds) is not
+# ported yet: about.json records both gaps as deviations against #915 and #914.
+
+export tick(ctx: TestTickContext) {
+    player: Player = Test.get_player()
+
+    if Test.is_reference() {
+        reference_rocket: Item = item(resource_location("minecraft:firework_rocket"))
+        Test.set_held_item(player, reference_rocket)
+        reference_held: Option[Item] = player.get_held_item()
+        ctx.assert(reference_held.has(), "The reference firework rocket should be in the player's hand.")
+        ctx.assert(equals(reference_held.unwrap(), reference_rocket), "A reference run should hold minecraft:firework_rocket.")
+    } else {
+        port_rocket: Item = item(resource_location("grug:firework_rocket"))
+        Test.set_held_item(player, port_rocket)
+        port_held: Option[Item] = player.get_held_item()
+        ctx.assert(port_held.has(), "grug:firework_rocket should be in the player's hand.")
+        ctx.assert(equals(port_held.unwrap(), port_rocket), "The port's rocket should be the item the mod registers.")
+    }
+
+    # One client and one player serve the whole run, so the hand is left as empty as it was found.
+    Test.clear_held_item(player)
+}

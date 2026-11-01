@@ -1,0 +1,75 @@
+# The elytra's recipe is the port's own departure from the reference: 1.20.6 has no elytra recipe at
+# all, so a reference run has nothing to compare and skips this file. Every other run fills the
+# coverage block's nine slot inventory with the recipe's ingredients and asks the game's own recipe
+# machinery for the result, the way wooden_pipe_recipe-Test.grug checks BuildCraft's recipe.
+# Six diamonds and two feathers, in this shape:
+#   d f d
+#   d d d
+#   d f d
+# That is the recipe file's own pattern, so the test fails if the file and the check drift apart.
+# Band 7 is free: the other mods' fixtures sit at 0, 2, 5, 6, 10, 12, 15, 20, 25, 30, 35, 40, 45
+# and 50.
+export tick(ctx: TestTickContext) {
+    # A reference run has no grug recipe, and a loader that registers no mod recipe answers the grid
+    # with nothing, so both are asked rather than assumed.
+    if Test.is_reference() {
+        return
+    }
+    if not Test.registers_mod_recipes() {
+        return
+    }
+
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 7
+    z: number = origin.z()
+
+    diamond: Item = item(resource_location("minecraft:diamond"))
+    feather: Item = item(resource_location("minecraft:feather"))
+    elytra: Item = item(resource_location("grug:elytra"))
+
+    grid: BlockEntity = _grid(ctx, level, x, y, z)
+
+    # The pattern's top row is the grid's first three slots: diamond, feather, diamond.
+    grid.set_item_in_slot(0, diamond, 1)
+    grid.set_item_in_slot(1, feather, 1)
+    grid.set_item_in_slot(2, diamond, 1)
+    # The middle row is all diamonds.
+    grid.set_item_in_slot(3, diamond, 1)
+    grid.set_item_in_slot(4, diamond, 1)
+    grid.set_item_in_slot(5, diamond, 1)
+    # The bottom row repeats the top one.
+    grid.set_item_in_slot(6, diamond, 1)
+    grid.set_item_in_slot(7, feather, 1)
+    grid.set_item_in_slot(8, diamond, 1)
+    grid.update_recipe_output(0)
+
+    result: Option[Item] = grid.get_crafting_result_item()
+    ctx.assert(result.has(), "Six diamonds and two feathers should craft an elytra.")
+    ctx.assert(equals(result.unwrap(), elytra), "The elytra's recipe should answer grug:elytra.")
+    ctx.assert(grid.take_crafting_result(1) == 1, "The elytra's recipe should give one elytra.")
+
+    # The recipes disagreeing is what a drifted pattern looks like from here, so the other shape is
+    # asked too: one feather in the middle and nothing else is not the recipe.
+    _assert_not_the_recipe(ctx, level, x, y + 1, z, feather)
+}
+
+# A grid with a single feather in its middle must not answer an elytra, so the check above is not
+# passing on any item the grid happens to hold.
+local _assert_not_the_recipe(ctx: TestTickContext, level: Level, x: number, y: number, z: number, feather: Item) {
+    other: BlockEntity = _grid(ctx, level, x, y, z)
+    other.set_item_in_slot(4, feather, 1)
+    other.update_recipe_output(0)
+    no_result: Option[Item] = other.get_crafting_result_item()
+    ctx.assert(not no_result.has(), "A lone feather should not craft an elytra.")
+}
+
+# The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
+# the block to place rather than a chest.
+local _grid(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    level.place_block(x, y, z, "grug:coverage_block")
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The coverage block should have a block entity after being placed.")
+    return found.unwrap()
+}

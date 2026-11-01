@@ -1,0 +1,18 @@
+{
+    "type": "minecraft:crafting_shapeless",
+    "ingredients": [
+        {
+            "item": "minecraft:paper"
+        },
+        {
+            "item": "minecraft:gunpowder"
+        },
+        {
+            "item": "minecraft:feather"
+        }
+    ],
+    "result": {
+        "id": "grug:firework_rocket",
+        "count": 3
+    }
+}
