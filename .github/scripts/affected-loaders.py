@@ -21,12 +21,12 @@ The rule is sound by construction, and every doubt resolves to running more, nev
   never run its tests on a pull request. An absent ``loaders`` key means every loader, which every
   representative already satisfies, so it adds nothing: the field narrows a mod's tests, and only an
   explicit list names a loader the representatives can miss;
-- every mod whose tests the pull request runs keeps at least one job where they run: when none of a
-  mod's declared loaders is already chosen, its declared loaders are added. A ``core/`` change runs
-  every mod, so an Ornithe-only port adds its own loader even though no path of its own is in the
-  diff, which is the normal shape of such a port rather than an error. A set naming a loader no
-  ``loaders/`` directory provides adds nothing, since no job can run it, and the mod then runs on
-  every loader instead;
+- every loader a mod whose tests the pull request runs declares gets a job: each declared loader the
+  representatives and the diff do not already choose is added, because a representative of a family
+  is no job on the mod's own loader. A ``core/`` change runs every mod, so an Ornithe-only port adds
+  its own loader even though no path of its own is in the diff, which is the normal shape of such a
+  port rather than an error. A set naming a loader no ``loaders/`` directory provides adds nothing,
+  since no job can run it, and the mod then runs on every loader instead;
 - every family's representative runs whatever the diff holds, because a path outside the loaders'
   own code (core/, mod_api.json, mods/, test-saves/, the scripts, the workflow) can reach every
   loader, and because the coverage gate measures core's classes through every mechanism: measured on
@@ -291,12 +291,19 @@ def select(repo: Path, base: str, head: str, games=None) -> tuple[list[str], lis
             " is added and the mod runs on every loader instead"
         )
     for mod, declared in sorted(declarations.items()):
-        if not declared or declared & chosen:
+        if not declared:
             continue
-        chosen.update(declared)
+        # A representative already chosen for one declared loader is no job on another: a merge runs
+        # the loaders the mod declares, and each one is a mechanism the mod's tests do not reach
+        # through another (the review of #920; before, any chosen declared loader suppressed the
+        # rest, so a port declaring 1.2.5-forge and b1.7.3-ornithe never ran on b1.7.3-ornithe).
+        missing = declared - chosen
+        if not missing:
+            continue
+        chosen.update(missing)
         lines.append(
-            f"{MODS}/{mod} declares {', '.join(sorted(declared))}, which no chosen loader has, so"
-            " its own loader job is added"
+            f"{MODS}/{mod} declares {', '.join(sorted(declared))}, so"
+            f" {', '.join(sorted(missing))} runs too"
         )
     families = ", ".join(
         f"{loader} ({family})" for family, loader in sorted(family_of.items(), key=lambda f: f[1])
