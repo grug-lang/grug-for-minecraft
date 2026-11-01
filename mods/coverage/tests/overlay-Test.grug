@@ -1,0 +1,52 @@
+# Covers the overlay host functions on the player's inventory screen: the context numbers, item_at,
+# give_item, the loader's open_inventory and click_screen, and the press being taken away from the
+# vanilla slot. The coverage overlay draws its one item at the centre of the screen and takes a click
+# there, so the test clicks that centre and waits for the item to reach its hand. On a loader that
+# draws no overlays the overlay's exports are never asked, which about.json records as a deviation,
+# and the test returns before it opens a screen it cannot show. See #615.
+started: bool = false
+waited: number = 0
+clicked: bool = false
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() {
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not clicked {
+        # An earlier test may have left the hotbar slot filled, which would push the given item
+        # somewhere the test cannot read back.
+        Test.clear_held_item(Test.get_player())
+        clicked = true
+        taken: bool = Test.click_screen(213, 120, 0)
+        ctx.assert(taken, "The overlay should take a press at the centre of the screen.")
+        ctx.not_done()
+        return
+    }
+
+    held: Option[Item] = Test.get_player().get_held_item()
+    if not held.has() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "The item the overlay gave should reach the player's hand.")
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(equals(held.unwrap(), item_at(0)), "The overlay should give the item it drew, not another one.")
+    Test.clear_held_item(Test.get_player())
+    Test.close_screen()
+}

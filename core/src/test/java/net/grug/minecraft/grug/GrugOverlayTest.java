@@ -92,6 +92,7 @@ class GrugOverlayTest {
         GrugOverlay.openRender(426, 240, 125, 37, 176, 166, 300, 20);
 
         assertFalse(GrugOverlay.recordBox(10, 0, 5, 18));
+        assertFalse(GrugOverlay.recordBox(0, 18, 18, 0));
         assertTrue(GrugOverlay.closeRender().boxes().isEmpty());
     }
 
