@@ -24,7 +24,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * renderer accumulates the model's quads into the tessellator and flushes them after {@code
  * renderItem} returns, and fixed-function lighting is applied at that flush, so the disable has to
  * span it. {@link GrugModelRenderer#drawsUnlitItem(ItemStack)} names the items it applies to; here
- * it is evaluated once, when a draw starts, so the flush cannot disagree with it.
+ * it is evaluated once, when a draw starts, so the flush cannot disagree with it, and the answer is
+ * cleared when the whole call returns so that every flush in one call keeps it.
  *
  * <p>This class draws the two world paths a held item takes: {@code renderModel} over a living
  * entity for third person, and over the client player for the hand. A vanilla model goes through
@@ -33,10 +34,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ArsenicOverlayRenderer.class)
 public class ArsenicOverlayRendererMixin {
 
-    /** Whether the third-person draw that is running now is one the reference lights off. */
+    /**
+     * Whether the third-person draw that is running now is one the reference lights off, for the
+     * whole call and not for one flush.
+     */
     @Unique private boolean grug$unlitWorldItem;
 
-    /** Whether the hand draw that is running now is one the reference lights off. */
+    /**
+     * Whether the hand draw that is running now is one the reference lights off, for the whole call
+     * and not for one flush.
+     */
     @Unique private boolean grug$unlitHandItem;
 
     @Inject(
@@ -46,6 +53,15 @@ public class ArsenicOverlayRendererMixin {
             at = @At("HEAD"))
     private void grug$noteWorldUnlit(LivingEntity entity, ItemStack stack, CallbackInfo ci) {
         grug$unlitWorldItem = GrugModelRenderer.drawsUnlitItem(stack);
+    }
+
+    @Inject(
+            method =
+                    "renderModel(Lnet/minecraft/entity/LivingEntity;"
+                            + "Lnet/minecraft/item/ItemStack;)V",
+            at = @At("RETURN"))
+    private void grug$clearWorldUnlit(LivingEntity entity, ItemStack stack, CallbackInfo ci) {
+        grug$unlitWorldItem = false;
     }
 
     @Redirect(
@@ -65,7 +81,6 @@ public class ArsenicOverlayRendererMixin {
             tessellator.draw();
         } finally {
             GL11.glPopAttrib();
-            grug$unlitWorldItem = false;
         }
     }
 
@@ -77,6 +92,16 @@ public class ArsenicOverlayRendererMixin {
     private void grug$noteHandUnlit(
             float x, float y, ClientPlayerEntity player, ItemStack stack, CallbackInfo ci) {
         grug$unlitHandItem = GrugModelRenderer.drawsUnlitItem(stack);
+    }
+
+    @Inject(
+            method =
+                    "renderModel(FFLnet/minecraft/entity/player/ClientPlayerEntity;"
+                            + "Lnet/minecraft/item/ItemStack;)V",
+            at = @At("RETURN"))
+    private void grug$clearHandUnlit(
+            float x, float y, ClientPlayerEntity player, ItemStack stack, CallbackInfo ci) {
+        grug$unlitHandItem = false;
     }
 
     @Redirect(
@@ -96,7 +121,6 @@ public class ArsenicOverlayRendererMixin {
             tessellator.draw();
         } finally {
             GL11.glPopAttrib();
-            grug$unlitHandItem = false;
         }
     }
 }
