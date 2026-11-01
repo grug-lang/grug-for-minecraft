@@ -82,11 +82,24 @@ class GenericBridgeExpansionTest(unittest.TestCase):
 class HostWrapperTest(unittest.TestCase):
     def test_a_cleared_exception_is_not_read_as_a_string_result(self):
         wrapper = generate.gen_wrapper("get_block", [], "string")
-        # CHECK prints and clears the exception a host function threw, and CallStaticObjectMethod
-        # answers NULL in that case. Reading that NULL with GetStringUTFChars would take the JVM
-        # down, so the wrapper must carry on with the empty string instead.
+        # HOST_CHECK reports the exception a host function threw, and CallStaticObjectMethod answers
+        # NULL in that case. Reading that NULL with GetStringUTFChars would take the JVM down, so the
+        # wrapper must carry on with the empty string instead.
         self.assertIn('res == NULL ? "" : (*env)->GetStringUTFChars(env, res, NULL)', wrapper)
         self.assertIn("if (res != NULL) {", wrapper)
+
+    def test_a_thrown_exception_is_reported_rather_than_swallowed(self):
+        # A host function that throws is a defect in grug rather than in the script. The wrapper used
+        # to describe and clear the exception, after which the script carried on with a zero value,
+        # the test reported PASS, and the log held a stack that named no test (#890). It hands the
+        # exception to the state now, for every return type, because even a call that threw still has
+        # to answer the VM a value.
+        for return_type in (None, "string", "bool", "number", "id"):
+            with self.subTest(return_type=return_type):
+                wrapper = generate.gen_wrapper("get_block", [], return_type)
+                self.assertIn("HOST_CHECK(env, gst);", wrapper)
+                # CHECK alone prints and clears, which is the swallow this test exists for.
+                self.assertNotIn("CHECK(env);", wrapper)
 
 
 if __name__ == "__main__":

@@ -471,6 +471,47 @@ class GrugTestRunnerTest {
                         .anyMatch(m -> m.contains("reported a runtime error")));
     }
 
+    /**
+     * What a host function that threw looks like from here: the generated JNI wrapper hands the
+     * exception to {@link GrugErrors#onHostFunctionThrew}, reports the answer as a host function
+     * error, and the engine stops the script at that call, so the export call returns without
+     * finishing.
+     */
+    private static void abortWithAHostFunctionException(FakeOps ops) {
+        NullPointerException thrown =
+                new NullPointerException("the entity id resolved to no object");
+        thrown.setStackTrace(
+                new StackTraceElement[] {
+                    new StackTraceElement(
+                            "net.grug.minecraft.grug.HostFunctions",
+                            "Screenshot_differs_from",
+                            "HostFunctions.java",
+                            1151)
+                });
+        GrugErrors.onRuntimeError("Host function error: " + GrugErrors.onHostFunctionThrew(thrown));
+        ops.completed = false;
+    }
+
+    @Test
+    void failsTheTestWhoseCallThrewFromAHostFunction() {
+        // Before #890 the wrapper cleared the exception and let the script carry on with a zero
+        // value, so the test reported PASS while the log held a stack that named no test.
+        FakeOps ops = new FakeOps();
+        ops.onCall = () -> abortWithAHostFunctionException(ops);
+
+        String printed = capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
+
+        assertFalse(printed.contains("[GRUG CI] PASS mymod/code/a-Test.grug"), printed);
+        assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"), printed);
+        // The report is the line that names the host function and what it threw, not only the test.
+        // It goes through the error queue, which a loader logs and sends to the chat, rather than
+        // through the runner's own output.
+        String reported = String.join("\n", GrugErrors.runtimeErrorQueue);
+        assertTrue(reported.contains("Screenshot_differs_from"), reported);
+        assertTrue(reported.contains("java.lang.NullPointerException"), reported);
+        assertTrue(reported.contains("HostFunctions.java:1151"), reported);
+    }
+
     @Test
     void failsWhenTheEntityCannotBeCreated() {
         FakeOps ops = new FakeOps();

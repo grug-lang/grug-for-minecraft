@@ -148,19 +148,19 @@ def gen_wrapper(
 
     if resolved_return is None:
         lines.append(f"    (*env)->CallStaticVoidMethod({full_args});")
-        lines.append("    CHECK(env);")
+        lines.append("    HOST_CHECK(env, gst);")
         result_expr = "(union grug_value){0}"
     elif resolved_return in ("string", "resource", "entity"):
         lines.append(f"    jstring res = (jstring)(*env)->CallStaticObjectMethod({full_args});")
-        lines.append("    CHECK(env);")
+        lines.append("    HOST_CHECK(env, gst);")
         lines.append(
-            "    // CHECK cleared an exception the Java function threw, and a call that threw answers"
+            "    // A call that threw answers NULL, and GetStringUTFChars(NULL) would take the JVM down."
         )
         lines.append(
-            "    // NULL; GetStringUTFChars(NULL) would take the JVM down. The script carries on with"
+            "    // HOST_CHECK has reported the exception and stopped the script, so the empty string is"
         )
         lines.append(
-            "    // the empty string, the way the other return types carry on with a zero value."
+            "    // only the value the aborting call returns, as zero is for the other return types."
         )
         lines.append(
             '    const char* res_utf = res == NULL ? "" : (*env)->GetStringUTFChars(env, res, NULL);'
@@ -177,7 +177,7 @@ def gen_wrapper(
         jni_type = {"number": "jdouble", "bool": "jboolean"}.get(resolved_return, "jlong")
         c_suffix = jni_call_suffix(resolved_return)
         lines.append(f"    {jni_type} res = (*env)->CallStatic{c_suffix}Method({full_args});")
-        lines.append("    CHECK(env);")
+        lines.append("    HOST_CHECK(env, gst);")
         field = value_union_field(resolved_return)
         cast = {"_number": "(double)res", "_bool": "(bool)res", "_id": "(uint64_t)res"}[field]
         result_expr = f"(union grug_value){{.{field} = {cast}}}"
