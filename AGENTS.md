@@ -217,11 +217,16 @@ laptop (about 15 GB of RAM). Every game run goes through CI. Light jobs stay loc
   other loader's job: dropping setup-java's shared Gradle cache cost `1.2.5-forge` 22 s until its
   own user-home entry was enabled (#801).
 - Before pushing, check locally what can be checked: `pre-commit run --all-files`, the grug compile
-  check, the Python tests. Wait with `.github/scripts/watch-run.sh <run-id>` in the background,
-  never a fixed sleep: it exits 1 at the first failed job with the 80 log lines before its first
-  error, 0 when all are green, 3 when GitHub could not be reached (no verdict). Get the id from
-  `gh api 'repos/grug-lang/grug-for-minecraft/actions/runs?branch=<b>'`; `gh pr checks --watch`
-  fails right after a push and reads stale runs after a force-push. Read a job's whole log with
+  check, the Python tests. Wait on the run with `.github/scripts/watch-run.sh <run-id>` started as a
+  background shell command (the tool's background option), not a foreground call and not a sleep
+  loop: a foreground call is killed at its two-minute timeout while a run takes 10 to 20 minutes, a
+  sleep loop checks at arbitrary moments, and `gh pr checks --watch` fails right after a push and
+  reads stale runs after a force-push. The watcher exits 1 at the first failed job with the 80 log
+  lines before its first error, 0 when all are green, and 3 when GitHub could not be reached (no
+  verdict); the harness hands the session its output when it exits, so end the turn rather than
+  poll. Right after a push the run does not exist for a few seconds, so poll `gh run list --branch
+  <branch> --limit 5 --json databaseId,headSha` until the pushed commit's id is listed, then start
+  the watch once. Read a job's whole log with
   `gh api repos/grug-lang/grug-for-minecraft/actions/jobs/<id>/logs`. Pushing freely to check a
   pipeline is fine; a push that shows no CI run usually means a conflict (`gh pr view <n> --json
   mergeable`).
@@ -360,6 +365,10 @@ failure really is. `LOGGER.info` and `LOGGER.debug` are diagnostics, never a def
   instead. Porting is therefore most of the work and most pull requests will change only `mods/`, so
   a saving counts for each pull request it will affect and is not discounted by how few have that
   shape today.
+- An API addition lands with the port feature that needs it, not with a test alone. `mods/coverage/`
+  proves what the language and API accept, but it is not a caller: a new entry, or a change to one,
+  comes with the grug mod code and test that use it (a new ported `mods/mekanism/` machine,
+  say), and the coverage test is the second proof rather than the reason.
 - Compare every new or changed `mod_api.json` entry with its Forge and Fabric equivalents, and say
   in the pull request how it compares. They are a reference, not a design to copy.
 - A host function added for a port is free of the reference's bugs: `mod_api.json` serves every mod.
@@ -446,6 +455,11 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
 - The one exception is precision: a reference's Java `float` becomes a grug `number`, a 64-bit
   double. Do not emulate float32 rounding, and derive tick counts from float64 arithmetic. A mod's
   configs are the defaults the reference ships with.
+- A port gives an item or block a recipe only where the version it targets has one, and copies that
+  recipe exactly, with the same pattern or ingredients, the same result count and no ingredient the
+  reference does not use. An item or block with no recipe in that version is spawned in with
+  `mods/jei/`, never given an invented recipe, and a collision with the game's own recipe is solved
+  by gating the port's recipe to the versions that lack it, never by changing its ingredients.
 - Read the reference before inventing a model. BuildCraft 2.2.14 is already decompiled at
   `~/agent-workspaces/buildcraft-2.2.14-src/src`, with the original class files and textures in
   `classes/`; do not decompile it again. The jars are in `~/.technic/modpacks/tekkit/mods/` and
