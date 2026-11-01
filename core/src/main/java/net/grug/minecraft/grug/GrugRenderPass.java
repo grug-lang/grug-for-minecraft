@@ -237,7 +237,7 @@ public final class GrugRenderPass {
         }
         try {
             List<GrugQuad> turned = new ArrayList<>();
-            for (GrugQuad quad : GrugModels.load(modsDir, modelPath)) {
+            for (GrugQuad quad : GrugModels.loadFrame(modsDir, modelPath)) {
                 turned.add(
                         quad.turned(
                                 (int) (xDegrees / 90),
