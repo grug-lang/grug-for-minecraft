@@ -2356,6 +2356,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        diagLight();
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
     }
 
@@ -2364,6 +2365,33 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * Both screenshot entry points share this so a bad coordinate is reported the same way either
      * way; only the name in front of the message differs.
      */
+    private void diagLight() {
+        try {
+            Minecraft mc = ModLoader.getMinecraftInstance();
+            World w = mc.theWorld;
+            EntityPlayer p = mc.thePlayer;
+            int px = (int) Math.floor(p.posX);
+            int py = (int) Math.floor(p.posY - 1.62);
+            int pz = (int) Math.floor(p.posZ);
+            StringBuilder sb = new StringBuilder();
+            long hash = 0;
+            for (int y = py - 5; y <= py + 9; y++) {
+                int sum = 0;
+                for (int x = px - 4; x <= px + 4; x++) {
+                    for (int z = pz - 4; z <= pz + 4; z++) {
+                        int v = w.getSavedLightValue(net.minecraft.src.EnumSkyBlock.Block, x, y, z);
+                        sum += v;
+                        hash = hash * 31 + v + 7 * x + 13 * y + 17 * z;
+                    }
+                }
+                sb.append(sum).append(',');
+            }
+            net.grug.minecraft.grug.GrugDiag.note("light1.2.5 py=" + py + " hash=" + hash + " layers=" + sb + " time=" + w.getWorldTime());
+        } catch (Throwable t) {
+            net.grug.minecraft.grug.GrugDiag.note("light failed " + t);
+        }
+    }
+
     private BufferedImage captureChecked(
             String operation, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo

@@ -1800,9 +1800,46 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        diagLight();
         // No settle wait: this capture is compared with another capture, so it stays the frame the
         // test asked for at the moment it asked, not the frame after the world settles.
         return captureChecked("Screenshot.capture", x1, y1, x2, y2, false);
+    }
+
+    private void diagLight() {
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            Level client = mc.level;
+            Level server = (Level) getLevel();
+            int px = (int) Math.floor(mc.player.getX());
+            int py = (int) Math.floor(mc.player.getY());
+            int pz = (int) Math.floor(mc.player.getZ());
+            StringBuilder sb = new StringBuilder();
+            long hc = 0;
+            long hs = 0;
+            int differing = 0;
+            net.minecraft.core.BlockPos.MutableBlockPos pos = new net.minecraft.core.BlockPos.MutableBlockPos();
+            for (int y = py - 6; y <= py + 10; y++) {
+                int sumC = 0;
+                int sumS = 0;
+                for (int x = px - 5; x <= px + 5; x++) {
+                    for (int z = pz - 5; z <= pz + 5; z++) {
+                        pos.set(x, y, z);
+                        int c = client.getBrightness(LightLayer.BLOCK, pos);
+                        int sv = server.getBrightness(LightLayer.BLOCK, pos);
+                        sumC += c;
+                        sumS += sv;
+                        if (c != sv) differing++;
+                        hc = hc * 31 + c + 7 * x + 13 * y + 17 * z;
+                        hs = hs * 31 + sv + 7 * x + 13 * y + 17 * z;
+                    }
+                }
+                sb.append(sumC).append('/').append(sumS).append(',');
+            }
+            net.grug.minecraft.grug.GrugDiag.note("light1.20.6 py=" + py + " clientHash=" + hc + " serverHash=" + hs + " differing=" + differing + " layers(client/server)=" + sb + " gameTime=" + client.getGameTime());
+        } catch (Throwable t) {
+            net.grug.minecraft.grug.GrugDiag.note("light failed " + t);
+        }
     }
 
     /**

@@ -16,6 +16,17 @@ public final class GrugDiag {
 
     private GrugDiag() {}
 
+    public static synchronized void note(String text) {
+        try {
+            File dir = new File(GrugCore.getAdapter().getGameDirectory(), "grug-screenshot-artifacts/diag");
+            dir.mkdirs();
+            try (FileWriter w = new FileWriter(new File(dir, "stats.txt"), true)) {
+                w.write("NOTE " + text + "\n");
+            }
+        } catch (Exception e) {
+        }
+    }
+
     public static synchronized void onCapture(BufferedImage img) {
         if (img.getWidth() != 1280 || img.getHeight() != 720) {
             return;
