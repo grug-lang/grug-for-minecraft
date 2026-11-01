@@ -345,6 +345,17 @@ class GrugCatalogueTest {
     }
 
     @Test
+    void aMirrorsIndexMayStillPointAtThisRepositorysReleases() throws Exception {
+        String url = GrugCatalogue.RELEASES_PREFIX + "v1/alpha.zip";
+        GrugCatalogue mirror =
+                new GrugCatalogue(
+                        (u, limit, progress) -> indexWithUrl(url).getBytes(StandardCharsets.UTF_8),
+                        "https://mirror.example/grug/index.json");
+
+        assertEquals(url, mirror.fetch().get("alpha").zipUrl);
+    }
+
+    @Test
     void aUrlThatLeavesTheIndexHostOrIsDowngradedOrIsOddIsRefused() {
         String[] bad = {
             "http://github.com/grug-lang/grug-for-minecraft/releases/download/v1/alpha.zip",
@@ -352,7 +363,8 @@ class GrugCatalogueTest {
             "https://github.com.evil.example/x/alpha.zip",
             "https://github.com/x/../y/alpha.zip",
             "https://github.com/x/y/alpha.zip?token=1",
-            "https://github.com/x/y/alpha.zip#frag",
+            "https://github.com/x/y?a=1/alpha.zip",
+            "https://github.com/x/y#frag/alpha.zip",
             "https://github.com/x/y/beta.zip",
             "https://github.com",
         };

@@ -97,8 +97,7 @@ public final class GrugCatalogue {
 
     /** The scheme and host of a URL, without a trailing slash. */
     private static String origin(String url) {
-        int path = url.indexOf('/', url.indexOf("://") + 3);
-        return path < 0 ? url : url.substring(0, path);
+        return url.substring(0, (url + "/").indexOf('/', url.indexOf("://") + 3));
     }
 
     /** The mods of the index by name. */
