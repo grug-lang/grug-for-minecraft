@@ -496,7 +496,7 @@ class RepositoryUrlsTest(unittest.TestCase):
         matching = [url for url, _ in checked if url == repository]
         self.assertEqual(len(matching), 1)
         shared = dict(checked)[repository]
-        self.assertEqual(len(shared), 4, "every mod declares the repository url")
+        self.assertEqual(len(shared), 5, "every mod declares the repository url")
         self.assertEqual(
             sorted(about for about, _ in shared),
             [
@@ -504,6 +504,7 @@ class RepositoryUrlsTest(unittest.TestCase):
                 "coverage/about.json",
                 "examplemod/about.json",
                 "jei/about.json",
+                "vanilla/about.json",
             ],
         )
 
