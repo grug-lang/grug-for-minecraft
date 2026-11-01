@@ -159,3 +159,4 @@ running loader's name instead of failing, so the new PNGs turn up in `git status
 
 Use it locally for a GUI capture, or on CI when many references change at once, since the suite
 stops at its first failure.
+
