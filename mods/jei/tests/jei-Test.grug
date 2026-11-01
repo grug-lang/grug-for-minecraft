@@ -33,6 +33,9 @@ export tick(ctx: TestTickContext) {
     expected: Item = item_at(0)
 
     if not clicked {
+        # An earlier test may have left the hotbar slot filled, which would push the given item
+        # somewhere the test cannot read back.
+        Test.clear_held_item(Test.get_player())
         clicked = true
         taken: bool = Test.click_screen(_first_slot_x(), _first_slot_y(), 0)
         ctx.assert(taken, "The overlay should take a click on its first item, so that the vanilla slot under it is not clicked too.")

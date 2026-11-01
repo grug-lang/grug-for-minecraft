@@ -136,6 +136,9 @@ public interface ModLoaderAdapter {
      * of range. The host function checks the range first, so a null here is a defect rather than a
      * mod's mistake.
      */
+    @GrugGenerated(
+            "no item list: only the 1.20.6 adapter enumerates items so far, which the"
+                    + " overlay's own deviation names")
     default Object itemByIndex(int index) {
         return null;
     }

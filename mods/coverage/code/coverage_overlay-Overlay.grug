@@ -1,0 +1,29 @@
+# Covers the overlay host functions through a real screen: the context's numbers, draw_item, draw_box,
+# take, and the loader's item list behind item_at. The box sits at the centre of the screen, where the
+# player's inventory also is, so the test's click lands on it; a click there gives the first item and
+# takes the press, which the test checks by the item reaching its hand. On a loader that draws no
+# overlays the exports are never asked, and the test returns before it opens anything. See #615.
+export render(ctx: OverlayRenderContext) {
+    box_x: number = Math.floor(ctx.screen_width() / 2) - 9
+    box_y: number = Math.floor(ctx.screen_height() / 2) - 9
+    ctx.draw_item(item_at(0), box_x + 1, box_y + 1)
+    over_box: bool = ctx.mouse_x() >= box_x and ctx.mouse_x() < box_x + 18 and ctx.mouse_y() >= box_y and ctx.mouse_y() < box_y + 18
+    over_gui_x: bool = ctx.mouse_x() >= ctx.gui_left() and ctx.mouse_x() < ctx.gui_left() + ctx.gui_width()
+    inside_gui: bool = over_gui_x and ctx.mouse_y() >= ctx.gui_top() and ctx.mouse_y() < ctx.gui_top() + ctx.gui_height()
+    if over_box and inside_gui {
+        ctx.draw_box(box_x, box_y, box_x + 18, box_y + 18)
+    }
+}
+
+export click(ctx: OverlayClickContext) {
+    inside_screen: bool = ctx.mouse_x() >= 0 and ctx.mouse_x() < ctx.screen_width() and ctx.mouse_y() >= 0 and ctx.mouse_y() < ctx.screen_height()
+    over_gui_x: bool = ctx.mouse_x() >= ctx.gui_left() and ctx.mouse_x() < ctx.gui_left() + ctx.gui_width()
+    inside_gui: bool = over_gui_x and ctx.mouse_y() >= ctx.gui_top() and ctx.mouse_y() < ctx.gui_top() + ctx.gui_height()
+    box_x: number = Math.floor(ctx.screen_width() / 2) - 9
+    box_y: number = Math.floor(ctx.screen_height() / 2) - 9
+    over_box: bool = ctx.mouse_x() >= box_x and ctx.mouse_x() < box_x + 18 and ctx.mouse_y() >= box_y and ctx.mouse_y() < box_y + 18
+    if inside_screen and inside_gui and over_box and ctx.button() == 0 {
+        give_item(item_at(0))
+        ctx.take()
+    }
+}
