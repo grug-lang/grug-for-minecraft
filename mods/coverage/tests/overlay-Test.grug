@@ -46,6 +46,8 @@ export tick(ctx: TestTickContext) {
         # overlay would delete instead of giving.
         Test.clear_held_item(Test.get_player())
         Test.clear_carried_item()
+        ctx.assert(Test.get_item_max_stack(item_at(0)) > 0, "The first item should have a positive stack size.")
+        ctx.assert(Test.get_held_count(Test.get_player()) == 0, "Clearing the held item should leave an empty hand.")
         step = 1
         taken: bool = Test.click_screen(213, 120, 0)
         ctx.assert(taken, "The overlay should take a press at the centre of the screen.")

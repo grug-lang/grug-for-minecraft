@@ -2,6 +2,7 @@ package net.grug.minecraft.grug;
 
 /** What a block entity's {@code extract_item} export answered a pipe asking to take an item. */
 public final class ExtractResponse extends GrugResponse {
+    @GrugGenerated("the enum initializer is compiler-generated; its values are plain constants")
     public enum Kind {
         REFUSED,
         SLOT,
