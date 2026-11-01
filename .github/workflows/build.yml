@@ -155,10 +155,19 @@ jobs:
           fi
           python3 .github/scripts/main-selection.py "${args[@]}" > "$RUNNER_TEMP/selection.out" || true
           # A selection that was not written cannot narrow anything, and the fallback is the shape of
-          # a full run rather than a run with no loader in it.
-          if ! grep -q '^build=' "$RUNNER_TEMP/selection.out"; then
-            echo "::warning::the selection wrote nothing, so this run selects everything."
+          # a full run rather than a run with no loader in it. An empty build matrix is the same
+          # failure in a well-formed line, so it takes the same fallback; a tree that still names no
+          # loader then fails this step, since a green run with no test is the one outcome neither
+          # this step nor main-selection.py may produce (#920 review).
+          if ! grep -q '^build=' "$RUNNER_TEMP/selection.out" \
+            || grep -q '^build=\[\]$' "$RUNNER_TEMP/selection.out"; then
+            echo "::warning::the selection wrote no loader to run, so this run selects everything."
             python3 .github/scripts/main-selection.py --everything > "$RUNNER_TEMP/selection.out"
+          fi
+          if ! grep -q '^build=' "$RUNNER_TEMP/selection.out" \
+            || grep -q '^build=\[\]$' "$RUNNER_TEMP/selection.out"; then
+            echo "::error::no loader can be selected from this tree, so there is nothing to run."
+            exit 1
           fi
           cat "$RUNNER_TEMP/selection.out" >> "$GITHUB_OUTPUT"
 
@@ -1147,7 +1156,13 @@ jobs:
   # Boot-only for the reason the job above gives, and it runs when that one does (#632).
   windows-installed:
     name: ${{ matrix.dir }} installed (Windows)
-    if: needs.discover.outputs.windows != '[]'
+    # universal can run after a native-windows that skipped, and a skipped ancestor skips every job
+    # below it unless the condition names a status function, so this names one and universal's own
+    # result rather than leaving a job this run wants to the default (#920 review).
+    if: |
+      !cancelled()
+      && needs.universal.result == 'success'
+      && needs.discover.outputs.windows != '[]'
     needs: [discover, universal]
     runs-on: windows-2025
     # Both script limits can run in full now that the install has its own: up to 600 s of install
@@ -1336,8 +1351,15 @@ jobs:
   # See #487 and #488.
   production:
     name: ${{ matrix.dir }} installed
+    # universal runs after a native-windows that skipped, but GitHub skips a job whose condition does
+    # not name a status function when an ancestor skipped, so a plain `if:` skipped this job on every
+    # push that adds no loader, and on the weekly schedule (#920 review; run 41282659606).
+    # `!cancelled()` is that function, and universal's own result still skips the job when universal
+    # failed or did not run.
     if: |
-      github.event_name != 'pull_request'
+      !cancelled()
+      && needs.universal.result == 'success'
+      && github.event_name != 'pull_request'
       && needs.discover.outputs.no-tests != 'true'
       && needs.discover.outputs.installed != '[]'
     needs: [discover, universal]
@@ -1485,7 +1507,14 @@ jobs:
   # See #501.
   coexistence:
     name: 1.20.6-forge installed beside JEI
-    if: github.event_name != 'pull_request' && needs.discover.outputs.no-tests != 'true'
+    # The same status function as production: it needs universal, which can run after a skipped
+    # native-windows, so without `!cancelled()` this job skipped every push that added no loader
+    # (#920 review).
+    if: |
+      !cancelled()
+      && needs.universal.result == 'success'
+      && github.event_name != 'pull_request'
+      && needs.discover.outputs.no-tests != 'true'
     needs: [discover, universal]
     runs-on: ubuntu-24.04
     # Both script limits can run in full now that the install has its own: up to 600 s of install
@@ -1588,9 +1617,12 @@ jobs:
     name: ${{ matrix.game }} without a layer
     # A mod's own files cannot reach a game grug never activates on, so a push that touched only mods
     # skips these games (#909); everything else runs them. Only an explicit false skips, so a step
-    # that wrote no output runs them.
+    # that wrote no output runs them. The same status function as production goes first, so a skipped
+    # native-windows cannot take the games with it (#920 review).
     if: |
-      github.event_name != 'pull_request'
+      !cancelled()
+      && needs.universal.result == 'success'
+      && github.event_name != 'pull_request'
       && needs.discover.outputs.no-tests != 'true'
       && needs.discover.outputs.smoke-needed != 'false'
     needs: [discover, universal]
