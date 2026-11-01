@@ -9,6 +9,7 @@ pipe_self: Option[BlockEntity] = Option.new()
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
+        _advance_until_moved(ctx)
         ctx.not_done()
     } else if not _pipe_has_moved() or ctx.current_tick() < 20 {
         # The floor keeps the suite's timing where the coverage_render references were captured,
@@ -17,6 +18,24 @@ export tick(ctx: TestTickContext) {
     } else {
         _check(ctx)
     }
+}
+
+# #780: the pipe needs the world's own ticks, not the runner's, so the test asks the level to run them
+# inside this tick instead of waiting a frame for every tenth of them, and counts what the level says
+# it ran. A loader that cannot advance its level answers 0, and then the wait below carries the test
+# exactly as it always did. A loader that answers ticks it did not run is not slow but broken: the cap
+# is spent with the pipe where it started, and the assertion says so rather than letting the wait hide
+# it. The advance stops as soon as the pipe has finished, so it runs the ticks the wait would have
+# waited for.
+local _advance_until_moved(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    advanced: number = 0
+    ran: number = 10
+    while not _pipe_has_moved() and ran > 0 and advanced < 400 {
+        ran = Test.tick_level(level, 10)
+        advanced = advanced + ran
+    }
+    ctx.assert(ran == 0 or _pipe_has_moved(), "The pipe should have moved within 400 advanced ticks.")
 }
 
 local _setup(ctx: TestTickContext) {
