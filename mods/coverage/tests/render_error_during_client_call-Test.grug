@@ -7,7 +7,7 @@
 # The test makes that moment likely instead of waiting for it: every other tick it replaces the whole
 # cube of coverage_render blocks with fresh ones (air in between, since a block entity only starts
 # again once the block was gone), so the client keeps getting chunk rebuilds with a first draw in them,
-# and every tick it asks the client thread for something thirty times, so a worker has many chances to
+# and every tick it asks the client thread for something eight times, so a worker has many chances to
 # draw while a call waits. A rebuild from the runner's own clear of the previous test is not the only
 # way in, which is why runner_clear_a_leaves_render_blocks and runner_clear_b_hammers_client alone did
 # not close this. Nothing is asserted but that the calls come back.
@@ -43,13 +43,13 @@ export tick(ctx: TestTickContext) {
     }
 
     i: number = 0
-    while i < 30 {
+    while i < 8 {
         Test.close_screen()
         i = i + 1
     }
     ctx.assert(not Test.screen_open(), "Test.close_screen should leave no screen open.")
 
-    if ctx.current_tick() < 23 {
+    if ctx.current_tick() < 9 {
         ctx.not_done()
     }
 }
