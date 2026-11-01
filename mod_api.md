@@ -66,6 +66,7 @@ export render(ctx: OverlayRenderContext)
 ## Test
 export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
+Test.clear_carried_item()
 Test.clear_held_item(player: Player)
 Test.click_screen(x: number, y: number, button: number) bool
 Test.close_screen()

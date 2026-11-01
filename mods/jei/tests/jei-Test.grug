@@ -52,8 +52,10 @@ export tick(ctx: TestTickContext) {
     expected_stack: Item = item_at(stack_row * _columns() + stack_column)
 
     if step == 0 {
-        # A right click gives one item, which is the reference's cheatOneItem2.
+        # A right click gives one item, which is the reference's cheatOneItem2. An earlier test may
+        # have left something on the cursor; clearing it keeps the delete check from seeing it.
         Test.clear_held_item(Test.get_player())
+        Test.clear_carried_item()
         step = 1
         taken: bool = Test.click_screen(_cell_x(clicked_column), _cell_y(clicked_row), 1)
         ctx.assert(taken, "The overlay should take a right click on its item, so that the vanilla slot under it is not clicked too.")
