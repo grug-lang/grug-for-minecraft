@@ -2,6 +2,7 @@ package net.grug.minecraft.covmap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -561,23 +562,29 @@ class CoverageMapToolTest {
     }
 
     @Test
-    void reconstructSkipsAChangedClassInTheOtherModsReplay(@TempDir Path tmp) throws Exception {
+    void reconstructSkipsOnlyAChangedClassInTheOtherModsReplay(@TempDir Path tmp) throws Exception {
         // The replay is no carried-over test: no selection proved the classes it touched
         // unaffected, so a class this run's build changed is skipped rather than failed on, or
         // any core change that a base run's other mods happened to touch would make the coverage
-        // job red (#897). A skipped class's initializer is then simply not evidence for the
-        // initializer this run compiled.
+        // job red (#897). The class it did not change is still replayed, so one changed class does
+        // not throw the whole replay away.
         String carried = "net/grug/covmaptest/Sample";
-        String replayedName = "net/grug/covmaptest/WithInitializer";
+        String changedName = "net/grug/covmaptest/WithInitializerChanged";
+        String keptName = "net/grug/covmaptest/WithInitializerKept";
         byte[] carriedBytes = classNamed(carried);
-        byte[] replayedBytes = classWithInitializerNamed(replayedName);
+        byte[] changedBytes = classWithInitializerNamed(changedName);
+        byte[] keptBytes = classWithInitializerNamed(keptName);
         long carriedId = CoverageMapTool.classId(carriedBytes);
-        long replayedId = CoverageMapTool.classId(replayedBytes);
+        long changedId = CoverageMapTool.classId(changedBytes);
+        long keptId = CoverageMapTool.classId(keptBytes);
         int carriedProbes = probeCountOf(carried, carriedBytes);
-        int replayedProbes = probeCountOf(replayedName, replayedBytes);
-        int initializer = initializerProbeOf(replayedName, replayedBytes, replayedId);
+        int changedProbes = probeCountOf(changedName, changedBytes);
+        int keptProbes = probeCountOf(keptName, keptBytes);
+        int changedInitializer = initializerProbeOf(changedName, changedBytes, changedId);
+        int keptInitializer = initializerProbeOf(keptName, keptBytes, keptId);
         Path coreClasses = classesDir(tmp, carried, carriedBytes);
-        classesDir(tmp, replayedName, replayedBytes);
+        classesDir(tmp, changedName, changedBytes);
+        classesDir(tmp, keptName, keptBytes);
         Path classes = quietLoaderClasses(tmp, "loader/classes");
         Path execA = tmp.resolve("execA");
         writeExec(
@@ -589,9 +596,15 @@ class CoverageMapToolTest {
         writeExec(
                 execA,
                 "001-jei.tests.a-Test.grug.dropped",
-                replayedName,
-                replayedId,
-                probes(replayedProbes, initializer));
+                changedName,
+                changedId,
+                probes(changedProbes, changedInitializer));
+        writeExec(
+                execA,
+                "002-jei.tests.b-Test.grug.dropped",
+                keptName,
+                keptId,
+                probes(keptProbes, keptInitializer));
 
         Path map = tmp.resolve("map.json");
         assertEquals(
@@ -604,9 +617,9 @@ class CoverageMapToolTest {
                                 classes.toString(),
                                 execA.toString())));
 
-        // This run compiled the replayed class differently, as a pull request that changed it
-        // would: its recorded coverage is not evidence about this build's class.
-        classesDir(tmp, replayedName, classChangedNamed(replayedName));
+        // This run compiled one of the replayed classes differently, as a pull request that
+        // changed it would: its recorded coverage is not evidence about this build's class.
+        classesDir(tmp, changedName, classChangedNamed(changedName));
         Path outDir = tmp.resolve("carry-over");
         Path tests = tmp.resolve("tests.txt");
         Files.writeString(tests, "coverage/tests/a-Test.grug\n");
@@ -625,9 +638,14 @@ class CoverageMapToolTest {
                 Files.isRegularFile(
                         outDir.resolve("test-loader").resolve("coverage.tests.a-Test.grug.exec")),
                 "a changed class in the replay does not stop the carried tests");
-        assertFalse(
-                Files.exists(otherModsDir(outDir).resolve("test-loader.exec")),
-                "a changed class is not replayed, and it was the replay's only class");
+        ExecutionDataStore replayed = readExec(otherModsDir(outDir).resolve("test-loader.exec"));
+        ExecutionData kept = dataNamed(replayed, keptName);
+        assertTrue(
+                kept.getProbes()[keptInitializer],
+                "the unchanged class's initializer is still replayed");
+        for (ExecutionData data : replayed.getContents()) {
+            assertNotEquals(changedName, data.getName(), "the changed class is not replayed");
+        }
     }
 
     private static List<Integer> probeList(JsonArray array) {
