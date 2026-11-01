@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.TickEvent;
@@ -24,6 +25,7 @@ import java.util.List;
  * run ends, passed or failed, the server stops itself, which is what ends the process {@code
  * run-loader.sh} is watching.
  */
+@GrugGenerated("a dedicated server, whose coverage no CI run merges until #167 stage 4")
 public final class GrugServerRun {
     /**
      * How long to wait for a client to join before failing the run. A client takes its time to

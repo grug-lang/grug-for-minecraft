@@ -93,6 +93,15 @@ server_pid=""
 client_pid=""
 tail_pid=""
 cleanup() {
+  local status=$?
+  # A run that did not pass leaves the stacks of both game JVMs next to the logs, which is the only
+  # way to see where a process that went quiet was stuck.
+  if [ "$status" -ne 0 ]; then
+    for pid in $(pgrep -f 'forge_userdev|ForgeBootstrap|BootstrapLauncher' 2>/dev/null); do
+      echo "==> Thread dump of java process ${pid}" >> "${REPO_ROOT}/${LOADER_DIR}/run-threads-ci.log"
+      jcmd "$pid" Thread.print >> "${REPO_ROOT}/${LOADER_DIR}/run-threads-ci.log" 2>&1 || true
+    done
+  fi
   [ -n "$tail_pid" ] && kill "$tail_pid" 2>/dev/null || true
   for pid in "$client_pid" "$server_pid"; do
     [ -n "$pid" ] && kill -TERM -- "-${pid}" 2>/dev/null || true

@@ -972,6 +972,7 @@ jobs:
             loaders/1.20.6-forge/run/logs
             loaders/1.20.6-forge/run/crash-reports
             loaders/1.20.6-forge/run-client-ci.log
+            loaders/1.20.6-forge/run-threads-ci.log
             loaders/1.20.6-forge/run-server/hs_err_pid*.log
             loaders/1.20.6-forge/run/hs_err_pid*.log
           if-no-files-found: ignore
