@@ -115,6 +115,45 @@ public interface ModLoaderAdapter {
 
     Object getItemFromRegistry(Object resourceLocationObj);
 
+    /**
+     * How many items this loader lists for {@code item_count}, or -1 when it has no item list to
+     * enumerate with.
+     *
+     * <p>-1 is reported by the host function rather than answered as 0, so a mod that asks on a
+     * loader with no item list hears that the loader has none instead of drawing an empty list and
+     * saying nothing. Only the loaders that draw an overlay answer it so far; the others keep this
+     * default, which the overlay's deviations name in the mod's {@code about.json}.
+     */
+    @GrugGenerated(
+            "no item list: only the 1.20.6 adapter enumerates items so far, which the"
+                    + " overlay's own deviation names")
+    default int itemCount() {
+        return -1;
+    }
+
+    /**
+     * The item at index, in the order {@link #itemCount} enumerates, or null when the index is out
+     * of range. The host function checks the range first, so a null here is a defect rather than a
+     * mod's mistake.
+     */
+    default Object itemByIndex(int index) {
+        return null;
+    }
+
+    /**
+     * Gives one of the item to the player, the way the game gives a player an item: into their
+     * inventory, and dropped at their feet if it is full. A loader that cannot give items keeps
+     * this default, which reports the call rather than dropping the item silently, so a mod hears
+     * which loader has no give yet.
+     */
+    @GrugGenerated(
+            "no give: only the 1.20.6 adapter gives items so far, which the overlay's own"
+                    + " deviation names")
+    default void giveItemToPlayer(Object playerObj, Object itemObj) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "give_item: This loader cannot give an item yet.");
+    }
+
     Object createItemEntity(Object levelObj, double x, double y, double z, Object itemStackObj);
 
     Object createItemStack(Object itemObj, double damage);
@@ -454,6 +493,29 @@ public interface ModLoaderAdapter {
      * on a loader that displays a placeholder screen for it.
      */
     boolean isScreenOpenForTest();
+
+    /**
+     * Opens the player's own inventory screen, for a test that drives an overlay which only appears
+     * there. A loader that cannot open it keeps the default, which reports the call rather than
+     * pretending a screen is up.
+     */
+    @GrugGenerated("no inventory screen: only the 1.20.6 adapter opens one so far")
+    default void openInventory(Object playerObj) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.open_inventory: This loader cannot open the inventory yet.");
+    }
+
+    /**
+     * Presses a mouse button at a screen position through the screen's own press path, and answers
+     * whether a screen still took it. A loader that cannot drive a press keeps the default, which
+     * reports the call rather than answering as if no screen had taken it.
+     */
+    @GrugGenerated("no synthetic press: only the 1.20.6 adapter drives one so far")
+    default boolean clickScreen(double x, double y, double button) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.click_screen: This loader cannot press on a screen yet.");
+        return false;
+    }
 
     /**
      * Builds the sealed room the runner puts around the player before every test, and again when a

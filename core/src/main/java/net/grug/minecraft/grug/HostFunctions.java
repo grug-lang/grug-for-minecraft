@@ -329,6 +329,58 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether this loader ever asked an overlay's exports, which is how a test tells a
+     * loader that draws overlays on the inventory and container screens from one that does not. The
+     * answer stays false on a loader with no overlay, so a test that needs the overlay to have
+     * drawn skips there rather than failing for a missing feature.
+     */
+    public static boolean Test_overlay_asked() {
+        return GrugOverlay.overlayAsked();
+    }
+
+    /**
+     * Test only: opens the player's own inventory screen, so a test can drive what an overlay draws
+     * there. The screen is put up on the next frame, which is why a test waits for {@code
+     * screen_open} before clicking it.
+     */
+    @GrugGenerated("asks the adapter to open the game's own screen: a unit test has no game")
+    public static void Test_open_inventory(long playerId) {
+        GrugCore.getAdapter().openInventory(GrugEntities.entityData.get(playerId).object);
+    }
+
+    /**
+     * Test only: presses a mouse button at a screen position, through the same path a real press
+     * takes, and answers whether a screen still took it.
+     *
+     * <p>The position is in the scaled pixels a screen's own mouse handlers take, which is the same
+     * measure an overlay's {@code mouse_x} and {@code mouse_y} answer. False means an overlay took
+     * the press and the vanilla slot under it never saw it. The argument checks live in {@link
+     * #screenClickProblem}, which a Java test drives without a game.
+     */
+    @GrugGenerated("asks the adapter to press on the game's own screen: a unit test has no game")
+    public static boolean Test_click_screen(double x, double y, double button) {
+        String problem = screenClickProblem(x, y, button);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+            return false;
+        }
+        return GrugCore.getAdapter().clickScreen(x, y, (int) button);
+    }
+
+    /** Why Test.click_screen refuses this press, or null when it can drive it. */
+    static String screenClickProblem(double x, double y, double button) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            return "Test.click_screen: The position has to be finite.";
+        }
+        if (button != Math.floor(button) || button < 0) {
+            return "Test.click_screen: The button has to be a whole number from 0 up, and was "
+                    + button
+                    + ".";
+        }
+        return null;
+    }
+
+    /**
      * Test only: rebuilds the sealed room the runner puts around the player, with a different
      * radius. The runner builds a small one before every test; a test whose fixture reaches further
      * than that calls this at the top of its setup. See #253.
@@ -1221,6 +1273,26 @@ public class HostFunctions {
         return java.util.Objects.equals(a, b);
     }
 
+    /**
+     * Gives the player one of the item, the way the game gives an item to a player: into their
+     * inventory, and dropped at their feet if it is full. This is what the overlay's click() calls,
+     * so a click on its list hands the clicked item to the player.
+     *
+     * <p>The item is added to the integrated server's copy of the player, not the client's, because
+     * that is the copy the game saves and the one a test reads back; see the adapter's own method.
+     */
+    @GrugGenerated("reads the adapter's player and gives through it: a unit test has no game")
+    public static void give_item(long itemId) {
+        Object item = GrugEntities.entityData.get(itemId).object;
+        Object player = GrugCore.getAdapter().testPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "give_item: There is no player to give to yet.");
+            return;
+        }
+        GrugCore.getAdapter().giveItemToPlayer(player, item);
+    }
+
     public static long gui(String texturePath) {
         return GrugEntities.addEntity(GrugEntityType.GUI, new GrugGuiBuilder(texturePath));
     }
@@ -1229,6 +1301,87 @@ public class HostFunctions {
         Object id = GrugEntities.entityData.get(resourceLocationId).object;
         Object item = GrugCore.getAdapter().getItemFromRegistry(id);
         return GrugEntities.addEntity(GrugEntityType.Item, item);
+    }
+
+    /**
+     * The item at index, from 0 up to item_count minus 1, in the order the host lists its items.
+     *
+     * <p>An index outside that range is reported and answers nothing, since there is no item there
+     * to hand back; the report fails the script call, so the zero never reaches the mod. The checks
+     * themselves are in {@link #itemIndexProblem} and {@link #itemAtIndexProblem}, which a Java
+     * test drives without a game; what is left here is the adapter's own item list.
+     */
+    @GrugGenerated("reads the adapter's item list: a unit test has no game")
+    public static long item_at(double index) {
+        String problem = itemIndexProblem(index);
+        if (problem == null) {
+            problem = itemAtIndexProblem((int) index, GrugCore.getAdapter().itemCount());
+        }
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+            return 0;
+        }
+
+        Object item = GrugCore.getAdapter().itemByIndex((int) index);
+        if (item == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "item_at: The item at index " + (int) index + " could not be read.");
+            return 0;
+        }
+        return GrugEntities.addEntity(GrugEntityType.Item, item);
+    }
+
+    /** Why item_at refuses this index, or null when it is a whole number from 0 up. */
+    static String itemIndexProblem(double index) {
+        if (index < 0 || index > Integer.MAX_VALUE || index != Math.floor(index)) {
+            return "item_at: The index has to be a whole number from 0 to "
+                    + Integer.MAX_VALUE
+                    + ", and was "
+                    + index
+                    + ".";
+        }
+        return null;
+    }
+
+    /**
+     * Why item_at cannot answer this index from a list of {@code count} items, or null when it can.
+     *
+     * <p>A count below zero is a loader that has no item list, which is reported as such rather
+     * than as an empty list that draws nothing and says nothing.
+     */
+    static String itemAtIndexProblem(int index, int count) {
+        if (count < 0) {
+            return "item_at: This loader has no item list to enumerate.";
+        }
+        if (index >= count) {
+            return "item_at: There is no item at index "
+                    + index
+                    + ", since item_count is "
+                    + count
+                    + ".";
+        }
+        return null;
+    }
+
+    /** How many items the host lists, or a refusal for a loader that has no list to enumerate. */
+    @GrugGenerated("reads the adapter's item list: a unit test has no game")
+    public static double item_count() {
+        int count = GrugCore.getAdapter().itemCount();
+        if (itemListMissing(count)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "item_count: This loader has no item list to enumerate.");
+            return 0.0;
+        }
+        return count;
+    }
+
+    /**
+     * Whether a loader's answer to {@code itemCount} means it has no item list, which the adapter
+     * reports as -1 rather than as an empty list.
+     */
+    static boolean itemListMissing(int count) {
+        return count < 0;
     }
 
     public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {
@@ -1330,6 +1483,11 @@ public class HostFunctions {
         if (object != null && openContext != null && object.object == openContext) {
             return true;
         }
+        reportRefusedContext(method, kind);
+        return false;
+    }
+
+    private static void reportRefusedContext(String method, String kind) {
         GrugModTreeDefect.report(
                 method
                         + ": A "
@@ -1337,7 +1495,30 @@ public class HostFunctions {
                         + " context is only valid while the export it was passed to is"
                         + " running. A context saved in a member variable and used later is"
                         + " refused.");
-        return false;
+    }
+
+    /**
+     * The same rule for the context an overlay's {@code render()} was passed.
+     *
+     * <p>The kind is checked before the id is: a render method called during a click pass, even
+     * with the click pass's own context, is refused, because the two passes carry different state
+     * and the render methods would answer a click's geometry as if it were a frame's.
+     */
+    private static boolean requireOverlayRenderContext(String method, long contextId) {
+        if (!GrugOverlay.isRender()) {
+            reportRefusedContext(method, "render");
+            return false;
+        }
+        return requireContext(method, "render", contextId, GrugOverlay.context());
+    }
+
+    /** The same rule for the context an overlay's {@code click()} was passed. */
+    private static boolean requireOverlayClickContext(String method, long contextId) {
+        if (!GrugOverlay.isClick()) {
+            reportRefusedContext(method, "click");
+            return false;
+        }
+        return requireContext(method, "click", contextId, GrugOverlay.context());
     }
 
     public static void RenderContext_draw_box(
@@ -1439,6 +1620,154 @@ public class HostFunctions {
         if (!requireContext("RenderFrameContext.camera_yaw", contextId)) return 0.0;
 
         return GrugRenderPass.cameraYaw();
+    }
+
+    /**
+     * The screen geometry and mouse position an overlay's render() or click() is asked about, and
+     * the two draws a render pass records.
+     *
+     * <p>The geometry is the screen's and the GUI's own, in pixels from the window's top-left,
+     * which is the same measure the game gives the mouse. The overlay lays its grid out itself from
+     * these numbers, so the constants live in the mod rather than in every loader.
+     */
+    public static double OverlayRenderContext_screen_width(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.screen_width", contextId))
+            return 0.0;
+        return GrugOverlay.screenWidth();
+    }
+
+    public static double OverlayRenderContext_screen_height(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.screen_height", contextId))
+            return 0.0;
+        return GrugOverlay.screenHeight();
+    }
+
+    public static double OverlayRenderContext_gui_left(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.gui_left", contextId)) return 0.0;
+        return GrugOverlay.guiLeft();
+    }
+
+    public static double OverlayRenderContext_gui_top(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.gui_top", contextId)) return 0.0;
+        return GrugOverlay.guiTop();
+    }
+
+    public static double OverlayRenderContext_gui_width(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.gui_width", contextId)) return 0.0;
+        return GrugOverlay.guiWidth();
+    }
+
+    public static double OverlayRenderContext_gui_height(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.gui_height", contextId)) return 0.0;
+        return GrugOverlay.guiHeight();
+    }
+
+    public static double OverlayRenderContext_mouse_x(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.mouse_x", contextId)) return 0.0;
+        return GrugOverlay.mouseX();
+    }
+
+    public static double OverlayRenderContext_mouse_y(long contextId) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.mouse_y", contextId)) return 0.0;
+        return GrugOverlay.mouseY();
+    }
+
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static void OverlayRenderContext_draw_item(
+            long contextId, long itemId, double x, double y) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.draw_item", contextId)) return;
+
+        String problem = overlayItemProblem(x, y);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "OverlayRenderContext.draw_item: " + problem);
+            return;
+        }
+
+        GrugOverlay.recordItem(GrugEntities.entityData.get(itemId).object, x, y);
+    }
+
+    /** Why draw_item refuses this position, or null when it can record the icon. */
+    static String overlayItemProblem(double x, double y) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            return "The position has to be finite, and was " + x + ", " + y + ".";
+        }
+        return null;
+    }
+
+    @GrugGenerated("reports an argument refusal through the VM, which a unit test has no game for")
+    public static void OverlayRenderContext_draw_box(
+            long contextId, double x1, double y1, double x2, double y2) {
+        if (!requireOverlayRenderContext("OverlayRenderContext.draw_box", contextId)) return;
+
+        String problem = overlayBoxProblem(x1, y1, x2, y2);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "OverlayRenderContext.draw_box: " + problem);
+            return;
+        }
+
+        GrugOverlay.recordBox(x1, y1, x2, y2);
+    }
+
+    /** Why draw_box refuses this box, or null when it can record the highlight. */
+    static String overlayBoxProblem(double x1, double y1, double x2, double y2) {
+        if (x1 > x2 || y1 > y2) {
+            return "The box was not recorded. Its corners have to be the right way round: the"
+                    + " first of each pair is the near corner and must be no greater than the"
+                    + " second.";
+        }
+        return null;
+    }
+
+    public static double OverlayClickContext_screen_width(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.screen_width", contextId)) return 0.0;
+        return GrugOverlay.screenWidth();
+    }
+
+    public static double OverlayClickContext_screen_height(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.screen_height", contextId)) return 0.0;
+        return GrugOverlay.screenHeight();
+    }
+
+    public static double OverlayClickContext_gui_left(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.gui_left", contextId)) return 0.0;
+        return GrugOverlay.guiLeft();
+    }
+
+    public static double OverlayClickContext_gui_top(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.gui_top", contextId)) return 0.0;
+        return GrugOverlay.guiTop();
+    }
+
+    public static double OverlayClickContext_gui_width(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.gui_width", contextId)) return 0.0;
+        return GrugOverlay.guiWidth();
+    }
+
+    public static double OverlayClickContext_gui_height(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.gui_height", contextId)) return 0.0;
+        return GrugOverlay.guiHeight();
+    }
+
+    public static double OverlayClickContext_mouse_x(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.mouse_x", contextId)) return 0.0;
+        return GrugOverlay.mouseX();
+    }
+
+    public static double OverlayClickContext_mouse_y(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.mouse_y", contextId)) return 0.0;
+        return GrugOverlay.mouseY();
+    }
+
+    public static double OverlayClickContext_button(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.button", contextId)) return 0.0;
+        return GrugOverlay.button();
+    }
+
+    public static void OverlayClickContext_take(long contextId) {
+        if (!requireOverlayClickContext("OverlayClickContext.take", contextId)) return;
+        GrugOverlay.take();
     }
 
     /**

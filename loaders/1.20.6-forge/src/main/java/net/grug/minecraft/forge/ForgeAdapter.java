@@ -24,6 +24,8 @@ import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.core.Direction;
@@ -45,6 +47,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.TransientCraftingContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
@@ -57,6 +60,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ForgeEventFactoryClient;
 import net.minecraftforge.client.model.data.ModelData;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -67,6 +71,7 @@ import org.slf4j.Logger;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -551,6 +556,103 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // item and differ from the other four loaders, so ask whether the key exists first. A real
         // minecraft:air still resolves.
         return ForgeRegistries.ITEMS.containsKey(id) ? ForgeRegistries.ITEMS.getValue(id) : null;
+    }
+
+    /**
+     * Every item this loader lists, in the order item_at answers it: the minecraft namespace first,
+     * then every other namespace and the path inside it alphabetically.
+     *
+     * <p>JEI lists by creative tab and then by mod name, so the order differs from the reference
+     * and the port records that as a deviation. Ordering by key is stable across runs and does not
+     * move when a mod is added, which a golden of the grid needs.
+     *
+     * <p>Built once and kept: the registry does not change while the game runs, and rebuilding and
+     * sorting about a thousand items on every drawn frame would cost more than the drawing does.
+     */
+    private List<Item> itemsByNameCache;
+
+    private List<Item> itemsByName() {
+        if (itemsByNameCache == null) {
+            List<Item> items = new ArrayList<>();
+            for (Item item : ForgeRegistries.ITEMS) {
+                // Air is an item in the registry but not an ingredient: JEI's list comes from the
+                // creative tabs, which have no air, and an empty stack cannot be drawn or given.
+                if (item == Items.AIR) continue;
+                items.add(item);
+            }
+            items.sort(
+                    (a, b) -> {
+                        ResourceLocation keyA = ForgeRegistries.ITEMS.getKey(a);
+                        ResourceLocation keyB = ForgeRegistries.ITEMS.getKey(b);
+                        boolean vanillaA = "minecraft".equals(keyA.getNamespace());
+                        boolean vanillaB = "minecraft".equals(keyB.getNamespace());
+                        if (vanillaA != vanillaB) return vanillaA ? -1 : 1;
+                        return keyA.compareTo(keyB);
+                    });
+            itemsByNameCache = items;
+        }
+        return itemsByNameCache;
+    }
+
+    @Override
+    public int itemCount() {
+        return itemsByName().size();
+    }
+
+    @Override
+    @GrugGenerated(
+            "the out-of-range guard: the host function checks the range first, so a run"
+                    + " never reaches this arm")
+    public Object itemByIndex(int index) {
+        List<Item> items = itemsByName();
+        return index >= 0 && index < items.size() ? items.get(index) : null;
+    }
+
+    @Override
+    @GrugGenerated(
+            "the no-server and server-thread arms: a run clicks from the client of an"
+                    + " integrated server, so the give is always queued")
+    public void giveItemToPlayer(Object playerObj, Object itemObj) {
+        Player player = (Player) playerObj;
+        Item item = (Item) itemObj;
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) {
+            // A dedicated server or a client with no world: there is no inventory to add to, and a
+            // report here would fire on every click of a screen that is not in a real game.
+            return;
+        }
+        // An overlay's click arrives on the client thread, but the inventory is the server's, so
+        // the
+        // give is queued for the server thread rather than mutated from the client. It is not
+        // waited
+        // for: the server thread can be blocked waiting on the client, and the waiting would be a
+        // deadlock. The give lands on that thread's next tick, exactly as JEI's packet does.
+        if (server.isSameThread()) {
+            giveOnServerThread(player, item);
+            return;
+        }
+        server.execute(() -> giveOnServerThread(player, item));
+    }
+
+    @GrugGenerated(
+            "a full inventory and a missing dropped entity: a run has room for the one item"
+                    + " it gives")
+    private void giveOnServerThread(Player playerObj, Item item) {
+        Player player = serverSideOf(playerObj);
+        ItemStack stack = new ItemStack(item, 1);
+
+        // add() takes what fits and leaves the rest in the stack, so a full inventory drops exactly
+        // the remainder at the player's feet rather than losing it, which is what JEI's own give
+        // does when its inventory add does not empty the stack.
+        player.getInventory().add(stack);
+        if (!stack.isEmpty()) {
+            ItemEntity dropped = player.drop(stack, false);
+            if (dropped != null) {
+                dropped.setNoPickUpDelay();
+                dropped.setTarget(player.getUUID());
+            }
+        }
+        player.inventoryMenu.broadcastChanges();
     }
 
     @Override
@@ -1139,6 +1241,43 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     public boolean isScreenOpenForTest() {
         return Minecraft.getInstance().screen != null;
+    }
+
+    @Override
+    public void openInventory(Object playerObj) {
+        Player player = (Player) playerObj;
+        // Marshalled like closeOpenScreenForTest, because a test ticks on the server thread and the
+        // screen belongs to the client. The screen is up by the next frame, which a test waits for
+        // with Test.screen_open.
+        onClientThread(() -> Minecraft.getInstance().setScreen(new InventoryScreen(player)));
+    }
+
+    @Override
+    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
+    public boolean clickScreen(double x, double y, double button) {
+        boolean[] missing = new boolean[1];
+        boolean[] handled = new boolean[1];
+        // The same path a real press takes, fired on the client thread, so the overlay's handler
+        // and
+        // the screen's own handler see exactly what a mouse would send, including a cancellation.
+        onClientThread(
+                () -> {
+                    Screen screen = Minecraft.getInstance().screen;
+                    if (screen == null) {
+                        missing[0] = true;
+                        return;
+                    }
+                    boolean[] state = new boolean[] {false};
+                    ForgeEventFactoryClient.onScreenMouseClicked(state, screen, x, y, (int) button);
+                    handled[0] = state[0];
+                });
+        // Reported here rather than on the client thread: the grug call runs on the server thread,
+        // and a host function error raised from another thread would not reach it.
+        if (missing[0]) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.click_screen: There is no screen open to click.");
+        }
+        return handled[0];
     }
 
     @Override

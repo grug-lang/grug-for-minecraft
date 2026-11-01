@@ -1,0 +1,113 @@
+{
+	"name": "Just Enough Items",
+	"version": "1.0.0",
+	"game_version": "1.20.6",
+	"authors": [
+		"MyNameIsTrez"
+	],
+	"repository": {
+		"url": "https://github.com/grug-lang/grug-for-minecraft"
+	},
+	"licenses": [
+		{
+			"name": "MIT",
+			"url": "https://github.com/mezz/JustEnoughItems/blob/af9fee212d32575c86eb26f421b4b3a36b265960/LICENSE.txt",
+			"note": "The port recreates JEI's item list and carries the reference's MIT notice; JEI's own LICENSE.txt covers the name and the drawing it recreates."
+		}
+	],
+	"derived_from": [
+		{
+			"name": "Just Enough Items",
+			"repository": {
+				"url": "https://github.com/mezz/JustEnoughItems"
+			},
+			"revision": "af9fee212d32575c86eb26f421b4b3a36b265960",
+			"licenses": [
+				{
+					"name": "MIT",
+					"url": "https://github.com/mezz/JustEnoughItems/blob/af9fee212d32575c86eb26f421b4b3a36b265960/LICENSE.txt",
+					"note": "The reference, JEI 18.0.0.66 for 1.20.6, is MIT (Copyright (c) 2014-2015 mezz). The commit is the last of the 1.20.6 line, 20 commits past the v18.0.0 tag, and the published 18.0.0.66 build lists it as its newest change."
+				}
+			],
+			"credits": [
+				"mezz"
+			],
+			"sources": [
+				"https://modrinth.com/mod/jei",
+				"https://github.com/mezz/JustEnoughItems"
+			],
+			"artifacts": [
+				{
+					"name": "jei-1.20.6-forge-18.0.0.66.jar",
+					"url": "https://cdn.modrinth.com/data/u6dRKJwZ/versions/7JXhXEj2/jei-1.20.6-forge-18.0.0.66.jar",
+					"sha256": "f1418d163be8652713b239138c84cf9df19792ad59122d9cb2d163d7128440d9",
+					"size": 1076530
+				}
+			],
+			"runtime": {
+				"minecraft": "1.20.6",
+				"loader": "1.20.6-forge",
+				"loader_version": "50.1.0",
+				"java": "21"
+			},
+			"install": {
+				"type": "mods_folder",
+				"files": [
+					"jei-1.20.6-forge-18.0.0.66.jar"
+				]
+			},
+			"deviations": [
+				{
+					"what": "The item list is drawn on 1.20.6-forge only. The 1.2.5-forge, b1.7.3-ornithe, b1.7.3-stationapi and a1.1.2_01-ornithe adapters never ask the Overlay exports, so the list is absent there, a click gives nothing, and Test.overlay_asked answers false.",
+					"why": "Only the 1.20.6 adapter registers overlay files and hooks its screen events in the first version. Alpha and Beta have no creative inventory, no give command and no singleplayer chat, so the list and its give matter most there, but neither has a screen hook yet.",
+					"tracking_issue": 863
+				},
+				{
+					"what": "Only the items that fit the grid are shown. There is no scroll or page, so items past the last visible slot cannot be reached.",
+					"why": "Scrolling and paging need a scroll or page input on the overlay, and the host API has presses only.",
+					"tracking_issue": 864
+				},
+				{
+					"what": "There is no search box, so the list cannot be filtered.",
+					"why": "Text input is not in the overlay API and a test run has no way to type into a screen; item names are not exposed either.",
+					"tracking_issue": 865
+				},
+				{
+					"what": "The overlay cannot be hidden. It is drawn whenever an inventory or container screen is open.",
+					"why": "The host API has no hotkey for a mod to register or read.",
+					"tracking_issue": 866
+				},
+				{
+					"what": "Right-clicking an item does not open its uses or recipes, and there are no recipe categories or recipe screen.",
+					"why": "The recipe viewer's category, uses and recipes host API is a separate piece of work.",
+					"tracking_issue": 867
+				},
+				{
+					"what": "There are no bookmarks, so an item cannot be pinned across screens.",
+					"why": "Bookmarks need per-player persistent state, drag input and a second list beside the ingredient list.",
+					"tracking_issue": 868
+				},
+				{
+					"what": "There is no plugin API for other mods to register categories or ingredient subtypes, and no configuration screen or file for the mod's options.",
+					"why": "A grug mod has no plugin boundary to extend and no configuration file it reads; what a grug mod may extend is a design question.",
+					"tracking_issue": 869
+				},
+				{
+					"what": "The items are ordered by registry key, with the minecraft namespace first and everything else alphabetically, where JEI orders by creative tab and then by mod name. The same item therefore sits at a different place.",
+					"why": "A stable key order is what a committed golden needs, and the host exposes no creative tabs; JEI's order is recorded as the difference.",
+					"tracking_issue": 870
+				},
+				{
+					"what": "Hovering an item draws the reference's highlight but no tooltip, item count or mod name, and the grid draws no slot background and no search bar or button.",
+					"why": "The overlay API has no tooltip callback or item-name source, and the first version draws no chrome beyond the icons and the highlight.",
+					"tracking_issue": 870
+				},
+				{
+					"what": "A left click always gives one item. There is no give-versus-cheat mode and no right-click delete.",
+					"why": "The first version has one click behaviour, the give JEI needs on a survival server; JEI's modes and their configuration are a separate piece.",
+					"tracking_issue": 870
+				}
+			]
+		}
+	]
+}

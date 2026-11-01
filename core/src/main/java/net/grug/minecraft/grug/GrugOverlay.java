@@ -1,7 +1,6 @@
 package net.grug.minecraft.grug;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -311,8 +310,132 @@ public final class GrugOverlay {
         context = null;
     }
 
-    /** The item icons recorded so far, in the order they were drawn. */
-    public static List<GrugScreenItemDraw> recordedItems() {
-        return Collections.unmodifiableList(new ArrayList<>(ITEMS));
+    /**
+     * Runs an overlay's {@code render()} for one frame and answers what it drew.
+     *
+     * <p>The loader calls this from the point in its frame where the screen is already drawn and an
+     * item icon can still be put on top of it, and draws the answer straight away. The pass belongs
+     * here rather than in the loader because the bookkeeping is static and the export needs a
+     * context entity, which is core's; what the loader owns is the drawing and the event that says
+     * when to draw.
+     *
+     * <p>The pass runs under the state lock, like a block entity's frame pass: two concurrent
+     * passes would interleave the static bookkeeping and draw one overlay's icons into another
+     * frame. The lock is reentrant, so the export's own host functions take it again on this thread
+     * without deadlocking.
+     *
+     * <p>A handle of zero means the mod has no overlay script, and an invalid export id means the
+     * engine has no {@code render} to call, so neither is passed to the native side. The pass still
+     * opens and closes, because {@link #noteAsked} has already said this loader asks overlays.
+     */
+    public static GrugOverlayGeometry render(
+            long entityHandle,
+            long renderFnId,
+            double screenWidth,
+            double screenHeight,
+            double guiLeft,
+            double guiTop,
+            double guiWidth,
+            double guiHeight,
+            double mouseX,
+            double mouseY) {
+        GrugStateLock.lock();
+        try {
+            openRender(
+                    screenWidth,
+                    screenHeight,
+                    guiLeft,
+                    guiTop,
+                    guiWidth,
+                    guiHeight,
+                    mouseX,
+                    mouseY);
+            GrugOverlayGeometry geometry;
+            try {
+                // The pass closes even when the export does not come back, because callExportFn
+                // rethrows a fatal raised inside the script once the native call returns to Java. A
+                // pass left open would make the next frame's open() hit the nesting invariant
+                // instead of naming the defect that actually happened.
+                if (entityHandle != 0 && renderFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                    callExport(
+                            entityHandle, renderFnId, GrugEntityType.OverlayRenderContext, context);
+                }
+            } finally {
+                geometry = closeRender();
+            }
+            return geometry;
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
+     * Runs an overlay's {@code click()} for one press and answers whether it took the press.
+     *
+     * <p>The loader calls this before its own screen sees the press, and cancels the press when the
+     * answer is true, so a click on the overlay's list does not also click the vanilla slot under
+     * it. The pass has the same lock and the same report-free close as {@link #render}.
+     */
+    public static boolean click(
+            long entityHandle,
+            long clickFnId,
+            double screenWidth,
+            double screenHeight,
+            double guiLeft,
+            double guiTop,
+            double guiWidth,
+            double guiHeight,
+            double mouseX,
+            double mouseY,
+            double button) {
+        GrugStateLock.lock();
+        try {
+            openClick(
+                    screenWidth,
+                    screenHeight,
+                    guiLeft,
+                    guiTop,
+                    guiWidth,
+                    guiHeight,
+                    mouseX,
+                    mouseY,
+                    button);
+            boolean wasTaken;
+            try {
+                if (entityHandle != 0 && clickFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                    callExport(
+                            entityHandle, clickFnId, GrugEntityType.OverlayClickContext, context);
+                }
+            } finally {
+                wasTaken = closeClick();
+            }
+            return wasTaken;
+        } finally {
+            GrugStateLock.unlock();
+        }
+    }
+
+    /**
+     * Calls an overlay export with the pass's context, rooting its host entities in this call only.
+     *
+     * <p>A render export runs every frame, so a call such as {@code item_at} inside it would
+     * otherwise add one entity per frame to the process-wide root list and keep them alive. The
+     * context entity exists only for the call, so a script that saves it and uses it later finds a
+     * stale context and is refused.
+     */
+    @GrugGenerated(
+            "the call into the VM and its context entity: needs a live grug entity, which only a"
+                    + " game has")
+    private static void callExport(
+            long entityHandle, long exportFnId, GrugEntityType contextType, Context context) {
+        GrugEntities.withFreshOwner(
+                () -> {
+                    long contextHandle = GrugEntities.addEntity(contextType, context);
+                    try {
+                        Grug.callExportFn(entityHandle, exportFnId, contextHandle);
+                    } finally {
+                        GrugEntities.removeEntity(contextHandle);
+                    }
+                });
     }
 }

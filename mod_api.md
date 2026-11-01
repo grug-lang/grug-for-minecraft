@@ -67,6 +67,7 @@ export render(ctx: OverlayRenderContext)
 export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
 Test.clear_held_item(player: Player)
+Test.click_screen(x: number, y: number, button: number) bool
 Test.close_screen()
 Test.force_gc()
 Test.get_client_level() Level
@@ -78,6 +79,7 @@ Test.is_reference() bool
 Test.load_nbt(block_entity: BlockEntity)
 Test.mining_crack(level: Level, x: number, y: number, z: number) bool
 Test.notify_neighbors(level: Level, x: number, y: number, z: number)
+Test.open_inventory(player: Player)
 Test.overlay_asked() bool
 Test.registers_mod_recipes() bool
 Test.reload_count(relative_path: string) number

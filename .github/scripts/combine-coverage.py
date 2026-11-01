@@ -103,6 +103,10 @@ EXCLUDED_CLASSES = {
     "GrugModsScreen",
     "GrugModsButton",
     "GrugTitleButton",
+    # The overlay's screen hooks: which screens an overlay is asked on and the draw of what it
+    # recorded into the open screen's GuiGraphics. Only a real game with a screen up runs them, and
+    # the pass bookkeeping they drive is measured in core's GrugOverlay.
+    "GrugOverlayHost",
     # Loader startup and registration only runs inside a real game bootstrap, which a headless CI
     # cannot drive. The logic they carry beyond wiring (file classification, the LICENSE gate,
     # recipe parsing, the adapters) lives in measured classes instead.
