@@ -1,0 +1,25 @@
+# A placement in a chunk the client never receives must not keep the world unsettled. 1.20.6 writes
+# it to the server's world, which is the world a test reads there, but the client has no copy of that
+# chunk and the server does not send it while the player is nowhere near it, so its block state there
+# is void air and a settle wait that asked the client for the placement would wait until the test's
+# own budget ran out. The placement is air because every loader accepts it: a loader whose client
+# drops the write of a real block there reports the read-back error expect_place_block_out_of_range
+# covers, and the wait is what this test is about. See #804.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        level: Level = Test.get_client_level()
+        origin: Vec3 = Test.get_origin()
+
+        # Well outside the two-chunk render distance the run sets, so the client's chunk storage
+        # never holds it.
+        far_x: number = origin.x() + 200
+        level.place_block(far_x, origin.y(), origin.z(), "minecraft:air")
+        ctx.assert(level.get_block(far_x, origin.y(), origin.z()) == "minecraft:air", "The world the test reads should hold the air the placement put there.")
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        # The client cannot answer for a chunk it does not have, so nothing it shows can satisfy the
+        # placement, and the wait has to be satisfied without the client's copy of it.
+        ctx.assert(ctx.current_tick() < 100, "A placement in a chunk the client has not received must not keep the world unsettled.")
+        ctx.not_done()
+    }
+}

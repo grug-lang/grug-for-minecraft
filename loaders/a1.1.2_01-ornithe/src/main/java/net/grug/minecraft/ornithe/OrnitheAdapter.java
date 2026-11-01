@@ -1006,14 +1006,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public boolean isWorldSettled() {
         // What the client owes is the simulated world's current block, not the one the test placed.
         Object simulated = getLevel();
-        blockSync.refresh((x, y, z) -> getBlock(simulated, x, y, z));
         // Asked now as well as per frame: the runner runs up to 10 ticks for a frame, so a change a
         // test just made has not been in a frame yet, and only the renderer's list knows it.
         // The client and the server share this loader's world, so a placed block is there, but the
         // settlement still waits for a frame that shows it. Both answers are combined inside
         // GrugRenderSettle, whose unit test covers every combination, so no branch here depends on
-        // whether an edit happened to be owed. See #804.
-        return renderSettle.settledNow(frameHadPendingWork(), blockSync.settled());
+        // whether an edit happened to be owed. The block answer refreshes from the world it is
+        // given first, so it compares the client against what the world holds now. See #804.
+        return renderSettle.settledNow(
+                frameHadPendingWork(),
+                blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z)));
     }
 
     @Override

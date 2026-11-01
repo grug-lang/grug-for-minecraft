@@ -55,9 +55,9 @@ public final class GrugBlockSync {
      * Reads the simulated world's current block at every owed position, so the frame hook compares
      * the client against what the world holds now rather than what the test put there.
      *
-     * <p>Called from {@code isWorldSettled}, which runs on the thread that owns the simulated
-     * world: the server thread on 1.20.6 and the client's own on the loaders that share one world.
-     * The frame hook only ever reads the client's copy.
+     * <p>Called on the thread that owns the simulated world: the server thread on 1.20.6 and the
+     * client's own on the loaders that share one world. The frame hook only ever reads the client's
+     * copy.
      */
     public synchronized void refresh(Blocks simulated) {
         for (Map.Entry<Long, String> edit : owed.entrySet()) {
@@ -97,8 +97,23 @@ public final class GrugBlockSync {
         return true;
     }
 
-    /** Whether every edit a test made has been seen in the client's copy. */
+    /** Whether every edit a test made has been seen in the client's copy, as of the last answer. */
     public synchronized boolean settled() {
+        return owed.isEmpty();
+    }
+
+    /**
+     * Refreshes from the simulated world and then answers whether the client holds every block it
+     * is owed.
+     *
+     * <p>This is the answer every settle check uses, including a capture's own: a capture's wait
+     * has no {@code world_settled} call in front of it, so a check that kept the block the test
+     * placed would wait for ever after the world replaced it. The refresh runs on the calling
+     * thread, which must be the one that owns the simulated world; the capture's wait blocks that
+     * thread while it asks, so the world cannot move between the refresh and the answer.
+     */
+    public synchronized boolean settled(Blocks simulated) {
+        refresh(simulated);
         return owed.isEmpty();
     }
 

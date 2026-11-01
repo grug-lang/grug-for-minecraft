@@ -1655,7 +1655,7 @@
 					]
 				},
 				"place_block": {
-					"description": "Places a block in the world.",
+					"description": "Places a block in the world. A position in a chunk the client has not received is not shown by the client, and world_settled does not wait for it: on 1.20.6 the server's world keeps the block, and on a loader whose client and server share the world the write is discarded.",
 					"parameters": [
 						{
 							"name": "x",

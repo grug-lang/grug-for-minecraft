@@ -126,6 +126,23 @@ class GrugBlockSyncTest {
     }
 
     @Test
+    void aCaptureAfterTheWorldReplacedTheBlockRefreshesBeforeItAnswers() {
+        GrugBlockSync sync = new GrugBlockSync();
+        sync.owe(1, 2, 3, "minecraft:stone");
+
+        // A capture's wait has no settle call in front of it, so its own answer refreshes from the
+        // world first: the world refilled the position with water after the test placed the stone,
+        // and an answer that kept the stone would compare it against the client's water for ever.
+        // The refresh alone is not the client's answer, so the edit stays owed until a frame has
+        // seen it.
+        assertFalse(
+                sync.settled((x, y, z) -> "minecraft:water"),
+                "The client has not shown the replacement yet.");
+        assertTrue(sync.onFrame((x, y, z) -> "minecraft:water"));
+        assertTrue(sync.settled((x, y, z) -> "minecraft:water"));
+    }
+
+    @Test
     void everyOwedEditIsReadAtItsOwnPosition() {
         GrugBlockSync sync = new GrugBlockSync();
         sync.owe(-5, -64, 7, "minecraft:stone");
