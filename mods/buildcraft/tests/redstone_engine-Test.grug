@@ -194,10 +194,9 @@ local _set_energy(energy: number) {
     block_entity.set_saved_number("energy", energy)
 }
 
-# Sets the energy the engine is drawn from, then has the game draw it again, since its trunk is only
-# rebuilt when it is asked to be. The energy has to give the stage the capture is of. The reference's
-# RenderEngine reads the energy on every frame, so loading it is enough there. The torch keeps it
-# from draining, as it does the port's.
+# Sets the energy the engine is drawn from. The energy has to give the stage the capture is of. The
+# port's render_frame reads the energy on every frame, as the reference's RenderEngine does, so
+# nothing has to be drawn again. The torch keeps it from draining, as it does the port's.
 local _draw_stage(ctx: TestTickContext, energy: number, expected_stage: number) {
     if Test.is_reference() {
         Test.set_nbt_number(engine.unwrap(), "energy", "int", energy)
@@ -207,8 +206,6 @@ local _draw_stage(ctx: TestTickContext, energy: number, expected_stage: number) 
         return
     }
     _set_energy(energy)
-    block_entity: BlockEntity = engine.unwrap()
-    block_entity.redraw()
     ctx.assert(_stage(_energy()) == expected_stage, "The engine should have reached the next stage.")
 }
 

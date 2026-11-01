@@ -10,9 +10,23 @@ public class GrugBlockData {
 
     /**
      * Whether the block draws its own geometry from its block entity's render function, declared by
-     * set_custom_render. When it does, the loader skips the model its blockstate names.
+     * set_custom_render or set_frame_render. When it does, the loader skips the model its
+     * blockstate names.
      */
     public boolean customRender = false;
+
+    /**
+     * Whether all of that geometry is drawn per frame, declared by set_frame_render: the chunk mesh
+     * holds nothing for this block and render() is not asked for.
+     */
+    public boolean frameRender = false;
+
+    /**
+     * Whether the chunk's geometry holds this block's shape, which a frame-only block has none of.
+     */
+    public boolean drawsChunkGeometry() {
+        return customRender && !frameRender;
+    }
 
     /**
      * Whether the custom geometry is drawn flat, declared by set_flat_lighting: no shade per side,

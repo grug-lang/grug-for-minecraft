@@ -131,6 +131,7 @@ Test.world_settled() bool
 .set_block_entity(entity_string: entity)
 .set_custom_render()
 .set_flat_lighting()
+.set_frame_render()
 .set_hardness(value: number)
 .set_inventory_size(size: number)
 .set_material(material_name: string)
@@ -237,6 +238,7 @@ Option.new() Option[$Value]
 ## RenderFrameContext
 .camera_yaw() number
 .draw_item(item: Item, damage: number, count: number, x: number, y: number, z: number)
+.draw_model(model: resource, x: number, y: number, z: number, dx: number, dy: number, dz: number)
 .partial_tick() number
 
 ## Screenshot

@@ -1,9 +1,11 @@
 package net.grug.minecraft.ornithe.client;
 
 import net.grug.minecraft.grug.GrugBlockGeometry;
+import net.grug.minecraft.grug.GrugFrameDraw;
 import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
+import net.grug.minecraft.grug.GrugModelDraw;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
@@ -16,6 +18,7 @@ import net.minecraft.client.render.vertex.Tesselator;
 import net.minecraft.entity.Entity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.world.WorldView;
 import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
 
 import org.lwjgl.opengl.GL11;
@@ -76,7 +79,7 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
                         grugBlockEntity.getFrameRenderFnId(),
                         tickDelta,
                         yaw);
-        if (geometry.items().isEmpty()) return;
+        if (geometry.draws().isEmpty()) return;
 
         GL11.glPushAttrib(
                 GL11.GL_ENABLE_BIT
@@ -88,12 +91,45 @@ public class GrugFrameRenderer extends BlockEntityRenderer {
             float brightness =
                     grugBlockEntity.world.getBrightness(
                             grugBlockEntity.x, grugBlockEntity.y, grugBlockEntity.z);
-            for (GrugItemDraw draw : geometry.items()) {
-                drawItem(draw, dx + draw.x(), dy + draw.y(), dz + draw.z(), yaw, brightness);
+            for (GrugFrameDraw draw : geometry.draws()) {
+                if (draw instanceof GrugModelDraw) {
+                    drawModel(
+                            (GrugModelDraw) draw,
+                            dx,
+                            dy,
+                            dz,
+                            grugBlockEntity.world,
+                            block,
+                            grugBlockEntity);
+                } else if (draw instanceof GrugItemDraw) {
+                    GrugItemDraw item = (GrugItemDraw) draw;
+                    drawItem(item, dx + item.x(), dy + item.y(), dz + item.z(), yaw, brightness);
+                }
             }
         } finally {
             GL11.glPopAttrib();
         }
+    }
+
+    /**
+     * Draws one model at the block's camera-relative position, moved by the model's own offset,
+     * which is the chain a reference's block entity renderer builds: the block's position, then the
+     * part's offset, then the boxes.
+     */
+    private static void drawModel(
+            GrugModelDraw draw,
+            double dx,
+            double dy,
+            double dz,
+            WorldView world,
+            Block block,
+            GrugBlockEntity blockEntity) {
+        GL11.glPushMatrix();
+        GL11.glTranslatef((float) dx, (float) dy, (float) dz);
+        GL11.glTranslatef((float) draw.x(), (float) draw.y(), (float) draw.z());
+        GrugModelRenderer.drawInFrame(
+                world, block, blockEntity.x, blockEntity.y, blockEntity.z, draw.quads());
+        GL11.glPopMatrix();
     }
 
     /**

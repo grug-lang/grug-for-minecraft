@@ -18,7 +18,7 @@ import java.util.Random;
  * copy by values from a {@link Random} re-seeded with 187 for every stack. Keeping the sequence
  * here means every loader scatters a stack the same way, and a Java test pins it.
  */
-public final class GrugItemDraw {
+public final class GrugItemDraw implements GrugFrameDraw {
     /** The seed BuildCraft re-seeds its scatter random with for every item. */
     private static final long SCATTER_SEED = 187L;
 

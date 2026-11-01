@@ -1,10 +1,11 @@
-# A block whose block entity draws a stack of a block and a stack of an item above a small
-# pedestal, every frame. The pedestal is chunk geometry from render(); the two stacks are the
-# per-frame hook's job, because a sprite turned towards the player cannot be baked into a chunk.
-# The coverage_frame test compares what lands on screen.
+# A block whose block entity draws a plate with a stack of a block and a stack of an item on top of
+# it, every frame. All three are the per-frame hook's job, because a sprite turned towards the player
+# cannot be baked into a chunk and a model drawn where a reference's block entity renderer draws it
+# keeps its vertices beside the block rather than at its place in the world. The coverage_frame test
+# compares what lands on screen.
 export init(ctx: BlockInitContext) {
     ctx.set_hardness(1)
     ctx.set_material("stone")
     ctx.set_block_entity(e"coverage_frame_entity")
-    ctx.set_custom_render()
+    ctx.set_frame_render()
 }

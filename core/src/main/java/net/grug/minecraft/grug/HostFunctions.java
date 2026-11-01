@@ -2382,6 +2382,44 @@ public class HostFunctions {
     }
 
     /**
+     * Draws a model JSON's elements for this frame, each face with the texture the model names for
+     * it, turned and moved the same way as {@link #RenderContext_draw_model} does.
+     *
+     * <p>The faces are drawn on top of the chunk geometry every frame, so they are placed
+     * separately from the chunk's mesh, which is what a part that moves every tick needs: a
+     * renderer that draws its vertices near the block matches a reference that draws it from a
+     * block entity renderer, where a baked vertex sits at the block's place in the world. Nothing
+     * here is lit by the world's direction: a model drawn this way is drawn at full brightness, the
+     * way a reference that draws its own block entity with OpenGL lighting off draws it.
+     */
+    public static void RenderFrameContext_draw_model(
+            long contextId,
+            String modelPath,
+            double xDegrees,
+            double yDegrees,
+            double zDegrees,
+            double dx,
+            double dy,
+            double dz) {
+        if (!requireContext("RenderFrameContext.draw_model", contextId)) return;
+
+        String problem =
+                GrugRenderPass.recordFrameModel(
+                        GrugCore.getAdapter().getGrugModsDirectory(),
+                        modelPath,
+                        xDegrees,
+                        yDegrees,
+                        zDegrees,
+                        dx,
+                        dy,
+                        dz);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "RenderFrameContext.draw_model: " + problem);
+        }
+    }
+
+    /**
      * Draws one stack the way the game draws a dropped item, on top of the chunk geometry, for this
      * frame.
      *
@@ -2816,12 +2854,31 @@ public class HostFunctions {
             // lit, and the report names the block and what to call first.
             GrugModTreeDefect.report(
                     block.id
-                            + ": set_flat_lighting() needs set_custom_render() called before it,"
-                            + " since only custom geometry can be drawn flat.");
+                            + ": set_flat_lighting() needs set_custom_render() or"
+                            + " set_frame_render() called before it, since only a block that draws"
+                            + " its own geometry can be drawn flat.");
             return;
         }
 
         block.flatLighting = true;
+    }
+
+    /**
+     * Declares that the block draws every part of its own geometry per frame, from its block
+     * entity's render_frame(), and nothing into the chunk's mesh.
+     *
+     * <p>That is for a machine the reference draws from a block entity renderer rather than from
+     * the chunk's geometry, which is where a part that moves every tick and shares a plane with a
+     * neighbour's part is drawn at the same precision the reference draws it. The block still has a
+     * model of its own, which is what its item form is drawn from, and it is still not a full cube.
+     */
+    public static void BlockInitContext_set_frame_render(long contextId) {
+        GrugBlockData block =
+                requireBlockInitContext("BlockInitContext.set_frame_render", contextId);
+        if (block == null) return;
+
+        block.customRender = true;
+        block.frameRender = true;
     }
 
     public static void BlockInitContext_set_hardness(long contextId, double value) {

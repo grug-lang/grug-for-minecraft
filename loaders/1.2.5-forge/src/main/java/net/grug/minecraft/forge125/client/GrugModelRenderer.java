@@ -173,6 +173,54 @@ public final class GrugModelRenderer {
     }
 
     /**
+     * Draws {@code quads} at the camera-relative block origin the frame renderer was handed, with
+     * the model's own offset already applied to the matrix, the way BuildCraft's {@code
+     * RenderEngine.render} draws its {@code ModelRenderer} boxes from its tile entity renderer.
+     *
+     * <p>This is the per-frame half of {@link #drawInWorld}: the vertices are submitted beside the
+     * block instead of at its place in the world, which is what keeps an edge that moves every tick
+     * on the pixel the reference puts it on. Every vertex is float32 either way, so a baked copy at
+     * y=75 rounds about 64 times more coarsely than a copy at 0.5, and a plate's edge that crosses
+     * a pixel's centre in between lands on either side of it.
+     *
+     * <p>Nothing here sets a brightness or a colour, as the reference sets neither: it disables GL
+     * lighting and lets the tile entity pass's own lightmap and white colour stand, which is what a
+     * frame pass draws under.
+     */
+    public static void drawInFrame(
+            IBlockAccess world, Block block, int x, int y, int z, List<GrugQuad> quads) {
+        Tessellator tessellator = Tessellator.instance;
+        for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
+            String name = register(group.getKey());
+            if (name == null) continue;
+
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, TEXTURES.get(group.getKey()));
+            tessellator.startDrawingQuads();
+            for (GrugQuad quad : group.getValue()) {
+                int cull = quad.cullSide();
+                if (cull >= 0
+                        && !block.shouldSideBeRendered(
+                                world,
+                                x + OFFSET[cull][0],
+                                y + OFFSET[cull][1],
+                                z + OFFSET[cull][2],
+                                cull)) {
+                    continue;
+                }
+                for (int corner = 0; corner < 4; corner++) {
+                    tessellator.addVertexWithUV(
+                            quad.x(corner),
+                            quad.y(corner),
+                            quad.z(corner),
+                            quad.u(corner),
+                            quad.v(corner));
+                }
+            }
+            tessellator.draw();
+        }
+    }
+
+    /**
      * The colour and brightness the game gives each corner of {@code quad}, as red, green, blue and
      * brightness, or null when the game draws no face with the same corners.
      *

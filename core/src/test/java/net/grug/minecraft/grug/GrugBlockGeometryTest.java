@@ -125,7 +125,7 @@ class GrugBlockGeometryTest {
         GrugFrameGeometry geometry =
                 GrugBlockGeometry.drawFrame(0, Grug.INVALID_GRUG_EXPORT_FN_ID, 0.5, 90.0);
 
-        assertTrue(geometry.items().isEmpty(), "There is nothing to draw, so no stacks come back.");
+        assertTrue(geometry.draws().isEmpty(), "There is nothing to draw, so no stacks come back.");
         assertTrue(drainReports().isEmpty(), "Nothing was drawn, and nothing may be reported.");
         assertFalse(
                 GrugRenderPass.isOpen(),

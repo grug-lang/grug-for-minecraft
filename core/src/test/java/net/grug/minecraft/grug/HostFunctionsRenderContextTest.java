@@ -70,7 +70,7 @@ class HostFunctionsRenderContextTest {
         assertEquals(0.25, HostFunctions.RenderFrameContext_partial_tick(context));
         assertEquals(270.0, HostFunctions.RenderFrameContext_camera_yaw(context));
         assertTrue(drain().isEmpty());
-        GrugItemDraw draw = GrugRenderPass.closeFrame().items().get(0);
+        GrugItemDraw draw = (GrugItemDraw) GrugRenderPass.closeFrame().draws().get(0);
         assertEquals(ITEM, draw.item());
         assertEquals(2, draw.damage());
         assertEquals(7, draw.count());
@@ -85,16 +85,18 @@ class HostFunctionsRenderContextTest {
         HostFunctions.RenderContext_draw_box(context, 0, 0, 0, 1, 1, 1);
         HostFunctions.RenderContext_draw_model(context, "ignored.json", 0, 0, 0, 0, 0, 0);
         HostFunctions.RenderFrameContext_draw_item(context, 1, 0, 1, 0, 0, 0);
+        HostFunctions.RenderFrameContext_draw_model(context, "ignored.json", 0, 0, 0, 0, 0, 0);
         HostFunctions.RenderFrameContext_partial_tick(context);
         HostFunctions.RenderFrameContext_camera_yaw(context);
 
         List<String> reports = drain();
-        assertEquals(5, reports.size(), "Every method names its own refusal.");
+        assertEquals(6, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("RenderContext.draw_box"), reports.get(0));
         assertTrue(reports.get(1).contains("RenderContext.draw_model"), reports.get(1));
         assertTrue(reports.get(2).contains("RenderFrameContext.draw_item"), reports.get(2));
-        assertTrue(reports.get(3).contains("RenderFrameContext.partial_tick"), reports.get(3));
-        assertTrue(reports.get(4).contains("RenderFrameContext.camera_yaw"), reports.get(4));
+        assertTrue(reports.get(3).contains("RenderFrameContext.draw_model"), reports.get(3));
+        assertTrue(reports.get(4).contains("RenderFrameContext.partial_tick"), reports.get(4));
+        assertTrue(reports.get(5).contains("RenderFrameContext.camera_yaw"), reports.get(5));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }
@@ -110,7 +112,7 @@ class HostFunctionsRenderContextTest {
         List<String> reports = drain();
         assertEquals(1, reports.size());
         assertTrue(reports.get(0).contains("RenderFrameContext.partial_tick"), reports.get(0));
-        assertTrue(GrugRenderPass.closeFrame().items().isEmpty());
+        assertTrue(GrugRenderPass.closeFrame().draws().isEmpty());
     }
 
     @Test
