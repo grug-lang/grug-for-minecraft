@@ -182,6 +182,9 @@ class GrugOverlayTest {
 
         assertFalse(GrugOverlay.click(0, 0, 426, 240, 125, 37, 176, 166, 300, 20, 0, false));
         assertFalse(GrugOverlay.isOpen());
+
+        assertFalse(GrugOverlay.key(0, 0, 79, true));
+        assertFalse(GrugOverlay.isOpen());
     }
 
     @Test
@@ -219,5 +222,21 @@ class GrugOverlayTest {
                         0,
                         false));
         assertFalse(GrugOverlay.isOpen());
+    }
+
+    @Test
+    void aKeyPassWithAnEntityButNoExportCallsNothing() {
+        assertFalse(GrugOverlay.key(123, Grug.INVALID_GRUG_EXPORT_FN_ID, 79, true));
+        assertFalse(GrugOverlay.isOpen());
+    }
+
+    @Test
+    void aTakeOutsideAnyPassOrInARenderPassTakesNothing() {
+        GrugOverlay.take();
+        GrugOverlay.openRender(426, 240, 125, 37, 176, 166, 300, 20);
+        GrugOverlay.take();
+        GrugOverlay.closeRender();
+        GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 0, false);
+        assertFalse(GrugOverlay.closeClick(), "Neither take recorded anything.");
     }
 }
