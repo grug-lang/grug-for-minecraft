@@ -81,6 +81,20 @@ class SelectCoverageTestsPureTest(unittest.TestCase):
             {},
         )
 
+    def test_a_nested_coverage_test_runs_every_test(self):
+        # The map flattens a test path into dots and names it back only as <mod>/tests/<name>,
+        # so a test under a subdirectory of tests/ has no key the tool can match back, and the
+        # selection cannot offer it for carry-over: every coverage test runs.
+        nested = frozenset({"coverage/tests/sub/delta-Test.grug"})
+        tests = frozenset(ALL) | nested
+        run = sel.select_coverage_tests(
+            changed=frozenset({"mods/buildcraft/tests/wrench-Test.grug"}),
+            coverage_tests=tests,
+            base_coverage_tests=tests,
+        )
+        self.assertEqual(set(run), tests)
+        self.assertTrue(all("nested" in reason for reason in run.values()))
+
     # A change confined to files no coverage test reads lets every one be carried over.
 
     def test_a_change_confined_to_another_mod_is_carried_over(self):

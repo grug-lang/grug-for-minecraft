@@ -196,17 +196,14 @@ public final class CoverageMapTool {
                 case "--execs" -> execDirs.add(Path.of(args[++i]));
                 case "--commit" -> commit = args[++i];
                 case "--out" -> out = Path.of(args[++i]);
-                default -> {
-                    System.err.println("coverage-map-tool build: unknown argument " + args[i]);
-                    return;
-                }
+                default -> throw new ToolError(2, "build: unknown argument " + args[i]);
             }
         }
         if (classesDir == null || execDirs.isEmpty() || out == null) {
-            System.err.println(
+            throw new ToolError(
+                    2,
                     "usage: CoverageMapTool build --classes <dir> --execs <dir>... "
                             + "--commit <sha> --out <file>");
-            return;
         }
 
         Map<String, byte[]> classes = readClasses(classesDir);
@@ -470,18 +467,14 @@ public final class CoverageMapTool {
                 case "--classes" -> classesDir = Path.of(args[++i]);
                 case "--tests" -> testsPath = Path.of(args[++i]);
                 case "--out-dir" -> outDir = Path.of(args[++i]);
-                default -> {
-                    System.err.println(
-                            "coverage-map-tool reconstruct: unknown argument " + args[i]);
-                    return;
-                }
+                default -> throw new ToolError(2, "reconstruct: unknown argument " + args[i]);
             }
         }
         if (mapPath == null || classesDir == null || testsPath == null || outDir == null) {
-            System.err.println(
+            throw new ToolError(
+                    2,
                     "usage: CoverageMapTool reconstruct --map <file> --classes <dir> "
                             + "--tests <file> --out-dir <dir>");
-            return;
         }
 
         Map<String, Object> map = readMap(Files.readString(mapPath));

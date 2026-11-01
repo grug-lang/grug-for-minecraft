@@ -74,35 +74,38 @@ def main(argv: list[str] | None = None) -> int:
         # main at most, so one page holds them all. A created date is not a filter to lean on:
         # this instance matches it exactly rather than as "created at or after".
         params = {"branch": "main", "head_sha": args.base, "per_page": "100"}
-        found = None
-        for run in get_json(runs_url + "?" + urllib.parse.urlencode(params), token)[
-            "workflow_runs"
-        ]:
-            if run["head_sha"] == args.base and run["conclusion"] == "success":
-                found = run
-                break
-        if found is None:
+        successful = [
+            run
+            for run in get_json(runs_url + "?" + urllib.parse.urlencode(params), token)[
+                "workflow_runs"
+            ]
+            if run["head_sha"] == args.base and run["conclusion"] == "success"
+        ]
+        if not successful:
             print(
                 f"base-coverage-map-run: carrying over no coverage test: no successful run of"
                 f" the base commit {args.base} on main was found",
                 file=sys.stderr,
             )
             return 0
-        artifacts_url = f"{runs_url}/{found['id']}/artifacts"
-        params = {"per_page": "100"}
-        artifacts = get_json(artifacts_url + "?" + urllib.parse.urlencode(params), token)[
-            "artifacts"
-        ]
-        if not any(artifact["name"] == MAP_ARTIFACT for artifact in artifacts):
-            print(
-                f"base-coverage-map-run: carrying over no coverage test: the run of the base"
-                f" commit {found['id']} uploaded no {MAP_ARTIFACT} artifact, which a failed"
-                f" run, an expired retention or a commit older than the map's build leaves"
-                f" behind",
-                file=sys.stderr,
-            )
-            return 0
-        print(found["id"])
+        # A successful run of the commit need not have built the coverage data: a Release
+        # dispatch on main is successful and uploads no map, so the run to read is the first
+        # successful one that does hold the artifact.
+        for run in successful:
+            artifacts_url = f"{runs_url}/{run['id']}/artifacts"
+            params = {"per_page": "100"}
+            artifacts = get_json(artifacts_url + "?" + urllib.parse.urlencode(params), token)[
+                "artifacts"
+            ]
+            if any(artifact["name"] == MAP_ARTIFACT for artifact in artifacts):
+                print(run["id"])
+                return 0
+        print(
+            f"base-coverage-map-run: carrying over no coverage test: no successful run of the"
+            f" base commit {args.base} uploaded a {MAP_ARTIFACT} artifact, which a failed run,"
+            f" an expired retention or a commit older than the map's build leaves behind",
+            file=sys.stderr,
+        )
         return 0
     except Exception as e:  # noqa: BLE001 - whatever went wrong, the answer is to run everything
         print(

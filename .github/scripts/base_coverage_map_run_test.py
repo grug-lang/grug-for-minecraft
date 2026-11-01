@@ -116,7 +116,20 @@ class BaseCoverageMapRunTest(unittest.TestCase):
         self.server.routes["artifacts"] = {"1": {"artifacts": [{"name": "coverage-exec-core"}]}}
         out, err = self.run_lookup(self.base)
         self.assertEqual(out, "")
-        self.assertIn("uploaded no coverage-map artifact", err)
+        self.assertIn("uploaded a coverage-map artifact", err)
+
+    def test_a_successful_run_without_the_map_does_not_hide_a_later_one(self):
+        # A Release dispatch on main is successful without building the coverage data, so the
+        # run to read is the first successful one that has the artifact, not the first success.
+        self.server.routes["runs"] = {
+            "workflow_runs": [
+                {"id": 2, "head_sha": self.base, "conclusion": "success"},
+                {"id": 1, "head_sha": self.base, "conclusion": "success"},
+            ]
+        }
+        self.server.routes["artifacts"] = {"1": {"artifacts": [{"name": "coverage-map"}]}}
+        out, err = self.run_lookup(self.base)
+        self.assertEqual(out.strip(), "1", err)
 
     def test_no_run_of_the_base_answers_nothing(self):
         self.server.routes["runs"] = {
