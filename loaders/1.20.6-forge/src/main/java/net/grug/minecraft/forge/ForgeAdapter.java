@@ -871,10 +871,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
 
         // A placement that reports false because the block was already there is not a failure,
         // so the block's presence is the check rather than the return value. A y outside the
-        // build height is refused, and a position in a chunk the client has not received
-        // swallows the write too. A write the game accepts and does not leave in place is
-        // reported the same way: the caller asked for a block that is not there afterwards. See
-        // #151.
+        // build height is refused, and a position in a chunk the client has not received is
+        // written to the server's world only: the client never gets that chunk, so it shows
+        // nothing there and the settle wait does not wait for it. A write the game accepts and
+        // does not leave in place is reported the same way: the caller asked for a block that is
+        // not there afterwards. See #151.
         if (world.getBlockState(pos).getBlock() != targetBlock) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -887,12 +888,37 @@ public class ForgeAdapter implements ModLoaderAdapter {
                             + ", "
                             + pos.getZ()
                             + ". A y outside this version's world height is refused, and a"
-                            + " position in a chunk the client has not received is discarded.");
+                            + " position in a chunk the client has not received is written to the"
+                            + " server's world alone, which the client never shows.");
+            return;
+        }
+        // The client's copy of a chunk it has not received does not exist: this version answers
+        // void air there and never sends the chunk while the player is nowhere near it, so the
+        // settle wait would wait for a block the client can never show. The chunk packet that does
+        // arrive carries the block states it was sent with, and the frames a chunk load draws are
+        // what the frame rule already waits for, so only a position in a chunk the client already
+        // holds has an update of its own to wait for. See #804.
+        if (!clientHasChunk(pos.getX(), pos.getZ())) {
             return;
         }
         // The client learns of the block from a packet it has not read yet, so the settle wait has
         // to ask the client's own copy rather than trust the frames that passed. See #804.
         BLOCK_SYNC.owe(pos.getX(), pos.getY(), pos.getZ(), blockNameAt(world, pos));
+    }
+
+    /**
+     * Whether the client holds the chunk a position is in.
+     *
+     * <p>A placement in a chunk the client has not received is written to the server's world, which
+     * is the world a test reads here, and the client's copy of it stays void air: the chunk is only
+     * sent once the player comes near it. Waiting for that copy would wait until the test's budget
+     * ran out. The read is on the server thread, against the client's own chunk storage, whose
+     * slots are atomic. See #804.
+     */
+    private static boolean clientHasChunk(int x, int z) {
+        // Unguarded like the rest of the adapter, which only runs with a level: a grug Level is
+        // taken from one. See #804.
+        return Minecraft.getInstance().level.getChunkSource().hasChunk(x >> 4, z >> 4);
     }
 
     @Override
@@ -1113,8 +1139,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // What the client owes is the simulated world's current block, not the one the test placed:
         // a clear can be refilled by water. This runs on the server thread, which owns that world.
         Object simulated = getLevel();
-        BLOCK_SYNC.refresh((x, y, z) -> getBlock(simulated, x, y, z));
-        if (!clientSettled(minecraft)) {
+        if (!clientSettled(minecraft, simulated)) {
             return false;
         }
         return serverSettled(minecraft, level);
@@ -1266,7 +1291,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * frames drawn meanwhile end idle before the client has seen a test's own setup, and a settled
      * answer built from them describes a world that is not there yet. See #328.
      */
-    private static boolean clientSettled(Minecraft minecraft) {
+    private static boolean clientSettled(Minecraft minecraft, Object simulated) {
         // All four reads happen every time and the rule is GrugRenderSettle.clientSettled, a pure
         // function that its unit test covers in every combination, so this method has no branch of
         // its own that only a poll landing while light packets are queued, or a frame landing while
@@ -1278,8 +1303,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         RENDER_SETTLE.settled(),
                         // The client can be lit and idle while a test's own block is still a packet
                         // away: only its copy of the block says whether the frame a capture reads
-                        // shows the edit.
-                        BLOCK_SYNC.settled());
+                        // shows the edit. The answer refreshes from the simulated world first, so a
+                        // capture whose wait has no settle call in front of it compares the client
+                        // against what the world holds now rather than against a block the world
+                        // replaced. See #804.
+                        BLOCK_SYNC.settled((x, y, z) -> blockNameAt((Level) simulated, x, y, z)));
     }
 
     /**
@@ -1675,11 +1703,21 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private BufferedImage captureSettledOnClientThread(
             String operation, int x1, int y1, int x2, int y2) {
         Minecraft minecraft = Minecraft.getInstance();
+        // A capture's wait has no settle call in front of it, so its own check refreshes what the
+        // client is owed from the world: the world can replace a block after the test put it there
+        // (a clear is refilled by water), and a check that kept the block the test placed would
+        // compare it against the client's replacement for ever, spending this wait's whole budget
+        // before giving up. The level is read here, on the server thread that owns it, and handed
+        // to the client task as the reader it refreshes through: this wait blocks that thread, so
+        // the world does not move while the client reads it. See #804.
+        Object simulated = getLevel();
         for (int attempt = 0; attempt < SETTLE_WAIT_CLIENT_TICKS; attempt++) {
             BufferedImage[] result = new BufferedImage[1];
             boolean[] captured = {false};
             onClientThread(
-                    () -> captureIfClientSettled(minecraft, x1, y1, x2, y2, result, captured));
+                    () ->
+                            captureIfClientSettled(
+                                    minecraft, simulated, x1, y1, x2, y2, result, captured));
             if (captured[0]) {
                 return result[0];
             }
@@ -1705,13 +1743,14 @@ public class ForgeAdapter implements ModLoaderAdapter {
                     + " depending on how loaded the runner is")
     private static void captureIfClientSettled(
             Minecraft minecraft,
+            Object simulated,
             int x1,
             int y1,
             int x2,
             int y2,
             BufferedImage[] result,
             boolean[] captured) {
-        if (!clientSettled(minecraft)) {
+        if (!clientSettled(minecraft, simulated)) {
             return;
         }
         result[0] = capture(x1, y1, x2, y2);
@@ -1733,16 +1772,20 @@ public class ForgeAdapter implements ModLoaderAdapter {
         boolean queues = !minecraft.levelRenderer.hasRenderedAllSections();
         int free = minecraft.levelRenderer.getSectionRenderDispatcher().getFreeBufferCount();
         int total = GrugModLoader.getSectionBufferPoolSize();
+        // A block a test placed that the client's copy still does not show is not the renderer
+        // being slow, and naming it here is what tells the two apart in a run that does fail.
+        boolean blocks = !BLOCK_SYNC.settled();
         LOGGER.info(
                 "{}: the client still had work after {} client ticks (light work pending: {},"
-                    + " section queues busy: {}, free section buffers: {}/{}), so the capture is"
-                    + " the frame the client had",
+                        + " section queues busy: {}, free section buffers: {}/{}, test blocks still"
+                        + " owed: {}), so the capture is the frame the client had",
                 operation,
                 SETTLE_WAIT_CLIENT_TICKS,
                 light,
                 queues,
                 free,
-                total);
+                total,
+                blocks);
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
