@@ -3,6 +3,10 @@ package net.grug.minecraft.core;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.grug.GrugModManager;
+import net.grug.minecraft.grug.GrugModModes;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -28,6 +32,11 @@ class GrugCoreTest {
 
     /** The same, with the one answer a startup cannot do without being told which side it is on. */
     private ModLoaderAdapter adapter(List<String> log, GrugSide side) {
+        return adapter(log, side, null);
+    }
+
+    /** The same, with the game directory the startup reads a mod's mode and grant from. */
+    private ModLoaderAdapter adapter(List<String> log, GrugSide side, File gameDir) {
         return (ModLoaderAdapter)
                 Proxy.newProxyInstance(
                         getClass().getClassLoader(),
@@ -38,6 +47,9 @@ class GrugCoreTest {
                             }
                             if (method.getName().equals("getSide")) {
                                 return side;
+                            }
+                            if (method.getName().equals("getGameDirectory")) {
+                                return gameDir;
                             }
                             return null;
                         });
@@ -121,6 +133,34 @@ class GrugCoreTest {
                                         mods.toFile()));
 
         assertTrue(error.getMessage().contains("test state"), error.getMessage());
+    }
+
+    @Test
+    void initializeReadsAModsModeBeforeAnythingOfItCompiles() throws Exception {
+        Files.createDirectories(mods.resolve("mymod/code"));
+        Files.writeString(mods.resolve("mymod/LICENSE"), "MIT");
+        Files.writeString(mods.resolve("mymod/about.json"), "{\"requests_unsafe_mode\": true}");
+        Path game = Files.createDirectories(mods.resolveSibling("game"));
+        Files.writeString(
+                game.resolve(GrugModManager.STATE),
+                "{\"mods\": {\"mymod\": {\"on\": true, \"unsafe_mode_granted\": true}}}");
+        List<String> log = new ArrayList<>();
+        long savedStatePtr = Grug.statePtr;
+        // A state that is already up stops Grug.init before it reaches the native library, so this
+        // can assert what the startup decided without launching a game.
+        Grug.statePtr = 12345L;
+        try {
+            GrugCore.initialize(
+                    adapter(log, GrugSide.CLIENT, game.toFile()),
+                    new File("mod_api.json"),
+                    mods.toFile());
+        } finally {
+            Grug.statePtr = savedStatePtr;
+        }
+
+        assertTrue(GrugModModes.requestsUnsafeMode("mymod"));
+        assertTrue(GrugModModes.granted("mymod"));
+        assertTrue(GrugModModes.unsafe("mymod"));
     }
 
     private static void assertEqualsText(String expected, Path actual) throws Exception {

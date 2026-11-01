@@ -331,5 +331,37 @@ class LoadersTest(SchemaCase):
         self.assertInvalid(mod, "is not of type 'string'")
 
 
+class UnsafeModeRequestTest(SchemaCase):
+    """The request a mod makes in its about.json to run in unsafe mode (#334)."""
+
+    def test_a_mod_that_does_not_ask_does_not_request_unsafe_mode(self):
+        # Absent means false, which is the only mode a mod gets without the player's grant.
+        self.assertNotIn("requests_unsafe_mode", base_mod())
+        self.assertValid(base_mod())
+
+    def test_a_mod_may_request_unsafe_mode(self):
+        mod = base_mod()
+        mod["requests_unsafe_mode"] = True
+        self.assertValid(mod)
+
+    def test_a_mod_may_say_it_does_not_request_unsafe_mode(self):
+        mod = base_mod()
+        mod["requests_unsafe_mode"] = False
+        self.assertValid(mod)
+
+    def test_a_request_that_is_not_a_boolean_is_rejected(self):
+        # As a string, a request would also read as true in a language that coerces it, which is
+        # exactly the kind of request the schema has to refuse.
+        mod = base_mod()
+        mod["requests_unsafe_mode"] = "true"
+        self.assertInvalid(mod, "is not of type 'boolean'")
+
+    def test_an_unknown_request_value_is_rejected(self):
+        # A number is not a boolean either, however true it looks in a boolean context.
+        mod = base_mod()
+        mod["requests_unsafe_mode"] = 1
+        self.assertInvalid(mod, "is not of type 'boolean'")
+
+
 if __name__ == "__main__":
     unittest.main()

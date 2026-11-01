@@ -347,7 +347,7 @@ public final class GrugModManager {
 
     /** Every mod the game knows of, by name: installed, turned off, bundled or downloadable. */
     public List<Entry> list() {
-        Map<String, ModState> state = readState();
+        Map<String, ModState> state = readState(stateFile());
         TreeSet<String> names = new TreeSet<>(state.keySet());
         names.addAll(directories(modsDir()));
         names.addAll(directories(offDir()));
@@ -383,9 +383,54 @@ public final class GrugModManager {
         if (!validName(name)) {
             throw Grug.fatal(name + " is not a mod name");
         }
-        Map<String, ModState> state = readState();
+        Map<String, ModState> state = readState(stateFile());
         state.computeIfAbsent(name, key -> new ModState()).on = on;
-        writeState(state);
+        writeState(stateFile(), state);
+    }
+
+    /**
+     * Whether the player accepted unsafe mode for a mod, which the popup path asks before asking
+     * again and which the mode itself is decided from (#334).
+     *
+     * <p>Read from the game's own state and never from the mod's files: the grant is the player's
+     * record of a decision about the mod, and an update to the mod replaces the files the decision
+     * was about, so it clears the grant.
+     */
+    public boolean isUnsafeModeGranted(String name) {
+        return unsafeModeGrants(gameDir).containsKey(name);
+    }
+
+    /**
+     * Records that the player accepted unsafe mode for a mod, which the next start reads before
+     * anything of the mod compiles.
+     */
+    public synchronized void grantUnsafeMode(String name) {
+        setUnsafeModeGranted(name, true);
+    }
+
+    /** Forgets the player's acceptance, so the popup asks again before the mod runs unsafe. */
+    public synchronized void revokeUnsafeMode(String name) {
+        setUnsafeModeGranted(name, false);
+    }
+
+    private synchronized void setUnsafeModeGranted(String name, boolean granted) {
+        if (!validName(name)) {
+            throw Grug.fatal(name + " is not a mod name");
+        }
+        Map<String, ModState> state = readState(stateFile());
+        ModState mod = state.get(name);
+        if (mod == null) {
+            // A grant for a mod the state never mentioned makes it an entry, so remember what the
+            // game is doing with it rather than let the entry read as a request to turn it off.
+            if (!granted) return;
+            mod = new ModState();
+            mod.on = new File(modsDir(), name).isDirectory();
+            state.put(name, mod);
+        } else if (mod.unsafeModeGranted == granted) {
+            return;
+        }
+        mod.unsafeModeGranted = granted;
+        writeState(stateFile(), state);
     }
 
     /**
@@ -393,13 +438,15 @@ public final class GrugModManager {
      * mod's installed copy is what the record names, so an update is whatever differs from it.
      */
     private synchronized void record(String name, Source source) {
-        Map<String, ModState> state = readState();
+        Map<String, ModState> state = readState(stateFile());
         ModState mod = state.computeIfAbsent(name, key -> new ModState());
         mod.on = true;
         mod.installed = source;
         mod.files = directoryDigest(new File(modsDir(), name));
         mod.update = null;
-        writeState(state);
+        // These files are new, so the player has not seen them yet.
+        mod.unsafeModeGranted = false;
+        writeState(stateFile(), state);
     }
 
     /**
@@ -491,7 +538,7 @@ public final class GrugModManager {
      * directory, so a failed download leaves the installed mod as it was.
      */
     public Install startUpdate(String name) {
-        ModState mod = readState().get(name);
+        ModState mod = readState(stateFile()).get(name);
         boolean installed =
                 new File(modsDir(), name).isDirectory() || new File(offDir(), name).isDirectory();
         Source newer = mod == null || !installed ? null : newerSource(name, mod, bundled());
@@ -525,9 +572,9 @@ public final class GrugModManager {
     }
 
     private synchronized void stage(String name, Source newer) {
-        Map<String, ModState> state = readState();
+        Map<String, ModState> state = readState(stateFile());
         state.get(name).update = newer;
-        writeState(state);
+        writeState(stateFile(), state);
     }
 
     /**
@@ -536,11 +583,11 @@ public final class GrugModManager {
      * VM reads the directory.
      */
     public void apply() {
-        Map<String, ModState> state = readState();
+        Map<String, ModState> state = readState(stateFile());
         File marker = new File(modsDir(), MARKER);
         if (!stateFile().exists() && !marker.exists()) {
             state.computeIfAbsent(TUTORIAL, key -> new ModState()).on = true;
-            writeState(state);
+            writeState(stateFile(), state);
         }
         Map<String, List<String>> bundled = bundled();
         boolean changed = false;
@@ -575,7 +622,7 @@ public final class GrugModManager {
                     move(running, off);
                 }
             }
-            if (changed) writeState(state);
+            if (changed) writeState(stateFile(), state);
             if (!marker.exists()) {
                 Files.write(
                         marker.toPath(),
@@ -597,6 +644,9 @@ public final class GrugModManager {
             move(staged, installed);
             mod.installed = mod.update;
             mod.files = directoryDigest(installed);
+            // The player accepted unsafe mode for the files that were just replaced, and nobody
+            // has verified these, so the popup asks again before they may run unsafe (#334).
+            mod.unsafeModeGranted = false;
         } else {
             GrugModsExtractor.deleteTree(staged.toPath());
         }
@@ -634,6 +684,9 @@ public final class GrugModManager {
         Source installed;
         Source update;
         String files;
+
+        /** Whether the player accepted unsafe mode for these files of the mod (#334). */
+        boolean unsafeModeGranted;
     }
 
     /** Where a copy of a mod came from, and the SHA-256 that identifies it there. */
@@ -667,13 +720,27 @@ public final class GrugModManager {
         }
     }
 
-    private Map<String, ModState> readState() {
+    /**
+     * Every mod the player granted unsafe mode, by name, read from the game's own state.
+     *
+     * <p>Per mod and never in the mod's files, because the grant is the player's record of a
+     * decision about that mod while its files are what the decision is about (#334).
+     */
+    public static Map<String, Boolean> unsafeModeGrants(File gameDir) {
+        Map<String, Boolean> grants = new TreeMap<>();
+        for (Map.Entry<String, ModState> mod : readState(new File(gameDir, STATE)).entrySet()) {
+            if (mod.getValue().unsafeModeGranted) grants.put(mod.getKey(), true);
+        }
+        return Collections.unmodifiableMap(grants);
+    }
+
+    private static Map<String, ModState> readState(File stateFile) {
         Map<String, ModState> state = new TreeMap<>();
-        if (!stateFile().isFile()) return state;
+        if (!stateFile.isFile()) return state;
         JsonObject mods;
         try {
             String text =
-                    new String(Files.readAllBytes(stateFile().toPath()), StandardCharsets.UTF_8);
+                    new String(Files.readAllBytes(stateFile.toPath()), StandardCharsets.UTF_8);
             mods = JsonParser.parseString(text).getAsJsonObject().getAsJsonObject("mods");
             if (mods == null) {
                 throw new JsonParseException("no \"mods\" object");
@@ -690,6 +757,9 @@ public final class GrugModManager {
                     parsed.installed = Source.read(object.get("installed"));
                 if (object.has("update")) parsed.update = Source.read(object.get("update"));
                 if (object.has("files")) parsed.files = object.get("files").getAsString();
+                if (object.has("unsafe_mode_granted")) {
+                    parsed.unsafeModeGranted = object.get("unsafe_mode_granted").getAsBoolean();
+                }
                 state.put(mod.getKey(), parsed);
             }
         } catch (IOException
@@ -699,7 +769,7 @@ public final class GrugModManager {
                 | ClassCastException
                 | UnsupportedOperationException e) {
             throw Grug.fatal(
-                    stateFile() + " is not {\"mods\": {\"<name>\": {\"on\": true or false, ...}}}",
+                    stateFile + " is not {\"mods\": {\"<name>\": {\"on\": true or false, ...}}}",
                     e);
         }
         return state;
@@ -719,7 +789,7 @@ public final class GrugModManager {
                 && name.indexOf('\0') < 0;
     }
 
-    private void writeState(Map<String, ModState> state) {
+    private static void writeState(File stateFile, Map<String, ModState> state) {
         JsonObject mods = new JsonObject();
         for (Map.Entry<String, ModState> entry : state.entrySet()) {
             JsonObject mod = new JsonObject();
@@ -729,16 +799,19 @@ public final class GrugModManager {
             }
             if (entry.getValue().update != null) mod.add("update", entry.getValue().update.write());
             if (entry.getValue().files != null) mod.addProperty("files", entry.getValue().files);
+            if (entry.getValue().unsafeModeGranted) {
+                mod.addProperty("unsafe_mode_granted", true);
+            }
             mods.add(entry.getKey(), mod);
         }
         JsonObject root = new JsonObject();
         root.add("mods", mods);
-        Path temporary = new File(gameDir, STATE + ".tmp").toPath();
+        Path temporary = stateFile.toPath().resolveSibling(stateFile.getName() + ".tmp");
         try {
             Files.write(temporary, (root + "\n").getBytes(StandardCharsets.UTF_8));
-            Files.move(temporary, stateFile().toPath(), StandardCopyOption.REPLACE_EXISTING);
+            Files.move(temporary, stateFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            throw Grug.fatal("Failed to write " + stateFile(), e);
+            throw Grug.fatal("Failed to write " + stateFile, e);
         }
     }
 }

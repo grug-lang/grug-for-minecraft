@@ -48,6 +48,10 @@
                 "$ref": "#/definitions/license"
             }
         },
+        "requests_unsafe_mode": {
+            "description": "Whether the mod asks to run its code in unsafe mode, which skips the checks for host function errors, the time limit and stack overflows. This is a request and not a setting: only the player's grant, stored outside the mod's files, makes the mod run unsafe, and a mod without the key runs safe. See grug-lang/grug-for-minecraft#334.",
+            "type": "boolean"
+        },
         "derived_from": {
             "type": "array",
             "items": {

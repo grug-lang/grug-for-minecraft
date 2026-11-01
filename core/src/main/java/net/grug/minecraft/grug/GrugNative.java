@@ -114,6 +114,16 @@ final class GrugNative {
 
     static native long nativeInit(String modApiPath, String modsDirPath);
 
+    /**
+     * Compiles the whole mods directory: {@code grug_compile_all_files} in the C API.
+     *
+     * <p>It takes no mode because grug-rs has none (#334). The C API's only mention of one is
+     * {@code grug_set_unsafe_mode_TODO}, a state-wide call that is declared in {@code grug.h} and
+     * implemented nowhere, and a state-wide mode could not express a mode per mod. What grug-rs
+     * needs is a mode per compiled file, which the host passes at this call and at {@code
+     * grug_update}, and the backend then skips the checks for host function errors, the time limit
+     * and stack overflows for the files whose mode is unsafe.
+     */
     static native FileInfo[] nativeCompileAllFiles(long statePtr);
 
     static native FileInfo[] nativeUpdate(long statePtr);
