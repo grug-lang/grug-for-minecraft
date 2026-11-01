@@ -61,10 +61,9 @@ public final class GrugTextures {
             upload(engine, ITEMS, sprite.getKey(), sprite.getValue());
         }
 
-        if (!REGISTERED.isEmpty()) {
-            mod_Grug.LOGGER.info(
-                    "Registered " + REGISTERED.size() + " grug textures: " + REGISTERED);
-        }
+        // Logged even when it registered none, so a run whose pack has no grug textures says so
+        // rather than leaving nothing in the log to tell it apart from a registration that broke.
+        mod_Grug.LOGGER.info("Registered " + REGISTERED.size() + " grug textures: " + REGISTERED);
     }
 
     /**
@@ -89,17 +88,30 @@ public final class GrugTextures {
      */
     private static void upload(RenderEngine engine, int atlas, String path, int sprite) {
         File file =
-                GrugResourceIndex.findDirectResource(
-                        GrugCore.getAdapter().getGrugModsDirectory(), path);
-        if (file == null) {
-            // GrugBlocks resolved this path out of the mods tree a moment ago and claimed a slot
-            // for
-            // it, so it cannot have stopped being there. A block rendering whatever now fills its
-            // slot would be a rendering no mod asked for.
-            throw Grug.fatal("The grug texture " + path + " is no longer in the mods tree.");
-        }
+                requireTextureFile(
+                        path,
+                        GrugResourceIndex.findDirectResource(
+                                GrugCore.getAdapter().getGrugModsDirectory(), path));
         GrugStaticTexture texture = new GrugStaticTexture(sprite, atlas, file, engine);
         engine.registerTextureFX(texture);
         REGISTERED.add(texture);
+    }
+
+    /**
+     * The texture's file, which GrugBlocks resolved a moment ago when it claimed the sprite's slot.
+     *
+     * <p>A file that is no longer in the mods tree is the defect that removes it in between, so it
+     * is reported rather than left to render whatever fills the slot, and no test can remove a file
+     * between the slot and this read.
+     */
+    @GrugGenerated("a texture GrugBlocks just resolved cannot leave the mods tree in between")
+    private static File requireTextureFile(String path, File file) {
+        if (file == null) {
+            // GrugBlocks resolved this path out of the mods tree a moment ago and claimed a slot
+            // for it, so it cannot have stopped being there. A block rendering whatever now fills
+            // its slot would be a rendering no mod asked for.
+            throw Grug.fatal("The grug texture " + path + " is no longer in the mods tree.");
+        }
+        return file;
     }
 }
