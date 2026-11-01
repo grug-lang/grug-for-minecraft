@@ -1,4 +1,7 @@
 # The block entity of coverage_flat_hand: a frame block needs one that exports render_frame, and this
 # one draws nothing, since only the block's item in the player's hand is under test.
+frame_tick: number = 0
+
 export render_frame(ctx: RenderFrameContext) {
+    frame_tick = ctx.partial_tick()
 }
