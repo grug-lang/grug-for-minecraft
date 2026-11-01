@@ -1,7 +1,7 @@
 # Captures the item list on the open container screen, so the reference job pins what real JEI
 # draws and every loader pins what the port draws. See #874.
 
-# The crop is the middle six rows of the grid, across its whole width, showing only the overlay's own
+# The crop is the middle five rows of the grid, across its whole width, showing only the overlay's own
 # drawing. Both renderers lay the grid out the same way (IngredientGrid, IngredientGridConfig,
 # IngredientListOverlay): the display area is everything right of the GUI, the grid is inset 6
 # pixels, keeps 22 pixels at the bottom for the search field and crops 22 more at the top for the
@@ -14,15 +14,18 @@
 # (426) puts the grid a pixel left; the crop is computed from the measured GUI and screen rather
 # than written down, so each of those captures its whole width.
 
-# The crop leaves out the grid's first two rows and its last two, which is what makes the frame
+# The crop leaves out the grid's first two rows and its last three, which is what makes the frame
 # the same on every run. The later versions' item lists start with the fluids and fire, whose icons
 # are animated textures: water and lava change frame every client tick and fire's pixels are
 # regenerated at random, so a capture that includes them differs from run to run and is no golden.
 # Those entries sit in the first two rows and, because the list is long, around the fire block in
-# the last two. The 1.20.6 list is items only and holds none of them, and the reference's page of
-# wood blocks holds none either, but one crop for every loader keeps the test the same on all of
-# them. What is left still pins the grid's left and right alignment, its top position, its column
-# count and its slot pitch: any move, resize or repack of the grid changes the icons the crop holds.
+# the last two. The row above them is left out too: a capture that ended there differed between two
+# runs by 155 pixels of the dark world behind the bottom faces of the row's block models, which are
+# not the port's drawing and not worth pinning. The 1.20.6 list is items only and holds none of the
+# animated entries, and the reference's page of wood blocks holds none either, but one crop for
+# every loader keeps the test the same on all of them. What is left still pins the grid's left and
+# right alignment, its top position, its column count and its slot pitch: any move, resize or repack
+# of the grid changes the icons the crop holds.
 
 # JEI's page buttons are the 22 pixels above the grid and its search field and config button the 20
 # pixels below it, so none of the reference's chrome, which the port does not draw (#870), is in the
@@ -44,7 +47,7 @@ frame_scale: number = 3
 
 # The rows the crop keeps, out of the ten the display area leaves. See the note at the top.
 first_row: number = 2
-row_count: number = 6
+row_count: number = 5
 
 started: bool = false
 opened: bool = false
