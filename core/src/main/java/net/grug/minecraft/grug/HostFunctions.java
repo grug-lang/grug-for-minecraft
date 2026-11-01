@@ -97,6 +97,15 @@ public class HostFunctions {
         GrugCore.getAdapter().setCarriedItem(GrugEntities.entityData.get(itemId).object);
     }
 
+    /**
+     * Test only: clears the mouse cursor of the open container screen, on the client and on the
+     * integrated server, so a test starts a press with nothing carried.
+     */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static void Test_clear_carried_item() {
+        GrugCore.getAdapter().deleteCarriedItem();
+    }
+
     /** Test only: the item on the mouse cursor of the open container screen, if it holds one. */
     @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
     public static long Test_get_carried_item() {

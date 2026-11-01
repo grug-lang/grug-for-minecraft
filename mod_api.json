@@ -1315,6 +1315,9 @@
 						}
 					]
 				},
+				"clear_carried_item": {
+					"description": "Test only: clears the mouse cursor of the container screen that is open, on the client and on the integrated server, so a test starts a press with nothing carried. A test with no container screen open does nothing."
+				},
 				"get_carried_item": {
 					"description": "Test only: the Item on the mouse cursor of the container screen that is open, if it carries one, and an empty Option when the cursor is empty or no container screen is open.",
 					"return_type": {
