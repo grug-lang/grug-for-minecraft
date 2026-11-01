@@ -370,11 +370,14 @@ public class HostFunctions {
 
     /**
      * Test only: whether a frame with an overlay on an eligible screen has been drawn in this run,
-     * which a test waits for before it clicks. It is set on the render thread, so waiting for it is
-     * the only way a test can know that the screen it opened was really drawn rather than skipped
-     * at the game's maximum speed.
+     * which a test waits for before it clicks. Asking also asks the client to draw the next frame,
+     * the way {@code Test.world_settled} does, because a test that never captures has its frames
+     * skipped and would otherwise wait for a frame that no test asked for. The answer is set on the
+     * render thread, so waiting for it is how a test tells a screen that was really drawn from one
+     * the game closed before a frame.
      */
     public static boolean Test_overlay_drawn() {
+        GrugFrameRequest.request();
         return GrugOverlay.overlayDrawn();
     }
 

@@ -31,7 +31,8 @@ export tick(ctx: TestTickContext) {
 
     if not Test.overlay_drawn() {
         # The screen is up but no frame with the overlay has been drawn yet, and at the run's
-        # maximum speed the test can click and close before one is.
+        # maximum speed the test can click and close before one is. Asking turns drawing on.
+        waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
         ctx.not_done()
         return
