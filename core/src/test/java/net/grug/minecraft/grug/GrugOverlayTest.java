@@ -185,6 +185,9 @@ class GrugOverlayTest {
 
         assertFalse(GrugOverlay.key(0, 0, 79, true));
         assertFalse(GrugOverlay.isOpen());
+
+        assertFalse(GrugOverlay.scroll(0, 0, 426, 240, 125, 37, 176, 166, 300, 20, -1));
+        assertFalse(GrugOverlay.isOpen());
     }
 
     @Test
@@ -227,6 +230,24 @@ class GrugOverlayTest {
     @Test
     void aKeyPassWithAnEntityButNoExportCallsNothing() {
         assertFalse(GrugOverlay.key(123, Grug.INVALID_GRUG_EXPORT_FN_ID, 79, true));
+        assertFalse(GrugOverlay.isOpen());
+    }
+
+    @Test
+    void aScrollPassWithAnEntityButNoExportCallsNothing() {
+        assertFalse(
+                GrugOverlay.scroll(
+                        123,
+                        Grug.INVALID_GRUG_EXPORT_FN_ID,
+                        426,
+                        240,
+                        125,
+                        37,
+                        176,
+                        166,
+                        300,
+                        20,
+                        -1));
         assertFalse(GrugOverlay.isOpen());
     }
 
