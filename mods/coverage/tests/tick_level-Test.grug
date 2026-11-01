@@ -1,0 +1,21 @@
+# Covers Test.tick_level, which answers how many world ticks it ran, so a loader that cannot advance
+# its level says 0 instead of pretending. That answer is what makes the test meaningful on every
+# loader: the level's clock has to have moved by exactly the ticks reported, which fails both for a
+# no-op that claims ticks and for an advance that ran fewer than it says. The runner's own tick is the
+# budget's counter, so it must not move, and a count of 0 is allowed and runs nothing.
+# What no test can see is the order inside one advance: the test's own tick observes the state after
+# every tick it asked for, so the order is checked against each loader's own game tick in the
+# adapters. See #780.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    before_tick: number = ctx.current_tick()
+    before_time: number = level.get_time()
+
+    Test.tick_level(level, 0)
+    ran: number = Test.tick_level(level, 3)
+    after_time: number = level.get_time()
+
+    ctx.assert(ran == 0 or ran == 3, "An advance of 3 ticks should answer 3, or 0 where it cannot advance.")
+    ctx.assert(after_time - before_time == ran, "The level's clock should have moved by exactly the ticks reported.")
+    ctx.assert(ctx.current_tick() == before_tick, "An advance should not move the runner's own tick.")
+}
