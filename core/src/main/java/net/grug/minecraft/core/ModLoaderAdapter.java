@@ -765,7 +765,9 @@ public interface ModLoaderAdapter {
      * minecraft:} sound name after the colon. On 1.20.6 that is a sound event in the registry, such
      * as {@code ui.button.click}. On Alpha, Beta and 1.2.5 it is a name in the version's own sound
      * pool, such as {@code random.click}, which holds only the sound files the game has loaded: a
-     * run with no resources downloaded has none, and answers false for every name.
+     * 1.2.5 run with no resources downloaded has none, and answers false for every name. A name
+     * with a variant digit, such as {@code step.grass1}, is not in those pools, which hold {@code
+     * step.grass} and pick a variant at random, so it answers false there.
      */
     boolean hasSound(String path);
 
@@ -773,8 +775,11 @@ public interface ModLoaderAdapter {
      * Plays the game's own sound {@code path} to the player as a sound of the interface rather than
      * of the world, the way a button plays its click: it has no position, so it is heard at the
      * same loudness wherever the player stands. The caller has already checked that {@link
-     * #hasSound} is true and that the volume is from 0 to 1 and the pitch from 0.5 to 2. It runs on
-     * the thread that owns the sound engine, whichever thread the mod's call came from.
+     * #hasSound} is true and that the volume is from 0 to 1 and the pitch from 0.5 to 2. Only
+     * 1.20.6 has a server thread apart from the client's, and its adapter hands the play to the
+     * client thread that owns the sound engine. Alpha, Beta and 1.2.5 have no integrated server (it
+     * came with 1.3), so the single player's world and the GUI run on the one client thread and
+     * these adapters play on the calling thread, which is already the sound engine's.
      */
     void playUiSound(String path, double volume, double pitch);
 

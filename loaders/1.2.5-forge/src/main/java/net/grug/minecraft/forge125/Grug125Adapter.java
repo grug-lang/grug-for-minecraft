@@ -1176,8 +1176,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     @GrugGenerated(
-            "1.2.5 reads its sound pool from downloaded resources, which a run does not fetch, so"
-                    + " the pool is empty and a name is never found")
+            "In a CI run 1.2.5 downloads no sound resources, so its pool is empty and the true"
+                    + " side of the null check was the only part the coverage report showed missed")
     public boolean hasSound(String path) {
         return ModLoader.getMinecraftInstance()
                         .sndManager
@@ -1188,8 +1188,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     @GrugGenerated(
-            "1.2.5 reads its sound pool from downloaded resources, which a run does not fetch, so"
-                    + " the pool is empty and a name is never found")
+            "In a CI run 1.2.5 downloads no sound resources, so its pool is empty, hasSound is"
+                    + " never true and nothing calls this")
     public void playUiSound(String path, double volume, double pitch) {
         ModLoader.getMinecraftInstance()
                 .sndManager
