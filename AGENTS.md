@@ -470,6 +470,10 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
 - The reference run is the `reference` CI job: `GRUG_REFERENCE=1`, a harness-only `GRUG_MODS_DIR`
   and `GRUG_REFERENCE_MODS_DIR` at the mods `recreation.py stage` staged. Develop a reference
   fixture there, on a throwaway branch, never by launching the game locally.
+- `mods/<mod>/screenshots/` holds only the port's own accepted captures. A reference's screenshot is
+  never committed there, whether as a `*_reference` golden or as evidence for a rendering choice:
+  the reference job compares its live capture, and a rejected rendering is recorded as a measurement
+  in the issue or the run's artifact, never as a PNG in the tree.
 - Mods ship copies of vanilla textures on purpose (preservation, and the running version often lacks
   them). Do not flag them as a licensing problem; a report about them from Mojang or Microsoft goes
   to the maintainer, and an agent never closes it.
