@@ -1,3 +1,5 @@
+# Carry-over probe for #786: a comment-only change in a block entity, which declares no block
+# or item, so the coverage tests' ids do not move and the base run's map is carried over.
 # Spawn the diamond 2 blocks above this block
 pos: BlockPos = me.block_pos().above_n(2)
 
