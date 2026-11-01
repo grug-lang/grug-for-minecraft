@@ -1,0 +1,167 @@
+# The item list's page buttons: the next button shows the page after the one shown, the back button
+# the one before, and either wraps around at the ends like the reference's. The test reads the page
+# through what a press on the grid's first cell gives, because the overlay takes the press and
+# gives the item there, and the give reaches the player's hand some frames later, which the test
+# waits for rather than counting ticks. See #864.
+
+started: bool = false
+waited: number = 0
+step: number = 0
+expected_index: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not Test.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
+        Test.close_screen()
+        Test.open_inventory(Test.get_player())
+        ctx.not_done()
+        return
+    }
+
+    if not Test.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not Test.overlay_drawn() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    per_page: number = _columns() * _rows()
+    pages: number = Math.floor((item_count() + per_page - 1) / per_page)
+
+    if step == 0 {
+        ctx.assert(pages >= 2, "The item list should hold more than one page of items.")
+        ctx.assert(_columns() >= 4, "The grid should be at least four columns wide.")
+        Test.clear_held_item(Test.get_player())
+        Test.clear_carried_item()
+        # The next button shows the second page, whose first cell is the item after the first page.
+        expected_index = per_page
+        _press(ctx, _next_x(), _button_y(), 0)
+        _press(ctx, _cell_x(0), _cell_y(0), 1)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step < 4 and not _arrived(ctx) {
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # The back button returns to the first page.
+        Test.clear_held_item(Test.get_player())
+        expected_index = 0
+        _press(ctx, _back_x(), _button_y(), 0)
+        _press(ctx, _cell_x(0), _cell_y(0), 1)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        # The back button on the first page wraps around to the last page.
+        Test.clear_held_item(Test.get_player())
+        expected_index = (pages - 1) * per_page
+        _press(ctx, _back_x(), _button_y(), 0)
+        _press(ctx, _cell_x(0), _cell_y(0), 1)
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        # The next button on the last page wraps around to the first page.
+        Test.clear_held_item(Test.get_player())
+        expected_index = 0
+        _press(ctx, _next_x(), _button_y(), 0)
+        _press(ctx, _cell_x(0), _cell_y(0), 1)
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not _arrived(ctx) {
+        ctx.not_done()
+        return
+    }
+    Test.close_screen()
+}
+
+# Whether the item the last press gave has reached the player's hand, and is the expected one.
+local _arrived(ctx: TestTickContext) bool {
+    waited = waited + 1
+    held: Option[Item] = Test.get_player().get_held_item()
+    if not held.has() {
+        ctx.assert(waited < 200, "The item a press on the list gives should reach the player's hand.")
+        return false
+    }
+    ctx.assert(equals(held.unwrap(), item_at(expected_index)), "A press on the first cell should give the first item of the page the buttons chose.")
+    return true
+}
+
+local _press(ctx: TestTickContext, x: number, y: number, button: number) {
+    taken: bool = Test.click_screen(x, y, button)
+    ctx.assert(taken, "The overlay should take a press on its page button or its item.")
+}
+
+# The page buttons are 20 pixel squares at the top of the 22 pixels above the grid, back at the
+# grid's left edge and next at its right edge; the test presses their middle.
+local _button_y() number {
+    return 6 + 10
+}
+
+local _back_x() number {
+    return _grid_x() + 10
+}
+
+local _next_x() number {
+    return _grid_x() + _columns() * 18 - 10
+}
+
+local _cell_x(column: number) number {
+    return _grid_x() + column * 18 + 9
+}
+
+local _cell_y(row: number) number {
+    return 28 + row * 18 + 9
+}
+
+local _grid_x() number {
+    display_left: number = Test.gui_left() + Test.gui_width()
+    available_width: number = Test.screen_width() - display_left - 12
+    return display_left + 6 + (available_width - _columns() * 18)
+}
+
+local _columns() number {
+    available_width: number = Test.screen_width() - Test.gui_left() - Test.gui_width() - 12
+    columns: number = Math.floor(available_width / 18)
+    if columns > 9 {
+        columns = 9
+    }
+    return columns
+}
+
+# The screen's height is not a test value, so it is read back from the centered container GUI.
+local _rows() number {
+    screen_height: number = Test.gui_top() * 2 + Test.gui_height()
+    rows: number = Math.floor((screen_height - 22 - 22 - 12) / 18)
+    if rows > 16 {
+        rows = 16
+    }
+    return rows
+}
