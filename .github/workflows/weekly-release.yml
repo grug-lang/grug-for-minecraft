@@ -101,10 +101,12 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       # The dispatch is the run release.yml looks for, so the release never names a jar that a push
-      # built. The poll follows the run this dispatch started rather than the newest one at the
-      # commit, so a hand dispatch of the same commit cannot stand in for it, and it is bounded at
-      # 60 minutes, so a hung run fails this one instead of hanging the release until the job
-      # timeout.
+      # built. It sends no inputs: a `base` input would compare the branch with a commit and drop the
+      # Windows boot jobs when the diff cannot reach the native path (#826), and a release has to ship
+      # the jar with adapter.dll in it. The poll follows the run this dispatch started rather than the
+      # newest one at the commit, so a hand dispatch of the same commit cannot stand in for it, and it
+      # is bounded at 60 minutes, so a hung run fails this one instead of hanging the release until
+      # the job timeout.
       - name: Dispatch and watch the full Build run
         id: build
         env:
