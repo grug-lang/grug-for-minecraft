@@ -115,7 +115,10 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   `AGENTS.md` fix, say) may be merged without waiting for any CI, and neither its pull request run
   nor the push-to-`main` run after it needs checking.
   Before merging a base pull request that another one is stacked on, retarget the other to `main`,
-  or `--delete-branch` closes it.
+  or `--delete-branch` closes it. A pull request that will not merge is closed as soon as its
+  answer is recorded, never left open as a draft: a control arm, a prototype or an abandoned
+  attempt is closed, its result stays in the issue, and its branch and worktree are removed, so the
+  open list is work in flight.
 - **The independent review.** A non-trivial pull request is read by a review subagent before it is
   merged: a fresh subagent at its highest thinking level, given the issue, the pull request and the
   whole diff, and asked to report defects with the file and line and how each is triggered. It is a
