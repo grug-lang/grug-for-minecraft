@@ -31,7 +31,7 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    Test.screenshot().equals(r"screenshots/redstone_engine_item_hand", 640, 360, 1280, 720)
+    Test.screenshot().equals(r"screenshots/redstone_engine_item_hand", 940, 550, 1140, 720)
     Test.clear_held_item(Test.get_player())
 }
 
