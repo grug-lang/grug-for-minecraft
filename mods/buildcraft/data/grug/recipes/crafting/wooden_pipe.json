@@ -1,0 +1,20 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "   ",
+        "pgp",
+        "   "
+    ],
+    "key": {
+        "p": {
+            "item": "minecraft:oak_planks"
+        },
+        "g": {
+            "item": "minecraft:glass"
+        }
+    },
+    "result": {
+        "id": "grug:wooden_pipe",
+        "count": 8
+    }
+}
