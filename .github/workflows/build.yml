@@ -723,7 +723,7 @@ jobs:
       # any game exists: the script tells it from a game that exited, and the game's time limit
       # starts when Gradle starts the runClient task. The layer job stays a build-only job.
       - name: Build and run tests (${{ matrix.dir }})
-        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" build-run
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-loader.sh "${{ matrix.dir }}" update-goldens
         env:
           # Empty for every loader except 1.2.5-forge; its game JVM uses this Java 8.
           GRUG_JAVA8: ${{ steps.java8.outputs.path }}
@@ -848,6 +848,17 @@ jobs:
         with:
           name: loader-${{ matrix.dir }}-screenshots
           path: loaders/${{ matrix.dir }}/run/grug-screenshot-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Probe only (#919): the update-goldens phase writes every capture into the reference
+      # directories instead of the artifacts directory, so hand those back too.
+      - name: Upload the accepted goldens
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: loader-${{ matrix.dir }}-goldens
+          path: mods/*/screenshots
           if-no-files-found: ignore
           retention-days: 7
 
