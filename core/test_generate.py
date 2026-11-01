@@ -93,13 +93,49 @@ class HostWrapperTest(unittest.TestCase):
         # to describe and clear the exception, after which the script carried on with a zero value,
         # the test reported PASS, and the log held a stack that named no test (#890). It hands the
         # exception to the state now, for every return type, because even a call that threw still has
-        # to answer the VM a value.
+        # to answer the VM a value. The name it passes is what the report falls back to when the JVM
+        # dropped the exception's stack.
         for return_type in (None, "string", "bool", "number", "id"):
             with self.subTest(return_type=return_type):
                 wrapper = generate.gen_wrapper("get_block", [], return_type)
-                self.assertIn("HOST_CHECK(env, gst);", wrapper)
+                self.assertIn('HOST_CHECK(env, gst, "get_block");', wrapper)
                 # CHECK alone prints and clears, which is the swallow this test exists for.
                 self.assertNotIn("CHECK(env);", wrapper)
+
+    def test_an_argument_that_cannot_be_passed_is_the_adapters_failure(self):
+        # The NewStringUTF conversions run before the call, so an exception between them is this
+        # adapter's own failure and the Java function never ran. Without its own check the call
+        # below would be skipped and HOST_CHECK would report the adapter's defect as a host
+        # function's, naming the wrong side.
+        wrapper = generate.gen_wrapper("print", ["string"], None)
+        conversion = wrapper.index("NewStringUTF(env, args[0]._string)")
+        argument_check = wrapper.index('HOST_ARG_CHECK(env, gst, "print"')
+        call = wrapper.index("CallStaticVoidMethod")
+        self.assertLess(conversion, argument_check)
+        self.assertLess(argument_check, call)
+        # The aborted call still answers a value the VM may use, so a string result is the empty
+        # string rather than a null pointer.
+        self.assertIn(
+            '(union grug_value){._string = ""});',
+            generate.gen_wrapper("get_block", ["string"], "string"),
+        )
+
+
+class HostArgumentCheckTest(unittest.TestCase):
+    def test_the_macro_reports_and_returns(self):
+        # The macro's return is what keeps the pending exception from reaching the call below it,
+        # and the report is what names the adapter rather than the function.
+        header = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "src",
+            "main",
+            "native",
+            "adapter_shared.h",
+        )
+        with open(header, encoding="utf-8") as source:
+            text = source.read()
+        self.assertIn("grug_report_host_argument_threw(env, state, function);", text)
+        self.assertIn("return aborted;", text)
 
 
 if __name__ == "__main__":

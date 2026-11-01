@@ -1,4 +1,5 @@
 #include <jni.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -140,7 +141,7 @@ Java_net_grug_minecraft_grug_GrugNative_initGrugAdapter(JNIEnv *env, jclass claz
     if (!local_errors) return;
     grug_errors_class = (*env)->NewGlobalRef(env, local_errors);
     jm_on_runtime_error = (*env)->GetStaticMethodID(env, grug_errors_class, "onRuntimeError", "(Ljava/lang/String;)V");
-    jm_on_host_function_threw = (*env)->GetStaticMethodID(env, grug_errors_class, "onHostFunctionThrew", "(Ljava/lang/Throwable;)Ljava/lang/String;");
+    jm_on_host_function_threw = (*env)->GetStaticMethodID(env, grug_errors_class, "onHostFunctionThrew", "(Ljava/lang/Throwable;Ljava/lang/String;Z)V");
 
     jclass local_gf = (*env)->FindClass(env, "net/grug/minecraft/grug/HostFunctions");
     if (!local_gf) return;
@@ -333,29 +334,43 @@ Java_net_grug_minecraft_grug_GrugNative_nativeHostFunctionErrorHappened(JNIEnv *
 }
 
 // Called by a generated host function wrapper (see adapter_shared.h) when the Java function it
-// called threw. grug-rs cannot unwind a Java exception through its Rust frames, so the wrapper has to
-// clear it and say what it was; GrugErrors formats it, naming the host function and keeping the Java
-// stack, and the state is given a runtime error, which stops the script at the call that made it.
-// The test runner then fails the test whose call it was, instead of reporting PASS and leaving the
+// called threw, or when this adapter failed to convert one of the call's arguments. grug-rs cannot
+// unwind a Java exception through its Rust frames, so the wrapper has to clear it and say what it
+// was; GrugErrors formats it, naming the host function and keeping the Java stack (or naming the
+// function when the JVM dropped the stack), and the state is given a runtime error, which stops the
+// script at the call that made it. The test runner then fails the test whose call it was, or the
+// run itself when the throw had no test call to abort, instead of reporting PASS and leaving the
 // stack in the log with no test named (#890).
-void grug_report_host_function_threw(JNIEnv* env, void* state) {
+static void report_threw(JNIEnv* env, void* state, const char* function, jboolean converting_arguments) {
     jthrowable thrown = (*env)->ExceptionOccurred(env);
     if (thrown == NULL) return;
     (*env)->ExceptionClear(env);
 
-    jstring message = (jstring)(*env)->CallStaticObjectMethod(env, grug_errors_class, jm_on_host_function_threw, thrown);
+    jstring name = (*env)->NewStringUTF(env, function);
     if ((*env)->ExceptionCheck(env)) {
-        // Formatting the exception threw, which only a bug in GrugErrors can cause. The exception
-        // formatting threw is the one with the answer, so describe it, and stop the script with a
-        // message that says the report was lost rather than letting it carry on silently.
-        (*env)->ExceptionDescribe(env);
+        // A name that cannot be made into a Java string is no reason to lose the report, which
+        // names the function when it has no stack to read; only the fallback loses a name.
         (*env)->ExceptionClear(env);
-        grug_set_runtime_error(state, "A host function threw a Java exception, and reporting it failed too.");
-    } else if (message != NULL) {
-        const char* c_message = (*env)->GetStringUTFChars(env, message, NULL);
-        grug_set_runtime_error(state, c_message);
-        (*env)->ReleaseStringUTFChars(env, message, c_message);
-        (*env)->DeleteLocalRef(env, message);
+        name = NULL;
     }
+    (*env)->CallStaticVoidMethod(env, grug_errors_class, jm_on_host_function_threw, thrown, name, converting_arguments);
+    if ((*env)->ExceptionCheck(env)) {
+        // The report threw too, which only a bug in GrugErrors can cause. Write it plainly rather
+        // than describing it: ExceptionDescribe's line names the game thread, and the harness reads
+        // that line as a crash of the game instead of the lost report it is. The script still
+        // stops, so the run fails rather than carrying on.
+        (*env)->ExceptionClear(env);
+        fprintf(stderr, "[grug] a host function threw a Java exception, and reporting it failed\n");
+        grug_set_runtime_error(state, "A host function threw a Java exception, and reporting it failed.");
+    }
+    if (name != NULL) (*env)->DeleteLocalRef(env, name);
     (*env)->DeleteLocalRef(env, thrown);
+}
+
+void grug_report_host_function_threw(JNIEnv* env, void* state, const char* function) {
+    report_threw(env, state, function, JNI_FALSE);
+}
+
+void grug_report_host_argument_threw(JNIEnv* env, void* state, const char* function) {
+    report_threw(env, state, function, JNI_TRUE);
 }

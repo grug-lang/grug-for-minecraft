@@ -118,6 +118,7 @@ class GrugTestRunnerTest {
         GrugTestState.runtimeErrorCount = 0;
         GrugErrors.printQueue.clear();
         GrugErrors.runtimeErrorQueue.clear();
+        GrugErrors.takeHostFunctionException();
         GrugTestState.testRuntimeErrors.clear();
     }
 
@@ -472,32 +473,28 @@ class GrugTestRunnerTest {
     }
 
     /**
-     * What a host function that threw looks like from here: the generated JNI wrapper hands the
-     * exception to {@link GrugErrors#onHostFunctionThrew}, reports the answer as a host function
-     * error, and the engine stops the script at that call, so the export call returns without
-     * finishing.
+     * The report a host function that threw leaves, as the bridge shapes it. The formatter itself
+     * is measured by {@code GrugErrorsTest}, and the wrapper that calls it by {@code
+     * GrugHostFunctionExceptionTest}; here it only has to be the kind of message the runner sees.
      */
-    private static void abortWithAHostFunctionException(FakeOps ops) {
-        NullPointerException thrown =
-                new NullPointerException("the entity id resolved to no object");
-        thrown.setStackTrace(
-                new StackTraceElement[] {
-                    new StackTraceElement(
-                            "net.grug.minecraft.grug.HostFunctions",
-                            "Screenshot_differs_from",
-                            "HostFunctions.java",
-                            1151)
-                });
-        GrugErrors.onRuntimeError("Host function error: " + GrugErrors.onHostFunctionThrew(thrown));
-        ops.completed = false;
-    }
+    private static final String HOST_FUNCTION_THREW =
+            "HostFunctions.Screenshot_differs_from threw a Java exception, which is a defect in"
+                    + " grug rather than in the script that called it:\n"
+                    + "java.lang.NullPointerException: the entity id resolved to no object\n"
+                    + "\tat net.grug.minecraft.grug.HostFunctions.Screenshot_differs_from"
+                    + "(HostFunctions.java:1151)";
 
     @Test
     void failsTheTestWhoseCallThrewFromAHostFunction() {
         // Before #890 the wrapper cleared the exception and let the script carry on with a zero
         // value, so the test reported PASS while the log held a stack that named no test.
         FakeOps ops = new FakeOps();
-        ops.onCall = () -> abortWithAHostFunctionException(ops);
+        ops.onCall =
+                () -> {
+                    GrugErrors.recordHostFunctionException(HOST_FUNCTION_THREW);
+                    GrugErrors.onRuntimeError("Host function error: " + HOST_FUNCTION_THREW);
+                    ops.completed = false;
+                };
 
         String printed = capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
 
@@ -510,6 +507,150 @@ class GrugTestRunnerTest {
         assertTrue(reported.contains("Screenshot_differs_from"), reported);
         assertTrue(reported.contains("java.lang.NullPointerException"), reported);
         assertTrue(reported.contains("HostFunctions.java:1151"), reported);
+    }
+
+    @Test
+    void failsTheRunWhenAHostFunctionThrowsDuringATestButOutsideItsCall() {
+        // A render pass runs while the test's own tick is not, so a host function that throws
+        // there has no call of the test's to abort. The report alone left the run green with no
+        // test named, so the runner fails the test whose frames and fixtures were running (#890).
+        FakeOps ops = new FakeOps();
+        int[] calls = {0};
+        ops.onCall =
+                () -> {
+                    GrugTestState.testNotDone = ++calls[0] < 3;
+                    if (calls[0] == 2) {
+                        GrugErrors.recordHostFunctionException(
+                                "HostFunctions.draw_item threw java.lang.IllegalStateException");
+                    }
+                };
+
+        String printed = capture(() -> runToEnd(runner(ops, Map.of("mymod/code/a-Test.grug", 1L))));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"), printed);
+        assertTrue(printed.contains("HostFunctions.draw_item threw"), printed);
+        assertFalse(printed.contains("[GRUG CI] PASS mymod/code/a-Test.grug"), printed);
+        assertFalse(printed.contains("TESTS PASSED"), printed);
+    }
+
+    @Test
+    void failsTheRunWhenAHostFunctionThrowsWhileTheRoomIsBuilt() {
+        // The room build runs game code before the test's first tick, so a host function that
+        // throws there has no call of the test's to abort either, and it belongs to the test that
+        // is starting.
+        FakeOps ops = new FakeOps();
+        GrugTestRunner runner =
+                new GrugTestRunner(
+                        Map.of("mymod/code/a-Test.grug", 1L),
+                        List.of(),
+                        ops,
+                        System::nanoTime,
+                        new GrugTestRunner.TestBoxBuilder() {
+                            @Override
+                            public void build(int radius) {
+                                GrugErrors.recordHostFunctionException(HOST_FUNCTION_THREW);
+                            }
+
+                            @Override
+                            public void sweepItems() {}
+                        },
+                        1);
+
+        String printed = capture(() -> runner.tick(null));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"), printed);
+        assertFalse(printed.contains("PASS"), printed);
+        assertEquals(1, ops.created);
+        assertTrue(runner.isFinished());
+    }
+
+    @Test
+    void failsTheRunUnderTheTestThatJustEndedWhenAHostFunctionThrowsBetweenTests() {
+        // The world keeps ticking the fixtures a test left after its last PASS, and one of them
+        // can throw before the next test starts. The test that left it is the one to name.
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        ops.pathsAre(files);
+        GrugTestRunner runner = runner(ops, files);
+
+        runner.tick(null);
+        assertFalse(runner.isFinished());
+        GrugErrors.recordHostFunctionException(
+                "HostFunctions.draw_item threw java.lang.IllegalStateException");
+
+        String printed = capture(() -> runner.tick(null));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"), printed);
+        assertFalse(printed.contains("PASS mymod/code/b-Test.grug"), printed);
+    }
+
+    @Test
+    void failsTheRunWhenAHostFunctionThrowsAfterTheLastTestPassed() {
+        // The runner announces the run on the tick after the last test, and the world keeps ticking
+        // what the test left in between. A throw there must not slip under a green announcement.
+        FakeOps ops = new FakeOps();
+        GrugTestRunner runner = runner(ops, Map.of("mymod/code/a-Test.grug", 1L));
+
+        String passed = capture(() -> runner.tick(null));
+        assertTrue(passed.contains("PASS mymod/code/a-Test.grug"), passed);
+        assertFalse(runner.isFinished(), "the run is announced on the tick after the test");
+
+        GrugErrors.recordHostFunctionException(HOST_FUNCTION_THREW);
+        String printed = capture(() -> runner.tick(null));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"), printed);
+        assertFalse(printed.contains("TESTS PASSED"), printed);
+        assertTrue(runner.isFinished());
+    }
+
+    @Test
+    void failsTheRunWithoutATestNameWhenAHostFunctionThrowsBeforeTheFirstTest() {
+        // Nothing has run yet, so no test owns the throw and naming one would blame the innocent.
+        GrugErrors.recordHostFunctionException(
+                "HostFunctions.draw_item threw java.lang.IllegalStateException");
+
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        runner(
+                                                new FakeOps(),
+                                                Map.of("mymod/code/a-Test.grug", 1L))));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL a host function outside every test"), printed);
+        assertTrue(printed.contains("HostFunctions.draw_item threw"), printed);
+        assertFalse(printed.contains("PASS mymod/code/a-Test.grug"), printed);
+    }
+
+    @Test
+    void anExpectedHostFunctionErrorDoesNotFailTheTestAfterIt() {
+        // A host function exception is reported like any other host function error, so expect_error
+        // can accept it. The test that asked for it accounts for it, and the record must not make
+        // the next test fail for it.
+        FakeOps ops = new FakeOps();
+        Map<String, Long> files = new LinkedHashMap<>();
+        files.put("mymod/code/a-Test.grug", 1L);
+        files.put("mymod/code/b-Test.grug", 2L);
+        ops.pathsAre(files);
+        ops.onCall =
+                () -> {
+                    if (!ops.activePath.equals("mymod/code/a-Test.grug")) {
+                        ops.completed = true;
+                        return;
+                    }
+                    GrugTestState.testExpectedError = "defect in grug";
+                    GrugErrors.recordHostFunctionException(HOST_FUNCTION_THREW);
+                    GrugErrors.onRuntimeError("Host function error: " + HOST_FUNCTION_THREW);
+                    ops.completed = false;
+                };
+
+        String printed = capture(() -> runToEnd(runner(ops, files)));
+
+        assertTrue(printed.contains("PASS mymod/code/a-Test.grug (expected error)"), printed);
+        assertTrue(printed.contains("PASS mymod/code/b-Test.grug"), printed);
+        assertTrue(printed.contains("ALL 2 TESTS PASSED"), printed);
     }
 
     @Test

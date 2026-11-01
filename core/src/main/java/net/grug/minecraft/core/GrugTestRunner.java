@@ -789,6 +789,12 @@ public class GrugTestRunner {
     public void tick(Object player) {
         if (finished) return;
 
+        // A Java exception a host function threw can arrive with no call of the test's own to
+        // abort, from a render pass, the room build or a fixture the test placed. Left to the log
+        // it let the run end green with no test named, so it fails the run here, under the test
+        // that owns it (#890).
+        if (failOnHostFunctionException()) return;
+
         // Before anything else, so no test starts under a screen that is still open from before the
         // run, and the world it builds in is not paused behind one. See #655.
         if (!screenClosedForRun) {
@@ -849,6 +855,10 @@ public class GrugTestRunner {
             }
             return;
         }
+
+        // The room build runs game code that can reach a host function, so it can throw before the
+        // test's first tick. It belongs to the test that is starting.
+        if (justStarted && failOnHostFunctionException()) return;
 
         String path = tests.get(nextTestIndex).getKey();
 
@@ -915,6 +925,10 @@ public class GrugTestRunner {
                                     + actual);
                     return;
                 }
+                // A host function exception the test asked to see is accounted for here, or it
+                // would fail the next tick as a leftover. It is reported like any other host
+                // function error, which is what expect_error matches.
+                GrugErrors.takeHostFunctionException();
                 System.out.println("[GRUG CI] PASS " + path + " (expected error)");
                 passedCount++;
                 recordTestTime(path);
@@ -1408,20 +1422,58 @@ public class GrugTestRunner {
             GrugErrors.printQueue.clear();
         }
 
-        System.out.println("[GRUG CI] FAIL " + path);
+        // A null path is a failure no test owns, which says so rather than naming one that did
+        // not do it. A host function exception before the first test starts arrives that way.
+        String failed = path == null ? "a host function outside every test" : path;
+        System.out.println("[GRUG CI] FAIL " + failed);
         System.out.println("[GRUG CI] " + msg);
 
         synchronized (GrugErrors.runtimeErrorQueue) {
-            GrugErrors.runtimeErrorQueue.add("FAIL " + path);
+            GrugErrors.runtimeErrorQueue.add("FAIL " + failed);
             GrugErrors.runtimeErrorQueue.add(msg);
         }
 
+        // The failure has its own message, and a record left by the call that aborted here would
+        // fail the tick after it as well.
+        GrugErrors.takeHostFunctionException();
+
         // Before destroyCurrentEntity, which puts the test's start back where it belongs, so the
         // test that failed is timed on the run it failed, and the next one starts there.
-        recordTestTime(path);
+        if (path != null) recordTestTime(path);
         destroyCurrentEntity();
         finished = true;
-        writeTestTimesRecord(Collections.singleton(path));
+        writeTestTimesRecord(path == null ? Collections.emptySet() : Collections.singleton(path));
+    }
+
+    /**
+     * Fails the run for a host function exception no test call has dealt with, naming the test that
+     * owns it, and answers whether it did.
+     *
+     * <p>A test whose own call threw is failed by the abort of that call, which discards the record
+     * on the way, so this sees only what arrived with no call to abort.
+     */
+    private boolean failOnHostFunctionException() {
+        String message = GrugErrors.takeHostFunctionException();
+        if (message == null) return false;
+        fail(hostFunctionExceptionOwner(), message);
+        return true;
+    }
+
+    /**
+     * The test a host function exception belongs to, or null before the first test has run: the one
+     * that is running, else the one that just ended, because the fixtures it left are what the game
+     * ticks between two of its calls.
+     */
+    private String hostFunctionExceptionOwner() {
+        // A running test is always the one nextTestIndex names, and the index never passes the
+        // last test, so neither needs a range check.
+        if (currentEntityHandle != 0) {
+            return tests.get(nextTestIndex).getKey();
+        }
+        if (nextTestIndex > 0) {
+            return tests.get(nextTestIndex - 1).getKey();
+        }
+        return null;
     }
 
     private void destroyCurrentEntity() {

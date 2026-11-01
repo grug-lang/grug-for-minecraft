@@ -50,16 +50,30 @@ extern jclass host_functions_class;
     (*env)->ExceptionClear(env); \
 }
 
-// The exception check of a generated host function wrapper (see generate.py). A host function that
-// throws a Java exception is a defect in this side rather than in the script, and grug-rs cannot
-// unwind the exception through its Rust frames, so the wrapper hands it back to Java, which turns it
-// into a grug runtime error: the script stops at the call that made it and the test that made it
-// fails by name. Clearing it and carrying on with a zero value, which is what the wrapper did before
-// #890, let the test report PASS and left the log with a stack that named no test.
-void grug_report_host_function_threw(JNIEnv* env, void* state);
+// The exception checks of a generated host function wrapper (see generate.py). A host function
+// that throws a Java exception is a defect in this side rather than in the script, and grug-rs
+// cannot unwind the exception through its Rust frames, so the wrapper hands it back to Java, which
+// turns it into a grug runtime error: the script stops at the call that made it and the test that
+// made it fails by name. Clearing it and carrying on with a zero value, which is what the wrapper
+// did before #890, let the test report PASS and left the log with a stack that named no test.
+//
+// function is the grug-facing name of the function the wrapper calls, which names it when the
+// exception's stack has no frames to read (OmitStackTraceInFastThrow) and which the report blames
+// when this side could not pass an argument, since the Java function never ran then.
+void grug_report_host_function_threw(JNIEnv* env, void* state, const char* function);
+void grug_report_host_argument_threw(JNIEnv* env, void* state, const char* function);
 
-#define HOST_CHECK(env, state) if ((*env)->ExceptionCheck(env)) { \
-    grug_report_host_function_threw(env, state); \
+#define HOST_CHECK(env, state, function) if ((*env)->ExceptionCheck(env)) { \
+    grug_report_host_function_threw(env, state, function); \
+}
+
+// The argument conversions run before the call, so an exception between them is this adapter's
+// failure rather than the function's. The wrapper answers with the value the aborted call would
+// have had, and the runtime error makes it meaningless to the script: aborted is that value, which
+// has to be valid (an empty string rather than a null pointer) because the VM keeps using it.
+#define HOST_ARG_CHECK(env, state, function, aborted) if ((*env)->ExceptionCheck(env)) { \
+    grug_report_host_argument_threw(env, state, function); \
+    return aborted; \
 }
 
 extern struct grug_error* grug_register_host_fn(void* state, const char* fn_name, host_fn func);
