@@ -186,6 +186,10 @@ public final class GrugModelRenderer {
      * <p>Nothing here sets a brightness or a colour, as the reference sets neither: it disables GL
      * lighting and lets the tile entity pass's own lightmap and white colour stand, which is what a
      * frame pass draws under.
+     *
+     * <p>Each face is submitted on its own, starting at the corner the reference's box renderer
+     * starts it at: see {@link GrugQuad#submittedCorner}. Two surfaces that cross at one depth are
+     * decided by the triangles the rasteriser splits them into, so the split is the reference's.
      */
     public static void drawInFrame(
             IBlockAccess world, Block block, int x, int y, int z, List<GrugQuad> quads) {
@@ -195,7 +199,6 @@ public final class GrugModelRenderer {
             if (name == null) continue;
 
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, TEXTURES.get(group.getKey()));
-            tessellator.startDrawingQuads();
             for (GrugQuad quad : group.getValue()) {
                 int cull = quad.cullSide();
                 if (cull >= 0
@@ -207,16 +210,18 @@ public final class GrugModelRenderer {
                                 cull)) {
                     continue;
                 }
+                tessellator.startDrawingQuads();
                 for (int corner = 0; corner < 4; corner++) {
+                    int submitted = quad.submittedCorner(corner);
                     tessellator.addVertexWithUV(
-                            quad.x(corner),
-                            quad.y(corner),
-                            quad.z(corner),
-                            quad.u(corner),
-                            quad.v(corner));
+                            quad.x(submitted),
+                            quad.y(submitted),
+                            quad.z(submitted),
+                            quad.u(submitted),
+                            quad.v(submitted));
                 }
+                tessellator.draw();
             }
-            tessellator.draw();
         }
     }
 

@@ -415,7 +415,9 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
      * vertices stay beside the block rather than at its place in the world, which is where a
      * reference that draws the part from its own block entity renderer puts them. Every corner
      * takes the block entity's light, with no shade per side, which is the flat lighting this
-     * version draws a block that declared set_flat_lighting with.
+     * version draws a block that declared set_flat_lighting with. The corners are submitted from
+     * the one the game's box renderer starts a face at, see {@link GrugQuad#submittedCorner}, so a
+     * pixel where two surfaces cross at one depth falls on the side the other loaders put it on.
      */
     public static void drawInFrame(
             GrugModelDraw draw, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
@@ -433,15 +435,16 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
             for (GrugQuad quad : group.getValue()) {
                 Direction side = DIRECTIONS[quad.side()];
                 for (int corner = 0; corner < 4; corner++) {
+                    int submitted = quad.submittedCorner(corner);
                     vertices.vertex(
                                     pose,
-                                    (float) quad.x(corner),
-                                    (float) quad.y(corner),
-                                    (float) quad.z(corner))
+                                    (float) quad.x(submitted),
+                                    (float) quad.y(submitted),
+                                    (float) quad.z(submitted))
                             .color(255, 255, 255, 255)
                             .uv(
-                                    sprite.getU((float) quad.u(corner)),
-                                    sprite.getV((float) quad.v(corner)))
+                                    sprite.getU((float) quad.u(submitted)),
+                                    sprite.getV((float) quad.v(submitted)))
                             .overlayCoords(OverlayTexture.NO_OVERLAY)
                             .uv2(packedLight)
                             .normal(side.getStepX(), side.getStepY(), side.getStepZ())

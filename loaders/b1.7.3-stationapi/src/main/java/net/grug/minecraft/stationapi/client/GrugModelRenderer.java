@@ -201,6 +201,10 @@ public final class GrugModelRenderer {
      * instead of at its place in the world, which is what keeps an edge that moves every tick on
      * the pixel the reference puts it on. Every face takes the block's own brightness, with no
      * shade per side, which is how a block that declared set_flat_lighting is drawn.
+     *
+     * <p>Each face is submitted on its own, starting at the corner the game's box renderer starts
+     * it at: see {@link GrugQuad#submittedCorner}. Two surfaces that cross at one depth are decided
+     * by the triangles the rasteriser splits them into, so the split is that renderer's.
      */
     public static void drawInFrame(
             BlockView world, Block block, int x, int y, int z, List<GrugQuad> quads) {
@@ -217,7 +221,6 @@ public final class GrugModelRenderer {
             if (texture == null) continue;
 
             textures.bindTexture(texture);
-            tesselator.startQuads();
             for (GrugQuad quad : group.getValue()) {
                 if (quad.cullSide() >= 0
                         && !block.isSideVisible(
@@ -228,17 +231,19 @@ public final class GrugModelRenderer {
                                 quad.cullSide())) {
                     continue;
                 }
+                tesselator.startQuads();
                 tesselator.color(brightness, brightness, brightness);
                 for (int corner = 0; corner < 4; corner++) {
+                    int submitted = quad.submittedCorner(corner);
                     tesselator.vertex(
-                            quad.x(corner),
-                            quad.y(corner),
-                            quad.z(corner),
-                            quad.u(corner),
-                            quad.v(corner));
+                            quad.x(submitted),
+                            quad.y(submitted),
+                            quad.z(submitted),
+                            quad.u(submitted),
+                            quad.v(submitted));
                 }
+                tesselator.draw();
             }
-            tesselator.draw();
         }
 
         GL11.glPopAttrib();
