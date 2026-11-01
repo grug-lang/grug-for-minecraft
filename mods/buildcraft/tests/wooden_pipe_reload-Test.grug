@@ -1,6 +1,8 @@
-# Covers a travelling item surviving its block entity's NBT: the pipe pulls a diamond, its state is
-# serialised and read straight back, and the item then finishes its journey. This is the save and load
-# path PipeTransportItems.writeToNBT and readFromNBT take, without the chunk unload a test cannot do.
+# Covers a travelling item surviving its block entity's NBT: the pipe pulls a stack of 3 coal, its
+# state is serialised and read straight back, and the stack then finishes its journey. This is the
+# save and load path PipeTransportItems.writeToNBT and readFromNBT take, without the chunk unload a
+# test cannot do. The stack's count and damage are the record's own numbers, so a reload has to keep
+# numbers that are not the defaults of 1 and 0.
 reload_pipe: Option[BlockEntity] = Option.new()
 reload_source: Option[BlockEntity] = Option.new()
 reload_target: Option[BlockEntity] = Option.new()
@@ -24,12 +26,19 @@ export tick(ctx: TestTickContext) {
     reload_pipe.set(pipe)
     reload_target.set(target)
 
-    diamond: Item = item(resource_location("minecraft:diamond"))
-    source.set_item_in_slot(0, diamond, 1)
+    # Coal's damage 1 is charcoal, a subtype of the item rather than wear, so the record carries a
+    # damage that means something to the game and is not the default. No test item in this mod both
+    # stacks past one and has a damage otherwise, and the pipe only ever moves the number.
+    coal: Item = item(resource_location("minecraft:coal"))
+    source.set_item_in_slot(0, coal, 3)
+    source.set_item_damage_in_slot(0, 1)
 
-    pipe.receive_energy(1)
+    # One energy per item, so the whole stack is taken in one go and one record starts.
+    pipe.receive_energy(3)
     Test.tick_block_entity(pipe, 1)
-    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling item.")
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pull should have started one travelling stack.")
+    ctx.assert(pipe.get_saved_list_number("traveling", 0, "count") == 3, "The pull should have taken the whole stack.")
+    ctx.assert(pipe.get_saved_list_number("traveling", 0, "damage") == 1, "The pull should have kept the stack's damage.")
 
     # Move it 20 ticks in, then reload, so the record is not at the face where it started.
     Test.tick_block_entity(pipe, 20)
@@ -40,15 +49,20 @@ export tick(ctx: TestTickContext) {
 
     ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The reload should keep the travelling item.")
     ctx.assert(pipe.get_saved_list_number("traveling", 0, "x") == before, "The reload should keep the item's position.")
-    ctx.assert(pipe.get_saved_list_number("traveling", 0, "count") == 1, "The reload should keep the item's count.")
+    ctx.assert(pipe.get_saved_list_number("traveling", 0, "count") == 3, "The reload should keep the stack's count.")
+    ctx.assert(pipe.get_saved_list_number("traveling", 0, "damage") == 1, "The reload should keep the stack's damage.")
+    # The record's item is its identity alone: a loader writes it as a stack of one, undamaged, so
+    # what the chest receives is the record's own count and damage beside this identity, not the
+    # stack the item came in. That is the recorded limitation of the shape (#473), not an accident.
     saved_item: Option[Item] = pipe.get_saved_list_item("traveling", 0)
     ctx.assert(saved_item.has(), "The reload should keep the item itself.")
-    ctx.assert(equals(saved_item.unwrap(), diamond), "The reload should keep the diamond.")
+    ctx.assert(equals(saved_item.unwrap(), coal), "The reload should keep the coal.")
 
     # 20 moves are done, so 29 more reach the centre and 51 more reach the far face.
     Test.tick_block_entity(pipe, 90)
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The item should have finished its journey after the reload.")
-    ctx.assert(target.get_item_count_in_slot(0) == 1, "The east chest should hold the reloaded diamond.")
+    ctx.assert(target.get_item_count_in_slot(0) == 3, "The east chest should hold the reloaded stack of 3.")
+    ctx.assert(target.get_item_damage_in_slot(0) == 1, "The east chest should hold the stack with its damage.")
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
 }
 
