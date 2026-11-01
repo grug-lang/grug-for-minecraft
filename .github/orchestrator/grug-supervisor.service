@@ -1,0 +1,8 @@
+[Unit]
+Description=Nudge the grug orchestrator when its subagent floor or the main check slips
+
+[Service]
+Type=oneshot
+Environment=GRUG_REPO=%h/Programming/grug-for-minecraft
+ExecStart=/usr/bin/python3 %h/Programming/grug-for-minecraft/.github/orchestrator/grug-supervisor.py
+TimeoutStartSec=7200
