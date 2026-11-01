@@ -83,7 +83,8 @@ launch() {
     babric-b1.7.3)
       # Babric as launch-production.sh installs it for StationAPI, without StationAPI.
       babric_lwjgl
-      start "${LEGACY_LIBRARIES[@]}" --jvm-policy system-then-mojang "${BABRIC_LWJGL[@]}" "babric::0.17.3"
+      babric_profile 0.17.3
+      start "${LEGACY_LIBRARIES[@]}" --jvm-policy system-then-mojang "${BABRIC_LWJGL[@]}" "$BABRIC_VERSION"
       ;;
     modloader-b1.7.3)
       portablemc start --dry b1.7.3 >/dev/null
