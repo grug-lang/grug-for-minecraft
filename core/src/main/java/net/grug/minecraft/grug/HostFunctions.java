@@ -665,6 +665,31 @@ public class HostFunctions {
                         pointZ);
     }
 
+    public static boolean Test_block_ray_trace(
+            long levelId,
+            double x,
+            double y,
+            double z,
+            double startX,
+            double startY,
+            double startZ,
+            double endX,
+            double endY,
+            double endZ) {
+        return GrugCore.getAdapter()
+                .blockRayTraceHits(
+                        GrugEntities.entityData.get(levelId).object,
+                        x,
+                        y,
+                        z,
+                        startX,
+                        startY,
+                        startZ,
+                        endX,
+                        endY,
+                        endZ);
+    }
+
     public static long Test_screenshot() {
         // A test that builds a screenshot entity is about to capture, so it wants frames drawn from
         // here, which is before the settle wait in front of the capture. See GrugFrameRequest.

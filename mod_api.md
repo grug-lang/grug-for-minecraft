@@ -68,6 +68,7 @@ export render(ctx: OverlayRenderContext)
 export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
 Test.block_collision(level: Level, x: number, y: number, z: number, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) bool
+Test.block_ray_trace(level: Level, x: number, y: number, z: number, start_x: number, start_y: number, start_z: number, end_x: number, end_y: number, end_z: number) bool
 Test.block_selection(level: Level, x: number, y: number, z: number, point_x: number, point_y: number, point_z: number) bool
 Test.clear_carried_item()
 Test.clear_held_item(player: Player)

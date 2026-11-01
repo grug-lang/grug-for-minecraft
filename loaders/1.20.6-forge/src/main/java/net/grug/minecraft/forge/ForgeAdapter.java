@@ -55,6 +55,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -64,6 +65,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.api.distmarker.Dist;
@@ -1647,6 +1649,41 @@ public class ForgeAdapter implements ModLoaderAdapter {
             }
         }
         return false;
+    }
+
+    @Override
+    @GrugGenerated("test helper: it asks the game's own block clip for the block's shape")
+    public boolean blockRayTraceHits(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double startX,
+            double startY,
+            double startZ,
+            double endX,
+            double endY,
+            double endZ) {
+        Level level = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+
+        // The clip a player's click takes, against the outline shape rather than the collision one,
+        // so this version answers through Block#getShape exactly as a click does.
+        BlockHitResult hit =
+                level.clip(
+                        new ClipContext(
+                                new net.minecraft.world.phys.Vec3(
+                                        pos.getX() + startX,
+                                        pos.getY() + startY,
+                                        pos.getZ() + startZ),
+                                new net.minecraft.world.phys.Vec3(
+                                        pos.getX() + endX, pos.getY() + endY, pos.getZ() + endZ),
+                                ClipContext.Block.OUTLINE,
+                                ClipContext.Fluid.NONE,
+                                CollisionContext.empty()));
+        return hit.getType() != HitResult.Type.MISS && hit.getBlockPos().equals(pos);
     }
 
     @Override
