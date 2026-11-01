@@ -1009,6 +1009,18 @@ jobs:
           GRUG_JAVA8: ${{ steps.gamejava.outputs.path }}
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '360'
+          GRUG_UPDATE_GOLDENS: '1'
+
+      # PROBE, not for main: the reference's own captures, accepted into the harness so they can be
+      # compared with the committed goldens on a developer machine.
+      - name: Upload the accepted reference captures (probe only)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: probe-reference-captures
+          path: reference-harness/buildcraft/screenshots
+          if-no-files-found: ignore
+          retention-days: 2
 
       - name: Upload logs and crash reports
         if: always()
