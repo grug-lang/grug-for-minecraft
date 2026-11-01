@@ -8,7 +8,9 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import java.awt.image.BufferedImage;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -1089,11 +1091,18 @@ public class HostFunctions {
         // A capture reads a drawn frame, so the test wants one even if it reached this call without
         // Test.screenshot. See GrugFrameRequest.
         GrugFrameRequest.request();
-        GrugScreenshot screenshot =
-                (GrugScreenshot) GrugEntities.entityData.get(screenshotId).object;
-        GrugCore.getAdapter()
-                .assertScreenshotEquals(
-                        referencePath, x1, y1, x2, y2, screenshot.tolerancePercent());
+        withScreenshot(
+                "Screenshot.equals",
+                screenshotId,
+                screenshot ->
+                        GrugCore.getAdapter()
+                                .assertScreenshotEquals(
+                                        referencePath,
+                                        x1,
+                                        y1,
+                                        x2,
+                                        y2,
+                                        screenshot.tolerancePercent()));
     }
 
     /**
@@ -1107,64 +1116,117 @@ public class HostFunctions {
             long screenshotId, double x1, double y1, double x2, double y2) {
         // A capture reads a drawn frame. See GrugFrameRequest.
         GrugFrameRequest.request();
-        GrugScreenshot screenshot =
-                (GrugScreenshot) GrugEntities.entityData.get(screenshotId).object;
-        BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
-        // The adapter has already reported a capture it could not take, so the null is stored
-        // rather than thrown from here. Storing it is what lets differs_from name the missing
-        // capture, which tells a test author which of the two screenshots to look at, where an
-        // unchecked one would throw a NullPointerException from inside the comparison and leave
-        // them to guess.
-        GrugEntities.addEntityWithId(
-                screenshotId, GrugEntityType.Screenshot, screenshot.withCapture(capture));
+        withScreenshot(
+                "Screenshot.capture",
+                screenshotId,
+                screenshot -> {
+                    BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
+                    // The adapter has already reported a capture it could not take, so the null is
+                    // stored rather than thrown from here. Storing it is what lets differs_from
+                    // name
+                    // the missing capture, which tells a test author which of the two screenshots
+                    // to
+                    // look at, where an unchecked one would throw a NullPointerException from
+                    // inside
+                    // the comparison and leave them to guess.
+                    GrugEntities.addEntityWithId(
+                            screenshotId,
+                            GrugEntityType.Screenshot,
+                            screenshot.withCapture(capture));
+                });
         return screenshotId;
     }
 
     public static void Screenshot_differs_from(long screenshotId, long otherId, double percent) {
-        GrugScreenshot screenshot =
-                (GrugScreenshot) GrugEntities.entityData.get(screenshotId).object;
-        GrugScreenshot other = (GrugScreenshot) GrugEntities.entityData.get(otherId).object;
         String name = "Screenshot.differs_from";
+        withScreenshots(
+                name,
+                screenshotId,
+                otherId,
+                (screenshot, other) -> {
+                    if (percent < 0 || percent > 100 || percent != Math.floor(percent)) {
+                        Grug.hostFunctionErrorHappened(
+                                Grug.statePtr,
+                                name
+                                        + ": percent must be a whole number between 0 and 100, but"
+                                        + " got "
+                                        + percent
+                                        + ".");
+                        return;
+                    }
+                    if (screenshot.captured() == null || other.captured() == null) {
+                        Grug.hostFunctionErrorHappened(
+                                Grug.statePtr,
+                                name
+                                        + ": both screenshots have to be captured first, with"
+                                        + " Screenshot.capture, before they can be compared.");
+                        return;
+                    }
 
-        if (percent < 0 || percent > 100 || percent != Math.floor(percent)) {
+                    double changed;
+                    try {
+                        changed =
+                                GrugScreenshots.changedPercent(
+                                        screenshot.captured(), other.captured());
+                    } catch (IllegalArgumentException e) {
+                        Grug.hostFunctionErrorHappened(Grug.statePtr, name + ": " + e.getMessage());
+                        return;
+                    }
+
+                    if (changed < percent) {
+                        // One decimal place, so a share just short of the threshold does not read
+                        // as having met it, and a whole number does not read as if it were rounded
+                        // down from something higher.
+                        Grug.hostFunctionErrorHappened(
+                                Grug.statePtr,
+                                name
+                                        + ": the frame still shows what it showed before, since"
+                                        + " only "
+                                        + String.format(Locale.ROOT, "%.1f", changed)
+                                        + "% of its pixels changed and at least "
+                                        + (int) percent
+                                        + "% was asked for.");
+                    }
+                });
+    }
+
+    /** Runs {@code use} with the screenshot an id names. */
+    private static void withScreenshot(String method, long id, Consumer<GrugScreenshot> use) {
+        withScreenshots(method, id, id, (screenshot, same) -> use.accept(screenshot));
+    }
+
+    /**
+     * Runs {@code use} with the screenshots the two ids name, or reports the one that no longer
+     * resolves and runs nothing.
+     *
+     * <p>A screenshot a test captured before a resource reload and compares after it is a host
+     * entity its member keeps across ticks, and a test's member scope is rooted for the whole test
+     * (see {@link GrugEntities#createTestEntity}). Before that it could be collected between two
+     * ticks, and the dereference below then threw inside the JNI call, which printed and cleared
+     * the exception and took the game's main thread down without naming the test. This report names
+     * the method and the id instead, so the test fails with a reason. No test can produce such an
+     * id now, and reporting needs a live grug state, so the branch is generated rather than
+     * measured.
+     */
+    @GrugGenerated(
+            "a stale screenshot id cannot be produced from a test once its member scope is rooted"
+                    + " for the whole test, and reporting needs a live grug state")
+    private static void withScreenshots(
+            String method, long id, long otherId, BiConsumer<GrugScreenshot, GrugScreenshot> use) {
+        GrugObject object = GrugEntities.entityData.get(id);
+        GrugObject other = GrugEntities.entityData.get(otherId);
+        if (object == null || other == null) {
+            long stale = object == null ? id : otherId;
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
-                    name
-                            + ": percent must be a whole number between 0 and 100, but got "
-                            + percent
-                            + ".");
+                    method
+                            + ": the screenshot id "
+                            + stale
+                            + " no longer resolves, because the object behind it was collected"
+                            + " while the test still held it.");
             return;
         }
-        if (screenshot.captured() == null || other.captured() == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    name
-                            + ": both screenshots have to be captured first, with"
-                            + " Screenshot.capture, before they can be compared.");
-            return;
-        }
-
-        double changed;
-        try {
-            changed = GrugScreenshots.changedPercent(screenshot.captured(), other.captured());
-        } catch (IllegalArgumentException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, name + ": " + e.getMessage());
-            return;
-        }
-
-        if (changed < percent) {
-            // One decimal place, so a share just short of the threshold does not read as having met
-            // it, and a whole number does not read as if it were rounded down from something
-            // higher.
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    name
-                            + ": the frame still shows what it showed before, since only "
-                            + String.format(Locale.ROOT, "%.1f", changed)
-                            + "% of its pixels changed and at least "
-                            + (int) percent
-                            + "% was asked for.");
-        }
+        use.accept((GrugScreenshot) object.object, (GrugScreenshot) other.object);
     }
 
     public static long Vec3_new(double x, double y, double z) {

@@ -273,6 +273,20 @@ public final class GrugEntities {
     }
 
     /**
+     * Creates a test's grug entity, with the host entities its member initialisers create rooted in
+     * the running test.
+     *
+     * <p>A member such as {@code before: Option[Screenshot] = Option.new()} is created while the
+     * entity is made, before its first call, and a member lives for the whole test, so what it
+     * creates has to as well. Without an owner here those entities land in {@link
+     * #retainedFnEntities}, which nothing clears, and would outlive every test in the session. See
+     * #883.
+     */
+    public static long createTestEntity(long fileId) {
+        return createEntityWithOwner(fileId, testEntities, null);
+    }
+
+    /**
      * Runs {@code task} with the running test's root list, then restores the previous one, so what
      * the call creates lives until the test ends rather than until the call returns. See {@link
      * #testEntities}.
