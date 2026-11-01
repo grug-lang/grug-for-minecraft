@@ -1,0 +1,9 @@
+# A crop whose bottom edge truncates to its top edge is a crop of nothing, the same defect as the
+# zero-width one the other test covers. The empty-rectangle check compares both edges, and only the
+# width side fires when the far x is the one that truncates, so this is the height side.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.expect_error("the rectangle is empty")
+        Test.screenshot().capture(100, 410, 200, 310)
+    }
+}

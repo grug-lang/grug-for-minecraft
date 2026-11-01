@@ -37,9 +37,10 @@ public final class GrugVanillaIds {
     /**
      * Reads {@code table}.
      *
-     * <p>{@code in} is null when the jar holds no such table, which is a broken build like a line
-     * that is neither a block nor an item: it fails here rather than leaving a loader resolving
-     * every name to nothing.
+     * <p>{@code in} is null when the jar holds no such table, which is a broken build: a loader
+     * that ships without it would resolve every name to nothing. A line that is not a kind, a name
+     * and an id is skipped rather than reported, because the file is the build tool's own stdout,
+     * so whatever the game printed while the tool ran lands in it too.
      */
     public static GrugVanillaIds read(String table, InputStream in) {
         if (in == null) {
@@ -54,21 +55,19 @@ public final class GrugVanillaIds {
             while ((line = reader.readLine()) != null) {
                 String[] parts = line.trim().split(" ");
                 if (parts.length != 3) {
-                    throw Grug.fatal(
-                            table
-                                    + " has the line \""
-                                    + line
-                                    + "\", which is not a kind, a name and an id");
+                    continue;
                 }
-                int id = Integer.parseInt(parts[2]);
+                int id;
+                try {
+                    id = Integer.parseInt(parts[2]);
+                } catch (NumberFormatException e) {
+                    continue;
+                }
                 if ("B".equals(parts[0])) {
                     blockIds.put(parts[1], id);
                     blockNames.putIfAbsent(id, parts[1]);
                 } else if ("I".equals(parts[0])) {
                     itemIds.put(parts[1], id);
-                } else {
-                    throw Grug.fatal(
-                            table + " has the line \"" + line + "\", whose kind is not B or I");
                 }
             }
         } catch (IOException e) {

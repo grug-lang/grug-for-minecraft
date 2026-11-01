@@ -139,7 +139,6 @@ public class Grug125Adapter implements ModLoaderAdapter {
     // --- GUI & Inventory Methods ---
 
     @Override
-    @GrugGenerated("client GUI glue: the screen and slot layout are excluded render glue")
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         // The player and builder types cannot be wrong because of a script, so cast directly.
         EntityPlayer player = (EntityPlayer) playerObj;
@@ -312,7 +311,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * reflectively calling its own {@code extractItem(boolean, boolean)} (BuildCraft's {@code
      * TileAutoWorkbench.extractItem(true, false)}). Fails loudly if the tile has no such method.
      */
-    @GrugGenerated("reference result extraction: only BuildCraft's tile is exercised in CI")
+    @GrugGenerated(
+            "reference result extraction: the tile that has the method only exists in a reference"
+                    + " run, and its success continuation is on the same lines as the lookup")
     private static double extractReferenceResult(Object blockEntityObj, double amount) {
         java.lang.reflect.Method extractItem;
         try {
@@ -464,7 +465,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
         GrugBlocks.init();
 
         String raw = (String) resourceLocationObj;
-        String path = raw.contains(":") ? raw.split(":", 2)[1] : raw;
+        String path = localPath(raw);
 
         Object declared = matchDeclared(path);
         if (declared != null) return declared;
@@ -507,7 +508,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
         return null;
     }
 
-    @GrugGenerated("declared registry match: a no-match fallback cannot be forced per entry")
+    @GrugGenerated(
+            "declared registry match: an entry whose name the path equals without a namespace, a"
+                    + " declaration with no file id and a scan that reaches its end are not"
+                    + " forceable per entry")
     private Object matchDeclared(String path) {
         // Match custom grug items first
         for (Map.Entry<String, GrugItemData> entry : GrugDeclarations.declaredItems.entrySet()) {
@@ -672,7 +676,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
         GrugBlocks.init();
 
         World world = (World) levelObj;
-        String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
+        String path = localPath(blockName);
 
         // air is the one name resolveBlock cannot answer, because this version has no air block to
         // resolve: air is the absence of one, block id 0. Placing it is how a test removes a block,
@@ -794,6 +798,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
             batchPosition(x, y, z);
             world.notifyBlockChange(x, y, z, blockId);
         }
+    }
+
+    /**
+     * The name without its namespace, which is the form this loader's own resolution takes: 1.2.5
+     * predates registry names, and a mod may write a name with or without the namespace.
+     */
+    private static String localPath(String name) {
+        return name.contains(":") ? name.split(":", 2)[1] : name;
     }
 
     /**
@@ -965,7 +977,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public boolean isBlock(Object levelObj, double x, double y, double z, String blockName) {
-        String path = blockName.contains(":") ? blockName.split(":", 2)[1] : blockName;
+        String path = localPath(blockName);
         World world = (World) levelObj;
         return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))
                 == blockIdOf(path);
@@ -1621,7 +1633,6 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void closeOpenScreenForTest() {
         // Not null: on a headless client the window is never active, so 1.2.5's focus check would
         // put its in-game menu up over the next frame and pause the world behind it. The empty
@@ -1884,7 +1895,6 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it is not. */
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private static String checkCoordinate(String name, double value, int limit) {
         if (value < 0 || value > limit) {
             return name
