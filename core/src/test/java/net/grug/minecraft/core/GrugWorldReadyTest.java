@@ -1,6 +1,7 @@
 package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.core.GrugWorldReady.BlockSource;
@@ -82,5 +83,12 @@ class GrugWorldReadyTest {
         assertTrue(level.reads.contains("-33,70,-64"));
         assertTrue(level.reads.contains("-19,70,-48"));
         assertTrue(level.reads.contains("-19,70,-65"));
+    }
+
+    @Test
+    void aDifficultyAbovePeacefulLetsMobsSpawn() {
+        assertFalse(GrugWorldReady.spawnsAllowed(0));
+        assertTrue(GrugWorldReady.spawnsAllowed(1));
+        assertTrue(GrugWorldReady.spawnsAllowed(2));
     }
 }

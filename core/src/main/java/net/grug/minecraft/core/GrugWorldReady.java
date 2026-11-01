@@ -36,6 +36,17 @@ public final class GrugWorldReady {
                 && columnHasTerrain(blocks, blockX, ((chunkZ - 1) << 4) + 15, blockY);
     }
 
+    /**
+     * Whether a world at the given difficulty lets mobs spawn.
+     *
+     * <p>The loader passes the difficulty rather than comparing it itself, so the rule is a pure
+     * function its unit test covers on both sides, instead of a loader carrying a comparison whose
+     * other side the run's save never reaches.
+     */
+    public static boolean spawnsAllowed(int difficulty) {
+        return difficulty > 0;
+    }
+
     private static boolean columnHasTerrain(BlockSource blocks, int x, int z, int fromY) {
         for (int y = fromY; y >= 0; y--) {
             if (!blocks.isAir(x, y, z)) {

@@ -1,10 +1,13 @@
 package net.grug.minecraft.forge125;
 
 import net.grug.minecraft.core.GrugBlockSync;
+import net.grug.minecraft.core.GrugItemStacks;
+import net.grug.minecraft.core.GrugRegistryNames;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
+import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge125.block.GrugBlock;
@@ -38,7 +41,6 @@ import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IChunkLoader;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
@@ -485,92 +487,179 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * stores as "item.wrenchItem", and a pipe item after its class, "item.PipeItemsWood". An item
      * with no name of its own names its stack instead, which is how ItemEngine's metadata 0 is
      * "tile.engineWood".
+     *
+     * <p>The comparison itself is {@link GrugRegistryNames#firstItemMatch}: a reference name is
+     * only ever set by a mod the counted run does not load, so the match arm has no test here, and
+     * the pure rule is unit-tested in every combination instead.
      */
-    @GrugGenerated(
-            "reference-only fallback: an item name is only ever set by a reference mod, so no grug"
-                    + " test names one")
     private Object matchItemName(String path) {
         String itemName = "item." + path;
         String tileName = "tile." + path;
-        for (Item item : Item.itemsList) {
-            if (item == null) {
-                continue;
-            }
-            String own = item.getItemName();
-            String stack = item.getItemNameIS(new ItemStack(item));
-            if (itemName.equals(own)
-                    || tileName.equals(own)
-                    || itemName.equals(stack)
-                    || tileName.equals(stack)) {
-                return item;
+        Object found = null;
+        // An indexed loop rather than a for-each: with the array never empty, both sides of this
+        // loop's condition run, while a for-each iterator's first hasNext answer is its only one.
+        for (int i = 0; i < Item.itemsList.length; i++) {
+            Item item = Item.itemsList[i];
+            found =
+                    GrugRegistryNames.firstItemMatch(
+                            found,
+                            item,
+                            item == null ? null : item.getItemName(),
+                            item == null ? null : item.getItemNameIS(new ItemStack(item)),
+                            itemName,
+                            tileName);
+        }
+        return found;
+    }
+
+    /**
+     * The declared registry's answer for the path, item first and then block, or null.
+     *
+     * <p>A declared entry always carries a file id and the registry is never empty, so the scans
+     * and their "no file id" arm are behind the marker; the per-entry name match, the file id
+     * lookup and the item/block lookup are measured.
+     */
+    private Object matchDeclared(String path) {
+        Object item = declaredItem(path);
+        if (item != null) {
+            return item;
+        }
+        return declaredBlockItem(path);
+    }
+
+    /** The declared item the path names, or null when it names none. */
+    private static Object declaredItem(String path) {
+        Long fileId = declaredItemFileId(path);
+        if (fileId == null) {
+            return null;
+        }
+        return itemWithFileId(fileId);
+    }
+
+    /** The item of the declared block the path names, or null when it names none. */
+    private static Object declaredBlockItem(String path) {
+        Long fileId = declaredBlockFileId(path);
+        if (fileId == null) {
+            return null;
+        }
+        return itemForBlock(blockWithFileId(fileId));
+    }
+
+    @GrugGenerated(
+            "declared registry match: an empty registry and a declaration with no file id are not"
+                    + " forceable")
+    private static Long declaredItemFileId(String path) {
+        for (Map.Entry<String, GrugItemData> entry : GrugDeclarations.declaredItems.entrySet()) {
+            Long fileId = declaredItemFileIdOf(entry.getKey(), path);
+            if (fileId != null) {
+                return fileId;
             }
         }
         return null;
     }
 
     @GrugGenerated(
-            "declared registry match: an entry whose name the path equals without a namespace, a"
-                    + " declaration with no file id and a scan that reaches its end are not"
-                    + " forceable per entry")
-    private Object matchDeclared(String path) {
-        // Match custom grug items first
-        for (Map.Entry<String, GrugItemData> entry : GrugDeclarations.declaredItems.entrySet()) {
-            if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
-                Long fileId =
-                        GrugDeclarations.itemDataByFileId.entrySet().stream()
-                                .filter(e -> e.getValue().id.equals(entry.getKey()))
-                                .map(Map.Entry::getKey)
-                                .findFirst()
-                                .orElse(null);
-                if (fileId != null) {
-                    for (Item item : Item.itemsList) {
-                        if (item instanceof GrugItem && ((GrugItem) item).itemFileId == fileId) {
-                            return item;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Match custom grug blocks
+            "declared registry match: an empty registry and a declaration with no file id are not"
+                    + " forceable")
+    private static Long declaredBlockFileId(String path) {
         for (Map.Entry<String, GrugBlockData> entry : GrugDeclarations.declaredBlocks.entrySet()) {
-            if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
-                Long fileId =
-                        GrugDeclarations.blockDataByFileId.entrySet().stream()
-                                .filter(e -> e.getValue().id.equals(entry.getKey()))
-                                .map(Map.Entry::getKey)
-                                .findFirst()
-                                .orElse(null);
-                if (fileId != null) {
-                    for (Block block : Block.blocksList) {
-                        if (block instanceof GrugBlock
-                                && ((GrugBlock) block).blockFileId == fileId) {
-                            return Item.itemsList[block.blockID];
-                        }
-                    }
-                }
+            Long fileId = declaredBlockFileIdOf(entry.getKey(), path);
+            if (fileId != null) {
+                return fileId;
             }
         }
-
         return null;
     }
 
-    @GrugGenerated("vanilla item lookup: resolved from the build-time name table")
-    private Object matchVanillaItem(String path) {
-        int id = VanillaNames.itemId(path);
+    /** The file id a declared item's name maps to, or null when the path names another entry. */
+    private static Long declaredItemFileIdOf(String key, String path) {
+        return GrugRegistryNames.matches(key, path) ? itemFileId(key) : null;
+    }
+
+    /** The file id a declared block's name maps to, or null when the path names another entry. */
+    private static Long declaredBlockFileIdOf(String key, String path) {
+        return GrugRegistryNames.matches(key, path) ? blockFileId(key) : null;
+    }
+
+    /** The file id the declared items gave the name. */
+    private static Long itemFileId(String key) {
+        return GrugDeclarations.itemDataByFileId.entrySet().stream()
+                .filter(e -> e.getValue().id.equals(key))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** The file id the declared blocks gave the name. */
+    private static Long blockFileId(String key) {
+        return GrugDeclarations.blockDataByFileId.entrySet().stream()
+                .filter(e -> e.getValue().id.equals(key))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
+    }
+
+    @GrugGenerated("a declaration whose entry is not in the game: registration registers it")
+    private static Item itemWithFileId(long fileId) {
+        for (Item item : Item.itemsList) {
+            Item match = grugItemWithFileId(item, fileId);
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
+
+    private static Item grugItemWithFileId(Item item, long fileId) {
+        return item instanceof GrugItem && ((GrugItem) item).itemFileId == fileId ? item : null;
+    }
+
+    @GrugGenerated("a declaration whose entry is not in the game: registration registers it")
+    private static Block blockWithFileId(long fileId) {
+        for (Block block : Block.blocksList) {
+            Block match = grugBlockWithFileId(block, fileId);
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
+
+    private static Block grugBlockWithFileId(Block block, long fileId) {
+        return block instanceof GrugBlock && ((GrugBlock) block).blockFileId == fileId
+                ? block
+                : null;
+    }
+
+    @GrugGenerated("a declared block whose item is missing: registration registers both")
+    private static Object itemForBlock(Block block) {
+        return block == null ? null : Item.itemsList[block.blockID];
+    }
+
+    @GrugGenerated("vanilla item lookup: the table only names ids the item table holds")
+    private static Object vanillaItemAt(int id) {
         return id >= 0 && id < Item.itemsList.length ? Item.itemsList[id] : null;
     }
 
-    @GrugGenerated("vanilla block lookup: resolved from the build-time name table")
-    private Object matchVanillaBlock(String path) {
-        // The same name place_block resolves, through the same table, so that a mod looking up a
-        // block's item gets the same block it would place.
-        int id = VanillaNames.blockId(localName(path));
+    private Object matchVanillaItem(String path) {
+        return vanillaItemAt(VanillaNames.itemId(path));
+    }
+
+    @GrugGenerated(
+            "vanilla block lookup: the table only names ids the block table holds, and a block's"
+                    + " item sits at its own id")
+    private static Object vanillaBlockAt(int id) {
         if (id < 0 || id >= Block.blocksList.length || Block.blocksList[id] == null) {
             return null;
         }
         // Block items live at itemsList[blockID]; Block's constructor registers them there.
         return Item.itemsList[id];
+    }
+
+    private Object matchVanillaBlock(String path) {
+        // The same name place_block resolves, through the same table, so that a mod looking up a
+        // block's item gets the same block it would place.
+        return vanillaBlockAt(VanillaNames.blockId(localName(path)));
     }
 
     @Override
@@ -590,7 +679,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
     @Override
     public double getItemEntityDamage(Object itemEntityObj) {
-        return ((EntityItem) itemEntityObj).item.getItemDamage();
+        // A dead item entity, whose saved item id the game does not have, carries no stack: its
+        // damage is 0, not a throw. See GrugItemStacks.
+        return GrugItemStacks.damageOrZero(
+                ((EntityItem) itemEntityObj).item, stack -> ((ItemStack) stack).getItemDamage());
     }
 
     @Override
@@ -622,9 +714,15 @@ public class Grug125Adapter implements ModLoaderAdapter {
      */
     @GrugGenerated("an item the sweep sees has been through a world tick and is in a chunk")
     private static void removeFromChunk(World world, EntityItem item) {
-        if (item.addedToChunk) {
-            world.getChunkFromChunkCoords(item.chunkCoordX, item.chunkCoordZ).removeEntity(item);
+        if (!item.addedToChunk) {
+            return;
         }
+        removeLoadedItem(world, item);
+    }
+
+    /** Takes an item that is in a chunk out of it, the way the world's own update does. */
+    private static void removeLoadedItem(World world, EntityItem item) {
+        world.getChunkFromChunkCoords(item.chunkCoordX, item.chunkCoordZ).removeEntity(item);
     }
 
     @Override
@@ -787,14 +885,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
      */
     @GrugGenerated("out of the world: the room a batch builds is around the player")
     private void writeBatched(World world, int x, int y, int z, int blockId) {
-        if (x >= -30000000
-                && z >= -30000000
-                && x < 30000000
-                && z < 30000000
-                && y >= 0
-                && y < 256
-                && world.getChunkFromChunkCoords(x >> 4, z >> 4)
-                        .setBlockID(x & 15, y, z & 15, blockId)) {
+        if (x >= -30000000 && z >= -30000000 && x < 30000000 && z < 30000000 && y >= 0 && y < 256) {
+            writeBatchBlock(world, x, y, z, blockId);
+        }
+    }
+
+    /** The write of one block of a batch, at a position the bounds check has accepted. */
+    private void writeBatchBlock(World world, int x, int y, int z, int blockId) {
+        if (world.getChunkFromChunkCoords(x >> 4, z >> 4).setBlockID(x & 15, y, z & 15, blockId)) {
             batchPosition(x, y, z);
             world.notifyBlockChange(x, y, z, blockId);
         }
@@ -829,65 +927,75 @@ public class Grug125Adapter implements ModLoaderAdapter {
         return CANONICAL_BLOCKS.canonicalName(localName);
     }
 
-    @GrugGenerated("block resolution: a no-match fallback cannot be forced")
+    /**
+     * The block a name resolves to, or null if nothing answers it.
+     *
+     * <p>Three registries in the order a reference run needs them, with the scans behind the marker
+     * and the per-entry name matches measured. The reference scan itself only runs in a reference
+     * run, so it stays behind the marker whole.
+     */
     private Block resolveBlock(String path) {
-        Block targetBlock = null;
-
-        // 1. Try resolving custom Grug blocks
-        for (Map.Entry<String, GrugBlockData> entry : GrugDeclarations.declaredBlocks.entrySet()) {
-            if (entry.getKey().endsWith(":" + path) || entry.getKey().equals(path)) {
-                Long fileId =
-                        GrugDeclarations.blockDataByFileId.entrySet().stream()
-                                .filter(e -> e.getValue().id.equals(entry.getKey()))
-                                .map(Map.Entry::getKey)
-                                .findFirst()
-                                .orElse(null);
-
-                if (fileId != null) {
-                    for (Block block : Block.blocksList) {
-                        if (block instanceof GrugBlock
-                                && ((GrugBlock) block).blockFileId == fileId) {
-                            targetBlock = block;
-                            break;
-                        }
-                    }
-                }
-            }
+        // 1. A declared grug block.
+        Block declared = declaredBlock(path);
+        if (declared != null) {
+            return declared;
         }
 
-        // 2. Try resolving vanilla blocks from the generated name table, under the name this loader
-        // spells the canonical name with. A grug block keeps its own name, so the table only ever
-        // sees a vanilla one: step 1 has already looked for it under the name the script wrote.
-        if (targetBlock == null) {
-            int id = VanillaNames.blockId(localName(path));
-            if (id >= 0 && id < Block.blocksList.length) {
-                targetBlock = Block.blocksList[id];
-            }
+        // 2. A vanilla block from the generated name table, under the name this loader spells the
+        // canonical name with. A grug block keeps its own name, so the table only ever sees a
+        // vanilla one: step 1 has already looked for it under the name the script wrote.
+        Block vanilla = vanillaBlock(path);
+        if (vanilla != null) {
+            return vanilla;
         }
 
-        // 3. A reference run places the real mod's block. 1.2.5 predates block registry names, so
-        //    fall back to the name the block set for itself: BuildCraft calls
-        //    setBlockName("autoWorkbenchBlock"), and Block stores that as
-        //    "tile.autoWorkbenchBlock".
-        if (targetBlock == null) {
-            String blockName = "tile." + path;
-            for (Block block : Block.blocksList) {
-                if (block == null) {
-                    continue;
-                }
-                // A block may have no name of its own but an item that names it, which is how
-                // BuildCraft's BlockEngine is reachable: ItemEngine names metadata 0
-                // tile.engineWood.
-                Item item = Item.itemsList[block.blockID];
-                String itemName = item == null ? null : item.getItemNameIS(new ItemStack(block));
-                if (blockName.equals(block.getBlockName()) || blockName.equals(itemName)) {
-                    targetBlock = block;
-                    break;
-                }
+        // 3. A reference run places the real mod's block, by the name the block set for itself.
+        return referenceBlock(path);
+    }
+
+    private static Block declaredBlock(String path) {
+        Long fileId = declaredBlockFileId(path);
+        if (fileId == null) {
+            return null;
+        }
+        return blockWithFileId(fileId);
+    }
+
+    private static Block vanillaBlock(String path) {
+        return vanillaBlockInTable(VanillaNames.blockId(localName(path)));
+    }
+
+    @GrugGenerated("vanilla block lookup: the table only names ids the block table holds")
+    private static Block vanillaBlockInTable(int id) {
+        if (id >= 0 && id < Block.blocksList.length) {
+            return Block.blocksList[id];
+        }
+        return null;
+    }
+
+    /**
+     * A reference run's blocks, by the name the block set for itself: 1.2.5 predates block registry
+     * names. BuildCraft calls {@code setBlockName("autoWorkbenchBlock")}, and Block stores that as
+     * "tile.autoWorkbenchBlock". A block may have no name of its own but an item that names it,
+     * which is how BuildCraft's BlockEngine is reachable: ItemEngine names metadata 0
+     * tile.engineWood.
+     */
+    @GrugGenerated(
+            "reference-only fallback: only a reference mod names a block, so no grug test reaches"
+                    + " this scan")
+    private static Block referenceBlock(String path) {
+        String blockName = "tile." + path;
+        for (Block block : Block.blocksList) {
+            if (block == null) {
+                continue;
+            }
+            Item item = Item.itemsList[block.blockID];
+            String itemName = item == null ? null : item.getItemNameIS(new ItemStack(block));
+            if (blockName.equals(block.getBlockName()) || blockName.equals(itemName)) {
+                return block;
             }
         }
-
-        return targetBlock;
+        return null;
     }
 
     @Override
@@ -950,14 +1058,23 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * does not name are broken state rather than an answer a run reaches, so they carry the
      * annotation instead of a test.
      */
-    @GrugGenerated(
-            "block names: an id outside the tables, a grug block with no data and an id the table"
-                    + " does not name cannot be forced from a headless test")
     private static String blockName(int id) {
         if (id == 0) {
             return "minecraft:air";
         }
+        String declared = declaredBlockName(id);
+        if (declared != null) {
+            return declared;
+        }
+        // Mapped through the canonical table so a mod sees the same name it would on any other
+        // loader, rather than 1.2.5's MCP field name, which resolves nowhere else.
+        return namedBlock(VanillaNames.blockName(id));
+    }
 
+    @GrugGenerated(
+            "block names: an id outside the tables and a grug block with no data cannot be forced"
+                    + " from a headless test")
+    private static String declaredBlockName(int id) {
         if (id > 0 && id < Block.blocksList.length) {
             Block block = Block.blocksList[id];
             if (block instanceof GrugBlock) {
@@ -968,10 +1085,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
                 }
             }
         }
+        return null;
+    }
 
-        // Mapped through the canonical table so a mod sees the same name it would on any other
-        // loader, rather than 1.2.5's MCP field name, which resolves nowhere else.
-        String name = VanillaNames.blockName(id);
+    @GrugGenerated(
+            "block names: an id the table does not name cannot be forced from a headless test")
+    private static String namedBlock(String name) {
         return name == null ? "minecraft:unknown" : canonicalName(name);
     }
 
@@ -1085,6 +1204,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
         renderSettle.reset();
         EntityPlayer player = (EntityPlayer) testPlayer();
         if (player == null) return;
+        buildBoxAt(player, radius);
+    }
+
+    private void buildBoxAt(EntityPlayer player, int radius) {
         GrugTestBox.build(this, getLevel(), player.posX, player.posY - 1.62, player.posZ, radius);
     }
 
@@ -1093,6 +1216,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
     public void sweepTestItems() {
         EntityPlayer player = (EntityPlayer) testPlayer();
         if (player == null) return;
+        sweepItemsAt(player);
+    }
+
+    private void sweepItemsAt(EntityPlayer player) {
         GrugTestBox.sweepItems(this, getLevel(), player.posX, player.posY - 1.62, player.posZ);
     }
 
@@ -1140,34 +1267,29 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * the chunk the loader loaded, so it came back through the save's 12-bit id rather than out of
      * a field. See #518 and the measurement in #513.
      */
+    @Override
+    public long highBlockRoundTrip() {
+        return highBlockRoundTrip(ModLoader.getMinecraftInstance().theWorld);
+    }
+
     @GrugGenerated(
             "test-only round trip: its failure arms need a game that refuses the write, an"
                     + " unwritable save, an exhausted id pool or a corrupted read-back, none of"
                     + " which a run can force; the grug test asserts the id it answers")
-    @Override
-    public long highBlockRoundTrip() {
-        World world = ModLoader.getMinecraftInstance().theWorld;
+    private long highBlockRoundTrip(World world) {
         if (world == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.high_block_round_trip: There is no level to test in yet.");
             return -1L;
         }
 
-        Vec3 origin = getTestOrigin();
-        int ox = (int) Math.floor(origin.x());
-        int oy = (int) Math.floor(origin.y());
-        int oz = (int) Math.floor(origin.z());
+        BlockPos origin = originBlock();
+        int ox = origin.x();
+        int oy = origin.y();
+        int oz = origin.z();
 
-        // Every low id the pack's other mods left free is taken now, the overrun #509 hit. The
-        // stand-ins are items only, because a block's id and its item's sit in the same slot of
-        // the two tables the search looks at, and an item is the smaller of the two to set aside.
-        List<Integer> standIns = new ArrayList<>();
-        for (int id = GrugBlocks.START_BLOCK_ID; id <= GrugBlocks.LAST_BLOCK_ID; id++) {
-            if (Block.blocksList[id] == null && Item.itemsList[id] == null) {
-                Item.itemsList[id] = new GrugItem(id - 256, Grug.INVALID_GRUG_FILE_ID);
-                standIns.add(id);
-            }
-        }
+        // Every low id the pack's other mods left free is taken now, the overrun #509 hit.
+        List<Integer> standIns = takeStandIns();
 
         // The pool registration takes ids from, with the low range used up: only a search that
         // continues above 255 has a free id to hand out.
@@ -1186,15 +1308,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
         }
         int highId = pool.take();
 
-        Block block = new HighBlockRoundTripBlock(highId);
-        block.setBlockName(HIGH_BLOCK_ID);
-        ModLoader.registerBlock(block);
-
-        int before = world.getBlockId(ox, oy, oz);
-        world.setBlockWithNotify(ox, oy, oz, highId);
+        registerRoundTripBlock(highId);
+        int before = placeRoundTripBlock(world, ox, oy, oz, highId);
         if (world.getBlockId(ox, oy, oz) != highId) {
             releaseStandIns(standIns);
-            world.setBlockWithNotify(ox, oy, oz, before);
+            restoreRoundTripBlock(world, ox, oy, oz, before);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.high_block_round_trip: the game did not put the test block at "
@@ -1207,21 +1325,18 @@ public class Grug125Adapter implements ModLoaderAdapter {
             return -1L;
         }
 
-        Chunk chunk = world.getChunkFromBlockCoords(ox, oz);
-        IChunkLoader loader = world.getSaveHandler().getChunkLoader(world.worldProvider);
         Chunk loaded;
         try {
-            loader.saveChunk(world, chunk);
-            loaded = loader.loadChunk(world, ox >> 4, oz >> 4);
+            loaded = saveAndLoad(world, ox, oz);
         } catch (IOException e) {
             releaseStandIns(standIns);
-            world.setBlockWithNotify(ox, oy, oz, before);
+            restoreRoundTripBlock(world, ox, oy, oz, before);
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.high_block_round_trip: " + e);
             return -1L;
         }
         if (loaded == null) {
             releaseStandIns(standIns);
-            world.setBlockWithNotify(ox, oy, oz, before);
+            restoreRoundTripBlock(world, ox, oy, oz, before);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.high_block_round_trip: the chunk's save and load came back with no"
@@ -1229,12 +1344,10 @@ public class Grug125Adapter implements ModLoaderAdapter {
             return -1L;
         }
 
-        // The id the loaded chunk's own storage holds, not the one the world's still does: that is
-        // the id the save format carried.
-        int readBack = loaded.getBlockID(ox & 15, oy, oz & 15);
+        int readBack = readBackId(loaded, ox, oy, oz);
         if (readBack != highId) {
             releaseStandIns(standIns);
-            world.setBlockWithNotify(ox, oy, oz, before);
+            restoreRoundTripBlock(world, ox, oy, oz, before);
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.high_block_round_trip: block id "
@@ -1249,9 +1362,79 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
         // The cell and the tables the way the test found them; the block stays registered, the way
         // a block of the pack's would be, with its item at the same slot.
-        world.setBlockWithNotify(ox, oy, oz, before);
+        restoreRoundTripBlock(world, ox, oy, oz, before);
         releaseStandIns(standIns);
         return highId;
+    }
+
+    /** The block position the test origin names, floored the way every block position is. */
+    private BlockPos originBlock() {
+        Vec3 origin = getTestOrigin();
+        return new BlockPos(
+                (int) Math.floor(origin.x()),
+                (int) Math.floor(origin.y()),
+                (int) Math.floor(origin.z()));
+    }
+
+    /**
+     * Takes every low id the pack's other mods left free, as stand-in items.
+     *
+     * <p>The stand-ins are items only, because a block's id and its item's sit in the same slot of
+     * the two tables the search looks at, and an item is the smaller of the two to set aside.
+     */
+    private static List<Integer> takeStandIns() {
+        List<Integer> standIns = new ArrayList<>();
+        for (int id = GrugBlocks.START_BLOCK_ID; id <= GrugBlocks.LAST_BLOCK_ID; id++) {
+            standInFor(id, standIns);
+        }
+        return standIns;
+    }
+
+    private static void standInFor(int id, List<Integer> standIns) {
+        if (standInNeeded(id)) {
+            addStandIn(id, standIns);
+        }
+    }
+
+    @GrugGenerated("stand-ins: a low id that already holds an item is not one a run leaves free")
+    private static boolean standInNeeded(int id) {
+        return Block.blocksList[id] == null && Item.itemsList[id] == null;
+    }
+
+    /** Sets an item aside at a free low id, so the pool cannot hand that id out. */
+    private static void addStandIn(int id, List<Integer> standIns) {
+        Item.itemsList[id] = new GrugItem(id - 256, Grug.INVALID_GRUG_FILE_ID);
+        standIns.add(id);
+    }
+
+    private static void registerRoundTripBlock(int highId) {
+        Block block = new HighBlockRoundTripBlock(highId);
+        block.setBlockName(HIGH_BLOCK_ID);
+        ModLoader.registerBlock(block);
+    }
+
+    /** Puts the test block down and answers the id the cell held before it. */
+    private static int placeRoundTripBlock(World world, int x, int y, int z, int highId) {
+        int before = world.getBlockId(x, y, z);
+        world.setBlockWithNotify(x, y, z, highId);
+        return before;
+    }
+
+    private static void restoreRoundTripBlock(World world, int x, int y, int z, int before) {
+        world.setBlockWithNotify(x, y, z, before);
+    }
+
+    private static Chunk saveAndLoad(World world, int ox, int oz) throws IOException {
+        Chunk chunk = world.getChunkFromBlockCoords(ox, oz);
+        IChunkLoader loader = world.getSaveHandler().getChunkLoader(world.worldProvider);
+        loader.saveChunk(world, chunk);
+        return loader.loadChunk(world, ox >> 4, oz >> 4);
+    }
+
+    private static int readBackId(Chunk loaded, int ox, int oy, int oz) {
+        // The id the loaded chunk's own storage holds, not the one the world's still does: that is
+        // the id the save format carried.
+        return loaded.getBlockID(ox & 15, oy, oz & 15);
     }
 
     /** Puts back the ids the stand-in items took, which the pack's other mods had left free. */
@@ -1283,11 +1466,16 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * <p>The class always holds one, so the loop never runs out of fields and the fatal after it
      * cannot fire; it is there so a different game build fails loudly instead of returning null.
      */
-    @GrugGenerated("Minecraft has exactly one Timer field, so the empty answer cannot be forced")
     private static Field timerField() {
+        Field field = findTimerField();
+        field.setAccessible(true);
+        return field;
+    }
+
+    @GrugGenerated("Minecraft has exactly one Timer field, so the empty answer cannot be forced")
+    private static Field findTimerField() {
         for (Field field : Minecraft.class.getDeclaredFields()) {
             if (field.getType() == Timer.class) {
-                field.setAccessible(true);
                 return field;
             }
         }
@@ -1317,11 +1505,14 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * <p>The field was made accessible when it was looked up, so reading it cannot fail and the
      * catch only reports a field that stopped being readable.
      */
-    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
     private static void setTimerSpeed(Minecraft minecraft, float speed) {
+        ((Timer) readTimer(minecraft)).timerSpeed = speed;
+    }
+
+    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+    private static Object readTimer(Minecraft minecraft) {
         try {
-            Timer timer = (Timer) TIMER.get(minecraft);
-            timer.timerSpeed = speed;
+            return TIMER.get(minecraft);
         } catch (IllegalAccessException e) {
             throw Grug.fatal("Minecraft's Timer field cannot be read", e);
         }
@@ -1383,10 +1574,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
      *
      * <p>A run keeps the difficulty its save has, so the other side of the flag cannot be reached.
      */
-    @GrugGenerated(
-            "difficulty: a run keeps one difficulty, so the other side of the flag is out of reach")
     private static void applySpawnFlags(World world) {
-        world.setAllowedSpawnTypes(world.difficultySetting > 0, true);
+        world.setAllowedSpawnTypes(GrugWorldReady.spawnsAllowed(world.difficultySetting), true);
     }
 
     @Override
@@ -1475,29 +1664,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * still the older one. See #257.
      */
     private boolean frameHadPendingWork(Minecraft minecraft) {
-        return frameNotReady(minecraft, chunkPending(minecraft));
-    }
-
-    /**
-     * Whether the frame was drawn before the window or the world was ready, or the chunks the
-     * renderer still owed.
-     *
-     * <p>A run sizes the window and has a renderer and a player before its first frame, so neither
-     * guard's true arm is reachable: the window at the wrong size is a frame from before the
-     * resolution swap, and the missing renderer or player is a frame from before the world.
-     */
-    @GrugGenerated(
-            "the window and world arms: a run sizes the window and has a renderer and a player"
-                    + " before its first frame")
-    private static boolean frameNotReady(Minecraft minecraft, boolean chunkPending) {
-        if (minecraft.displayWidth != GrugScreenshots.WIDTH
-                || minecraft.displayHeight != GrugScreenshots.HEIGHT) {
-            return true;
-        }
-        if (minecraft.renderGlobal == null || minecraft.thePlayer == null) {
-            return true;
-        }
-        return chunkPending;
+        return GrugRenderSettle.frameHadPendingWork(
+                minecraft.displayWidth,
+                minecraft.displayHeight,
+                minecraft.renderGlobal,
+                minecraft.thePlayer,
+                chunkPending(minecraft));
     }
 
     /**
@@ -1531,8 +1703,17 @@ public class Grug125Adapter implements ModLoaderAdapter {
         if (renderGlobal == null || minecraft.thePlayer == null) {
             return Collections.emptyList();
         }
+        return renderersToUpdate(renderGlobal);
+    }
+
+    private static List<?> renderersToUpdate(RenderGlobal renderGlobal) {
+        return (List<?>) readRenderers(renderGlobal);
+    }
+
+    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
+    private static Object readRenderers(RenderGlobal renderGlobal) {
         try {
-            return (List<?>) RENDERERS_TO_UPDATE.get(renderGlobal);
+            return RENDERERS_TO_UPDATE.get(renderGlobal);
         } catch (IllegalAccessException e) {
             throw Grug.fatal("Could not read RenderGlobal.worldRenderersToUpdate", e);
         }
@@ -1559,13 +1740,17 @@ public class Grug125Adapter implements ModLoaderAdapter {
      */
     private static final Field RENDERERS_TO_UPDATE = renderersToUpdateField();
 
+    private static Field renderersToUpdateField() {
+        Field field = findRenderersField();
+        field.setAccessible(true);
+        return field;
+    }
+
     @GrugGenerated(
             "the lookup of a field the reobfuscated game always carries, so its fatal cannot fire")
-    private static Field renderersToUpdateField() {
+    private static Field findRenderersField() {
         try {
-            Field field = RenderGlobal.class.getDeclaredField("k");
-            field.setAccessible(true);
-            return field;
+            return RenderGlobal.class.getDeclaredField("k");
         } catch (NoSuchFieldException e) {
             throw Grug.fatal("RenderGlobal has no worldRenderersToUpdate field", e);
         }
@@ -1597,7 +1782,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
             throw Grug.fatal(
                     "The test runner: there is no local player to snap to their block centre.");
         }
+        snapPlayer(player);
+    }
 
+    /** Saves where the player was and snaps them to their own block's centre. */
+    private void snapPlayer(EntityPlayer player) {
         savedX = player.posX;
         savedY = player.posY;
         savedZ = player.posZ;
@@ -1625,11 +1814,18 @@ public class Grug125Adapter implements ModLoaderAdapter {
         // this for every test that ends, so it must not report an error for those.
         if (!testPlayerSnapped) return;
         testPlayerSnapped = false;
+        restorePlayerIfPresent(ModLoader.getMinecraftInstance().thePlayer);
+    }
 
-        EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
-        if (player != null) {
-            player.setPositionAndRotation(savedX, savedY, savedZ, savedYaw, savedPitch);
-        }
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    private void restorePlayerIfPresent(EntityPlayer player) {
+        if (player == null) return;
+        restorePlayer(player);
+    }
+
+    /** Puts the saved position back on the player. */
+    private void restorePlayer(EntityPlayer player) {
+        player.setPositionAndRotation(savedX, savedY, savedZ, savedYaw, savedPitch);
     }
 
     @Override
@@ -1643,19 +1839,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
     @Override
     public boolean isScreenOpenForTest() {
         // The empty screen close_screen displays is not an open screen as far as a test can tell.
-        return screenIsOpen(ModLoader.getMinecraftInstance().currentScreen);
-    }
-
-    /**
-     * Whether a screen a test can see is up.
-     *
-     * <p>A test always has a screen to read: the runner displays {@link GrugEmptyScreen} before the
-     * first one and {@code close_screen} puts it back, so the null arm is the call from outside a
-     * test, which no run makes.
-     */
-    @GrugGenerated("the no-screen arm: a test always has GrugEmptyScreen up")
-    private static boolean screenIsOpen(GuiScreen screen) {
-        return screen != null && !(screen instanceof GrugEmptyScreen);
+        return GrugTestScreens.isOpen(
+                ModLoader.getMinecraftInstance().currentScreen, GrugEmptyScreen.class);
     }
 
     @Override
@@ -1677,29 +1862,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
         int blockZ = (int) Math.floor(z);
 
         // 1.2.5 hands back a block id rather than a Block.
-        int blockId = world.getBlockId(blockX, blockY, blockZ);
-        Block block =
-                (blockId >= 0 && blockId < Block.blocksList.length)
-                        ? Block.blocksList[blockId]
-                        : null;
+        int blockId = blockIdAt(world, x, y, z);
+        Block block = blockAt(blockId);
 
         if (block != null) {
-            // Go through the client's own right-click, which asks the block's activation first and
-            // the held item after, so the test drives the same path a real click does and a block
-            // that declines leaves the click to the item. This is not restricted to grug blocks:
-            // real mods open their GUI from a server-side activation (BuildCraft's
-            // BlockAutoWorkbench does exactly this), and the test only has to trigger it, not
-            // reproduce it.
-            ModLoader.getMinecraftInstance()
-                    .playerController
-                    .onPlayerRightClick(
-                            player,
-                            world,
-                            player.inventory.getCurrentItem(),
-                            blockX,
-                            blockY,
-                            blockZ,
-                            1);
+            rightClickBlock(player, world, blockX, blockY, blockZ);
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -1711,6 +1878,39 @@ public class Grug125Adapter implements ModLoaderAdapter {
                             + blockZ
                             + ".");
         }
+    }
+
+    /** The id of the block at a world position, floored the way every block position is. */
+    private static int blockIdAt(World world, double x, double y, double z) {
+        return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+    }
+
+    @GrugGenerated("block resolution: an id outside the tables cannot be forced")
+    private static Block blockAt(int blockId) {
+        return (blockId >= 0 && blockId < Block.blocksList.length)
+                ? Block.blocksList[blockId]
+                : null;
+    }
+
+    /**
+     * Goes through the client's own right-click, which asks the block's activation first and the
+     * held item after, so the test drives the same path a real click does and a block that declines
+     * leaves the click to the item. This is not restricted to grug blocks: real mods open their GUI
+     * from a server-side activation (BuildCraft's BlockAutoWorkbench does exactly this), and the
+     * test only has to trigger it, not reproduce it.
+     */
+    private static void rightClickBlock(
+            EntityPlayer player, World world, int blockX, int blockY, int blockZ) {
+        ModLoader.getMinecraftInstance()
+                .playerController
+                .onPlayerRightClick(
+                        player,
+                        world,
+                        player.inventory.getCurrentItem(),
+                        blockX,
+                        blockY,
+                        blockZ,
+                        1);
     }
 
     @Override
@@ -1749,30 +1949,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
             return false;
         }
 
-        // One overlay pass for the block, the way a frame draws it while the player holds the
-        // attack button, at the middle of the break. Drawing between frames goes into the buffer
-        // the next frame clears, and the state it leaves is the game's own.
-        MovingObjectPosition hit =
-                new MovingObjectPosition(
-                        blockX,
-                        blockY,
-                        blockZ,
-                        1,
-                        Vec3D.createVectorHelper(blockX + 0.5, blockY + 0.5, blockZ + 0.5));
-        GrugBoxRenderer.resetOverlayProbe();
-        float previousDamage = mc.renderGlobal.damagePartialTime;
-        mc.renderGlobal.damagePartialTime = 0.5F;
-        mc.renderGlobal.drawBlockBreaking(player, hit, 0, player.inventory.getCurrentItem(), 0.0F);
-        mc.renderGlobal.damagePartialTime = previousDamage;
+        boolean drew = drawMiningOverlay(player, blockX, blockY, blockZ);
 
         // The shape has to be a full cube again, or every later block of this type in the same
         // chunk compile is reshaped by the last box the overlay drew.
-        if (block.minX != 0.0
-                || block.minY != 0.0
-                || block.minZ != 0.0
-                || block.maxX != 1.0
-                || block.maxY != 1.0
-                || block.maxZ != 1.0) {
+        if (!fullCube(block)) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "Test.mining_crack: The overlay left the block at "
@@ -1797,7 +1978,40 @@ public class Grug125Adapter implements ModLoaderAdapter {
             return false;
         }
 
+        return drew;
+    }
+
+    /**
+     * One overlay pass for the block, the way a frame draws it while the player holds the attack
+     * button, at the middle of the break. Drawing between frames goes into the buffer the next
+     * frame clears, and the state it leaves is the game's own.
+     */
+    private static boolean drawMiningOverlay(
+            EntityPlayer player, int blockX, int blockY, int blockZ) {
+        Minecraft mc = ModLoader.getMinecraftInstance();
+        MovingObjectPosition hit =
+                new MovingObjectPosition(
+                        blockX,
+                        blockY,
+                        blockZ,
+                        1,
+                        Vec3D.createVectorHelper(blockX + 0.5, blockY + 0.5, blockZ + 0.5));
+        GrugBoxRenderer.resetOverlayProbe();
+        float previousDamage = mc.renderGlobal.damagePartialTime;
+        mc.renderGlobal.damagePartialTime = 0.5F;
+        mc.renderGlobal.drawBlockBreaking(player, hit, 0, player.inventory.getCurrentItem(), 0.0F);
+        mc.renderGlobal.damagePartialTime = previousDamage;
         return GrugBoxRenderer.overlayDrew();
+    }
+
+    @GrugGenerated("a shape the overlay left non-cubic cannot be forced: the overlay resets it")
+    private static boolean fullCube(Block block) {
+        return block.minX == 0.0
+                && block.minY == 0.0
+                && block.minZ == 0.0
+                && block.maxX == 1.0
+                && block.maxY == 1.0
+                && block.maxZ == 1.0;
     }
 
     @Override
@@ -1814,11 +2028,19 @@ public class Grug125Adapter implements ModLoaderAdapter {
         if (capture == null) {
             return; // captureChecked already reported why
         }
+        verifyCapture(capture, referencePath, tolerancePercent);
+    }
 
-        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the reference directory on disk. That directory holds PNGs named
-        // after the loaders that produced them, and the assertion passes if the capture matches
-        // any of them; see GrugScreenshots.
+    /**
+     * Compares a capture with the reference PNGs beside the mod.
+     *
+     * <p>grug resolves a resource to "&lt;mod name&gt;/&lt;path relative to the mod&gt;", so
+     * joining it onto the mods root gives the reference directory on disk. That directory holds
+     * PNGs named after the loaders that produced them, and the assertion passes if the capture
+     * matches any of them; see GrugScreenshots.
+     */
+    private void verifyCapture(
+            BufferedImage capture, String referencePath, double tolerancePercent) {
         File referenceDirectory = new File(getGrugModsDirectory(), referencePath);
         GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
     }
@@ -1833,15 +2055,17 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * Both screenshot entry points share this so a bad coordinate is reported the same way either
      * way; only the name in front of the message differs.
      */
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private BufferedImage captureChecked(
             String operation, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
-        // rather than as a mysterious capture failure.
+        // rather than as a mysterious capture failure. The window check joins the chain last, so
+        // the failures a test can cause are reported the same way they were before it.
+        Minecraft mc = ModLoader.getMinecraftInstance();
         String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
         if (bad == null) bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
         if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
         if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
+        if (bad == null) bad = windowSizeError(mc);
         if (bad != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, operation + ": " + bad);
             return null;
@@ -1870,28 +2094,30 @@ public class Grug125Adapter implements ModLoaderAdapter {
             return null;
         }
 
-        // A defensive safety net rather than the primary sizing mechanism: R forces 1280x720 around
-        // a test run. If that ever stops happening, a mismatch here is much easier to diagnose than
-        // a screen of subtly wrong pixels.
-        Minecraft mc = ModLoader.getMinecraftInstance();
+        return captureRectangle(operation, left, top, right, bottom, mc.displayHeight);
+    }
+
+    /**
+     * A message naming the window when it is not the size a capture reads, or null.
+     *
+     * <p>A defensive safety net rather than the primary sizing mechanism: R forces 1280x720 around
+     * a test run. If that ever stops happening, a mismatch here is much easier to diagnose than a
+     * screen of subtly wrong pixels.
+     */
+    @GrugGenerated("the window arm: a run sizes the window to the capture size before a test")
+    private static String windowSizeError(Minecraft mc) {
         if (mc.displayWidth != GrugScreenshots.WIDTH
                 || mc.displayHeight != GrugScreenshots.HEIGHT) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    operation
-                            + ": the window is "
-                            + mc.displayWidth
-                            + "x"
-                            + mc.displayHeight
-                            + ", but screenshot tests are captured at "
-                            + GrugScreenshots.WIDTH
-                            + "x"
-                            + GrugScreenshots.HEIGHT);
-            return null;
+            return "the window is "
+                    + mc.displayWidth
+                    + "x"
+                    + mc.displayHeight
+                    + ", but screenshot tests are captured at "
+                    + GrugScreenshots.WIDTH
+                    + "x"
+                    + GrugScreenshots.HEIGHT;
         }
-
-        return captureRectangle(
-                operation, (int) x1, (int) y1, (int) x2, (int) y2, mc.displayHeight);
+        return null;
     }
 
     /** Returns null if the coordinate is in range, or a message naming it if it is not. */
@@ -1933,49 +2159,63 @@ public class Grug125Adapter implements ModLoaderAdapter {
 
         ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
 
-        try {
-            GlBridge.readPixels(x1, glY, width, height, pixels);
-        } catch (RuntimeException e) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, operation + ": the pixel readback failed unexpectedly: " + e);
-            return null;
-        }
-        int glError = GlBridge.getError();
-
-        if (glError != GlBridge.noError()) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    operation
-                            + ": glReadPixels failed with GL error 0x"
-                            + Integer.toHexString(glError)
-                            + ", so the capture cannot be trusted. A multisampled or otherwise "
-                            + "unreadable framebuffer is the usual cause.");
+        String failure = readPixels(operation, x1, glY, width, height, pixels);
+        if (failure != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, failure);
             return null;
         }
 
         try {
-            // Absolute gets, because glReadPixels leaves the buffer's position wherever it likes
-            // (LWJGL rewinds it before the read), so its position and limit cannot be relied on
-            // afterwards. glReadPixels also fills the buffer bottom row first, hence the reversed
-            // row index: the image's row 0 has to be the crop's top row, which is the buffer's
-            // last.
-            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            for (int row = 0; row < height; row++) {
-                for (int column = 0; column < width; column++) {
-                    int index = (row * width + column) * 4;
-                    int r = pixels.get(index) & 0xFF;
-                    int g = pixels.get(index + 1) & 0xFF;
-                    int b = pixels.get(index + 2) & 0xFF;
-                    // index + 3 is alpha, which the framebuffer may not even have; unused.
-                    image.setRGB(column, height - 1 - row, (r << 16) | (g << 8) | b);
-                }
-            }
-            return image;
+            return buildImage(pixels, width, height);
         } catch (RuntimeException e) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     operation + ": could not build an image from the readback: " + e);
             return null;
         }
+    }
+
+    /**
+     * Reads the rectangle back into the buffer, answering a report when the read failed or GL
+     * reported an error, or null when the pixels are the frame's.
+     */
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    private static String readPixels(
+            String operation, int x1, int glY, int width, int height, ByteBuffer pixels) {
+        try {
+            GlBridge.readPixels(x1, glY, width, height, pixels);
+        } catch (RuntimeException e) {
+            return operation + ": the pixel readback failed unexpectedly: " + e;
+        }
+        int glError = GlBridge.getError();
+        if (glError != GlBridge.noError()) {
+            return operation
+                    + ": glReadPixels failed with GL error 0x"
+                    + Integer.toHexString(glError)
+                    + ", so the capture cannot be trusted. A multisampled or otherwise "
+                    + "unreadable framebuffer is the usual cause.";
+        }
+        return null;
+    }
+
+    /** Builds the image from a readback, top row first. */
+    private static BufferedImage buildImage(ByteBuffer pixels, int width, int height) {
+        // Absolute gets, because glReadPixels leaves the buffer's position wherever it likes
+        // (LWJGL rewinds it before the read), so its position and limit cannot be relied on
+        // afterwards. glReadPixels also fills the buffer bottom row first, hence the reversed
+        // row index: the image's row 0 has to be the crop's top row, which is the buffer's
+        // last.
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int row = 0; row < height; row++) {
+            for (int column = 0; column < width; column++) {
+                int index = (row * width + column) * 4;
+                int r = pixels.get(index) & 0xFF;
+                int g = pixels.get(index + 1) & 0xFF;
+                int b = pixels.get(index + 2) & 0xFF;
+                // index + 3 is alpha, which the framebuffer may not even have; unused.
+                image.setRGB(column, height - 1 - row, (r << 16) | (g << 8) | b);
+            }
+        }
+        return image;
     }
 }

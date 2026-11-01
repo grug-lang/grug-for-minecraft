@@ -1,5 +1,7 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.GrugScreenshots;
+
 /**
  * Whether the frame a capture would read is one the client had no work left in.
  *
@@ -125,6 +127,34 @@ public final class GrugRenderSettle {
      */
     public static boolean lightSettled(boolean engineHasLightWork, boolean updateQueueEmpty) {
         return !engineHasLightWork && updateQueueEmpty;
+    }
+
+    /**
+     * Whether the frame that just finished still had work in it: it was drawn before the window
+     * reached the size a capture reads, before the renderer or the player existed, or with a chunk
+     * rebuild still owed.
+     *
+     * <p>The values are passed in rather than compared by the loader, so the conjunction is a pure
+     * function its unit test covers in every combination, instead of a loader carrying guards whose
+     * wrong-window or missing-player arm no run reaches. See #257 and #804.
+     *
+     * @param displayWidth the window width the frame was drawn at
+     * @param displayHeight the window height the frame was drawn at
+     * @param renderGlobal the client's renderer, or null before its world exists
+     * @param player the client's player, or null before its world exists
+     * @param chunkPending whether a chunk in view still owed a rebuild
+     */
+    public static boolean frameHadPendingWork(
+            int displayWidth,
+            int displayHeight,
+            Object renderGlobal,
+            Object player,
+            boolean chunkPending) {
+        return displayWidth != GrugScreenshots.WIDTH
+                || displayHeight != GrugScreenshots.HEIGHT
+                || renderGlobal == null
+                || player == null
+                || chunkPending;
     }
 
     /**

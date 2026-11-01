@@ -507,8 +507,26 @@ def findJava8 = {
 // terminates the game as soon as the tests pass, which can interrupt a shutdown-hook write, so
 // GrugCoverage cuts the segments from inside the game, as it does for every loader. Instrumentation
 // is limited to this project's classes, since instrumenting Minecraft would produce a huge exec for
-// no benefit; the grug class in the game's package is named on its own, because that package also
-// holds the game's own dev classes.
+// no benefit.
+//
+// The classes this project puts in the game's own package have to be named one by one, because the
+// agent's include list also covers the game's dev classes in that package. The srg reobfuscates
+// net/minecraft/src into the default package, so every source file there is one; the list is taken
+// from the tree rather than written out, so a loader copied from this one instruments every such
+// class it has instead of silently reporting them all as missed.
+def defaultPackageClassNames = {
+    def sourceDir = new File(projectDir, 'src/main/java/net/minecraft/src')
+    def names = []
+    if (sourceDir.isDirectory()) {
+        sourceDir.eachFile { file ->
+            if (file.isFile() && file.name.endsWith('.java')) {
+                names << file.name.substring(0, file.name.length() - '.java'.length())
+            }
+        }
+    }
+    return names
+}
+
 def jacocoLaunchArgs = {
     if (System.getenv('GRUG_CI') != 'true') {
         return []
@@ -520,9 +538,7 @@ def jacocoLaunchArgs = {
     return [
         "-Dgrug.coverage.dir=${execDir.absolutePath}",
         "-javaagent:${agent}=output=none,dumponexit=false," +
-            // The srg maps net/minecraft/src to the default package, so this class's runtime name is
-            // the bare one, which is also the jar entry reobfJar writes.
-            'includes=net.grug.*:GrugTorchFlicker',
+            'includes=' + (['net.grug.*'] + defaultPackageClassNames()).join(':'),
     ]
 }
 

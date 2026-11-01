@@ -767,12 +767,14 @@ jobs:
       # The coverage gate matches a class by its bytes, so it has to read the classes the agent
       # instrumented. ForgeGradle puts the Java output in build/sourcesSets/main and the Loom
       # loaders use build/classes/java/main; 1.2.5-forge runs reobfuscated, so its dev classes are
-      # not what ran (they still hold MCP names) and coverageClasses stages the jar's entries
-      # instead. Stage whichever the loader has so the coverage job sees a single layout.
+      # not what ran (they still hold MCP names) and its coverageClasses task stages the jar's
+      # entries at build/coverage-classes. A loader announces that stage by having the directory,
+      # not by its name, so copying 1.2.5's pattern to another reobfuscated loader cannot silently
+      # fall back to the dev classes and report every class as missed.
       - name: Stage the compiled classes
         run: |
           mkdir -p coverage-classes
-          if [ "${{ matrix.dir }}" = '1.2.5-forge' ]; then
+          if [ -d "loaders/${{ matrix.dir }}/build/coverage-classes" ]; then
             cp -r "loaders/${{ matrix.dir }}/build/coverage-classes/." coverage-classes/
           else
             for dir in \
