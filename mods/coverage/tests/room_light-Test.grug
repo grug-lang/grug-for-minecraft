@@ -1,0 +1,63 @@
+# Covers the light of the test room, which has to be the same field every time the default room is
+# built, whatever radii it was built at before. The sealed room is lit by its torches alone, so the
+# far wall and ceiling sit at a light level of a few steps, and a level more or less there is a few
+# levels of a dark texture: on 1.2.5, whose light engine updates one changed block at a time, the
+# default room built after a wider one held a different field from the one built after a narrower
+# one, which made every capture of a world behind a screen differ from run to run. See #961.
+
+# The rooms the test builds, in order. A radius of 3 is the default room; the others are wider and
+# narrower rooms that leave other torches and walls behind, in the order that left 1.2.5's default
+# room with different light on four of its eight rebuilds.
+step: number = 0
+
+# Whether the room for this step has been asked for yet.
+requested: bool = false
+
+# How many ticks this step has waited for the world to settle.
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not requested {
+        requested = true
+        waited = 0
+        Test.set_box_radius(_radius(step))
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    ctx.assert(waited < 1000, "The world should settle after the room is rebuilt.")
+    if not Test.world_settled() {
+        ctx.not_done()
+        return
+    }
+
+    # The quarter of the frame where the far wall and ceiling are. Every capture of the default
+    # room is compared with the same reference, so one built after a different radius that lit it
+    # otherwise fails here.
+    if _radius(step) == 3 {
+        Test.screenshot().equals(r"screenshots/room_light", 0, 0, 640, 360)
+    }
+
+    step = step + 1
+    if step < 8 {
+        requested = false
+        ctx.not_done()
+    }
+}
+
+local _radius(step_index: number) number {
+    if step_index == 0 {
+        return 6
+    }
+    if step_index == 2 {
+        return 5
+    }
+    if step_index == 4 {
+        return 2
+    }
+    if step_index == 6 {
+        return 7
+    }
+    return 3
+}
