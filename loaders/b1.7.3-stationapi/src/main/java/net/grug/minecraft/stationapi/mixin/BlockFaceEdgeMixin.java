@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi.mixin;
 
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugSpriteEdges;
+import net.grug.minecraft.stationapi.events.init.InitListener;
 import net.minecraft.block.Block;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.block.BlockRenderManager;
@@ -15,6 +16,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Holds a legacy block face's texture coordinate off the atlas boundary it stands exactly on.
@@ -87,6 +90,34 @@ abstract class BlockFaceEdgeMixin {
         grug$faceSprite.remove();
     }
 
+    /** Whether the diagnostic below has reported the u axis, so it reports that one once. */
+    @Unique private final AtomicBoolean grug$reportedU = new AtomicBoolean();
+
+    /** The same for the v axis. */
+    @Unique private final AtomicBoolean grug$reportedV = new AtomicBoolean();
+
+    /**
+     * Reports the first coordinate this moves and the sprite it moved on, once per axis.
+     *
+     * <p>A diagnostic of #919, not a defect report: it says whether the correction reached a face
+     * at all and what range that face's coordinates are in, which is what the measurement needs. It
+     * goes when #919 is settled.
+     */
+    @Unique
+    private void grug$report(
+            String axis, AtomicBoolean reported, double before, double after, Sprite sprite) {
+        if (before == after || !reported.compareAndSet(false, true)) return;
+        InitListener.LOGGER.info(
+                "Held a {} world coordinate off its sprite's edge of the atlas: {} to {}, on a"
+                        + " sprite spanning {} to {} and {} texels across.",
+                axis,
+                before,
+                after,
+                sprite.getMinU(),
+                sprite.getMaxU(),
+                sprite.getContents().getWidth());
+    }
+
     @Redirect(
             method = {
                 "renderBottomFace",
@@ -104,15 +135,19 @@ abstract class BlockFaceEdgeMixin {
             Tessellator tessellator, double x, double y, double z, double u, double v) {
         Sprite sprite = grug$faceSprite.get();
         if (sprite != null) {
-            u =
+            double heldU =
                     GrugSpriteEdges.edgeCoordinate(
                             u, sprite.getMinU(), sprite.getMaxU(), sprite.getContents().getWidth());
-            v =
+            double heldV =
                     GrugSpriteEdges.edgeCoordinate(
                             v,
                             sprite.getMinV(),
                             sprite.getMaxV(),
                             sprite.getContents().getHeight());
+            grug$report("u", grug$reportedU, u, heldU, sprite);
+            grug$report("v", grug$reportedV, v, heldV, sprite);
+            u = heldU;
+            v = heldV;
         }
         tessellator.vertex(x, y, z, u, v);
     }
