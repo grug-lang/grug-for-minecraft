@@ -66,7 +66,7 @@ public final class GrugOverlay {
      * pass, so it keeps answering false, and a test that needs the overlay to have drawn its one
      * job is the one that checks it.
      */
-    private static boolean overlayAsked = false;
+    private static volatile boolean overlayAsked = false;
 
     @GrugGenerated("utility class: never instantiated")
     private GrugOverlay() {}
