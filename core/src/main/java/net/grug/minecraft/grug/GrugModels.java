@@ -87,11 +87,7 @@ public final class GrugModels {
      * buildcraft/assets/grug/models/block/redstone_engine.json}.
      */
     public static List<GrugQuad> load(File modsDir, String resourcePath) throws Defect {
-        File file = new File(resourcePath);
-        if (!file.isAbsolute()) {
-            file = new File(modsDir, resourcePath);
-        }
-        return loadFile(modsDir, file).quads;
+        return loadFile(modsDir, modelPath(modsDir, resourcePath)).quads;
     }
 
     /**
@@ -105,11 +101,18 @@ public final class GrugModels {
      * own order.
      */
     public static List<GrugQuad> loadFrame(File modsDir, String resourcePath) throws Defect {
+        return loadFile(modsDir, modelPath(modsDir, resourcePath)).boxOrdered;
+    }
+
+    /**
+     * Where a model's resource path is on disk: its own path when it is absolute, else in a mod.
+     */
+    private static File modelPath(File modsDir, String resourcePath) {
         File file = new File(resourcePath);
         if (!file.isAbsolute()) {
             file = new File(modsDir, resourcePath);
         }
-        return loadFile(modsDir, file).boxOrdered;
+        return file;
     }
 
     /**
