@@ -475,7 +475,7 @@ class HostFunctionsStaleIdTest {
         HostFunctions.RenderFrameContext_draw_item(context, item, 0, 1, 0, 0, 0);
 
         assertEquals(List.of(staleMessage("RenderFrameContext.draw_item", "item", item)), reports);
-        assertTrue(GrugRenderPass.closeFrame().items().isEmpty(), "the frame holds no stack");
+        assertTrue(GrugRenderPass.closeFrame().draws().isEmpty(), "the frame holds no stack");
     }
 
     @Test

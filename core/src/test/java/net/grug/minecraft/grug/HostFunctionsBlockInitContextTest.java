@@ -67,6 +67,32 @@ class HostFunctionsBlockInitContextTest {
     }
 
     @Test
+    void aFrameRenderedBlockDrawsNoChunkGeometry() {
+        GrugBlockData block = new GrugBlockData(BLOCK);
+        long context = contextId(block);
+
+        HostFunctions.BlockInitContext_set_frame_render(context);
+        HostFunctions.BlockInitContext_set_flat_lighting(context);
+
+        assertTrue(block.customRender, "It still draws its own geometry, so the model is skipped.");
+        assertTrue(block.frameRender);
+        assertFalse(block.drawsChunkGeometry(), "A frame renderer draws all of it, per frame.");
+        assertTrue(block.flatLighting, "A per-frame model is drawn flat without further setup.");
+        assertTrue(drain().isEmpty(), "A legal call reports nothing.");
+    }
+
+    @Test
+    void aCustomRenderedBlockStillDrawsItsChunkGeometry() {
+        GrugBlockData block = new GrugBlockData(BLOCK);
+
+        HostFunctions.BlockInitContext_set_custom_render(contextId(block));
+
+        assertTrue(block.customRender);
+        assertFalse(block.frameRender);
+        assertTrue(block.drawsChunkGeometry());
+    }
+
+    @Test
     void flatLightingBeforeCustomRenderIsReportedAndNotDeclared() {
         GrugBlockData block = new GrugBlockData(BLOCK);
 
@@ -106,10 +132,11 @@ class HostFunctionsBlockInitContextTest {
         HostFunctions.BlockInitContext_set_inventory_size(context, 9);
         HostFunctions.BlockInitContext_set_block_entity(context, "grug:declared_entity");
         HostFunctions.BlockInitContext_set_custom_render(context);
+        HostFunctions.BlockInitContext_set_frame_render(context);
         HostFunctions.BlockInitContext_set_flat_lighting(context);
         HostFunctions.BlockInitContext_set_shape(context);
 
-        assertEquals(7, drain().size(), "Each refused call is reported.");
+        assertEquals(8, drain().size(), "Each refused call is reported.");
         assertEquals(new GrugBlockData(BLOCK).hardness, block.hardness);
         assertEquals(new GrugBlockData(BLOCK).material, block.material);
         assertFalse(block.customRender);

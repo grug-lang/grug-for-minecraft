@@ -1,5 +1,8 @@
 package net.grug.minecraft.forge.block;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockGeometry;
@@ -7,11 +10,14 @@ import net.grug.minecraft.grug.GrugBox;
 import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugGeometry;
+import net.grug.minecraft.grug.GrugModelDraw;
 import net.grug.minecraft.grug.GrugQuad;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.FaceInfo;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
@@ -31,7 +37,9 @@ import net.minecraftforge.client.model.pipeline.QuadBakingVertexConsumer;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Draws the boxes a grug block entity's render pass recorded, as the quads the game's own model
@@ -158,6 +166,13 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
             RandomSource rand,
             ModelData data,
             @Nullable RenderType renderType) {
+        // A block that declared set_frame_render draws all of its geometry from render_frame(), so
+        // the chunk's mesh holds none of it. That is a block that drew what it declared, not one
+        // that drew nothing, which is why no pass runs and nothing is reported.
+        if (state.getBlock() instanceof GrugBlock grugBlock && !grugBlock.drawsChunkGeometry()) {
+            return List.of();
+        }
+
         GrugGeometry geometry;
         // Serialized with the other meshing workers: this is the first thread that can run a block
         // entity's init, and init moves process-global state around the call into the VM
@@ -380,4 +395,59 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
     }
 
     private record Face(TextureAtlasSprite sprite, int tintIndex, boolean shade) {}
+
+    /**
+     * Draws one model the frame pass recorded, at the block entity the pose stack is already at,
+     * moved by the model's own offset.
+     *
+     * <p>This is the per-frame half of the quads {@link #getQuads} bakes: the same faces, from the
+     * same sprites, drawn on top of the chunk geometry every frame instead of once per rebuild. The
+     * vertices stay beside the block rather than at its place in the world, which is where a
+     * reference that draws the part from its own block entity renderer puts them. Every corner
+     * takes the block entity's light, with no shade per side, which is the flat lighting this
+     * version draws a block that declared set_flat_lighting with.
+     */
+    public static void drawInFrame(
+            GrugModelDraw draw, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
+        VertexConsumer vertices =
+                buffer.getBuffer(RenderType.entityCutout(InventoryMenu.BLOCK_ATLAS));
+        poseStack.pushPose();
+        poseStack.translate(draw.x(), draw.y(), draw.z());
+        PoseStack.Pose pose = poseStack.last();
+        for (Map.Entry<String, List<GrugQuad>> group : byTexture(draw.quads()).entrySet()) {
+            TextureAtlasSprite sprite =
+                    Minecraft.getInstance()
+                            .getModelManager()
+                            .getAtlas(InventoryMenu.BLOCK_ATLAS)
+                            .getSprite(new ResourceLocation(group.getKey()));
+            for (GrugQuad quad : group.getValue()) {
+                Direction side = DIRECTIONS[quad.side()];
+                for (int corner = 0; corner < 4; corner++) {
+                    vertices.vertex(
+                                    pose,
+                                    (float) quad.x(corner),
+                                    (float) quad.y(corner),
+                                    (float) quad.z(corner))
+                            .color(255, 255, 255, 255)
+                            .uv(
+                                    sprite.getU((float) quad.u(corner)),
+                                    sprite.getV((float) quad.v(corner)))
+                            .overlayCoords(OverlayTexture.NO_OVERLAY)
+                            .uv2(packedLight)
+                            .normal(side.getStepX(), side.getStepY(), side.getStepZ())
+                            .endVertex();
+                }
+            }
+        }
+        poseStack.popPose();
+    }
+
+    /** The faces grouped by texture path, keeping the order each texture first appears in. */
+    private static Map<String, List<GrugQuad>> byTexture(List<GrugQuad> quads) {
+        Map<String, List<GrugQuad>> groups = new LinkedHashMap<>();
+        for (GrugQuad quad : quads) {
+            groups.computeIfAbsent(quad.texture(), key -> new ArrayList<>()).add(quad);
+        }
+        return groups;
+    }
 }

@@ -263,7 +263,7 @@
 				},
 				{
 					"name": "render",
-					"description": "Called by the game while it builds this block's geometry, once per chunk rebuild, for a block whose init() called `set_custom_render`. Everything drawn through `ctx` replaces the block's model, so a machine can be a shape no model JSON describes. The result is baked into the chunk's mesh, so it is rebuilt only when the geometry is, and it cannot follow the camera or change between ticks: that is render_frame()'s job. Read the neighbours in this call rather than caching the shape, because the game calls it again after every neighbouring block change. A block that declares `set_custom_render` and draws nothing reports an error.",
+					"description": "Called by the game while it builds this block's geometry, once per chunk rebuild, for a block whose init() called set_custom_render. Everything drawn through `ctx` replaces the block's model, so a machine can be a shape no model JSON describes. The result is baked into the chunk's mesh, so it is rebuilt only when the geometry is, and it cannot follow the camera or change between ticks: that is render_frame()'s job. A part that moves every tick and shares a plane with a neighbour's is drawn from render_frame() instead, with set_frame_render, since a baked vertex sits at the block's place in the world where the reference's does not. Read the neighbours in this call rather than caching the shape, because the game calls it again after every neighbouring block change. A block that declares `set_custom_render` and draws nothing reports an error.",
 					"engine_called": true,
 					"parameters": [
 						{
@@ -276,7 +276,7 @@
 				},
 				{
 					"name": "render_frame",
-					"description": "Called by the game once per frame while this block entity is in view, after the chunk geometry has been drawn. Draw what changes between frames or follows the camera through `ctx`, at a block-local position measured the same way as RenderContext.draw_box. The output is drawn immediately and thrown away at the end of the frame, so it can read partial_tick() and camera_yaw(), which a chunk pass cannot. It is asked for a block whose init() called set_custom_render, and a script without this export is declined without a report. Drawing nothing is not an error: a machine with no item in flight has nothing to draw.",
+					"description": "Called by the game once per frame while this block entity is in view, after the chunk geometry has been drawn. Draw what changes between frames or follows the camera through `ctx`, at a block-local position measured the same way as RenderContext.draw_box: a stack with draw_item, which can turn to face the player, or a model with draw_model, which is drawn here at the precision a block entity renderer draws at rather than baked into the chunk's mesh. The output is drawn immediately and thrown away at the end of the frame, so it can read partial_tick() and camera_yaw(), which a chunk pass cannot. It is asked for a block whose init() called set_custom_render or set_frame_render, and a block that declared set_frame_render draws all of its geometry here. A script without this export is declined without a report, and drawing nothing is not an error either: a machine with no item in flight has nothing to draw.",
 					"engine_called": true,
 					"parameters": [
 						{
@@ -1733,10 +1733,14 @@
 					]
 				},
 				"set_custom_render": {
-					"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
+					"description": "Declares that this block draws its own geometry, from its block entity's render function, instead of the model its blockstate names. That is what lets a machine be a shape no model JSON can express: a pipe that reaches towards the pipes next to it, an engine whose moving part depends on its state. The geometry is baked into the chunk's mesh, once per rebuild, so it is the right call for a shape that only changes when a neighbouring block does; a machine whose parts move or turn every frame declares set_frame_render() instead, which draws all of its geometry from render_frame() and nothing into the chunk's mesh. The block still needs a block entity, since that is what the geometry is drawn by, and that block entity's script needs a render function; without one the block reports an error, because a block that draws nothing is not a shape anyone chose. The block's own texture still draws the geometry, so its model JSON decides which texture each face uses and nothing else. A block that draws its own geometry is not a full cube, so it does not block light or hide the faces of its neighbours, the way a block that is not opaque does not. Reports an error on a loader that cannot draw custom geometry at all. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
 				},
 				"set_flat_lighting": {
-					"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
+					"description": "Declares that this block's own geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point, and it is what its item form is drawn with too. The light at the block's own position is real light because a block that draws its own geometry is not opaque, which set_custom_render and set_frame_render declare. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after one of those two calls: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
+				},
+				"set_frame_render": {
+					"description": "Declares that this block draws all of its own geometry per frame, from its block entity's render_frame(), and nothing into the chunk's geometry. That is how the reference draws a machine from a block entity renderer: the chunk mesh bakes its vertices at the block's place in the world, where an edge that moves every tick can land on either side of a pixel's centre, while a frame draw keeps them beside the camera and lands where the reference's do. A frame-only block still has a model of its own, which is what its item form is drawn from, and it is still not a full cube, so it neither blocks light nor hides its neighbours' faces. It has to have a block entity whose script exports render_frame(), which is asked for every frame; a script without that export draws nothing at all, because the frame hook is the only place this block's geometry can come from. Its render() is never called, and drawing nothing in render_frame() is not an error, since a machine with no item in flight has nothing to draw. Calling set_custom_render() as well changes nothing, because this call already declares that the block draws its own geometry. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": []
 				},
 				"set_hardness": {
 					"description": "Sets the mining hardness of the block. Only legal on the context init() was passed, while that call is running: a context saved for later is refused.",
@@ -2641,7 +2645,7 @@
 					]
 				},
 				"draw_model": {
-					"description": "Draws a block model JSON's elements, turned about the block's centre by multiples of 90 degrees, as part of the geometry a block entity's render pass is building, each face with the texture the model names for it and at the texture coordinates its uv gives, the way the game draws that model from a blockstate. The model's parent chain is followed and its textures merged the way the game reads a model, so a model that only swaps one texture of its parent's is how one shape is drawn in several colours. Every loader draws from the same reading of the model, Alpha included, which has no model format of its own. Lit and face-culled the way the game lights every other block, with a face culled only when the model gives it a cullface. Only legal on the context render() was passed, while that call is running: a context saved for later is refused, because its geometry has already been baked. The angles are in degrees and have to be multiples of 90, and a turn is clockwise seen from the positive end of its axis, as the x and y of a blockstate variant are: an x of 90 carries up to north, a y of 90 carries north to east and a z of 90 carries up to east. The turns apply z first, then y, then x, the order a model renderer applies its rotation angles in, so a model turned about z alone keeps facing the same way round. A face keeps its texture and its uv, so its texture turns with it. After the turn the whole model moves by dx, dy and dz, in blocks along the world axes and not along the turned ones, so a part that slides along the way the model faces is moved by the same offset whichever way it was turned to face; pass 0, 0, 0 to leave it where it is. A moved face keeps its cull side, so a model that is moved out of the block should give no cullface. The offsets have to be finite numbers, or they are reported and the model is not drawn. Turning is how one set of boxes is faced six ways without the model being written six times; pass 0, 0, 0 to draw it as written. An angle that is not a multiple of 90 is reported and the model is not drawn. A model grug cannot draw as written is reported and not drawn: one that cannot be read or has no elements, a face whose texture key resolves to nothing, and an element or face rotated by anything other than 0 degrees, since drawing that unrotated would be a shape the model did not describe.",
+					"description": "Draws a block model JSON's elements, turned about the block's centre by multiples of 90 degrees, as part of the geometry a block entity's render pass is building, each face with the texture the model names for it and at the texture coordinates its uv gives, the way the game draws that model from a blockstate. The model's parent chain is followed and its textures merged the way the game reads a model, so a model that only swaps one texture of its parent's is how one shape is drawn in several colours. Every loader draws from the same reading of the model, Alpha included, which has no model format of its own. Lit and face-culled the way the game lights every other block, with a face culled only when the model gives it a cullface. Only legal on the context render() was passed, while that call is running: a context saved for later is refused, because its geometry has already been baked. The angles are in degrees and have to be multiples of 90, and a turn is clockwise seen from the positive end of its axis, as the x and y of a blockstate variant are: an x of 90 carries up to north, a y of 90 carries north to east and a z of 90 carries up to east. The turns apply z first, then y, then x, the order a model renderer applies its rotation angles in, so a model turned about z alone keeps facing the same way round. A face keeps its texture and its uv, so its texture turns with it. After the turn the whole model moves by dx, dy and dz, in blocks along the world axes and not along the turned ones, so a part that slides along the way the model faces is moved by the same offset whichever way it was turned to face; pass 0, 0, 0 to leave it where it is. A moved face keeps its cull side, so a model that is moved out of the block should give no cullface. The offsets have to be finite numbers, or they are reported and the model is not drawn. Turning is how one set of boxes is faced six ways without the model being written six times; pass 0, 0, 0 to draw it as written. An angle that is not a multiple of 90 is reported and the model is not drawn. A model grug cannot draw as written is reported and not drawn: one that cannot be read or has no elements, a face whose texture key resolves to nothing, and an element or face rotated by anything other than 0 degrees, since drawing that unrotated would be a shape the model did not describe. A part that moves every tick, or that has to land on the same pixel a block entity renderer puts it on, is drawn with RenderFrameContext.draw_model from render_frame() instead, where its vertices stay beside the block rather than at its place in the world.",
 					"parameters": [
 						{
 							"name": "model",
@@ -2734,6 +2738,54 @@
 						},
 						{
 							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"draw_model": {
+					"description": "Draws a block model JSON's elements for this frame, each face with the texture the model names for it, on top of the chunk geometry, turned by multiples of 90 degrees about the block's centre and moved by the offsets, exactly as RenderContext.draw_model draws them into the chunk's geometry. What differs is where the vertices are computed: a chunk mesh bakes them at the block's place in the world, while a frame draw keeps them beside the block's own position relative to the camera, which is where a reference that draws the same part from a block entity renderer draws them. A part that moves every tick and has an edge on a pixel's centre therefore lands on the same pixel as the reference's, which a baked copy of it cannot promise. Every face is drawn unlit, at full brightness, since a reference that draws its own block entities draws them with OpenGL lighting off; a block that wants the world's light on its geometry draws it in render() instead. The model's parent chain is followed and its textures merged the way the game reads a model, as with RenderContext.draw_model. Only legal on the context render_frame() was passed, while that call is running: a context saved for later is refused, because its geometry has already been drawn. The angles have to be multiples of 90, and the offsets have to be finite numbers, or the model is reported and not drawn. A model grug cannot draw as written is reported and not drawn, the same as in a chunk pass. Draws are made in the order the script calls them, so a model drawn after a stack covers it where the two overlap.",
+					"parameters": [
+						{
+							"name": "model",
+							"type": {
+								"name": "resource",
+								"resource_extension": ".json"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "dx",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "dy",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "dz",
 							"type": {
 								"name": "number"
 							}

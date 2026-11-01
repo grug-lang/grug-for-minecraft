@@ -1,7 +1,8 @@
-# The per-frame hook's two kinds of stack: a block, which the game draws as a cube, and an item,
-# which it draws as one flat sprite turned to face the player. The positions are block-local, the
-# same as draw_box's, and the pedestal is drawn once into the chunk so the two stacks are visibly on
-# top of it rather than floating in the room.
+# The per-frame hook's two kinds of draw: a model, drawn as the plate the two stacks stand on, and a
+# stack, which the game draws as a cube for a block item and as one flat sprite turned to face the
+# player. The positions are block-local, the same as draw_box's, and everything here is drawn per
+# frame rather than into the chunk, which is the path a reference's block entity renderer takes. See
+# the block's set_frame_render().
 
 # Hoisted to member scope so the frame does not create a new Item every frame.
 log: Item = item(resource_location("minecraft:oak_log"))
@@ -18,13 +19,13 @@ frame_yaw: number = 0
 # script error, so the run is unaffected.
 refused_bad_count: bool = false
 
-export render(ctx: RenderContext) {
-    ctx.draw_box(0.2, 0.0, 0.4, 0.8, 0.15, 0.6)
-}
-
 export render_frame(ctx: RenderFrameContext) {
     frame_tick = ctx.partial_tick()
     frame_yaw = ctx.camera_yaw()
+
+    # The plate the stacks stand on, drawn first so they are visibly on top of it rather than
+    # floating in the room.
+    ctx.draw_model(r"assets/grug/models/block/coverage_frame_pedestal.json", 0, 0, 0, 0.0, 0.0, 0.0)
 
     # A log is a block item, so it is a cube a quarter of a block across, lifted a quarter. The
     # stick is one flat sprite half a block across, lifted a tenth, turned to face the camera.

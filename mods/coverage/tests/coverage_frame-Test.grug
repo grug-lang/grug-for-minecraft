@@ -1,14 +1,15 @@
-# Covers the per-frame block-entity hook: a stack of a block drawn as a cube and a stack of an item
-# drawn as a sprite turned towards the camera, both on top of the chunk geometry, and both in front
-# of a wall whose light has settled. The screenshot is the assertion.
+# Covers the per-frame block-entity hook: a model drawn as the plate the two stacks stand on, a
+# stack of a block drawn as a cube, and a stack of an item drawn as a sprite turned towards the
+# camera, all on top of the chunk geometry and all in front of a wall whose light has settled. The
+# screenshot is the assertion.
 # The crop is a world-space rectangle at 1280x720, like coverage_render's: nothing here is a GUI
 # panel, so there is no virtual-space scaling to undo. The fixture sits where that test's run sits,
 # so the two crops line up and the same settled-light rules apply.
-# A frame pass draws every frame, so unlike the chunk geometry this test does not need a remesh for
-# the stacks themselves; the remesh is for the pedestal and the wall behind them.
+# The block declares set_frame_render(), so none of its own geometry is in the chunk's mesh and
+# everything it shows is drawn here every frame. The remesh below is for the wall behind it.
 frame_block: Option[BlockEntity] = Option.new()
 
-# Whether the pedestal and the wall have been meshed again from the settled light yet.
+# Whether the wall has been meshed again from the settled light yet.
 remeshed: bool = false
 
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
@@ -53,7 +54,7 @@ local _setup(ctx: TestTickContext) {
     z: number = origin.z()
 
     # The same place coverage_render's run sits: yaw 0 looks towards +z, and the frame block is four
-    # blocks in front of the camera so its pedestal and both stacks are in the crop below.
+    # blocks in front of the camera so its plate and both stacks are in the crop below.
     level.place_block(x, y - 1.88, z + 4, "grug:coverage_frame")
 
     # A stone wall behind it, so the stacks are compared against the wall's own settled light. Built
@@ -86,10 +87,10 @@ local _check(ctx: TestTickContext) {
     # below a picture of nothing that happens to match an empty reference.
     ctx.assert(frame_block.has(), "The frame-rendered block lost its block entity.")
 
-    # The block item's cube and the item's sprite against the stone wall. Pixel-exact: the stacks'
-    # own pixels are the same set on every loader, and the stone background differs per version
-    # because each shades a face from its own light table, so the reference directory holds one PNG
-    # per loader.
+    # The plate, the block item's cube and the item's sprite against the stone wall. Pixel-exact:
+    # what the hook draws is the same set on every loader, and the stone background differs per
+    # version because each shades a face from its own light table, so the reference directory holds
+    # one PNG per loader.
     Test.screenshot().equals(r"screenshots/coverage_frame", 500, 180, 780, 340)
 }
 

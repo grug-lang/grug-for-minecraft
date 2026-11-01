@@ -16,10 +16,13 @@ import java.util.List;
  *
  * <p>There are two kinds of pass. A chunk pass is opened for {@code render()} and records the
  * shapes the game bakes into a chunk's geometry. A frame pass is opened for {@code render_frame()}
- * and records the stacks drawn on top of that geometry every frame; it carries the frame's partial
- * tick and the direction the camera looks in, which is what lets a mod interpolate between ticks
- * and turn a sprite towards the player. The two kinds cannot be mixed: a chunk pass refuses
- * draw_item, and a frame pass refuses draw_box and draw_model, because neither has anywhere to go.
+ * and records the stacks and models drawn on top of that geometry every frame; it carries the
+ * frame's partial tick and the direction the camera looks in, which is what lets a mod interpolate
+ * between ticks and turn a sprite towards the player. The two kinds cannot be mixed: a chunk pass
+ * refuses draw_item, and a frame pass refuses draw_box, because neither has anywhere to go. Both
+ * accept draw_model, which is the same shape drawn where each pass can put it: a frame pass keeps a
+ * model's vertices near the block, which is what a reference that draws it from a block entity
+ * renderer does, and a chunk pass bakes them at the block's place in the world.
  *
  * <p>There is at most one open pass at a time. The caller ({@link GrugBlockGeometry}) holds {@link
  * GrugStateLock} across the whole pass, so two loaders on different threads cannot interleave their
@@ -49,7 +52,7 @@ public final class GrugRenderPass {
 
     private static final List<GrugBox> BOXES = new ArrayList<>();
     private static final List<GrugQuad> QUADS = new ArrayList<>();
-    private static final List<GrugItemDraw> ITEMS = new ArrayList<>();
+    private static final List<GrugFrameDraw> FRAME_DRAWS = new ArrayList<>();
     private static boolean open = false;
     private static boolean frame = false;
     private static Context context = null;
@@ -97,7 +100,7 @@ public final class GrugRenderPass {
         }
         BOXES.clear();
         QUADS.clear();
-        ITEMS.clear();
+        FRAME_DRAWS.clear();
         frame = isFrame;
         context = new Context();
         partialTick = framePartialTick;
@@ -141,7 +144,7 @@ public final class GrugRenderPass {
     }
 
     /**
-     * Closes a frame pass and returns the stacks it drew, in the order it drew them.
+     * Closes a frame pass and returns the stacks and models it drew, in the order it drew them.
      *
      * <p>Copies for the same reason as {@link #close()}.
      */
@@ -151,7 +154,7 @@ public final class GrugRenderPass {
                     "A block entity render pass was closed as a frame pass while it was a chunk"
                             + " pass.");
         }
-        GrugFrameGeometry geometry = new GrugFrameGeometry(new ArrayList<>(ITEMS));
+        GrugFrameGeometry geometry = new GrugFrameGeometry(new ArrayList<>(FRAME_DRAWS));
         finish();
         return geometry;
     }
@@ -159,7 +162,7 @@ public final class GrugRenderPass {
     private static void finish() {
         BOXES.clear();
         QUADS.clear();
-        ITEMS.clear();
+        FRAME_DRAWS.clear();
         frame = false;
         context = null;
         partialTick = 0.0;
@@ -169,8 +172,8 @@ public final class GrugRenderPass {
 
     /**
      * Reads the model at {@code modelPath} and records its faces turned about the block's centre,
-     * about z first, then y, then x, clockwise seen from the positive end of each axis. See {@link
-     * GrugQuad#turned}.
+     * about z first, then y, then x, clockwise seen from the positive end of each axis, and moved
+     * by the offsets. See {@link GrugQuad#turned}. The turned faces land in the chunk's geometry.
      *
      * @return null when the faces were recorded, or what stopped them, which the caller reports. An
      *     angle that is not a multiple of 90 degrees is refused, since a face cannot be turned by
@@ -188,6 +191,69 @@ public final class GrugRenderPass {
         if (!open || frame) {
             return "It can only be called while a block entity's render() is drawing.";
         }
+        String problem = modelProblem(xDegrees, yDegrees, zDegrees, dx, dy, dz);
+        if (problem != null) {
+            return problem;
+        }
+        try {
+            for (GrugQuad quad : GrugModels.load(modsDir, modelPath)) {
+                QUADS.add(
+                        quad.turned(
+                                        (int) (xDegrees / 90),
+                                        (int) (yDegrees / 90),
+                                        (int) (zDegrees / 90))
+                                .moved(dx, dy, dz));
+            }
+            return null;
+        } catch (GrugModels.Defect defect) {
+            return defect.getMessage();
+        }
+    }
+
+    /**
+     * Reads the model at {@code modelPath} and records its faces for the frame pass to draw every
+     * frame. The faces are turned the same way as {@link #recordModel}'s, but the offsets are kept
+     * apart from the corners rather than added to them, because a loader places the whole model
+     * where the reference translates its matrix, and a vertex near the block is what keeps the
+     * rounding of an edge that moves every tick out of the picture.
+     *
+     * @return null when the faces were recorded, or what stopped them, which the caller reports.
+     */
+    public static String recordFrameModel(
+            File modsDir,
+            String modelPath,
+            double xDegrees,
+            double yDegrees,
+            double zDegrees,
+            double dx,
+            double dy,
+            double dz) {
+        if (!isFrame()) {
+            return "It can only be called while a block entity's render_frame() is drawing.";
+        }
+        String problem = modelProblem(xDegrees, yDegrees, zDegrees, dx, dy, dz);
+        if (problem != null) {
+            return problem;
+        }
+        try {
+            List<GrugQuad> turned = new ArrayList<>();
+            for (GrugQuad quad : GrugModels.load(modsDir, modelPath)) {
+                turned.add(
+                        quad.turned(
+                                (int) (xDegrees / 90),
+                                (int) (yDegrees / 90),
+                                (int) (zDegrees / 90)));
+            }
+            FRAME_DRAWS.add(new GrugModelDraw(turned, dx, dy, dz));
+            return null;
+        } catch (GrugModels.Defect defect) {
+            return defect.getMessage();
+        }
+    }
+
+    /** What is wrong with a draw_model call's numbers, or null when they can be drawn. */
+    private static String modelProblem(
+            double xDegrees, double yDegrees, double zDegrees, double dx, double dy, double dz) {
         if (!isQuarterTurns(xDegrees) || !isQuarterTurns(yDegrees) || !isQuarterTurns(zDegrees)) {
             return "The angles have to be multiples of 90 degrees, but they were "
                     + xDegrees
@@ -206,19 +272,7 @@ public final class GrugRenderPass {
                     + dz
                     + ".";
         }
-        try {
-            for (GrugQuad quad : GrugModels.load(modsDir, modelPath)) {
-                QUADS.add(
-                        quad.turned(
-                                        (int) (xDegrees / 90),
-                                        (int) (yDegrees / 90),
-                                        (int) (zDegrees / 90))
-                                .moved(dx, dy, dz));
-            }
-            return null;
-        } catch (GrugModels.Defect defect) {
-            return defect.getMessage();
-        }
+        return null;
     }
 
     private static boolean isQuarterTurns(double degrees) {
@@ -268,7 +322,7 @@ public final class GrugRenderPass {
             return false;
         }
 
-        ITEMS.add(new GrugItemDraw(item, damage, count, x, y, z));
+        FRAME_DRAWS.add(new GrugItemDraw(item, damage, count, x, y, z));
         return true;
     }
 

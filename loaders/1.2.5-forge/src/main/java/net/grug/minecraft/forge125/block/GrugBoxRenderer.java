@@ -77,6 +77,10 @@ public final class GrugBoxRenderer {
         GrugBlock grugBlock = (GrugBlock) block;
         if (!grugBlock.drawsCustomGeometry()) return false;
 
+        // A block that declared set_frame_render draws all of its geometry per frame, so its chunk
+        // holds none of it. That is a block that drew what it declared, not one that drew nothing.
+        if (!grugBlock.drawsChunkGeometry()) return true;
+
         TileEntity blockEntity = world.getBlockTileEntity(x, y, z);
         if (!(blockEntity instanceof GrugBlockEntity)) return false;
         GrugBlockEntity grugBlockEntity = (GrugBlockEntity) blockEntity;

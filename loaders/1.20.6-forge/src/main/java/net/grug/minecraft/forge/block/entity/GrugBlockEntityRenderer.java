@@ -4,11 +4,14 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 
+import net.grug.minecraft.forge.block.GrugBakedModel;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.grug.GrugBlockGeometry;
+import net.grug.minecraft.grug.GrugFrameDraw;
 import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
+import net.grug.minecraft.grug.GrugModelDraw;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -36,9 +39,12 @@ import net.minecraft.world.level.block.state.BlockState;
  * <p>The stack is drawn the way this version draws a dropped item: a block through the item
  * renderer's own model, which is the block's inventory model, and anything else as the item's icon
  * on one flat quad turned to face the camera. The reference's size and lift are applied here so the
- * port reads the same on every loader. The vertex light is the light at the block entity, which is
- * what the reference's lighting off leaves applied: BuildCraft disables GL lighting around the item
- * loop but the tile entity renderer's lightmap still darkens the pipe's items.
+ * port reads the same on every loader. A model the script drew with {@code draw_model} is drawn
+ * here too, at the block entity the pose stack is already at, which is where this version's own
+ * block entity renderers draw their boxes and where the vertices stay beside the block instead of
+ * at its place in the world. The vertex light is the light at the block entity, which is what the
+ * reference's lighting off leaves applied: BuildCraft disables GL lighting around the item loop but
+ * the tile entity renderer's lightmap still darkens the pipe's items.
  *
  * <p>Excluded from coverage because the class carries {@link GrugGenerated}: it draws into the
  * game's renderer. What it draws is decided by core's {@code GrugItemDraw}, which is measured
@@ -71,10 +77,14 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
                         blockEntity.getFrameRenderFnId(),
                         partialTick,
                         yaw);
-        if (geometry.items().isEmpty()) return;
+        if (geometry.draws().isEmpty()) return;
 
-        for (GrugItemDraw draw : geometry.items()) {
-            drawItem(blockEntity, draw, poseStack, buffer, packedLight, yaw);
+        for (GrugFrameDraw draw : geometry.draws()) {
+            if (draw instanceof GrugModelDraw model) {
+                GrugBakedModel.drawInFrame(model, poseStack, buffer, packedLight);
+            } else if (draw instanceof GrugItemDraw item) {
+                drawItem(blockEntity, item, poseStack, buffer, packedLight, yaw);
+            }
         }
     }
 
