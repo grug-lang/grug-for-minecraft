@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge;
 
+import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -172,9 +173,15 @@ public final class GrugOverlayHost {
     /**
      * The container screen an overlay may draw on, or null when this screen is not one or has no
      * size yet, which is what JEI's own screen check answers.
+     *
+     * <p>A grug mod's own {@link GrugScreen} is left out on purpose: the first version draws on the
+     * player's inventory and on vanilla chest and crafting-table screens, and drawing on a mod's
+     * own panel would change the GUI goldens of the mods that have one. JEI itself draws there, so
+     * about.json records the difference.
      */
     private static AbstractContainerScreen<?> eligible(Screen screen) {
         if (!(screen instanceof AbstractContainerScreen<?> container)) return null;
+        if (container instanceof GrugScreen) return null;
         if (container.width <= 0 || container.height <= 0) return null;
         return container;
     }

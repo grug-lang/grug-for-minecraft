@@ -63,6 +63,11 @@
 					"tracking_issue": 863
 				},
 				{
+					"what": "The list is not drawn on a grug mod's own container screens, only on the player's inventory and on vanilla chest and crafting-table screens.",
+					"why": "The first version targets the screens the issue names, and drawing on a mod's own GrugScreen would change that mod's GUI goldens. JEI draws its list on every container screen.",
+					"tracking_issue": 872
+				},
+				{
 					"what": "Only the items that fit the grid are shown. There is no scroll or page, so items past the last visible slot cannot be reached.",
 					"why": "Scrolling and paging need a scroll or page input on the overlay, and the host API has presses only.",
 					"tracking_issue": 864
