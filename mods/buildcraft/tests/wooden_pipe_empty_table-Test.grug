@@ -1,0 +1,13 @@
+# Probe for #912: an empty autocrafting table beside a wooden pipe. The reference connects any
+# IInventory, so its pipe has a west arm and a box face there.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x() + 8
+    y: number = origin.y() + 5
+    z: number = origin.z() + 8
+    level.place_block(x - 1, y, z, "grug:autocrafting_table")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    ctx.assert(Test.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "An empty autocrafting table's side should give the pipe a west arm, as the reference connects any IInventory.")
+    ctx.assert(Test.block_selection(level, x, y, z, 0.05, 0.5, 0.5), "The pipe's selection should reach the empty table.")
+}
