@@ -131,7 +131,7 @@ class AffectedLoadersTest(SelectionCase):
             ["1.2.5-forge", "1.20.6-forge", "b1.7.3-ornithe", "b1.7.3-stationapi"],
         )
         self.assertIn(
-            "mods/betaonly declares b1.7.3-ornithe, which no chosen loader has", self.reason
+            "mods/betaonly declares b1.7.3-ornithe, so b1.7.3-ornithe runs too", self.reason
         )
 
     def test_a_declared_loader_a_representative_already_has_adds_no_job(self):
@@ -144,6 +144,23 @@ class AffectedLoadersTest(SelectionCase):
             ),
             REPRESENTATIVES,
         )
+
+    def test_a_mod_declaring_a_representative_and_another_loader_runs_both(self):
+        # One declared loader being a family's representative does not stand in for the mod's other
+        # declared loader: #909 rule 2 runs the loaders a changed mod declares, and b1.7.3-ornithe is
+        # a mechanism 1.20.6-forge's job does not exercise for it (the review of #920: before this,
+        # `declared & chosen` suppressed the rest, so the mod never ran on its own loader).
+        self.assertEqual(
+            self.select(
+                {
+                    "mods/both/about.json": ('{"loaders": ["1.20.6-forge", "b1.7.3-ornithe"]}'),
+                    "mods/both/code/thing-Block.grug": "on_tick() {}\n",
+                }
+            ),
+            ["1.2.5-forge", "1.20.6-forge", "b1.7.3-ornithe", "b1.7.3-stationapi"],
+        )
+        self.assertIn("b1.7.3-ornithe runs too", self.reason)
+        self.assertNotIn("1.20.6-forge runs too", self.reason)
 
     def test_a_declared_loader_that_is_no_directory_adds_no_job(self):
         # A name nothing provides cannot be run, and the mod runs on every loader instead, so the
@@ -357,7 +374,7 @@ class DeclaredLoaderTest(SelectionCase):
             ["1.2.5-forge", "1.20.6-forge", "b1.7.3-ornithe", "b1.7.3-stationapi"],
         )
         self.assertIn(
-            "mods/betaonly declares b1.7.3-ornithe, which no chosen loader has", self.reason
+            "mods/betaonly declares b1.7.3-ornithe, so b1.7.3-ornithe runs too", self.reason
         )
 
     def test_a_change_to_another_mod_does_not_add_it(self):
