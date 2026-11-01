@@ -1,0 +1,24 @@
+# The origin a test builds from has to come from the test player, so it follows the player the
+# runner moved. The runner snaps that player to the centre of their block before the test's init, so
+# the origin's x and z are the centre of a block whichever block the player is in. Every client
+# loader answers this from the same player now: #188 removed 1.20.6's second reading of the
+# integrated server's player, which agreed with this only while the two players had not moved apart.
+# This is the guard that none of them starts reading another player again. See #188 and #609.
+
+# Read in init rather than in the first tick, because the first call captures the origin for the
+# whole test and init is the earliest point after the snap.
+origin_x: number = 0.0
+origin_z: number = 0.0
+
+export init(ctx: TestInitContext) {
+    origin: Vec3 = Test.get_origin()
+    origin_x = origin.x()
+    origin_z = origin.z()
+}
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(origin_x == Math.floor(origin_x) + 0.5, "The origin's x is not the centre of the block the runner snapped the test player into, so the origin did not come from the test player.")
+        ctx.assert(origin_z == Math.floor(origin_z) + 0.5, "The origin's z is not the centre of the block the runner snapped the test player into, so the origin did not come from the test player.")
+    }
+}
