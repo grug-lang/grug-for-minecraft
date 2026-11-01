@@ -1,0 +1,43 @@
+# The cobblestone pipe's recipe has to craft eight pipes from cobblestone, glass and cobblestone, as
+# BuildCraftTransport.createPipe registers it (pb.w, pb.M, pb.w), since a pipe has no other source in
+# survival. It is asked of a crafting grid, as wooden_pipe_recipe does, and the loaders that register
+# no mod recipes skip it.
+# Band 7, as wooden_pipe_recipe: the two tests never run together.
+export tick(ctx: TestTickContext) {
+    # A loader that registers no mod recipe answers the grid with nothing, so the loader is asked
+    # rather than assumed.
+    if not Test.registers_mod_recipes() {
+        return
+    }
+
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 7
+    z: number = origin.z()
+
+    cobblestone: Item = item(resource_location("minecraft:cobblestone"))
+    glass: Item = item(resource_location("minecraft:glass"))
+    pipe: Item = item(resource_location("grug:cobblestone_pipe"))
+
+    grid: BlockEntity = _grid(ctx, level, x, y, z)
+    # The recipe's only occupied row is the grid's middle one, which is slots 3, 4 and 5.
+    grid.set_item_in_slot(3, cobblestone, 1)
+    grid.set_item_in_slot(4, glass, 1)
+    grid.set_item_in_slot(5, cobblestone, 1)
+    grid.update_recipe_output(0)
+
+    result: Option[Item] = grid.get_crafting_result_item()
+    ctx.assert(result.has(), "Cobblestone, glass and cobblestone should craft a cobblestone pipe.")
+    ctx.assert(equals(result.unwrap(), pipe), "The cobblestone pipe's recipe should answer a cobblestone pipe.")
+    ctx.assert(grid.take_crafting_result(8) == 8, "The cobblestone pipe's recipe should give eight pipes.")
+}
+
+# The coverage block's block entity has the nine slots a crafting grid reads, which is why this is
+# the block to place rather than a chest or the autocrafting table.
+local _grid(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    level.place_block(x, y, z, "grug:coverage_block")
+    found: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(found.has(), "The coverage block should have a block entity after being placed.")
+    return found.unwrap()
+}

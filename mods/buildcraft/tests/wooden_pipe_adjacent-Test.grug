@@ -1,0 +1,114 @@
+# Covers two wooden pipes placed next to each other: they do not hand items to one another, as in the
+# reference's default config (PipeLogicWood.isPipeConnected refuses another wooden pipe while
+# pipes.alwaysConnect is false). Each pipe has its own source chest and engine, and a different item,
+# so an item that crossed from one pipe to the other would be found in the wrong pipe or chest. With
+# no exit, each pipe drops its item at its centre. The level is advanced inside the test's own tick
+# (#780), and the wait for the pipes to finish is one more advance.
+chest_a: Option[BlockEntity] = Option.new()
+chest_b: Option[BlockEntity] = Option.new()
+pipe_a: Option[BlockEntity] = Option.new()
+pipe_b: Option[BlockEntity] = Option.new()
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        _advance(ctx)
+        ctx.not_done()
+    } else if not _pulled() or ctx.current_tick() < 25 {
+        ctx.not_done()
+    } else {
+        _check(ctx)
+    }
+}
+
+local _advance(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    advanced: number = 0
+    ran: number = 10
+    # Both pipes pull on their first powered tick and then take 49 moves to the centre, so 400
+    # ticks cover the whole journey and the drop twice over.
+    while ran > 0 and advanced < 400 {
+        ran = Test.tick_level(level, 10)
+        advanced = advanced + ran
+        _sample(ctx)
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # Band 12, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 12
+    z: number = origin.z()
+
+    level.place_block(x - 1, y, z, "minecraft:chest")
+    level.place_block(x, y, z, "grug:wooden_pipe")
+    level.place_block(x + 1, y, z, "grug:wooden_pipe")
+    level.place_block(x + 2, y, z, "minecraft:chest")
+
+    # A floor under each pipe, so the item it drops stays where the count looks for it.
+    level.place_block(x, y - 1, z, "minecraft:stone")
+    level.place_block(x + 1, y - 1, z, "minecraft:stone")
+
+    level.place_block(x, y - 2, z - 1, "minecraft:stone")
+    level.place_block(x, y - 1, z - 1, "minecraft:redstone_torch")
+    level.place_block(x, y, z - 1, "grug:redstone_engine")
+    level.place_block(x + 1, y - 2, z + 1, "minecraft:stone")
+    level.place_block(x + 1, y - 1, z + 1, "minecraft:redstone_torch")
+    level.place_block(x + 1, y, z + 1, "grug:redstone_engine")
+
+    chest_a.set(_entity(ctx, level, x - 1, y, z))
+    pipe_a.set(_entity(ctx, level, x, y, z))
+    pipe_b.set(_entity(ctx, level, x + 1, y, z))
+    chest_b.set(_entity(ctx, level, x + 2, y, z))
+    ctx.assert(level.has_neighbor_signal(x, y, z), "The west pipe's engine should be powered.")
+    ctx.assert(level.has_neighbor_signal(x + 1, y, z), "The east pipe's engine should be powered.")
+
+    chest_a.unwrap().set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+    chest_b.unwrap().set_item_in_slot(0, item(resource_location("minecraft:iron_ingot")), 1)
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+# Both pipes have pulled and finished with their item when the chests are empty and the pipes carry
+# nothing.
+local _pulled() bool {
+    return chest_a.unwrap().get_item_count_in_slot(0) == 0 and chest_b.unwrap().get_item_count_in_slot(0) == 0 and pipe_a.unwrap().get_saved_list_size("traveling") == 0 and pipe_b.unwrap().get_saved_list_size("traveling") == 0
+}
+
+# Each pipe only ever carries its own chest's item, and neither pipe ever holds a record that has
+# travelled into the other.
+local _sample(ctx: TestTickContext) {
+    ctx.assert(_only(pipe_a.unwrap(), item(resource_location("minecraft:diamond"))), "The west pipe should only ever carry its own diamond.")
+    ctx.assert(_only(pipe_b.unwrap(), item(resource_location("minecraft:iron_ingot"))), "The east pipe should only ever carry its own iron ingot.")
+}
+
+local _only(pipe: BlockEntity, wanted: Item) bool {
+    index: number = 0
+    records: number = pipe.get_saved_list_size("traveling")
+    while index < records {
+        held: Option[Item] = pipe.get_saved_list_item("traveling", index)
+        if held.has() and not equals(held.unwrap(), wanted) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+local _check(ctx: TestTickContext) {
+    _sample(ctx)
+    ctx.assert(chest_a.unwrap().get_item_count_in_slot(0) == 0, "The west chest should have been emptied by its pipe.")
+    ctx.assert(chest_b.unwrap().get_item_count_in_slot(0) == 0, "The east chest should have been emptied by its pipe.")
+    origin: Vec3 = Test.get_origin()
+    level: Level = Test.get_client_level()
+    # Each pipe has no exit, so it drops its item where it stands, on the floor under it. At least two
+    # entities are counted rather than exactly two, because an item dropped by a test in a band above
+    # may still be falling through the search radius.
+    ctx.assert(level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 10) >= 2, "Each pipe should have dropped its own item.")
+}

@@ -1,0 +1,126 @@
+# Covers two wooden pipes, each with its own source chest and engine, handing on to the same
+# cobblestone pipe from different sides, which hands on to one output chest. The wooden pipes do not
+# touch each other (they are diagonal, so the default pipes.alwaysConnect of false never matters here).
+# In the reference the cobblestone pipe accepts an item into the other wooden pipe as well, since that
+# pipe takes any item that reaches it, so an item may take a detour through the other source chest and
+# be pulled out again; the test therefore asserts what does not depend on the random pick: that
+# both kinds of item reach the output chest, and that every item exists exactly once at every sample.
+# The level is advanced inside the test's own tick (#780).
+source_a: Option[BlockEntity] = Option.new()
+source_b: Option[BlockEntity] = Option.new()
+target: Option[BlockEntity] = Option.new()
+wooden_a: Option[BlockEntity] = Option.new()
+wooden_b: Option[BlockEntity] = Option.new()
+cobblestone: Option[BlockEntity] = Option.new()
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        _advance(ctx)
+        ctx.not_done()
+    } else if not _done() {
+        _sample(ctx)
+        ctx.not_done()
+    } else {
+        _sample(ctx)
+    }
+}
+
+# #780: the pipes need the world's own ticks, so the test asks the level to run them inside this
+# tick, and a loader that cannot advance its level is carried by the wait in tick() instead.
+local _advance(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    advanced: number = 0
+    ran: number = 5
+    while not _done() and ran > 0 and advanced < 6000 {
+        ran = Test.tick_level(level, 5)
+        advanced = advanced + ran
+        _sample(ctx)
+    }
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    # Band 12, clear of the bands the other pipe tests use.
+    y: number = origin.y() + 12
+    z: number = origin.z()
+
+    # The cobblestone pipe at (x, y, z), a wooden pipe to its west and one to its north, the output
+    # chest to its east, and a source chest behind each wooden pipe.
+    level.place_block(x - 2, y, z, "minecraft:chest")
+    level.place_block(x - 1, y, z, "grug:wooden_pipe")
+    level.place_block(x, y, z - 2, "minecraft:chest")
+    level.place_block(x, y, z - 1, "grug:wooden_pipe")
+    level.place_block(x, y, z, "grug:cobblestone_pipe")
+    level.place_block(x + 1, y, z, "minecraft:chest")
+
+    # An engine beside each wooden pipe, on its own torch, away from the other pipe.
+    level.place_block(x - 1, y - 2, z + 1, "minecraft:stone")
+    level.place_block(x - 1, y - 1, z + 1, "minecraft:redstone_torch")
+    level.place_block(x - 1, y, z + 1, "grug:redstone_engine")
+    level.place_block(x + 1, y - 2, z - 1, "minecraft:stone")
+    level.place_block(x + 1, y - 1, z - 1, "minecraft:redstone_torch")
+    level.place_block(x + 1, y, z - 1, "grug:redstone_engine")
+
+    source_a.set(_entity(ctx, level, x - 2, y, z))
+    wooden_a.set(_entity(ctx, level, x - 1, y, z))
+    source_b.set(_entity(ctx, level, x, y, z - 2))
+    wooden_b.set(_entity(ctx, level, x, y, z - 1))
+    cobblestone.set(_entity(ctx, level, x, y, z))
+    target.set(_entity(ctx, level, x + 1, y, z))
+    ctx.assert(level.has_neighbor_signal(x - 1, y, z), "The west pipe's engine should be powered.")
+    ctx.assert(level.has_neighbor_signal(x, y, z - 1), "The north pipe's engine should be powered.")
+
+    source_a.unwrap().set_item_in_slot(0, item(resource_location("minecraft:diamond")), 4)
+    source_b.unwrap().set_item_in_slot(0, item(resource_location("minecraft:iron_ingot")), 4)
+}
+
+local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
+    block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
+    ctx.assert(block_entity.has(), "The fixture should have a block entity.")
+    return block_entity.unwrap()
+}
+
+# Both kinds have been delivered when the output chest holds one of each.
+local _done() bool {
+    return _in_chest(target.unwrap(), item(resource_location("minecraft:diamond"))) > 0 and _in_chest(target.unwrap(), item(resource_location("minecraft:iron_ingot"))) > 0
+}
+
+local _sample(ctx: TestTickContext) {
+    ctx.assert(_total(item(resource_location("minecraft:diamond"))) == 4, "The diamonds should exist exactly once at every sample.")
+    ctx.assert(_total(item(resource_location("minecraft:iron_ingot"))) == 4, "The iron ingots should exist exactly once at every sample.")
+}
+
+local _total(wanted: Item) number {
+    return _in_chest(source_a.unwrap(), wanted) + _in_chest(source_b.unwrap(), wanted) + _in_chest(target.unwrap(), wanted) + _in_pipe(wooden_a.unwrap(), wanted) + _in_pipe(wooden_b.unwrap(), wanted) + _in_pipe(cobblestone.unwrap(), wanted)
+}
+
+local _in_chest(chest: BlockEntity, wanted: Item) number {
+    found: number = 0
+    slot: number = 0
+    size: number = chest.get_inventory_size()
+    while slot < size {
+        held: Option[Item] = chest.get_item_in_slot(slot)
+        if held.has() and chest.get_item_count_in_slot(slot) > 0 and equals(held.unwrap(), wanted) {
+            found = found + chest.get_item_count_in_slot(slot)
+        }
+        slot = slot + 1
+    }
+    return found
+}
+
+local _in_pipe(pipe: BlockEntity, wanted: Item) number {
+    found: number = 0
+    index: number = 0
+    records: number = pipe.get_saved_list_size("traveling")
+    while index < records {
+        held: Option[Item] = pipe.get_saved_list_item("traveling", index)
+        if held.has() and equals(held.unwrap(), wanted) {
+            found = found + pipe.get_saved_list_number("traveling", index, "count")
+        }
+        index = index + 1
+    }
+    return found
+}
