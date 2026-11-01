@@ -27,8 +27,8 @@ orchestrator's attention: **five subagent sessions run at once** whenever queued
 a disjoint area, and the next one starts the moment another finishes or waits on CI. Every subagent
 is spawned in the background, so the orchestrator's turn never waits on one: a subagent left in the
 foreground blocks the review, the next dispatch and the maintainer's messages until it ends. Five is
-the floor, not a cap, and a subagent that would edit the same files as another is the one reason to wait
-instead. The review queue is the orchestrator's own bottleneck, so it merges as work reports rather
+the floor, not a cap, and a subagent that would edit the same files as another is the one reason to
+wait instead. The review queue is the orchestrator's own bottleneck, so it merges as work reports rather
 than letting a backlog build; when five disjoint tasks cannot be named, the issue body records which
 area is blocked and why rather than starting overlapping work. Pull request runs may overlap only
 while the 20 shared job slots allow it. The orchestrator may change its own process without asking,
@@ -82,9 +82,12 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
 - **Orchestrator.** Reads the issue, writes the subagent a self-contained brief, reviews the
   subagent's diff against the issue, watches CI, merges, and keeps its own context small. The brief
   holds the issue and its acceptance points, the rules of this file that apply, the exact steps,
-  that Minecraft runs only in CI, and how to report. After merging it removes the task's worktree
-  and branch: `git worktree remove --force <path>`, check `git cherry origin/main <branch>` (all
-  lines start with `-` after a rebase merge), `git branch -D <branch>`, `git worktree prune`.
+  that Minecraft runs only in CI, and how to report. A small documentation or configuration edit is
+  the orchestrator's own work, batched into the next pull request that already needs one, rather
+  than a subagent's: a subagent starts cold, so spending one on a paragraph costs more than the
+  edit. After merging it removes the task's worktree and branch:
+  `git worktree remove --force <path>`, check `git cherry origin/main <branch>` (all lines start
+  with `-` after a rebase merge), `git branch -D <branch>`, `git worktree prune`.
 - **Subagent.** Implements one issue in its own worktree from a fresh `origin/main`: `git worktree
   add ~/agent-workspaces/grug-for-minecraft-<task> -b <branch> origin/main`, and works only there.
   It opens the pull request in the same sitting with `Closes #<n>` (a draft if unfinished; the
