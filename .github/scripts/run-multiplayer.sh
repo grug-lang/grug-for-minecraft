@@ -88,6 +88,9 @@ for dir in "$SERVER_DIR" "$CLIENT_DIR"; do
   printf '#Disable the cosmetic early load window (CI has no desktop to fall back to).\nearlyWindowControl = false\n' > "${dir}/config/fml.toml"
 done
 rm -rf "${CLIENT_DIR}/saves"
+# A first launch shows the accessibility onboarding screen, which holds the client there and so
+# never lets quick play connect; the options file says it was already shown.
+printf 'onboardAccessibility:false\nnarrator:0\n' > "${CLIENT_DIR}/options.txt"
 
 server_pid=""
 client_pid=""
