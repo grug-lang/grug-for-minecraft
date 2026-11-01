@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import java.awt.image.BufferedImage;
+import net.grug.minecraft.core.GrugCore;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
