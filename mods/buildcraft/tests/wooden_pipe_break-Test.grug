@@ -62,13 +62,17 @@ export tick(ctx: TestTickContext) {
     ctx.assert(stack_found.has(), "The dropped stack should be on the ground.")
     ctx.assert(stack_found.unwrap().count() == break_stack_count, "The dropped item entity should hold the whole stack.")
 
-    # Utils.dropItems keeps the EntityItem constructor's hop, which the old drop zeroed. The hop's
-    # bound is a hundredth wider than the constructor's 0.1, because 1.2.5 and the b1.7.3 versions
-    # round it to a float, and the float nearest 0.1 is a hair above it.
+    # Utils.dropItems keeps the EntityItem constructor's hop, which the old drop zeroed. Every
+    # version draws x and z uniformly within 0.1: 1.2.5, Alpha and both b1.7.3 loaders multiply
+    # Math.random() by 0.2 and subtract 0.1, and 1.20.6 does the same with the level's random. The
+    # older four store the draw as a float, so the bound allows the float32 expansion of 0.1 rather
+    # than emulating the rounding. Every version fixes y at 0.2, but those four write 0.2F, whose
+    # double expansion is 0.20000000298023224, where 1.20.6 writes the double 0.2, so the y check
+    # allows 1e-6 around the reference's 0.2 and still fails a zeroed motion.
     motion: Vec3 = stack_found.unwrap().entity().get_delta_movement()
-    ctx.assert(motion.y() == 0.2, "A broken pipe's dropped item should hop 0.2 up.")
-    ctx.assert(motion.x() > -0.11 and motion.x() < 0.11, "The hop should stay within the block on x.")
-    ctx.assert(motion.z() > -0.11 and motion.z() < 0.11, "The hop should stay within the block on z.")
+    ctx.assert(motion.x() > -0.100001 and motion.x() < 0.100001, "The hop's x should stay within the constructor's random 0.1.")
+    ctx.assert(motion.z() > -0.100001 and motion.z() < 0.100001, "The hop's z should stay within the constructor's random 0.1.")
+    ctx.assert(motion.y() > 0.199999 and motion.y() < 0.200001, "The hop's y should be the constructor's 0.2, within a float's expansion.")
 
     ctx.assert(source.get_item_count_in_slot(0) == 0, "The source chest should be empty.")
     ctx.assert(stack_source.get_item_count_in_slot(0) == 0, "The second source chest should be empty.")
