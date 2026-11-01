@@ -64,4 +64,24 @@ public class ServerForgeAdapter extends ForgeAdapter {
     public boolean isScreenOpenForTest() {
         return false;
     }
+
+    /**
+     * A dedicated server has no client copy of any chunk, so no placement owes an update to wait
+     * for. The inherited answer reads {@code Minecraft.getInstance().level}, which is null here.
+     * See #167.
+     */
+    @Override
+    protected boolean clientHasChunk(int x, int z) {
+        return false;
+    }
+
+    /**
+     * Settled as soon as a test asks: the server's world is the one a test reads, and no client
+     * frame, light copy or block packet is owed to anyone. The inherited answer compares the
+     * client's copy of the room with the server's, and there is no client here. See #167.
+     */
+    @Override
+    public boolean isWorldSettled() {
+        return true;
+    }
 }
