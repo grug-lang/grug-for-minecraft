@@ -1,11 +1,13 @@
 # Covers the overlay host functions on the player's inventory screen: the context numbers, item_at,
 # give_item, the loader's open_inventory and click_screen, and the press being taken away from the
-# vanilla slot. The coverage overlay draws its one item at the centre of the screen and takes a click
-# there, so the test clicks that centre and waits for the item to reach its hand. On a loader that
-# draws no overlays the overlay's exports are never asked, which about.json records as a deviation,
-# and the test returns before it opens a screen it cannot show. See #615.
+# vanilla slot. It first presses a vanilla slot, which the screen handles but no overlay takes, and
+# checks the answer is false; then it presses the centre, where the coverage overlay draws its one
+# item and takes the click, and waits for the item to reach its hand. On a loader that draws no
+# overlays the overlay's exports are never asked, which about.json records as a deviation, and the
+# test returns before it opens a screen it cannot show. See #615.
 started: bool = false
 waited: number = 0
+checked_slot: bool = false
 clicked: bool = false
 
 export tick(ctx: TestTickContext) {
@@ -32,6 +34,19 @@ export tick(ctx: TestTickContext) {
         # maximum speed the test can click and close before one is. Asking turns drawing on.
         waited = waited + 1
         ctx.assert(waited < 200, "A frame with the overlay should be drawn on the open screen.")
+        ctx.not_done()
+        return
+    }
+
+    if not checked_slot {
+        # A press on a vanilla slot is handled by the screen itself, but no overlay took it, so the
+        # answer has to be false: the screen's own handling is not an overlay's take. The first
+        # main-inventory slot is at (133, 121) on this screen, inside the GUI and outside both the
+        # coverage overlay's box and the port's grid.
+        Test.clear_held_item(Test.get_player())
+        checked_slot = true
+        taken_by_screen: bool = Test.click_screen(137, 125, 0)
+        ctx.assert(not taken_by_screen, "A press on a vanilla slot that no overlay took should answer false.")
         ctx.not_done()
         return
     }

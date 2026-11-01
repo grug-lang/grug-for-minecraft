@@ -18,6 +18,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.Vec3;
@@ -1278,9 +1279,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
             outcome[0] = true;
             return;
         }
+        // The answer is the overlay's own decision, not the screen's: a container screen handles a
+        // press on a vanilla slot too, so asking the screen would answer true with no overlay in
+        // the way. The record is cleared before the press and read after the overlay had its say.
+        GrugOverlay.beginTestPress();
         boolean[] state = new boolean[] {false};
         ForgeEventFactoryClient.onScreenMouseClicked(state, screen, x, y, button);
-        outcome[1] = state[0];
+        outcome[1] = GrugOverlay.testPressTaken();
     }
 
     @Override

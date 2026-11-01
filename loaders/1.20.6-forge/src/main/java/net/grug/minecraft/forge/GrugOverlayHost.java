@@ -201,6 +201,7 @@ public final class GrugOverlayHost {
                             event.getMouseY(),
                             event.getButton());
             if (taken) {
+                GrugOverlay.noteTestPressTaken();
                 event.setCanceled(true);
                 return;
             }

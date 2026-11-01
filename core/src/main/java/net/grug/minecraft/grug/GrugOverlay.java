@@ -78,6 +78,13 @@ public final class GrugOverlay {
      */
     private static volatile boolean overlayDrawn = false;
 
+    /**
+     * Whether an overlay took the press {@code Test.click_screen} is driving. The loader's click
+     * handler records it, and the adapter clears it before it delivers a press, so the test answers
+     * with the overlay's own decision rather than with whether the screen handled the press too.
+     */
+    private static volatile boolean testPressTaken = false;
+
     @GrugGenerated("utility class: never instantiated")
     private GrugOverlay() {}
 
@@ -116,6 +123,21 @@ public final class GrugOverlay {
     /** Whether a frame drew the running test's overlay on the screen that is open now. */
     public static boolean overlayDrawn() {
         return overlayDrawn;
+    }
+
+    /** Clears the press record, so the press the adapter is about to deliver starts untaken. */
+    public static void beginTestPress() {
+        testPressTaken = false;
+    }
+
+    /** Records that an overlay took the press the adapter is delivering. */
+    public static void noteTestPressTaken() {
+        testPressTaken = true;
+    }
+
+    /** Whether an overlay took the press Test.click_screen is driving. */
+    public static boolean testPressTaken() {
+        return testPressTaken;
     }
 
     /** Whether a pass is open, which is the only state a context method is legal in. */
