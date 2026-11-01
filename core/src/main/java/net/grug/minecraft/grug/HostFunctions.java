@@ -395,12 +395,14 @@ public class HostFunctions {
 
     /**
      * Test only: presses a mouse button at a screen position, through the same path a real press
-     * takes, and answers whether a screen still took it.
+     * takes, and answers whether an overlay took the press.
      *
      * <p>The position is in the scaled pixels a screen's own mouse handlers take, which is the same
-     * measure an overlay's {@code mouse_x} and {@code mouse_y} answer. False means an overlay took
-     * the press and the vanilla slot under it never saw it. The argument checks live in {@link
-     * #screenClickProblem}, which a Java test drives without a game.
+     * measure an overlay's {@code mouse_x} and {@code mouse_y} answer. True means an overlay took
+     * the press, so the vanilla slot under it never saw it. False means no overlay took it, even
+     * when the screen handled the press itself, so a test can tell the overlay's take from a click
+     * on a vanilla slot. The argument checks live in {@link #screenClickProblem}, which a Java test
+     * drives without a game.
      */
     @GrugGenerated("asks the adapter to press on the game's own screen: a unit test has no game")
     public static boolean Test_click_screen(double x, double y, double button) {

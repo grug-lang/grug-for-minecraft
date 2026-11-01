@@ -1314,7 +1314,7 @@
 					]
 				},
 				"click_screen": {
-					"description": "Presses a mouse button at a screen position, in the same scaled pixels a screen's own mouse handlers use, through the same path a real press takes, and answers whether a screen still took it. Cancelled means an overlay took the press and the vanilla slot under it did not see it. Test only: it is how a test clicks what an overlay drew without a real mouse.",
+					"description": "Presses a mouse button at a screen position, in the same scaled pixels a screen's own mouse handlers use, through the same path a real press takes, and answers whether an overlay took the press. True means an overlay took it, so the vanilla slot under it did not see it; false means no overlay took it, even when the screen handled the press itself, so a test can tell the overlay's take from a click on a vanilla slot. Test only: it is how a test clicks what an overlay drew without a real mouse.",
 					"return_type": {
 						"name": "bool"
 					},

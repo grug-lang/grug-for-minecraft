@@ -27,6 +27,18 @@ class GrugOverlayTest {
     }
 
     @Test
+    void aPressStartsUntakenAndOnlyAnOverlayTakeRecordsIt() {
+        GrugOverlay.beginTestPress();
+        assertFalse(GrugOverlay.testPressTaken(), "A press no overlay takes is not taken.");
+
+        GrugOverlay.noteTestPressTaken();
+        assertTrue(GrugOverlay.testPressTaken());
+
+        GrugOverlay.beginTestPress();
+        assertFalse(GrugOverlay.testPressTaken(), "The next press starts untaken again.");
+    }
+
+    @Test
     void aRenderPassAnswersItsGeometryAndTheDrawsItRecorded() {
         GrugOverlay.openRender(426, 240, 125, 37, 176, 166, 300, 20);
 
