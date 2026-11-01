@@ -27,19 +27,20 @@ orchestrator's attention: **five subagent sessions run at once** whenever queued
 a disjoint area, and the next one starts the moment another finishes or waits on CI. Five is the
 floor, not a cap, and a subagent that would edit the same files as another is the one reason to wait
 instead. The review queue is the orchestrator's own bottleneck, so it merges as work reports rather
-than letting a backlog build; when five disjoint tasks cannot be named, the handoff says which area
-is blocked and why rather than starting overlapping work. Pull request runs may overlap only while
-the 20 shared job slots allow it. The orchestrator may change its own process without asking, unless
-the change is drastic, such as a different model or servers the maintainer would have to rent: it
-applies the optimization, records it here or in the handoff, and reports what it changed.
+than letting a backlog build; when five disjoint tasks cannot be named, the issue body records which
+area is blocked and why rather than starting overlapping work. Pull request runs may overlap only
+while the 20 shared job slots allow it. The orchestrator may change its own process without asking,
+unless the change is drastic, such as a different model or servers the maintainer would have to
+rent: it applies the optimization, records it in the issue or pull request, and reports what it
+changed.
 
 **Context and compaction.** The harness compacts the session automatically at the configured
 threshold, and that is deliberate: choosing the moment by hand cost attention at every boundary and
-was not reliable. Write decisions and state into the issue, the pull request or this file when they
-are made, as part of the work, rather than into a record written because a compaction is coming. The
-handoff holds the live orchestration state that is nowhere else (the running subagent sessions and
-their briefs, the queued work, the next scheduled check), it is updated at merges, and it is what a
-restarted session reads; it is not a prerequisite for compacting.
+was not reliable. A decision or a piece of state is written into the issue or the pull request body
+when it is made, as part of the work, and never into a local handoff file: the running subagents and
+their briefs, the queued work and the next scheduled check belong in the body of the issue being
+worked or of its pull request, which a restarted session and the maintainer read from GitHub. A
+local file is not found by anyone else and is not a prerequisite for compacting.
 
 **The daily meta pass.** Once a day, at a boundary rather than on a clock (after the day's last
 merge, while a long dispatch runs, or before the Sunday release), the orchestrator improves the
