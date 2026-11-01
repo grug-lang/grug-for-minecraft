@@ -124,6 +124,9 @@ EXCLUDED_CLASSES = {
     # recorded into the open screen's GuiGraphics. Only a real game with a screen up runs them, and
     # the pass bookkeeping they drive is measured in core's GrugOverlay.
     "GrugOverlayHost",
+    "HandledScreenMixin",
+    "InventoryMenuScreenMixin",
+    "GrugFillInvoker",
     # Loader startup and registration only runs inside a real game bootstrap, which a headless CI
     # cannot drive. The logic they carry beyond wiring (file classification, the LICENSE gate,
     # recipe parsing, the adapters) lives in measured classes instead.
@@ -157,6 +160,10 @@ EXCLUDED_CLASSES = {
     # its block-entity NBT accessor and the name table its tests reach are measured like every other
     # loader's, now that the loader contributes exec data (#580).
     "mod_Grug",
+    # The reflection helper behind the overlay's screen geometry: the second field name, and the
+    # catches around both lookups, are paths only a development run or a broken build takes, so the
+    # class is excluded like the overlay's own screen glue rather than annotated line by line.
+    "GrugGuiAccess",
     "GlBridge",
     "GrugContainer",
     "GrugItem",
