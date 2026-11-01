@@ -1714,6 +1714,7 @@ public class HostFunctions {
                 screenshotId,
                 screenshot -> {
                     BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
+                    if (capture != null) GrugDiag.onCapture(capture);
                     // The adapter has already reported a capture it could not take, so the null
                     // is stored rather than thrown from here. Storing it is what lets
                     // differs_from name the missing capture, which tells a test author which of
