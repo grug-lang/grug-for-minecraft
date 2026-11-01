@@ -2467,8 +2467,8 @@ class GrugTestRunnerTest {
         assertTrue(runner.isFinished());
     }
 
-    /** A room builder whose client holds stale block entities for as long as the test says. */
-    private static GrugTestRunner.TestBoxBuilder staleBlockEntities(boolean[] stale) {
+    /** A room builder whose client catches up for as long as the test says. */
+    private static GrugTestRunner.TestBoxBuilder catchingUpClient(boolean[] catchingUp) {
         return new GrugTestRunner.TestBoxBuilder() {
             @Override
             public void build(int radius) {}
@@ -2477,44 +2477,44 @@ class GrugTestRunnerTest {
             public void sweepItems() {}
 
             @Override
-            public boolean staleBlockEntitiesRemain() {
-                return stale[0];
+            public boolean clientCatchingUp() {
+                return catchingUp[0];
             }
         };
     }
 
     @Test
-    void holdsTheFirstTickWhileTheClientStillHoldsABlockEntityOfTheLastTest() {
+    void holdsTheFirstTickWhileTheClientCatchesUpWithTheLastTestsClearing() {
         FakeOps ops = new FakeOps();
         Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
         ops.pathsAre(files);
         int[] ticks = {0};
         ops.onCall = () -> ticks[0]++;
-        boolean[] stale = {true};
+        boolean[] catchingUp = {true};
         long[] now = {0};
         GrugTestRunner runner =
                 new GrugTestRunner(
-                        files, List.of(), ops, () -> now[0], staleBlockEntities(stale), 1);
+                        files, List.of(), ops, () -> now[0], catchingUpClient(catchingUp), 1);
 
         // A short wait is routine and says nothing.
         String held = capture(() -> runner.tick(null));
         assertTrue(held.contains("Executing test: mymod/code/a-Test.grug"), held);
-        assertFalse(held.contains("Waiting for the client to drop"), held);
+        assertFalse(held.contains("Waiting for the client to catch up"), held);
         assertEquals(0, ticks[0]);
 
-        now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS;
+        now[0] = GrugTestRunner.CLIENT_CATCH_UP_REPORT_AFTER_NANOS;
         assertEquals("", capture(() -> runner.tick(null)));
 
         // A long one says so, once, and the test is not started a second time.
-        now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS + 1;
+        now[0] = GrugTestRunner.CLIENT_CATCH_UP_REPORT_AFTER_NANOS + 1;
         String reported = capture(() -> runner.tick(null));
-        assertTrue(reported.contains("Waiting for the client to drop"), reported);
+        assertTrue(reported.contains("Waiting for the client to catch up"), reported);
         assertTrue(reported.contains("mymod/code/a-Test.grug"), reported);
         assertEquals("", capture(() -> runner.tick(null)));
         assertEquals(0, ticks[0]);
         assertEquals(1, ops.created);
 
-        stale[0] = false;
+        catchingUp[0] = false;
         capture(() -> runner.tick(null));
         assertEquals(1, ticks[0]);
         assertEquals(1, ops.created);
@@ -2522,7 +2522,7 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void failsTheRunWhenTheClientNeverDropsTheLastTestsBlockEntities() {
+    void failsTheRunWhenTheClientNeverAcknowledgesTheLastTestsClearing() {
         FakeOps ops = new FakeOps();
         Map<String, Long> files = Map.of("mymod/code/a-Test.grug", 1L);
         ops.pathsAre(files);
@@ -2533,18 +2533,18 @@ class GrugTestRunnerTest {
                         List.of(),
                         ops,
                         () -> now[0],
-                        staleBlockEntities(new boolean[] {true}),
+                        catchingUpClient(new boolean[] {true}),
                         1);
         capture(() -> runner.tick(null));
 
-        now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_DEADLINE_NANOS;
+        now[0] = GrugTestRunner.CLIENT_CATCH_UP_DEADLINE_NANOS;
         capture(() -> runner.tick(null));
         assertFalse(runner.isFinished());
 
-        now[0] = GrugTestRunner.STALE_BLOCK_ENTITY_DEADLINE_NANOS + 1;
+        now[0] = GrugTestRunner.CLIENT_CATCH_UP_DEADLINE_NANOS + 1;
         String failed = capture(() -> runner.tick(null));
         assertTrue(failed.contains("[GRUG CI] FAIL mymod/code/a-Test.grug"), failed);
-        assertTrue(failed.contains("still held a block entity"), failed);
+        assertTrue(failed.contains("never acknowledged the clearing"), failed);
         assertTrue(runner.isFinished());
         assertEquals(1, ops.destroyed);
     }

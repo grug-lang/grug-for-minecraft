@@ -133,11 +133,11 @@ public class GrugTestRunner {
         }
 
         /**
-         * Whether the client still holds a block entity of an earlier test inside the area the room
-         * build cleared, because it has not yet processed the packets that removed it. The runner
-         * holds the test back until it is gone. See #583.
+         * Whether the client has yet to prove it processed the clearing the room build made, so it
+         * may still hold a block entity of an earlier test inside the cleared area. The runner
+         * holds the test back until the client has caught up. See #836.
          */
-        default boolean staleBlockEntitiesRemain() {
+        default boolean clientCatchingUp() {
             return false;
         }
 
@@ -334,24 +334,24 @@ public class GrugTestRunner {
     private long reloadWaitStartNanos = -1;
 
     /**
-     * A guard against a client that never processes the removal of the last test's block entities,
-     * which takes a few ticks at most, so a client still holding one after this long has lost the
-     * packet and the run fails with that said rather than timing out. See #583.
+     * A guard against a client that never answers, which takes a tick or two at most, so a client
+     * still behind after this long has lost the packet and the run fails with that said rather than
+     * timing out. See #836.
      */
-    static final long STALE_BLOCK_ENTITY_DEADLINE_NANOS = 30_000_000_000L;
+    static final long CLIENT_CATCH_UP_DEADLINE_NANOS = 30_000_000_000L;
 
     /**
-     * When the current wait for the client to drop the last test's block entities began, or -1 when
-     * the runner is not waiting. A test that is waiting has its entity, its init and its room, and
-     * has only not made its first Test.tick() call yet.
+     * When the current wait for the client to catch up with the room build's clearing began, or -1
+     * when the runner is not waiting. A test that is waiting has its entity, its init and its room,
+     * and has only not made its first Test.tick() call yet.
      */
-    private long staleWaitStartNanos = -1;
+    private long catchUpWaitStartNanos = -1;
 
     /** Whether the current wait has been said, so a long one says so once. */
-    private boolean staleWaitReported = false;
+    private boolean catchUpWaitReported = false;
 
     /** How long a wait has to last before it is worth a line, since a short one is routine. */
-    static final long STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS = 1_000_000_000L;
+    static final long CLIENT_CATCH_UP_REPORT_AFTER_NANOS = 1_000_000_000L;
 
     public GrugTestRunner() {
         this(
@@ -382,8 +382,8 @@ public class GrugTestRunner {
                     }
 
                     @Override
-                    public boolean staleBlockEntitiesRemain() {
-                        return GrugCore.getAdapter().hasStaleTestBlockEntities();
+                    public boolean clientCatchingUp() {
+                        return GrugCore.getAdapter().clientCatchingUpWithLastTest();
                     }
 
                     @Override
@@ -863,8 +863,8 @@ public class GrugTestRunner {
         String path = tests.get(nextTestIndex).getKey();
 
         // The room is built, but the client may not have caught up with the clearing that came with
-        // it. See holdForStaleBlockEntities.
-        if ((justStarted || staleWaitStartNanos >= 0) && holdForStaleBlockEntities(path)) {
+        // it. See holdForCatchingUpClient.
+        if ((justStarted || catchUpWaitStartNanos >= 0) && holdForCatchingUpClient(path)) {
             return;
         }
 
@@ -1236,8 +1236,8 @@ public class GrugTestRunner {
     }
 
     /**
-     * Holds the test back, after its room is built and before its first tick, while the client
-     * still holds a block entity the room build cleared, and answers whether it did.
+     * Holds the test back, after its room is built and before its first tick, while the client has
+     * not proved it processed the room build's clearing, and answers whether it did.
      *
      * <p>The room build clears the area on the server, and the client learns of it from packets
      * that reach it a tick or more later, while the test's first calls go straight to the client
@@ -1245,33 +1245,34 @@ public class GrugTestRunner {
      * chunk worker thread, and that draw enters the VM in the middle of whichever call the test has
      * suspended on the client thread. The engine's error flag is not per call, so a draw that
      * reports an err stops the test's own call, and the run fails a test for an err that is an
-     * earlier test's. Waiting until the client has dropped them means a rebuild can no longer draw
-     * them. See #583.
+     * earlier test's. The loader answers whether the client has caught up, which its own ping and
+     * pong proves; until it has, the old block entities are still live and a rebuild can draw them.
+     * See #836.
      */
-    private boolean holdForStaleBlockEntities(String path) {
-        if (!boxBuilder.staleBlockEntitiesRemain()) {
-            staleWaitStartNanos = -1;
-            staleWaitReported = false;
+    private boolean holdForCatchingUpClient(String path) {
+        if (!boxBuilder.clientCatchingUp()) {
+            catchUpWaitStartNanos = -1;
+            catchUpWaitReported = false;
             return false;
         }
         long now = clock.getAsLong();
-        if (staleWaitStartNanos < 0) {
-            staleWaitStartNanos = now;
-        } else if (now - staleWaitStartNanos > STALE_BLOCK_ENTITY_DEADLINE_NANOS) {
-            staleWaitStartNanos = -1;
-            staleWaitReported = false;
+        if (catchUpWaitStartNanos < 0) {
+            catchUpWaitStartNanos = now;
+        } else if (now - catchUpWaitStartNanos > CLIENT_CATCH_UP_DEADLINE_NANOS) {
+            catchUpWaitStartNanos = -1;
+            catchUpWaitReported = false;
             fail(
                     path,
-                    "The client still held a block entity of an earlier test after "
-                            + (STALE_BLOCK_ENTITY_DEADLINE_NANOS / 1_000_000_000L)
+                    "The client never acknowledged the clearing of an earlier test after "
+                            + (CLIENT_CATCH_UP_DEADLINE_NANOS / 1_000_000_000L)
                             + " seconds, so this test was not started.");
-        } else if (!staleWaitReported
-                && now - staleWaitStartNanos > STALE_BLOCK_ENTITY_REPORT_AFTER_NANOS) {
+        } else if (!catchUpWaitReported
+                && now - catchUpWaitStartNanos > CLIENT_CATCH_UP_REPORT_AFTER_NANOS) {
             // Not on the first tick, which every test takes: a loader may need one tick to find
             // out.
-            staleWaitReported = true;
+            catchUpWaitReported = true;
             System.out.println(
-                    "[GRUG CI] Waiting for the client to drop the last test's block entities"
+                    "[GRUG CI] Waiting for the client to catch up with the last test's clearing"
                             + " before the first tick of "
                             + path);
         }

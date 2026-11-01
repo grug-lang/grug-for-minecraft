@@ -7,6 +7,7 @@ import com.mojang.logging.LogUtils;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugTestBoundary;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
@@ -35,6 +36,7 @@ import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.common.ClientboundPingPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -423,9 +425,19 @@ public class ForgeAdapter implements ModLoaderAdapter {
         // renderer, so any settle answer from before it describes frames this test must not
         // capture. See GrugRenderSettle.reset.
         RENDER_SETTLE.reset();
+        // Nothing is owed to the client until a room is built, so a build without a player leaves
+        // the boundary off rather than waiting on an earlier build's tick.
+        clearingBroadcastAfterTick = -1;
+        clearingPing = 0;
         Player player = (Player) testPlayer();
         if (player == null) return;
         GrugTestBox.build(this, getLevel(), player.getX(), player.getY(), player.getZ(), radius);
+        // The clear reaches the client from a packet the next server tick broadcasts, so this tick
+        // is what clientCatchingUpWithLastTest compares against.
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server != null) {
+            clearingBroadcastAfterTick = server.getTickCount();
+        }
     }
 
     @Override
@@ -1191,84 +1203,54 @@ public class ForgeAdapter implements ModLoaderAdapter {
         return GrugModLoader.isReloading();
     }
 
-    private static final int SCAN_IDLE = 0;
-    private static final int SCAN_PENDING = 1;
-    private static final int SCAN_DONE = 2;
-
-    /** Where the scan for {@link #hasStaleTestBlockEntities} is, and what it found when done. */
-    private volatile int staleScan = SCAN_IDLE;
-
-    private volatile boolean staleScanFound = false;
+    /**
+     * The server tick whose end broadcast the room build's clearing, or -1 when there is no build
+     * to catch up with.
+     */
+    private long clearingBroadcastAfterTick = -1;
 
     /**
-     * Whether the client's chunks still hold a grug block entity inside the test area that the room
-     * build has cleared on the server. The server's packets about the clearing reach the client a
-     * tick or more after the build, and until it has processed them a rebuild of one of its
-     * sections draws the old block entity on a chunk worker thread. That draw enters the VM while
-     * the test's first call waits on the client thread with the state lock released, and an err it
-     * reports there stops the test's own call. See #583.
+     * The ping the client owes an answer to for that clearing, or 0 when none has been sent yet.
+     */
+    private int clearingPing = 0;
+
+    /**
+     * Whether the client has yet to prove it processed the clearing the room build made for the
+     * test about to start.
      *
-     * <p>The chunks' block entity maps are the client thread's to change, and iterating one from
-     * another thread can fail halfway, so the scan runs on the client thread. The runner asks from
-     * the server thread, and a wait for the client thread there would hold the server up for as
-     * long as the client is busy, which after a resource reload is seconds, and the server then
-     * ticks in a burst to catch up and runs a test's waits out before the client has done anything.
-     * So the scan is posted and not waited for: this answers true while it has not come back, and
-     * asks again after a scan that found one.
+     * <p>The clearing is applied to the server level during the room build, and a level broadcasts
+     * its changed blocks during a chunk tick, which runs before the tick's task queue: the build
+     * runs as one of those tasks, so the client is sent the clearing by the end of the first server
+     * tick that starts after the build. The test before's blocks were sent earlier still, because
+     * that test placed them in a task and the next tick broadcast them, before the build. Both are
+     * therefore in front of a ping sent from that first tick onwards on the same connection, and
+     * the client answers the ping only after processing the packets before it. A pong then proves
+     * its chunks hold the cleared blocks, which answers {@code isRemoved()} for the block entities
+     * they had, so no rebuild can draw them whatever its compile saw. See {@link GrugTestBoundary}
+     * and #836.
+     *
+     * <p>Looking at the client's chunks instead does not prove it: the blocks of the test before
+     * can still be in flight when the look happens, so a scan can answer clean and the entities
+     * appear a moment later, which is the window #650 left open.
      */
     @Override
     @GrugGenerated(
-            "client plumbing: the answer depends on how far the client is behind the server, which"
-                    + " a run cannot choose")
-    public boolean hasStaleTestBlockEntities() {
+            "client plumbing: how far the client is behind the server is a timing no run can"
+                    + " choose")
+    public boolean clientCatchingUpWithLastTest() {
         if (FMLEnvironment.dist != Dist.CLIENT) return false;
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         Player player = (Player) testPlayer();
-        if (player == null) return false;
-        if (staleScan == SCAN_PENDING) return true;
-        if (staleScan == SCAN_DONE) {
-            staleScan = SCAN_IDLE;
-            if (!staleScanFound) return false;
+        if (server == null || player == null || clearingBroadcastAfterTick < 0) return false;
+        boolean clearingBroadcast = server.getTickCount() > clearingBroadcastAfterTick;
+        if (clearingBroadcast && clearingPing == 0) {
+            Player serverPlayer = serverSideOf(player);
+            if (!(serverPlayer instanceof ServerPlayer connected)) return false;
+            clearingPing = GrugCatchUpPings.open();
+            connected.connection.send(new ClientboundPingPacket(clearingPing));
         }
-        double feetX = player.getX();
-        double feetY = player.getY();
-        double feetZ = player.getZ();
-        staleScan = SCAN_PENDING;
-        Minecraft.getInstance()
-                .execute(
-                        () -> {
-                            staleScanFound = clientHoldsBlockEntityInTestArea(feetX, feetY, feetZ);
-                            staleScan = SCAN_DONE;
-                        });
-        return true;
-    }
-
-    @GrugGenerated("client plumbing: see hasStaleTestBlockEntities")
-    private static boolean clientHoldsBlockEntityInTestArea(
-            double feetX, double feetY, double feetZ) {
-        ClientLevel level = Minecraft.getInstance().level;
-        if (level == null) return false;
-        int radius = GrugTestBox.areaRadius();
-        int minChunkX = ((int) Math.floor(feetX) - radius) >> 4;
-        int maxChunkX = ((int) Math.floor(feetX) + radius) >> 4;
-        int minChunkZ = ((int) Math.floor(feetZ) - radius) >> 4;
-        int maxChunkZ = ((int) Math.floor(feetZ) + radius) >> 4;
-        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                LevelChunk chunk =
-                        level.getChunkSource().getChunk(chunkX, chunkZ, ChunkStatus.FULL, false);
-                if (chunk == null) continue;
-                for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
-                    net.minecraft.core.BlockPos at = blockEntity.getBlockPos();
-                    if (blockEntity instanceof GrugBlockEntity
-                            && !blockEntity.isRemoved()
-                            && GrugTestBox.inClearedArea(
-                                    feetX, feetY, feetZ, at.getX(), at.getY(), at.getZ())) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return GrugTestBoundary.clientCatchingUp(
+                clearingBroadcast, GrugCatchUpPings.isAnswered(clearingPing));
     }
 
     @Override

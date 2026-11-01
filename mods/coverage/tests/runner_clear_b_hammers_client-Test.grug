@@ -1,16 +1,18 @@
-# The second half of the pair that covers what the runner does between two tests (see #583). The runner
-# has cleared the area for this test, and the client may still hold the blocks of the test before it with
-# a rebuild of them under way. A rebuild draws a block entity on a worker thread, and the draw of a
-# coverage_render block entity reports an err the first time. Test.close_screen waits for the client
-# thread with the state lock released, which is the moment a worker can enter grug, so a draw of a block
-# the previous test left lands in the middle of this test's own call and stops it. Asking over and over
-# for the first ticks makes that moment as likely as it can be. Nothing here is asserted but that the
-# calls come back: a draw that is not this test's must not stop them.
+# One of the middle tests of the chain that covers what the runner does between two tests (see #583 and
+# #836). The runner has cleared the area for this test, and the client may still hold the blocks of the
+# test before it with a rebuild of them under way. A rebuild draws a block entity on a worker thread,
+# and the draw of a coverage_render block entity reports an err the first time. Test.close_screen waits
+# for the client thread with the state lock released, which is the moment a worker can enter grug, so a
+# draw of a block the previous test left lands in the middle of this test's own call and stops it.
+# Asking over and over for the first ticks makes that moment as likely as it can be. Nothing here is
+# asserted but that the calls come back: a draw that is not this test's must not stop them.
+# Its last tick places a fresh set of blocks, so the test after it meets the same window;
+# runner_clear_c_hammers_client is next by its name and runner_clear_d_hammers_client ends the chain.
 export tick(ctx: TestTickContext) {
-    # A frame is only drawn for a test that asks for one (#770), and the draw path this test exists
-    # to provoke runs only on a drawn frame: a rebuild of the block entities the runner just cleared
-    # has to be under way for a worker thread to enter grug mid-call. So ask every tick. The settle
-    # wait is the call that turns drawing back on, and its answer is not the point here.
+    # A frame is only drawn for a test that asks for one (#770), and the draw path this test exists to
+    # provoke runs only on a drawn frame: a rebuild of the block entities the runner just cleared has to
+    # be under way for a worker thread to enter grug mid-call. So ask every tick. The settle wait is the
+    # call that turns drawing back on, and its answer is not the point here.
     Test.world_settled()
     i: number = 0
     while i < 30 {
@@ -18,7 +20,34 @@ export tick(ctx: TestTickContext) {
         i = i + 1
     }
     ctx.assert(not Test.screen_open(), "Test.close_screen should leave no screen open.")
-    if ctx.current_tick() < 5 {
-        ctx.not_done()
+    if ctx.current_tick() == 5 {
+        _leave_render_blocks()
+        return
+    }
+    ctx.not_done()
+}
+
+# Places a block entity per block, all of them fresh, so the next test's room build clears blocks whose
+# draw errors have not been used up yet. A block the game had already drawn would only reach the second
+# refusal, and the window is about the first.
+local _leave_render_blocks() {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y()
+    z: number = origin.z()
+
+    dx: number = 0
+    while dx < 3 {
+        dy: number = 0
+        while dy < 3 {
+            dz: number = 0
+            while dz < 3 {
+                level.place_block(x + dx, y + 1 + dy, z + 1 + dz, "grug:coverage_render")
+                dz = dz + 1
+            }
+            dy = dy + 1
+        }
+        dx = dx + 1
     }
 }

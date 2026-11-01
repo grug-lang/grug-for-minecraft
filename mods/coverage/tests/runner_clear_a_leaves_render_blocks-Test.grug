@@ -1,8 +1,12 @@
-# The first half of a pair that covers what the runner does between two tests (see #583). It ends in the
-# same tick it places a block of coverage_render, whose block entity reports a refused draw the first time
-# it is drawn. The pair is a pair because the game has to be left with chunk rebuilds of these blocks still
-# queued or running as the runner clears the area, which no single test can do: the clear is the runner's.
-# The next test, runner_clear_b_hammers_client, runs straight after this one by its name.
+# The first of a chain of tests that covers what the runner does between two tests (see #583 and #836).
+# It ends in the same tick it places a block of coverage_render, whose block entity reports a refused
+# draw the first time it is drawn. The chain is a chain because the game has to be left with chunk
+# rebuilds of these blocks still queued or running as the runner clears the area, which no single test
+# can do: the clear is the runner's. Each test after this one hammers the client and leaves a fresh set
+# of blocks for the test after it, so one pass meets the window as many times as the chain is long.
+# The chain runs together because none of its tests has a time in the test order record: a record that
+# gave them times would order them slowest first and separate the placer from the tests it feeds, and
+# then the window would never open. runner_clear_b_hammers_client is next by its name.
 export tick(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
