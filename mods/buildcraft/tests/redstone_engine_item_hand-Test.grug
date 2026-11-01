@@ -1,0 +1,60 @@
+# Covers the redstone engine's item as the player sees it in their own hand, which BuildCraft 2.2.14's
+# RenderEngine.render draws with GL lighting off, so the trunk is as bright on its dark faces as on its
+# lit ones. redstone_engine_item-Test.grug covers the GUI slot only. On b1.7.3-stationapi the hand is
+# drawn by ArsenicOverlayRenderer, whose flush is the one the unshaded rule has to wrap. See #963.
+# Seventeen blocks square of stone fills the view behind the hand, as in redstone_engine_facings-Test.grug,
+# so the capture does not depend on the terrain. The hand is still while the player stands still and
+# holds the item, but it rises after the item is put in it, so the capture waits out that rise.
+settled_ticks: number = 0
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+        return
+    }
+
+    # The hand's rise takes about 10 ticks, so 40 leaves it long finished.
+    if ctx.current_tick() < 40 {
+        ctx.not_done()
+        return
+    }
+
+    if not Test.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+        return
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+        return
+    }
+
+    Test.screenshot().equals(r"screenshots/redstone_engine_item_hand", 640, 360, 1280, 720)
+    Test.clear_held_item(Test.get_player())
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+
+    wy: number = origin.y() - 9
+    while wy < origin.y() + 8 {
+        wx: number = origin.x() - 8
+        while wx < origin.x() + 9 {
+            level.place_block(wx, wy, origin.z() + 10, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+
+    player: Player = Test.get_player()
+    if Test.is_reference() {
+        reference_item: Item = item(resource_location("buildcraft:engineWood"))
+        Test.set_held_item(player, reference_item)
+    } else {
+        port_item: Item = item(resource_location("grug:redstone_engine"))
+        Test.set_held_item(player, port_item)
+    }
+}
