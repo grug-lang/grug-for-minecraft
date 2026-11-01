@@ -52,6 +52,7 @@ import org.lwjgl.opengl.GL11;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Map;
 
 public class StationApiAdapter implements ModLoaderAdapter {
@@ -1203,6 +1204,95 @@ public class StationApiAdapter implements ModLoaderAdapter {
         }
 
         return GrugBoxRenderer.overlayDrew();
+    }
+
+    @Override
+    @GrugGenerated("test helper: it asks a game's own block for its collision boxes")
+    @SuppressWarnings("rawtypes")
+    public boolean blockCollisionIntersects(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double minX,
+            double minY,
+            double minZ,
+            double maxX,
+            double maxY,
+            double maxZ) {
+        World world = (World) levelObj;
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+        Block block = blockAt(world, blockX, blockY, blockZ);
+        if (block == null) {
+            return false;
+        }
+
+        Box area =
+                Box.create(
+                        blockX + minX,
+                        blockY + minY,
+                        blockZ + minZ,
+                        blockX + maxX,
+                        blockY + maxY,
+                        blockZ + maxZ);
+        ArrayList boxes = new ArrayList();
+        block.addIntersectingBoundingBox(world, blockX, blockY, blockZ, area, boxes);
+        return !boxes.isEmpty();
+    }
+
+    @Override
+    @GrugGenerated("test helper: it asks a game's own block for its selection box")
+    public boolean blockSelectionContains(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double pointX,
+            double pointY,
+            double pointZ) {
+        World world = (World) levelObj;
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+        Block block = blockAt(world, blockX, blockY, blockZ);
+        if (block == null) {
+            return false;
+        }
+
+        // The game itself asks this after the block's state has set its bounding box, which is
+        // what the world relies on before it draws the outline.
+        block.updateBoundingBox(world, blockX, blockY, blockZ);
+        Box box = block.getBoundingBox(world, blockX, blockY, blockZ);
+        if (box == null) {
+            return false;
+        }
+
+        double px = blockX + pointX;
+        double py = blockY + pointY;
+        double pz = blockZ + pointZ;
+        return px >= box.minX
+                && px <= box.maxX
+                && py >= box.minY
+                && py <= box.maxY
+                && pz >= box.minZ
+                && pz <= box.maxZ;
+    }
+
+    /**
+     * The block at a position, or null for air or an id nothing was registered for.
+     *
+     * <p>The only callers are the two test helpers above, and an id past the table cannot come from
+     * a world, so the gate does not measure this lookup.
+     */
+    @GrugGenerated("test helper: the block lookup the two test helpers above share")
+    private static Block blockAt(World world, int x, int y, int z) {
+        int blockId = world.getBlockId(x, y, z);
+        if (blockId <= 0 || blockId >= Block.BLOCKS.length) {
+            return null;
+        }
+        return Block.BLOCKS[blockId];
     }
 
     @Override

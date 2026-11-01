@@ -61,7 +61,10 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ForgeEventFactoryClient;
 import net.minecraftforge.client.model.data.ModelData;
@@ -1516,6 +1519,70 @@ public class ForgeAdapter implements ModLoaderAdapter {
                                 data == null ? ModelData.EMPTY : data,
                                 null);
         return !quads.isEmpty();
+    }
+
+    @Override
+    @GrugGenerated("test helper: it asks a game's own block for its collision boxes")
+    public boolean blockCollisionIntersects(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double minX,
+            double minY,
+            double minZ,
+            double maxX,
+            double maxY,
+            double maxZ) {
+        Level level = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        AABB area =
+                new AABB(
+                        pos.getX() + minX,
+                        pos.getY() + minY,
+                        pos.getZ() + minZ,
+                        pos.getX() + maxX,
+                        pos.getY() + maxY,
+                        pos.getZ() + maxZ);
+        // The two-argument getCollisionShape answers the block state's cached shape, which is the
+        // one built when the block was made and never follows a block whose collision changes with
+        // its neighbours. The game's own collision code asks this four-argument form.
+        VoxelShape shape =
+                level.getBlockState(pos).getCollisionShape(level, pos, CollisionContext.empty());
+        for (AABB box : shape.toAabbs()) {
+            if (box.move(pos).intersects(area)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    @GrugGenerated("test helper: it asks a game's own block for its selection box")
+    public boolean blockSelectionContains(
+            Object levelObj,
+            double x,
+            double y,
+            double z,
+            double pointX,
+            double pointY,
+            double pointZ) {
+        Level level = (Level) levelObj;
+        net.minecraft.core.BlockPos pos =
+                new net.minecraft.core.BlockPos(
+                        (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        net.minecraft.world.phys.Vec3 point =
+                new net.minecraft.world.phys.Vec3(
+                        pos.getX() + pointX, pos.getY() + pointY, pos.getZ() + pointZ);
+        VoxelShape shape = level.getBlockState(pos).getShape(level, pos);
+        for (AABB box : shape.toAabbs()) {
+            if (box.move(pos).contains(point)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

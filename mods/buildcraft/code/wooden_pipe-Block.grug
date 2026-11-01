@@ -6,6 +6,9 @@ export init(ctx: BlockInitContext) {
     # travelling inside it. The block entity's render() draws that shape through the chunk hook,
     # which is also what keeps the block non-opaque and the items inside it lit.
     ctx.set_custom_render()
+    # The reference's collision and selection boxes are the drawn centre-and-arms shape rather than
+    # the full cube, so the pipe declares a shape the same way it declares its render.
+    ctx.set_shape()
     # The reference's pipe has no inventory slots. The port keeps one as the extraction inbox:
     # extract_item_into has to name a slot for the stack a machine hands over, and the block entity
     # moves it into a travelling record and empties the slot again on the same tick. See the block
@@ -22,6 +25,47 @@ export on_break(world: Level, x: number, y: number, z: number) {
     if pipe_opt.has() {
         _drop_travelling(world, x, y, z, pipe_opt.unwrap())
     }
+}
+
+# What entities collide with and what the game targets are one and the same box in the reference.
+# BlockGenericPipe.a(...) sets the bounds of its centre and of each arm and then calls the base
+# getCollidingBoundingBoxes, but that method reads getCollisionBoundingBoxFromPool, which the
+# reference overrides (with c(...)) to recompute this union from the connections, so the per-arm
+# bounds it just set are never read and the union is what entities actually collide with. c() is also
+# the box the outline and the ray trace use, so the port declares that one union once, as the
+# collision box, and its selection box defaults to it. The box starts at the centre's own corners and
+# reaches
+# this block's face on every side the pipe connects to, which is the same connection the
+# reference's pipe render draws an arm for. The arms follow the neighbours, which is why the
+# shape is asked for again on every query rather than saved here.
+export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
+    min_x: number = 0.25
+    min_y: number = 0.25
+    min_z: number = 0.25
+    max_x: number = 0.75
+    max_y: number = 0.75
+    max_z: number = 0.75
+
+    if _is_inventory(world, x, y, z, 4) {
+        min_x = 0.0
+    }
+    if _is_inventory(world, x, y, z, 5) {
+        max_x = 1.0
+    }
+    if _is_inventory(world, x, y, z, 0) {
+        min_y = 0.0
+    }
+    if _is_inventory(world, x, y, z, 1) {
+        max_y = 1.0
+    }
+    if _is_inventory(world, x, y, z, 2) {
+        min_z = 0.0
+    }
+    if _is_inventory(world, x, y, z, 3) {
+        max_z = 1.0
+    }
+
+    ctx.add_collision_box(min_x, min_y, min_z, max_x, max_y, max_z)
 }
 
 # PipeLogicWood.blockActivated: a right click with the wrench makes the pipe extract from the next
@@ -68,4 +112,89 @@ local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: Bloc
         }
         index = index + 1
     }
+}
+
+# The same connection test as the block entity's _is_inventory, which its render uses to decide
+# where to draw an arm. A block and its block entity are separate grug entities and cannot share a
+# helper, so this copy has to stay in step with that one: the shape a player is kept out of has to
+# be the shape the pipe draws.
+local _is_inventory(world: Level, x: number, y: number, z: number, side: number) bool {
+    nx: number = _neighbor_x(x, side)
+    ny: number = _neighbor_y(y, side)
+    nz: number = _neighbor_z(z, side)
+    if _is_pipe(world, nx, ny, nz) {
+        return false
+    }
+
+    neighbor_opt: Option[BlockEntity] = world.get_block_entity(nx, ny, nz)
+    if not neighbor_opt.has() {
+        return false
+    }
+    return _has_extractable_slot(neighbor_opt.unwrap(), _reverse(side))
+}
+
+# The side of a neighbour that faces the pipe, given the side of the pipe the neighbour is on. The
+# sides pair up as 0 and 1, 2 and 3, 4 and 5, like Orientations.reverse.
+local _reverse(side: number) number {
+    if Math.remainder(side, 2) == 0 {
+        return side + 1
+    }
+    return side - 1
+}
+
+# Whether this inventory offers a pipe anything, as the block entity's copy of this says. A machine
+# that answers for itself is a source whatever it holds right now, and the slot after the last
+# inventory slot is the crafting result a machine like the autocrafting table offers.
+local _has_extractable_slot(neighbor: BlockEntity, from_side: number) bool {
+    if neighbor.ask_extract_item(from_side) >= 0 {
+        return true
+    }
+
+    size: number = neighbor.get_inventory_size()
+    if size <= 0 {
+        return false
+    }
+
+    slot: number = 0
+    while slot <= size {
+        if neighbor.is_slot_extractable(slot) {
+            return true
+        }
+        slot = slot + 1
+    }
+    return false
+}
+
+local _is_pipe(world: Level, nx: number, ny: number, nz: number) bool {
+    return world.get_block(nx, ny, nz) == "grug:wooden_pipe"
+}
+
+local _neighbor_x(x: number, side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(y: number, side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(z: number, side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
 }

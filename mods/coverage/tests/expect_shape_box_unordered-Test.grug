@@ -1,0 +1,18 @@
+# A shape box whose corners are the wrong way round is refused with an error, which is what
+# ctx.expect_error accepts here. The boxes declared before it are still recorded, so the block keeps
+# its shape, and the error aborts the test's own tick as it aborts every call that sees it.
+export tick(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_shape")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    be.set_saved_number("mode", 2)
+    be.set_saved_number("arm_bad", 1)
+
+    ctx.expect_error("The box was not recorded")
+    Test.block_collision(level, x, y, z, 0.3, 0.3, 0.3, 0.5, 0.5, 0.5)
+}

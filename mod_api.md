@@ -5,6 +5,7 @@ Generated from mod_api.json by mod_api_catalog.py; do not edit. Descriptions are
 ## Block
 export init(ctx: BlockInitContext)
 export on_break(world: Level, x: number, y: number, z: number)
+export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number)
 export use(ctx: BlockUseContext, world: Level, x: number, y: number, z: number, player: Player)
 
 ## BlockEntity
@@ -66,6 +67,8 @@ export render(ctx: OverlayRenderContext)
 ## Test
 export init(ctx: TestInitContext)
 export tick(ctx: TestTickContext)
+Test.block_collision(level: Level, x: number, y: number, z: number, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) bool
+Test.block_selection(level: Level, x: number, y: number, z: number, point_x: number, point_y: number, point_z: number) bool
 Test.clear_carried_item()
 Test.clear_held_item(player: Player)
 Test.click_screen(x: number, y: number, button: number) bool
@@ -123,6 +126,7 @@ Test.world_settled() bool
 .set_hardness(value: number)
 .set_inventory_size(size: number)
 .set_material(material_name: string)
+.set_shape()
 
 ## BlockPos
 .above_n(n: number) BlockPos
@@ -223,6 +227,10 @@ Option.new() Option[$Value]
 .differs_from(other: Screenshot, percent: number)
 .equals(reference: resource, x1: number, y1: number, x2: number, y2: number)
 .tolerance(percent: number) Screenshot
+
+## ShapeContext
+.add_collision_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
+.add_selection_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)
 
 ## TestInitContext
 .set_max_ticks(ticks: number)

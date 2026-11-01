@@ -47,6 +47,42 @@
 					]
 				},
 				{
+					"name": "shape",
+					"description": "Called by the game whenever it needs this block's boxes at a position, for a block whose init() called `set_shape`. Declare them through `ctx`: the boxes entities collide with, and the boxes the game targets and outlines. It is asked again on every query rather than once at registration, because a shape can follow what is around it: a pipe's arms follow the inventories and pipes beside it, so read the world in this call rather than saving what it said last time. A block that declares `set_shape` and exports no shape function, or that adds no box at all, reports an error and keeps the full cube.",
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "ShapeContext"
+							}
+						},
+						{
+							"name": "world",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				{
 					"name": "use",
 					"description": "Called when a player right-clicks the block.",
 					"parameters": [
@@ -1262,6 +1298,124 @@
 						"name": "bool"
 					}
 				},
+				"block_collision": {
+					"description": "Whether the block at that position, as the game collides with it, has a collision box that overlaps the given box. The box is in block-local coordinates, 0 to 1 from the block's minimum corner, so a test can put a player-sized box in a block's corner and ask whether the player would be kept out of it. It asks the game for the block's own collision boxes, so it answers for any block the loader knows, not only for grug blocks.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"block_selection": {
+					"description": "Whether the box the game targets and outlines for the block at that position contains the given point. The point is in block-local coordinates, 0 to 1 from the block's minimum corner. It asks the game for the block's own selection box, so it answers for any block the loader knows, not only for grug blocks.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "level",
+							"type": {
+								"name": "Level"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "point_x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "point_y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "point_z",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"set_held_item": {
 					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there.",
 					"parameters": [
@@ -2471,6 +2625,9 @@
 				},
 				"set_flat_lighting": {
 					"description": "Declares that this block's custom geometry is drawn flat: every face gets the same brightness, the light at the block's own position, instead of the light of the block each face looks towards scaled by a shade per side. That is how a machine that draws like an entity looks, such as an engine whose faces are all one brightness whichever way they point. The light at the block's own position is real light because a block with custom geometry is not opaque, which `set_custom_render` declares. Only legal on the context init() was passed, while that call is running: a context saved for later is refused. It is also only legal after `set_custom_render`: a block that draws a model is lit the way every other block is, so asking it to be flat is reported as a defect in the block."
+				},
+				"set_shape": {
+					"description": "Declares that this block's collision and selection boxes come from its shape export rather than being the full cube, which is what lets a machine be a shape no model JSON can express: a pipe that reaches towards what is beside it, a slab, a fence. The block's script then has to export shape, which the game asks for the boxes at a position every time it needs them, so the boxes are not fixed at registration and may follow the block's neighbours or its state. A block that declares set_shape without a shape export, or whose shape adds no box, reports an error and keeps the full cube. Only legal on the context init() was passed, while that call is running: a context saved for later is refused."
 				}
 			}
 		},
@@ -2716,6 +2873,93 @@
 				},
 				"take": {
 					"description": "Keeps the press from reaching the screen, so the vanilla slot under the mouse is not clicked too. Call it when the overlay handled the press, such as by giving the item the press landed on, and return; the screen never sees it. Without it, the press goes to the screen as if the overlay had not seen it. Only legal on the context click() was passed, while that call is running: a context saved for later is refused."
+				}
+			}
+		},
+		"ShapeContext": {
+			"description": "The context of a block's shape(), passed to it. The boxes a block declares about its shape go through it: the boxes entities collide with, and the boxes the game targets and outlines. A box is given in block-local coordinates, 0 to 1 from the block's minimum corner, and its two corners have to be the right way round, like draw_box's. A block that declares no selection box gets its collision boxes as its selection boxes, which is the game's own default. A context is only valid while its shape() call is running: saving it in a member variable and using it later is refused.",
+			"methods": {
+				"add_collision_box": {
+					"description": "Adds one box that players and other entities collide with. A block may add as many as it likes, and a box reaching past the block on an axis is allowed, the same as draw_box. A block that adds no collision box has nothing to collide with, so entities pass through it, which is what a plant or a torch does. Only legal on the context shape() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_selection_box": {
+					"description": "Adds one box the game targets and outlines, which is the shape a player clicks and the outline drawn around it. A block may add more than one, and a version whose game can only target one box targets the box around all of them. A block that adds no selection box uses its collision boxes instead, so a block that wants the same shape for both declares it once. Only legal on the context shape() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "x1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z1",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y2",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "z2",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		}
