@@ -86,6 +86,7 @@ Test.set_nbt_item(block_entity: BlockEntity, path: string, item: Item)
 Test.set_nbt_number(block_entity: BlockEntity, path: string, type: string, value: number)
 Test.stall(milliseconds: number)
 Test.tick_block_entity(block_entity: BlockEntity, ticks: number)
+Test.tick_level(level: Level, ticks: number) number
 Test.use_block(level: Level, x: number, y: number, z: number)
 Test.world_settled() bool
 

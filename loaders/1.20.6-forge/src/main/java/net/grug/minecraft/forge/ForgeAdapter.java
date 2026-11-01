@@ -498,6 +498,54 @@ public class ForgeAdapter implements ModLoaderAdapter {
         ((GrugBlockEntity) blockEntityObj).tick();
     }
 
+    /**
+     * Runs the server level's own tick the given number of times, at the point of the call.
+     *
+     * <p>The test's tick is a task the server runs from {@code waitUntilNextTick}, between its own
+     * ticks, so the advance happens between server ticks rather than inside one. {@code
+     * ServerLevel.tick} is that tick: the world border, weather, the level's clock, scheduled block
+     * and fluid ticks, the chunk source with its random block ticks and natural spawning, block
+     * events, entity ticks and block entity ticks. The server's own bookkeeping around it does not
+     * run, which is the point: no {@code tickCount}, no tick rate manager, no autosave, no {@code
+     * LevelTickEvent} or {@code ServerTickEvent} listener and no packet flush per tick.
+     *
+     * <p>{@code hasTimeLeft} answers true so that the chunk source drains its whole tick instead of
+     * stopping at a deadline that the caller is the one holding. The answer is the number of ticks
+     * that ran, so a test can tell an advance from a call that did nothing. See #753 and #780.
+     */
+    @GrugGenerated(
+            "which process holds a level: a test's level is the server's overworld whenever a"
+                + " server runs, which every run does, and a client's own copy otherwise, which no"
+                + " test reaches because nothing here runs a client against another server")
+    @Override
+    public int tickLevel(Object levelObj, int ticks) {
+        if (!(levelObj instanceof ServerLevel serverLevel)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.tick_level: Only a server level has a tick this process can run, and this"
+                            + " is not one.");
+            return 0;
+        }
+        return advanceLevelTicks(serverLevel, ticks);
+    }
+
+    /**
+     * The advance itself, which is what a test pays for instead of a frame per tick, answering how
+     * many ticks it ran.
+     *
+     * <p>No test can see the order inside one advance: the test's own tick observes the state after
+     * every tick it asked for, and grug has no way to schedule a block update that comes due at a
+     * chosen tick of the advance, so the order is checked against the game's own tick that this
+     * method calls, not by a test. What a test does see is that the level moved at all, which is
+     * {@code mods/coverage/tests/tick_level-Test.grug}'s clock and the wooden pipe test's item.
+     */
+    private static int advanceLevelTicks(ServerLevel level, int ticks) {
+        for (int tick = 0; tick < ticks; tick++) {
+            level.tick(() -> true);
+        }
+        return ticks;
+    }
+
     @Override
     public void redraw(Object blockEntityObj) {
         BlockEntity be = (BlockEntity) blockEntityObj;
