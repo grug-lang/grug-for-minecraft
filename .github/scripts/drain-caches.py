@@ -2,6 +2,7 @@
 """Delete the caches of a merged pull request, which no later run can restore (#825).
 
     drain-caches.py <pull-request> [--dry-run] [--api-base <url>] [--repo-slug <owner/repo>]
+    drain-caches.py --run-event <workflow_run payload> [--dry-run] [--api-base <url>] [--repo-slug ...]
 
 A cache entry is readable only from the ref that wrote it and from the default branch, so the
 entries under a pull request's ``refs/pull/<n>/merge`` and under its head branch cannot be restored
@@ -13,6 +14,11 @@ and nothing else: an unmerged pull request's entries are still its own (it can b
 again), ``main``'s are never named, and a head branch whose owner is not this repository is not in
 this store's refs at all. A head branch that outlived its merge is drained with the rest: its work is
 in ``main``, and a branch kept for later is new work that warms its own caches.
+
+``--run-event`` is the second pass. A pull request merged before its run finished still has jobs
+going, and a job saves its caches at the end, so entries land under those refs after the
+``pull_request_target: closed`` drain has run. The run's own completion is later than every one of
+its saves, so the workflow drains the pull requests that event names and the late entries go too.
 
 It reads the pull request itself rather than trusting its caller, so running it by hand for a pull
 request that has not merged deletes nothing. ``--dry-run`` prints what it would delete.
@@ -83,6 +89,22 @@ def refs_to_drain(pull: dict, number: int, slug: str) -> list[str]:
     if ref not in PROTECTED_REFS:
         refs.append(ref)
     return refs
+
+
+def pull_requests_in_run(event: dict) -> list[int]:
+    """The pull requests a completed run names, in order and without repeats.
+
+    A run of a merged pull request can save a cache after the merge's drain has run, and its
+    completion is later than every one of its saves, which is why the workflow calls this with the
+    ``workflow_run`` event (#825). A run that names none, such as a push to ``main`` or a dispatch on
+    a branch, names no pull request and so nothing to drain.
+    """
+    numbers: list[int] = []
+    for pull in (event.get("workflow_run") or {}).get("pull_requests") or []:
+        number = (pull or {}).get("number")
+        if isinstance(number, int) and number not in numbers:
+            numbers.append(number)
+    return numbers
 
 
 def caches_of(api_base: str, slug: str, ref: str, token: str) -> list[dict]:
@@ -165,7 +187,12 @@ def drain(api_base: str, slug: str, number: int, token: str, dry_run: bool) -> i
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
-    parser.add_argument("number", type=int, help="the pull request's number")
+    parser.add_argument("number", type=int, nargs="?", help="the pull request's number")
+    parser.add_argument(
+        "--run-event",
+        metavar="PATH",
+        help="a workflow_run event payload: drain every pull request the run names",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -189,11 +216,27 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    if args.run_event and args.number is not None:
+        parser.error("a pull request number and --run-event name different things")
+    if not args.run_event and args.number is None:
+        parser.error("a pull request number or --run-event is required")
     try:
+        if args.run_event:
+            with open(args.run_event, encoding="utf-8") as payload:
+                numbers = pull_requests_in_run(json.load(payload))
+            if not numbers:
+                print(
+                    "drain-caches: the run names no pull request, so there is nothing to drain",
+                    file=sys.stderr,
+                )
+                return 0
+            return max(
+                drain(args.api_base, args.repo_slug, n, token, args.dry_run) for n in numbers
+            )
         return drain(args.api_base, args.repo_slug, args.number, token, args.dry_run)
     except Exception as e:  # noqa: BLE001 - a drain that cannot read the API has not finished
         print(
-            f"drain-caches: stopped: the GitHub API could not be read: {type(e).__name__}: {e};"
+            f"drain-caches: stopped: {type(e).__name__}: {e};"
             f" whatever was deleted before this point stays deleted",
             file=sys.stderr,
         )
