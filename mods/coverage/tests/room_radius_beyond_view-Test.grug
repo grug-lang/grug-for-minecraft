@@ -10,7 +10,13 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(1600)
 }
 
+# Only 1.20.6 runs it: it is the one loader whose client holds its own copy of the light, and the
+# older loaders refuse a placement in a chunk the client has not received, so they cannot build a
+# room this wide at all.
 export tick(ctx: TestTickContext) {
+    if Test.loader_name() != "1.20.6-forge" {
+        return
+    }
     if ctx.current_tick() == 0 {
         Test.set_box_radius(38)
         ctx.not_done()
