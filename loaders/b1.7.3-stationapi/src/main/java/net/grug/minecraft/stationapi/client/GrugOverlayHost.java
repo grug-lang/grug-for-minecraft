@@ -15,6 +15,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.render.item.ItemRenderer;
+import net.minecraft.client.render.platform.Lighting;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 
@@ -137,6 +138,7 @@ public final class GrugOverlayHost {
                 }
             }
 
+            Lighting.turnOn();
             for (GrugScreenItemDraw item : drawn.items()) {
                 renderItem.renderGuiItem(
                         minecraft.textRenderer,
@@ -145,6 +147,7 @@ public final class GrugOverlayHost {
                         (int) item.x(),
                         (int) item.y());
             }
+            Lighting.turnOff();
             boxes.addAll(drawn.boxes());
         }
         return boxes;
