@@ -1,0 +1,25 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "www",
+        " g ",
+        "GpG"
+    ],
+    "key": {
+        "w": {
+            "item": "minecraft:oak_planks"
+        },
+        "g": {
+            "item": "minecraft:glass"
+        },
+        "G": {
+            "item": "grug:wooden_gear"
+        },
+        "p": {
+            "item": "minecraft:piston"
+        }
+    },
+    "result": {
+        "id": "grug:redstone_engine"
+    }
+}
