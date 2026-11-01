@@ -91,6 +91,8 @@ runs:
     # restores and fetches only what changed. The Minecraft toolchain has no such fallback: its entry
     # names its versions.
     #
+    # The root gradle.properties enters both hashes without its mod_version line (#1002).
+    #
     # None of the three keys names the workflow (#777). A workflow names the jobs and the loader
     # matrix; what the entries hold is decided by the files above and by the paths the steps below
     # name, and a workflow edit changes neither. Hashing build.yml rekeyed every loader's three
@@ -101,10 +103,16 @@ runs:
       shell: bash
       env:
         LOADER: ${{ inputs.loader }}
-        GRADLE_HASH: ${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', inputs.loader), format('loaders/{0}/settings.gradle', inputs.loader), format('loaders/{0}/settings.gradle.kts', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
-        MINECRAFT_HASH: ${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'gradle.properties', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
+        GRADLE_HASH: ${{ hashFiles('.github/actions/setup-loader-build/action.yml', 'settings.gradle.kts', 'gradle/jacoco-loader.gradle', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/gradle/wrapper/gradle-wrapper.properties', inputs.loader), format('loaders/{0}/settings.gradle', inputs.loader), format('loaders/{0}/settings.gradle.kts', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
+        MINECRAFT_HASH: ${{ hashFiles('.github/actions/setup-loader-build/action.yml', format('loaders/{0}/gradle.properties', inputs.loader), format('loaders/{0}/build.gradle', inputs.loader), format('loaders/{0}/build.gradle.kts', inputs.loader)) }}
         DISTS_HASH: ${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', 'loaders/*/gradle/wrapper/gradle-wrapper.properties') }}
       run: |
+        # The root gradle.properties without its mod_version line: the weekly release bump (#499)
+        # changes only that line, resolves nothing and used to rekey every entry below (#1002).
+        # hashFiles cannot skip a line, so this half of the hash is computed here.
+        ROOT_PROPS_HASH=$(grep -v '^mod_version=' gradle.properties | sha256sum | cut -c1-16)
+        GRADLE_HASH="${GRADLE_HASH}${ROOT_PROPS_HASH}"
+        MINECRAFT_HASH="${MINECRAFT_HASH}${ROOT_PROPS_HASH}"
         {
           echo "dists=grug-gradle-dists-${RUNNER_OS}-${DISTS_HASH}"
           echo "dists-prefix=grug-gradle-dists-${RUNNER_OS}-"
