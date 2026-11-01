@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Tests combine-coverage.py: a class initializer that only ran in a dropped segment counts, and
-the recorded coverage of a carried-over test counts for core only (#786)."""
+the recorded coverage of a carried-over test counts for the runner whose classes it was recorded
+against and for core, which unions every runner's exec data (#786)."""
 
+import contextlib
 import importlib.util
+import io
 import sys
 import tempfile
 import unittest
@@ -107,9 +110,9 @@ class CarryOverTest(unittest.TestCase):
         self.report_calls = []
         self.csv_row = ""
         self.orig_report = combine.jacoco_report
-        combine.jacoco_report = self.fake_report
         self.orig_argv = sys.argv
         self.addCleanup(setattr, sys, "argv", self.orig_argv)
+        self.errors = ""
 
     def fake_report(self, cli, execs, classes, sources, csv_path, xml_path):
         self.report_calls.append((tuple(execs), csv_path.name))
@@ -138,7 +141,16 @@ class CarryOverTest(unittest.TestCase):
             str(self.output),
             *extra_args,
         ]
-        return combine.main()
+        # Patched for this run only: this module's later classes use the real report, and a stub
+        # left behind would make their JaCoCo invocations silently do nothing.
+        errors = io.StringIO()
+        combine.jacoco_report = self.fake_report
+        try:
+            with contextlib.redirect_stderr(errors):
+                return combine.main()
+        finally:
+            combine.jacoco_report = self.orig_report
+            self.errors = errors.getvalue()
 
     def core_report_execs(self):
         return next(execs for execs, name in self.report_calls if name == "core.csv")
@@ -185,12 +197,22 @@ class CarryOverTest(unittest.TestCase):
         )
 
     def test_a_missing_carry_over_exec_is_dropped_not_fatal(self):
-        self.assertEqual(
-            self.run_main("--carry-over", f"{self.runner}:{self.root / 'gone.exec'}"), 0
-        )
+        missing = self.root / "gone.exec"
+        self.assertEqual(self.run_main("--carry-over", f"{self.runner}:{missing}"), 0)
+        # A file an artifact rename or expiry left behind fails safe, but the log has to name it:
+        # an under-count with no line about the missing file reads like a test that simply ran.
+        self.assertIn(f"--carry-over names {missing}", self.errors)
+        self.assertIn("is not a file", self.errors)
+        self.assertIn("not counted", self.errors)
         for execs, _name in self.report_calls:
             for path in execs:
                 self.assertTrue(path.is_file(), path)
+
+    def test_the_report_stub_does_not_outlive_the_run(self):
+        # The stub exists to record what each report was handed, and this module's next class runs
+        # in the same process: one left patched would make its real JaCoCo invocation a no-op.
+        self.assertEqual(self.run_main("--carry-over", f"{self.runner}:{self.carry_exec}"), 0)
+        self.assertIs(combine.jacoco_report, self.orig_report)
 
     def test_a_carry_over_without_a_runner_is_an_error(self):
         # The runner names which report's classes the exec was recorded against, and a spec

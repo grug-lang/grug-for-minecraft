@@ -375,6 +375,15 @@ def main() -> int:
         exec_file = Path(path)
         if exec_file.is_file():
             carried.setdefault(runner, []).append(exec_file)
+        else:
+            # An artifact that was renamed or expired is not a reason to fail a run: the gate then
+            # proves what it can from the exec data it has, and a line the missing test was the
+            # only cover for fails it, rather than passing on coverage nobody counted.
+            print(
+                f"warning: --carry-over names {exec_file} for {runner}, which is not a file: it is "
+                f"not counted, so any coverage only it held is missed",
+                file=sys.stderr,
+            )
     carry_over = [path for paths in carried.values() for path in paths]
     if carry_over:
         print(f"counting the recorded coverage of {len(carry_over)} carried-over test(s)")

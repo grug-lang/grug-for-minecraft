@@ -26,7 +26,7 @@ REPO_SPEC = importlib.util.spec_from_file_location(
 repo_module = importlib.util.module_from_spec(REPO_SPEC)
 REPO_SPEC.loader.exec_module(repo_module)
 
-# Three coverage tests; a buildcraft mod whose non-block files no coverage test reads; a
+# Four coverage tests; a buildcraft mod whose non-block files no coverage test reads; a
 # block whose change moves the ids; and core, with a main file and a unit test.
 BASE = {
     "mods/coverage/about.json": "{}",
@@ -34,12 +34,17 @@ BASE = {
     "mods/coverage/tests/frame-Test.grug": 'tick() { block("grug:coverage_frame") }\n',
     "mods/coverage/tests/alpha-Test.grug": "tick() { HostFunctions.get_block() }\n",
     "mods/coverage/tests/bravo-Test.grug": "tick() {}\n",
+    # A coverage test that reads another mod's item, which is the one the fine rule scopes to.
+    "mods/coverage/tests/gear-Test.grug": 'tick() { item("grug:stone_gear") }\n',
     "mods/buildcraft/about.json": "{}",
     "mods/buildcraft/code/wrench-Item.grug": "on_use() {}\n",
+    "mods/buildcraft/code/stone_gear-Item.grug": "on_use() {}\n",
+    "mods/buildcraft/code/wrench_entity-BlockEntity.grug": "export tick() {}\n",
     "mods/buildcraft/data/grug/recipes/crafting/wrench.json": "{}",
     "mods/buildcraft/tests/wrench-Test.grug": 'tick() { item("grug:wrench") }\n',
     "mods/examplemod/about.json": "{}",
     "mods/examplemod/code/foo_block-Block.grug": "on_tick() {}\n",
+    "mods/examplemod/data/minecraft/tags/blocks/mineable/pickaxe.json": "{}",
     "core/src/main/java/net/grug/Foo.java": "class Foo {}\n",
     "core/src/test/java/net/grug/FooTest.java": "class FooTest {}\n",
     "mod_api.json": "{}",
@@ -51,15 +56,37 @@ ALL = frozenset(
         "coverage/tests/frame-Test.grug",
         "coverage/tests/alpha-Test.grug",
         "coverage/tests/bravo-Test.grug",
+        "coverage/tests/gear-Test.grug",
     }
 )
 
+# What each coverage test reads, as the selector reads it from the test's own source.
+SYMBOLS = {
+    "coverage/tests/frame-Test.grug": sel.referenced_symbols(
+        BASE["mods/coverage/tests/frame-Test.grug"]
+    ),
+    "coverage/tests/alpha-Test.grug": sel.referenced_symbols(
+        BASE["mods/coverage/tests/alpha-Test.grug"]
+    ),
+    "coverage/tests/bravo-Test.grug": sel.referenced_symbols(
+        BASE["mods/coverage/tests/bravo-Test.grug"]
+    ),
+    "coverage/tests/gear-Test.grug": sel.referenced_symbols(
+        BASE["mods/coverage/tests/gear-Test.grug"]
+    ),
+}
 
-def select(changed, *, base=ALL):
+
+def select(changed, *, base=ALL, statuses=None, symbols=None):
+    """The selection for a diff that modified these paths, unless a status says otherwise."""
+    changed = frozenset(changed)
+    code_status = {path: sel.MODIFIED for path in changed} | (statuses or {})
     return sel.select_coverage_tests(
-        changed=frozenset(changed),
+        changed=changed,
         coverage_tests=ALL,
         base_coverage_tests=base,
+        code_status=code_status,
+        test_symbols=SYMBOLS if symbols is None else symbols,
     )
 
 
@@ -122,6 +149,8 @@ class SelectCoverageTestsPureTest(unittest.TestCase):
             {},
         )
         self.assertEqual(select({"mods/buildcraft/tests/wrench-Test.grug"}), {})
+        # A modified block or item of another mod whose id no coverage test reads.
+        self.assertEqual(select({"mods/buildcraft/code/wrench-Item.grug"}), {})
         # A prose path is an unknown path, which runs every test: a prose-only diff never
         # reaches this selector anyway, since the no-test skip of #785 fires first and skips
         # the test jobs whole.
@@ -162,22 +191,59 @@ class SelectCoverageTestsPureTest(unittest.TestCase):
                 self.assertEqual(set(run), set(ALL), path)
                 self.assertTrue(all("coverage mod" in reason for reason in run.values()), path)
 
-    def test_a_block_or_item_file_anywhere_runs_every_test(self):
-        for path in (
-            "mods/examplemod/code/foo_block-Block.grug",
-            "mods/buildcraft/code/wrench-Item.grug",
+    def test_an_added_or_removed_block_or_item_file_runs_every_test(self):
+        # Ids are handed out in name order, so a block or item that appears or goes moves the ids
+        # of the ones after it, which no test can be checked against.
+        for path, status in (
+            ("mods/examplemod/code/bar-Block.grug", sel.ADDED),
+            ("mods/buildcraft/code/wrench-Item.grug", sel.GONE),
         ):
-            with self.subTest(path=path):
-                run = select({path})
+            with self.subTest(path=path, status=status):
+                run = select({path}, statuses={path: status})
                 self.assertEqual(set(run), set(ALL), path)
-                self.assertTrue(all("ids" in reason for reason in run.values()), path)
+                self.assertTrue(all("moves the ids" in reason for reason in run.values()), path)
+
+    def test_a_block_or_item_file_of_unknown_status_runs_every_test(self):
+        # A block or item file the status says nothing about is a doubt, and a doubt runs more.
+        run = sel.select_coverage_tests(
+            changed=frozenset({"mods/buildcraft/code/stone_gear-Item.grug"}),
+            coverage_tests=ALL,
+            base_coverage_tests=ALL,
+            test_symbols=SYMBOLS,
+        )
+        self.assertEqual(set(run), set(ALL))
+        self.assertTrue(all("cannot attribute" in reason for reason in run.values()), run)
+
+    def test_another_mods_block_entity_file_runs_every_test(self):
+        # A block entity is created by the block that names it, not by the test that names the
+        # block, so the selector cannot see which tests read the entity's code.
+        run = select({"mods/buildcraft/code/wrench_entity-BlockEntity.grug"})
+        self.assertEqual(set(run), set(ALL))
+        self.assertTrue(all("cannot attribute" in reason for reason in run.values()), run)
+
+    def test_another_mods_helper_code_file_runs_every_test(self):
+        # A helper is called by another file, which the selector reads names from rather than
+        # code, so the tests that reach it cannot be listed.
+        run = select({"mods/buildcraft/code/pipe_helpers.grug"})
+        self.assertEqual(set(run), set(ALL))
+        self.assertTrue(all("cannot attribute" in reason for reason in run.values()), run)
+
+    def test_a_file_of_another_mod_in_the_shared_namespace_runs_every_test(self):
+        # data/ and assets/ outside the grug namespace are shared with vanilla and every mod, so
+        # any mod's change there is what every coverage test observes.
+        path = "mods/examplemod/data/minecraft/tags/blocks/mineable/pickaxe.json"
+        run = select({path})
+        self.assertEqual(set(run), set(ALL))
+        self.assertTrue(all("shares with vanilla" in reason for reason in run.values()), run)
+        # A file in the grug namespace only names what ships it, so it is carried over.
+        self.assertEqual(select({"mods/buildcraft/data/grug/recipes/crafting/wrench.json"}), {})
 
     def test_a_core_test_file_is_no_run_trigger(self):
         # A core unit test runs in the core job, not in a game, so it cannot change what a
         # coverage test does or records.
         self.assertEqual(select({"core/src/test/java/net/grug/FooTest.java"}), {})
 
-    # The fine rules: a test's own file, and a new test.
+    # The fine rules: a test's own file, a new test, and another mod's block or item it reads.
 
     def test_a_changed_coverage_test_runs_only_that_test(self):
         self.assertEqual(
@@ -193,6 +259,29 @@ class SelectCoverageTestsPureTest(unittest.TestCase):
         )
         self.assertEqual(set(run), {"coverage/tests/delta-Test.grug"})
         self.assertIn("new", run["coverage/tests/delta-Test.grug"])
+
+    def test_a_modified_block_or_item_another_mod_declares_runs_the_tests_reading_it(self):
+        # Only the test whose source reads the id can observe a body change to it, and the id
+        # itself does not move, so the other coverage tests are carried over.
+        run = select({"mods/buildcraft/code/stone_gear-Item.grug"})
+        self.assertEqual(set(run), {"coverage/tests/gear-Test.grug"})
+        self.assertIn("stone_gear", run["coverage/tests/gear-Test.grug"])
+
+    def test_a_modified_block_of_another_mod_no_test_reads_is_carried_over(self):
+        self.assertEqual(select({"mods/buildcraft/code/wrench-Item.grug"}), {})
+        self.assertEqual(select({"mods/examplemod/code/foo_block-Block.grug"}), {})
+
+    def test_a_test_the_selector_cannot_read_runs_when_a_block_changes(self):
+        # The symbol facts come from the test's source, so a test whose source could not be read
+        # has no answer, and a doubt about whether it reads the changed id runs it.
+        run = select(
+            {"mods/buildcraft/code/stone_gear-Item.grug"},
+            symbols={t: s for t, s in SYMBOLS.items() if t != "coverage/tests/gear-Test.grug"},
+        )
+        self.assertIn("coverage/tests/gear-Test.grug", run)
+        self.assertIn("could not be read", run["coverage/tests/gear-Test.grug"])
+        # The others were read and do not read the item, so this one doubt runs only itself.
+        self.assertEqual(set(run), {"coverage/tests/gear-Test.grug"})
 
     # The rules compose: the first trigger that fires is a valid reason to run.
 
@@ -235,20 +324,58 @@ class SelectCoverageTestsScriptTest(unittest.TestCase):
             self.select({"mods/buildcraft/data/grug/recipes/crafting/wrench.json": "{}\n"}),
             ",".join(sorted(ALL)),
         )
-        self.assertEqual(self.reason.count("carrying over"), 3)
+        self.assertEqual(self.reason.count("carrying over"), 4)
         self.assertNotIn("running ", self.reason)
+
+    def test_a_modified_block_file_carries_over_the_tests_that_do_not_read_it(self):
+        # The diff's status is what tells a modification, which moves no id, from an addition or a
+        # removal, which does: only the test reading the item runs.
+        self.assertEqual(
+            self.select({"mods/buildcraft/code/stone_gear-Item.grug": "on_use() {}\n# changed\n"}),
+            "coverage/tests/alpha-Test.grug,coverage/tests/bravo-Test.grug,"
+            "coverage/tests/frame-Test.grug",
+        )
+        self.assertIn("it reads stone_gear", self.reason)
+
+    def test_a_new_block_file_carries_no_test_over(self):
+        # A block file that appears renumbers the ids after it, which the selector reports as
+        # every test running rather than as the tests that read that one block.
+        self.assertEqual(
+            self.select({"mods/examplemod/code/bar_block-Block.grug": "on_tick() {}\n"}),
+            "",
+        )
+        self.assertIn("moves the ids", self.reason)
+
+    def test_another_mods_code_that_cannot_be_scoped_carries_no_test_over(self):
+        self.assertEqual(
+            self.select(
+                {"mods/buildcraft/code/wrench_entity-BlockEntity.grug": "export tick() {}\n# x\n"}
+            ),
+            "",
+        )
+        self.assertIn("cannot attribute", self.reason)
+
+    def test_a_shared_namespace_file_carries_no_test_over(self):
+        self.assertEqual(
+            self.select(
+                {"mods/examplemod/data/minecraft/tags/blocks/mineable/pickaxe.json": "{}\n"}
+            ),
+            "",
+        )
+        self.assertIn("shares with vanilla", self.reason)
 
     def test_a_file_of_the_coverage_mod_carries_no_test_over(self):
         self.assertEqual(
             self.select({"mods/coverage/code/coverage_frame-Block.grug": "on_tick() {}\n# x\n"}),
             "",
         )
-        self.assertEqual(self.reason.count("running coverage/tests/"), 3)
+        self.assertEqual(self.reason.count("running coverage/tests/"), 4)
 
     def test_a_changed_coverage_test_carries_only_the_other_tests_over(self):
         self.assertEqual(
             self.select({"mods/coverage/tests/alpha-Test.grug": "tick() {}\n"}),
-            "coverage/tests/bravo-Test.grug,coverage/tests/frame-Test.grug",
+            "coverage/tests/bravo-Test.grug,coverage/tests/frame-Test.grug,"
+            "coverage/tests/gear-Test.grug",
         )
 
     def test_an_unreadable_base_carries_no_test_over(self):

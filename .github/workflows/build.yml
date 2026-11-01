@@ -470,9 +470,9 @@ jobs:
       # a faked run for the classification around it.
       #
       # The suites are waits rather than work, so they run side by side (#744): run_loader_test.py's
-      # fake Gradle sleeps two seconds in every case, and the seven files cost 119 s of this job one
+      # fake Gradle sleeps two seconds in every case, which adds up to minutes of this job one case
       # after another. parallel_test_runner.py puts each file in a process of its own and stops at
-      # the first failure, and run_loader_test.py runs its 45 cases the same way, so the step costs
+      # the first failure, and run_loader_test.py runs its 53 cases the same way, so the step costs
       # about a quarter of what the waits add up to.
       - name: Test the native-abort reporter and the run script
         run: |
@@ -482,6 +482,7 @@ jobs:
             .github/scripts/parallel_test_runner_test.py \
             .github/scripts/ci_timing_test.py \
             .github/scripts/combine_coverage_test.py \
+            .github/scripts/base_coverage_map_run_test.py \
             .github/scripts/watch_run_test.py \
             .github/scripts/affected_mods_test.py \
             .github/scripts/affected_loaders_test.py \
