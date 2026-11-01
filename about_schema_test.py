@@ -142,6 +142,21 @@ class RecreationSchemaTest(SchemaCase):
         del entry["artifacts"]
         self.assertInvalid(self.mod_with(entry), "'artifacts' is a required property")
 
+    def test_a_reference_that_is_the_game_needs_no_artifacts_or_install(self):
+        # Vanilla Minecraft is the reference itself: there is no build of it to stage and nothing
+        # to install, since the loader already runs it. runtime says which game it is, and the
+        # deviations record what the port does differently, so the entry is valid without either.
+        entry = base_entry()
+        for field in ("artifacts", "install", "revision"):
+            del entry[field]
+        entry["deviations"] = [{"what": "x", "why": "y", "tracking_issue": 1}]
+        self.assertValid(self.mod_with(entry))
+
+    def test_an_entry_with_artifacts_needs_an_install(self):
+        entry = base_entry()
+        del entry["install"]
+        self.assertInvalid(self.mod_with(entry), "'install' is a required property")
+
     def test_a_recreation_with_a_deviation_is_valid(self):
         entry = base_entry()
         entry["deviations"] = [{"what": "x", "why": "y", "tracking_issue": 1}]

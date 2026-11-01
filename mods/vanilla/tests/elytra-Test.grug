@@ -1,0 +1,26 @@
+# The elytra exists as an item and can be held, on every loader. A reference run asks for
+# minecraft:elytra, which is what this port recreates, and every other run asks for the port's own
+# item, so the same file proves both sides name an item that is really there.
+# What the item is for (the chest slot, gliding, its durability) is not ported yet, which is why
+# nothing here asserts it: about.json records the gap as a deviation against #915.
+
+export tick(ctx: TestTickContext) {
+    player: Player = Test.get_player()
+
+    if Test.is_reference() {
+        reference_elytra: Item = item(resource_location("minecraft:elytra"))
+        Test.set_held_item(player, reference_elytra)
+        reference_held: Option[Item] = player.get_held_item()
+        ctx.assert(reference_held.has(), "The reference elytra should be in the player's hand.")
+        ctx.assert(equals(reference_held.unwrap(), reference_elytra), "A reference run should hold minecraft:elytra.")
+    } else {
+        port_elytra: Item = item(resource_location("grug:elytra"))
+        Test.set_held_item(player, port_elytra)
+        port_held: Option[Item] = player.get_held_item()
+        ctx.assert(port_held.has(), "grug:elytra should be in the player's hand.")
+        ctx.assert(equals(port_held.unwrap(), port_elytra), "The port's elytra should be the item the mod registers.")
+    }
+
+    # One client and one player serve the whole run, so the hand is left as empty as it was found.
+    Test.clear_held_item(player)
+}
