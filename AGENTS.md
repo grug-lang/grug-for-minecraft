@@ -462,7 +462,9 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
 
 - Write an issue or pull request body to a file and pass `--body-file`; never inline it in a shell
   string, where `\n` stays two literal characters and a backtick runs a command, and both have
-  reached a description (#809, #822, #824, #835). The same goes for a long comment.
+  reached a description (#809, #822, #824, #835). The same goes for a long comment. A `Closes #n`
+  inside backticks is not a closing keyword either: GitHub reads it as code, so the pull request
+  merges and the issue stays open (#571).
 - Create an issue before a pull request, then set its type (`Bug`, `Feature` or `Task`) and then
   its effort (`High`, `Medium` or `Low`), in that order (Effort shows only once a type is set):
   `gh api repos/grug-lang/grug-for-minecraft/issues/<n> -X PATCH -f type=Task`, then
