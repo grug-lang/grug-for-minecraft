@@ -198,6 +198,20 @@ public class HostFunctions {
         return GrugCore.getAdapter().guiWidthForTest();
     }
 
+    /** Test only: the y of the open container screen's GUI, the same measure an overlay gets. */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static double Test_gui_top() {
+        return GrugCore.getAdapter().guiTopForTest();
+    }
+
+    /**
+     * Test only: the height of the open container screen's GUI, the same measure an overlay gets.
+     */
+    @GrugGenerated("asks the adapter about the game's own screen: a unit test has no game")
+    public static double Test_gui_height() {
+        return GrugCore.getAdapter().guiHeightForTest();
+    }
+
     /**
      * Test only: clears the mouse cursor of the open container screen, on the client and on the
      * integrated server, so a test starts a press with nothing carried.

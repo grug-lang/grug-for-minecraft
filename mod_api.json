@@ -1569,6 +1569,18 @@
 						"name": "number"
 					}
 				},
+				"gui_top": {
+					"description": "Test only: the y position of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"gui_height": {
+					"description": "Test only: the height of the open container screen's GUI, the same measure an overlay's click and render contexts get. A test with no container screen open answers 0.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"clear_carried_item": {
 					"description": "Test only: clears the mouse cursor of the container screen that is open, on the client and on the integrated server, so a test starts a press with nothing carried. A test with no container screen open does nothing."
 				},

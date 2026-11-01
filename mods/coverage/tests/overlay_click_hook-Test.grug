@@ -43,10 +43,14 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    # These tests run at 427x240 scaled pixels, where the 166-pixel GUI starts at y 37; the first
-    # hotbar slot is 15 pixels above the GUI's bottom and 17 from its left.
+    # The overlay takes a press on the band it calls the first hotbar slot: as wide as the 18-pixel
+    # slot around gui_left + 17, and from 6 to 24 pixels above the GUI's bottom edge. Read the same
+    # geometry the overlay's context gets instead of assuming a window position, because the screen
+    # the game opens for the player's inventory is not always the same one: 1.20.6 swaps in its
+    # creative inventory on a creative world, and that panel is a different size and sits at a
+    # different place than the survival one.
     hotbar_x: number = Test.gui_left() + 17
-    hotbar_y: number = 188
+    hotbar_y: number = Test.gui_top() + Test.gui_height() - 15
     taken: bool = Test.click_screen(hotbar_x, hotbar_y, 0)
     ctx.assert(taken, "The overlay should take a press on the hotbar slot it covers.")
     ctx.assert(Test.get_player().get_held_item().has(), "A taken press should not also pick the hotbar item up.")

@@ -626,6 +626,22 @@ public interface ModLoaderAdapter {
         return 0.0;
     }
 
+    /** Test only: the y of the open container screen's GUI. */
+    @GrugGenerated("default only: every current adapter measures a screen")
+    default double guiTopForTest() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.gui_top: This loader cannot measure a screen yet.");
+        return 0.0;
+    }
+
+    /** Test only: the height of the open container screen's GUI. */
+    @GrugGenerated("default only: every current adapter measures a screen")
+    default double guiHeightForTest() {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Test.gui_height: This loader cannot measure a screen yet.");
+        return 0.0;
+    }
+
     /**
      * The item on the mouse cursor of the screen that is open, or null for an empty cursor. A
      * loader that cannot answer keeps the default, which reports the call rather than answering as
