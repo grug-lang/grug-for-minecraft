@@ -4,13 +4,15 @@
     drain-caches.py <pull-request> [--dry-run] [--api-base <url>] [--repo-slug <owner/repo>]
 
 A cache entry is readable only from the ref that wrote it and from the default branch, so the
-entries under a pull request's ``refs/pull/<n>/merge`` and under its head branch die the moment the
-pull request merges: a merged pull request never runs again, and the push to ``main`` that carries it
-recomputes its keys under ``refs/heads/main``. Nothing else removes them, so they sat in the store
-until the 10 GB cap evicted something a run still needed, which happened twice before (#699). This
-deletes exactly those two refs of one merged pull request, and nothing else: an unmerged pull
-request's entries are still its own (it can be reopened and run again), ``main``'s are never named,
-and a head branch whose owner is not this repository is not in this store's refs at all.
+entries under a pull request's ``refs/pull/<n>/merge`` and under its head branch cannot be restored
+once it merges: a merged pull request never runs again, its head branch is deleted on merge here, and
+the push to ``main`` that carried it recomputes its keys under ``refs/heads/main``. Nothing else
+removes them, so they sat in the store until the 10 GB cap evicted something a run still needed,
+which happened twice before (#699). This deletes exactly those two refs of one merged pull request,
+and nothing else: an unmerged pull request's entries are still its own (it can be reopened and run
+again), ``main``'s are never named, and a head branch whose owner is not this repository is not in
+this store's refs at all. A head branch that outlived its merge is drained with the rest: its work is
+in ``main``, and a branch kept for later is new work that warms its own caches.
 
 It reads the pull request itself rather than trusting its caller, so running it by hand for a pull
 request that has not merged deletes nothing. ``--dry-run`` prints what it would delete.
