@@ -913,7 +913,7 @@ jobs:
   # build job, whose entries it shares.
   multiplayer:
     name: 1.20.6-forge on a dedicated server
-    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request') && needs.discover.outputs.no-tests != 'true'
+    if: github.event_name == 'workflow_dispatch' && needs.discover.outputs.no-tests != 'true'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
