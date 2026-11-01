@@ -1005,6 +1005,23 @@ class GrugTestRunnerTest {
                 carryOver);
     }
 
+    private GrugTestRunner namingRunner(
+            FakeOps ops, Map<String, Long> files, Set<String> mods, Set<String> tests) {
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                new SweepLog(new ArrayList<>()),
+                1,
+                new CoverageLog(),
+                mods,
+                GrugTestRunner.MAX_GAME_SPEED,
+                Set.of(),
+                tests);
+    }
+
     private static List<String> executedTests(String printed) {
         return printed.lines()
                 .filter(line -> line.startsWith("[GRUG CI] Executing test: "))
@@ -1134,6 +1151,105 @@ class GrugTestRunnerTest {
                                     Set.of(name),
                                     new CoverageLog()));
         }
+    }
+
+    @Test
+    void parsesTheTestSelection() {
+        // Unset, empty and blank all select every test, which is the empty set.
+        assertEquals(Set.of(), GrugTestRunner.parseTests(null));
+        assertEquals(Set.of(), GrugTestRunner.parseTests(""));
+        assertEquals(Set.of(), GrugTestRunner.parseTests("  \t "));
+        assertEquals(
+                Set.of("coverage/tests/a-Test.grug"),
+                GrugTestRunner.parseTests("coverage/tests/a-Test.grug"));
+        // Order as first seen, whitespace trimmed, duplicates dropped.
+        assertEquals(
+                List.of("coverage/tests/b-Test.grug", "coverage/tests/a-Test.grug"),
+                List.copyOf(
+                        GrugTestRunner.parseTests(
+                                " coverage/tests/b-Test.grug ,coverage/tests/a-Test.grug"
+                                        + ",coverage/tests/b-Test.grug")));
+    }
+
+    @Test
+    void refusesATestSelectionWithAnEmptyEntry() {
+        for (String value : new String[] {",", "a,", ",a", "a,,b", "a, ,b"}) {
+            IllegalStateException e =
+                    assertThrows(
+                            IllegalStateException.class, () -> GrugTestRunner.parseTests(value));
+            assertTrue(e.getMessage().contains("GRUG_CI_TESTS has an empty entry"), e.getMessage());
+        }
+    }
+
+    @Test
+    void runsOnlyTheNamedTestsAndSaysSo() {
+        FakeOps ops = new FakeOps();
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        namingRunner(
+                                                ops,
+                                                threeMods(),
+                                                Set.of(),
+                                                GrugTestRunner.parseTests(
+                                                        "jei/code/a-Test.grug,"
+                                                                + "coverage/tests/b-Test.grug"))));
+
+        assertEquals(
+                List.of("coverage/tests/b-Test.grug", "jei/code/a-Test.grug"),
+                executedTests(printed));
+        assertTrue(printed.contains("ALL 2 TESTS PASSED"), printed);
+        assertTrue(
+                printed.contains(
+                        "[GRUG CI] Only these tests run: jei/code/a-Test.grug,"
+                                + " coverage/tests/b-Test.grug"),
+                printed);
+    }
+
+    @Test
+    void aTestSelectionAndAModSelectionIntersect() {
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        namingRunner(
+                                                new FakeOps(),
+                                                threeMods(),
+                                                Set.of("jei"),
+                                                Set.of(
+                                                        "jei/code/a-Test.grug",
+                                                        "coverage/tests/b-Test.grug"))));
+
+        assertEquals(List.of("jei/code/a-Test.grug"), executedTests(printed));
+    }
+
+    @Test
+    void failsLoudlyOnASelectedTestThatWasNotLoaded() {
+        FakeOps ops = new FakeOps();
+        IllegalStateException e =
+                assertThrows(
+                        IllegalStateException.class,
+                        () ->
+                                namingRunner(
+                                        ops,
+                                        threeMods(),
+                                        Set.of(),
+                                        Set.of(
+                                                "jei/code/a-Test.grug",
+                                                "coverage/tests/c-Test.grug")));
+
+        assertTrue(e.getMessage().contains("'coverage/tests/c-Test.grug'"), e.getMessage());
+        // A path that is loaded but is not a test is not a test either.
+        assertThrows(
+                IllegalStateException.class,
+                () ->
+                        namingRunner(
+                                new FakeOps(),
+                                threeMods(),
+                                Set.of(),
+                                Set.of("coverage/code/foo-Block.grug")));
+        assertEquals(0, ops.created);
     }
 
     @Test

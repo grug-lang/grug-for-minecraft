@@ -50,4 +50,18 @@ public class ServerForgeAdapter extends ForgeAdapter {
         var players = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers();
         return players.isEmpty() ? null : (ServerPlayer) players.get(0);
     }
+
+    /**
+     * Nothing to close: the screen belongs to a client, and a dedicated server has none. The
+     * inherited answer reaches for {@code Minecraft.getInstance()}, a client class the server
+     * refuses to load, and the runner calls this before the run's first test. See #167.
+     */
+    @Override
+    public void closeOpenScreenForTest() {}
+
+    /** No screen can be open on a server. */
+    @Override
+    public boolean isScreenOpenForTest() {
+        return false;
+    }
 }

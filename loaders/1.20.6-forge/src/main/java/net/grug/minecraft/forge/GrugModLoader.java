@@ -192,12 +192,22 @@ public class GrugModLoader {
         appliedReloadBatches.addLast(batch);
     }
 
-    public static final KeyMapping RUN_TESTS_KEY =
-            new KeyMapping("key.grug.run_tests", GLFW.GLFW_KEY_R, "key.categories.grug");
+    /**
+     * The client's key mappings, in a class of their own because a {@link KeyMapping} is a client
+     * class that a dedicated server refuses to load, and a static field of {@code GrugModLoader}
+     * itself would be built when the server loads this class. Nothing names this class on a
+     * server. See #167.
+     */
+    public static final class ClientKeys {
+        private ClientKeys() {}
 
-    public static final KeyMapping FORCE_RESOLUTION_KEY =
-            new KeyMapping(
-                    "key.grug.force_test_resolution", GLFW.GLFW_KEY_M, "key.categories.grug");
+        public static final KeyMapping RUN_TESTS_KEY =
+                new KeyMapping("key.grug.run_tests", GLFW.GLFW_KEY_R, "key.categories.grug");
+
+        public static final KeyMapping FORCE_RESOLUTION_KEY =
+                new KeyMapping(
+                        "key.grug.force_test_resolution", GLFW.GLFW_KEY_M, "key.categories.grug");
+    }
 
     public static final RegistryObject<MenuType<GrugMenu>> GRUG_MENU =
             MENUS.register(
@@ -268,6 +278,12 @@ public class GrugModLoader {
 
         // Registered here rather than through an event bus subscriber annotation, which Forge would
         // act on in any version that scans this class, not only the one this layer targets.
+        // The suite of a dedicated server is driven from the server's tick, since there is no
+        // client tick to drive it. See GrugServerRun and #167.
+        if (FMLEnvironment.dist == Dist.DEDICATED_SERVER && "true".equals(System.getenv("GRUG_CI"))) {
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new GrugServerRun());
+        }
+
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modEventBus.register(ClientModEvents.class);
             net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(ClientForgeEvents.class);
@@ -449,8 +465,8 @@ public class GrugModLoader {
 
         @SubscribeEvent
         public static void onKeyRegister(RegisterKeyMappingsEvent event) {
-            event.register(RUN_TESTS_KEY);
-            event.register(FORCE_RESOLUTION_KEY);
+            event.register(ClientKeys.RUN_TESTS_KEY);
+            event.register(ClientKeys.FORCE_RESOLUTION_KEY);
         }
 
         /**
@@ -576,12 +592,12 @@ public class GrugModLoader {
                 new GrugRunWindow.Keys() {
                     @Override
                     public boolean runPressed() {
-                        return RUN_TESTS_KEY.consumeClick();
+                        return ClientKeys.RUN_TESTS_KEY.consumeClick();
                     }
 
                     @Override
                     public boolean forceResolutionPressed() {
-                        return FORCE_RESOLUTION_KEY.consumeClick();
+                        return ClientKeys.FORCE_RESOLUTION_KEY.consumeClick();
                     }
                 };
 
