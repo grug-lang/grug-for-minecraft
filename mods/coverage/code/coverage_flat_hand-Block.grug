@@ -1,0 +1,7 @@
+# Fixture block whose item is drawn unshaded, as the redstone engine's is, so the coverage_flat_hand
+# test can compare how each loader draws a flat-lit block item in the player's hand. See #963.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_flat_lighting()
+}
