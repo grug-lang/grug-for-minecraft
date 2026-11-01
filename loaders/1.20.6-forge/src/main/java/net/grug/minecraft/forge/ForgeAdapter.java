@@ -1960,7 +1960,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
         for (int attempt = 0; attempt < SETTLE_WAIT_CLIENT_TICKS; attempt++) {
             BufferedImage[] result = new BufferedImage[1];
             boolean[] captured = {false};
-            onClientThread(
+            onClientThreadLettingWorkersIn(
                     () ->
                             captureIfClientSettled(
                                     minecraft, simulated, x1, y1, x2, y2, result, captured));
@@ -2086,15 +2086,44 @@ public class ForgeAdapter implements ModLoaderAdapter {
         }
     }
 
+    /** The client (render) thread, noted by the client tick, which is what starts every test. */
+    private static volatile Thread clientThread;
+
+    /** Called on the client thread at the start of each client tick. */
+    @GrugGenerated("client-thread marshalling: only a running client has a client thread")
+    static void noteClientThread() {
+        clientThread = Thread.currentThread();
+    }
+
     /**
      * Runs a task on the client (render) thread, blocking until it has finished.
      *
      * <p>The waiting thread is inside a grug call, and the task can enter the state itself (a block
      * use, a runtime error report), so the wait releases the state lock: the blocked thread is not
      * running grug code, and the task is then the one active entry.
+     *
+     * <p>Only the client thread may enter the state meanwhile. A chunk worker that drew a block
+     * entity there would report its err into the suspended call, which the engine then stops for an
+     * err that is not its own: the render-error race of #583 and #836. The worker waits, holding
+     * nothing, and draws once the call has its lock back.
      */
     @GrugGenerated("client-thread marshalling: the same-thread path cannot occur in a CI run")
     private static void onClientThread(Runnable task) {
+        onClientThread(task, false);
+    }
+
+    /**
+     * Like {@link #onClientThread(Runnable)}, but lets every thread enter the state meanwhile, for
+     * a wait that polls for the chunk workers' drawing to finish, which they can only do while the
+     * call is released.
+     */
+    @GrugGenerated("client-thread marshalling: see onClientThread")
+    private static void onClientThreadLettingWorkersIn(Runnable task) {
+        onClientThread(task, true);
+    }
+
+    @GrugGenerated("client-thread marshalling: the same-thread path cannot occur in a CI run")
+    private static void onClientThread(Runnable task, boolean lettingWorkersIn) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.isSameThread()) {
             task.run();
@@ -2109,7 +2138,12 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         latch.countDown();
                     }
                 });
-        Grug.runWithStateLockReleased(() -> awaitLatch(latch));
+        Thread admitted = clientThread;
+        if (lettingWorkersIn || admitted == null) {
+            Grug.runWithStateLockReleased(() -> awaitLatch(latch));
+        } else {
+            Grug.runWithStateLockReleased(() -> awaitLatch(latch), admitted);
+        }
     }
 
     /**

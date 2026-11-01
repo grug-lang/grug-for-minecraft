@@ -160,6 +160,23 @@ public final class Grug {
         GrugStateLock.runReleased(blockingWait);
     }
 
+    /**
+     * Like {@link #runWithStateLockReleased(Runnable)}, but only {@code admitted}, the thread the
+     * wait is for, may enter the state meanwhile. Any other thread that asks, such as a chunk
+     * worker drawing a block entity, waits without holding anything until the wait is over, and
+     * enters between calls.
+     *
+     * <p>That is for a wait that does not need the other threads' work. The state's error flag is
+     * one for the whole state, and an err that a thread reports inside the wait is folded into the
+     * call that is suspended, which then stops for an err that is not its own. See #583 and #836.
+     *
+     * <p>{@code admitted} stays admitted for the whole wait, including before it has started its
+     * task, because it may be the thread that has to run the task and must not wait for it.
+     */
+    public static void runWithStateLockReleased(Runnable blockingWait, Thread admitted) {
+        GrugStateLock.runReleased(blockingWait, admitted);
+    }
+
     public static void hostFunctionErrorHappened(long statePtr, String message) {
         GrugStateLock.lock();
         try {

@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockGeometry;
 import net.grug.minecraft.grug.GrugBox;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugEntities;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugGeometry;
 import net.grug.minecraft.grug.GrugQuad;
@@ -75,9 +76,6 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
 
     /** The level the block is in, put here by {@link #getModelData}. */
     public static final ModelProperty<BlockAndTintGetter> LEVEL = new ModelProperty<>();
-
-    /** Serializes the init-then-render window across the chunk mesher's worker threads. */
-    private static final Object RENDER_LOCK = new Object();
 
     public GrugBakedModel(BakedModel original) {
         super(original);
@@ -158,19 +156,22 @@ public class GrugBakedModel extends BakedModelWrapper<BakedModel> {
             RandomSource rand,
             ModelData data,
             @Nullable RenderType renderType) {
-        GrugGeometry geometry;
+        GrugGeometry[] drawn = new GrugGeometry[1];
         // Serialized with the other meshing workers: this is the first thread that can run a block
         // entity's init, and init moves process-global state around the call into the VM
         // (currentlyInitializingBlockEntity, fnEntities) that the state lock does not cover
-        // between calls. The pass itself is already serialized by GrugBlockGeometry.draw; this
-        // closes the window around it.
-        synchronized (RENDER_LOCK) {
-            geometry =
-                    GrugBlockGeometry.draw(
-                            blockEntity.getGrugEntityHandle(),
-                            blockEntity.getRenderFnId(),
-                            describe(state, pos));
-        }
+        // between calls. So the state lock itself is held across the init and the pass, and the
+        // worker holds no monitor of its own while it waits for the lock. That matters because the
+        // lock is refused to a worker while a test's call waits on the client thread (#836), and
+        // the client thread's own draw must not queue behind a worker that is waiting for it.
+        GrugEntities.runLocked(
+                () ->
+                        drawn[0] =
+                                GrugBlockGeometry.draw(
+                                        blockEntity.getGrugEntityHandle(),
+                                        blockEntity.getRenderFnId(),
+                                        describe(state, pos)));
+        GrugGeometry geometry = drawn[0];
 
         // A flat block gets no shade per side and no smooth lighting, and ModelBlockRendererMixin
         // lights its quads at the block's own position, so its faces share one brightness instead
