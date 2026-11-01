@@ -125,7 +125,7 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   attempt is closed, its result stays in the issue, and its branch and worktree are removed, so the
   open list is work in flight.
 - **The independent review.** A non-trivial pull request is read by a review subagent before it is
-  merged: a fresh subagent at its highest thinking level, given the issue, the pull request and the
+  merged: a fresh subagent at its default thinking level, given the issue, the pull request and the
   whole diff, and asked to report defects with the file and line and how each is triggered. It is a
   second pair of eyes, not a gate: the orchestrator still reads the diff itself and verifies a
   finding before acting on it. Non-trivial means code, a workflow or a script; prose alone and a
