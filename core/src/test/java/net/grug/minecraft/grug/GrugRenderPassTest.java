@@ -211,6 +211,23 @@ class GrugRenderPassTest {
     }
 
     @Test
+    void aFrameDrawSubmitsABoxsFacesInTheOrderTheBoxRendererDrawsThem() throws Exception {
+        String path =
+                writeModel(
+                        "{\"textures\": {\"t\": \"grug:block/t\"}, \"elements\": [{\"from\": [0,"
+                                + " 0, 0], \"to\": [16, 16, 16], \"faces\": {\"up\": {\"texture\":"
+                                + " \"#t\"}, \"east\": {\"texture\": \"#t\"}}}]}");
+        GrugRenderPass.openFrame(0.0, 0.0);
+        assertEquals(null, GrugRenderPass.recordFrameModel(mods.toFile(), path, 0, 0, 0, 0, 0, 0));
+
+        List<GrugQuad> quads = ((GrugModelDraw) GrugRenderPass.closeFrame().draws().get(0)).quads();
+        // ModelBox draws a box's east face before its up face, though the baker reads up first,
+        // because the face drawn last wins the pixel where two surfaces cross at one depth.
+        assertEquals(5, quads.get(0).side(), "east first");
+        assertEquals(1, quads.get(1).side(), "up second");
+    }
+
+    @Test
     void aFrameDrawSubmitsEachFaceFromTheCornerTheBoxRendererStartsItAt() throws Exception {
         GrugRenderPass.open();
         GrugRenderPass.recordModel(mods.toFile(), writePlate(), 0, 0, 0, 0, 0, 0);

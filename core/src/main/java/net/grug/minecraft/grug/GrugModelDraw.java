@@ -14,7 +14,9 @@ import java.util.List;
  *
  * <p>The faces are already turned by core, so a loader only places them: the offsets are kept apart
  * from the corners because the reference translates its matrix by them before drawing, and a loader
- * that does the same adds them where the reference does.
+ * that does the same adds them where the reference does. They are also in the order the reference's
+ * box renderer draws them, see {@link GrugModels#loadFrame}, because that order decides the pixel
+ * where two surfaces cross at one depth.
  */
 public final class GrugModelDraw implements GrugFrameDraw {
     private final List<GrugQuad> quads;
@@ -33,7 +35,7 @@ public final class GrugModelDraw implements GrugFrameDraw {
         this.z = z;
     }
 
-    /** The faces to draw, in the model's own order, already turned. */
+    /** The faces to draw, in the order the reference's box renderer draws a box, already turned. */
     public List<GrugQuad> quads() {
         return quads;
     }

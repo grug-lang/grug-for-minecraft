@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -56,6 +57,14 @@ public final class GrugModels {
         {1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0}
     };
 
+    /**
+     * Where each side falls in the order a box renderer draws a box's faces, indexed by side: 0
+     * down, 1 up, 2 north, 3 south, 4 west and 5 east. ModelBox has drawn east, west, down, up,
+     * north and south since Alpha, and a frame draw keeps that order because two surfaces that
+     * cross at one depth are won by whichever the rasteriser draws last.
+     */
+    private static final int[] BOX_RANK = {2, 3, 4, 5, 1, 0};
+
     /** The item models already reported as undrawable, so a frame does not report again. */
     private static final Set<String> REPORTED_ITEMS = new HashSet<>();
 
@@ -82,7 +91,25 @@ public final class GrugModels {
         if (!file.isAbsolute()) {
             file = new File(modsDir, resourcePath);
         }
-        return loadFile(modsDir, file);
+        return loadFile(modsDir, file).quads;
+    }
+
+    /**
+     * The faces of the model at {@code resourcePath} in the order a box renderer draws a model's
+     * boxes: every element's east, west, down, up, north and south face in turn, as ModelBox has
+     * drawn them since Alpha.
+     *
+     * <p>This is what a frame draw submits. Two surfaces that cross at one depth hand the pixel on
+     * the crossing to the face drawn last, so the order the reference's box renderer draws in is
+     * part of the picture, while a chunk pass bakes its faces into one mesh and keeps the model's
+     * own order.
+     */
+    public static List<GrugQuad> loadFrame(File modsDir, String resourcePath) throws Defect {
+        File file = new File(resourcePath);
+        if (!file.isAbsolute()) {
+            file = new File(modsDir, resourcePath);
+        }
+        return loadFile(modsDir, file).boxOrdered;
     }
 
     /**
@@ -90,7 +117,7 @@ public final class GrugModels {
      * looked for in every mod the way a parent is.
      */
     public static List<GrugQuad> loadById(File modsDir, String modelId) throws Defect {
-        return loadFile(modsDir, modelFile(modsDir, modelId));
+        return loadFile(modsDir, modelFile(modsDir, modelId)).quads;
     }
 
     /**
@@ -135,10 +162,10 @@ public final class GrugModels {
         CACHE.clear();
     }
 
-    private static synchronized List<GrugQuad> loadFile(File modsDir, File file) throws Defect {
+    private static synchronized Cached loadFile(File modsDir, File file) throws Defect {
         Cached cached = CACHE.get(file);
         if (cached != null && cached.isCurrent()) {
-            return cached.quads;
+            return cached;
         }
 
         List<File> chain = new ArrayList<>();
@@ -193,16 +220,32 @@ public final class GrugModels {
         }
 
         List<GrugQuad> quads = new ArrayList<>();
+        List<GrugQuad> boxOrdered = new ArrayList<>();
         for (JsonElement element : elements) {
             if (!element.isJsonObject()) {
                 throw new Defect("The model " + name + " has an element that is not an object.");
             }
-            addElement(name, element.getAsJsonObject(), textures, quads);
+            List<GrugQuad> elementQuads = new ArrayList<>();
+            addElement(name, element.getAsJsonObject(), textures, elementQuads);
+            quads.addAll(elementQuads);
+            boxOrdered.addAll(inBoxOrder(elementQuads));
         }
 
         quads = Collections.unmodifiableList(quads);
-        CACHE.put(file, new Cached(chain, quads));
-        return quads;
+        boxOrdered = Collections.unmodifiableList(boxOrdered);
+        Cached read = new Cached(chain, quads, boxOrdered);
+        CACHE.put(file, read);
+        return read;
+    }
+
+    /**
+     * One element's faces in the order a box renderer draws them, see {@link #BOX_RANK}. The sort
+     * is stable, so faces that rank the same keep the order the model gives them.
+     */
+    private static List<GrugQuad> inBoxOrder(List<GrugQuad> elementQuads) {
+        List<GrugQuad> ordered = new ArrayList<>(elementQuads);
+        ordered.sort(Comparator.comparingInt(quad -> BOX_RANK[quad.side()]));
+        return ordered;
     }
 
     /**
@@ -442,14 +485,16 @@ public final class GrugModels {
         private final List<File> files;
         private final long[] modified;
         private final List<GrugQuad> quads;
+        private final List<GrugQuad> boxOrdered;
 
-        Cached(List<File> files, List<GrugQuad> quads) {
+        Cached(List<File> files, List<GrugQuad> quads, List<GrugQuad> boxOrdered) {
             this.files = files;
             this.modified = new long[files.size()];
             for (int i = 0; i < files.size(); i++) {
                 modified[i] = files.get(i).lastModified();
             }
             this.quads = quads;
+            this.boxOrdered = boxOrdered;
         }
 
         /** Whether every file is as it was when it was read, so a hot reload is seen. */
