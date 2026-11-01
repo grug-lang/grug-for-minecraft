@@ -76,6 +76,12 @@ public final class GrugModelRenderer {
         {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}
     };
 
+    /**
+     * The rotation point of a box of the engine's model, which is the block's centre, as the box
+     * renderer's coordinates are measured from it.
+     */
+    private static final float ROTATION_POINT = 0.5F;
+
     /** The prefix of the names grug's textures are registered with Forge under. */
     private static final String NAME_PREFIX = "grug-model:";
 
@@ -190,38 +196,51 @@ public final class GrugModelRenderer {
      * <p>Each face is submitted on its own, starting at the corner the reference's box renderer
      * starts it at: see {@link GrugQuad#submittedCorner}. Two surfaces that cross at one depth are
      * decided by the triangles the rasteriser splits them into, so the split is the reference's.
+     *
+     * <p>The box is drawn around its own rotation point, which is what the reference's box renderer
+     * translates to before it draws the box's coordinates: a vertex is submitted at half a block
+     * from the model's origin with the matrix moved there, rather than at the origin with the half
+     * block added to the vertex. The two are the same shape, but the reference's float matrix is
+     * what decides a pixel whose centre sits on the edge of a box to the last bit, so the chain is
+     * the reference's too.
      */
     public static void drawInFrame(
             IBlockAccess world, Block block, int x, int y, int z, List<GrugQuad> quads) {
         Tessellator tessellator = Tessellator.instance;
-        for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
-            String name = register(group.getKey());
-            if (name == null) continue;
+        GL11.glPushMatrix();
+        GL11.glTranslatef(ROTATION_POINT, ROTATION_POINT, ROTATION_POINT);
+        try {
+            for (Map.Entry<String, List<GrugQuad>> group : byTexture(quads).entrySet()) {
+                String name = register(group.getKey());
+                if (name == null) continue;
 
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D, TEXTURES.get(group.getKey()));
-            for (GrugQuad quad : group.getValue()) {
-                int cull = quad.cullSide();
-                if (cull >= 0
-                        && !block.shouldSideBeRendered(
-                                world,
-                                x + OFFSET[cull][0],
-                                y + OFFSET[cull][1],
-                                z + OFFSET[cull][2],
-                                cull)) {
-                    continue;
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, TEXTURES.get(group.getKey()));
+                for (GrugQuad quad : group.getValue()) {
+                    int cull = quad.cullSide();
+                    if (cull >= 0
+                            && !block.shouldSideBeRendered(
+                                    world,
+                                    x + OFFSET[cull][0],
+                                    y + OFFSET[cull][1],
+                                    z + OFFSET[cull][2],
+                                    cull)) {
+                        continue;
+                    }
+                    tessellator.startDrawingQuads();
+                    for (int corner = 0; corner < 4; corner++) {
+                        int submitted = quad.submittedCorner(corner);
+                        tessellator.addVertexWithUV(
+                                quad.x(submitted) - ROTATION_POINT,
+                                quad.y(submitted) - ROTATION_POINT,
+                                quad.z(submitted) - ROTATION_POINT,
+                                quad.u(submitted),
+                                quad.v(submitted));
+                    }
+                    tessellator.draw();
                 }
-                tessellator.startDrawingQuads();
-                for (int corner = 0; corner < 4; corner++) {
-                    int submitted = quad.submittedCorner(corner);
-                    tessellator.addVertexWithUV(
-                            quad.x(submitted),
-                            quad.y(submitted),
-                            quad.z(submitted),
-                            quad.u(submitted),
-                            quad.v(submitted));
-                }
-                tessellator.draw();
             }
+        } finally {
+            GL11.glPopMatrix();
         }
     }
 
