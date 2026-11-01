@@ -105,11 +105,6 @@
 					"tracking_issue": 473
 				},
 				{
-					"what": "On b1.7.3-stationapi the redstone engine's item is drawn with the game's per-face shading, where 2.2.14's item render and the port on every other loader draw it with GL lighting off. The plate sits at the reference's progress 0.25 everywhere.",
-					"why": "StationAPI draws a baked item model with fixed-function lighting, and only turns that off for a model whose GUI light is not side lit. The port draws the engine's item through that renderer rather than the loader's own item renderer, so it cannot turn the lighting off without mixing into StationAPI's renderer.",
-					"tracking_issue": 386
-				},
-				{
 					"what": "The redstone engine gives off no particles. 2.2.14's BlockEngine spawns four reddust particles at its sides on every random display tick while a redstone signal reaches it.",
 					"why": "mod_api.json can neither spawn a particle nor be called on a block's random display tick, and particles are random, so the screenshot runs set the game's particles to minimal rather than compare them.",
 					"tracking_issue": 581
