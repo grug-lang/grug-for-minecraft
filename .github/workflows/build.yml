@@ -291,15 +291,6 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # The root build's Gradle caches, restored from the a1.1.2_01-ornithe entries that the
-      # -Dgrug.activeLoader below scopes this job's build to, instead of setup-java's `cache: gradle`:
-      # its wrapper entry held the same ~/.gradle/wrapper as the dists entry under a second key
-      # (#825). See .github/actions/restore-gradle-caches for what each entry holds.
-      - name: Restore the Gradle caches
-        uses: ./.github/actions/restore-gradle-caches
-        with:
-          loader: a1.1.2_01-ornithe
-
       # Part of the key because it is what built the library: a .a from a different rustc carries a
       # different metadata version, which is a link error rather than a silently wrong library, but
       # naming it in the key means the cache simply misses instead.
@@ -321,6 +312,20 @@ jobs:
         with:
           path: core/build/grug-rs/target/release/libgruggers.a
           key: grug-rs-library-${{ runner.os }}-${{ steps.rust.outputs.version }}-${{ hashFiles('core/build.gradle.kts') }}-v1
+
+      # The one Gradle invocation in this job is the build below, so the caches are restored only when
+      # it runs: the common run restores the static library from its own entry and downloads none of
+      # the 625 MB the three Gradle entries hold.
+      #
+      # The root build's caches, from the a1.1.2_01-ornithe entries the -Dgrug.activeLoader below
+      # scopes the build to, instead of setup-java's `cache: gradle`: its wrapper entry held the same
+      # ~/.gradle/wrapper as the dists entry under a second key (#825). See
+      # .github/actions/restore-gradle-caches for what each entry holds.
+      - name: Restore the Gradle caches
+        if: steps.grugRsLibrary.outputs.cache-hit != 'true'
+        uses: ./.github/actions/restore-gradle-caches
+        with:
+          loader: a1.1.2_01-ornithe
 
       - name: Build the static library
         if: steps.grugRsLibrary.outputs.cache-hit != 'true'
