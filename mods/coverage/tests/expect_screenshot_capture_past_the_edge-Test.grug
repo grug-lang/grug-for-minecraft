@@ -1,0 +1,9 @@
+# A crop coordinate past the frame's far edge must be reported like one below zero: the bounds check
+# has two ends, and the other test only reaches the one below zero. Without the upper end the crop
+# would read outside the framebuffer and come back as a GL error rather than naming the coordinate.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.expect_error("x1 is 1400, which is outside")
+        Test.screenshot().capture(1400, 0, 1500, 100)
+    }
+}

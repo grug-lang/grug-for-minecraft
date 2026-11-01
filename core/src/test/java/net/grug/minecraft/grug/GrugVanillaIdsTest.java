@@ -91,23 +91,28 @@ class GrugVanillaIdsTest {
     }
 
     @Test
-    void aLineThatIsNotAKindANameAndAnIdIsFatal() {
-        IllegalStateException error =
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> GrugVanillaIds.read(TABLE, table("B stone\n")));
+    void aLineThatIsNotAKindANameAndAnIdIsSkipped() {
+        // The build writes the table from the tool's stdout, so the game's own prints land in it.
+        GrugVanillaIds ids =
+                GrugVanillaIds.read(TABLE, table("27 achievements\nB stone 1\n182 recipes\n"));
 
-        assertTrue(error.getMessage().contains("\"B stone\""), error.getMessage());
+        assertEquals(1, ids.blockId("stone"));
     }
 
     @Test
-    void aLineWhoseKindIsNeitherBlockNorItemIsFatal() {
-        IllegalStateException error =
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> GrugVanillaIds.read(TABLE, table("B stone 1\nT torch 50\n")));
+    void aThreeWordLineThatIsNotANameAndAnIdIsSkipped() {
+        GrugVanillaIds ids =
+                GrugVanillaIds.read(TABLE, table("B stone 1\nLoaded 27 achievements\n"));
 
-        assertTrue(error.getMessage().contains("\"T torch 50\""), error.getMessage());
+        assertEquals(1, ids.blockId("stone"));
+    }
+
+    @Test
+    void aLineWhoseKindIsNeitherBlockNorItemIsSkipped() {
+        GrugVanillaIds ids = GrugVanillaIds.read(TABLE, table("B stone 1\nT torch 50\n"));
+
+        assertEquals(1, ids.blockId("stone"));
+        assertEquals(-1, ids.itemId("torch"));
     }
 
     @Test
