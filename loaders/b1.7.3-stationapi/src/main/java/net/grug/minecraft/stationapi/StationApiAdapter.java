@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
@@ -738,7 +739,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
                             + posZ
                             + ". A y outside this version's world height is refused, and a"
                             + " position in a chunk the client has not received is discarded.");
+            return;
         }
+        // The client and the server share this loader's world, so the block is there, but the
+        // settle wait still has to be told that a frame has to see it. See #804.
+        blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
     }
 
     /**
@@ -899,9 +904,16 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public boolean isWorldSettled() {
+        // What the client owes is the simulated world's current block, not the one the test placed.
+        Object simulated = getLevel();
+        blockSync.refresh((x, y, z) -> getBlock(simulated, x, y, z));
         // Asked now as well as per frame: the runner runs up to 10 ticks for a frame, so a change a
         // test just made has not been in a frame yet, and only the renderer's list knows it.
-        return renderSettle.settledNow(frameHadPendingWork());
+        // The client and the server share this loader's world, so a placed block is there, but the
+        // settlement still waits for a frame that shows it. Both answers are combined inside
+        // GrugRenderSettle, whose unit test covers every combination, so no branch here depends on
+        // whether an edit happened to be owed. See #804.
+        return renderSettle.settledNow(frameHadPendingWork(), blockSync.settled());
     }
 
     @Override
@@ -911,7 +923,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public void onFrameRendered() {
-        renderSettle.onFrame(frameHadPendingWork());
+        @SuppressWarnings("deprecation")
+        Minecraft minecraft = (Minecraft) FabricLoader.getInstance().getGameInstance();
+        // The reader only runs while an edit is owed, and only a placement in a level records one,
+        // so there is a world whenever it is asked. A frame drawn before a world exists owes
+        // nothing and answers without reading.
+        boolean blocksPending = blockSync.onFrame((x, y, z) -> getBlock(minecraft.world, x, y, z));
+        renderSettle.onFrame(frameHadPendingWork(), blocksPending);
     }
 
     /**
@@ -919,6 +937,11 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * #frameHadPendingWork}.
      */
     private final GrugRenderSettle renderSettle = new GrugRenderSettle();
+
+    /**
+     * The client's copy of the blocks a test has placed, for the frame hook to sample. See #804.
+     */
+    private final GrugBlockSync blockSync = new GrugBlockSync();
 
     /**
      * Whether the frame that just finished still had work in it: a rebuild the renderer did not get

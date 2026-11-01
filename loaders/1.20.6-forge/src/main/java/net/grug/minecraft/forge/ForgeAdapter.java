@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 
+import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
@@ -887,7 +888,11 @@ public class ForgeAdapter implements ModLoaderAdapter {
                             + pos.getZ()
                             + ". A y outside this version's world height is refused, and a"
                             + " position in a chunk the client has not received is discarded.");
+            return;
         }
+        // The client learns of the block from a packet it has not read yet, so the settle wait has
+        // to ask the client's own copy rather than trust the frames that passed. See #804.
+        BLOCK_SYNC.owe(pos.getX(), pos.getY(), pos.getZ(), blockNameAt(world, pos));
     }
 
     @Override
@@ -1045,8 +1050,17 @@ public class ForgeAdapter implements ModLoaderAdapter {
         net.minecraft.core.BlockPos pos =
                 new net.minecraft.core.BlockPos(
                         (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        return blockNameAt(world, pos);
+    }
+
+    /** The name the client or the server holds at a position, as both spell it in a registry. */
+    private static String blockNameAt(Level world, net.minecraft.core.BlockPos pos) {
         Block block = world.getBlockState(pos).getBlock();
         return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block).toString();
+    }
+
+    private static String blockNameAt(Level world, int x, int y, int z) {
+        return blockNameAt(world, new net.minecraft.core.BlockPos(x, y, z));
     }
 
     @Override
@@ -1096,6 +1110,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
     public boolean isWorldSettled() {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
+        // What the client owes is the simulated world's current block, not the one the test placed:
+        // a clear can be refilled by water. This runs on the server thread, which owns that world.
+        Object simulated = getLevel();
+        BLOCK_SYNC.refresh((x, y, z) -> getBlock(simulated, x, y, z));
         if (!clientSettled(minecraft)) {
             return false;
         }
@@ -1111,6 +1129,13 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private static final GrugRenderSettle RENDER_SETTLE = new GrugRenderSettle();
 
     /**
+     * The client's copy of the blocks a test has placed. The test's edits reach the integrated
+     * server in its own tick, and the client only after a packet, so a settle answer built from
+     * frames alone can describe a world without them. See #804.
+     */
+    private static final GrugBlockSync BLOCK_SYNC = new GrugBlockSync();
+
+    /**
      * One completed frame, called from the render event handler: the level has been uploaded and
      * drawn, so whether it still had work in it is the answer a capture reading this frame needs.
      *
@@ -1120,7 +1145,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
      */
     @Override
     public void onFrameRendered() {
-        RENDER_SETTLE.onFrame(!rendererIdle(Minecraft.getInstance()));
+        Minecraft minecraft = Minecraft.getInstance();
+        // The reader only runs while an edit is owed, and only a placement in a level records one,
+        // so there is a client level whenever it is asked. This event fires after a level was
+        // drawn, and a frame drawn before a world exists owes nothing. The client's copy is only
+        // safe to read on this thread, where the packets that change it are applied, which is why
+        // the frame hook is the one place it is sampled. See #804.
+        boolean blocksPending =
+                BLOCK_SYNC.onFrame((x, y, z) -> blockNameAt(minecraft.level, x, y, z));
+        RENDER_SETTLE.onFrame(!rendererIdle(minecraft), blocksPending);
     }
 
     @Override
@@ -1234,16 +1267,19 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * answer built from them describes a world that is not there yet. See #328.
      */
     private static boolean clientSettled(Minecraft minecraft) {
-        // Both reads happen every time and the rule is GrugRenderSettle.lightSettled, a pure
-        // function
-        // that its unit test covers in every combination, so this method has no branch of its own
-        // that
-        // only a poll landing while light packets are queued could meet. See #424.
+        // All four reads happen every time and the rule is GrugRenderSettle.clientSettled, a pure
+        // function that its unit test covers in every combination, so this method has no branch of
+        // its own that only a poll landing while light packets are queued, or a frame landing while
+        // a test's block edit is owed, could meet. See #424 and #804.
         return !GrugModLoader.isReloading()
-                && GrugRenderSettle.lightSettled(
+                && GrugRenderSettle.clientSettled(
                         minecraft.level.getChunkSource().getLightEngine().hasLightWork(),
-                        minecraft.level.isLightUpdateQueueEmpty())
-                && RENDER_SETTLE.settled();
+                        minecraft.level.isLightUpdateQueueEmpty(),
+                        RENDER_SETTLE.settled(),
+                        // The client can be lit and idle while a test's own block is still a packet
+                        // away: only its copy of the block says whether the frame a capture reads
+                        // shows the edit.
+                        BLOCK_SYNC.settled());
     }
 
     /**
