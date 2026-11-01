@@ -1480,9 +1480,82 @@ public class StationApiAdapter implements ModLoaderAdapter {
      * the buffer bottom row first, so rows are written into the image in reverse to land the right
      * way up.
      */
+    /** Throwaway diagnostic for #919: the atlas positions of the sprites the pipe capture draws. */
+    private static boolean diagLogged = false;
+
+    private static void diagAtlas() {
+        if (diagLogged) return;
+        diagLogged = true;
+        try {
+            net.modificationstation.stationapi.api.client.texture.SpriteAtlasTexture game =
+                    net.modificationstation.stationapi.api.client.StationRenderAPI
+                            .getBakedModelManager()
+                            .getAtlas(
+                                    net.modificationstation.stationapi.api.client.texture.atlas
+                                            .Atlases.GAME_ATLAS_TEXTURE);
+            System.out.println(
+                    "[GRUG DIAG] game atlas "
+                            + game.getWidth()
+                            + "x"
+                            + game.getHeight());
+            diagSprite(game, "minecraft:block/chest_side");
+            diagSprite(game, "minecraft:block/stone");
+            diagSprite(game, "minecraft:block/wood");
+            diagSprite(game, "grug:item/elytra");
+            diagSprite(game, "grug:item/firework_rocket");
+            diagTerrainSprite("minecraft:block/chest_side");
+            diagTerrainSprite("minecraft:block/stone");
+            diagTerrainSprite("grug:block/wooden_pipe");
+        } catch (Throwable t) {
+            System.out.println("[GRUG DIAG] failed: " + t);
+        }
+    }
+
+    private static void diagSprite(
+            net.modificationstation.stationapi.api.client.texture.SpriteAtlasTexture atlas,
+            String id) {
+        net.modificationstation.stationapi.api.client.texture.Sprite sprite =
+                atlas.getSprite(Identifier.of(id));
+        System.out.println(
+                "[GRUG DIAG] game "
+                        + id
+                        + " -> "
+                        + (sprite == null
+                                ? "null"
+                                : sprite.getContents().getId()
+                                        + " @ "
+                                        + sprite.getX()
+                                        + ","
+                                        + sprite.getY()
+                                        + " "
+                                        + sprite.getContents().getWidth()
+                                        + "x"
+                                        + sprite.getContents().getHeight()));
+    }
+
+    private static void diagTerrainSprite(String id) {
+        net.modificationstation.stationapi.api.client.texture.atlas.Atlas.Sprite sprite =
+                net.modificationstation.stationapi.api.client.texture.atlas.Atlases.getTerrain()
+                        .getTexture(Identifier.of(id));
+        System.out.println(
+                "[GRUG DIAG] terrain "
+                        + id
+                        + " -> "
+                        + (sprite == null
+                                ? "null"
+                                : sprite.index
+                                        + " @ "
+                                        + sprite.getX()
+                                        + ","
+                                        + sprite.getY()));
+    }
+
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private static BufferedImage captureRectangle(
             String operation, int x1, int y1, int x2, int y2, int windowHeight) {
+        if (x1 == 400 && y1 == 120 && x2 == 880 && y2 == 360) {
+            diagAtlas();
+        }
         int width = x2 - x1;
         int height = y2 - y1;
         int glY = windowHeight - y2;
