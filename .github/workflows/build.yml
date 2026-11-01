@@ -1750,7 +1750,9 @@ jobs:
       # tool fails the run when a class the map names changed under it, or a test the selection
       # carried over is not in the map for a loader that ran, and both are the direction that runs
       # more: the loader jobs already skipped the tests, so a map that cannot be applied is a red
-      # run, never a gate that counted less (#786).
+      # run, never a gate that counted less (#786). Its other-mod replay is the base run's dropped
+      # data, which the gate reads only for the class initializers another mod's test made run, so
+      # a pull request that runs no test at all still counts those (#897).
       - name: Reconstruct the carried-over coverage
         if: ${{ needs.discover.outputs.carry-over != '' }}
         env:
@@ -1774,6 +1776,7 @@ jobs:
             --classes coverage/artifacts/coverage-classes-core \
             --tests coverage/carry-over/tests.txt \
             --out-dir coverage/carry-over \
+            --other-mods-dir coverage/carry-over-dropped \
             "${loader_args[@]}"
 
       - name: Combine the coverage data and require 100%
@@ -1795,12 +1798,22 @@ jobs:
               done
             done < coverage/carry-over/tests.txt
           fi
+          other_mods=()
+          # reconstruct replays the base run's other-mod segments to coverage/carry-over-dropped,
+          # one exec per loader, named for its runner. They are the dropped data of the carried
+          # tests' base run: the gate counts the class initializers they made run and nothing else,
+          # exactly as it counts the run's own dropped data (#897).
+          for exec in coverage/carry-over-dropped/*.exec; do
+            [ -e "$exec" ] || continue
+            other_mods+=(--carry-over-dropped "$(basename "$exec" .exec):$exec")
+          done
           python3 .github/scripts/combine-coverage.py \
             --artifacts coverage/artifacts \
             --jacoco-cli coverage/tools/jacoco-cli.jar \
             --output coverage/report \
             --require-100 \
-            "${carry[@]}"
+            "${carry[@]}" \
+            "${other_mods[@]}"
 
       # The map of what each coverage test of this run covered, from this run's own per-test exec
       # data against this run's own core classes and each loader's own: the pull requests that
