@@ -14,9 +14,11 @@ export tick(ctx: TestTickContext) {
         _setup(ctx)
         _advance(ctx)
         ctx.not_done()
-    } else if not _pulled() or ctx.current_tick() < 25 or (_dropped() < 2 and ctx.current_tick() < 300) {
+    } else if not _pulled() or ctx.current_tick() < 25 or _dropped() < 2 {
         # The dropped items reach the client's copy of the level a few frames after the server ran
-        # the ticks above, so the count is waited for rather than read once.
+        # the ticks above, so the count is waited for rather than read once. The runner's tick
+        # budget bounds the wait; a fixed count gave up while the client was still catching up on
+        # 1.20.6 after the merge brought in the engine's display tick.
         ctx.not_done()
     } else {
         _check(ctx)
