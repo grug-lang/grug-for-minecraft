@@ -61,26 +61,28 @@ public final class GrugOverlay {
     private static double button = 0.0;
 
     /**
-     * Whether this loader has ever asked an overlay's export on a screen it may draw on, which is
-     * what {@code Test.overlay_asked} answers. A loader that does not draw overlays never opens a
-     * pass, so it keeps answering false, and a test that needs the overlay to have drawn its one
-     * job is the one that checks it.
+     * Whether this loader draws overlays at all, which is what {@code Test.overlay_supported}
+     * answers. Only a loader that registers the overlay hooks says so, and it says so from load,
+     * before any screen has been open, so a test can ask before it opens one. A loader that does
+     * not draw overlays keeps answering false.
      */
-    private static volatile boolean overlayAsked = false;
+    private static volatile boolean overlaySupported = false;
 
     @GrugGenerated("utility class: never instantiated")
     private GrugOverlay() {}
 
     /**
-     * Marks that this loader asked an overlay, so Test.overlay_asked can answer true from then on.
+     * Marks that this loader draws overlays, so Test.overlay_supported can answer true from then
+     * on. Called by a loader when it registers the screen hooks, not when it first asks an export,
+     * since a test needs the answer before it opens the screen that would ask one.
      */
-    public static void noteAsked() {
-        overlayAsked = true;
+    public static void noteSupported() {
+        overlaySupported = true;
     }
 
-    /** Whether an overlay's exports were ever asked in this run. */
-    public static boolean overlayAsked() {
-        return overlayAsked;
+    /** Whether this loader draws overlays on the inventory and container screens. */
+    public static boolean overlaySupported() {
+        return overlaySupported;
     }
 
     /** Whether a pass is open, which is the only state a context method is legal in. */
@@ -326,7 +328,7 @@ public final class GrugOverlay {
      *
      * <p>A handle of zero means the mod has no overlay script, and an invalid export id means the
      * engine has no {@code render} to call, so neither is passed to the native side. The pass still
-     * opens and closes, because {@link #noteAsked} has already said this loader asks overlays.
+     * opens and closes, because {@link #noteSupported} has already said this loader draws overlays.
      */
     public static GrugOverlayGeometry render(
             long entityHandle,

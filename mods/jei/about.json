@@ -58,7 +58,7 @@
 			},
 			"deviations": [
 				{
-					"what": "The item list is drawn on 1.20.6-forge only. The 1.2.5-forge, b1.7.3-ornithe, b1.7.3-stationapi and a1.1.2_01-ornithe adapters never ask the Overlay exports, so the list is absent there, a click gives nothing, and Test.overlay_asked answers false.",
+					"what": "The item list is drawn on 1.20.6-forge only. The 1.2.5-forge, b1.7.3-ornithe, b1.7.3-stationapi and a1.1.2_01-ornithe adapters never ask the Overlay exports, so the list is absent there, a click gives nothing, and Test.overlay_supported answers false.",
 					"why": "Only the 1.20.6 adapter registers overlay files and hooks its screen events in the first version. Alpha and Beta have no creative inventory, no give command and no singleplayer chat, so the list and its give matter most there, but neither has a screen hook yet.",
 					"tracking_issue": 863
 				},
@@ -108,9 +108,14 @@
 					"tracking_issue": 870
 				},
 				{
-					"what": "A left click always gives one item. There is no give-versus-cheat mode and no right-click delete.",
-					"why": "The first version has one click behaviour, the give JEI needs on a survival server; JEI's modes and their configuration are a separate piece.",
+					"what": "A left click always gives one item. There is no give-versus-cheat mode, no cheat permission check and no right-click delete, and the give plays no pickup sound and sends no \"Gave ... to ...\" chat message.",
+					"why": "The first version has one click behaviour, the inventory give; JEI's modes, its permission check and the sound and chat line its give sends are a separate piece.",
 					"tracking_issue": 870
+				},
+				{
+					"what": "No test captures a frame and compares it with the reference, so the port's drawing is not checked against real JEI's.",
+					"why": "The item order differs from JEI's on purpose, so a whole-screen golden would differ for a reason the port chose. The reference can already be staged and booted, but a capture that isolates the layout has to come first.",
+					"tracking_issue": 874
 				}
 			]
 		}

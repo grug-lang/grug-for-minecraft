@@ -3,8 +3,8 @@
 # test waits for the client to receive it in the player's hand rather than reading it back at once.
 
 # The overlay is drawn on 1.20.6 only; the other four loaders never ask it, which about.json records
-# as a deviation with its own issue. There it leaves the screen alone and passes, because the test
-# cannot ask a loader that has no overlay to draw one.
+# as a deviation with its own issue. There the test returns on its first tick without opening a
+# screen, because those loaders cannot open the inventory either.
 started: bool = false
 waited: number = 0
 clicked: bool = false
@@ -12,6 +12,10 @@ clicked: bool = false
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
+        if not Test.overlay_supported() {
+            # This loader draws no overlays; the deviation is in about.json.
+            return
+        }
         Test.close_screen()
         Test.open_inventory(Test.get_player())
         ctx.not_done()
@@ -21,17 +25,6 @@ export tick(ctx: TestTickContext) {
     if not Test.screen_open() {
         waited = waited + 1
         ctx.assert(waited < 100, "The player's inventory screen should open.")
-        ctx.not_done()
-        return
-    }
-
-    if not Test.overlay_asked() {
-        waited = waited + 1
-        if waited > 100 {
-            # This loader does not draw overlays; the deviation is in about.json.
-            Test.close_screen()
-            return
-        }
         ctx.not_done()
         return
     }

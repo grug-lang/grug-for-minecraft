@@ -872,7 +872,7 @@
 			]
 		},
 		"Overlay": {
-			"description": "An overlay drawn over the player's inventory screen and over container screens, such as a chest's or a crafting table's. The game asks its exports while such a screen is open: render once per frame and click once per mouse press, so a mod can draw on the screen and take a click away from the vanilla slot under it. A screen the overlay may draw on is the player's own inventory screen and every screen the game opens for a container, and a loader that does not draw overlays on them simply never asks the exports, which a test can tell from Test.overlay_asked.",
+			"description": "An overlay drawn over the player's inventory screen and over container screens, such as a chest's or a crafting table's. The game asks its exports while such a screen is open: render once per frame and click once per mouse press, so a mod can draw on the screen and take a click away from the vanilla slot under it. A screen the overlay may draw on is the player's own inventory screen and every screen the game opens for a container, and a loader that does not draw overlays on them simply never asks the exports, which a test can tell from Test.overlay_supported.",
 			"export_functions": [
 				{
 					"name": "render",
@@ -1290,8 +1290,8 @@
 						}
 					]
 				},
-				"overlay_asked": {
-					"description": "Whether the overlay's exports were ever asked in this run, for a test that needs to know whether its loader draws overlays at all. A loader that does not draw them on the inventory and container screens never asks the exports, so this answers false there, and a test that needs the overlay to have drawn its one job is the one that checks it; a loader that does answers true once such a screen has been open, and keeps answering it.",
+				"overlay_supported": {
+					"description": "Whether this loader draws overlays on the inventory and container screens at all, which a test asks before it opens a screen: a loader that does not cannot open the inventory either, so a test that needs an overlay returns early there instead of driving a screen the loader cannot show. It is a property of the loader, answered from the start of a run, and a loader that draws overlays answers true whether or not a screen has been open yet.",
 					"return_type": {
 						"name": "bool"
 					}
