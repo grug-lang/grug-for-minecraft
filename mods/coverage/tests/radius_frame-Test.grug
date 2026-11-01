@@ -11,9 +11,6 @@ frame_block: Option[BlockEntity] = Option.new()
 # Whether the current round's room and fixture are built.
 built: bool = false
 
-# Whether the current round has held the server thread after the rebuild. See the stall in tick().
-stalled: bool = false
-
 # Whether the current round's capture has been taken.
 captured: bool = false
 
@@ -24,8 +21,8 @@ rounds: number = 0
 rounds_wanted: number = 8
 
 export init(ctx: TestInitContext) {
-    # A round is a rebuild, a stall, a settle wait and a capture, so eight of them are far past the
-    # default budget of GrugTestRunner.DEFAULT_MAX_TEST_TICKS.
+    # A round is a rebuild, a settle wait and a capture, so eight of them are far past the default
+    # budget of GrugTestRunner.DEFAULT_MAX_TEST_TICKS.
     ctx.set_max_ticks(4000)
 }
 
@@ -33,18 +30,7 @@ export tick(ctx: TestTickContext) {
     if not built {
         _rebuild(ctx)
         built = true
-        stalled = false
         captured = false
-        ctx.not_done()
-    } else if not stalled {
-        # The tick after the rebuild is the one that sends its blocks, and the client has not drawn
-        # a frame yet, so it still owes every one of them. Holding the server thread here lets the
-        # client catch up on those blocks while the server cannot send anything newer, which is the
-        # state a settle answer built on the client alone gets wrong: the light the rebuild asked
-        # for is the server's to compute and send, and a client that has the blocks without the
-        # light looks as idle as one that has both. See #686.
-        Test.stall(250)
-        stalled = true
         ctx.not_done()
     } else if not Test.world_settled() {
         # The capture below must read a room the client has the light for, which is what the settle
