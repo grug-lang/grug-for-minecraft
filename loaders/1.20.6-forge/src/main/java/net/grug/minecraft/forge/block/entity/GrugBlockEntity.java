@@ -1,7 +1,6 @@
 package net.grug.minecraft.forge.block.entity;
 
 import net.grug.minecraft.core.GrugCore;
-import net.grug.minecraft.forge.ForgeAdapter;
 import net.grug.minecraft.forge.GrugModLoader;
 import net.grug.minecraft.forge.block.GrugBakedModel;
 import net.grug.minecraft.forge.block.GrugBlock;
@@ -415,15 +414,18 @@ public class GrugBlockEntity extends BlockEntity
             return;
         }
         // Only a change the client has not been sent, because a script may set a number to what it
-        // already holds every tick and each send is a packet and a pair of frames the capture waits
-        // for.
+        // already holds every tick and each send is a packet.
         CompoundTag now = getUpdateTag(level.registryAccess());
         if (now.equals(lastSentToClients)) {
             return;
         }
         lastSentToClients = now;
-        // The same send redraw makes, which also tells the settle wait that a packet is on its way.
-        GrugCore.getAdapter().redraw(this);
+        // The send redraw makes, without its settle note: a script saves numbers as it runs, a
+        // powered engine every few ticks, and a world that is never settled while one runs would
+        // keep every capture waiting. A test that needs the frame holds for it, as it does for the
+        // light.
+        level.sendBlockUpdated(
+                worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
     }
 
     /**
@@ -478,13 +480,10 @@ public class GrugBlockEntity extends BlockEntity
             HolderLookup.Provider registries) {
         super.onDataPacket(connection, packet, registries);
         if (level != null && level.isClientSide()) {
+            // Only a block with geometry in the chunk's mesh has anything to mesh again: a block
+            // that draws per frame reads this data from the next frame on.
             if (((GrugBlock) getBlockState().getBlock()).drawsChunkGeometry()) {
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 0);
-            } else {
-                // Nothing in the chunk's mesh depends on this data, so nothing is meshed again,
-                // and the frame pass reads it from the next frame on. That frame is the first one
-                // a capture may read, which is what the settle wait is told.
-                ForgeAdapter.noteClientDataArrived();
             }
         }
     }
