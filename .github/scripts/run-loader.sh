@@ -251,15 +251,18 @@ fi
 # A mod's about.json may declare the loaders it supports (#910). A loader the mod does not declare
 # never runs its tests here: its blocks, its goldens and its rendering are that loader's own, and a
 # golden is named after the loader that produced it. A mod that declares nothing runs everywhere, and
-# so does one whose about.json cannot be read, or whose answer this cannot compute, which is the
-# direction that runs more rather than less. The rule lives in .github/scripts/mod-loaders.py, so the
-# shell consumes one answer rather than repeating it.
+# so does one whose about.json cannot be read, or whose set names no loaders/ directory, or whose
+# answer this cannot compute, which is the direction that runs more rather than less. The rule lives
+# in .github/scripts/mod-loaders.py, so the shell consumes one answer rather than repeating it.
 PYTHON=python3
 [ "$WINDOWS" = true ] && PYTHON=python
 running_mods=("${candidate_mods[@]}")
 if [ "${#candidate_mods[@]}" -gt 0 ]; then
   if supported=$("$PYTHON" "${REPO_ROOT}/.github/scripts/mod-loaders.py" "$LOADER" \
     --mods-dir "$MODS_DIR" -- "${candidate_mods[@]}"); then
+    # The helper writes a line ending of its own, and Git Bash would keep a carriage return from a
+    # Windows run inside the last name, where it would break the count and GRUG_CI_MODS alike.
+    supported="${supported//$'\r'/}"
     if [ -n "$supported" ]; then
       running_mods=()
       IFS=, read -r -a running_mods <<< "$supported"

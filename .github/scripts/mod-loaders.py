@@ -7,16 +7,17 @@ prints one comma separated line, such as ``buildcraft,coverage``, holding the mo
 arguments that are not declared to leave this loader out. A mod whose about.json declares a loader
 set that does not name this loader is left out, with the reason on stderr: the loader cannot draw
 that mod's blocks, its goldens or its rendering, and its own test selection has no other way to say
-so. A mod whose about.json is missing, has no ``loaders`` key, or does not parse is kept, because a
-declaration that cannot answer runs the mod everywhere rather than nowhere.
+so. A mod is kept when the declaration cannot answer: no about.json, one that does not parse, or a
+set naming something that is not a ``loaders/`` directory. A stale name would otherwise drop the mod
+on every loader while the job still passed, having run none of its tests.
 
 The loaders a mod declares are its support set, not a claim the coverage gate trusts: mods/coverage
 declares nothing, so the gate's own tests still run on every loader.
 
 This is the whole test-side selection: run-loader.sh passes it every mod directory (or every name
 GRUG_CI_MODS asked for) before it counts the tests, so a job for an unsupported loader expects only
-the tests it will actually see. affected-loaders.py reads the same declarations to add a changed
-mod's own loaders to a pull request's jobs, which is the loader side of the same field.
+the tests it will actually see. affected-loaders.py reads the same declarations to add the loaders a
+selected mod would otherwise run nowhere on, which is the loader side of the same field.
 
 The rule that an absent field means every loader lives in recreation.py's ``declared_loaders``, the
 module that reads about.json for the rest of the tooling, so the two cannot disagree.
@@ -48,11 +49,15 @@ recreation = root_module("recreation")
 declared_loaders = recreation.declared_loaders
 
 
-def check(mods_dir: Path, loader: str, mods: list[str]) -> tuple[list[str], list[str]]:
+def check(
+    mods_dir: Path, loaders_dir: Path, loader: str, mods: list[str]
+) -> tuple[list[str], list[str]]:
     """The mods to run and one line per mod left out, in the order the mods were given.
 
-    A mod directory with no about.json, or one whose about.json cannot be read, is kept: the
-    declaration cannot answer, and the direction to take is the one that runs more.
+    A mod is kept when its declaration cannot answer: no about.json, one that does not parse, or a
+    set naming something that is not a directory under ``loaders_dir``. A stale or misspelled name
+    would otherwise leave the mod out on every loader, and a job that ran none of its tests would
+    still pass, so the answer to a declaration this cannot trust is to run the mod everywhere.
     """
     kept = []
     lines = []
@@ -67,7 +72,18 @@ def check(mods_dir: Path, loader: str, mods: list[str]) -> tuple[list[str], list
             lines.append(f"{about_path} does not parse ({error}), so {mod} runs on every loader")
             kept.append(mod)
             continue
-        if declared is None or loader in declared:
+        if declared is None:
+            kept.append(mod)
+            continue
+        unknown = sorted(name for name in declared if not (loaders_dir / name).is_dir())
+        if unknown:
+            lines.append(
+                f"{mod} declares {', '.join(unknown)}, which is no directory under"
+                f" {loaders_dir.name}/, so {mod} runs on every loader"
+            )
+            kept.append(mod)
+            continue
+        if loader in declared:
             kept.append(mod)
             continue
         lines.append(
@@ -87,9 +103,15 @@ def main(argv: list[str]) -> int:
         default=Path("mods"),
         help="the directory the mods are in (default: mods)",
     )
+    parser.add_argument(
+        "--loaders-dir",
+        type=Path,
+        default=ROOT / "loaders",
+        help="the repository's loaders/ directory (default: the one in this script's repository)",
+    )
     args = parser.parse_intermixed_args(argv)
 
-    kept, lines = check(args.mods_dir, args.loader, args.mods)
+    kept, lines = check(args.mods_dir, args.loaders_dir, args.loader, args.mods)
     for line in lines:
         print(f"mod-loaders: {line}", file=sys.stderr)
     # Silent when the declaration drops nothing, so a run where no mod declares a loader keeps the
@@ -100,7 +122,11 @@ def main(argv: list[str]) -> int:
             f" ({len(kept)} of {len(args.mods)})",
             file=sys.stderr,
         )
-    print(",".join(kept))
+    # An explicit newline: Windows would otherwise write the line ending as \r\n, and the shell
+    # reads this line as a comma separated list, so the last name would carry a carriage return.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(newline="\n")
+    sys.stdout.write(",".join(kept) + "\n")
     return 0
 
 
