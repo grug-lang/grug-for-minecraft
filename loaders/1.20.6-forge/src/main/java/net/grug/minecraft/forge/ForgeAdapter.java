@@ -961,7 +961,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * ran out. The read is on the server thread, against the client's own chunk storage, whose
      * slots are atomic. See #804.
      */
-    private static boolean clientHasChunk(int x, int z) {
+    protected boolean clientHasChunk(int x, int z) {
         // Unguarded like the rest of the adapter, which only runs with a level: a grug Level is
         // taken from one. See #804.
         return Minecraft.getInstance().level.getChunkSource().hasChunk(x >> 4, z >> 4);
