@@ -34,6 +34,16 @@ repos:
         files: ^(mod_api\.json|mod_api\.md|mod_api_catalog\.py)$
         pass_filenames: false
 
+      # Fails a dict of names in mod_api.json that is out of alphabetical order, so a new entry has
+      # one place to go (#968). grug-rs does not ask for this, because a tool that rewrites the file
+      # through a JSON library may lose the order; only the agents here edit this copy.
+      - id: mod-api-order
+        name: mod_api.json order
+        entry: python mod_api_order.py
+        language: python
+        files: ^(mod_api\.json|mod_api_order\.py)$
+        pass_filenames: false
+
       # Fails a markdown line the writing rule would have wrapped, so a rewrap is not a pull request
       # of its own (#815, #817). A table row is exempt: markdown cannot wrap one. README.md and
       # CONTRIBUTING.md are not wrapped today, so the hook starts with the file agents edit.

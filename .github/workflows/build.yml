@@ -501,6 +501,11 @@ jobs:
           python3 vanilla_blocks.py
           python3 vanilla_blocks_test.py
 
+      # The order is also enforced by the mod-api-order pre-commit hook; this runs its test, which
+      # covers a dict out of order at each level.
+      - name: Test the mod_api.json order check
+        run: python3 mod_api_order_test.py
+
       # A Rust panic in grug-rs aborts the JVM instead of failing a test, so run-loader.sh has to
       # recognize that shape and explain it. Nothing else in CI can catch a regression there: the
       # panic is intermittent, so the only check is the reporter against a log that holds one, and
