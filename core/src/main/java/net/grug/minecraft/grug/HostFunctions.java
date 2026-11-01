@@ -59,25 +59,38 @@ public class HostFunctions {
     }
 
     public static long Player_get_held_item(long playerId) {
-        Object item =
-                GrugCore.getAdapter().getHeldItem(GrugEntities.entityData.get(playerId).object);
-        if (item == null) {
-            return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
-        }
-        return GrugEntities.addEntity(
-                GrugEntityType.Option,
-                new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
+        return withEntity(
+                "Player.get_held_item",
+                "player",
+                playerId,
+                player -> {
+                    Object item = GrugCore.getAdapter().getHeldItem(player);
+                    if (item == null) {
+                        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+                    }
+                    return GrugEntities.addEntity(
+                            GrugEntityType.Option,
+                            new GrugOption(GrugEntities.addEntity(GrugEntityType.Item, item)));
+                },
+                0L);
     }
 
     public static void Test_set_held_item(long playerId, long itemId) {
-        GrugCore.getAdapter()
-                .setHeldItem(
-                        GrugEntities.entityData.get(playerId).object,
-                        GrugEntities.entityData.get(itemId).object);
+        withEntities(
+                "Test.set_held_item",
+                "player",
+                playerId,
+                "item",
+                itemId,
+                (player, item) -> GrugCore.getAdapter().setHeldItem(player, item));
     }
 
     public static void Test_clear_held_item(long playerId) {
-        GrugCore.getAdapter().setHeldItem(GrugEntities.entityData.get(playerId).object, null);
+        withEntity(
+                "Test.clear_held_item",
+                "player",
+                playerId,
+                player -> GrugCore.getAdapter().setHeldItem(player, null));
     }
 
     /**
@@ -85,7 +98,12 @@ public class HostFunctions {
      * full stack. The held item itself is what {@code Player.get_held_item} answers.
      */
     public static double Test_get_held_count(long playerId) {
-        return GrugCore.getAdapter().getHeldCount(GrugEntities.entityData.get(playerId).object);
+        return withEntity(
+                "Test.get_held_count",
+                "player",
+                playerId,
+                player -> GrugCore.getAdapter().getHeldCount(player),
+                0.0);
     }
 
     /**
@@ -94,7 +112,11 @@ public class HostFunctions {
      */
     @GrugGenerated("asks the adapter to touch the game's own screen: a unit test has no game")
     public static void Test_set_carried_item(long itemId) {
-        GrugCore.getAdapter().setCarriedItem(GrugEntities.entityData.get(itemId).object);
+        withEntity(
+                "Test.set_carried_item",
+                "item",
+                itemId,
+                item -> GrugCore.getAdapter().setCarriedItem(item));
     }
 
     /**
@@ -234,8 +256,12 @@ public class HostFunctions {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.tick_level: " + problem);
             return 0;
         }
-        return GrugCore.getAdapter()
-                .tickLevel(GrugEntities.entityData.get(levelId).object, (int) ticks);
+        return withEntity(
+                "Test.tick_level",
+                "level",
+                levelId,
+                level -> (double) GrugCore.getAdapter().tickLevel(level, (int) ticks),
+                0.0);
     }
 
     /**
@@ -310,12 +336,17 @@ public class HostFunctions {
 
     /** Test only: stages an item in a block entity's own NBT. See {@link GrugBlockEntityNbt}. */
     public static void Test_set_nbt_item(long blockEntityId, String path, long itemId) {
-        GrugBlockEntityNbt.report(
+        withEntity(
                 "Test.set_nbt_item",
-                GrugBlockEntityNbt.stageItem(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        path,
-                        GrugEntities.entityData.get(itemId).object));
+                "item",
+                itemId,
+                item ->
+                        GrugBlockEntityNbt.report(
+                                "Test.set_nbt_item",
+                                GrugBlockEntityNbt.stageItem(
+                                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                                        path,
+                                        item)));
     }
 
     /** Test only: loads a block entity's staged NBT edits. See {@link GrugBlockEntityNbt}. */
@@ -451,7 +482,11 @@ public class HostFunctions {
      */
     @GrugGenerated("asks the adapter to open the game's own screen: a unit test has no game")
     public static void Test_open_inventory(long playerId) {
-        GrugCore.getAdapter().openInventory(GrugEntities.entityData.get(playerId).object);
+        withEntity(
+                "Test.open_inventory",
+                "player",
+                playerId,
+                player -> GrugCore.getAdapter().openInventory(player));
     }
 
     /**
@@ -520,16 +555,28 @@ public class HostFunctions {
     }
 
     public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
-        GrugCore.getAdapter().notifyNeighbors(GrugEntities.entityData.get(levelId).object, x, y, z);
+        withEntity(
+                "Test.notify_neighbors",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().notifyNeighbors(level, x, y, z));
     }
 
     public static void Test_use_block(long levelId, double x, double y, double z) {
-        GrugCore.getAdapter().useBlockForTest(GrugEntities.entityData.get(levelId).object, x, y, z);
+        withEntity(
+                "Test.use_block",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().useBlockForTest(level, x, y, z));
     }
 
     public static boolean Test_mining_crack(long levelId, double x, double y, double z) {
-        return GrugCore.getAdapter()
-                .miningCrackForTest(GrugEntities.entityData.get(levelId).object, x, y, z);
+        return withEntity(
+                "Test.mining_crack",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().miningCrackForTest(level, x, y, z),
+                false);
     }
 
     public static long Test_screenshot() {
@@ -614,13 +661,20 @@ public class HostFunctions {
             double count,
             double fromSide,
             boolean add) {
-        return GrugSpecialInventory.addItem(
-                HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+        return withEntity(
+                "BlockEntity.add_item",
+                "item",
                 itemId,
-                damage,
-                count,
-                fromSide,
-                add);
+                item ->
+                        GrugSpecialInventory.addItem(
+                                HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                                item,
+                                itemId,
+                                damage,
+                                count,
+                                fromSide,
+                                add),
+                0.0);
     }
 
     public static void BlockEntity_consume_crafting_ingredients(
@@ -632,32 +686,50 @@ public class HostFunctions {
 
     public static double BlockEntity_count_item_in_inventory(
             long blockEntityId, long itemId, double damage) {
-        return GrugCore.getAdapter()
-                .countItemInInventory(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        GrugEntities.entityData.get(itemId).object,
-                        damage);
+        return withEntity(
+                "BlockEntity.count_item_in_inventory",
+                "item",
+                itemId,
+                item ->
+                        GrugCore.getAdapter()
+                                .countItemInInventory(
+                                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                                        item,
+                                        damage),
+                0.0);
     }
 
     public static double BlockEntity_extract_item_from_inventory(
             long blockEntityId, long itemId, double damage, double amount) {
-        return GrugCore.getAdapter()
-                .extractItemFromInventory(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        GrugEntities.entityData.get(itemId).object,
-                        damage,
-                        amount);
+        return withEntity(
+                "BlockEntity.extract_item_from_inventory",
+                "item",
+                itemId,
+                item ->
+                        GrugCore.getAdapter()
+                                .extractItemFromInventory(
+                                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                                        item,
+                                        damage,
+                                        amount),
+                0.0);
     }
 
     public static double BlockEntity_insert_item_into_inventory(
             long blockEntityId, long itemId, double damage, double amount, boolean insert) {
-        return GrugCore.getAdapter()
-                .insertItemIntoInventory(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        GrugEntities.entityData.get(itemId).object,
-                        damage,
-                        amount,
-                        insert);
+        return withEntity(
+                "BlockEntity.insert_item_into_inventory",
+                "item",
+                itemId,
+                item ->
+                        GrugCore.getAdapter()
+                                .insertItemIntoInventory(
+                                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                                        item,
+                                        damage,
+                                        amount,
+                                        insert),
+                0.0);
     }
 
     public static long BlockEntity_level(long blockEntityId) {
@@ -816,11 +888,16 @@ public class HostFunctions {
                 blockEntityId,
                 name,
                 index,
-                (blockEntity, record) -> {
-                    GrugSavedLists.setItem(
-                            blockEntity, record, GrugEntities.entityData.get(itemId).object);
-                    return null;
-                },
+                (blockEntity, record) ->
+                        withEntity(
+                                "BlockEntity.set_saved_list_item",
+                                "item",
+                                itemId,
+                                item -> {
+                                    GrugSavedLists.setItem(blockEntity, record, item);
+                                    return null;
+                                },
+                                NO_RESULT),
                 NO_RESULT);
     }
 
@@ -917,12 +994,17 @@ public class HostFunctions {
 
     public static void BlockEntity_set_item_in_slot(
             long blockEntityId, double slot, long itemId, double count) {
-        GrugCore.getAdapter()
-                .setItemInSlot(
-                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
-                        slot,
-                        GrugEntities.entityData.get(itemId).object,
-                        count);
+        withEntity(
+                "BlockEntity.set_item_in_slot",
+                "item",
+                itemId,
+                item ->
+                        GrugCore.getAdapter()
+                                .setItemInSlot(
+                                        HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                                        slot,
+                                        item,
+                                        count));
     }
 
     public static void BlockEntityInitContext_set_extractable_slots(
@@ -966,41 +1048,79 @@ public class HostFunctions {
     // Classes
 
     public static void ExtractResponse_refuse(long responseId) {
-        ((ExtractResponse) GrugEntities.entityData.get(responseId).object).refuse();
+        withEntity(
+                "ExtractResponse.refuse",
+                "response",
+                responseId,
+                response -> ((ExtractResponse) response).refuse());
     }
 
     public static void ExtractResponse_give_from_slot(long responseId, double slot, double amount) {
-        ((ExtractResponse) GrugEntities.entityData.get(responseId).object)
-                .giveFromSlot(slot, amount);
+        withEntity(
+                "ExtractResponse.give_from_slot",
+                "response",
+                responseId,
+                response -> ((ExtractResponse) response).giveFromSlot(slot, amount));
     }
 
     public static void ExtractResponse_give_crafting_result(long responseId) {
-        ((ExtractResponse) GrugEntities.entityData.get(responseId).object).giveCraftingResult();
+        withEntity(
+                "ExtractResponse.give_crafting_result",
+                "response",
+                responseId,
+                response -> ((ExtractResponse) response).giveCraftingResult());
     }
 
     public static void ExtractResponse_give_crafting_result_consumed(long responseId) {
-        ((ExtractResponse) GrugEntities.entityData.get(responseId).object)
-                .giveCraftingResultConsumed();
+        withEntity(
+                "ExtractResponse.give_crafting_result_consumed",
+                "response",
+                responseId,
+                response -> ((ExtractResponse) response).giveCraftingResultConsumed());
     }
 
     public static void AddResponse_refuse(long responseId) {
-        ((AddResponse) GrugEntities.entityData.get(responseId).object).refuse();
+        withEntity(
+                "AddResponse.refuse",
+                "response",
+                responseId,
+                response -> ((AddResponse) response).refuse());
     }
 
     public static void AddResponse_accept_into_slot(long responseId, double slot) {
-        ((AddResponse) GrugEntities.entityData.get(responseId).object).acceptIntoSlot(slot);
+        withEntity(
+                "AddResponse.accept_into_slot",
+                "response",
+                responseId,
+                response -> ((AddResponse) response).acceptIntoSlot(slot));
     }
 
     public static long BlockPos_above_n(long blockPosId, double n) {
-        BlockPos pos = (BlockPos) GrugEntities.entityData.get(blockPosId).object;
-        return GrugEntities.addEntity(
-                GrugEntityType.BlockPos, new BlockPos(pos.x(), pos.y() + (int) n, pos.z()));
+        return withEntity(
+                "BlockPos.above_n",
+                "block position",
+                blockPosId,
+                position -> {
+                    BlockPos pos = (BlockPos) position;
+                    return GrugEntities.addEntity(
+                            GrugEntityType.BlockPos,
+                            new BlockPos(pos.x(), pos.y() + (int) n, pos.z()));
+                },
+                0L);
     }
 
     public static long BlockPos_center(long blockPosId) {
-        BlockPos pos = (BlockPos) GrugEntities.entityData.get(blockPosId).object;
-        return GrugEntities.addEntity(
-                GrugEntityType.Vec3, new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
+        return withEntity(
+                "BlockPos.center",
+                "block position",
+                blockPosId,
+                position -> {
+                    BlockPos pos = (BlockPos) position;
+                    return GrugEntities.addEntity(
+                            GrugEntityType.Vec3,
+                            new Vec3(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5));
+                },
+                0L);
     }
 
     public static long Color_rgb(double r, double g, double b) {
@@ -1008,64 +1128,116 @@ public class HostFunctions {
     }
 
     public static void Entity_set_delta_movement(long entityId, long vec3Id) {
-        Object entity = GrugEntities.entityData.get(entityId).object;
-        Vec3 vec = (Vec3) GrugEntities.entityData.get(vec3Id).object;
-        GrugCore.getAdapter().setEntityDeltaMovement(entity, vec.x(), vec.y(), vec.z());
+        withEntities(
+                "Entity.set_delta_movement",
+                "entity",
+                entityId,
+                "vec3",
+                vec3Id,
+                (entity, vec) -> {
+                    Vec3 movement = (Vec3) vec;
+                    GrugCore.getAdapter()
+                            .setEntityDeltaMovement(
+                                    entity, movement.x(), movement.y(), movement.z());
+                });
     }
 
     public static void Entity_spawn(long entityId, long levelId) {
-        Object entity = GrugEntities.entityData.get(entityId).object;
-        Object world = GrugEntities.entityData.get(levelId).object;
-        GrugCore.getAdapter().spawnEntity(world, entity);
+        withEntities(
+                "Entity.spawn",
+                "entity",
+                entityId,
+                "level",
+                levelId,
+                (entity, world) -> GrugCore.getAdapter().spawnEntity(world, entity));
     }
 
     public static void GUI_add_crafting_grid(long guiId, double startSlot, double x, double y) {
-        GrugGuiBuilder builder = (GrugGuiBuilder) GrugEntities.entityData.get(guiId).object;
-        builder.craftingGrids.add(
-                new GrugGuiBuilder.CraftingGridDef((int) startSlot, (int) x, (int) y));
+        withEntity(
+                "GUI.add_crafting_grid",
+                "GUI",
+                guiId,
+                gui ->
+                        ((GrugGuiBuilder) gui)
+                                .craftingGrids.add(
+                                        new GrugGuiBuilder.CraftingGridDef(
+                                                (int) startSlot, (int) x, (int) y)));
     }
 
     public static void GUI_add_crafting_result(long guiId, double x, double y) {
-        GrugGuiBuilder builder = (GrugGuiBuilder) GrugEntities.entityData.get(guiId).object;
-        builder.craftingResults.add(new GrugGuiBuilder.CraftingResultDef((int) x, (int) y));
+        withEntity(
+                "GUI.add_crafting_result",
+                "GUI",
+                guiId,
+                gui ->
+                        ((GrugGuiBuilder) gui)
+                                .craftingResults.add(
+                                        new GrugGuiBuilder.CraftingResultDef((int) x, (int) y)));
     }
 
     public static void GUI_add_player_inventory(
             long guiId, double mainX, double mainY, double hotbarX, double hotbarY) {
-        GrugGuiBuilder builder = (GrugGuiBuilder) GrugEntities.entityData.get(guiId).object;
-        builder.hasPlayerInventory = true;
-        builder.playerInvX = (int) mainX;
-        builder.playerInvY = (int) mainY;
-        builder.hotbarX = (int) hotbarX;
-        builder.hotbarY = (int) hotbarY;
+        withEntity(
+                "GUI.add_player_inventory",
+                "GUI",
+                guiId,
+                gui -> {
+                    GrugGuiBuilder builder = (GrugGuiBuilder) gui;
+                    builder.hasPlayerInventory = true;
+                    builder.playerInvX = (int) mainX;
+                    builder.playerInvY = (int) mainY;
+                    builder.hotbarX = (int) hotbarX;
+                    builder.hotbarY = (int) hotbarY;
+                });
     }
 
     public static void GUI_add_text(long guiId, String text, double x, double y, long colorId) {
-        GrugGuiBuilder builder = (GrugGuiBuilder) GrugEntities.entityData.get(guiId).object;
-        Color color = (Color) GrugEntities.entityData.get(colorId).object;
-        builder.texts.add(new GrugGuiBuilder.TextDef(text, (int) x, (int) y, color.getRGB()));
+        withEntity(
+                "GUI.add_text",
+                "GUI",
+                guiId,
+                gui ->
+                        withEntity(
+                                "GUI.add_text",
+                                "color",
+                                colorId,
+                                color ->
+                                        ((GrugGuiBuilder) gui)
+                                                .texts.add(
+                                                        new GrugGuiBuilder.TextDef(
+                                                                text,
+                                                                (int) x,
+                                                                (int) y,
+                                                                ((Color) color).getRGB()))));
     }
 
     public static void GUI_open(long guiId, long playerId, long blockEntityId) {
-        GrugGuiBuilder builder = (GrugGuiBuilder) GrugEntities.entityData.get(guiId).object;
-        Object player = GrugEntities.entityData.get(playerId).object;
-        Object be = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
+        withEntities(
+                "GUI.open",
+                "GUI",
+                guiId,
+                "player",
+                playerId,
+                (gui, player) -> {
+                    GrugGuiBuilder builder = (GrugGuiBuilder) gui;
+                    Object be = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
 
-        // A script can pass any block entity, including ones without an inventory
-        int inventorySize = (int) GrugCore.getAdapter().getInventorySize(be);
-        OptionalInt badSlot = builder.firstSlotOutsideInventory(inventorySize);
-        if (badSlot.isPresent()) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "GUI.open: The GUI uses slot "
-                            + badSlot.getAsInt()
-                            + ", but the block entity only has "
-                            + inventorySize
-                            + " inventory slots.");
-            return;
-        }
+                    // A script can pass any block entity, including ones without an inventory
+                    int inventorySize = (int) GrugCore.getAdapter().getInventorySize(be);
+                    OptionalInt badSlot = builder.firstSlotOutsideInventory(inventorySize);
+                    if (badSlot.isPresent()) {
+                        Grug.hostFunctionErrorHappened(
+                                Grug.statePtr,
+                                "GUI.open: The GUI uses slot "
+                                        + badSlot.getAsInt()
+                                        + ", but the block entity only has "
+                                        + inventorySize
+                                        + " inventory slots.");
+                        return;
+                    }
 
-        GrugCore.getAdapter().openGui(player, be, builder);
+                    GrugCore.getAdapter().openGui(player, be, builder);
+                });
     }
 
     public static long ItemEntity_entity(long itemEntityId) {
@@ -1073,27 +1245,40 @@ public class HostFunctions {
     }
 
     public static double ItemEntity_damage(long itemEntityId) {
-        return GrugCore.getAdapter()
-                .getItemEntityDamage(GrugEntities.entityData.get(itemEntityId).object);
+        return withEntity(
+                "ItemEntity.damage",
+                "item entity",
+                itemEntityId,
+                itemEntity -> GrugCore.getAdapter().getItemEntityDamage(itemEntity),
+                0.0);
     }
 
     public static long Level_get_block_entity(long levelId, double x, double y, double z) {
-        Object be =
-                GrugCore.getAdapter()
-                        .getBlockEntity(GrugEntities.entityData.get(levelId).object, x, y, z);
-        // TODO: Should this not call Grug.hostFunctionErrorHappened when be is null?
-        if (be != null) {
-            return GrugEntities.addEntity(
-                    GrugEntityType.Option,
-                    new GrugOption(GrugEntities.addEntity(GrugEntityType.BlockEntity, be)));
-        }
-        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+        return withEntity(
+                "Level.get_block_entity",
+                "level",
+                levelId,
+                level -> {
+                    Object be = GrugCore.getAdapter().getBlockEntity(level, x, y, z);
+                    // TODO: Should this not call Grug.hostFunctionErrorHappened when be is null?
+                    if (be != null) {
+                        return GrugEntities.addEntity(
+                                GrugEntityType.Option,
+                                new GrugOption(
+                                        GrugEntities.addEntity(GrugEntityType.BlockEntity, be)));
+                    }
+                    return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+                },
+                0L);
     }
 
     public static void Level_place_block(
             long levelId, double x, double y, double z, String blockName) {
-        GrugCore.getAdapter()
-                .placeBlock(GrugEntities.entityData.get(levelId).object, x, y, z, blockName);
+        withEntity(
+                "Level.place_block",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().placeBlock(level, x, y, z, blockName));
     }
 
     public static void Level_explode(long levelId, double x, double y, double z, double power) {
@@ -1115,16 +1300,29 @@ public class HostFunctions {
                     "explode: power must be from 0 to " + Float.MAX_VALUE + ", got " + power);
             return;
         }
-        GrugCore.getAdapter().explode(GrugEntities.entityData.get(levelId).object, x, y, z, power);
+        withEntity(
+                "Level.explode",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().explode(level, x, y, z, power));
     }
 
     public static boolean Level_has_neighbor_signal(long levelId, double x, double y, double z) {
-        return GrugCore.getAdapter()
-                .hasNeighborSignal(GrugEntities.entityData.get(levelId).object, x, y, z);
+        return withEntity(
+                "Level.has_neighbor_signal",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().hasNeighborSignal(level, x, y, z),
+                false);
     }
 
     public static double Level_get_time(long levelId) {
-        return GrugCore.getAdapter().getWorldTime(GrugEntities.entityData.get(levelId).object);
+        return withEntity(
+                "Level.get_time",
+                "level",
+                levelId,
+                level -> (double) GrugCore.getAdapter().getWorldTime(level),
+                0.0);
     }
 
     public static double Level_random_int(long levelId, double bound) {
@@ -1138,49 +1336,82 @@ public class HostFunctions {
                             + ".");
             return 0;
         }
-        return GrugCore.getAdapter()
-                .nextRandomInt(GrugEntities.entityData.get(levelId).object, (int) bound);
+        return withEntity(
+                "Level.random_int",
+                "level",
+                levelId,
+                level -> (double) GrugCore.getAdapter().nextRandomInt(level, (int) bound),
+                0.0);
     }
 
     public static double Level_random_float(long levelId) {
-        return GrugCore.getAdapter().nextRandomFloat(GrugEntities.entityData.get(levelId).object);
+        return withEntity(
+                "Level.random_float",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().nextRandomFloat(level),
+                0.0);
     }
 
     public static double Level_random_gaussian(long levelId) {
-        return GrugCore.getAdapter()
-                .nextRandomGaussian(GrugEntities.entityData.get(levelId).object);
+        return withEntity(
+                "Level.random_gaussian",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().nextRandomGaussian(level),
+                0.0);
     }
 
     public static String Level_get_block(long levelId, double x, double y, double z) {
-        return GrugCore.getAdapter().getBlock(GrugEntities.entityData.get(levelId).object, x, y, z);
+        return withEntity(
+                "Level.get_block",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().getBlock(level, x, y, z),
+                "");
     }
 
     public static boolean Level_is_air(long levelId, double x, double y, double z) {
-        return GrugCore.getAdapter().isAir(GrugEntities.entityData.get(levelId).object, x, y, z);
+        return withEntity(
+                "Level.is_air",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().isAir(level, x, y, z),
+                false);
     }
 
     public static double Level_count_item_entities(
             long levelId, double x, double y, double z, double radius) {
-        return GrugCore.getAdapter()
-                .countItemEntities(GrugEntities.entityData.get(levelId).object, x, y, z, radius);
+        return withEntity(
+                "Level.count_item_entities",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().countItemEntities(level, x, y, z, radius),
+                0.0);
     }
 
     public static long Level_find_item_entity(
             long levelId, double x, double y, double z, double radius) {
-        Object entity =
-                GrugCore.getAdapter()
-                        .findItemEntity(
-                                GrugEntities.entityData.get(levelId).object, x, y, z, radius);
-        if (entity != null) {
-            return GrugEntities.addEntity(
-                    GrugEntityType.Option,
-                    new GrugOption(GrugEntities.addEntity(GrugEntityType.ItemEntity, entity)));
-        }
-        return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+        return withEntity(
+                "Level.find_item_entity",
+                "level",
+                levelId,
+                level -> {
+                    Object entity = GrugCore.getAdapter().findItemEntity(level, x, y, z, radius);
+                    if (entity != null) {
+                        return GrugEntities.addEntity(
+                                GrugEntityType.Option,
+                                new GrugOption(
+                                        GrugEntities.addEntity(GrugEntityType.ItemEntity, entity)));
+                    }
+                    return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
+                },
+                0L);
     }
 
     public static boolean Option_has(long optionId) {
-        return ((GrugOption) GrugEntities.entityData.get(optionId).object).has();
+        return withEntity(
+                "Option.has", "option", optionId, option -> ((GrugOption) option).has(), false);
     }
 
     // The generated GenericHostFunctions bridge resolves Option's $Value generic down to one of the
@@ -1222,12 +1453,20 @@ public class HostFunctions {
     }
 
     public static Object Option_unwrap(long optionId) {
-        GrugOption opt = (GrugOption) GrugEntities.entityData.get(optionId).object;
-        if (!opt.has()) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "Tried to unwrap an empty Option!");
-            return null;
-        }
-        return opt.value();
+        return withEntity(
+                "Option.unwrap",
+                "option",
+                optionId,
+                option -> {
+                    GrugOption opt = (GrugOption) option;
+                    if (!opt.has()) {
+                        Grug.hostFunctionErrorHappened(
+                                Grug.statePtr, "Tried to unwrap an empty Option!");
+                        return null;
+                    }
+                    return opt.value();
+                },
+                null);
     }
 
     public static long Option_new() {
@@ -1252,8 +1491,9 @@ public class HostFunctions {
         // A capture reads a drawn frame, so the test wants one even if it reached this call without
         // Test.screenshot. See GrugFrameRequest.
         GrugFrameRequest.request();
-        withScreenshot(
+        withEntity(
                 "Screenshot.equals",
+                "screenshot",
                 screenshotId,
                 screenshot ->
                         GrugCore.getAdapter()
@@ -1263,7 +1503,7 @@ public class HostFunctions {
                                         y1,
                                         x2,
                                         y2,
-                                        screenshot.tolerancePercent()));
+                                        ((GrugScreenshot) screenshot).tolerancePercent()));
     }
 
     /**
@@ -1277,117 +1517,195 @@ public class HostFunctions {
             long screenshotId, double x1, double y1, double x2, double y2) {
         // A capture reads a drawn frame. See GrugFrameRequest.
         GrugFrameRequest.request();
-        withScreenshot(
+        withEntity(
                 "Screenshot.capture",
+                "screenshot",
                 screenshotId,
                 screenshot -> {
                     BufferedImage capture = GrugCore.getAdapter().captureScreenshot(x1, y1, x2, y2);
-                    // The adapter has already reported a capture it could not take, so the null is
-                    // stored rather than thrown from here. Storing it is what lets differs_from
-                    // name
-                    // the missing capture, which tells a test author which of the two screenshots
-                    // to
-                    // look at, where an unchecked one would throw a NullPointerException from
-                    // inside
-                    // the comparison and leave them to guess.
+                    // The adapter has already reported a capture it could not take, so the null
+                    // is stored rather than thrown from here. Storing it is what lets
+                    // differs_from name the missing capture, which tells a test author which of
+                    // the two screenshots to look at, where an unchecked one would throw a
+                    // NullPointerException from inside the comparison and leave them to guess.
                     GrugEntities.addEntityWithId(
                             screenshotId,
                             GrugEntityType.Screenshot,
-                            screenshot.withCapture(capture));
+                            ((GrugScreenshot) screenshot).withCapture(capture));
                 });
         return screenshotId;
     }
 
     public static void Screenshot_differs_from(long screenshotId, long otherId, double percent) {
         String name = "Screenshot.differs_from";
-        withScreenshots(
+        withEntity(
                 name,
+                "screenshot",
                 screenshotId,
-                otherId,
-                (screenshot, other) -> {
-                    if (percent < 0 || percent > 100 || percent != Math.floor(percent)) {
-                        Grug.hostFunctionErrorHappened(
-                                Grug.statePtr,
-                                name
-                                        + ": percent must be a whole number between 0 and 100, but"
-                                        + " got "
-                                        + percent
-                                        + ".");
-                        return;
-                    }
-                    if (screenshot.captured() == null || other.captured() == null) {
-                        Grug.hostFunctionErrorHappened(
-                                Grug.statePtr,
-                                name
-                                        + ": both screenshots have to be captured first, with"
-                                        + " Screenshot.capture, before they can be compared.");
-                        return;
-                    }
+                screenshot ->
+                        withEntity(
+                                name,
+                                "screenshot",
+                                otherId,
+                                other -> {
+                                    GrugScreenshot shot = (GrugScreenshot) screenshot;
+                                    GrugScreenshot otherShot = (GrugScreenshot) other;
+                                    if (percent < 0
+                                            || percent > 100
+                                            || percent != Math.floor(percent)) {
+                                        Grug.hostFunctionErrorHappened(
+                                                Grug.statePtr,
+                                                name
+                                                        + ": percent must be a whole number"
+                                                        + " between 0 and 100, but got "
+                                                        + percent
+                                                        + ".");
+                                        return null;
+                                    }
+                                    if (shot.captured() == null || otherShot.captured() == null) {
+                                        Grug.hostFunctionErrorHappened(
+                                                Grug.statePtr,
+                                                name
+                                                        + ": both screenshots have to be captured"
+                                                        + " first, with Screenshot.capture,"
+                                                        + " before they can be compared.");
+                                        return null;
+                                    }
 
-                    double changed;
-                    try {
-                        changed =
-                                GrugScreenshots.changedPercent(
-                                        screenshot.captured(), other.captured());
-                    } catch (IllegalArgumentException e) {
-                        Grug.hostFunctionErrorHappened(Grug.statePtr, name + ": " + e.getMessage());
-                        return;
-                    }
+                                    double changed;
+                                    try {
+                                        changed =
+                                                GrugScreenshots.changedPercent(
+                                                        shot.captured(), otherShot.captured());
+                                    } catch (IllegalArgumentException e) {
+                                        Grug.hostFunctionErrorHappened(
+                                                Grug.statePtr, name + ": " + e.getMessage());
+                                        return null;
+                                    }
 
-                    if (changed < percent) {
-                        // One decimal place, so a share just short of the threshold does not read
-                        // as having met it, and a whole number does not read as if it were rounded
-                        // down from something higher.
-                        Grug.hostFunctionErrorHappened(
-                                Grug.statePtr,
-                                name
-                                        + ": the frame still shows what it showed before, since"
-                                        + " only "
-                                        + String.format(Locale.ROOT, "%.1f", changed)
-                                        + "% of its pixels changed and at least "
-                                        + (int) percent
-                                        + "% was asked for.");
-                    }
-                });
-    }
-
-    /** Runs {@code use} with the screenshot an id names. */
-    private static void withScreenshot(String method, long id, Consumer<GrugScreenshot> use) {
-        withScreenshots(method, id, id, (screenshot, same) -> use.accept(screenshot));
+                                    if (changed < percent) {
+                                        // One decimal place, so a share just short of the
+                                        // threshold does not read as having met it, and a whole
+                                        // number does not read as if it were rounded down from
+                                        // something higher.
+                                        Grug.hostFunctionErrorHappened(
+                                                Grug.statePtr,
+                                                name
+                                                        + ": the frame still shows what it showed"
+                                                        + " before, since only "
+                                                        + String.format(
+                                                                Locale.ROOT, "%.1f", changed)
+                                                        + "% of its pixels changed and at least "
+                                                        + (int) percent
+                                                        + "% was asked for.");
+                                    }
+                                    return null;
+                                },
+                                null));
     }
 
     /**
-     * Runs {@code use} with the screenshots the two ids name, or reports the one that no longer
-     * resolves and runs nothing.
+     * Where a host function reports an entity id that no longer resolves.
      *
-     * <p>A screenshot a test captured before a resource reload and compares after it is a host
-     * entity its member keeps across ticks, and a test's member scope is rooted for the whole test
-     * (see {@link GrugEntities#createTestEntity}). Before that it could be collected between two
-     * ticks, and the dereference below then threw inside the JNI call, which printed and cleared
-     * the exception and took the game's main thread down without naming the test. This report names
-     * the method and the id instead, so the test fails with a reason. No test can produce such an
-     * id now, and reporting needs a live grug state, so the branch is generated rather than
-     * measured.
+     * <p>A report goes to the running grug state, which a unit test does not have, so a Java test
+     * swaps this for a recorder to drive the guard, and restores it when it is done. Nothing but a
+     * test assigns it.
      */
-    @GrugGenerated(
-            "a stale screenshot id cannot be produced from a test once its member scope is rooted"
-                    + " for the whole test, and reporting needs a live grug state")
-    private static void withScreenshots(
-            String method, long id, long otherId, BiConsumer<GrugScreenshot, GrugScreenshot> use) {
+    static Consumer<String> staleIdReport = HostFunctions::reportStaleId;
+
+    @GrugGenerated("a report goes to the live grug state, which a unit test does not have")
+    private static void reportStaleId(String message) {
+        Grug.hostFunctionErrorHappened(Grug.statePtr, message);
+    }
+
+    /**
+     * Runs {@code use} with the object {@code id} names, or reports the id and answers {@code
+     * missing} without touching anything.
+     *
+     * <p>A host entity is held weakly, so an id resolves only while something roots the object
+     * behind it: a test's root list for the whole test (see {@link GrugEntities#createTestEntity}),
+     * a block entity's list for the one call that swapped it in, or a script's member list. An id
+     * whose object was collected in the meantime dereferenced to null and threw inside the JNI
+     * call, which printed and cleared the exception and took the game's main thread down without
+     * naming the test. Every host function that resolves an id goes through here, so a stale one is
+     * a report naming the method and the id, and the call answers what its signature needs instead
+     * of dereferencing nothing. See #895.
+     */
+    static <T> T withEntity(
+            String method, String kind, long id, Function<Object, T> use, T missing) {
         GrugObject object = GrugEntities.entityData.get(id);
-        GrugObject other = GrugEntities.entityData.get(otherId);
-        if (object == null || other == null) {
-            long stale = object == null ? id : otherId;
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
+        if (object == null) {
+            staleIdReport.accept(
                     method
-                            + ": the screenshot id "
-                            + stale
+                            + ": the "
+                            + kind
+                            + " id "
+                            + id
                             + " no longer resolves, because the object behind it was collected"
-                            + " while the test still held it.");
-            return;
+                            + " while the script still held it.");
+            return missing;
         }
-        use.accept((GrugScreenshot) object.object, (GrugScreenshot) other.object);
+        return use.apply(object.object);
+    }
+
+    /** Runs {@code use} with the object {@code id} names, or reports it and runs nothing. */
+    static void withEntity(String method, String kind, long id, Consumer<Object> use) {
+        withEntity(
+                method,
+                kind,
+                id,
+                object -> {
+                    use.accept(object);
+                    return null;
+                },
+                null);
+    }
+
+    /**
+     * Runs {@code use} with the objects the two ids name, or reports the first that no longer
+     * resolves and runs nothing.
+     */
+    static <T> T withEntities(
+            String method,
+            String firstKind,
+            long firstId,
+            String secondKind,
+            long secondId,
+            BiFunction<Object, Object, T> use,
+            T missing) {
+        return withEntity(
+                method,
+                firstKind,
+                firstId,
+                first ->
+                        withEntity(
+                                method,
+                                secondKind,
+                                secondId,
+                                second -> use.apply(first, second),
+                                missing),
+                missing);
+    }
+
+    /** Runs {@code use} with the objects the two ids name, or reports one and runs nothing. */
+    static void withEntities(
+            String method,
+            String firstKind,
+            long firstId,
+            String secondKind,
+            long secondId,
+            BiConsumer<Object, Object> use) {
+        withEntities(
+                method,
+                firstKind,
+                firstId,
+                secondKind,
+                secondId,
+                (first, second) -> {
+                    use.accept(first, second);
+                    return null;
+                },
+                null);
     }
 
     public static long Vec3_new(double x, double y, double z) {
@@ -1405,15 +1723,15 @@ public class HostFunctions {
     }
 
     public static double Vec3_x(long vec3Id) {
-        return ((Vec3) GrugEntities.entityData.get(vec3Id).object).x();
+        return withEntity("Vec3.x", "vec3", vec3Id, vec3 -> ((Vec3) vec3).x(), 0.0);
     }
 
     public static double Vec3_y(long vec3Id) {
-        return ((Vec3) GrugEntities.entityData.get(vec3Id).object).y();
+        return withEntity("Vec3.y", "vec3", vec3Id, vec3 -> ((Vec3) vec3).y(), 0.0);
     }
 
     public static double Vec3_z(long vec3Id) {
-        return ((Vec3) GrugEntities.entityData.get(vec3Id).object).z();
+        return withEntity("Vec3.z", "vec3", vec3Id, vec3 -> ((Vec3) vec3).z(), 0.0);
     }
 
     public static long Vec3_zero() {
@@ -1423,7 +1741,11 @@ public class HostFunctions {
     // Host functions
 
     public static void drop_inventory(long levelId, double x, double y, double z) {
-        GrugCore.getAdapter().dropInventory(GrugEntities.entityData.get(levelId).object, x, y, z);
+        withEntity(
+                "drop_inventory",
+                "level",
+                levelId,
+                level -> GrugCore.getAdapter().dropInventory(level, x, y, z));
     }
 
     public static boolean equals(Object a, Object b) {
@@ -1452,16 +1774,23 @@ public class HostFunctions {
      * <p>The item is added to the integrated server's copy of the player, not the client's, because
      * that is the copy the game saves and the one a test reads back; see the adapter's own method.
      */
-    @GrugGenerated("reads the adapter's player and gives through it: a unit test has no game")
     public static void give_item(long itemId) {
-        Object item = GrugEntities.entityData.get(itemId).object;
-        Object player = GrugCore.getAdapter().testPlayer();
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "give_item: There is no player to give to yet.");
-            return;
+        withEntity("give_item", "item", itemId, HostFunctions::giveItem);
+    }
+
+    /**
+     * Gives one of {@code item} to the player a test runs as.
+     *
+     * <p>Reading that player and giving through it needs a game, so it stays behind {@link
+     * GrugGenerated}; what a unit test drives, and does, is the id guard in the caller and the
+     * stale item it reports.
+     */
+    @GrugGenerated("gives through the adapter's player: a unit test has no game")
+    private static void giveItem(Object item) {
+        Object player = playerToGiveTo("give_item");
+        if (player != null) {
+            GrugCore.getAdapter().giveItemToPlayer(player, item);
         }
-        GrugCore.getAdapter().giveItemToPlayer(player, item);
     }
 
     /**
@@ -1473,16 +1802,33 @@ public class HostFunctions {
      * <p>Added to the integrated server's copy of the player for the same reason as {@code
      * give_item}.
      */
-    @GrugGenerated("reads the adapter's player and gives through it: a unit test has no game")
     public static void give_item_stack(long itemId) {
-        Object item = GrugEntities.entityData.get(itemId).object;
+        withEntity("give_item_stack", "item", itemId, HostFunctions::giveItemStack);
+    }
+
+    /** Gives a full stack of {@code item} to the player a test runs as. */
+    @GrugGenerated("gives through the adapter's player: a unit test has no game")
+    private static void giveItemStack(Object item) {
+        Object player = playerToGiveTo("give_item_stack");
+        if (player != null) {
+            GrugCore.getAdapter().giveItemStackToPlayer(player, item);
+        }
+    }
+
+    /**
+     * The player to give an item to, or null after reporting that there is nobody yet.
+     *
+     * <p>Both giving functions name themselves in the report, since which one a test called is what
+     * tells it which item did not arrive.
+     */
+    @GrugGenerated("asks the adapter for its test player: a unit test has no game")
+    private static Object playerToGiveTo(String method) {
         Object player = GrugCore.getAdapter().testPlayer();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "give_item_stack: There is no player to give to yet.");
-            return;
+                    Grug.statePtr, method + ": There is no player to give to yet.");
         }
-        GrugCore.getAdapter().giveItemStackToPlayer(player, item);
+        return player;
     }
 
     public static long gui(String texturePath) {
@@ -1490,9 +1836,15 @@ public class HostFunctions {
     }
 
     public static long item(long resourceLocationId) {
-        Object id = GrugEntities.entityData.get(resourceLocationId).object;
-        Object item = GrugCore.getAdapter().getItemFromRegistry(id);
-        return GrugEntities.addEntity(GrugEntityType.Item, item);
+        return withEntity(
+                "item",
+                "resource location",
+                resourceLocationId,
+                resourceLocation ->
+                        GrugEntities.addEntity(
+                                GrugEntityType.Item,
+                                GrugCore.getAdapter().getItemFromRegistry(resourceLocation)),
+                0L);
     }
 
     /**
@@ -1577,16 +1929,29 @@ public class HostFunctions {
     }
 
     public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {
-        Object itemStackObj = GrugEntities.entityData.get(itemStackId).object;
-        Object levelObj = GrugEntities.entityData.get(levelId).object;
-        Object itemEntity = GrugCore.getAdapter().createItemEntity(levelObj, x, y, z, itemStackObj);
-        return GrugEntities.addEntity(GrugEntityType.ItemEntity, itemEntity);
+        return withEntities(
+                "item_entity",
+                "item stack",
+                itemStackId,
+                "level",
+                levelId,
+                (itemStack, level) ->
+                        GrugEntities.addEntity(
+                                GrugEntityType.ItemEntity,
+                                GrugCore.getAdapter().createItemEntity(level, x, y, z, itemStack)),
+                0L);
     }
 
     public static long item_stack(long itemId, double damage) {
-        Object itemObj = GrugEntities.entityData.get(itemId).object;
-        Object itemStack = GrugCore.getAdapter().createItemStack(itemObj, damage);
-        return GrugEntities.addEntity(GrugEntityType.ItemStack, itemStack);
+        return withEntity(
+                "item_stack",
+                "item",
+                itemId,
+                item ->
+                        GrugEntities.addEntity(
+                                GrugEntityType.ItemStack,
+                                GrugCore.getAdapter().createItemStack(item, damage)),
+                0L);
     }
 
     public static <T> void print(T a) {
@@ -1787,8 +2152,11 @@ public class HostFunctions {
             return;
         }
 
-        GrugRenderPass.recordItem(
-                GrugEntities.entityData.get(itemId).object, (int) damage, (int) count, x, y, z);
+        withEntity(
+                "RenderFrameContext.draw_item",
+                "item",
+                itemId,
+                item -> GrugRenderPass.recordItem(item, (int) damage, (int) count, x, y, z));
     }
 
     /**
@@ -1876,7 +2244,11 @@ public class HostFunctions {
             return;
         }
 
-        GrugOverlay.recordItem(GrugEntities.entityData.get(itemId).object, x, y);
+        withEntity(
+                "OverlayRenderContext.draw_item",
+                "item",
+                itemId,
+                item -> GrugOverlay.recordItem(item, x, y));
     }
 
     /** Why draw_item refuses this position, or null when it can record the icon. */
