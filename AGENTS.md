@@ -24,8 +24,10 @@ measurement runs while the next task is under way.
 
 Work is pipelined rather than strictly serial, so the runner is the bottleneck and not the
 orchestrator's attention: **five subagent sessions run at once** whenever queued work exists, each on
-a disjoint area, and the next one starts the moment another finishes or waits on CI. Five is the
-floor, not a cap, and a subagent that would edit the same files as another is the one reason to wait
+a disjoint area, and the next one starts the moment another finishes or waits on CI. Every subagent
+is spawned in the background, so the orchestrator's turn never waits on one: a subagent left in the
+foreground blocks the review, the next dispatch and the maintainer's messages until it ends. Five is
+the floor, not a cap, and a subagent that would edit the same files as another is the one reason to wait
 instead. The review queue is the orchestrator's own bottleneck, so it merges as work reports rather
 than letting a backlog build; when five disjoint tasks cannot be named, the issue body records which
 area is blocked and why rather than starting overlapping work. Pull request runs may overlap only
