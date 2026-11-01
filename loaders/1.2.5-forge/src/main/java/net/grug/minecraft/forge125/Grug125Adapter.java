@@ -886,7 +886,7 @@ public class Grug125Adapter implements ModLoaderAdapter {
         batchPositionCount = 0;
     }
 
-    private static final boolean RELIGHT_OFF = false;
+    private static final boolean RELIGHT_OFF = true;
 
     @Override
     public void relightRoom(
