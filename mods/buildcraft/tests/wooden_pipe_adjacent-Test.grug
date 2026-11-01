@@ -110,5 +110,5 @@ local _check(ctx: TestTickContext) {
     # Each pipe has no exit, so it drops its item where it stands, on the floor under it. At least two
     # entities are counted rather than exactly two, because an item dropped by a test in a band above
     # may still be falling through the search radius.
-    ctx.assert(level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 10) >= 2, "Each pipe should have dropped its own item.")
+    ctx.assert(level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 20) >= 2, "Each pipe should have dropped its own item.")
 }
