@@ -156,7 +156,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         for (int i = 0; i < 9; i++) {
             int slot = (int) startSlot + i;
             if (inv.getItem(slot) != null) {
-                inv.removeItem(slot, 1);
+                GrugInventoryAccess.removeItem(inv, slot, 1);
             }
         }
     }
@@ -184,7 +184,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             ItemStack stack = inv.getItem(i);
             if (stack != null) {
                 world.addEntity(new ItemEntity(world, x, y, z, stack));
-                inv.setItem(i, null);
+                GrugInventoryAccess.setItem(inv, i, null);
             }
         }
     }
@@ -200,7 +200,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             ItemStack stack = inv.getItem(i);
             if (stack != null && stack.getItem() == item && stack.metadata == (int) damage) {
                 int extractFromSlot = Math.min(stack.size, remainingToExtract);
-                inv.removeItem(i, extractFromSlot);
+                GrugInventoryAccess.removeItem(inv, i, extractFromSlot);
                 remainingToExtract -= extractFromSlot;
             }
         }
@@ -243,7 +243,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 if (insert) {
                     ItemStack stack = new ItemStack(item, add);
                     stack.metadata = meta;
-                    inv.setItem(i, stack);
+                    GrugInventoryAccess.setItem(inv, i, stack);
                 }
                 remaining -= add;
             }
@@ -255,7 +255,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public double takeItemFromSlot(Object blockEntityObj, double slot, double amount) {
         Inventory inv = (Inventory) blockEntityObj;
-        ItemStack removed = inv.removeItem((int) slot, (int) amount);
+        ItemStack removed = GrugInventoryAccess.removeItem(inv, (int) slot, (int) amount);
         return removed != null ? removed.size : 0;
     }
 
@@ -315,7 +315,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             if (stack == null) {
                 ItemStack created = new ItemStack(item, add);
                 created.metadata = meta;
-                inv.setItem((int) slot, created);
+                GrugInventoryAccess.setItem(inv, (int) slot, created);
             } else {
                 stack.size += add;
             }
@@ -370,7 +370,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         Inventory inv = (Inventory) blockEntityObj;
         ItemStack stack = inv.getItem((int) slot);
         if (stack != null) {
-            if (count <= 0) inv.setItem((int) slot, null);
+            if (count <= 0) GrugInventoryAccess.setItem(inv, (int) slot, null);
             else stack.size = (int) count;
         }
     }
@@ -393,7 +393,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                 itemObj instanceof Item
                         ? new ItemStack((Item) itemObj, (int) count)
                         : new ItemStack((Block) itemObj, (int) count);
-        inv.setItem((int) slot, stack);
+        GrugInventoryAccess.setItem(inv, (int) slot, stack);
     }
 
     @Override
