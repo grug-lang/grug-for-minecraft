@@ -1,7 +1,7 @@
 # The flat-lit block item (see coverage_flat_hand-Test.grug) lying on the ground as a dropped item entity,
 # which the loader draws and not the port, so this belongs here and not in BuildCraft. On b1.7.3-stationapi
 # a dropped item is drawn by ArsenicItemRenderer, whose flush is the one the unshaded rule has to wrap.
-# See #963. The camera looks towards +z, so the item lies six blocks ahead of the player, on the floor.
+# See #963. The camera looks towards +z, so the item lies four blocks ahead of the player, on the floor.
 # Seventeen blocks square of stone fills the view behind it, as in coverage_flat_hand-Test.grug, so the
 # capture does not depend on the terrain. The item is never picked up, because a pickup delay as long
 # as the test keeps the player from collecting it, and it is still once it has fallen and settled.
@@ -42,7 +42,7 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 540, 400, 740, 600)
+    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 440, 440, 840, 700)
 }
 
 local _setup(ctx: TestTickContext) {
@@ -61,7 +61,7 @@ local _setup(ctx: TestTickContext) {
 
     item_x = origin.x() + 0.5
     item_y = origin.y() + 0.5
-    item_z = origin.z() + 6.5
+    item_z = origin.z() + 4.5
     stack: ItemStack = item_stack(item(resource_location("grug:coverage_flat_hand")), 0, 1)
     dropped: ItemEntity = item_entity(level, item_x, item_y, item_z, stack)
     dropped.set_pickup_delay(32767)
