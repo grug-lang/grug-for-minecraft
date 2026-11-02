@@ -150,27 +150,18 @@ local _reverse(side: number) number {
     return side - 1
 }
 
-# Whether this inventory offers a pipe anything, as the block entity's copy of this says. A machine
-# that answers for itself is a source whatever it holds right now, and the slot after the last
-# inventory slot is the crafting result a machine like the autocrafting table offers.
+# Whether this neighbour is an inventory in the reference's sense, which is all
+# PipeTransportItems.isPipeConnected asks (instanceof IInventory): it never asks whether the
+# inventory holds anything or offers a slot to take from. A machine that answers for itself counts
+# whatever it holds right now, and a block entity with slots counts whatever those slots allow, so
+# a closed inventory still gets its arm. A block entity with no slots at all is not an inventory,
+# which is what keeps the redstone engine out of the pipe's way, as BlockEngine.isPipeConnected does
+# in the reference.
 local _has_extractable_slot(neighbor: BlockEntity, from_side: number) bool {
     if neighbor.ask_extract_item(from_side) >= 0 {
         return true
     }
-
-    size: number = neighbor.get_inventory_size()
-    if size <= 0 {
-        return false
-    }
-
-    slot: number = 0
-    while slot <= size {
-        if neighbor.is_slot_extractable(slot) {
-            return true
-        }
-        slot = slot + 1
-    }
-    return false
+    return neighbor.get_inventory_size() > 0
 }
 
 # Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe and 2 for a cobblestone
