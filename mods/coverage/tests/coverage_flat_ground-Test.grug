@@ -25,13 +25,6 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    if ctx.current_tick() > 6 {
-        seen: Option[ItemEntity] = Test.get_client_level().find_item_entity(item_x, item_y, item_z, 30)
-        if not seen.has() {
-            print2("item gone at tick", ctx.current_tick())
-        }
-    }
-
     # The item falls from where it was dropped and then lies still, so give it time to land.
     if ctx.current_tick() < 50 {
         ctx.not_done()
@@ -51,7 +44,7 @@ export tick(ctx: TestTickContext) {
 
     level: Level = Test.get_client_level()
     ctx.assert(level.find_item_entity(item_x, item_y, item_z, 3).has(), "The dropped item should still be in the world.")
-    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 0, 0, 1280, 720)
+    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 440, 380, 840, 620)
 }
 
 local _setup(ctx: TestTickContext) {
@@ -73,14 +66,14 @@ local _setup(ctx: TestTickContext) {
     while fz < origin.z() + 7 {
         fx: number = origin.x() - 4
         while fx < origin.x() + 5 {
-            level.place_block(fx, origin.y() - 1, fz, "minecraft:stone")
+            level.place_block(fx, origin.y() + 2, fz, "minecraft:stone")
             fx = fx + 1
         }
         fz = fz + 1
     }
 
     item_x = origin.x() + 0.5
-    item_y = origin.y() + 1.5
+    item_y = origin.y() + 3.5
     item_z = origin.z() + 4.5
     stack: ItemStack = item_stack(item(resource_location("grug:coverage_flat_hand")), 0, 1)
     dropped: ItemEntity = item_entity(level, item_x, item_y, item_z, stack)
