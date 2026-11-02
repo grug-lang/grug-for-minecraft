@@ -1,0 +1,8 @@
+# A block with slots of which no other block may take any, for the wooden pipe's connection test in
+# buildcraft: the reference's IInventory test connects a pipe to it whatever it offers.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(1)
+    ctx.set_material("stone")
+    ctx.set_inventory_size(9)
+    ctx.set_block_entity(e"coverage_slots_none_entity")
+}
