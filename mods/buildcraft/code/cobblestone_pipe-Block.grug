@@ -1,0 +1,148 @@
+# The cobblestone pipe, which is BlockGenericPipe with PipeItemsCobblestone: the same block as the
+# wooden pipe, with the plain item transport and nothing added. See wooden_pipe-Block.grug for the
+# reasoning behind each line, which a copy here would only repeat.
+export init(ctx: BlockInitContext) {
+    ctx.set_hardness(0.5)
+    ctx.set_material("wood")
+    ctx.set_block_entity(e"cobblestone_pipe_entity")
+    ctx.set_custom_render()
+    ctx.set_shape()
+}
+
+# Pipe.dropContents, which BlockGenericPipe calls when the pipe breaks: every travelling item is
+# dropped where the pipe stands, at a random point inside the block, as Utils.dropItems does.
+export on_break(world: Level, x: number, y: number, z: number) {
+    pipe_opt: Option[BlockEntity] = world.get_block_entity(x, y, z)
+    if pipe_opt.has() {
+        _drop_travelling(world, x, y, z, pipe_opt.unwrap())
+    }
+}
+
+# The centre's box, reaching this block's face on every side the pipe connects to, as the wooden
+# pipe's shape does.
+export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
+    min_x: number = 0.25
+    min_y: number = 0.25
+    min_z: number = 0.25
+    max_x: number = 0.75
+    max_y: number = 0.75
+    max_z: number = 0.75
+
+    if _is_connected(world, x, y, z, 4) {
+        min_x = 0.0
+    }
+    if _is_connected(world, x, y, z, 5) {
+        max_x = 1.0
+    }
+    if _is_connected(world, x, y, z, 0) {
+        min_y = 0.0
+    }
+    if _is_connected(world, x, y, z, 1) {
+        max_y = 1.0
+    }
+    if _is_connected(world, x, y, z, 2) {
+        min_z = 0.0
+    }
+    if _is_connected(world, x, y, z, 3) {
+        max_z = 1.0
+    }
+
+    ctx.add_collision_box(min_x, min_y, min_z, max_x, max_y, max_z)
+}
+
+local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: BlockEntity) {
+    index: number = 0
+    # Nothing is removed from the list here, so its size cannot change under the loop.
+    records: number = pipe.get_saved_list_size("traveling")
+    while index < records {
+        item_opt: Option[Item] = pipe.get_saved_list_item("traveling", index)
+        count: number = pipe.get_saved_list_number("traveling", index, "count")
+        if item_opt.has() and count > 0 {
+            damage: number = pipe.get_saved_list_number("traveling", index, "damage")
+            # Utils.dropItems: each axis a random 0.15 to 0.85 into the block, and the EntityItem
+            # constructor's hop of -0.1 to 0.1 on x and z and 0.2 up, which Utils.dropItems leaves
+            # alone. The reference hands the whole stack to one EntityItem, so a record carrying
+            # five items is one entity holding five.
+            dx: number = world.random_float() * 0.7 + 0.15
+            dy: number = world.random_float() * 0.7 + 0.15
+            dz: number = world.random_float() * 0.7 + 0.15
+            stack: ItemStack = item_stack(item_opt.unwrap(), damage, count)
+            dropped: ItemEntity = item_entity(world, x + dx, y + dy, z + dz, stack)
+            # Utils.dropItems sets the EntityItem's delayBeforeCanPickup to 10 before it spawns it.
+            dropped.set_pickup_delay(10)
+            dropped.entity().spawn(world)
+        }
+        index = index + 1
+    }
+}
+
+# The same connection test as the block entity's _is_connected: a pipe, or an inventory.
+local _is_connected(world: Level, x: number, y: number, z: number, side: number) bool {
+    kind: number = _pipe_kind(world, _neighbor_x(x, side), _neighbor_y(y, side), _neighbor_z(z, side))
+    if kind != 0 {
+        return true
+    }
+    return _is_inventory(world, x, y, z, side)
+}
+
+# The same inventory test as the block entity's _is_inventory.
+local _is_inventory(world: Level, x: number, y: number, z: number, side: number) bool {
+    neighbor_opt: Option[BlockEntity] = world.get_block_entity(_neighbor_x(x, side), _neighbor_y(y, side), _neighbor_z(z, side))
+    if not neighbor_opt.has() {
+        return false
+    }
+    neighbor: BlockEntity = neighbor_opt.unwrap()
+    return neighbor.get_inventory_size() > 0 or neighbor.ask_extract_item(_reverse(side)) >= 0
+}
+
+# The side of a neighbour that faces the pipe, given the side of the pipe the neighbour is on. The
+# sides pair up as 0 and 1, 2 and 3, 4 and 5, like Orientations.reverse.
+local _reverse(side: number) number {
+    if Math.remainder(side, 2) == 0 {
+        return side + 1
+    }
+    return side - 1
+}
+
+# Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe and 2 for a cobblestone
+# pipe, as the block entity's copy of this says.
+local _pipe_kind(world: Level, nx: number, ny: number, nz: number) number {
+    name: string = world.get_block(nx, ny, nz)
+    if name == "grug:wooden_pipe" {
+        return 1
+    }
+    if name == "grug:cobblestone_pipe" {
+        return 2
+    }
+    return 0
+}
+
+local _neighbor_x(x: number, side: number) number {
+    if side == 4 {
+        return x - 1
+    }
+    if side == 5 {
+        return x + 1
+    }
+    return x
+}
+
+local _neighbor_y(y: number, side: number) number {
+    if side == 0 {
+        return y - 1
+    }
+    if side == 1 {
+        return y + 1
+    }
+    return y
+}
+
+local _neighbor_z(z: number, side: number) number {
+    if side == 2 {
+        return z - 1
+    }
+    if side == 3 {
+        return z + 1
+    }
+    return z
+}
