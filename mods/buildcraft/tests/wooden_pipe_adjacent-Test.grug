@@ -8,11 +8,16 @@ chest_a: Option[BlockEntity] = Option.new()
 chest_b: Option[BlockEntity] = Option.new()
 pipe_a: Option[BlockEntity] = Option.new()
 pipe_b: Option[BlockEntity] = Option.new()
+engine_a: Option[BlockEntity] = Option.new()
+engine_b: Option[BlockEntity] = Option.new()
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         _advance(ctx)
+        ctx.not_done()
+    } else if ctx.current_tick() == 1 or ctx.current_tick() == 40 or ctx.current_tick() == 150 {
+        _dump(ctx.current_tick())
         ctx.not_done()
     } else if not _pulled() or ctx.current_tick() < 25 or _dropped() < 2 {
         # The dropped items reach the client's copy of the level a few frames after the server ran
@@ -62,6 +67,8 @@ local _setup(ctx: TestTickContext) {
     level.place_block(x + 1, y - 1, z + 1, "minecraft:redstone_torch")
     level.place_block(x + 1, y, z + 1, "grug:redstone_engine")
 
+    engine_a.set(_entity(ctx, level, x, y, z - 1))
+    engine_b.set(_entity(ctx, level, x + 1, y, z + 1))
     chest_a.set(_entity(ctx, level, x - 1, y, z))
     pipe_a.set(_entity(ctx, level, x, y, z))
     pipe_b.set(_entity(ctx, level, x + 1, y, z))
@@ -119,4 +126,17 @@ local _dropped() number {
     origin: Vec3 = Test.get_origin()
     level: Level = Test.get_client_level()
     return level.count_item_entities(origin.x(), origin.y() + 12, origin.z(), 20)
+}
+
+local _dump(at: number) {
+    print2("DIAG tick", at)
+    print2("DIAG world time", Test.get_client_level().get_time())
+    print3("DIAG chests", chest_a.unwrap().get_item_count_in_slot(0), chest_b.unwrap().get_item_count_in_slot(0))
+    print3("DIAG traveling", pipe_a.unwrap().get_saved_list_size("traveling"), pipe_b.unwrap().get_saved_list_size("traveling"))
+    print3("DIAG pipe source meta", pipe_a.unwrap().get_saved_number("source"), pipe_b.unwrap().get_saved_number("source"))
+    print3("DIAG pipe energy", pipe_a.unwrap().get_energy_stored(), pipe_b.unwrap().get_energy_stored())
+    print3("DIAG engine energy", engine_a.unwrap().get_saved_number("energy"), engine_b.unwrap().get_saved_number("energy"))
+    print3("DIAG engine orientation", engine_a.unwrap().get_saved_number("orientation"), engine_b.unwrap().get_saved_number("orientation"))
+    print3("DIAG engine progress", engine_a.unwrap().get_saved_number("progress"), engine_b.unwrap().get_saved_number("progress"))
+    print2("DIAG dropped", _dropped())
 }
