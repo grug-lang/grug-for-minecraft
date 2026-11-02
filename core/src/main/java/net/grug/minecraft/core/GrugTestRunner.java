@@ -431,7 +431,7 @@ public class GrugTestRunner {
                 maxGameSpeedFromEnv(),
                 carryOverCoverageTestsFromEnv(),
                 testsFromEnv(),
-                GrugCore.getAdapter().getSide() == GrugSide.DEDICATED_SERVER);
+                GrugCore.getAdapter().getSide().isDedicatedServer());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -1490,7 +1490,7 @@ public class GrugTestRunner {
             tickFnId = ops.getExportFnId("Test", "tick");
             anySideTickFnId = ops.getExportFnId("Test", "tick_any_side");
             if (tickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID
-                    || anySideTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                    | anySideTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
                 throw new RuntimeException("Test entity missing a tick export function.");
             }
         } catch (Exception e) {
@@ -1583,7 +1583,7 @@ public class GrugTestRunner {
         if (completed) {
             errorsBefore = GrugTestState.runtimeErrorCount;
             boolean tickRan = ops.callExportFn(currentEntityHandle, tickFnId);
-            if (tickRan || GrugTestState.runtimeErrorCount != errorsBefore) {
+            if (tickRan | GrugTestState.runtimeErrorCount != errorsBefore) {
                 throw Grug.fatal(
                         path + " defines both tick and tick_any_side, but a test defines one.");
             }

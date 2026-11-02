@@ -15,4 +15,10 @@ class GrugSideTest {
         assertEquals("a client", GrugSide.CLIENT.description());
         assertEquals("a dedicated server", GrugSide.DEDICATED_SERVER.description());
     }
+
+    @Test
+    void onlyTheDedicatedServerIsOne() {
+        org.junit.jupiter.api.Assertions.assertTrue(GrugSide.DEDICATED_SERVER.isDedicatedServer());
+        org.junit.jupiter.api.Assertions.assertFalse(GrugSide.CLIENT.isDedicatedServer());
+    }
 }

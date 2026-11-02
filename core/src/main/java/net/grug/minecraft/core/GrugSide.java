@@ -31,4 +31,9 @@ public enum GrugSide {
     public String description() {
         return description;
     }
+
+    /** Whether this is the dedicated server, which decides the tests a run skips. */
+    public boolean isDedicatedServer() {
+        return this == DEDICATED_SERVER;
+    }
 }
