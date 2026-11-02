@@ -3,8 +3,8 @@
 # wooden pipe, and PipeTransportItems.isPipeConnected, which accepts any IInventory whatever it
 # holds and whatever slots it offers (#912). A redstone engine is not an inventory and its own
 # BlockEngine.isPipeConnected refuses pipes, so it gets no arm either. The fixture is one pipe with
-# a wooden pipe to its west, an engine to its north and an inventory whose extractable range is a
-# single slot to its east, so the rule is pinned on both its halves.
+# a wooden pipe to its west, an engine to its north and an inventory with nothing extractable
+# to its east, so the rule is pinned on both its halves.
 # The reference's blocks are named differently, and its pipe is placed by a player, so this test is
 # about the port only.
 phase: number = 0
@@ -23,7 +23,7 @@ export tick(ctx: TestTickContext) {
         level.place_block(x, y, z, "grug:wooden_pipe")
         level.place_block(x - 1, y, z, "grug:wooden_pipe")
         level.place_block(x, y, z - 1, "grug:redstone_engine")
-        level.place_block(x + 1, y, z, "grug:coverage_slots_range")
+        level.place_block(x + 1, y, z, "grug:coverage_slots_none")
         ctx.not_done()
     } else if phase == 1 and not Test.world_settled() {
         ctx.not_done()
@@ -41,5 +41,5 @@ local _check(ctx: TestTickContext) {
     ctx.assert(Test.block_collision(level, x, y, z, 0.35, 0.35, 0.35, 0.65, 0.65, 0.65), "The pipe's centre should collide.")
     ctx.assert(not Test.block_collision(level, x, y, z, 0.02, 0.35, 0.35, 0.2, 0.65, 0.65), "A wooden pipe beside a wooden pipe should have no arm toward it.")
     ctx.assert(not Test.block_collision(level, x, y, z, 0.35, 0.35, 0.02, 0.65, 0.65, 0.2), "A wooden pipe beside a redstone engine should have no arm toward it.")
-    ctx.assert(Test.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A wooden pipe beside an inventory should have an arm toward it.")
+    ctx.assert(Test.block_collision(level, x, y, z, 0.8, 0.35, 0.35, 0.98, 0.65, 0.65), "A wooden pipe beside an inventory with nothing to take should have an arm toward it.")
 }

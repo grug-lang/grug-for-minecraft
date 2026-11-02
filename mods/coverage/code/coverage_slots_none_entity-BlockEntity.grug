@@ -1,0 +1,5 @@
+# Declares an empty extractable range in init(), so no slot, the crafting result included, can be
+# taken from, for buildcraft's wooden_pipe_connections-Test.grug.
+export init(ctx: BlockEntityInitContext) {
+    ctx.set_extractable_slots(1, 0)
+}
