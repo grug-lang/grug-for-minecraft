@@ -1,4 +1,4 @@
 # Putting a file into "normal" before it was ever disturbed must be a no-op, not a crash.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     Test.set_mod_file_state("coverage/code/coverage_block-Block.grug", "normal")
 }

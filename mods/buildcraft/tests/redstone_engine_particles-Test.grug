@@ -4,7 +4,7 @@
 # at one random height in the bottom 6/16 of the block, and while none does it spawns nothing. The
 # test runs the display tick with a seeded generator and reads the particles it spawned. The
 # reference run has no such record, so it is skipped there.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if Test.is_reference() {
         return
     }

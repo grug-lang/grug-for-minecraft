@@ -4,7 +4,7 @@
 change_baseline: number = -1
 path: string = "coverage/code/coverage_fixture_entity-BlockEntity.grug"
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()

@@ -1,5 +1,5 @@
 # Covers equals' non-entity branch.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.assert(equals("a", "a"), "equals should compare two strings.")
         ctx.assert(not equals("a", "b"), "equals should tell different strings apart.")

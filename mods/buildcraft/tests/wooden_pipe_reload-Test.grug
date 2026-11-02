@@ -7,7 +7,7 @@ reload_pipe: Option[BlockEntity] = Option.new()
 reload_source: Option[BlockEntity] = Option.new()
 reload_target: Option[BlockEntity] = Option.new()
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

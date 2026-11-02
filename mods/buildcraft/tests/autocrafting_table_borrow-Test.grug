@@ -4,7 +4,7 @@
 # is refused and nothing moves, where counting every slot would approve it and hand over the bread unpaid.
 # Wheat in slot 3 can be borrowed, so the take happens, the grid keeps its last wheat, and the three
 # borrowed wheat leave the neighbour.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

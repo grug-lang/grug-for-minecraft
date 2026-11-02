@@ -1,6 +1,6 @@
 # An index past the end of an existing list names no record, so reading it is reported rather than
 # answered with a fresh record's defaults.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

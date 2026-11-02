@@ -1,6 +1,6 @@
 # Test.assert(false, ...) reports through hostFunctionErrorHappened, which stops the script right
 # there, so tick() returns without finishing. That is the abort an expected error accepts.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     ctx.expect_error("Assertion failed")
     ctx.assert(false, "This assertion is expected to fail.")
 }

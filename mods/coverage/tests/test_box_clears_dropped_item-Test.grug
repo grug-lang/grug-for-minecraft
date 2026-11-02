@@ -6,7 +6,7 @@
 # (#427). A chest's drop is the simplest inventory that leaves items behind, so this makes one and
 # checks the next build's sweep is rid of it.
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()

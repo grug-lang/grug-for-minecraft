@@ -25,7 +25,7 @@ export init(ctx: TestInitContext) {
     Test.stall(stall)
 }
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     now: number = Test.get_client_level().get_time()
     if start < 0 {
         start = now

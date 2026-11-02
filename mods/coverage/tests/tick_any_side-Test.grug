@@ -1,0 +1,12 @@
+# A test that defines tick_any_side instead of tick is one a dedicated server runs, so this test
+# passing in the multiplayer job proves the server reads the export, and passing in a client proves
+# a client runs it like any other. A test that defines tick is skipped on a server, which every
+# screenshot test in the suite shows by not being among the tests that job runs. A file that defines
+# both is refused by the runner, which GrugTestRunnerTest covers because such a file cannot be part
+# of a run that is meant to pass.
+ticks: number = 0.0
+
+export tick_any_side(ctx: TestTickContext) {
+    ticks = ticks + 1
+    ctx.assert(ticks == 1, "The test ran more than once.")
+}

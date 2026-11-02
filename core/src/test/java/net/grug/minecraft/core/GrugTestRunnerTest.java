@@ -46,6 +46,18 @@ class GrugTestRunnerTest {
         long nextHandle = 100;
         long exportFnId = 1;
 
+        /**
+         * The id of tick_any_side, which a test defines instead of tick, or alongside it by
+         * mistake.
+         */
+        long anySideFnId = 2;
+
+        /** The paths whose file defines tick_any_side; every other defines tick. */
+        java.util.Set<String> anySide = new java.util.HashSet<>();
+
+        /** The paths whose file defines both, which the runner refuses. */
+        java.util.Set<String> both = new java.util.HashSet<>();
+
         /** What the runner is told for the init export; invalid for a test without one. */
         long initFnId = 1;
 
@@ -82,11 +94,17 @@ class GrugTestRunnerTest {
 
         @Override
         public long getExportFnId(String entityType, String fnName) {
-            return fnName.equals("init") ? initFnId : exportFnId;
+            if (fnName.equals("init")) return initFnId;
+            return fnName.equals("tick_any_side") ? anySideFnId : exportFnId;
         }
 
         @Override
         public boolean callExportFn(long entityHandle, long exportFnId) {
+            // A missing export answers false and raises nothing, which the runner reads as absent.
+            boolean anyDefined = anySide.contains(activePath) || both.contains(activePath);
+            boolean tickDefined = !anySide.contains(activePath);
+            if (exportFnId == anySideFnId && !anyDefined) return false;
+            if (exportFnId == this.exportFnId && !tickDefined) return false;
             if (onCall != null) onCall.run();
             if (throwOnCall != null) throw throwOnCall;
             return completed;
@@ -674,7 +692,7 @@ class GrugTestRunnerTest {
         assertTrue(runner.isFinished());
         assertTrue(
                 GrugErrors.runtimeErrorQueue.stream()
-                        .anyMatch(m -> m.contains("missing 'tick' export function")));
+                        .anyMatch(m -> m.contains("missing a tick export function")));
     }
 
     @Test
@@ -1205,6 +1223,88 @@ class GrugTestRunnerTest {
                         "[GRUG CI] Only these tests run: jei/code/a-Test.grug,"
                                 + " coverage/tests/b-Test.grug"),
                 printed);
+    }
+
+    private GrugTestRunner sideRunner(FakeOps ops, boolean dedicatedServer) {
+        Map<String, Long> files = threeMods();
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                new SweepLog(new ArrayList<>()),
+                1,
+                new CoverageLog(),
+                Set.of(),
+                GrugTestRunner.MAX_GAME_SPEED,
+                Set.of(),
+                Set.of(),
+                dedicatedServer);
+    }
+
+    @Test
+    void aServerRunsOnlyTheTestsThatDefineTheAnySideTickAndSaysHowManyItSkipped() {
+        FakeOps ops = new FakeOps();
+        ops.anySide.addAll(
+                Set.of(
+                        "buildcraft/code/a-Test.grug",
+                        "coverage/tests/a-Test.grug",
+                        "jei/code/a-Test.grug"));
+        String printed = capture(() -> runToEnd(sideRunner(ops, true)));
+
+        assertEquals(
+                List.of(
+                        "[GRUG CI] PASS buildcraft/code/a-Test.grug",
+                        "[GRUG CI] PASS coverage/tests/a-Test.grug",
+                        "[GRUG CI] PASS jei/code/a-Test.grug"),
+                printed.lines()
+                        .filter(l -> l.contains("[GRUG CI] PASS "))
+                        .collect(Collectors.toList()));
+        assertTrue(printed.contains("Skipped 2 test(s)"), printed);
+        assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aServerWithNoAnySideTestSkipsEveryTestAndPassesNone() {
+        FakeOps ops = new FakeOps();
+        String printed = capture(() -> runToEnd(sideRunner(ops, true)));
+
+        assertEquals(0, printed.lines().filter(l -> l.contains("[GRUG CI] PASS ")).count());
+        assertTrue(printed.contains("Skipped 5 test(s)"), printed);
+    }
+
+    @Test
+    void aClientRunsBothKindsOfTest() {
+        FakeOps ops = new FakeOps();
+        ops.anySide.addAll(Set.of("buildcraft/code/a-Test.grug", "jei/code/a-Test.grug"));
+        String printed = capture(() -> runToEnd(sideRunner(ops, false)));
+
+        assertTrue(printed.contains("ALL 5 TESTS PASSED"), printed);
+        assertFalse(printed.contains("Skipped"), printed);
+    }
+
+    @Test
+    void aFileThatDefinesBothTicksFailsNamingTheFile() {
+        FakeOps ops = new FakeOps();
+        ops.both.add("buildcraft/code/a-Test.grug");
+        for (boolean server : new boolean[] {false, true}) {
+            String printed = capture(() -> runToEnd(sideRunner(ops, server)));
+
+            assertTrue(printed.contains("[GRUG CI] FAIL buildcraft/code/a-Test.grug"), printed);
+            assertTrue(
+                    printed.contains(
+                            "buildcraft/code/a-Test.grug defines both tick and tick_any_side"),
+                    printed);
+        }
+    }
+
+    @Test
+    void onlyAServerSkipsAndOnlyATestWithoutTheAnySideTick() {
+        assertTrue(GrugTestRunner.skipsOnServer(true, false));
+        assertFalse(GrugTestRunner.skipsOnServer(true, true));
+        assertFalse(GrugTestRunner.skipsOnServer(false, false));
+        assertFalse(GrugTestRunner.skipsOnServer(false, true));
     }
 
     @Test

@@ -218,7 +218,7 @@ public class GrugTestRunner {
     private final TestBoxBuilder boxBuilder;
     private final CoverageRecorder coverage;
     private final List<Map.Entry<String, Long>> tests;
-    private final int totalCount;
+    private int totalCount;
 
     /** The fastest game speed a test may run at; 1 keeps every test in real time. */
     private final int maxGameSpeed;
@@ -237,6 +237,13 @@ public class GrugTestRunner {
     private Boolean lastGameSpeedAnswer = null;
 
     private int nextTestIndex = 0;
+
+    /** Whether this run is on a dedicated server, which runs only the tests that declare it. */
+    private final boolean dedicatedServer;
+
+    /** The tests a dedicated server skipped, so a repeat neither probes nor counts them again. */
+    private final Set<String> skippedForSide = new LinkedHashSet<>();
+
     private int passedCount = 0;
 
     /** How many times the suite runs, and how many of those are left to start. */
@@ -248,6 +255,11 @@ public class GrugTestRunner {
     private long currentEntityHandle = 0;
 
     private long currentTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+
+    /** The ids of the two tick exports of the running test, which tick() resolves at its first. */
+    private long tickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+
+    private long anySideTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private int currentTick = 0;
 
     /**
@@ -418,7 +430,8 @@ public class GrugTestRunner {
                 modsFromEnv(),
                 maxGameSpeedFromEnv(),
                 carryOverCoverageTestsFromEnv(),
-                testsFromEnv());
+                testsFromEnv(),
+                GrugCore.getAdapter().getSide() == GrugSide.DEDICATED_SERVER);
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -551,6 +564,40 @@ public class GrugTestRunner {
             int maxGameSpeed,
             Set<String> carryOverCoverageTests,
             Set<String> selectedTests) {
+        this(
+                fileIds,
+                referenceErrors,
+                ops,
+                clock,
+                boxBuilder,
+                repeats,
+                coverage,
+                selectedMods,
+                maxGameSpeed,
+                carryOverCoverageTests,
+                selectedTests,
+                false);
+    }
+
+    /**
+     * Visible for tests: the same, on a dedicated server when {@code dedicatedServer} is set. A
+     * dedicated server runs only the tests that define {@code tick_any_side} (#168); the others are
+     * skipped at their first tick, counted and said, and are not part of the total the run reports.
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock,
+            TestBoxBuilder boxBuilder,
+            int repeats,
+            CoverageRecorder coverage,
+            Set<String> selectedMods,
+            int maxGameSpeed,
+            Set<String> carryOverCoverageTests,
+            Set<String> selectedTests,
+            boolean dedicatedServer) {
+        this.dedicatedServer = dedicatedServer;
         this.maxGameSpeed = maxGameSpeed;
         this.ops = ops;
         this.coverage = coverage;
@@ -958,6 +1005,13 @@ public class GrugTestRunner {
                 printTestTimes();
                 writeTestTimesRecord(Collections.emptySet());
                 coverage.runPassed();
+                if (!skippedForSide.isEmpty()) {
+                    System.out.println(
+                            "[GRUG CI] Skipped "
+                                    + skippedForSide.size()
+                                    + " test(s) that do not define tick_any_side, which a dedicated"
+                                    + " server cannot run without a client.");
+                }
                 System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
             }
             return;
@@ -988,7 +1042,15 @@ public class GrugTestRunner {
 
         boolean completed;
         try {
-            completed = ops.callExportFn(currentEntityHandle, currentTickFnId);
+            if (currentTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                completed = callFirstTick(path);
+                if (skippedThisTick) {
+                    skippedThisTick = false;
+                    return;
+                }
+            } else {
+                completed = ops.callExportFn(currentEntityHandle, currentTickFnId);
+            }
         } catch (Exception e) {
             // Same fail-fast behavior as before: the first failing test aborts the whole run.
             String msg = e.getMessage();
@@ -1394,6 +1456,12 @@ public class GrugTestRunner {
         Map.Entry<String, Long> entry = tests.get(nextTestIndex);
         String path = entry.getKey();
 
+        // Skipped on an earlier pass of a repeat: the declaration does not change between passes.
+        if (skippedForSide.contains(path)) {
+            nextTestIndex++;
+            return startNextTest();
+        }
+
         // Before anything the test does, so the test's entity and init land in its own segment of
         // the coverage: the previous test's (or the boot's) segment is cut here, one segment per
         // test, so a later run can carry over the coverage of the tests it does not rerun (#786).
@@ -1416,9 +1484,14 @@ public class GrugTestRunner {
                 throw new RuntimeException("Failed to create an entity for the test.");
             }
 
-            currentTickFnId = ops.getExportFnId("Test", "tick");
-            if (currentTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
-                throw new RuntimeException("Test entity missing 'tick' export function.");
+            // The test defines one of the two, which only its first tick can tell: a missing export
+            // answers like an aborted one, so the first tick tells them apart by the errors raised.
+            currentTickFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+            tickFnId = ops.getExportFnId("Test", "tick");
+            anySideTickFnId = ops.getExportFnId("Test", "tick_any_side");
+            if (tickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID
+                    || anySideTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
+                throw new RuntimeException("Test entity missing a tick export function.");
             }
         } catch (Exception e) {
             String msg = e.getMessage();
@@ -1472,6 +1545,62 @@ public class GrugTestRunner {
         // built drops them rather than running them as this test's first ticks. See #717.
         startedTests++;
         return true;
+    }
+
+    /**
+     * Whether a test is skipped: only on a dedicated server, and only when it does not define
+     * {@code tick_any_side}.
+     */
+    static boolean skipsOnServer(boolean dedicatedServer, boolean definesAnySideTick) {
+        return dedicatedServer && !definesAnySideTick;
+    }
+
+    /** Set by {@link #callFirstTick} when it skipped the test, so tick() returns. */
+    private boolean skippedThisTick = false;
+
+    /**
+     * Makes a test's first tick call and settles which of its two tick exports it defines, which
+     * the engine cannot be asked: a missing export answers false like an aborted one, and only the
+     * errors raised tell the two apart. {@code tick_any_side} is tried first. Defined, it is the
+     * tick, and {@code tick} is tried once to refuse a file that defines both; the probe of a
+     * missing export runs nothing. Not defined, a dedicated server skips the test, having run none
+     * of its tick, and a client runs {@code tick}.
+     */
+    private boolean callFirstTick(String path) {
+        int errorsBefore = GrugTestState.runtimeErrorCount;
+        boolean completed = ops.callExportFn(currentEntityHandle, anySideTickFnId);
+        boolean definesAnySide = completed || GrugTestState.runtimeErrorCount != errorsBefore;
+        if (skipsOnServer(dedicatedServer, definesAnySide)) {
+            skipForSide(path);
+            skippedThisTick = true;
+            return false;
+        }
+        if (!definesAnySide) {
+            currentTickFnId = tickFnId;
+            return ops.callExportFn(currentEntityHandle, tickFnId);
+        }
+        currentTickFnId = anySideTickFnId;
+        if (completed) {
+            errorsBefore = GrugTestState.runtimeErrorCount;
+            boolean tickRan = ops.callExportFn(currentEntityHandle, tickFnId);
+            if (tickRan || GrugTestState.runtimeErrorCount != errorsBefore) {
+                throw Grug.fatal(
+                        path + " defines both tick and tick_any_side, but a test defines one.");
+            }
+        }
+        return completed;
+    }
+
+    /**
+     * Drops the running test without finishing it, takes it out of the total the run reports, and
+     * leaves the next one to start. Its entity is destroyed as after any test.
+     */
+    private void skipForSide(String path) {
+        skippedForSide.add(path);
+        totalCount--;
+        destroyCurrentEntity();
+        nextTestIndex++;
+        currentTick = 0;
     }
 
     /**

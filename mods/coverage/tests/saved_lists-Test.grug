@@ -2,7 +2,7 @@
 # written, removed and carried through the block entity's NBT. A record with no item answers an empty
 # Option, a key a record never stored answers 0, which are the defaults a fresh record has, and an
 # item alone stores no number, which is the shape the pipe's record needs.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

@@ -2,7 +2,7 @@
 pipe_drop_source: Option[BlockEntity] = Option.new()
 pipe_drop_self: Option[BlockEntity] = Option.new()
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _drop_setup(ctx)
         ctx.not_done()

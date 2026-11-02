@@ -22,7 +22,7 @@ pipe_placed_at: number = -1
 # still there on the delayed check and the dropped-item assertion still fails on it.
 pipe_bread_at: number = -1
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup_table(ctx)
         ctx.not_done()

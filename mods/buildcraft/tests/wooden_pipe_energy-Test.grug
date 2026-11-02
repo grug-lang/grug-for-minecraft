@@ -5,7 +5,7 @@
 # receive_energy, and Test.tick_block_entity runs the pipe's tick right after, before the game's own
 # tick can take the pipe's power loss. Each case gets its own pipe, 4 blocks apart in x so that the
 # chests of one never touch another.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

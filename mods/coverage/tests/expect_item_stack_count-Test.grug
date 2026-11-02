@@ -1,7 +1,7 @@
 # item_stack makes a stack of at least one item, so a count of 0 asks for a stack that holds nothing
 # and is reported rather than made into an item entity the game would have to kill. The message names
 # the loader's own largest count, so the test asks which loader it is on.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     sword: Item = item(resource_location("minecraft:diamond_sword"))
 
     if Test.loader_name() == "1.20.6-forge" {

@@ -4,7 +4,7 @@
 # Asking the game rather than the script is the point: the answer comes from the same code a player
 # colliding with or clicking the block goes through, so a loader whose adapter ignores the shape
 # fails here.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

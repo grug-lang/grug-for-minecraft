@@ -11,7 +11,7 @@
 # result item is what is asked for. Whether the grid answers at all says less: 1.20.6 crafts its
 # heavy weighted pressure plate from two iron ingots, and no version has to agree on that.
 # Band 12 is free: the recipe and coverage tests use 0, 5, 10, 15, 20, 25, 30, 35, 40, 45 and 50.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     # A loader that registers no mod recipe answers the grid with nothing too, so the loader is
     # asked rather than assumed.
     if not Test.registers_mod_recipes() {

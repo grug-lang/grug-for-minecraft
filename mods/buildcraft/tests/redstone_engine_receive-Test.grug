@@ -14,7 +14,7 @@
 # time 5 to 15 ticks past a multiple of 20, so no tick it gives lands on one, even if the integrated
 # server thread advances a few ticks during the call, and a powered engine gains nothing of its own
 # while it is ticked. The energy the test expects therefore changes only by strokes.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
 
     # Waits for a time 5 to 15 ticks past a multiple of 20. See the header.

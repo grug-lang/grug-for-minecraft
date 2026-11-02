@@ -1,5 +1,5 @@
 # Covers the print family.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         print("print")
         print2("print2", 2)

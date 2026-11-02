@@ -1,5 +1,5 @@
 # Covers the Option.set overloads for number, bool and string.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         number_opt: Option[number] = Option.new()
         number_opt.set(1)

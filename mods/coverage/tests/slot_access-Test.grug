@@ -3,7 +3,7 @@
 # is_slot_insertable and is what insert_item_into_inventory fills, an empty range denies everything, and a
 # crafting result reads as an item and a damage while there is one and as an empty Option and a zero
 # without. A rule can only be declared in init(), so each rule has a block of its own.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()

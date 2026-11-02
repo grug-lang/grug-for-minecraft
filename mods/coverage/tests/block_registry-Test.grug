@@ -1,6 +1,6 @@
 # Exercises place_block's vanilla-reflection and grug-block paths, plus custom and vanilla item
 # lookups. The unresolved path is expect_place_block_unknown-Test.grug, which aborts on the error.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()

@@ -1,6 +1,6 @@
 # Reading a particle past the last one the last display tick spawned is an error, which is what
 # ctx.expect_error accepts here.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
 

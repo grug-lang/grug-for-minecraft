@@ -1,7 +1,7 @@
 # Test.tick_block_entity runs a grug block entity's tick function that many times within the current
 # game tick. The block entity counts its ticks, and the game may tick it too, so the count has to have
 # grown by at least what was asked for. A count of 0 is allowed and runs nothing.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
