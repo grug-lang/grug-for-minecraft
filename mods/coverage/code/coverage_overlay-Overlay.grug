@@ -1,11 +1,11 @@
 # Covers the overlay host functions through a real screen: the context's numbers and modifiers,
-# draw_item, draw_box, take, the cursor the reference deletes, give_item and give_item_stack, and the
-# loader's item list behind item_at. The box sits at the centre of the screen, where the player's
-# inventory also is, so the test's click lands on it; a click there gives the first item and takes
-# the press, a middle click gives a stack, and a left click while the cursor carries an item deletes
-# it instead. Scrolling the wheel down over the box is taken too, and so is a fast turn up of three
-# notches, while a gentler turn up is left to the screen. On a loader that draws no overlays the exports are never asked, and the test returns
-# before it opens anything. See #615.
+# draw_item, draw_box, take, the cursor the reference deletes, give_item and give_item_stack, and
+# the loader's item list behind item_at. The box sits at the centre of the screen, where the
+# player's inventory also is, so the test's click lands on it; a click there gives the first item
+# and takes the press, a middle click gives a stack, and a left click while the cursor carries an
+# item deletes it instead. Scrolling the wheel down over the box is taken too, and so is a fast turn
+# up of three notches, while a gentler turn up is left to the screen. On a loader that draws no
+# overlays the exports are never asked, and the test returns before it opens anything. See #615.
 export render(ctx: OverlayRenderContext) {
     box_x: number = Math.floor(ctx.screen_width() / 2) - 9
     box_y: number = Math.floor(ctx.screen_height() / 2) - 9
