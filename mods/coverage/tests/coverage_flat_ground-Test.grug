@@ -11,14 +11,22 @@ item_y: number = 0
 item_z: number = 0
 
 export tick(ctx: TestTickContext) {
+    # The default room is only a few blocks deep, so widen it first, as redstone_engine_facings-Test.grug
+    # does, and let the build that makes finish before the item is dropped, since the sweep that ends a
+    # build removes the item entities in the area.
     if ctx.current_tick() == 0 {
+        Test.set_box_radius(10)
+        ctx.not_done()
+        return
+    }
+    if ctx.current_tick() == 2 {
         _setup(ctx)
         ctx.not_done()
         return
     }
 
     # The item falls from where it was dropped and then lies still, so give it time to land.
-    if ctx.current_tick() < 40 {
+    if ctx.current_tick() < 50 {
         ctx.not_done()
         return
     }
