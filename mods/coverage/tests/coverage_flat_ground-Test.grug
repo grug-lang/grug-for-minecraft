@@ -34,7 +34,7 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 660, 540, 1260, 900)
+    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 480, 360, 800, 720)
 }
 
 local _setup(ctx: TestTickContext) {
