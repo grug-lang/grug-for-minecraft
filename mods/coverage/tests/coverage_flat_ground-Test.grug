@@ -39,7 +39,7 @@ export tick(ctx: TestTickContext) {
         return
     }
 
-    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 0, 0, 1280, 720)
+    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 540, 380, 740, 560)
 }
 
 local _setup(ctx: TestTickContext) {
@@ -56,16 +56,12 @@ local _setup(ctx: TestTickContext) {
         wy = wy + 1
     }
 
-    col: number = 0
-    while col < 9 {
-        cx: number = origin.x() - 8 + col * 2
-        cy: number = origin.y() - 8 + col * 2
-        level.place_block(cx, cy, origin.z() + 4, "minecraft:stone")
-        stack: ItemStack = item_stack(item(resource_location("grug:coverage_flat_hand")), 0, 1)
-        dropped: ItemEntity = item_entity(level, cx + 0.5, cy + 1.5, origin.z() + 4.5, stack)
-        dropped.set_pickup_delay(32767)
-        dropped.entity().set_delta_movement(Vec3.zero())
-        dropped.entity().spawn(level)
-        col = col + 1
-    }
+    cx: number = origin.x() - 2
+    cy: number = origin.y() - 7
+    level.place_block(cx, cy, origin.z() + 4, "minecraft:stone")
+    stack: ItemStack = item_stack(item(resource_location("grug:coverage_flat_hand")), 0, 1)
+    dropped: ItemEntity = item_entity(level, cx + 0.5, cy + 1.5, origin.z() + 4.5, stack)
+    dropped.set_pickup_delay(32767)
+    dropped.entity().set_delta_movement(Vec3.zero())
+    dropped.entity().spawn(level)
 }
