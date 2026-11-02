@@ -1226,6 +1226,10 @@ class GrugTestRunnerTest {
     }
 
     private GrugTestRunner sideRunner(FakeOps ops, boolean dedicatedServer) {
+        return sideRunner(ops, dedicatedServer, 1);
+    }
+
+    private GrugTestRunner sideRunner(FakeOps ops, boolean dedicatedServer, int repeats) {
         Map<String, Long> files = threeMods();
         ops.pathsAre(files);
         return new GrugTestRunner(
@@ -1234,7 +1238,7 @@ class GrugTestRunnerTest {
                 ops,
                 System::nanoTime,
                 new SweepLog(new ArrayList<>()),
-                1,
+                repeats,
                 new CoverageLog(),
                 Set.of(),
                 GrugTestRunner.MAX_GAME_SPEED,
@@ -1263,6 +1267,24 @@ class GrugTestRunnerTest {
                         .collect(Collectors.toList()));
         assertTrue(printed.contains("Skipped 2 test(s)"), printed);
         assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aRepeatedServerRunSkipsTheSameTestsOnEveryPass() {
+        FakeOps ops = new FakeOps();
+        ops.anySide.add("jei/code/a-Test.grug");
+        String printed = capture(() -> runToEnd(sideRunner(ops, true, 3)));
+
+        assertTrue(printed.contains("ALL 1 TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aMissingAnySideTickIdIsRefused() {
+        FakeOps ops = new FakeOps();
+        ops.anySideFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+        String printed = capture(() -> runToEnd(sideRunner(ops, false)));
+
+        assertTrue(printed.contains("missing a tick export function"), printed);
     }
 
     @Test
