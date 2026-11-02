@@ -40,6 +40,20 @@ public final class GrugServerRun {
         if (done || !"true".equals(System.getenv("GRUG_CI"))) {
             return;
         }
+        try {
+            tick(tickedWorld);
+        } catch (Throwable thrown) {
+            // The server loop would end the process without a word, which reads as a hang to
+            // whoever watches the log, so say what stopped the run.
+            System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
+            thrown.printStackTrace(System.out);
+            stop();
+        }
+    }
+
+    private static long lastReportMillis = 0;
+
+    private static void tick(World tickedWorld) {
         world = tickedWorld;
         List<?> players = tickedWorld.players;
 
@@ -62,6 +76,19 @@ public final class GrugServerRun {
                 stop();
                 return;
             } else {
+                long now = System.currentTimeMillis();
+                if (!players.isEmpty() && now - lastReportMillis >= 5000) {
+                    lastReportMillis = now;
+                    net.minecraft.entity.mob.player.PlayerEntity player =
+                            (net.minecraft.entity.mob.player.PlayerEntity) players.get(0);
+                    System.out.println(
+                            "[GRUG CI] waiting for the world: player at "
+                                    + player.x
+                                    + ", "
+                                    + player.shape.minY
+                                    + ", "
+                                    + player.z);
+                }
                 return;
             }
         }
@@ -75,16 +102,7 @@ public final class GrugServerRun {
             return;
         }
 
-        try {
-            runner.tick(players.get(0));
-        } catch (Throwable thrown) {
-            // The server loop would end the process without a word, which reads as a hang to
-            // whoever watches the log, so say what stopped the run.
-            System.out.println("[GRUG CI] FAIL the test runner threw " + thrown);
-            thrown.printStackTrace(System.out);
-            stop();
-            return;
-        }
+        runner.tick(players.get(0));
         if (runner.isFinished()) {
             stop();
         }
