@@ -75,7 +75,16 @@ public final class GrugServerRun {
             return;
         }
 
-        runner.tick(players.get(0));
+        try {
+            runner.tick(players.get(0));
+        } catch (Throwable thrown) {
+            // The server loop would end the process without a word, which reads as a hang to
+            // whoever watches the log, so say what stopped the run.
+            System.out.println("[GRUG CI] FAIL the test runner threw " + thrown);
+            thrown.printStackTrace(System.out);
+            stop();
+            return;
+        }
         if (runner.isFinished()) {
             stop();
         }
