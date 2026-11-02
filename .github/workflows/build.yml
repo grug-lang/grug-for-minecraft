@@ -907,8 +907,8 @@ jobs:
   # loader's runServer drives the tests from the server's tick and a runClient joins it through quick
   # play, so a regression in the client and server split fails the build. Stage one of #167: it runs
   # on a dispatch only and on one loader, with the tests that define tick_any_side (#168); it joins
-  # the pull request and push gating once it has been stable. It is one job of about 4 to 5 minutes, and a dispatch runs 15 to 20 jobs, so it fits
-  # the 20 slots the plan allows. save is off so it never writes the loader's caches beside the
+  # the pull request and push gating once it has been stable. It is one job of about 4 to 5 minutes,
+  # and a dispatch runs 15 to 20 jobs, so it fits the 20 slots the plan allows. save is off so it never writes the loader's caches beside the
   # build job, whose entries it shares.
   multiplayer:
     name: 1.20.6-forge on a dedicated server
