@@ -92,6 +92,9 @@ OSL_DEPENDS = {
 }
 
 
+CLIENT_ONLY_OSL = ("osl-keybinds", "osl-resource-loader")
+
+
 def mixin_config(package, *mixins):
     return json.dumps({"package": package, "mixins": list(mixins)}).encode()
 
@@ -143,7 +146,10 @@ def layers():
         },
         "a1.1.2_01-ornithe": {
             **fabric_layer(
-                "net/grug/minecraft/ornithe/", "1.0.0-alpha.1.2.1", "GrugModLoader", OSL_DEPENDS
+                "net/grug/minecraft/ornithe/",
+                ["1.0.0-alpha.1.2.1", "1.0.0-alpha.2.1"],
+                "GrugModLoader",
+                {k: v for k, v in OSL_DEPENDS.items() if k not in CLIENT_ONLY_OSL},
             ),
             "net/minecraft/crafting/GrugRecipeHelper.class": klass(),
         },

@@ -83,12 +83,14 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     private final Map<Integer, String> blockNamesById = new HashMap<>();
 
     /**
-     * The adapter for whichever process this is, which for this loader is always the client one:
-     * see {@link #getSide()}. Called from the shared {@code GrugModLoader}, which cannot name this
-     * loader's adapter itself.
+     * The adapter for whichever process this is: the dedicated server's on an Alpha a0.2.1 server,
+     * which this layer also loads on (#1021), and the client's everywhere else. Called from the
+     * shared {@code GrugModLoader}, which cannot name this loader's adapter itself.
      */
     public static ModLoaderAdapter forCurrentEnvironment() {
-        return new OrnitheAdapter();
+        return FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER
+                ? new ServerOrnitheAdapter()
+                : new OrnitheAdapter();
     }
 
     @Override
@@ -107,26 +109,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * Always a client, and not as a shortcut: Ornithe ships no dedicated server for this Minecraft
-     * version at all, so a second process cannot exist to report anything else. Alpha 1.1.2_01 did
-     * have a dedicated server in the real game; this loader has no way to reach it. Three
-     * independent reasons:
-     *
-     * <ul>
-     *   <li>The version metadata has no server download, and loom's normalized copy records that as
-     *       {@code "server": false}. b1.7.3's says {@code true} and lists one.
-     *   <li>The game jar holds no {@code net.minecraft.server.MinecraftServer}; b1.7.3's server jar
-     *       does.
-     *   <li>Seven of the thirteen OSL jars this version resolves declare {@code "environment":
-     *       "client"}, including the lifecycle and resource-loader ones this loader and its server
-     *       entrypoint are built against, so Ornithe would not load them on a server even if one
-     *       existed.
-     * </ul>
-     *
-     * <p>So this answer is complete rather than a placeholder: there is no server process in which
-     * a host function could find this adapter refusing, which is why this loader has no error
-     * naming a missing dedicated server to report. b1.7.3's adapter refuses on a server because a
-     * server for it exists; this version's cannot. See #188.
+     * A client here; {@link ServerOrnitheAdapter} answers for the Alpha a0.2.1 dedicated server,
+     * which Ornithe numbers apart from the client (server 0.2.1 accepts clients 1.1.0 to 1.1.2_01).
+     * See #1021.
      */
     @Override
     public GrugSide getSide() {
@@ -503,7 +488,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // a chunk the client has not received swallows the write too. A write the game accepts
         // and does not leave in place is reported the same way: the caller asked for a block
         // that is not there afterwards. See #151.
-        if (world.getBlock(posX, posY, posZ) != blockId) {
+        if (GrugWorldAccess.blockId(world, posX, posY, posZ) != blockId) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
                     "place_block: the game did not put "
@@ -714,13 +699,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public String getBlock(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return blockName(
-                world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
+                GrugWorldAccess.blockId(
+                        world, (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)));
     }
 
     @Override
     public boolean isAir(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
-        return world.getBlock((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z)) == 0;
+        return GrugWorldAccess.blockId(
+                        world, (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z))
+                == 0;
     }
 
     @Override
@@ -1619,7 +1607,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         int blockZ = (int) Math.floor(z);
 
         // In Alpha, World.getBlock() hands back a block id rather than a Block.
-        int blockId = world.getBlock(blockX, blockY, blockZ);
+        int blockId = GrugWorldAccess.blockId(world, blockX, blockY, blockZ);
         Block block = (blockId >= 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
 
         if (block instanceof GrugBlock) {
@@ -1668,7 +1656,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         int blockX = (int) Math.floor(x);
         int blockY = (int) Math.floor(y);
         int blockZ = (int) Math.floor(z);
-        int blockId = world.getBlock(blockX, blockY, blockZ);
+        int blockId = GrugWorldAccess.blockId(world, blockX, blockY, blockZ);
         Block block = (blockId > 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
         if (block == null) {
             Grug.hostFunctionErrorHappened(
@@ -1885,7 +1873,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      */
     @GrugGenerated("test helper: the block lookup the three test helpers above share")
     private static Block blockAt(World world, int x, int y, int z) {
-        int blockId = world.getBlock(x, y, z);
+        int blockId = GrugWorldAccess.blockId(world, x, y, z);
         if (blockId <= 0 || blockId >= Block.BY_ID.length) {
             return null;
         }
