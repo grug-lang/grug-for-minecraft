@@ -110,6 +110,7 @@ fi
 rm -rf "${CLIENT_DIR}/saves"
 # A first launch shows the accessibility onboarding screen, which holds the client there and so
 # never lets quick play connect; the options file says it was already shown.
+mkdir -p "$CLIENT_DIR"
 printf 'onboardAccessibility:false\nnarrator:0\n' > "${CLIENT_DIR}/options.txt"
 
 server_pid=""
@@ -206,7 +207,7 @@ if [ -n "$SERVER_VERSION" ]; then
     exit 1
   fi
   cd "$SERVER_DIR"
-  GRUG_CI=true setsid java -jar fabric-server-launch.jar nogui >>"$SERVER_LOG" 2>&1 &
+  GRUG_CI=true setsid java ${GRUG_CI_SERVER_JVM_ARGS:-} -jar fabric-server-launch.jar nogui >>"$SERVER_LOG" 2>&1 &
   server_pid=$!
   cd "$REPO_ROOT"
 else
