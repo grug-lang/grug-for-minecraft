@@ -160,7 +160,8 @@ install_ornithe_server() {
   # A standalone loader has its own Gradle wrapper, so its tasks have no project prefix.
   (cd "$LOADER_DIR" && GRUG_CI=true ./gradlew layerJar "${gradle_args[@]}" -x test) || return 1
   local core version
-  core=$(ls core/build/libs/*-release.jar | head -n1)
+  # A restored build/ keeps the jars of every earlier commit, so the newest one is this build's.
+  core=$(ls -t core/build/libs/*-release.jar | head -n1)
   version=$(basename "$core" | sed -E 's/^core-(.+)-release\.jar$/\1/')
   curl --fail --silent --show-error --location \
     "https://maven.ornithemc.net/releases/net/ornithemc/ornithe-installer-rs/ornithe-installer-rs-linux-x86_64/${ORNITHE_INSTALLER_VERSION}/ornithe-installer-rs-linux-x86_64-${ORNITHE_INSTALLER_VERSION}-cli" \
