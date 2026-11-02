@@ -68,8 +68,19 @@ local _setup(ctx: TestTickContext) {
         wy = wy + 1
     }
 
+    # A floor of its own for the item to land on, since the room's floor is not where the test's origin is.
+    fz: number = origin.z() + 2
+    while fz < origin.z() + 7 {
+        fx: number = origin.x() - 4
+        while fx < origin.x() + 5 {
+            level.place_block(fx, origin.y() - 1, fz, "minecraft:stone")
+            fx = fx + 1
+        }
+        fz = fz + 1
+    }
+
     item_x = origin.x() + 0.5
-    item_y = origin.y() + 0.5
+    item_y = origin.y() + 1.5
     item_z = origin.z() + 4.5
     stack: ItemStack = item_stack(item(resource_location("grug:coverage_flat_hand")), 0, 1)
     dropped: ItemEntity = item_entity(level, item_x, item_y, item_z, stack)
