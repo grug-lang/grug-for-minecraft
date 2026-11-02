@@ -1,7 +1,7 @@
 {
     "parent": "block/cube_all",
     "textures": {
-        "all": "grug:block/coverage_block"
+        "all": "grug:block/coverage_flat_hand"
     },
     "elements": [
         {
