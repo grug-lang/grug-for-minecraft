@@ -61,6 +61,9 @@ class GrugTestRunnerTest {
         /** Whether the tick of a file that defines both aborts with a runtime error instead. */
         boolean bothRaise = false;
 
+        /** The paths whose file defines neither tick, so both exports answer false. */
+        java.util.Set<String> neither = new java.util.HashSet<>();
+
         /** What the runner is told for the init export; invalid for a test without one. */
         long initFnId = 1;
 
@@ -106,6 +109,7 @@ class GrugTestRunnerTest {
             // A missing export answers false and raises nothing, which the runner reads as absent.
             boolean anyDefined = anySide.contains(activePath) || both.contains(activePath);
             boolean tickDefined = !anySide.contains(activePath);
+            if (neither.contains(activePath)) return false;
             if (exportFnId == anySideFnId && !anyDefined) return false;
             if (exportFnId == this.exportFnId && !tickDefined) return false;
             if (bothRaise && exportFnId == this.exportFnId && both.contains(activePath)) {
@@ -1295,12 +1299,31 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void aServerWithNoAnySideTestSkipsEveryTestAndPassesNone() {
+    void aServerWhereEveryTestIsSkippedFailsInsteadOfPassingNone() {
         FakeOps ops = new FakeOps();
-        String printed = capture(() -> runToEnd(sideRunner(ops, true)));
+        String[] printed = new String[1];
+        RuntimeException e =
+                assertThrows(
+                        RuntimeException.class,
+                        () -> printed[0] = capture(() -> runToEnd(sideRunner(ops, true))));
 
-        assertEquals(0, printed.lines().filter(l -> l.contains("[GRUG CI] PASS ")).count());
-        assertTrue(printed.contains("Skipped 5 test(s)"), printed);
+        assertTrue(e.getMessage().contains("Every test was skipped"), e.getMessage());
+        assertTrue(ranNothingTable());
+    }
+
+    private boolean ranNothingTable() {
+        return GrugTestRunner.ranNothing(true, 0)
+                && !GrugTestRunner.ranNothing(true, 1)
+                && !GrugTestRunner.ranNothing(false, 0);
+    }
+
+    @Test
+    void aFileDefiningNeitherTickFailsAsAStoppedTest() {
+        FakeOps ops = new FakeOps();
+        ops.neither.add("buildcraft/code/a-Test.grug");
+        String printed = capture(() -> runToEnd(sideRunner(ops, false)));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL buildcraft/code/a-Test.grug"), printed);
     }
 
     @Test

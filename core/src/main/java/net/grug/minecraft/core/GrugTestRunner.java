@@ -995,6 +995,12 @@ public class GrugTestRunner {
             // Marked before the write rather than after it, so that a write which throws stops the
             // loaders from queueing this runner again and repeating one failure once per tick.
             finished = true;
+            if (ranNothing(dedicatedServer, totalCount)) {
+                // "ALL 0 TESTS PASSED" would read as a green run that proved nothing.
+                throw Grug.fatal(
+                        "Every test was skipped on the dedicated server, so none ran: no test"
+                                + " defines tick_any_side.");
+            }
             if (passedCount == totalCount) {
                 // Before announcing the run, because run-loader.sh reads that line as the whole run
                 // succeeding and stops watching: anything that goes wrong after it is never looked
@@ -1553,6 +1559,11 @@ public class GrugTestRunner {
      */
     static boolean skipsOnServer(boolean dedicatedServer, boolean definesAnySideTick) {
         return dedicatedServer && !definesAnySideTick;
+    }
+
+    /** Whether a run ended on a dedicated server with every test skipped, which is a failure. */
+    static boolean ranNothing(boolean dedicatedServer, int totalCount) {
+        return dedicatedServer && totalCount == 0;
     }
 
     /** Set by {@link #callFirstTick} when it skipped the test, so tick() returns. */
