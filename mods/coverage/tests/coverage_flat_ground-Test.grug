@@ -25,6 +25,13 @@ export tick(ctx: TestTickContext) {
         return
     }
 
+    if ctx.current_tick() > 6 {
+        seen: Option[ItemEntity] = Test.get_client_level().find_item_entity(item_x, item_y, item_z, 30)
+        if not seen.has() {
+            print2("item gone at tick", ctx.current_tick())
+        }
+    }
+
     # The item falls from where it was dropped and then lies still, so give it time to land.
     if ctx.current_tick() < 50 {
         ctx.not_done()
