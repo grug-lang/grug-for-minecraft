@@ -1,6 +1,6 @@
 # A whole index can still name no record, when the list is shorter than it, so reading it must be
 # reported rather than answered with a fresh record's defaults.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

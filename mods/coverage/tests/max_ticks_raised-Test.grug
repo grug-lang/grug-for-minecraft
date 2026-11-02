@@ -6,7 +6,7 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(300)
 }
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() < 250 {
         ctx.not_done()
     } else {

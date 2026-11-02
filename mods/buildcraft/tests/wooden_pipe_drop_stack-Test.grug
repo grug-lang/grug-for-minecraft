@@ -10,7 +10,7 @@
 # pipe's own tick without ticking entities, so here the drop is still exactly what the pipe made.
 drop_stack_count: number = 5
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

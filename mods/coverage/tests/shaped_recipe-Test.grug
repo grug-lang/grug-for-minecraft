@@ -3,7 +3,7 @@
 # the 1.2.5 loader read the mods' data/ trees like the other four already did.
 # Band 15 is free: the recipe tests use 6, 10, 25, 35, 40, 45 and 50, and the coverage tests
 # 0, 20 and 30.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     # A loader that registers no mod recipe and one that failed to register this recipe both answer
     # the grid with nothing, so the loader is asked rather than assumed.
     if not Test.registers_mod_recipes() {

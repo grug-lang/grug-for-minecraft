@@ -8,7 +8,7 @@
 # The sweep at the end of every test is not checked here: a test cannot observe the sweep that ends
 # it, and the next test's room build sweeps too, so a following test could not tell the two apart.
 # GrugTestRunnerTest covers it. See #323.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()

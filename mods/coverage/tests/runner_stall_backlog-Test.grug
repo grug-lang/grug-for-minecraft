@@ -20,7 +20,7 @@ ran: number = 0
 # The largest distance this loader has put between the test's ticks and the world's, over all rounds.
 worst: number = 0
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if clock >= 0 {
         ran = ran + 1
         advance: number = _now() - clock

@@ -7,7 +7,7 @@
 started: bool = false
 waited: number = 0
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if not started {
         started = true
         if not Test.overlay_supported() {

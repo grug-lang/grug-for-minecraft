@@ -8,7 +8,7 @@
 # The result is a count of 2 rather than 1, so the assertions can tell this recipe's own output from
 # whatever else might answer a grid, and the wrong-multiset grid has to answer nothing at all.
 # Band 10 is free: the coverage tests use 0, 20 and 30 and the pipe tests 25, 35, 40, 45 and 50.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     # A loader that registers no mod recipe and one that failed to register this recipe both answer
     # the grid with nothing, so the loader is asked rather than assumed. Every loader registers a
     # mod's recipes now: 1.2.5 parses the tree itself and 1.20.6 through Forge's own recipe manager.

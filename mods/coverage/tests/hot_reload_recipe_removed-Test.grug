@@ -6,7 +6,7 @@ dir_path: string = "coverage/data/grug/recipes/crafting"
 file_baseline: number = -1
 dir_baseline: number = -1
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.not_done()
     } else if ctx.current_tick() == 1 {

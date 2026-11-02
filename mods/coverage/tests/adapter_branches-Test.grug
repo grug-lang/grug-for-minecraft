@@ -1,7 +1,7 @@
 # Drives the adapter's odd branches: an empty-slot damage read, a count/extract that never matches
 # (wrong item and wrong damage), consuming a crafting ingredient, taking from a vanilla (non-grug)
 # block entity, dropping a non-empty inventory, and filling a slot with a block's item.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         level: Level = Test.get_client_level()
         origin: Vec3 = Test.get_origin()

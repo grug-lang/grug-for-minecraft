@@ -4,7 +4,7 @@
 # The first reading, or -1 before it has been taken.
 first: number = -1
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     now: number = level.get_time()
 

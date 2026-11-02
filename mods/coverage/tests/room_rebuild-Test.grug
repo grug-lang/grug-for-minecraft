@@ -5,7 +5,7 @@
 # The rebuild is forced inside this test rather than left to the next one: GrugTestOrder sorts by
 # recorded time and puts an unrecorded test last, so a test that waited for the following build
 # could run after every other test and never see the rebuild it is about.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
 

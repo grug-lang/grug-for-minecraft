@@ -2,7 +2,7 @@
 # dry run that changes nothing. The take hands the pipe the result as it was when the pipe asked, even though
 # the export has crafted the next one into the holder by then, and the host takes nothing and does not call
 # output_taken, which would pay for the same craft twice.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

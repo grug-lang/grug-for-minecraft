@@ -1028,6 +1028,19 @@
 							}
 						}
 					]
+				},
+				{
+					"name": "tick_any_side",
+					"description": "The tick of a test that can run on a dedicated server with a client connected to it, where there is no screen, no window and no local player. It is called exactly as `tick` is, and a test defines one of the two, never both: the runner fails a file that defines both, naming it. On a client both kinds of test run. On a dedicated server only a test that defines `tick_any_side` runs, and one that defines `tick` is skipped, so a test opts in to the server run by naming its tick this way and by nothing else.",
+					"engine_called": true,
+					"parameters": [
+						{
+							"name": "ctx",
+							"type": {
+								"name": "TestTickContext"
+							}
+						}
+					]
 				}
 			],
 			"static_methods": {

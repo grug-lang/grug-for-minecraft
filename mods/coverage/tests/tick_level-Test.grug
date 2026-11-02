@@ -6,7 +6,7 @@
 # What no test can see is the order inside one advance: the test's own tick observes the state after
 # every tick it asked for, so the order is checked against each loader's own game tick in the
 # adapters. See #780.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     before_tick: number = ctx.current_tick()
     before_time: number = level.get_time()

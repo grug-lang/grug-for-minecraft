@@ -6,7 +6,7 @@
 # adapter sets the stack's own count field, the field the save writes.
 stack_save_count: number = 127
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

@@ -3,7 +3,7 @@
 # makes the generator repeatable, so two ticks with the same seed spawn at the same place and a
 # different seed moves them. Whether a particle is drawn depends on the player's particle setting,
 # which the runs set to minimal, so the test reads what was spawned rather than looking for it.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = Math.floor(origin.x())

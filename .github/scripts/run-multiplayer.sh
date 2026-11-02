@@ -7,10 +7,13 @@
 # when they end; this script reads its log for the same [GRUG CI] lines run-loader.sh watches, and
 # reads the client's log only for a crash, so a failure names which of the two processes died.
 #
-# Only the tests named by GRUG_CI_TESTS run, a comma separated list of runner paths, because a
-# dedicated server cannot run a test that needs a screen (#168 replaces this with a declaration in
-# the test). The client is not started with GRUG_CI, so it opens no world of its own and runs no
-# tests: it is only the player the server's tests are built around.
+# The server decides what it runs: a test runs there only when it defines
+# tick_any_side instead of tick (#168), and the runner skips the others and prints how many it
+# skipped. This script reads no test file. It waits for `[GRUG CI] ALL <n> TESTS PASSED` with any
+# n of at least 1 and prints the line, so a run that selected nothing is not green. GRUG_CI_TESTS, a
+# comma separated list of runner paths, narrows the run further for a try-out. The client is not
+# started with GRUG_CI, so it opens no world of its own and runs no tests: it is only the player the
+# server's tests are built around.
 #
 # Needs a display for the client, so run it under xvfb-run. Only 1.20.6-forge has a server run so far.
 
@@ -33,18 +36,12 @@ if [ -z "${DISPLAY:-}" ]; then
   echo "DISPLAY is not set. Start an X server first, e.g. run under xvfb-run." >&2
   exit 2
 fi
-if [ -z "${GRUG_CI_TESTS:-}" ]; then
-  echo "GRUG_CI_TESTS is not set, but a dedicated server needs the list of tests it can run." >&2
-  exit 2
-fi
-EXPECTED_TESTS=$(python3 -c 'import sys; print(len({t.strip() for t in sys.argv[1].split(",")}))' "$GRUG_CI_TESTS")
-
 SERVER_DIR="${REPO_ROOT}/${LOADER_DIR}/run-server"
 CLIENT_DIR="${REPO_ROOT}/${LOADER_DIR}/run"
 SERVER_LOG="${REPO_ROOT}/${LOADER_DIR}/run-server-ci.log"
 CLIENT_LOG="${REPO_ROOT}/${LOADER_DIR}/run-client-ci.log"
 PORT=25565
-SUCCESS_MSG="[GRUG CI] ALL ${EXPECTED_TESTS} TESTS PASSED"
+SUCCESS_RE='\[GRUG CI\] ALL [1-9][0-9]* TESTS PASSED'
 
 # The same crash lines run-loader.sh watches, and a Rust abort, which kills the process.
 crash_re='Uncaught exception in thread "Server thread"|Exception in thread "main"|Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to|Broken grug invariant|Failed to start the minecraft server|panicked at .*\.rs:[0-9]+:[0-9]+'
@@ -62,13 +59,20 @@ fi
 SAVE_ZIP=$(tr -d ' \n\r' < "${REPO_ROOT}/${LOADER_DIR}/test-save.txt")
 rm -rf "$SERVER_DIR"
 mkdir -p "$SERVER_DIR"
-python3 -m zipfile -e "${REPO_ROOT}/test-saves/${SAVE_ZIP}" "$SERVER_DIR/"
+if ! python3 -m zipfile -e "${REPO_ROOT}/test-saves/${SAVE_ZIP}" "$SERVER_DIR/"; then
+  echo "The test save test-saves/${SAVE_ZIP} is missing or is not a valid zip." >&2
+  exit 1
+fi
 LEVEL_NAME=$(python3 - "$SERVER_DIR" <<'PY'
 import os, sys
 names = [n for n in sorted(os.listdir(sys.argv[1])) if os.path.isdir(os.path.join(sys.argv[1], n))]
-print(names[0])
+print(names[0] if names else "")
 PY
 )
+if [ -z "$LEVEL_NAME" ]; then
+  echo "The test save test-saves/${SAVE_ZIP} holds no world folder, so the server has no level name." >&2
+  exit 1
+fi
 echo "eula=true" > "${SERVER_DIR}/eula.txt"
 # online-mode is off because a development client has no Mojang session to prove, and view-distance
 # is small because the tests build in a room around the player.
@@ -152,8 +156,9 @@ client_tail_pid=$!
 
 deadline=$((SECONDS + ${GRUG_CI_RUN_TIMEOUT:-300}))
 while :; do
-  if grep -qF "$SUCCESS_MSG" "$SERVER_LOG"; then
-    echo "==> ${SUCCESS_MSG}, run on the dedicated server with a client connected."
+  if line=$(grep -m1 -E "$SUCCESS_RE" "$SERVER_LOG"); then
+    grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
+    echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
   fi
   if grep -qF '[GRUG CI] FAIL' "$SERVER_LOG"; then
@@ -170,7 +175,7 @@ while :; do
     exit 1
   fi
   if ! kill -0 "$server_pid" 2>/dev/null; then
-    echo "==> The dedicated server exited without ${SUCCESS_MSG}." >&2
+    echo "==> The dedicated server exited without an ALL n TESTS PASSED line." >&2
     exit 1
   fi
   if ! kill -0 "$client_pid" 2>/dev/null && ! grep -q '\[GRUG CI\] CI mode active' "$SERVER_LOG"; then
@@ -178,7 +183,7 @@ while :; do
     exit 1
   fi
   if [ "$SECONDS" -ge "$deadline" ]; then
-    echo "==> Timed out after ${GRUG_CI_RUN_TIMEOUT:-300}s without ${SUCCESS_MSG}." >&2
+    echo "==> Timed out after ${GRUG_CI_RUN_TIMEOUT:-300}s without an ALL n TESTS PASSED line." >&2
     exit 1
   fi
   sleep 2

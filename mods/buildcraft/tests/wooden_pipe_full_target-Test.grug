@@ -12,7 +12,7 @@ full_target_pipe: Option[BlockEntity] = Option.new()
 # undamaged means a merge into the target would also change its damage and be caught.
 sword_damage: number = 7
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _full_target_setup(ctx)
         ctx.not_done()

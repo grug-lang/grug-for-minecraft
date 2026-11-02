@@ -2,7 +2,7 @@
 # registers the block entity under the grug entity's own id when it creates the entity, so nothing has to
 # resolve me during creation first. A script that relied on the old behaviour needed a throwaway member-scope
 # line such as `level: Level = me.level()`. See #604.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

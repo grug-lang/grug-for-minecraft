@@ -86,4 +86,15 @@ public class ServerForgeAdapter extends ForgeAdapter {
     public boolean isWorldSettled() {
         return true;
     }
+
+    /**
+     * Never reloading: the client's resource reload is the only thing the flag tracks, and a server
+     * has no client resources. The inherited answer stays true once a test touches a watched file,
+     * because nothing on a server runs the reload that would lower it, and the runner then waits
+     * out its deadline and fails the next test. Found by the whole-suite server run of #167.
+     */
+    @Override
+    public boolean isLoaderReloading() {
+        return false;
+    }
 }

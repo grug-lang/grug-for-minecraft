@@ -1,7 +1,7 @@
 # Covers the empty answer of Level.get_block_entity(): a position without a block entity answers an empty
 # Option rather than an error, which is how a pipe asks whether its neighbour is a machine. A vanilla block
 # answers empty, while a grug block that has one answers full.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

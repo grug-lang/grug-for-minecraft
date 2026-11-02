@@ -4,7 +4,7 @@
 # zero-width image rather than naming the coordinate responsible. The width is computed from the
 # truncated values, so those are what the check compares and what the message prints, and all three
 # now agree. Screenshot.equals shares the same check, so it reaches the same report.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.expect_error("the rectangle is empty")
         Test.screenshot().capture(590, 310, 590.5, 410)

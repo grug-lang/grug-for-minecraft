@@ -1,7 +1,7 @@
 # A shape box whose corners are the wrong way round is refused with an error, which is what
 # ctx.expect_error accepts here. The boxes declared before it are still recorded, so the block keeps
 # its shape, and the error aborts the test's own tick as it aborts every call that sees it.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

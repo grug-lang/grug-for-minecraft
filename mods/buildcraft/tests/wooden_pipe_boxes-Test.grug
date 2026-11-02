@@ -15,7 +15,7 @@ origin_y: number = 0
 origin_z: number = 0
 phase: number = 0
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if phase != 0 {
         return
     }

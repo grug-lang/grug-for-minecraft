@@ -5,7 +5,7 @@
 # the speed shows (#633, #677). The room and the block the test places are built at real time and
 # the test is back at real time when it ends, which the tests that run after it, whose goldens would
 # shift otherwise, are the proof of.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() < 100 {
         ctx.not_done()
     } else {

@@ -15,7 +15,7 @@ export init(ctx: TestInitContext) {
     ctx.set_max_ticks(1000)
 }
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if rounds > 0 {
         flips: number = 0
         while flips < 15 {

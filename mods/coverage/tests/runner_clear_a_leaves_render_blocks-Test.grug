@@ -3,7 +3,7 @@
 # it is drawn. The pair is a pair because the game has to be left with chunk rebuilds of these blocks still
 # queued or running as the runner clears the area, which no single test can do: the clear is the runner's.
 # The next test, runner_clear_b_hammers_client, runs straight after this one by its name.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
