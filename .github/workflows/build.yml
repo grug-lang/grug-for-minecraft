@@ -906,16 +906,22 @@ jobs:
   # The suite on a dedicated server with a real client connected to it (#167, umbrella #36): the
   # loader's runServer drives the tests from the server's tick and a runClient joins it through quick
   # play, so a regression in the client and server split fails the build. Stage one of #167: it runs
-  # on a dispatch only and on one loader, with the tests that define tick_any_side (#168); it joins
+  # on a dispatch only and on the two loaders that have a dedicated server (1.20.6-forge, and
+  # a1.1.2_01-ornithe on Ornithe's Alpha server a0.2.1, #1021), with the tests that define
+  # tick_any_side (#168); it joins
   # the pull request and push gating once it has been stable. It is one job of about 4 to 5 minutes,
   # and a dispatch runs 15 to 20 jobs, so it fits the 20 slots the plan allows. save is off so it never writes the loader's caches beside the
   # build job, whose entries it shares.
   multiplayer:
-    name: 1.20.6-forge on a dedicated server
+    name: ${{ matrix.loader }} on a dedicated server
     if: github.event_name == 'workflow_dispatch' && needs.discover.outputs.no-tests != 'true'
     needs: [discover, grug-rs]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [1.20.6-forge, a1.1.2_01-ornithe]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -923,7 +929,7 @@ jobs:
       - name: Set up the loader build
         uses: ./.github/actions/setup-loader-build
         with:
-          loader: 1.20.6-forge
+          loader: ${{ matrix.loader }}
           save: 'false'
 
       - name: Install dependencies
@@ -946,7 +952,7 @@ jobs:
           fi
 
       - name: Run the tests on a dedicated server with a client connected
-        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer.sh 1.20.6-forge
+        run: xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer.sh ${{ matrix.loader }}
         env:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '300'
@@ -955,17 +961,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: multiplayer-1.20.6-forge-logs
+          name: multiplayer-${{ matrix.loader }}-logs
           path: |
-            loaders/1.20.6-forge/run-server/logs
-            loaders/1.20.6-forge/run-server/crash-reports
-            loaders/1.20.6-forge/run-server-ci.log
-            loaders/1.20.6-forge/run/logs
-            loaders/1.20.6-forge/run/crash-reports
-            loaders/1.20.6-forge/run-client-ci.log
-            loaders/1.20.6-forge/run-threads-ci.log
-            loaders/1.20.6-forge/run-server/hs_err_pid*.log
-            loaders/1.20.6-forge/run/hs_err_pid*.log
+            loaders/${{ matrix.loader }}/run-server/logs
+            loaders/${{ matrix.loader }}/run-server/crash-reports
+            loaders/${{ matrix.loader }}/run-server-ci.log
+            loaders/${{ matrix.loader }}/run/logs
+            loaders/${{ matrix.loader }}/run/crash-reports
+            loaders/${{ matrix.loader }}/run-client-ci.log
+            loaders/${{ matrix.loader }}/run-threads-ci.log
+            loaders/${{ matrix.loader }}/run-server/hs_err_pid*.log
+            loaders/${{ matrix.loader }}/run/hs_err_pid*.log
           if-no-files-found: ignore
           retention-days: 7
 

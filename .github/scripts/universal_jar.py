@@ -918,6 +918,11 @@ OSL = {
     "osl-resource-loader": "0.7.4",
 }
 ORNITHE = {"fabricloader": "0.19.5", **OSL}
+# An Ornithe dedicated server has no client, and so none of the OSL modules that are client-only.
+ORNITHE_SERVER = {
+    "fabricloader": "0.19.5",
+    **{k: v for k, v in OSL.items() if k not in ("osl-keybinds", "osl-resource-loader")},
+}
 BABRIC = {"fabricloader": "0.17.3"}
 STATIONAPI = {**BABRIC, "stationapi": "2.0.0-alpha.6.2"}
 
@@ -926,6 +931,14 @@ STATIONAPI = {**BABRIC, "stationapi": "2.0.0-alpha.6.2"}
 # Java 22 (66) and newer.
 GAMES = [
     Game("Ornithe a1.1.2_01 with OSL", "fabric", "1.0.0-alpha.1.2.1", ORNITHE, "a1.1.2_01-ornithe"),
+    # The Alpha dedicated server is numbered apart from the client it accepts (#1021).
+    Game(
+        "Ornithe a0.2.1 server with OSL",
+        "fabric",
+        "1.0.0-alpha.2.1",
+        ORNITHE_SERVER,
+        "a1.1.2_01-ornithe",
+    ),
     Game("Ornithe b1.7.3 with OSL", "fabric", "1.0.0-beta.7.3", ORNITHE, "b1.7.3-ornithe"),
     Game(
         "Babric b1.7.3 with StationAPI", "fabric", "1.0.0-beta.7.3", STATIONAPI, "b1.7.3-stationapi"

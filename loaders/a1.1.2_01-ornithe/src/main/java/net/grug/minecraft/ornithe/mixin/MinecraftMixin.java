@@ -28,6 +28,10 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     @Shadow
     public abstract void shutdown();
 
+    // The game's own way of joining a server on startup, which its launcher arguments reach.
+    @Shadow
+    public abstract void setStartupServer(String address, int port);
+
     // Minecraft.resize() is private, so it can't be called directly. Java forbids "private
     // abstract", and a shadow only has to be at least as visible as its target, so this is
     // declared protected.
@@ -44,6 +48,21 @@ public abstract class MinecraftMixin implements GrugClientAccess {
 
     static {
         GrugClientHooks.registerKeybinds();
+    }
+
+    /**
+     * Joins the server named by GRUG_CI_CONNECT ("host:port") as the game starts, which is how the
+     * dedicated-server job (#167) puts a real client on the server it drives the tests from. The
+     * variable is unset in every other run, which then starts as it always did.
+     */
+    @Inject(method = "<init>", at = @At("TAIL"))
+    private void grug$connectOnStartup(CallbackInfo ci) {
+        String connect = System.getenv("GRUG_CI_CONNECT");
+        if (connect != null && !connect.isEmpty()) {
+            int colon = connect.lastIndexOf(':');
+            setStartupServer(
+                    connect.substring(0, colon), Integer.parseInt(connect.substring(colon + 1)));
+        }
     }
 
     @Inject(method = "tick", at = @At("HEAD"))

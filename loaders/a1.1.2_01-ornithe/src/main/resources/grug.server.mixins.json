@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.grug.minecraft.ornithe.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "server": [
+    "ServerWorldMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
