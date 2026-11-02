@@ -19,7 +19,7 @@ export tick(ctx: TestTickContext) {
         ctx.not_done()
         return
     }
-    if ctx.current_tick() == 2 {
+    if ctx.current_tick() == 6 {
         _setup(ctx)
         ctx.not_done()
         return
