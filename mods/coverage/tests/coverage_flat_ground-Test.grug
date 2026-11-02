@@ -1,0 +1,62 @@
+# The flat-lit block item (see coverage_flat_hand-Test.grug) lying on the ground as a dropped item entity,
+# which the loader draws and not the port, so this belongs here and not in BuildCraft. On b1.7.3-stationapi
+# a dropped item is drawn by ArsenicItemRenderer, whose flush is the one the unshaded rule has to wrap.
+# See #963. The camera looks towards +z, so the item lies three blocks ahead of the player, on the floor.
+# Seventeen blocks square of stone fills the view behind it, as in coverage_flat_hand-Test.grug, so the
+# capture does not depend on the terrain. The item is never picked up, because a pickup delay as long
+# as the test keeps the player from collecting it, and it is still once it has fallen and settled.
+settled_ticks: number = 0
+item_x: number = 0
+item_y: number = 0
+item_z: number = 0
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        _setup(ctx)
+        ctx.not_done()
+        return
+    }
+
+    # The item falls from where it was dropped and then lies still, so give it time to land.
+    if ctx.current_tick() < 40 {
+        ctx.not_done()
+        return
+    }
+
+    if not Test.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+        return
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+        return
+    }
+
+    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 660, 540, 1260, 900)
+}
+
+local _setup(ctx: TestTickContext) {
+    level: Level = Test.get_client_level()
+    origin: Vec3 = Test.get_origin()
+
+    wy: number = origin.y() - 9
+    while wy < origin.y() + 8 {
+        wx: number = origin.x() - 8
+        while wx < origin.x() + 9 {
+            level.place_block(wx, wy, origin.z() + 10, "minecraft:stone")
+            wx = wx + 1
+        }
+        wy = wy + 1
+    }
+
+    item_x = origin.x() + 0.5
+    item_y = origin.y() + 0.5
+    item_z = origin.z() + 3.5
+    stack: ItemStack = item_stack(item(resource_location("grug:coverage_flat_hand")), 0, 1)
+    dropped: ItemEntity = item_entity(level, item_x, item_y, item_z, stack)
+    dropped.set_pickup_delay(32767)
+    dropped.entity().set_delta_movement(Vec3.zero())
+    dropped.entity().spawn(level)
+}
