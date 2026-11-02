@@ -1683,7 +1683,37 @@ public class StationApiAdapter implements ModLoaderAdapter {
 
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
-        return captureChecked("Screenshot.capture", x1, y1, x2, y2);
+        BufferedImage diag = captureChecked("Screenshot.capture", x1, y1, x2, y2);
+        if (diag != null && diag.getWidth() == 200 && diag.getHeight() == 170) {
+            Minecraft m = (Minecraft) FabricLoader.getInstance().getGameInstance();
+            StringBuilder b = new StringBuilder("[DIAG1024] ");
+            net.minecraft.entity.player.ClientPlayerEntity p = m.player;
+            b.append("pos=").append(p.x).append(',').append(p.y).append(',').append(p.z);
+            b.append(" prev=").append(p.prevX).append(',').append(p.prevY).append(',').append(p.prevZ);
+            b.append(" yp=").append(p.yaw).append(',').append(p.pitch).append(',').append(p.prevYaw).append(',').append(p.prevPitch);
+            b.append(" ground=").append(p.onGround).append(" vel=").append(p.velocityX).append(',').append(p.velocityY);
+            int bx = (int) Math.floor(p.x), by = (int) Math.floor(p.y), bz = (int) Math.floor(p.z);
+            b.append(" light=").append(m.world.getBrightness(bx, by, bz)).append('/').append(m.world.getLightLevel(bx, by, bz));
+            b.append(" wall=");
+            for (int dz = 8; dz <= 10; dz++) {
+                b.append(m.world.getLightLevel(bx, by, bz + dz)).append(',');
+            }
+            b.append(" time=").append(m.world.getTime());
+            long h = 1125899906842597L;
+            for (int yy = 0; yy < diag.getHeight(); yy++) {
+                for (int xx = 0; xx < diag.getWidth(); xx++) {
+                    h = 31 * h + diag.getRGB(xx, yy);
+                }
+            }
+            b.append(" hash=").append(Long.toHexString(h)).append(" px=");
+            for (int yy = 13; yy <= 15; yy++) {
+                for (int xx = 139; xx <= 141; xx++) {
+                    b.append(Integer.toHexString(diag.getRGB(xx, yy) & 0xFFFFFF)).append(' ');
+                }
+            }
+            System.out.println(b);
+        }
+        return diag;
     }
 
     /**
