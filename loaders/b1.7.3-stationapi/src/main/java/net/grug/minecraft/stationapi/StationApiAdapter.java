@@ -1784,6 +1784,13 @@ public class StationApiAdapter implements ModLoaderAdapter {
                     b.append(Integer.toHexString(diag.getRGB(xx, yy) & 0xFFFFFF)).append(' ');
                 }
             }
+            try {
+                for (String l : java.nio.file.Files.readAllLines(java.nio.file.Paths.get("/proc/cpuinfo"))) {
+                    if (l.startsWith("model name")) { b.append(" cpu=").append(l.trim()); break; }
+                }
+            } catch (Exception e) { b.append(" cpu=?"); }
+            b.append(" glr=").append(org.lwjgl.opengl.GL11.glGetString(org.lwjgl.opengl.GL11.GL_RENDERER));
+            b.append(" glv=").append(org.lwjgl.opengl.GL11.glGetString(org.lwjgl.opengl.GL11.GL_VERSION));
             System.out.println(b);
         }
     }
