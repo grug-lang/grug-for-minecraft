@@ -987,7 +987,7 @@
 				},
 				{
 					"name": "scroll",
-					"description": "Called by the game when the mouse wheel is turned while a screen the overlay may draw on is open, before the screen gets the movement. The position is where the mouse is, `ctx.delta()` says how far and which way the wheel turned, and `ctx.take()` keeps the movement from reaching the screen. Return without taking it and the screen handles the wheel as if the overlay had not seen it. It is asked for every movement, and an overlay script without this export is declined without a report, so the screen always gets its wheel. A mod uses it to scroll a list it drew, such as JEI's.",
+					"description": "Called by the game when the mouse wheel is turned while a screen the overlay may draw on is open, before the screen gets the movement. The position is where the mouse is, `ctx.delta()` says how far and which way the wheel turned, and `ctx.take()` keeps the movement from reaching the screen. Return without taking it and the screen handles the wheel as if the overlay had not seen it. It is asked for every movement made while such a screen is open, never for a screen the overlay may not draw on, and an overlay script without this export is declined without a report, so the screen always gets its wheel. On Alpha, Beta (Ornithe and StationAPI) and 1.2.5 the game applies the wheel to the hotbar before any screen sees it, so taking a movement there stops the screen but not the hotbar; the other loaders send the wheel to the screen only. A mod uses it to scroll a list it drew, such as JEI's.",
 					"engine_called": true,
 					"parameters": [
 						{
@@ -2867,7 +2867,7 @@
 			}
 		},
 		"OverlayScrollContext": {
-			"description": "The context of an overlay's scroll() call, passed to it when the mouse wheel is turned while a screen the overlay may draw on is open, before the screen gets the movement. Calling take() keeps the movement from reaching the screen. Return without taking it and the screen handles the wheel as if the overlay had not seen it. A context is only valid while its scroll() call is running: saving it in a member variable and using it later is refused.",
+			"description": "The context of an overlay's scroll() call, passed to it when the mouse wheel is turned while a screen the overlay may draw on is open, before the screen gets the movement. Calling take() keeps the movement from reaching the screen, though on Alpha, Beta and 1.2.5 the game has already applied it to the hotbar. Return without taking it and the screen handles the wheel as if the overlay had not seen it. A context is only valid while its scroll() call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
 				"delta": {
 					"description": "How far the wheel turned, in notches, the same on every loader: 1 is one click of an ordinary wheel, positive when the wheel turned up and away from the player and negative when it turned down. A smooth wheel or a touchpad can answer a fraction. The reference pages its list back on a positive delta and forward on a negative one.",

@@ -288,17 +288,20 @@ public final class GrugOverlayHost {
 
     /**
      * Asks the overlays about the wheel movement the screen's mouse handler is looking at and
-     * answers whether one took it, recording the answer for {@code Test.scroll_screen}.
+     * answers whether the screen's handler must be skipped, recording whether one took it for
+     * {@code Test.scroll_screen}.
      *
      * <p>The screen's mouse handler runs for every mouse event, a press and a release included, so
      * an event with no wheel movement is declined first. The delta is in notches, positive up, and
-     * the position is worked out the way the screen's own handler works out a press.
+     * the position is worked out the way the screen's own handler works out a press. A test scroll
+     * always skips the handler, taken or not: the handler would otherwise read LWJGL's stale
+     * current event, which could be a button press, and replay it.
      */
     public static boolean wheel(Screen screen, int displayWidth, int displayHeight) {
         double delta = testScroll ? testDelta : Mouse.getEventDWheel() / WHEEL_NOTCH;
-        if (delta == 0.0) return false;
+        if (delta == 0.0) return testScroll;
         GrugScreenGeometry geometry = geometry(screen);
-        if (geometry == null) return false;
+        if (geometry == null) return testScroll;
 
         int x = testScroll ? testX : Mouse.getEventX() * screen.width / displayWidth;
         int y =
@@ -325,7 +328,7 @@ public final class GrugOverlayHost {
                 return true;
             }
         }
-        return false;
+        return testScroll;
     }
 
     /**
