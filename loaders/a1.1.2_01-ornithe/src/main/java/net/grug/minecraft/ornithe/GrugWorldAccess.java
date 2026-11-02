@@ -20,7 +20,7 @@ import java.lang.reflect.Method;
 @GrugGenerated("the server's name for World.getBlock, which only the dedicated-server job reaches")
 final class GrugWorldAccess {
     /** The server's intermediary name of the method that returns the block id at a position. */
-    private static final String SERVER_GET_BLOCK = "m_71898872";
+    private static final String SERVER_GET_BLOCK = "m_33234383";
 
     private static final boolean CLIENT =
             FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT;
@@ -37,9 +37,7 @@ final class GrugWorldAccess {
         try {
             if (serverGetBlock == null) {
                 serverGetBlock =
-                        World.class.getDeclaredMethod(
-                                SERVER_GET_BLOCK, int.class, int.class, int.class);
-                serverGetBlock.setAccessible(true);
+                        World.class.getMethod(SERVER_GET_BLOCK, int.class, int.class, int.class);
             }
             return (Integer) serverGetBlock.invoke(world, x, y, z);
         } catch (ReflectiveOperationException e) {
