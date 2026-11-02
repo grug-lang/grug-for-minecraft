@@ -10,6 +10,9 @@ pipe_a: Option[BlockEntity] = Option.new()
 pipe_b: Option[BlockEntity] = Option.new()
 engine_a: Option[BlockEntity] = Option.new()
 engine_b: Option[BlockEntity] = Option.new()
+last_a: number = 0
+last_b: number = 0
+last_dropped: number = 0
 
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
@@ -37,9 +40,10 @@ local _advance(ctx: TestTickContext) {
     # Both pipes pull on their first powered tick and then take 49 moves to the centre, so 400
     # ticks cover the whole journey and the drop twice over.
     while ran > 0 and advanced < 400 {
-        ran = Test.tick_level(level, 10)
+        ran = Test.tick_level(level, 1)
         advanced = advanced + ran
         _sample(ctx)
+        _watch(advanced)
     }
 }
 
@@ -139,4 +143,22 @@ local _dump(at: number) {
     print3("DIAG engine orientation", engine_a.unwrap().get_saved_number("orientation"), engine_b.unwrap().get_saved_number("orientation"))
     print3("DIAG engine progress", engine_a.unwrap().get_saved_number("progress"), engine_b.unwrap().get_saved_number("progress"))
     print2("DIAG dropped", _dropped())
+}
+
+local _watch(advanced: number) {
+    a: number = pipe_a.unwrap().get_saved_list_size("traveling")
+    b: number = pipe_b.unwrap().get_saved_list_size("traveling")
+    dropped: number = _dropped()
+    if a != last_a or b != last_b or dropped != last_dropped {
+        last_a = a
+        last_b = b
+        last_dropped = dropped
+        print2("DIAG change at advanced tick", advanced)
+        print3("DIAG traveling a b", a, b)
+        print2("DIAG dropped", dropped)
+        origin: Vec3 = Test.get_origin()
+        level: Level = Test.get_client_level()
+        print3("DIAG items within 1 of pipe a, of pipe b", level.count_item_entities(origin.x() + 0.5, origin.y() + 12.3, origin.z() + 0.5, 1), level.count_item_entities(origin.x() + 1.5, origin.y() + 12.3, origin.z() + 0.5, 1))
+        print3("DIAG items within 0.3 of pipe a, of pipe b", level.count_item_entities(origin.x() + 0.5, origin.y() + 12.3, origin.z() + 0.5, 0.3), level.count_item_entities(origin.x() + 1.5, origin.y() + 12.3, origin.z() + 0.5, 0.3))
+    }
 }
