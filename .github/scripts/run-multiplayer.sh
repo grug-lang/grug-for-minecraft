@@ -155,7 +155,9 @@ install_ornithe_server() {
   local installer="${SERVER_DIR}/../ornithe-installer-cli"
   echo "==> Building the layer and core's release jar for ${LOADER}"
   GRUG_CI=true ./gradlew :core:shadowJar :core:publishMavenJavaPublicationToGrugBuildRepository \
-    ":loaders:${LOADER}:layerJar" "${gradle_args[@]}" -x test || return 1
+    "${gradle_args[@]}" -x test || return 1
+  # A standalone loader has its own Gradle wrapper, so its tasks have no project prefix.
+  (cd "$LOADER_DIR" && GRUG_CI=true ./gradlew layerJar "${gradle_args[@]}" -x test) || return 1
   local core version
   core=$(ls core/build/libs/*-release.jar | head -n1)
   version=$(basename "$core" | sed -E 's/^core-(.+)-release\.jar$/\1/')
@@ -226,7 +228,13 @@ while ! grep -qE "$READY_RE" "$SERVER_LOG"; do
 done
 echo "==> The dedicated server is ready. Starting a client that joins 127.0.0.1:${PORT}"
 
-env -u GRUG_CI -u GRUG_CI_TESTS GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew ":loaders:${LOADER}:runClient" "${gradle_args[@]}" -x test >"$CLIENT_LOG" 2>&1 &
+client_task=":loaders:${LOADER}:runClient"
+client_dir="$REPO_ROOT"
+if [ -f "${LOADER_DIR}/root.gradle" ]; then
+  client_task=runClient
+  client_dir="${REPO_ROOT}/${LOADER_DIR}"
+fi
+(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
 client_pid=$!
 tail -n +1 -F "$CLIENT_LOG" 2>/dev/null | sed -u 's/^/[client] /' &
 client_tail_pid=$!
