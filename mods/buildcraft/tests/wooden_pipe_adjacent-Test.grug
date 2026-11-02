@@ -45,9 +45,16 @@ local _setup_row(ctx: TestTickContext, level: Level, x: number, y: number, z: nu
     level.place_block(x + 1, y, z, "grug:wooden_pipe")
     level.place_block(x + 2, y, z, "minecraft:chest")
 
-    # A floor under each pipe, so the item it drops stays where the count looks for it.
+    # A floor under the whole row and under the two columns beside the pipes that are open, so the
+    # item a pipe drops stays where the count looks for it. A dropped item that overlaps the pipe's
+    # box is pushed out of it sideways (ItemEntity.moveTowardsClosestSpace) and, with nothing under
+    # the open column it lands in, falls out of the count's reach.
+    level.place_block(x - 1, y - 1, z, "minecraft:stone")
     level.place_block(x, y - 1, z, "minecraft:stone")
     level.place_block(x + 1, y - 1, z, "minecraft:stone")
+    level.place_block(x + 2, y - 1, z, "minecraft:stone")
+    level.place_block(x, y - 1, z + 1, "minecraft:stone")
+    level.place_block(x + 1, y - 1, z - 1, "minecraft:stone")
 
     level.place_block(x, y - 2, z - 1, "minecraft:stone")
     level.place_block(x, y - 1, z - 1, "minecraft:redstone_torch")
