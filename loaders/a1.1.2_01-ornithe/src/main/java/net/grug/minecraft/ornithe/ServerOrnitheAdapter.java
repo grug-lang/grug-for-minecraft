@@ -3,6 +3,8 @@ package net.grug.minecraft.ornithe;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
+import net.minecraft.entity.mob.player.PlayerEntity;
+import net.minecraft.entity.mob.player.PlayerInventory;
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -69,4 +71,18 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     /** The server has no frames, so there is nothing to forget. */
     @Override
     public void forgetSettledFrames() {}
+
+    /**
+     * The server's {@code Inventory} interface has no {@code setItem}, which the client's has, so
+     * the call is made on {@code PlayerInventory} itself, which declares it on both.
+     */
+    @Override
+    public void clearInventoryOf(Object playerObj) {
+        PlayerEntity player = (PlayerEntity) playerObj;
+        PlayerInventory inventory = player.inventory;
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            inventory.setItem(slot, null);
+        }
+        inventory.selectedSlot = 0;
+    }
 }
