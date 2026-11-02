@@ -42,6 +42,8 @@ export tick(ctx: TestTickContext) {
         return
     }
 
+    level: Level = Test.get_client_level()
+    ctx.assert(level.find_item_entity(item_x, item_y, item_z, 3).has(), "The dropped item should still be in the world.")
     Test.screenshot().equals(r"screenshots/coverage_flat_ground", 440, 440, 840, 700)
 }
 
@@ -53,7 +55,7 @@ local _setup(ctx: TestTickContext) {
     while wy < origin.y() + 8 {
         wx: number = origin.x() - 8
         while wx < origin.x() + 9 {
-            level.place_block(wx, wy, origin.z() + 10, "minecraft:stone")
+            level.place_block(wx, wy, origin.z() + 7, "minecraft:stone")
             wx = wx + 1
         }
         wy = wy + 1
