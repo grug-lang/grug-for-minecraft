@@ -1,0 +1,7 @@
+{
+    "parent": "block/cube_all",
+    "render_type": "minecraft:cutout",
+    "textures": {
+        "all": "grug:block/cobblestone_pipe"
+    }
+}

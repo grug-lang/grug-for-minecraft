@@ -46,22 +46,22 @@ export shape(ctx: ShapeContext, world: Level, x: number, y: number, z: number) {
     max_y: number = 0.75
     max_z: number = 0.75
 
-    if _is_inventory(world, x, y, z, 4) {
+    if _is_connected(world, x, y, z, 4) {
         min_x = 0.0
     }
-    if _is_inventory(world, x, y, z, 5) {
+    if _is_connected(world, x, y, z, 5) {
         max_x = 1.0
     }
-    if _is_inventory(world, x, y, z, 0) {
+    if _is_connected(world, x, y, z, 0) {
         min_y = 0.0
     }
-    if _is_inventory(world, x, y, z, 1) {
+    if _is_connected(world, x, y, z, 1) {
         max_y = 1.0
     }
-    if _is_inventory(world, x, y, z, 2) {
+    if _is_connected(world, x, y, z, 2) {
         min_z = 0.0
     }
-    if _is_inventory(world, x, y, z, 3) {
+    if _is_connected(world, x, y, z, 3) {
         max_z = 1.0
     }
 
@@ -112,6 +112,16 @@ local _drop_travelling(world: Level, x: number, y: number, z: number, pipe: Bloc
     }
 }
 
+# The same connection test as the block entity's _is_connected: an inventory, or a pipe that
+# PipeLogicWood.isPipeConnected allows, which is every pipe but another wooden one.
+local _is_connected(world: Level, x: number, y: number, z: number, side: number) bool {
+    kind: number = _pipe_kind(world, _neighbor_x(x, side), _neighbor_y(y, side), _neighbor_z(z, side))
+    if kind != 0 {
+        return kind != 1
+    }
+    return _is_inventory(world, x, y, z, side)
+}
+
 # The same connection test as the block entity's _is_inventory, which its render uses to decide
 # where to draw an arm. A block and its block entity are separate grug entities and cannot share a
 # helper, so this copy has to stay in step with that one: the shape a player is kept out of has to
@@ -120,7 +130,7 @@ local _is_inventory(world: Level, x: number, y: number, z: number, side: number)
     nx: number = _neighbor_x(x, side)
     ny: number = _neighbor_y(y, side)
     nz: number = _neighbor_z(z, side)
-    if _is_pipe(world, nx, ny, nz) {
+    if _pipe_kind(world, nx, ny, nz) != 0 {
         return false
     }
 
@@ -163,8 +173,17 @@ local _has_extractable_slot(neighbor: BlockEntity, from_side: number) bool {
     return false
 }
 
-local _is_pipe(world: Level, nx: number, ny: number, nz: number) bool {
-    return world.get_block(nx, ny, nz) == "grug:wooden_pipe"
+# Which kind of pipe stands at a position: 0 for none, 1 for a wooden pipe and 2 for a cobblestone
+# pipe, as the block entity's copy of this says.
+local _pipe_kind(world: Level, nx: number, ny: number, nz: number) number {
+    name: string = world.get_block(nx, ny, nz)
+    if name == "grug:wooden_pipe" {
+        return 1
+    }
+    if name == "grug:cobblestone_pipe" {
+        return 2
+    }
+    return 0
 }
 
 local _neighbor_x(x: number, side: number) number {
