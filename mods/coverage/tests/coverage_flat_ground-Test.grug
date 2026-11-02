@@ -51,7 +51,7 @@ export tick(ctx: TestTickContext) {
 
     level: Level = Test.get_client_level()
     ctx.assert(level.find_item_entity(item_x, item_y, item_z, 3).has(), "The dropped item should still be in the world.")
-    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 440, 440, 840, 700)
+    Test.screenshot().equals(r"screenshots/coverage_flat_ground", 0, 0, 1280, 720)
 }
 
 local _setup(ctx: TestTickContext) {
