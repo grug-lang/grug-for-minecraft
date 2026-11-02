@@ -58,6 +58,9 @@ class GrugTestRunnerTest {
         /** The paths whose file defines both, which the runner refuses. */
         java.util.Set<String> both = new java.util.HashSet<>();
 
+        /** Whether the tick of a file that defines both aborts with a runtime error instead. */
+        boolean bothRaise = false;
+
         /** What the runner is told for the init export; invalid for a test without one. */
         long initFnId = 1;
 
@@ -105,6 +108,10 @@ class GrugTestRunnerTest {
             boolean tickDefined = !anySide.contains(activePath);
             if (exportFnId == anySideFnId && !anyDefined) return false;
             if (exportFnId == this.exportFnId && !tickDefined) return false;
+            if (bothRaise && exportFnId == this.exportFnId && both.contains(activePath)) {
+                GrugTestState.runtimeErrorCount++;
+                return false;
+            }
             if (onCall != null) onCall.run();
             if (throwOnCall != null) throw throwOnCall;
             return completed;
@@ -1319,6 +1326,16 @@ class GrugTestRunnerTest {
                             "buildcraft/code/a-Test.grug defines both tick and tick_any_side"),
                     printed);
         }
+    }
+
+    @Test
+    void aFileWhoseOtherTickAbortsIsStillRefusedAsDefiningBoth() {
+        FakeOps ops = new FakeOps();
+        ops.both.add("buildcraft/code/a-Test.grug");
+        ops.bothRaise = true;
+        String printed = capture(() -> runToEnd(sideRunner(ops, false)));
+
+        assertTrue(printed.contains("defines both tick and tick_any_side"), printed);
     }
 
     @Test
