@@ -241,6 +241,12 @@ public class GrugTestRunner {
     /** Whether this run is on a dedicated server, which runs only the tests that declare it. */
     private final boolean dedicatedServer;
 
+    /**
+     * Tests the loader declares its dedicated server cannot run, by path. An interim mechanism
+     * (#1021) that goes away together with {@code tick_any_side} when #1040 lands.
+     */
+    private final Set<String> unsupportedOnServer;
+
     /** The tests a dedicated server skipped, so a repeat neither probes nor counts them again. */
     private final Set<String> skippedForSide = new LinkedHashSet<>();
 
@@ -431,7 +437,8 @@ public class GrugTestRunner {
                 maxGameSpeedFromEnv(),
                 carryOverCoverageTestsFromEnv(),
                 testsFromEnv(),
-                GrugCore.getAdapter().getSide().isDedicatedServer());
+                GrugCore.getAdapter().getSide().isDedicatedServer(),
+                GrugCore.getAdapter().serverUnsupportedTests());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -597,7 +604,42 @@ public class GrugTestRunner {
             Set<String> carryOverCoverageTests,
             Set<String> selectedTests,
             boolean dedicatedServer) {
+        this(
+                fileIds,
+                referenceErrors,
+                ops,
+                clock,
+                boxBuilder,
+                repeats,
+                coverage,
+                selectedMods,
+                maxGameSpeed,
+                carryOverCoverageTests,
+                selectedTests,
+                dedicatedServer,
+                Collections.emptySet());
+    }
+
+    /**
+     * Visible for tests: the same, with the tests the loader says its dedicated server cannot run,
+     * which a server skips like the ones without {@code tick_any_side} (#1021).
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock,
+            TestBoxBuilder boxBuilder,
+            int repeats,
+            CoverageRecorder coverage,
+            Set<String> selectedMods,
+            int maxGameSpeed,
+            Set<String> carryOverCoverageTests,
+            Set<String> selectedTests,
+            boolean dedicatedServer,
+            Set<String> unsupportedOnServer) {
         this.dedicatedServer = dedicatedServer;
+        this.unsupportedOnServer = unsupportedOnServer;
         this.maxGameSpeed = maxGameSpeed;
         this.ops = ops;
         this.coverage = coverage;
@@ -1015,8 +1057,9 @@ public class GrugTestRunner {
                     System.out.println(
                             "[GRUG CI] Skipped "
                                     + skippedForSide.size()
-                                    + " test(s) that do not define tick_any_side, which a dedicated"
-                                    + " server cannot run without a client.");
+                                    + " test(s) that a dedicated server cannot run: they do not"
+                                    + " define tick_any_side, or the loader lists them as"
+                                    + " unsupported.");
                 }
                 System.out.println("[GRUG CI] ALL " + totalCount + " TESTS PASSED");
             }
@@ -1561,6 +1604,21 @@ public class GrugTestRunner {
         return dedicatedServer && !definesAnySideTick;
     }
 
+    /**
+     * Reads a loader's list of tests its server cannot run: one path per line, blank lines and
+     * lines that start with {@code #} ignored, so the file can say why.
+     */
+    public static Set<String> parseTestList(String text) {
+        Set<String> paths = new LinkedHashSet<>();
+        for (String line : text.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
+                paths.add(trimmed);
+            }
+        }
+        return paths;
+    }
+
     /** Whether a run ended on a dedicated server with every test skipped, which is a failure. */
     static boolean ranNothing(boolean dedicatedServer, int totalCount) {
         return dedicatedServer && totalCount == 0;
@@ -1578,6 +1636,11 @@ public class GrugTestRunner {
      * of its tick, and a client runs {@code tick}.
      */
     private boolean callFirstTick(String path) {
+        if (dedicatedServer && unsupportedOnServer.contains(path)) {
+            skipForSide(path);
+            skippedThisTick = true;
+            return false;
+        }
         int errorsBefore = GrugTestState.runtimeErrorCount;
         boolean completed = ops.callExportFn(currentEntityHandle, anySideTickFnId);
         boolean definesAnySide = completed || GrugTestState.runtimeErrorCount != errorsBefore;

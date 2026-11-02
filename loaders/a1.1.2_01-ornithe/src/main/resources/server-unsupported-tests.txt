@@ -1,0 +1,21 @@
+# Tests the Alpha a0.2.1 dedicated server cannot run although they define tick_any_side, one path
+# per line. The a0.2.1 server jar has no CraftingManager (crafting was client-side then), so a test
+# that needs a recipe result fails there. Interim (#1021): this mechanism is removed together with
+# tick_any_side when #1040 lands.
+buildcraft/tests/autocrafting_table_borrow-Test.grug
+buildcraft/tests/autocrafting_table_pipe-Test.grug
+buildcraft/tests/demo_chain-Test.grug
+buildcraft/tests/wooden_pipe_recipe-Test.grug
+coverage/tests/expect_response_extract_twice_crafting_result_consumed-Test.grug
+coverage/tests/expect_response_extract_twice_crafting_result-Test.grug
+coverage/tests/hot_reload_recipe_removed-Test.grug
+coverage/tests/hot_reload_recipe-Test.grug
+coverage/tests/nonexistent_recipe-Test.grug
+coverage/tests/response_extract_consumed-Test.grug
+coverage/tests/response_extract-Test.grug
+coverage/tests/shaped_recipe-Test.grug
+coverage/tests/shapeless_recipe-Test.grug
+coverage/tests/slot_access-Test.grug
+coverage/tests/take_crafting_result_empty-Test.grug
+coverage/tests/take_crafting_result_on_a_chest-Test.grug
+coverage/tests/update_recipe_output_on_a_chest-Test.grug

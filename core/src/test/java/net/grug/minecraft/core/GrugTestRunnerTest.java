@@ -1280,6 +1280,67 @@ class GrugTestRunnerTest {
         assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
     }
 
+    private GrugTestRunner listedRunner(FakeOps ops, boolean dedicatedServer, Set<String> listed) {
+        Map<String, Long> files = threeMods();
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                new SweepLog(new ArrayList<>()),
+                1,
+                new CoverageLog(),
+                Set.of(),
+                GrugTestRunner.MAX_GAME_SPEED,
+                Set.of(),
+                Set.of(),
+                dedicatedServer,
+                listed);
+    }
+
+    @Test
+    void aServerSkipsATestTheLoaderListsEvenWhenItDefinesTheAnySideTick() {
+        FakeOps ops = new FakeOps();
+        ops.anySide.addAll(
+                Set.of(
+                        "buildcraft/code/a-Test.grug",
+                        "coverage/tests/a-Test.grug",
+                        "jei/code/a-Test.grug"));
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        listedRunner(
+                                                ops, true, Set.of("coverage/tests/a-Test.grug"))));
+
+        assertFalse(printed.contains("PASS coverage/tests/a-Test.grug"), printed);
+        assertTrue(printed.contains("PASS jei/code/a-Test.grug"), printed);
+        assertTrue(printed.contains("Skipped 1 test(s)"), printed);
+        assertTrue(printed.contains("ALL 2 TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aClientRunsATestTheLoaderListsForItsServer() {
+        FakeOps ops = new FakeOps();
+        String printed =
+                capture(
+                        () ->
+                                runToEnd(
+                                        listedRunner(
+                                                ops, false, Set.of("coverage/tests/a-Test.grug"))));
+
+        assertTrue(printed.contains("PASS coverage/tests/a-Test.grug"), printed);
+    }
+
+    @Test
+    void aTestListHoldsOnePathPerLineAndIgnoresCommentsAndBlankLines() {
+        assertEquals(
+                Set.of("a/tests/x-Test.grug", "b/tests/y-Test.grug"),
+                GrugTestRunner.parseTestList(
+                        "# why\n\n  a/tests/x-Test.grug  \r\nb/tests/y-Test.grug\n"));
+    }
+
     @Test
     void aRepeatedServerRunSkipsTheSameTestsOnEveryPass() {
         FakeOps ops = new FakeOps();
