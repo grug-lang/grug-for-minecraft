@@ -23,6 +23,7 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBlockEntityNbtAccess;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
+import net.grug.minecraft.ornithe.client.GrugClientPlayer;
 import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
@@ -32,7 +33,6 @@ import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screen.inventory.menu.SurvivalInventoryScreen;
 import net.minecraft.client.render.world.RenderChunk;
 import net.minecraft.client.render.world.WorldRenderer;
 import net.minecraft.crafting.CraftingManager;
@@ -1207,7 +1207,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         Minecraft minecraft = MinecraftInstance.get();
         World world = minecraft.world;
         WorldRenderer worldRenderer = minecraft.worldRenderer;
-        PlayerEntity player = minecraft.player;
+        PlayerEntity player = GrugClientPlayer.of(minecraft);
         if (world == null || worldRenderer == null || player == null) {
             return true;
         }
@@ -1257,7 +1257,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void snapPlayerForTestOnClient() {
-        PlayerEntity player = MinecraftInstance.get().player;
+        PlayerEntity player = GrugClientPlayer.get();
         if (player == null) {
             throw Grug.fatal(
                     "The test runner: there is no local player to snap to their block centre.");
@@ -1300,7 +1300,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (!testPlayerSnapped) return;
         testPlayerSnapped = false;
 
-        PlayerEntity player = MinecraftInstance.get().player;
+        PlayerEntity player = GrugClientPlayer.get();
         if (player != null) {
             // The saved y is the eye; the feet are what setPositionAndAngles wants, so the restore
             // puts the player back rather than raising them again.
@@ -1322,9 +1322,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public void openInventory(Object playerObj) {
         PlayerEntity player = (PlayerEntity) playerObj;
-        MinecraftInstance.get()
-                .openScreen(
-                        new SurvivalInventoryScreen(player.inventory, player.inventory.crafting));
+        GrugClientPlayer.openInventory(player);
     }
 
     @Override
@@ -1597,7 +1595,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
-        PlayerEntity player = MinecraftInstance.get().player;
+        PlayerEntity player = GrugClientPlayer.get();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
@@ -1647,7 +1645,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                     + " the position, or a shape the overlay failed to reset")
     public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
         Minecraft minecraft = MinecraftInstance.get();
-        PlayerEntity player = minecraft.player;
+        PlayerEntity player = GrugClientPlayer.of(minecraft);
         if (player == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.mining_crack: There is no local player to mine with.");
