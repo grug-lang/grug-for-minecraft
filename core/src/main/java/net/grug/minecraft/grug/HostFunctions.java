@@ -1843,6 +1843,14 @@ public class HostFunctions {
         // A capture reads a drawn frame, so the test wants one even if it reached this call without
         // Test.screenshot. See GrugFrameRequest.
         GrugFrameRequest.request();
+        // The rectangle is checked here, before an adapter that has no frame buffer of its own
+        // (a dedicated server, which refuses the comparison) is asked, so a typo is reported as a
+        // typo on every side (#1040).
+        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
+        if (bad != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.equals: " + bad);
+            return;
+        }
         withEntity(
                 "Screenshot.equals",
                 "screenshot",
