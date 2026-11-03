@@ -35,7 +35,7 @@ import java.util.zip.ZipOutputStream;
  *       version" line of {@code startServer}, which finds and loads every mod;
  *   <li>{@code FMLServerHandler.onLoadComplete()} just before the server builds its {@code
  *       ServerConfigurationManager}, which initialises them;
- *   <li>{@code onPreServerTick()} and {@code onPostServerTick()} around the per-tick method.
+ *   <li>{@code rescheduleTicks()} then {@code onPreServerTick()} and {@code onPostServerTick()} around the per-tick method.
  * </ul>
  *
  * <p>FML's patches also add a few public methods to vanilla classes, which FML's own sources call
@@ -296,6 +296,23 @@ public final class PatchServer {
         start.instructions.insertBefore(manager, handlerCall("onLoadComplete"));
 
         tick.instructions.insert(handlerCall("onPreServerTick"));
+        // FML's own patch schedules the tick handlers first; without it none is ever due.
+        InsnList reschedule = new InsnList();
+        reschedule.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKESTATIC,
+                        "cpw/mods/fml/common/FMLCommonHandler",
+                        "instance",
+                        "()Lcpw/mods/fml/common/FMLCommonHandler;",
+                        false));
+        reschedule.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKEVIRTUAL,
+                        "cpw/mods/fml/common/FMLCommonHandler",
+                        "rescheduleTicks",
+                        "()V",
+                        false));
+        tick.instructions.insert(reschedule);
         for (AbstractInsnNode i = tick.instructions.getFirst(); i != null; i = i.getNext()) {
             if (i.getOpcode() == Opcodes.RETURN) {
                 tick.instructions.insertBefore(i, handlerCall("onPostServerTick"));
