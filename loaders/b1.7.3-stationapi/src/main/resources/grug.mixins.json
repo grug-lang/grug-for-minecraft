@@ -5,11 +5,11 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "BlockWithEntityMixin",
-    "ChunkMixin",
-    "GrugMixin"
+    "ChunkMixin"
   ],
   "server": [],
   "client": [
+    "GrugMixin",
     "ArsenicItemRendererMixin",
     "ArsenicOverlayRendererMixin",
     "BlockItemMixin",

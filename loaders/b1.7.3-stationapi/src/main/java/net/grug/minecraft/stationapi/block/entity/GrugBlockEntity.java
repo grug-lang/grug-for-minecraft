@@ -14,7 +14,6 @@ import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
-import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
@@ -53,7 +52,62 @@ public class GrugBlockEntity extends BlockEntity
      * address: {@link #size()} reports only the grid. The adapter's recipe lookup fills it, the GUI
      * result slot renders it, and taking from either path removes from this same slot.
      */
-    private final SimpleInventory resultInventory = new SimpleInventory("Crafting Result", 1);
+    private final ResultInventory resultInventory = new ResultInventory();
+
+    /**
+     * A one-slot container of the holder's own, because the game's SimpleInventory exists only in
+     * the client jar and loading it on a dedicated server is a NoClassDefFoundError (#163, #165).
+     */
+    private static final class ResultInventory implements Inventory {
+        private ItemStack stack = null;
+
+        @Override
+        public int size() {
+            return 1;
+        }
+
+        @Override
+        public ItemStack getStack(int slot) {
+            return slot == 0 ? stack : null;
+        }
+
+        @Override
+        public ItemStack removeStack(int slot, int amount) {
+            if (slot != 0 || stack == null) return null;
+            ItemStack result;
+            if (stack.count <= amount) {
+                result = stack;
+                stack = null;
+            } else {
+                result = stack.split(amount);
+                if (stack.count == 0) stack = null;
+            }
+            return result;
+        }
+
+        @Override
+        public void setStack(int slot, ItemStack itemStack) {
+            if (slot == 0) stack = itemStack;
+        }
+
+        @Override
+        public String getName() {
+            return "Crafting Result";
+        }
+
+        @Override
+        public int getMaxCountPerStack() {
+            return 64;
+        }
+
+        @Override
+        public void markDirty() {}
+
+        @Override
+        public boolean canPlayerUse(PlayerEntity player) {
+            return true;
+        }
+    }
 
     private void ensureSized() {
         if (sized) return;

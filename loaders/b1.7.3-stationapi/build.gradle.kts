@@ -23,6 +23,13 @@ group = project.properties["maven_group"] as String
 
 loom {
     runs {
+        // The dedicated server runs beside the client, not in its folder, so a world, a log or a
+        // properties file of one never reaches the other (run-multiplayer.sh, #165).
+        configureEach {
+            if (name == "server") {
+                runDir("run-server")
+            }
+        }
         register("testClient") {
             source("test")
             client()

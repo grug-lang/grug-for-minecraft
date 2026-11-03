@@ -21,6 +21,9 @@
     ],
     "stationapi:event_bus_client": [
       "net.grug.minecraft.stationapi.events.init.ClientInitListener"
+    ],
+    "stationapi:event_bus_server": [
+      "net.grug.minecraft.stationapi.events.init.ServerInitListener"
     ]
   },
   "mixins": [
