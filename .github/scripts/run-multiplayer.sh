@@ -208,7 +208,7 @@ if [ -n "$SERVER_VERSION" ]; then
     exit 1
   fi
   cd "$SERVER_DIR"
-  GRUG_CI=true setsid java ${GRUG_CI_SERVER_JVM_ARGS:-} -jar fabric-server-launch.jar nogui >>"$SERVER_LOG" 2>&1 &
+  GRUG_CI=true setsid java -jar fabric-server-launch.jar nogui >>"$SERVER_LOG" 2>&1 &
   server_pid=$!
   cd "$REPO_ROOT"
 else
