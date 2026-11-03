@@ -109,6 +109,9 @@ if [ -n "$SERVER_VERSION" ] || [ "$STANDALONE" = true ]; then
   # An old server spawns monsters and animals around the player by itself, and a mob in the test
   # room or a hit on the test player would fail a test for a reason the test is not about.
   printf 'spawn-monsters=false\nspawn-animals=false\n' >> "${SERVER_DIR}/server.properties"
+  # A test clears and rebuilds the floor under the player, and an old server kicks a player it
+  # sees floating for too long, which ends the run with "the test player left".
+  printf 'allow-flight=true\n' >> "${SERVER_DIR}/server.properties"
 fi
 
 # Forge's cosmetic early window can only hurt a headless run (see run-loader.sh).
