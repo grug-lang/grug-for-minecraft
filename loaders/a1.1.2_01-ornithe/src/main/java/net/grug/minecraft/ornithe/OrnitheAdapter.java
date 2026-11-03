@@ -1428,6 +1428,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
         if (refuseWithoutAClient("Screenshot.capture")) return null;
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
