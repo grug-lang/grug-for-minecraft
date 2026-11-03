@@ -29,10 +29,10 @@ import java.util.WeakHashMap;
                 + " GrugControlServer")
 public final class GrugControlServer125 implements GrugControlRouter {
     /**
-     * The wait for an answer: under the 60 s of silence after which a connection times out, and
-     * long enough for a software-rendered client that is still loading chunks.
+     * The wait for an answer: under the 30 s of silence after which a client's socket read times
+     * out, and long enough for a software-rendered client that is still loading chunks.
      */
-    static final long DEFAULT_TIMEOUT_MILLIS = 30_000;
+    static final long DEFAULT_TIMEOUT_MILLIS = 20_000;
 
     private static GrugControlServer server;
 
@@ -83,9 +83,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
 
         @Override
         public void flushWorld() {
-            System.out.println(
-                    "[GRUG CONTROL] no world flush on 1.2.5: the test waited a tick since it"
-                            + " placed blocks");
+            GrugServerRun.flushBlockChanges();
         }
 
         /**

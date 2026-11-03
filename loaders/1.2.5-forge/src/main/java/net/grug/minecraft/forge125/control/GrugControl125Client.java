@@ -28,7 +28,7 @@ import java.util.function.Consumer;
                 + " GrugControlClient")
 public final class GrugControl125Client implements GrugControlRouter {
     /** Client ticks to wait for the frames that show what the server sent, at the least. */
-    static final int MIN_TICKS = 20;
+    static final int MIN_TICKS = 60;
 
     /** Client ticks after which the frame the client has is captured even if not settled. */
     static final int MAX_TICKS = 400;
