@@ -1,8 +1,10 @@
 package net.grug.minecraft.grug;
 
+import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugItemStacks;
+import net.grug.minecraft.core.GrugSoundArgs;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.gui.GrugGuiBuilder;
@@ -2278,35 +2280,14 @@ public class HostFunctions {
         return count < 0;
     }
 
-    /**
-     * Why a sound name cannot be a name at all, or null when it has the shape {@code
-     * namespace:path}, both parts of lowercase letters, digits and the characters {@code . _ -},
-     * the path also allowing {@code /}. That is a resource location's shape on 1.20.6, and every
-     * name in the older versions' sound pools fits the path's.
-     */
+    /** See {@link GrugSoundArgs#nameProblem}. */
     static String soundNameProblem(String name) {
-        if (!name.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")) {
-            return "A sound name is a namespace, a colon and a path, such as"
-                    + " \"minecraft:ui.button.click\", and \""
-                    + name
-                    + "\" is not one.";
-        }
-        return null;
+        return GrugSoundArgs.nameProblem(name);
     }
 
-    /**
-     * Why a sound cannot be played at this volume and pitch, or null when it can. Both games clamp
-     * a volume to 0 to 1 and 1.20.6 clamps a pitch to 0.5 to 2, so a value beyond them is a
-     * script's mistake that would otherwise play as a different number than the one it asked for.
-     */
+    /** See {@link GrugSoundArgs#levelsProblem}. */
     static String soundLevelsProblem(double volume, double pitch) {
-        if (!(volume >= 0 && volume <= 1)) {
-            return "The volume has to be from 0 to 1, and was " + volume + ".";
-        }
-        if (!(pitch >= 0.5 && pitch <= 2)) {
-            return "The pitch has to be from 0.5 to 2, and was " + pitch + ".";
-        }
-        return null;
+        return GrugSoundArgs.levelsProblem(volume, pitch);
     }
 
     /**
@@ -2333,24 +2314,47 @@ public class HostFunctions {
         return soundKnown(GrugCore.getAdapter(), name);
     }
 
-    /** Plays one of the game's sounds to the player as a sound of the interface. */
-    public static void play_ui_sound(String name, double volume, double pitch) {
+    /**
+     * Why a sound cannot be played, or null when it can. The empty string means the adapter already
+     * reported the cause (a forwarded call that failed), so nothing more is said.
+     */
+    static String playUiSoundProblem(
+            ModLoaderAdapter adapter, String name, double volume, double pitch) {
         String problem = soundNameProblem(name);
         if (problem == null) {
             problem = soundLevelsProblem(volume, pitch);
         }
-        if (problem == null && !soundKnown(GrugCore.getAdapter(), name)) {
-            problem =
-                    "The game has no sound named \""
-                            + name
-                            + "\". Ask has_sound first for a sound the versions the mod runs on"
-                            + " do not all have.";
+        if (problem == null) {
+            GrugControlServer.clearFailure();
+            if (!soundKnown(adapter, name)) {
+                problem =
+                        GrugControlServer.failed()
+                                ? ""
+                                : "The game has no sound named \""
+                                        + name
+                                        + "\". Ask has_sound first for a sound the versions the"
+                                        + " mod runs on do not all have.";
+            }
         }
+        return problem;
+    }
+
+    /** Reports a problem of {@link #playUiSoundProblem}, unless the adapter already did. */
+    static void reportPlayProblem(String problem, java.util.function.Consumer<String> report) {
+        if (!problem.isEmpty()) {
+            report.accept("play_ui_sound: " + problem);
+        }
+    }
+
+    /** Plays one of the game's sounds to the player as a sound of the interface. */
+    public static void play_ui_sound(String name, double volume, double pitch) {
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        String problem = playUiSoundProblem(adapter, name, volume, pitch);
         if (problem != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + problem);
+            reportPlayProblem(problem, text -> Grug.hostFunctionErrorHappened(Grug.statePtr, text));
             return;
         }
-        GrugCore.getAdapter().playUiSound(name.substring(name.indexOf(':') + 1), volume, pitch);
+        adapter.playUiSound(name.substring(name.indexOf(':') + 1), volume, pitch);
     }
 
     public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {

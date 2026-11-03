@@ -166,15 +166,37 @@ public final class GrugControlClient {
                 text -> link.send(GrugControlWire.answerError(id, text)));
     }
 
-    /** Performs a call on this thread, which the loader delivers on the game thread. */
+    /**
+     * Performs a call on this thread, which the loader delivers on the game thread. An argument the
+     * host function would refuse, or an adapter that throws, is answered as an error, so the server
+     * reports a real cause instead of waiting out its timeout.
+     */
     private void perform(GrugControlWire.Message message) {
         System.out.println("[GRUG CONTROL] request " + message.id + ": call " + message.call);
-        if (message.call == GrugControlWire.CALL_HAS_SOUND) {
-            boolean has = caller.hasSound(message.text);
-            link.send(GrugControlWire.answerValue(message.id, (byte) (has ? 1 : 0)));
-        } else {
-            caller.playUiSound(message.text, message.volume, message.pitch);
-            link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+        String problem =
+                GrugControlServer.callProblem(
+                        message.call, message.text, message.volume, message.pitch);
+        if (problem != null) {
+            link.send(GrugControlWire.answerError(message.id, "refused: " + problem));
+            return;
+        }
+        try {
+            if (message.call == GrugControlWire.CALL_HAS_SOUND) {
+                boolean has = caller.hasSound(message.text);
+                link.send(GrugControlWire.answerValue(message.id, (byte) (has ? 1 : 0)));
+            } else {
+                caller.playUiSound(message.text, message.volume, message.pitch);
+                link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+            }
+        } catch (RuntimeException e) {
+            link.send(
+                    GrugControlWire.answerError(
+                            message.id,
+                            "the client's call failed: "
+                                    + String.valueOf(e)
+                                            .substring(
+                                                    0,
+                                                    Math.min(String.valueOf(e).length(), 1000))));
         }
     }
 

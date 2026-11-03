@@ -95,4 +95,70 @@ class HostFunctionsSoundTest {
         assertFalse(HostFunctions.soundKnown(adapter("random.click", asked), "grug:random.click"));
         assertEquals(List.of(), asked);
     }
+
+    @Test
+    void aFailedForwardedLookupIsTheOnlyErrorAPlayReports() {
+        // An adapter whose lookup is a forwarded call that fails, as on a server with no starter.
+        net.grug.minecraft.core.GrugControlServer server =
+                new net.grug.minecraft.core.GrugControlServer(
+                        new net.grug.minecraft.core.GrugControlServer.Link() {
+                            @Override
+                            public boolean sendToStarter(Object starter, byte[] message) {
+                                return true;
+                            }
+
+                            @Override
+                            public void flushWorld() {}
+
+                            @Override
+                            public boolean mayStartRun(Object sender) {
+                                return true;
+                            }
+                        },
+                        10);
+        ModLoaderAdapter failing =
+                (ModLoaderAdapter)
+                        Proxy.newProxyInstance(
+                                HostFunctionsSoundTest.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) -> {
+                                    try {
+                                        return server.hasSound((String) args[0]);
+                                    } catch (
+                                            net.grug.minecraft.core.GrugControlServer
+                                                            .ControlException
+                                                    e) {
+                                        return false;
+                                    }
+                                });
+
+        assertEquals("", HostFunctions.playUiSoundProblem(failing, "minecraft:random.click", 1, 1));
+
+        // A lookup that really answers no keeps the usual message, and an earlier failure does
+        // not leak into it.
+        String unknown =
+                HostFunctions.playUiSoundProblem(
+                        adapter("random.click", new ArrayList<>()), "minecraft:nope", 1, 1);
+        assertTrue(unknown.contains("The game has no sound named"), unknown);
+        assertNull(
+                HostFunctions.playUiSoundProblem(
+                        adapter("random.click", new ArrayList<>()),
+                        "minecraft:random.click",
+                        1,
+                        1));
+        assertTrue(
+                HostFunctions.playUiSoundProblem(failing, "bad name", 1, 1)
+                        .contains("namespace, a colon and a path"));
+        assertTrue(
+                HostFunctions.playUiSoundProblem(failing, "minecraft:x", 2, 1).contains("volume"));
+    }
+
+    @Test
+    void aProblemTheAdapterAlreadyReportedIsNotReportedAgain() {
+        List<String> reported = new ArrayList<>();
+        HostFunctions.reportPlayProblem("", reported::add);
+        assertEquals(List.of(), reported);
+        HostFunctions.reportPlayProblem("bad", reported::add);
+        assertEquals(List.of("play_ui_sound: bad"), reported);
+    }
 }
