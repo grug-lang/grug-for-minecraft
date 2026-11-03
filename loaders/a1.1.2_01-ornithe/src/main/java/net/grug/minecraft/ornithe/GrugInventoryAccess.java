@@ -66,7 +66,8 @@ final class GrugInventoryAccess {
                 return (ItemStack) real.invoke(inventory, slot, count);
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException(
-                        inventory.getClass().getName() + "." + SERVER_REMOVE_ITEM + " failed.", e);
+                        inventory.getClass().getName() + "." + SERVER_REMOVE_ITEM + " failed.",
+                        e.getCause() != null ? e.getCause() : e);
             }
         }
         ItemStack stack = inventory.getItem(slot);

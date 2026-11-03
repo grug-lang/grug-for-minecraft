@@ -49,6 +49,17 @@ public class GrugBlockEntity extends BlockEntity
      */
     private final ResultInventory resultInventory = new ResultInventory();
 
+    /**
+     * Takes {@code amount} off {@code stack} and returns them as a new stack. The a0.2.1 server's
+     * {@code ItemStack} declares no {@code split}, so a call to it throws a {@code
+     * NoSuchMethodError} there; the fields exist on both sides.
+     */
+    private static ItemStack splitStack(ItemStack stack, int amount) {
+        ItemStack removed = new ItemStack(stack.id, amount, stack.metadata);
+        stack.size -= amount;
+        return removed;
+    }
+
     private void ensureSized() {
         if (sized) return;
         sized = trySizeInventory();
@@ -102,7 +113,7 @@ public class GrugBlockEntity extends BlockEntity
                 result = stack;
                 stack = null;
             } else {
-                result = stack.split(amount);
+                result = splitStack(stack, amount);
                 if (stack.size == 0) stack = null;
             }
             return result;
@@ -287,7 +298,7 @@ public class GrugBlockEntity extends BlockEntity
             result = stacks[slot];
             stacks[slot] = null;
         } else {
-            result = stacks[slot].split(amount);
+            result = splitStack(stacks[slot], amount);
             if (stacks[slot].size == 0) {
                 stacks[slot] = null;
             }
