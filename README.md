@@ -132,14 +132,15 @@ different answers and only the first is a piece of work in progress.
 | **1.2.5** | Forge | yes, Minecraft 1.2.5 shipped one | no, deferred ([#166](https://github.com/grug-lang/grug-for-minecraft/issues/166)): `mod_Grug` names `net.minecraft.client.Minecraft` and the client's overlay and tick classes, which Minecraft 1.2.5's server jar lacks, so the class cannot load on a server. A server entrypoint first needs the 2600-line `Grug125Adapter`, the block classes and the tick hooks split into a common and a client half | no |
 | **Beta 1.7.3** | Ornithe | yes | blocks, items, block entities and recipes already register server-side; no runner: [#163](https://github.com/grug-lang/grug-for-minecraft/issues/163) | no, it reports a host-function error: [#164](https://github.com/grug-lang/grug-for-minecraft/issues/164) |
 | **Beta 1.7.3** | StationAPI | yes | registration and recipes already run, because StationAPI's common event bus runs on a server; no runner or resource pack: [#165](https://github.com/grug-lang/grug-for-minecraft/issues/165) | no, and nothing opens it: the screen handler is registered client-side only, and [#165](https://github.com/grug-lang/grug-for-minecraft/issues/165) is where that has to change |
-| **Alpha 1.1.2_01** | Ornithe | yes, as `a0.2.1`: Alpha servers were numbered apart from the client, and Ornithe lists an `a0.2.1` intermediary for both environments | not yet; whether Ornithe launches that server is unchecked | not reachable until it does |
+| **Alpha 1.1.2_01** | Ornithe | yes, as `a0.2.1`: Alpha servers were numbered apart from the client, and Ornithe lists an `a0.2.1` intermediary for both environments | yes, the `a1.1.2_01-ornithe` job of `build.yml` runs the test suite on an Ornithe `a0.2.1` dedicated server with a client connected ([#1021](https://github.com/grug-lang/grug-for-minecraft/issues/1021)); about 30 tests are listed as unsupported there, because that server has no crafting, display tick, block selection or sound classes | not tested |
 
 The Alpha row is about this loader rather than about Minecraft: Alpha 1.1.2_01 did have a dedicated
 server in the real game. It is called `a0.2.1` (released 2010-09-19, it accepts client 1.1.0 to
 1.1.2_01), and Ornithe's metadata has an `a0.2.1` intermediary, so an earlier claim here that Ornithe
-ships no server jar for the version was a naming mismatch. Whether Ornithe can launch that server is
-not checked. Seven of the thirteen OSL jars that `a1.1.2_01` resolves, including the two this loader
-is built against, declare `"environment": "client"`, so the loader as it stands is client-only.
+ships no server jar for the version was a naming mismatch. The loader's layer also loads on that
+server, which renamed some members the client has (the block-id getter, the inventory writes), so
+the adapter a server runs reaches them by reflection, and the tests it cannot run are listed in
+`loaders/a1.1.2_01-ornithe/src/main/resources/server-unsupported-tests.txt`.
 
 ### Accepting Screenshot References
 
