@@ -28,13 +28,14 @@ public final class GrugServerRun {
     /** How long to wait for a client to join before failing the run. */
     static final long PLAYER_JOIN_TIMEOUT_MILLIS = 240_000;
 
-    private static MinecraftServer server = null;
-    private static GrugTestRunner runner = null;
-    private static long waitStartMillis = 0;
-    private static long lastReportMillis = 0;
-    private static boolean done = false;
-    private static boolean advancing = false;
-    // Zero until a test sets a speed, which runs one step: a field with no initializer leaves this
+    private static MinecraftServer server;
+    private static GrugTestRunner runner;
+    private static long waitStartMillis;
+    private static long lastReportMillis;
+    private static boolean done;
+    private static boolean advancing;
+    // Zero until a test sets a speed, which runs one step. No field has an initializer, which
+    // leaves this
     // class without a static initializer, whose coverage would depend on which test first touched
     // it.
     private static int gameSpeed;
