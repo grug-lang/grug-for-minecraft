@@ -187,13 +187,24 @@ public final class GrugControlAlpha {
      * world (the stand-in for the operator's hotkey), and a pending capture is taken once the
      * client has had the frames that show what the server sent.
      */
+    /**
+     * The client starts its run only this many ticks after it is ready, so that the server is still
+     * ticking and sending chunks while the client's world fills in. A server frozen at the start
+     * left chunks half sent, and the client's recursive light update then overflowed its stack
+     * (#1040).
+     */
+    private static final int JOIN_SETTLE_TICKS = 200;
+
+    private static int joinedTicks;
+
     public static void onClientTick(Minecraft mc, GrugClientHooks hooks) {
         if (!started
                 && System.getenv("GRUG_CI_CONNECT") != null
                 && mc.world != null
                 && mc.player != null
                 && mc.isMultiplayer()
-                && GrugCore.getAdapter().isWorldReady(mc.player)) {
+                && GrugCore.getAdapter().isWorldReady(mc.player)
+                && ++joinedTicks >= JOIN_SETTLE_TICKS) {
             started = true;
             hooks.beginControlRun();
             client().beginRun();
