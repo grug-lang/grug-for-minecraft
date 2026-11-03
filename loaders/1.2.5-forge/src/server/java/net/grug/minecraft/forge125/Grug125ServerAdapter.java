@@ -119,7 +119,11 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public void restorePlayerAfterTest() {}
 
-    /** The tests listed in {@code forge125-server-unsupported-tests.txt}, which says why. */
+    /**
+     * The tests listed in {@code forge125-server-unsupported-tests.txt}, which says why. The name
+     * carries the loader because this layer is at the universal jar's root, and a root file of the
+     * bare name would shadow the nested layers' own lists on the class path.
+     */
     @Override
     public Set<String> serverUnsupportedTests() {
         try (InputStream in =

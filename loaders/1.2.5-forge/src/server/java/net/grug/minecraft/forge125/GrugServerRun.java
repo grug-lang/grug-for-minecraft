@@ -40,6 +40,8 @@ public final class GrugServerRun implements ITickHandler {
     private static boolean advancing = false;
     private static int gameSpeed = 1;
     private static double holdY = 0;
+    private static int healedHealth = 0;
+    private static EntityPlayerMP testPlayer = null;
     private static final double HOLD_TOLERANCE = 0.25;
 
     /** Registers the run's tick with FML, on a server. Called by reflection from mod_Grug. */
@@ -139,17 +141,49 @@ public final class GrugServerRun implements ITickHandler {
     }
 
     /**
-     * Puts the player back at the height they landed at when they fell below it. The client owns
-     * the player's movement, and each test clears and rebuilds the floor under them, so a frame in
-     * which the client sees air lets them drop a block or two; test after test that adds up to a
-     * fall out of the world, and every test builds its room from where the player stands.
+     * Keeps the test player where the tests expect them: at the height they landed at, and alive.
+     *
+     * <p>The client owns the player's movement, and each test clears and rebuilds the floor under
+     * them, so a frame in which the client sees air lets them drop a block or two. Test after test
+     * that adds up to a fall out of the world, and every test builds its room from where the player
+     * stands. The player is put back whenever they are lower than they landed. That is safe because
+     * no host function moves the player down: a snap (Grug125Adapter#snapPlayer) keeps the player's
+     * height, and nothing else sets their position or motion. A test that needs the player moved
+     * down has to revisit this, for instance by moving the height held.
+     *
+     * <p>The same drops and the blocks of a room built around the player hurt them (the scratch run
+     * that found this saw the health fall from 20 to below 0 over the suite, as suffocation and
+     * falls added up), and no test reads the player's health, so they are healed before each runner
+     * tick. A player who is dead already, or who is no longer the one the run started with, fails
+     * the run with a message instead of letting every later test fail in a way that hides the
+     * cause.
+     *
+     * @return whether the run may go on
      */
-    private static void holdPlayer(EntityPlayerMP player) {
+    private static boolean holdPlayer(EntityPlayerMP player) {
+        if (player.isDead || player.getHealth() <= 0 || player != testPlayer) {
+            System.out.println("[GRUG CI] FAIL the test player is gone");
+            System.out.println(
+                    "[GRUG CI] The test player died or was replaced during the run (health "
+                            + player.getHealth()
+                            + ", dead "
+                            + player.isDead
+                            + "), so the tests after this point would not run in a world the"
+                            + " runner built.");
+            stop(1);
+            return false;
+        }
+        if (player.getHealth() < player.getMaxHealth()) {
+            healedHealth += player.getMaxHealth() - player.getHealth();
+            player.setEntityHealth(player.getMaxHealth());
+        }
+        player.fallDistance = 0;
         if (player.posY < holdY - HOLD_TOLERANCE) {
             player.playerNetServerHandler.teleportTo(
                     player.posX, holdY, player.posZ, player.rotationYaw, player.rotationPitch);
             player.motionY = 0;
         }
+        return true;
     }
 
     private static void tick() {
@@ -165,7 +199,8 @@ public final class GrugServerRun implements ITickHandler {
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
-                holdY = ((EntityPlayerMP) players.get(0)).posY;
+                testPlayer = (EntityPlayerMP) players.get(0);
+                holdY = testPlayer.posY;
                 runner = new GrugTestRunner();
             } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
                 System.out.println("[GRUG CI] FAIL world readiness");
@@ -208,7 +243,9 @@ public final class GrugServerRun implements ITickHandler {
             if (step > 0) {
                 advance(server().worldMngr[0], 1);
             }
-            holdPlayer((EntityPlayerMP) players.get(0));
+            if (!holdPlayer((EntityPlayerMP) players.get(0))) {
+                return;
+            }
             runner.tick(players.get(0));
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
@@ -220,6 +257,8 @@ public final class GrugServerRun implements ITickHandler {
     /** Ends the server process; a non-zero status says the run did not pass. */
     private static void stop(int status) {
         done = true;
+        System.out.println(
+                "[GRUG CI] The test player was healed " + healedHealth + " health in all.");
         System.out.flush();
         System.exit(status);
     }
