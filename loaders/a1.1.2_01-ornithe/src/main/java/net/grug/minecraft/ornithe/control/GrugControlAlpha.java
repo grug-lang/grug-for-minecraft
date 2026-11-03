@@ -51,6 +51,7 @@ public final class GrugControlAlpha {
     private static GrugControlServer server;
     private static GrugControlClient client;
     private static boolean started = false;
+    private static int startedTicks = 0;
 
     private static int x1;
     private static int y1;
@@ -67,25 +68,30 @@ public final class GrugControlAlpha {
         if (server == null) {
             server =
                     new GrugControlServer(
-                            new GrugControlServer.Link() {
-                                @Override
-                                public boolean sendToStarter(Object starter, byte[] message) {
-                                    ((Connection) starter).send(new GrugControlPacket(message));
-                                    return true;
-                                }
-
-                                @Override
-                                public void flushWorld() {
-                                    System.out.println(
-                                            "[GRUG CONTROL] no world flush on Alpha: the test"
-                                                    + " waited a tick since it placed blocks");
-                                }
-                            },
+                            new AlphaLink(),
                             GrugControlFaults.intFromEnv(
                                     "GRUG_CI_CONTROL_TIMEOUT_MILLIS",
                                     (int) DEFAULT_TIMEOUT_MILLIS));
         }
         return server;
+    }
+
+    @GrugGenerated(
+            "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since"
+                    + " only the multiplayer job runs it")
+    private static final class AlphaLink implements GrugControlServer.Link {
+        @Override
+        public boolean sendToStarter(Object starter, byte[] message) {
+            ((Connection) starter).send(new GrugControlPacket(message));
+            return true;
+        }
+
+        @Override
+        public void flushWorld() {
+            System.out.println(
+                    "[GRUG CONTROL] no world flush on Alpha: the test waited a tick since it"
+                            + " placed blocks");
+        }
     }
 
     private static synchronized GrugControlClient client() {
@@ -232,6 +238,13 @@ public final class GrugControlAlpha {
             hooks.beginControlRun();
             client().beginRun();
             System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
+        }
+        if (started && ++startedTicks % 100 == 0) {
+            System.out.println(
+                    "[GRUG CONTROL] client tick "
+                            + startedTicks
+                            + " after the start, at "
+                            + System.currentTimeMillis());
         }
         if (!pending) return;
         waited++;
