@@ -9,7 +9,7 @@ import java.awt.image.BufferedImage;
 public final class GrugControlDiagnostic {
     private GrugControlDiagnostic() {}
 
-    private static int count = 0;
+    private static int count;
 
     /**
      * Under GRUG_CI, saves the frame a forwarded capture returned and logs what this client's world
