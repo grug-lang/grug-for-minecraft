@@ -5,7 +5,9 @@
 # no exit, each pipe drops its item at its centre. The fixture is built in 6 rows, four blocks
 # apart, and advanced together, so one run repeats the trigger six times (#1019): before the floor
 # covered the columns an item is pushed into, most rows lost an item on 1.20.6 and the count
-# stayed short for good.
+# stayed short for good. The rows run from 8 blocks behind the origin to 12 in front of it, so every
+# engine and pipe lies inside the 16 blocks around the player that the runner clears before a test:
+# rows 20 blocks out kept the engines and items of earlier passes and tests (#1057).
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
@@ -39,7 +41,7 @@ local _setup(ctx: TestTickContext) {
     origin: Vec3 = Test.get_origin()
     row: number = 0
     while row < 6 {
-        _setup_row(ctx, level, origin.x(), origin.y() + 12, origin.z() + row * 4)
+        _setup_row(ctx, level, origin.x(), origin.y() + 12, origin.z() + (row - 2) * 4)
         row = row + 1
     }
 }
@@ -101,7 +103,7 @@ local _check(ctx: TestTickContext) {
     bad: number = 0
     row: number = 0
     while row < 6 {
-        z: number = origin.z() + row * 4
+        z: number = origin.z() + (row - 2) * 4
         west: BlockEntity = _entity(ctx, level, x, y, z)
         east: BlockEntity = _entity(ctx, level, x + 1, y, z)
         if not (_only(west, item(resource_location("minecraft:diamond")))) {
@@ -132,7 +134,7 @@ local _finished() bool {
     y: number = origin.y() + 12
     row: number = 0
     while row < 6 {
-        z: number = origin.z() + row * 4
+        z: number = origin.z() + (row - 2) * 4
         if _entity_at(level, x - 1, y, z).get_item_count_in_slot(0) != 0 or _entity_at(level, x + 2, y, z).get_item_count_in_slot(0) != 0 {
             return false
         }
