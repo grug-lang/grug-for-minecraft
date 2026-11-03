@@ -2,7 +2,8 @@
 # per line. Interim (#1021): this mechanism is removed together with tick_any_side when #1040 lands.
 # The a0.2.1 server jar has no CraftingManager (crafting was client-side then), so a test that needs
 # a recipe result fails there; and its Block has no randomDisplayTick (particles are drawn by the
-# client), so the display_tick tests fail there too.
+# client), so the display_tick tests fail there too; and its Block has no getOutlineShape (the
+# selection box is a client matter), so the block_selection tests fail there.
 buildcraft/tests/autocrafting_table_borrow-Test.grug
 buildcraft/tests/autocrafting_table_pipe-Test.grug
 buildcraft/tests/demo_chain-Test.grug
@@ -24,3 +25,5 @@ buildcraft/tests/redstone_engine_particles-Test.grug
 coverage/tests/display_tick-Test.grug
 coverage/tests/expect_display_tick_index-Test.grug
 coverage/tests/expect_display_tick_particle-Test.grug
+buildcraft/tests/wooden_pipe_boxes-Test.grug
+coverage/tests/block_shape-Test.grug
