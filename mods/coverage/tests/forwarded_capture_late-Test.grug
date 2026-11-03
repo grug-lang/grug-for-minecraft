@@ -1,7 +1,7 @@
-# A forwarded capture the client answers only after the server gave up (the run delays the answer
-# to a request whose rectangle is 9 wide, GRUG_CI_CONTROL_LATE_WIDTH) is a timeout like a dropped
-# one. The late answer then arrives for a request that is no longer waiting, which the next test
-# proves harmless.
+# A forwarded capture the client answers only after the server gave up is a timeout like a dropped
+# one. The client holds the answer to a request whose rectangle is 9 wide (GRUG_CI_CONTROL_LATE_WIDTH)
+# until it handles the next request, so the stale answer is sent while the next test's request
+# waits, which that test proves harmless.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         ctx.expect_error("did not answer request")

@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge;
 
+import net.grug.minecraft.core.GrugControlFaults;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.forge.mixin.ChunkMapAccessor;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -8,6 +9,8 @@ import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.network.CustomPayloadEvent;
 import net.minecraftforge.network.ChannelBuilder;
 import net.minecraftforge.network.NetworkProtocol;
@@ -71,14 +74,16 @@ public final class GrugControlForge {
                                 })
                         .add()
                         .build();
+        MinecraftForge.EVENT_BUS.addListener(
+                (PlayerEvent.PlayerLoggedOutEvent event) ->
+                        server().onDisconnect(event.getEntity().getUUID()));
     }
 
     private static void handle(byte[] bytes, CustomPayloadEvent.Context ctx) {
         if (ctx.isServerSide()) {
+            // A message whose sender is unknown still goes in: the server fails what waits on it.
             ServerPlayer sender = ctx.getSender();
-            if (sender != null && server != null) {
-                server.onMessage(sender.getUUID(), bytes);
-            }
+            server().onMessage(sender == null ? null : sender.getUUID(), bytes);
         } else {
             GrugControlClientForge.onServerMessage(bytes, ctx);
         }
@@ -93,8 +98,8 @@ public final class GrugControlForge {
     }
 
     private static long timeoutMillis() {
-        String value = System.getenv("GRUG_CI_CONTROL_TIMEOUT_MILLIS");
-        return value == null || value.isBlank() ? DEFAULT_TIMEOUT_MILLIS : Long.parseLong(value);
+        return GrugControlFaults.intFromEnv(
+                "GRUG_CI_CONTROL_TIMEOUT_MILLIS", (int) DEFAULT_TIMEOUT_MILLIS);
     }
 
     /** Sends from a client to the server it is joined to. */
@@ -113,6 +118,16 @@ public final class GrugControlForge {
             if (player == null) return false;
             channel.send(new Packet(message), PacketDistributor.PLAYER.with(player));
             return true;
+        }
+
+        /**
+         * Any player who has finished login may start a run (first start wins in core). Operator-
+         * only starting is a possible later hardening.
+         */
+        @Override
+        public boolean mayStartRun(Object sender) {
+            MinecraftServer minecraft = ServerLifecycleHooks.getCurrentServer();
+            return minecraft.getPlayerList().getPlayer((UUID) sender) != null;
         }
 
         /**

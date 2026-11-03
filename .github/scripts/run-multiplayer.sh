@@ -72,7 +72,7 @@ export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
 # The test-control channel's fault injection (#1040): the server waits 5 s for an answer (30 s on Alpha,
 # whose software-rendered client took over 3 s to read the request while it loaded chunks, and stays
 # under Alpha's 60 s silence timeout), and the
-# joined client never answers a capture 7 pixels wide, and answers one 9 pixels wide 6.5 s late.
+# joined client never answers a capture 7 pixels wide, and holds the answer to one 9 pixels wide until it handles the next request, so the stale answer lands while that request waits.
 # mods/coverage's forwarded_ tests expect exactly those errors, so a run that passes proves the
 # timeout, and that a late answer is dropped.
 CONTROL_TIMEOUT_MILLIS=5000
@@ -276,7 +276,7 @@ if [ -f "${LOADER_DIR}/root.gradle" ]; then
   client_task=runClient
   client_dir="${REPO_ROOT}/${LOADER_DIR}"
 fi
-(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH=7 GRUG_CI_CONTROL_LATE_WIDTH=9 GRUG_CI_CONTROL_LATE_MILLIS=$((CONTROL_TIMEOUT_MILLIS + 1500)) GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
+(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH=7 GRUG_CI_CONTROL_LATE_WIDTH=9 GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
 client_pid=$!
 tail -n +1 -F "$CLIENT_LOG" 2>/dev/null | sed -u 's/^/[client] /' &
 client_tail_pid=$!

@@ -1,5 +1,6 @@
-# Runs after forwarded_capture_late: the late answer to that test's request (a 9 by 9 image) arrives
-# while this test waits for its own, and must neither complete this request nor fail it. This is
+# Runs after forwarded_capture_late: the client sends the stale answer to that test's request (a 9
+# by 9 image) the moment it receives this test's first request, so it lands while this request
+# waits, and must neither complete this request nor fail it. This is
 # forwarded_capture again: a stale 9 by 9 image taken for the 80 by 56 one would not differ from
 # the first frame by the shape of the wall, and the run would fail.
 before: Option[Screenshot] = Option.new()

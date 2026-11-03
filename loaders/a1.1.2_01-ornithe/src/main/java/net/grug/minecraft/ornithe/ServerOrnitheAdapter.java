@@ -58,6 +58,11 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         if (world == null) {
             return null;
         }
+        // The player who started the run, when one has: it is their screen the forwarded calls use.
+        PlayerEntity starter = GrugControlAlpha.starterPlayer();
+        if (starter != null) {
+            return starter;
+        }
         List<?> players = world.players;
         return players.isEmpty() ? null : players.get(0);
     }
