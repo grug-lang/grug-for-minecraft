@@ -782,7 +782,7 @@ class GrugControlTest {
                         });
 
         assertEquals(List.of("random.click 0.5 2.0"), sounds.played);
-        assertTrue(loop.flushed);
+        assertFalse(loop.flushed);
         assertTrue(printed.contains("the world is frozen until the client answers"), printed);
         assertTrue(printed.contains("and the world is running again"), printed);
     }

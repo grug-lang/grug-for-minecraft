@@ -390,7 +390,9 @@ public final class GrugControlServer {
         pending.put(id, request);
         long startNanos = System.nanoTime();
         try {
-            link.flushWorld();
+            // No flushWorld here: a sound call depends on no world state, and flushing sends the
+            // queued block changes to the client early, which changed what a later test's client
+            // saw (a chest removed by an explosion before its block entity arrived, on b1.7.3).
             System.out.println(
                     "[GRUG CONTROL] request "
                             + id
