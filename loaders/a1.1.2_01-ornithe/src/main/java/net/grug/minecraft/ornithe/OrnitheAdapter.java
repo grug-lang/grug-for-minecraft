@@ -87,6 +87,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
      * which this layer also loads on (#1021), and the client's everywhere else. Called from the
      * shared {@code GrugModLoader}, which cannot name this loader's adapter itself.
      */
+    @GrugGenerated(
+            "the server branch runs only on the dedicated server, whose coverage no CI run merges")
     public static ModLoaderAdapter forCurrentEnvironment() {
         return FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER
                 ? new ServerOrnitheAdapter()
