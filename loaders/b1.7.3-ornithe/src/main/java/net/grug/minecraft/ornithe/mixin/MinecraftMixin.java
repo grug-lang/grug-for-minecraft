@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugConnectAddress;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
+import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.TickTimer;
 import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
@@ -73,6 +74,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     @Inject(method = "tick", at = @At("HEAD"))
     private void grug$onClientTick(CallbackInfo ci) {
         grug$hooks.tick();
+        GrugControlBeta.onClientTick((Minecraft) (Object) this, grug$hooks);
     }
 
     /**

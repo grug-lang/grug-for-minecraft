@@ -76,7 +76,7 @@ export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
 # mods/coverage's forwarded_ tests expect exactly those errors, so a run that passes proves the
 # timeout, and that a late answer is dropped.
 CONTROL_TIMEOUT_MILLIS=5000
-if [ "$LOADER" = "a1.1.2_01-ornithe" ]; then
+if [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ]; then
   CONTROL_TIMEOUT_MILLIS=30000
 fi
 export GRUG_CI_CONTROL_TIMEOUT_MILLIS=$CONTROL_TIMEOUT_MILLIS
@@ -293,7 +293,7 @@ while :; do
     grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
     # The forwarded_ tests are skipped, not failed, by a server that does not forward, so a loader
     # that has the channel (#1040) must show that they ran.
-    if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ]; then
+    if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ]; then
       for forwarded in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${forwarded}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${forwarded}-Test.grug did not run on the dedicated server." >&2
