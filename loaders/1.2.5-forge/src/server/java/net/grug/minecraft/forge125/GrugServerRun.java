@@ -63,6 +63,17 @@ public final class GrugServerRun implements ITickHandler {
         return server == null || server.worldMngr == null ? null : server.worldMngr[0];
     }
 
+    /**
+     * Sends the block changes the player managers have queued, which the server only does at the
+     * end of its own tick: a frozen tick never reaches it (#1040).
+     */
+    public static void flushBlockChanges() {
+        MinecraftServer server = server();
+        if (server != null && server.configManager != null) {
+            server.configManager.getPlayerManager(0).updatePlayerInstances();
+        }
+    }
+
     /** Whether {@code player} is still on the server. */
     public static boolean isConnected(EntityPlayerMP player) {
         return players().contains(player);

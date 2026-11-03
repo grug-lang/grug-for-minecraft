@@ -76,8 +76,13 @@ export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
 # mods/coverage's forwarded_ tests expect exactly those errors, so a run that passes proves the
 # timeout, and that a late answer is dropped.
 CONTROL_TIMEOUT_MILLIS=5000
-if [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
+if [ "$LOADER" = "a1.1.2_01-ornithe" ]; then
   CONTROL_TIMEOUT_MILLIS=30000
+fi
+# The Beta and 1.2.5 clients read their socket with a 30 s timeout, and a frozen server sends nothing, so
+# their wait stays under it.
+if [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
+  CONTROL_TIMEOUT_MILLIS=20000
 fi
 export GRUG_CI_CONTROL_TIMEOUT_MILLIS=$CONTROL_TIMEOUT_MILLIS
 

@@ -50,7 +50,7 @@ public final class GrugControlBeta {
     static final long DEFAULT_TIMEOUT_MILLIS = 20_000;
 
     /** Client ticks to wait for the frames that show what the server sent, at the least. */
-    static final int MIN_TICKS = 20;
+    static final int MIN_TICKS = 60;
 
     /** Client ticks after which the frame the client has is captured even if not settled. */
     static final int MAX_TICKS = 400;
