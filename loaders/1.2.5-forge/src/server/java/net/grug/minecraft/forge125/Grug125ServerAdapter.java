@@ -119,13 +119,15 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     @Override
     public void restorePlayerAfterTest() {}
 
-    /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */
+    /** The tests listed in {@code forge125-server-unsupported-tests.txt}, which says why. */
     @Override
     public Set<String> serverUnsupportedTests() {
         try (InputStream in =
-                Grug125ServerAdapter.class.getResourceAsStream("/server-unsupported-tests.txt")) {
+                Grug125ServerAdapter.class.getResourceAsStream(
+                        "/forge125-server-unsupported-tests.txt")) {
             if (in == null) {
-                throw new IllegalStateException("server-unsupported-tests.txt is not in the jar.");
+                throw new IllegalStateException(
+                        "forge125-server-unsupported-tests.txt is not in the jar.");
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buffer = new byte[4096];
@@ -136,7 +138,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
             return GrugTestRunner.parseTestList(
                     new String(out.toByteArray(), StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new IllegalStateException("Could not read server-unsupported-tests.txt.", e);
+            throw new IllegalStateException(
+                    "Could not read forge125-server-unsupported-tests.txt.", e);
         }
     }
 
