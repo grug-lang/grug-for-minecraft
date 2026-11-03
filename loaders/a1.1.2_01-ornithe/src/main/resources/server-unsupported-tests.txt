@@ -1,7 +1,8 @@
 # Tests the Alpha a0.2.1 dedicated server cannot run although they define tick_any_side, one path
-# per line. The a0.2.1 server jar has no CraftingManager (crafting was client-side then), so a test
-# that needs a recipe result fails there. Interim (#1021): this mechanism is removed together with
-# tick_any_side when #1040 lands.
+# per line. Interim (#1021): this mechanism is removed together with tick_any_side when #1040 lands.
+# The a0.2.1 server jar has no CraftingManager (crafting was client-side then), so a test that needs
+# a recipe result fails there; and its Block has no randomDisplayTick (particles are drawn by the
+# client), so the display_tick tests fail there too.
 buildcraft/tests/autocrafting_table_borrow-Test.grug
 buildcraft/tests/autocrafting_table_pipe-Test.grug
 buildcraft/tests/demo_chain-Test.grug
@@ -19,3 +20,7 @@ coverage/tests/slot_access-Test.grug
 coverage/tests/take_crafting_result_empty-Test.grug
 coverage/tests/take_crafting_result_on_a_chest-Test.grug
 coverage/tests/update_recipe_output_on_a_chest-Test.grug
+buildcraft/tests/redstone_engine_particles-Test.grug
+coverage/tests/display_tick-Test.grug
+coverage/tests/expect_display_tick_index-Test.grug
+coverage/tests/expect_display_tick_particle-Test.grug
