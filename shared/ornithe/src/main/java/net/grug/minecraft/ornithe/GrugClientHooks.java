@@ -250,12 +250,12 @@ public class GrugClientHooks {
 
     /**
      * What a run's start does to the window, for a joined client that starts its own run on a
-     * server (#1040): the screenshot size and a short view distance.
+     * server (#1040): the screenshot size.
      */
     public void beginControlRun() {
-        if (window.beginRun()) {
-            shrinkViewForRun();
-        }
+        // The view is left alone: the joined client overflowed its stack in Alpha's recursive light
+        // update after it shrank the view, which a client that keeps the default view did not.
+        window.beginRun();
     }
 
     public void tick() {
