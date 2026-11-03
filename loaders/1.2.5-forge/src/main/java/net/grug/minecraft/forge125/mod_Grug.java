@@ -81,9 +81,7 @@ public class mod_Grug extends BaseMod {
         File modApiJson = GrugModsDirectory.modApiJson(gameDir);
 
         GrugCore.initialize(
-                client ? new Grug125ClientAdapter() : new Grug125ServerAdapter(),
-                modApiJson,
-                activeGrugDir);
+                client ? new Grug125ClientAdapter() : serverAdapter(), modApiJson, activeGrugDir);
 
         // A dedicated server has no renderer, so only the client registers the render type.
         if (client) {
@@ -120,6 +118,24 @@ public class mod_Grug extends BaseMod {
 
         if (client) {
             GrugClientSetup.init(overlayFiles, overlayMods);
+        }
+    }
+
+    /**
+     * The server's adapter and its test driver, made by name because their classes are compiled
+     * against the server's types and are in the server's jar only.
+     */
+    private static Grug125Adapter serverAdapter() {
+        try {
+            Class.forName("net.grug.minecraft.forge125.GrugServerRun")
+                    .getMethod("install")
+                    .invoke(null);
+            return (Grug125Adapter)
+                    Class.forName("net.grug.minecraft.forge125.Grug125ServerAdapter")
+                            .getConstructor()
+                            .newInstance();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("The dedicated server's classes are missing.", e);
         }
     }
 

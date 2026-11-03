@@ -668,6 +668,8 @@ def serverDevJar = new File(serverBuildDir, 'server-dev.jar')
 def serverDevClasses = new File(serverBuildDir, 'server-dev-classes')
 def serverFixedJar = new File(serverBuildDir, 'grug-1.2.5-forge-server-fixed.jar')
 def serverLoaderJar = new File(buildDirFile, 'grug-1.2.5-forge-server.jar')
+def serverLoaderClasses = new File(serverBuildDir, 'loader-server-classes')
+def serverLoaderDevJar = new File(serverBuildDir, 'grug-1.2.5-forge-server-dev.jar')
 def patchServerToolClasses = new File(buildDirFile, 'tools/patch-server')
 def serverRunDir = new File(projectDirFile, 'run-server')
 def fmlServerSources = new File(mcpDir, 'forge/fml/src/minecraft_server')
@@ -818,17 +820,41 @@ tasks.register('serverDevClasses', Sync) {
     into serverDevClasses
 }
 
+// The classes only a server loads (src/server/java) name types the client's development classes lack
+// (MinecraftServer, EntityPlayerMP), so they compile against the server in the same development
+// names, ahead of the client's classes, and join the loader only in the server's jar.
+tasks.register('compileServerJava', JavaCompile) {
+    description = 'Compiles the server-only classes against the development-named server.'
+    dependsOn 'compileJava', 'serverDevJar', 'compileFmlServer'
+    source = fileTree(new File(projectDirFile, 'src/server/java')) { include '**/*.java' }
+    classpath = files(serverDevJar, fmlServerClasses) +
+        files(sourceSets.main.output.classesDirs) + configurations.compileClasspath
+    destinationDirectory.set(serverLoaderClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('packServerLoaderDev', Jar) {
+    description = 'The loader and its server-only classes, in the development names.'
+    dependsOn tasks.named('jar'), 'compileServerJava'
+    archiveFileName = serverLoaderDevJar.name
+    destinationDirectory.set(serverLoaderDevJar.parentFile)
+    from({ zipTree(devJar) })
+    from(serverLoaderClasses)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 tasks.register('fixInheritedServerJar', JavaExec) {
     description = 'Rewrites inherited member references against the server\'s hierarchy.'
-    dependsOn tasks.named('jar'), 'compileFixInheritedTool', 'serverReobfSrg', 'serverDevClasses'
-    inputs.file devJar
+    dependsOn 'packServerLoaderDev', 'compileFixInheritedTool', 'serverReobfSrg', 'serverDevClasses'
+    inputs.file serverLoaderDevJar
     inputs.file serverReobfSrgFile
     outputs.file serverFixedJar
     classpath = files(fixToolClasses) + configurations.fixInheritedTool
     mainClass.set('FixInherited')
     doFirst {
         serverFixedJar.parentFile.mkdirs()
-        args = [devJar.absolutePath, serverDevClasses.absolutePath, serverReobfSrgFile.absolutePath,
+        args = [serverLoaderDevJar.absolutePath, serverDevClasses.absolutePath, serverReobfSrgFile.absolutePath,
             serverFixedJar.absolutePath]
     }
 }
