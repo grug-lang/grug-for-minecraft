@@ -5,6 +5,8 @@ import cpw.mods.fml.common.FMLCommonHandler;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.GrugBlocks;
 import net.grug.minecraft.forge125.client.GrugClientSetup;
+import net.grug.minecraft.forge125.control.GrugControl125Client;
+import net.grug.minecraft.forge125.control.GrugControlPacket;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
@@ -86,6 +88,8 @@ public class mod_Grug extends BaseMod {
         // A dedicated server has no renderer, so only the client registers the render type.
         if (client) {
             customRenderId = GrugClientSetup.registerRenderId();
+            GrugControlPacket.register();
+            GrugControl125Client.install();
         }
 
         FileInfo[] files = Grug.compileAllFiles();

@@ -1,9 +1,13 @@
 package net.grug.minecraft.forge125;
 
+import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.forge125.control.GrugControlServer125;
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.minecraft.src.EntityPlayer;
 
@@ -52,7 +56,9 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      */
     @Override
     public Object testPlayer() {
-        return GrugServerRun.firstPlayer();
+        // The player who started the run, when one has: forwarded calls use their screen (#1040).
+        EntityPlayerMP starter = GrugControlServer125.starterPlayer();
+        return starter != null ? starter : GrugServerRun.firstPlayer();
     }
 
     /**
@@ -158,10 +164,29 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         refuseWithoutAClient("Test.use_block");
     }
 
+    /**
+     * Forwards the capture to the joined client of the player who started the run and waits for the
+     * answer with the world frozen (#1040, option A). Arguments are checked first, as on a client.
+     */
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
-        refuseWithoutAClient("Screenshot.equals");
-        return null;
+        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
+        if (bad != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + bad);
+            return null;
+        }
+        try {
+            return GrugControlServer125.server().capture((int) x1, (int) y1, (int) x2, (int) y2);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** This server forwards a test's client-only calls to the player who started the run. */
+    @Override
+    public boolean forwardsClientCalls() {
+        return true;
     }
 
     @Override
