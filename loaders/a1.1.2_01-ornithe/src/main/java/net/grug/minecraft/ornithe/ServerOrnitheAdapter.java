@@ -67,6 +67,27 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return players.isEmpty() ? null : players.get(0);
     }
 
+    /** Asked of the client of the player who started the run, with the world frozen (#1040). */
+    @Override
+    public boolean hasSound(String path) {
+        try {
+            return GrugControlAlpha.server().hasSound(path);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "has_sound: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Played by the client of the player who started the run, which owns the sound engine. */
+    @Override
+    public void playUiSound(String path, double volume, double pitch) {
+        try {
+            GrugControlAlpha.server().playUiSound(path, volume, pitch);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
+        }
+    }
+
     /**
      * Forwards the capture to the joined client of the player who started the run and waits for the
      * answer with the world frozen (#1040, option A). Arguments are checked first, as on a client.

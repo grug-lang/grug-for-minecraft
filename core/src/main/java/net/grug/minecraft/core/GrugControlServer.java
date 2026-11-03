@@ -3,6 +3,7 @@ package net.grug.minecraft.core;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -70,13 +71,18 @@ public final class GrugControlServer {
         final CompletableFuture<byte[]> png = new CompletableFuture<>();
         final int width;
         final int height;
+
+        /** A call, answered by a value; a capture is answered by chunks. */
+        final boolean call;
+
         byte[][] chunks = null;
         int received = 0;
         long bytes = 0;
 
-        Pending(int width, int height) {
+        Pending(int width, int height, boolean call) {
             this.width = width;
             this.height = height;
+            this.call = call;
         }
     }
 
@@ -132,7 +138,8 @@ public final class GrugControlServer {
             return;
         }
         if (message.type != GrugControlWire.ANSWER_ERROR
-                && message.type != GrugControlWire.ANSWER_CHUNK) {
+                && message.type != GrugControlWire.ANSWER_CHUNK
+                && message.type != GrugControlWire.ANSWER_VALUE) {
             failAll("The client sent a control message of type " + message.type + ".");
             return;
         }
@@ -143,6 +150,14 @@ public final class GrugControlServer {
         }
         if (message.type == GrugControlWire.ANSWER_ERROR) {
             request.png.completeExceptionally(new ControlException(message.text));
+        } else if (request.call != (message.type == GrugControlWire.ANSWER_VALUE)) {
+            request.png.completeExceptionally(
+                    new ControlException(
+                            "The client answered request "
+                                    + message.id
+                                    + " with the wrong kind of answer."));
+        } else if (request.call) {
+            request.png.complete(new byte[] {message.value});
         } else {
             accept(request, message);
         }
@@ -225,7 +240,7 @@ public final class GrugControlServer {
                             + " starts a run when its player starts one.");
         }
         long id = nextId.getAndIncrement();
-        Pending request = new Pending(x2 - x1, y2 - y1);
+        Pending request = new Pending(x2 - x1, y2 - y1, false);
         pending.put(id, request);
         long startNanos = System.nanoTime();
         try {
@@ -248,27 +263,7 @@ public final class GrugControlServer {
                 throw new ControlException(
                         "The player who started the run is not connected any more.");
             }
-            byte[] png;
-            try {
-                png = request.png.get(timeoutMillis, TimeUnit.MILLISECONDS);
-            } catch (TimeoutException e) {
-                throw new ControlException(
-                        "The client did not answer request "
-                                + id
-                                + " within "
-                                + timeoutMillis
-                                + " ms, so the run gave up waiting and the world is running"
-                                + " again.");
-            } catch (ExecutionException e) {
-                throw new ControlException(
-                        "The client refused or failed request "
-                                + id
-                                + ": "
-                                + e.getCause().getMessage());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ControlException("The wait for the client's answer was interrupted.");
-            }
+            byte[] png = await(request, id);
             BufferedImage image = decodeChecked(png, request, id);
             System.out.println(
                     "[GRUG CONTROL] request "
@@ -291,6 +286,93 @@ public final class GrugControlServer {
                             + " ms: the world was frozen for about "
                             + (millis / 50)
                             + " ticks and is running again");
+        }
+    }
+
+    /** Waits for the answer to request {@code id}, or throws why there is none. */
+    private byte[] await(Pending request, long id) throws ControlException {
+        try {
+            return request.png.get(timeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            throw new ControlException(
+                    "The client did not answer request "
+                            + id
+                            + " within "
+                            + timeoutMillis
+                            + " ms, so the run gave up waiting and the world is running"
+                            + " again.");
+        } catch (ExecutionException e) {
+            throw new ControlException(
+                    "The client refused or failed request "
+                            + id
+                            + ": "
+                            + e.getCause().getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ControlException("The wait for the client's answer was interrupted.");
+        }
+    }
+
+    /** Asks the starter's client whether the game has the sound under {@code path}. */
+    public boolean hasSound(String path) throws ControlException {
+        return call(GrugControlWire.CALL_HAS_SOUND, path, 0, 0) != 0;
+    }
+
+    /** Asks the starter's client to play the sound under {@code path}, and waits for its ack. */
+    public void playUiSound(String path, double volume, double pitch) throws ControlException {
+        call(GrugControlWire.CALL_PLAY_UI_SOUND, path, volume, pitch);
+    }
+
+    /**
+     * Forwards one client-only call to the starter's client and waits for its one-byte result, with
+     * the world frozen as in {@link #capture}. The arguments are checked here as well as by the
+     * host function, so a caller that skipped it still cannot send what the client would refuse.
+     */
+    private byte call(byte call, String name, double volume, double pitch) throws ControlException {
+        if (name.getBytes(StandardCharsets.UTF_8).length > GrugControlWire.MAX_NAME
+                || Double.isNaN(volume)
+                || Double.isNaN(pitch)) {
+            throw new ControlException(
+                    "The call has an argument the control channel cannot carry.");
+        }
+        Object to = starter.get();
+        if (to == null) {
+            throw new ControlException(
+                    "No client has started a run, so there is no client to perform the call. A"
+                            + " client starts a run when its player starts one.");
+        }
+        long id = nextId.getAndIncrement();
+        Pending request = new Pending(0, 0, true);
+        pending.put(id, request);
+        long startNanos = System.nanoTime();
+        try {
+            link.flushWorld();
+            System.out.println(
+                    "[GRUG CONTROL] request "
+                            + id
+                            + ": call "
+                            + call
+                            + " \""
+                            + name
+                            + "\" sent to "
+                            + to
+                            + ", the world is frozen until the client answers");
+            if (!link.sendToStarter(
+                    to, GrugControlWire.callRequest(id, call, name, volume, pitch))) {
+                throw new ControlException(
+                        "The player who started the run is not connected any more.");
+            }
+            byte result = await(request, id)[0];
+            System.out.println("[GRUG CONTROL] request " + id + " answered: " + result);
+            return result;
+        } finally {
+            pending.remove(id);
+            System.out.println(
+                    "[GRUG CONTROL] request "
+                            + id
+                            + " finished after "
+                            + (System.nanoTime() - startNanos) / 1_000_000L
+                            + " ms and the world is running again");
         }
     }
 

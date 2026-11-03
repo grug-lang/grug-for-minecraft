@@ -144,6 +144,7 @@ public final class GrugControlBeta {
                                 connection.send(new GrugControlPacket(message));
                             },
                             GrugControlBeta::capture,
+                            GrugControlClient.adapterCaller(GrugCore::getAdapter),
                             GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_DROP_WIDTH", -1),
                             GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_WIDTH", -1));
         }
@@ -163,7 +164,9 @@ public final class GrugControlBeta {
     static boolean onRead(byte[] bytes) {
         if (!onServer() || bytes.length == 0) return false;
         byte type = bytes[0];
-        if (type != GrugControlWire.ANSWER_ERROR && type != GrugControlWire.ANSWER_CHUNK) {
+        if (type != GrugControlWire.ANSWER_ERROR
+                && type != GrugControlWire.ANSWER_CHUNK
+                && type != GrugControlWire.ANSWER_VALUE) {
             return false;
         }
         // The reader thread of a Connection is a Thread subclass that holds it, so the sender of
