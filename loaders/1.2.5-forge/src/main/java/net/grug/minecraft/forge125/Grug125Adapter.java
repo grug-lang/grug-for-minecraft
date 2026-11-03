@@ -1737,6 +1737,8 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
             double pointX,
             double pointY,
             double pointZ) {
+        // A server's Block has no selection box: it belongs to the client's outline.
+        if (refuseWithoutAClient("Test.block_selection")) return false;
         World world = (World) levelObj;
         int blockX = (int) Math.floor(x);
         int blockY = (int) Math.floor(y);
@@ -1775,6 +1777,8 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("test helper: it asks a game's own block for its display tick")
     public void displayTickForTest(Object levelObj, double x, double y, double z, long seed) {
+        // A server's Block has no display tick: the client calls it.
+        if (refuseWithoutAClient("Test.display_tick")) return;
         World world = (World) levelObj;
         int blockX = (int) Math.floor(x);
         int blockY = (int) Math.floor(y);

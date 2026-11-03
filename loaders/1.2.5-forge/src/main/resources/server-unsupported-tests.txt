@@ -1,0 +1,3 @@
+# Tests the 1.2.5 dedicated server cannot run although they define tick_any_side, one path per
+# line. Interim (#166): this mechanism is removed together with tick_any_side when #1040 lands.
+# Each group below says why its tests cannot run on that server.
