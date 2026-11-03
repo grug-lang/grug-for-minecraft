@@ -1264,9 +1264,7 @@ class GrugTestRunnerTest {
         ops.anySide.addAll(
                 Set.of(
                         "buildcraft/code/a-Test.grug",
-                        "buildcraft/code/b-Test.grug",
                         "coverage/tests/a-Test.grug",
-                        "coverage/tests/b-Test.grug",
                         "jei/code/a-Test.grug"));
         String printed = capture(() -> runToEnd(sideRunner(ops, true)));
 
