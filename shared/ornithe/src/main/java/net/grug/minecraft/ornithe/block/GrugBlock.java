@@ -121,8 +121,23 @@ public class GrugBlock extends BlockWithBlockEntity {
         return super.use(world, x, y, z, player);
     }
 
+    /**
+     * Greater than zero while a grug block runs its removal, when the block id has already changed
+     * but the block entity is still this block's own and on_break may read it.
+     */
+    public static int removalDepth = 0;
+
     @Override
     public void onRemoved(World world, int x, int y, int z) {
+        removalDepth++;
+        try {
+            removeGrugBlock(world, x, y, z);
+        } finally {
+            removalDepth--;
+        }
+    }
+
+    private void removeGrugBlock(World world, int x, int y, int z) {
         // Alpha has no BlockEntity removal callback, so free the grug entity here, before
         // super.onRemoved removes the tile. Otherwise it outlives its tile and a later hot reload
         // re-inits it against members Java has already collected. b1.7.3 also does this in

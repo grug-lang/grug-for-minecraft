@@ -4,7 +4,6 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.minecraft.block.Block;
-import net.minecraft.block.BlockWithBlockEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.world.chunk.WorldChunk;
 
@@ -44,10 +43,11 @@ public abstract class StaleBlockEntityMixin {
         if (!(cir.getReturnValue() instanceof GrugBlockEntity)) {
             return;
         }
-        Block now = Block.BY_ID[getBlockAt(x, y, z)];
-        // Only a block that wants a block entity of its own takes the stale one: a grug block
-        // being broken is replaced by air first and still reads its own block entity in on_break.
-        if (now instanceof BlockWithBlockEntity && !(now instanceof GrugBlock)) {
+        // A grug block being broken is already replaced when its on_break reads its own entity.
+        if (GrugBlock.removalDepth > 0) {
+            return;
+        }
+        if (!(Block.BY_ID[getBlockAt(x, y, z)] instanceof GrugBlock)) {
             removeBlockEntityAt(x, y, z);
             cir.setReturnValue(getBlockEntityAt(x, y, z));
         }
