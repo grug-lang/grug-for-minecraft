@@ -27,6 +27,7 @@ public final class GrugServerRun {
     private static long waitStartMillis = 0;
     private static GrugTestRunner runner = null;
     private static boolean done = false;
+    private static boolean advancing = false;
 
     private GrugServerRun() {}
 
@@ -37,7 +38,7 @@ public final class GrugServerRun {
 
     /** Called at the end of every tick of a server world. */
     public static void onWorldTick(World tickedWorld) {
-        if (done || !"true".equals(System.getenv("GRUG_CI"))) {
+        if (done || advancing || !"true".equals(System.getenv("GRUG_CI"))) {
             return;
         }
         try {
@@ -49,6 +50,24 @@ public final class GrugServerRun {
             thrown.printStackTrace(System.out);
             stop();
         }
+    }
+
+    /**
+     * Runs the world's own tick {@code ticks} times from inside a test's tick, which is what {@code
+     * Test.tick_level} asks for (#780). The tick this runs would hand the world back to {@link
+     * #onWorldTick}, so that hook ignores the ticks run here. Answers how many ticks ran.
+     */
+    public static int advance(World target, int ticks) {
+        advancing = true;
+        try {
+            for (int tick = 0; tick < ticks; tick++) {
+                target.tickEntities();
+                target.tick();
+            }
+        } finally {
+            advancing = false;
+        }
+        return ticks;
     }
 
     private static long lastReportMillis = 0;
