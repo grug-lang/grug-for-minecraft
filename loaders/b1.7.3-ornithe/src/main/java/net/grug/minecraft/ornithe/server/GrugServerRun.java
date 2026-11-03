@@ -140,12 +140,19 @@ public final class GrugServerRun {
             return;
         }
 
-        if (gameSpeed > 1) {
-            advance(server.getWorld(0), gameSpeed - 1);
-        }
-        runner.tick(players.get(0));
-        if (runner.isFinished()) {
-            stop(runner.isPassed() ? 0 : 1);
+        // The runner ticks once per world tick, as the client's does at speed: a server tick has
+        // run the world once already, and each extra tick of a faster game is a world tick followed
+        // by a runner tick. Running the extra world ticks first and the runner once let an item a
+        // test dropped fall out of the area its check looks in between two runner ticks (#163).
+        for (int step = 0; step < gameSpeed; step++) {
+            if (step > 0) {
+                advance(server.getWorld(0), 1);
+            }
+            runner.tick(players.get(0));
+            if (runner.isFinished()) {
+                stop(runner.isPassed() ? 0 : 1);
+                return;
+            }
         }
     }
 
