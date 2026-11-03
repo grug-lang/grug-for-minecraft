@@ -201,6 +201,13 @@ public final class GrugControlAlpha {
         }
         if (!pending) return;
         waited++;
+        if (waited == 1 || waited % 100 == 0) {
+            System.out.println(
+                    "[GRUG CONTROL] a capture is pending, client tick "
+                            + waited
+                            + " on "
+                            + Thread.currentThread().getName());
+        }
         if (waited < MIN_TICKS) return;
         boolean settled = GrugCore.getAdapter().isWorldSettled();
         if (!settled && waited < MAX_TICKS) return;

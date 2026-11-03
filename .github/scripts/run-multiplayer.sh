@@ -298,7 +298,7 @@ if [ -f "${LOADER_DIR}/root.gradle" ]; then
   client_task=runClient
   client_dir="${REPO_ROOT}/${LOADER_DIR}"
 fi
-(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_MODS_DIR -u GRUG_CI_FORWARD_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH="${CLIENT_DROP_WIDTH:-}" GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
+(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_MODS_DIR -u GRUG_CI_FORWARD_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS} -Xss64m" GRUG_CI_CONTROL_DROP_WIDTH="${CLIENT_DROP_WIDTH:-}" GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
 client_pid=$!
 tail -n +1 -F "$CLIENT_LOG" 2>/dev/null | sed -u 's/^/[client] /' &
 client_tail_pid=$!
