@@ -975,7 +975,7 @@ jobs:
       # What the test-control channel did (#1040), from both ends, so a reader of the job log sees the
       # round trips and the injected faults without opening the artifact.
       - name: The test-control channel's log lines
-        if: (matrix.loader == '1.20.6-forge' || matrix.loader == 'a1.1.2_01-ornithe' || matrix.loader == 'b1.7.3-ornithe' || matrix.loader == 'b1.7.3-stationapi') && !cancelled()
+        if: (matrix.loader == '1.2.5-forge' || matrix.loader == '1.20.6-forge' || matrix.loader == 'a1.1.2_01-ornithe' || matrix.loader == 'b1.7.3-ornithe' || matrix.loader == 'b1.7.3-stationapi') && !cancelled()
         run: grep -F '[GRUG CONTROL]' loaders/${{ matrix.loader }}/run-server-ci.log loaders/${{ matrix.loader }}/run-client-ci.log || true
 
       - name: Upload logs and crash reports

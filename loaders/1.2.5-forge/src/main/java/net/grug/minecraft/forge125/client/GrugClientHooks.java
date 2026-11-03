@@ -8,6 +8,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.forge125.control.GrugControl125Client;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.GrugErrors;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -307,10 +308,19 @@ public class GrugClientHooks implements ITickHandler {
     }
 
     /**
+     * What a run's start does to the window, for a joined client that starts its own run on a
+     * server (#1040): the screenshot size. The view is left alone, as on the other loaders.
+     */
+    public void beginControlRun() {
+        window.beginRun();
+    }
+
+    /**
      * The game tick, which is where the test runner is driven: one {@code Test.tick()} call per
      * game tick, the cadence the other four loaders use.
      */
     private void gameTick(Minecraft minecraft) {
+        GrugControl125Client.onClientTick(minecraft, this);
         // The grug sprites cannot be handed to the texture manager before the atlas exists: FML
         // asks
         // the client handler how large a tile is, and that answer is the size setupTexture recorded

@@ -6,6 +6,8 @@ import cpw.mods.fml.server.FMLServerHandler;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.forge125.control.GrugControlPacket;
+import net.grug.minecraft.forge125.control.GrugControlServer125;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.minecraft.server.MinecraftServer;
@@ -46,6 +48,8 @@ public final class GrugServerRun implements ITickHandler {
 
     /** Registers the run's tick with FML, on a server. Called by reflection from mod_Grug. */
     public static void install() {
+        GrugControlPacket.register();
+        GrugControlServer125.install();
         cpw.mods.fml.common.FMLCommonHandler.instance().registerTickHandler(new GrugServerRun());
     }
 
@@ -57,6 +61,11 @@ public final class GrugServerRun implements ITickHandler {
     public static World world() {
         MinecraftServer server = server();
         return server == null || server.worldMngr == null ? null : server.worldMngr[0];
+    }
+
+    /** Whether {@code player} is still on the server. */
+    public static boolean isConnected(EntityPlayerMP player) {
+        return players().contains(player);
     }
 
     /** The first connected player, or null. */
@@ -194,12 +203,18 @@ public final class GrugServerRun implements ITickHandler {
             if (waitStartMillis == 0) {
                 waitStartMillis = System.currentTimeMillis();
             }
-            if (!players.isEmpty() && GrugCore.getAdapter().isWorldReady(players.get(0))) {
+            // The run starts when a player has started it (#1040): the joined client sends its
+            // start once it is in the world.
+            EntityPlayerMP starter = GrugControlServer125.starterPlayer();
+            if (!players.isEmpty()
+                    && GrugControlServer125.server().hasStarter()
+                    && starter != null
+                    && GrugCore.getAdapter().isWorldReady(starter)) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
-                testPlayer = (EntityPlayerMP) players.get(0);
+                testPlayer = starter;
                 holdY = testPlayer.posY;
                 runner = new GrugTestRunner();
             } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
@@ -227,7 +242,8 @@ public final class GrugServerRun implements ITickHandler {
             }
         }
 
-        if (players.isEmpty()) {
+        if (players.isEmpty() || !players.contains(testPlayer)) {
+            GrugControlServer125.server().onDisconnect(GrugControlServer125.server().starter());
             System.out.println("[GRUG CI] FAIL the test player left");
             System.out.println(
                     "[GRUG CI] Every player disconnected from the dedicated server during the"
@@ -243,10 +259,10 @@ public final class GrugServerRun implements ITickHandler {
             if (step > 0) {
                 advance(server().worldMngr[0], 1);
             }
-            if (!holdPlayer((EntityPlayerMP) players.get(0))) {
+            if (!holdPlayer(testPlayer)) {
                 return;
             }
-            runner.tick(players.get(0));
+            runner.tick(testPlayer);
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
                 return;
@@ -257,6 +273,7 @@ public final class GrugServerRun implements ITickHandler {
     /** Ends the server process; a non-zero status says the run did not pass. */
     private static void stop(int status) {
         done = true;
+        GrugControlServer125.server().endRun();
         System.out.println(
                 "[GRUG CI] The test player was healed " + healedHealth + " health in all.");
         System.out.flush();
