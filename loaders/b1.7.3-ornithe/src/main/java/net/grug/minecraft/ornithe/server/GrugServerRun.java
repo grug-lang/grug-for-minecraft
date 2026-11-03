@@ -35,6 +35,18 @@ public final class GrugServerRun {
 
     private GrugServerRun() {}
 
+    /**
+     * Sends the block changes the chunk maps have queued, which the server only does at the end of
+     * its own tick: a frozen tick never reaches it (#1040).
+     */
+    public static void flushBlockChanges() {
+        net.minecraft.server.MinecraftServer server =
+                net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get();
+        if (server != null) {
+            server.playerManager.tick();
+        }
+    }
+
     /** The dedicated server's only world, or null before the server exists. */
     public static World world() {
         net.minecraft.server.MinecraftServer server =
