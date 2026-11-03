@@ -420,8 +420,11 @@ The goal is that several mod authors write a new mod from scratch together on on
 server, never leaving it: they write the mod's server-side and client-side code, and its server-side
 and client-side tests, and run those tests on that server. So multiplayer testing is not only a CI
 job (#36): whatever carries a test between server and client (#1040) ships in the mod and works on
-a live server, behind an explicit opt-in by the server operator and the joined clients, not
-compiled out of release jars. The intended use is a button in a menu: a server operator clicks it
+a live server, not compiled out of release jars. Starting a run (the hotkey, later a menu button)
+is the operator's consent, so there is no prompt; a client obeys the server's screenshot, click and
+screen calls only while a run that this player started is active, so an ordinary server cannot
+drive a client that joined it. While a call waits for the client's answer the run may freeze the
+world for every player. The intended use is a button in a menu: a server operator clicks it
 to run one test of a mod, or all of a mod's tests, and the test room is built around that player's
 current position, as the T key already does in singleplayer. A fake player (a bot, or a joined test
 client) doing the graphics tests, so the operator's own camera is not taken over, is a long-term
