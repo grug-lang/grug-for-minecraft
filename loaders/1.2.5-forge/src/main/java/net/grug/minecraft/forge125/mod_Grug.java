@@ -1,13 +1,10 @@
 package net.grug.minecraft.forge125;
 
-import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.common.FMLCommonHandler;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.GrugBlocks;
-import net.grug.minecraft.forge125.block.GrugBoxRenderer;
-import net.grug.minecraft.forge125.client.GrugClientHooks;
-import net.grug.minecraft.forge125.client.GrugOverlayHost;
+import net.grug.minecraft.forge125.client.GrugClientSetup;
 import net.grug.minecraft.grug.FileInfo;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugEntities;
@@ -15,12 +12,7 @@ import net.grug.minecraft.grug.GrugFileIndex;
 import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.grug.GrugModsDirectory;
 import net.grug.minecraft.grug.GrugModsWatcher;
-import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
-import net.minecraft.src.Block;
-import net.minecraft.src.IBlockAccess;
-import net.minecraft.src.ModLoader;
-import net.minecraft.src.RenderBlocks;
 
 import java.io.File;
 import java.util.HashMap;
@@ -72,11 +64,6 @@ public class mod_Grug extends BaseMod {
     /** The mods directory {@link #load()} resolved, which recipe registration reads in return. */
     private static File activeGrugDir;
 
-    /** The running client, or null before it exists. */
-    public static Minecraft minecraft() {
-        return ModLoader.getMinecraftInstance();
-    }
-
     @Override
     public String getVersion() {
         return VERSION;
@@ -88,16 +75,20 @@ public class mod_Grug extends BaseMod {
 
         // ModLoader has no development environment: a dev run points GRUG_MODS_DIR at the
         // repository's mods instead, which runClient does.
-        File gameDir = ModLoader.getMinecraftInstance().mcDataDir;
+        File gameDir = FMLCommonHandler.instance().getMinecraftRootDirectory();
+        boolean client = FMLCommonHandler.instance().getSide().isClient();
         activeGrugDir = GrugModsDirectory.prepare(gameDir, false);
         File modApiJson = GrugModsDirectory.modApiJson(gameDir);
 
-        GrugCore.initialize(new Grug125Adapter(), modApiJson, activeGrugDir);
+        GrugCore.initialize(
+                client ? new Grug125ClientAdapter() : new Grug125ServerAdapter(),
+                modApiJson,
+                activeGrugDir);
 
-        // Register the custom render type for blocks that declare custom geometry. FML hands out
-        // ids starting at 30, outside RenderBlocks' own switch, so a block returning this reaches
-        // FML's renderWorldBlock hook rather than drawing its cube.
-        customRenderId = FMLClientHandler.instance().obtainBlockModelIdFor(this, false);
+        // A dedicated server has no renderer, so only the client registers the render type.
+        if (client) {
+            customRenderId = GrugClientSetup.registerRenderId();
+        }
 
         FileInfo[] files = Grug.compileAllFiles();
 
@@ -125,20 +116,11 @@ public class mod_Grug extends BaseMod {
             }
         }
 
-        // Only the client draws screens, and 1.2.5's tick handler is client-only. The overlay's
-        // entity is created on the first eligible screen, after every item is registered; see
-        // GrugOverlayHost.
-        GrugOverlayHost.init(overlayFiles, overlayMods);
-
         LOGGER.info("Compiled " + files.length + " grug files successfully.");
 
-        // One handler for both cadences: ModLoader's hooks can only subscribe to render ticks or to
-        // game ticks, never both, and the test runner needs the game tick that the other four
-        // loaders drive it from, while the title screen is a GUI with no world and so needs the
-        // render tick. Register it while the mods load: the first rendered frame is what moves
-        // registered handlers into the tick queue, so registering later would silently never tick.
-        // See #135.
-        FMLCommonHandler.instance().registerTickHandler(new GrugClientHooks());
+        if (client) {
+            GrugClientSetup.init(overlayFiles, overlayMods);
+        }
     }
 
     /**
@@ -165,37 +147,10 @@ public class mod_Grug extends BaseMod {
      * The FML render ID for blocks that declare custom geometry.
      *
      * <p>Read by {@code GrugBlock.getRenderType()} so a custom-rendered block reaches this mod's
-     * {@link #renderWorldBlock} hook instead of drawing its cube.
+     * {@code GrugClientMod.renderWorldBlock} hook instead of drawing its cube.
      */
     public static int getCustomRenderId() {
         return customRenderId;
-    }
-
-    /**
-     * Draws a custom-rendered block's geometry, called by FML when a block's render type is outside
-     * RenderBlocks' own switch.
-     *
-     * <p>This is the 1.2.5 equivalent of Alpha's BlockRendererMixin: the game's own tesselation
-     * does the drawing, so lighting, face culling and atlas coordinates come from the game rather
-     * than from a second rule kept in step with it. The block does not also draw its cube, because
-     * the default case in renderBlockByRenderType does not call renderStandardBlock.
-     *
-     * <p>The mining overlay goes through {@code RenderBlocks.renderBlockUsingTexture}, which sets
-     * {@code overrideBlockTexture} and then reaches this hook for a custom render type. The face
-     * methods GrugBoxRenderer draws through honour it, so a mined custom-rendered block shows the
-     * crack on its own boxes. See #201.
-     */
-    @Override
-    public boolean renderWorldBlock(
-            RenderBlocks renderer,
-            IBlockAccess world,
-            int x,
-            int y,
-            int z,
-            Block block,
-            int modelID) {
-        return GrugBoxRenderer.render(
-                renderer, world, block, x, y, z, renderer.overrideBlockTexture >= 0);
     }
 
     /**
@@ -203,6 +158,7 @@ public class mod_Grug extends BaseMod {
      * loaded alongside the mod it recreates; a dev run points at the repository's {@code mods/}.
      */
     public static File getActiveGrugModsDir() {
-        return GrugModsDirectory.resolve(ModLoader.getMinecraftInstance().mcDataDir, false);
+        return GrugModsDirectory.resolve(
+                FMLCommonHandler.instance().getMinecraftRootDirectory(), false);
     }
 }

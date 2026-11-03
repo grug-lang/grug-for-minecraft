@@ -636,3 +636,233 @@ tasks.register('runProduction', Exec) {
         commandLine launchCommand(configurations.gameLibs.files, gameDir, assets, false)
     }
 }
+
+// -- The dedicated server (#166) ------------------------------------------------------------------
+//
+// The pinned snapshot holds a compiled client but no server: it ships only server.srg, server.exc
+// and the Forge/FML server patches. Rather than decompile and recompile the whole server, the
+// vanilla server jar is taken as it is and brought to the same state the client is in, in four steps:
+//
+//   1. fetch Mojang's 1.2.5 server jar (pinned by SHA-1) and rename it to searge names with
+//      server.srg (serverSeargeJar);
+//   2. hook FML into it with tools/PatchServer.java, which inserts the calls FML's source patches
+//      add (patchServerJar), and compile FML's own server sources against it (compileFmlServer);
+//   3. rename the result back to notch names with the inverse of server.srg (serverRuntimeJar), which
+//      is the jar a player's server would run;
+//   4. rename the loader's classes, compiled once against the client's development names, to the
+//      server's notch names with a dev -> notch srg built from server.srg (serverReobfSrg,
+//      reobfServerJar), after FixInherited has read the server's hierarchy (serverDevClasses).
+//
+// Client and server notch names differ in 1.2.5, so the loader jar the server loads is a second
+// reobfuscation of the same classes, not the client's jar.
+
+def serverBuildDir = new File(buildDirFile, 'server')
+def serverVanillaJar = new File(serverBuildDir, 'minecraft_server.jar')
+def serverSeargeJar = new File(serverBuildDir, 'server-searge.jar')
+def serverPatchedJar = new File(serverBuildDir, 'server-searge-fml-hooked.jar')
+def fmlServerClasses = new File(serverBuildDir, 'fml-classes')
+def serverFmlSeargeJar = new File(serverBuildDir, 'server-fml-searge.jar')
+def serverRuntimeJar = new File(serverBuildDir, 'server-runtime.jar')
+def serverReobfSrgFile = new File(serverBuildDir, 'reobf-server.srg')
+def serverDevJar = new File(serverBuildDir, 'server-dev.jar')
+def serverDevClasses = new File(serverBuildDir, 'server-dev-classes')
+def serverFixedJar = new File(serverBuildDir, 'grug-1.2.5-forge-server-fixed.jar')
+def serverLoaderJar = new File(buildDirFile, 'grug-1.2.5-forge-server.jar')
+def patchServerToolClasses = new File(buildDirFile, 'tools/patch-server')
+def serverRunDir = new File(projectDirFile, 'run-server')
+def fmlServerSources = new File(mcpDir, 'forge/fml/src/minecraft_server')
+
+// Mojang's own download for 1.2.5, from the version's JSON (piston-meta.mojang.com/v1/packages/
+// 5158765caf1ca14958cb6c45d52c8e09ed9b046c/1.2.5.json).
+def SERVER_JAR_URL =
+    'https://launcher.mojang.com/v1/objects/d8321edc9470e56b8ad5c67bbd16beba25843336/server.jar'
+def SERVER_JAR_SHA1 = 'd8321edc9470e56b8ad5c67bbd16beba25843336'
+
+tasks.register('fetchServerJar') {
+    description = 'Downloads Mojang\'s 1.2.5 server jar and checks its SHA-1.'
+    outputs.file serverVanillaJar
+    doLast {
+        serverVanillaJar.parentFile.mkdirs()
+        def partial = new File(serverBuildDir, 'minecraft_server.jar.part')
+        new URL(SERVER_JAR_URL).withInputStream { input ->
+            partial.withOutputStream { out -> out << input }
+        }
+        def digest = java.security.MessageDigest.getInstance('SHA-1')
+        partial.eachByte(8192) { buffer, length -> digest.update(buffer, 0, length) }
+        def actual = digest.digest().encodeHex().toString()
+        if (actual != SERVER_JAR_SHA1) {
+            partial.delete()
+            throw new GradleException("The 1.2.5 server jar has SHA-1 ${actual}, not ${SERVER_JAR_SHA1}.")
+        }
+        partial.renameTo(serverVanillaJar)
+    }
+}
+
+// SpecialSource over a jar: notch -> searge by default, the other way with reverse.
+def specialSource = { File inJar, File outJar, File srg, boolean reverse ->
+    def command = ['java', '-jar', configurations.specialSourceTool.singleFile.absolutePath,
+        '--in-jar', inJar.absolutePath, '--out-jar', outJar.absolutePath, '--srg-in', srg.absolutePath]
+    if (reverse) command << '--reverse'
+    def process = new ProcessBuilder(command).redirectErrorStream(true).start()
+    def output = process.inputStream.getText('UTF-8')
+    if (process.waitFor() != 0) {
+        throw new GradleException("SpecialSource failed on ${inJar.name}:\n${output}")
+    }
+}
+
+tasks.register('serverSeargeJar') {
+    description = 'Renames the vanilla server jar to searge names with server.srg.'
+    dependsOn 'fetchMcpSnapshot', 'fetchServerJar'
+    inputs.file serverVanillaJar
+    inputs.file new File(mcpDir, 'conf/server.srg')
+    outputs.file serverSeargeJar
+    doLast {
+        specialSource(serverVanillaJar, serverSeargeJar, new File(mcpDir, 'conf/server.srg'), false)
+    }
+}
+
+tasks.register('compilePatchServerTool', JavaCompile) {
+    description = 'Compiles tools/PatchServer.java.'
+    source = fileTree(toolsDir) { include 'PatchServer.java' }
+    classpath = configurations.fogPatchTool
+    destinationDirectory.set(patchServerToolClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('patchServerJar', JavaExec) {
+    description = 'Inserts the FML hooks and the methods FML\'s patches add into the server jar.'
+    dependsOn 'serverSeargeJar', 'compilePatchServerTool'
+    inputs.file serverSeargeJar
+    outputs.file serverPatchedJar
+    classpath = files(patchServerToolClasses) + configurations.fogPatchTool
+    mainClass.set('PatchServer')
+    doFirst {
+        args = [serverSeargeJar.absolutePath, serverPatchedJar.absolutePath]
+    }
+}
+
+tasks.register('compileFmlServer', JavaCompile) {
+    description = 'Compiles FML\'s server sources against the hooked server jar.'
+    dependsOn 'patchServerJar'
+    source = fileTree(fmlServerSources) { include '**/*.java' }
+    classpath = files(serverPatchedJar)
+    destinationDirectory.set(fmlServerClasses)
+    options.release = 8
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-nowarn'
+}
+
+tasks.register('serverFmlSeargeJar', Jar) {
+    description = 'Packs the hooked server and FML into one searge-named jar.'
+    dependsOn 'compileFmlServer'
+    archiveFileName = serverFmlSeargeJar.name
+    destinationDirectory.set(serverBuildDir)
+    from({ zipTree(serverPatchedJar) }) { exclude 'META-INF/**' }
+    from fmlServerClasses
+    from(fmlServerSources) { include 'fmlversion.properties' }
+}
+
+tasks.register('serverRuntimeJar') {
+    description = 'Renames the server with FML back to notch names, the jar a server would run.'
+    dependsOn 'serverFmlSeargeJar'
+    inputs.file serverFmlSeargeJar
+    outputs.file serverRuntimeJar
+    doLast {
+        specialSource(serverFmlSeargeJar, serverRuntimeJar, new File(mcpDir, 'conf/server.srg'), true)
+    }
+}
+
+tasks.register('serverReobfSrg', Exec) {
+    description = 'Builds the dev -> server notch srg from the MCP server mapping.'
+    dependsOn 'fetchMcpSnapshot'
+    inputs.file new File(mcpDir, 'conf/server.srg')
+    inputs.file new File(mcpDir, 'conf/fields.csv')
+    inputs.file new File(mcpDir, 'conf/methods.csv')
+    inputs.file new File(toolsDir, 'invert_srg.py')
+    outputs.file serverReobfSrgFile
+    doFirst {
+        serverReobfSrgFile.parentFile.mkdirs()
+        commandLine pythonCommand, new File(toolsDir, 'invert_srg.py').absolutePath,
+            new File(mcpDir, 'conf/server.srg').absolutePath,
+            new File(mcpDir, 'conf/fields.csv').absolutePath,
+            new File(mcpDir, 'conf/methods.csv').absolutePath,
+            serverReobfSrgFile.absolutePath, 'server'
+    }
+}
+
+// The vanilla server in the development names the loader is compiled against, for FixInherited to
+// read the hierarchy from.
+tasks.register('serverDevJar') {
+    description = 'Renames the vanilla server jar to development names.'
+    dependsOn 'serverReobfSrg', 'fetchServerJar'
+    inputs.file serverVanillaJar
+    inputs.file serverReobfSrgFile
+    outputs.file serverDevJar
+    doLast {
+        specialSource(serverVanillaJar, serverDevJar, serverReobfSrgFile, true)
+    }
+}
+
+tasks.register('serverDevClasses', Sync) {
+    description = 'Unpacks the development-named server for FixInherited.'
+    dependsOn 'serverDevJar'
+    from { zipTree(serverDevJar) }
+    into serverDevClasses
+}
+
+tasks.register('fixInheritedServerJar', JavaExec) {
+    description = 'Rewrites inherited member references against the server\'s hierarchy.'
+    dependsOn tasks.named('jar'), 'compileFixInheritedTool', 'serverReobfSrg', 'serverDevClasses'
+    inputs.file devJar
+    inputs.file serverReobfSrgFile
+    outputs.file serverFixedJar
+    classpath = files(fixToolClasses) + configurations.fixInheritedTool
+    mainClass.set('FixInherited')
+    doFirst {
+        serverFixedJar.parentFile.mkdirs()
+        args = [devJar.absolutePath, serverDevClasses.absolutePath, serverReobfSrgFile.absolutePath,
+            serverFixedJar.absolutePath]
+    }
+}
+
+tasks.register('reobfServerJar') {
+    description = 'Reobfuscates the loader with the server\'s names.'
+    dependsOn 'fixInheritedServerJar'
+    inputs.file serverFixedJar
+    inputs.file serverReobfSrgFile
+    outputs.file serverLoaderJar
+    doLast {
+        specialSource(serverFixedJar, serverLoaderJar, serverReobfSrgFile, false)
+    }
+}
+
+tasks.register('runServer', Exec) {
+    description = 'Boots a Forge 1.2.5 dedicated server with the loader in its mods folder, on Java 8.'
+    dependsOn 'serverRuntimeJar', 'reobfServerJar'
+    workingDir = serverRunDir
+    environment 'GRUG_MODS_DIR', System.getenv('GRUG_MODS_DIR') ?: modsDir.absolutePath
+    doFirst {
+        def java8 = findJava8()
+        if (java8 == null) {
+            throw new GradleException(
+                'Java 8 is required to run 1.2.5. Install it or set GRUG_JAVA8 / -Pgrug.java8.')
+        }
+        // ModLoader loads mod_ classes from jars in mods/ and has no dependency mechanism, so the
+        // libraries the loader leans on are on the class path, as they are for the client.
+        def runModsDir = new File(serverRunDir, 'mods')
+        delete runModsDir
+        runModsDir.mkdirs()
+        copy {
+            from serverLoaderJar
+            into runModsDir
+        }
+        def classpath = []
+        classpath.addAll(configurations.runtimeLibs.files.collect { it.absolutePath })
+        classpath << serverRuntimeJar.absolutePath
+        commandLine([java8,
+            '-Djava.util.Arrays.useLegacyMergeSort=true',
+            '-cp', classpath.join(File.pathSeparator),
+            'net.minecraft.server.MinecraftServer', 'nogui'])
+    }
+}

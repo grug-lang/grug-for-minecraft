@@ -89,7 +89,7 @@ Use the following Gradle commands to build and run the specific mod loader envir
 | Minecraft Version | Mod Loader | Command |
 | :--- | :--- | :--- |
 | **1.20.6** | Forge | `./gradlew :loaders:1.20.6-forge:runClient` |
-| **1.2.5** | Forge | `./gradlew :loaders:1.2.5-forge:runClient` |
+| **1.2.5** | Forge | yes, Minecraft 1.2.5 shipped one | boots, with the `1.2.5-forge` entry of the dispatch-only `multiplayer` job: the loader builds the server from Mojang's 1.2.5 server jar and Forge's server hooks, grug loads in it and a client joins it ([#166](https://github.com/grug-lang/grug-for-minecraft/issues/166)). The tests do not run there yet | no |
 | **Beta 1.7.3** | Ornithe | `./gradlew :loaders:b1.7.3-ornithe:runClient` |
 | **Beta 1.7.3** | StationAPI | `./gradlew :loaders:b1.7.3-stationapi:runClient` |
 | **Alpha 1.1.2_01** | Ornithe | `./gradlew :loaders:a1.1.2_01-ornithe:runClient` |

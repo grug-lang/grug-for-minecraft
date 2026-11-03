@@ -1,8 +1,10 @@
 package net.grug.minecraft.forge125.block;
 
+import cpw.mods.fml.common.FMLCommonHandler;
+
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
-import net.grug.minecraft.forge125.client.GrugFrameRenderer;
+import net.grug.minecraft.forge125.client.GrugClientSetup;
 import net.grug.minecraft.forge125.item.GrugItem;
 import net.grug.minecraft.forge125.mod_Grug;
 import net.grug.minecraft.grug.Grug;
@@ -90,8 +92,12 @@ public final class GrugBlocks {
         registered = true;
 
         mod_Grug.LOGGER.info("Registering dynamic grug blocks and items in Forge 1.2.5...");
-        ModLoader.registerTileEntity(
-                GrugBlockEntity.class, "GrugBlockEntity", new GrugFrameRenderer());
+        // The renderer overload takes a client type, which a dedicated server does not have.
+        if (FMLCommonHandler.instance().getSide().isClient()) {
+            GrugClientSetup.registerBlockEntity();
+        } else {
+            ModLoader.registerTileEntity(GrugBlockEntity.class, "GrugBlockEntity");
+        }
 
         registerBlocks();
         registerItems();

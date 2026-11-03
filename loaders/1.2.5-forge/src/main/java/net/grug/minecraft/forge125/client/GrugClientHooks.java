@@ -3,6 +3,7 @@ package net.grug.minecraft.forge125.client;
 import cpw.mods.fml.common.ITickHandler;
 import cpw.mods.fml.common.TickType;
 
+import net.grug.minecraft.core.GrugConnectAddress;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugRunWindow;
@@ -20,6 +21,7 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GrugTitleButton;
 import net.minecraft.src.GrugTorchFlicker;
+import net.minecraft.src.GuiConnecting;
 import net.minecraft.src.GuiIngameMenu;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
@@ -450,6 +452,20 @@ public class GrugClientHooks implements ITickHandler {
             }
         }
 
+        // A multiplayer CI client joins the dedicated server the title screen is waiting to be
+        // told about, the way the other loaders' quick play does (#167). It sets GRUG_CI_CONNECT
+        // and not GRUG_CI, so the branch below never loads a world of its own.
+        String connect = System.getenv("GRUG_CI_CONNECT");
+        if (connect != null
+                && !connect.isEmpty()
+                && !worldRequested
+                && minecraft.currentScreen instanceof GuiMainMenu) {
+            worldRequested = true;
+            GrugConnectAddress address = GrugConnectAddress.parse(connect);
+            minecraft.displayGuiScreen(
+                    new GuiConnecting(minecraft, address.host(), address.port()));
+        }
+
         // The title screen is a GUI and has no world yet, so the game tick never fires there; this
         // is what notices the title screen and kicks off the CI world load.
         if ("true".equals(System.getenv("GRUG_CI"))
@@ -512,13 +528,16 @@ public class GrugClientHooks implements ITickHandler {
         try {
             Display.setDisplayMode(mode);
 
-            if (mod_Grug.minecraft() != null && mod_Grug.minecraft().mcCanvas != null) {
-                mod_Grug.minecraft()
+            if (ModLoader.getMinecraftInstance() != null
+                    && ModLoader.getMinecraftInstance().mcCanvas != null) {
+                ModLoader.getMinecraftInstance()
                         .mcCanvas
                         .setPreferredSize(new Dimension(mode.getWidth(), mode.getHeight()));
-                mod_Grug.minecraft().mcCanvas.setSize(mode.getWidth(), mode.getHeight());
+                ModLoader.getMinecraftInstance()
+                        .mcCanvas
+                        .setSize(mode.getWidth(), mode.getHeight());
 
-                Window window = enclosingWindow(mod_Grug.minecraft().mcCanvas);
+                Window window = enclosingWindow(ModLoader.getMinecraftInstance().mcCanvas);
                 if (window != null) {
                     Insets insets = window.getInsets();
                     window.setSize(

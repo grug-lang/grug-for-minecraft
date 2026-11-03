@@ -25,7 +25,10 @@
 # the way a development client runs: its own Gradle build's runServer, in run-server, after core has
 # been published into build/maven for it to resolve.
 #
-# Needs a display for the client, so run it under xvfb-run. 1.20.6-forge, a1.1.2_01-ornithe,
+# GRUG_MULTIPLAYER_BOOT_ONLY=1 stops at grug loaded and the client joined, for a server that
+# does not drive the tests yet (1.2.5-forge, #166).
+#
+# Needs a display for the client, so run it under xvfb-run. 1.2.5-forge, 1.20.6-forge, a1.1.2_01-ornithe,
 # b1.7.3-ornithe and b1.7.3-stationapi have a server run so far.
 
 set -uo pipefail
@@ -273,6 +276,14 @@ while :; do
     echo "==> A test failed on the dedicated server." >&2
     grep -m1 -B 5 -A 10 -F '[GRUG CI] FAIL' "$SERVER_LOG" >&2
     exit 1
+  fi
+  # A loader whose server does not drive the tests yet (1.2.5-forge, #166) is done once grug has
+  # loaded in the server and the client has joined it.
+  if [ -n "${GRUG_MULTIPLAYER_BOOT_ONLY:-}" ] \
+    && grep -qF 'Successfully loaded grug' "$SERVER_LOG" \
+    && grep -qE 'logged in with entity id' "$SERVER_LOG"; then
+    echo "==> grug loaded in the dedicated server and the client joined it."
+    exit 0
   fi
   if line=$(grep -m1 -E "$SUCCESS_RE" "$SERVER_LOG"); then
     grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"

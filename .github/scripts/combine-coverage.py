@@ -164,6 +164,10 @@ EXCLUDED_CLASSES = {
     # its block-entity NBT accessor and the name table its tests reach are measured like every other
     # loader's, now that the loader contributes exec data (#580).
     "mod_Grug",
+    # The client halves split out of mod_Grug for the dedicated server (#166): the render hook FML
+    # calls and the registrations only a client makes. Same reason as mod_Grug.
+    "GrugClientMod",
+    "GrugClientSetup",
     # The reflection helper behind the overlay's screen geometry: the second field name, and the
     # catches around both lookups, are paths only a development run or a broken build takes, so the
     # class is excluded like the overlay's own screen glue rather than annotated line by line.
