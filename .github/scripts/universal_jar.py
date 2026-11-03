@@ -918,10 +918,16 @@ OSL = {
     "osl-resource-loader": "0.7.4",
 }
 ORNITHE = {"fabricloader": "0.19.5", **OSL}
-# An Ornithe dedicated server has no client, and so none of the OSL modules that are client-only.
+# An Ornithe dedicated server has no client, and so none of the OSL modules that are client-only
 ORNITHE_SERVER = {
     "fabricloader": "0.19.5",
     **{k: v for k, v in OSL.items() if k not in ("osl-keybinds", "osl-resource-loader")},
+}
+# Beta's server keeps osl-resource-loader, whose 1.2.5 build runs on both sides, and loses only the
+# keybinds (#163).
+ORNITHE_BETA_SERVER = {
+    "fabricloader": "0.19.5",
+    **{k: v for k, v in OSL.items() if k != "osl-keybinds"},
 }
 BABRIC = {"fabricloader": "0.17.3"}
 STATIONAPI = {**BABRIC, "stationapi": "2.0.0-alpha.6.2"}
@@ -940,6 +946,14 @@ GAMES = [
         "a1.1.2_01-ornithe",
     ),
     Game("Ornithe b1.7.3 with OSL", "fabric", "1.0.0-beta.7.3", ORNITHE, "b1.7.3-ornithe"),
+    # Beta's dedicated server is the client's version, with the OSL modules a server has (#163).
+    Game(
+        "Ornithe b1.7.3 server with OSL",
+        "fabric",
+        "1.0.0-beta.7.3",
+        ORNITHE_BETA_SERVER,
+        "b1.7.3-ornithe",
+    ),
     Game(
         "Babric b1.7.3 with StationAPI", "fabric", "1.0.0-beta.7.3", STATIONAPI, "b1.7.3-stationapi"
     ),

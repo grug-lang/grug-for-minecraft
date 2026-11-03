@@ -906,10 +906,10 @@ jobs:
   # The suite on a dedicated server with a real client connected to it (#167, umbrella #36): the
   # loader's runServer drives the tests from the server's tick and a runClient joins it through quick
   # play, so a regression in the client and server split fails the build. Stage one of #167: it runs
-  # on a dispatch only and on the two loaders that have a dedicated server (1.20.6-forge, and
-  # a1.1.2_01-ornithe on Ornithe's Alpha server a0.2.1, #1021), with the tests that define
-  # tick_any_side (#168); it joins
-  # the pull request and push gating once it has been stable. It is one job of about 4 to 5 minutes,
+  # on a dispatch only and on the three loaders that have a dedicated server (1.20.6-forge,
+  # a1.1.2_01-ornithe on Ornithe's Alpha server a0.2.1, #1021, and b1.7.3-ornithe, #163), with the
+  # tests that define tick_any_side (#168); it joins the pull request and push gating once it has
+  # been stable. It is one job of about 4 to 5 minutes,
   # and a dispatch runs 15 to 20 jobs, so it fits the 20 slots the plan allows. save is off so it never writes the loader's caches beside the
   # build job, whose entries it shares.
   multiplayer:
@@ -921,7 +921,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        loader: [1.20.6-forge, a1.1.2_01-ornithe]
+        loader: [1.20.6-forge, a1.1.2_01-ornithe, b1.7.3-ornithe]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

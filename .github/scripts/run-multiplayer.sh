@@ -17,12 +17,12 @@
 #
 # A loader whose directory holds server-version.txt has no runServer: its dedicated server is a
 # game of its own that Ornithe's native installer sets up (a1.1.2_01-ornithe, whose Alpha server
-# a0.2.1 is numbered apart from the 1.1.2_01 client, #1021). The script then builds core's release
+# a0.2.1 is numbered apart from the 1.1.2_01 client, #1021, and b1.7.3-ornithe, #163). The script then builds core's release
 # jar and the loader's layer, assembles them into the universal jar a player would drop in, installs
 # the server beside it with OSL, and starts it from the jar; the client still comes from runClient.
 #
-# Needs a display for the client, so run it under xvfb-run. 1.20.6-forge and a1.1.2_01-ornithe have
-# a server run so far.
+# Needs a display for the client, so run it under xvfb-run. 1.20.6-forge, a1.1.2_01-ornithe and
+# b1.7.3-ornithe have a server run so far.
 
 set -uo pipefail
 
@@ -99,6 +99,11 @@ simulation-distance=4
 max-tick-time=-1
 spawn-protection=0
 PROPS
+if [ -n "$SERVER_VERSION" ]; then
+  # An old server spawns monsters and animals around the player by itself, and a mob in the test
+  # room or a hit on the test player would fail a test for a reason the test is not about.
+  printf 'spawn-monsters=false\nspawn-animals=false\n' >> "${SERVER_DIR}/server.properties"
+fi
 
 # Forge's cosmetic early window can only hurt a headless run (see run-loader.sh).
 if [ -z "$SERVER_VERSION" ]; then
