@@ -21,12 +21,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(BlockWithEntity.class)
 public abstract class BlockWithEntityMixin {
+    /**
+     * Whether this thread is inside {@link #grug$initOnPlaced}. A joined client builds a block
+     * entity the server never sent when something asks the chunk for it, by calling {@code
+     * onPlaced}, and a chunk that has not finished arriving does not keep what that makes, so the
+     * lookup below asked the chunk again and recursed until the stack ended (#1040). The lookup
+     * inside the hook is the only one that needs to be skipped.
+     */
+    private static final ThreadLocal<Boolean> grug$initializing = new ThreadLocal<>();
 
     @Inject(method = "onPlaced", at = @At("RETURN"))
     private void grug$initOnPlaced(World world, int x, int y, int z, CallbackInfo ci) {
-        BlockEntity blockEntity = world.getBlockEntity(x, y, z);
-        if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
-            grugBlockEntity.onRegistered();
+        if (grug$initializing.get() != null) {
+            return;
+        }
+        grug$initializing.set(Boolean.TRUE);
+        try {
+            BlockEntity blockEntity = world.getBlockEntity(x, y, z);
+            if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
+                grugBlockEntity.onRegistered();
+            }
+        } finally {
+            grug$initializing.remove();
         }
     }
 }

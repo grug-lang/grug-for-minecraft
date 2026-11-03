@@ -6,12 +6,14 @@ import cpw.mods.fml.server.FMLServerHandler;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.forge125.control.GrugControlFind;
 import net.grug.minecraft.forge125.control.GrugControlPacket;
 import net.grug.minecraft.forge125.control.GrugControlServer125;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.src.EntityPlayerMP;
+import net.minecraft.src.PlayerManager;
 import net.minecraft.src.World;
 
 import java.util.EnumSet;
@@ -70,7 +72,17 @@ public final class GrugServerRun implements ITickHandler {
     public static void flushBlockChanges() {
         MinecraftServer server = server();
         if (server != null && server.configManager != null) {
-            server.configManager.getPlayerManager(0).updatePlayerInstances();
+            // The manager is private and its accessor too, so it is found by type.
+            PlayerManager[] managers =
+                    GrugControlFind.byType(server.configManager, PlayerManager[].class);
+            if (managers == null) {
+                throw new IllegalStateException("the server has no player managers to flush");
+            }
+            for (PlayerManager manager : managers) {
+                if (manager != null) {
+                    manager.updatePlayerInstances();
+                }
+            }
         }
     }
 
