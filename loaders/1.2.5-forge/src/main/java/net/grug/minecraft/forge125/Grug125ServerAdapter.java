@@ -64,7 +64,8 @@ public class Grug125ServerAdapter extends Grug125Adapter {
 
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
-        throw new IllegalStateException("A dedicated server has no screen to capture.");
+        refuseWithoutAClient("Screenshot.equals");
+        return null;
     }
 
     @Override

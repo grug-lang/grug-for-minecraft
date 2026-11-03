@@ -277,14 +277,6 @@ while :; do
     grep -m1 -B 5 -A 10 -F '[GRUG CI] FAIL' "$SERVER_LOG" >&2
     exit 1
   fi
-  # A loader whose server does not drive the tests yet (1.2.5-forge, #166) is done once grug has
-  # loaded in the server and the client has joined it.
-  if [ -n "${GRUG_MULTIPLAYER_BOOT_ONLY:-}" ] \
-    && grep -qF 'Successfully loaded grug' "$SERVER_LOG" \
-    && grep -qE 'logged in with entity id' "$SERVER_LOG"; then
-    echo "==> grug loaded in the dedicated server and the client joined it."
-    exit 0
-  fi
   if line=$(grep -m1 -E "$SUCCESS_RE" "$SERVER_LOG"); then
     grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
     echo "==> ${line}, run on the dedicated server with a client connected."
@@ -297,6 +289,14 @@ while :; do
   if line=$(grep -m1 -E "$crash_re" "$CLIENT_LOG"); then
     echo "==> The client crashed: ${line}" >&2
     exit 1
+  fi
+  # A loader whose server does not drive the tests yet (1.2.5-forge, #166) is done once grug has
+  # compiled its files in the server and the client has joined it.
+  if [ -n "${GRUG_MULTIPLAYER_BOOT_ONLY:-}" ] \
+    && grep -qE 'Compiled [0-9]+ grug files successfully' "$SERVER_LOG" \
+    && grep -qE 'logged in with entity id' "$SERVER_LOG"; then
+    echo "==> grug loaded in the dedicated server and the client joined it."
+    exit 0
   fi
   if ! kill -0 "$server_pid" 2>/dev/null; then
     echo "==> The dedicated server exited without an ALL n TESTS PASSED line." >&2
