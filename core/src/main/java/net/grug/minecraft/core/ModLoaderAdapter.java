@@ -87,6 +87,17 @@ public interface ModLoaderAdapter {
         return java.util.Collections.emptySet();
     }
 
+    /**
+     * Whether this loader's dedicated server forwards a test's client-only calls (so far {@code
+     * Screenshot.capture}) to the joined client of the player who started the run, over the
+     * test-control channel (#1040, option A). The server then runs the {@code forwarded_} tests,
+     * plain {@code tick} tests that mix world changes with those calls. False unless the loader has
+     * the channel.
+     */
+    default boolean forwardsClientCalls() {
+        return false;
+    }
+
     void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj);
 
     // --- Logging Abstraction --- TODO: Give this section a better title

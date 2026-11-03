@@ -69,6 +69,12 @@ crash_re='Uncaught exception in thread "Server thread"|Exception in thread "main
 export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -Djava.util.Arrays.useLegacyMergeSort=true"
 export RUST_BACKTRACE="${RUST_BACKTRACE:-full}"
 
+# The test-control channel's fault injection (#1040): the server waits 5 s for an answer, and the
+# joined client never answers a capture 7 pixels wide, and answers one 9 pixels wide 6.5 s late.
+# mods/coverage's forwarded_ tests expect exactly those errors, so a run that passes proves the
+# timeout, and that a late answer is dropped.
+export GRUG_CI_CONTROL_TIMEOUT_MILLIS=5000
+
 gradle_args=(-Dgrug.activeLoader="$LOADER" --stacktrace --no-daemon)
 if [ -n "${GRUG_PREBUILT_GRUG_RS:-}" ]; then
   gradle_args+=(-Pgrug.prebuiltGrugRs="$GRUG_PREBUILT_GRUG_RS")
@@ -264,7 +270,7 @@ if [ -f "${LOADER_DIR}/root.gradle" ]; then
   client_task=runClient
   client_dir="${REPO_ROOT}/${LOADER_DIR}"
 fi
-(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
+(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH=7 GRUG_CI_CONTROL_LATE_WIDTH=9 GRUG_CI_CONTROL_LATE_MILLIS=6500 GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
 client_pid=$!
 tail -n +1 -F "$CLIENT_LOG" 2>/dev/null | sed -u 's/^/[client] /' &
 client_tail_pid=$!
@@ -279,6 +285,16 @@ while :; do
   fi
   if line=$(grep -m1 -E "$SUCCESS_RE" "$SERVER_LOG"); then
     grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
+    # The forwarded_ tests are skipped, not failed, by a server that does not forward, so a loader
+    # that has the channel (#1040) must show that they ran.
+    if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ]; then
+      for forwarded in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then; do
+        if ! grep -qF "[GRUG CI] PASS coverage/tests/${forwarded}-Test.grug" "$SERVER_LOG"; then
+          echo "==> The run passed, but coverage/tests/${forwarded}-Test.grug did not run on the dedicated server." >&2
+          exit 1
+        fi
+      done
+    fi
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
   fi

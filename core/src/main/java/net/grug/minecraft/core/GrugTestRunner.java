@@ -247,6 +247,21 @@ public class GrugTestRunner {
      */
     private final Set<String> unsupportedOnServer;
 
+    /**
+     * Whether this loader's dedicated server forwards a test's client-only calls to the joined
+     * client of the player who started the run (#1040): the condition under which it runs the
+     * {@code forwarded_} tests. See {@link #runsForwardedTests}.
+     */
+    private final boolean forwardsClientCalls;
+
+    /**
+     * The tests skipped because they are {@code forwarded_} and this run is not one that forwards.
+     */
+    private final Set<String> skippedForwarded = new LinkedHashSet<>();
+
+    /** The file name prefix of a test that only a run that forwards client calls can run. */
+    static final String FORWARDED_PREFIX = "forwarded_";
+
     /** The tests a dedicated server skipped, so a repeat neither probes nor counts them again. */
     private final Set<String> skippedForSide = new LinkedHashSet<>();
 
@@ -438,7 +453,8 @@ public class GrugTestRunner {
                 carryOverCoverageTestsFromEnv(),
                 testsFromEnv(),
                 GrugCore.getAdapter().getSide().isDedicatedServer(),
-                GrugCore.getAdapter().serverUnsupportedTests());
+                GrugCore.getAdapter().serverUnsupportedTests(),
+                GrugCore.getAdapter().forwardsClientCalls());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -638,8 +654,46 @@ public class GrugTestRunner {
             Set<String> selectedTests,
             boolean dedicatedServer,
             Set<String> unsupportedOnServer) {
+        this(
+                fileIds,
+                referenceErrors,
+                ops,
+                clock,
+                boxBuilder,
+                repeats,
+                coverage,
+                selectedMods,
+                maxGameSpeed,
+                carryOverCoverageTests,
+                selectedTests,
+                dedicatedServer,
+                unsupportedOnServer,
+                false);
+    }
+
+    /**
+     * Visible for tests: the same, saying whether a dedicated server forwards client-only calls to
+     * the joined client of the player who started the run, which is what the {@code forwarded_}
+     * tests need (#1040).
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock,
+            TestBoxBuilder boxBuilder,
+            int repeats,
+            CoverageRecorder coverage,
+            Set<String> selectedMods,
+            int maxGameSpeed,
+            Set<String> carryOverCoverageTests,
+            Set<String> selectedTests,
+            boolean dedicatedServer,
+            Set<String> unsupportedOnServer,
+            boolean forwardsClientCalls) {
         this.dedicatedServer = dedicatedServer;
         this.unsupportedOnServer = unsupportedOnServer;
+        this.forwardsClientCalls = forwardsClientCalls;
         this.maxGameSpeed = maxGameSpeed;
         this.ops = ops;
         this.coverage = coverage;
@@ -1071,10 +1125,18 @@ public class GrugTestRunner {
                 printTestTimes();
                 writeTestTimesRecord(Collections.emptySet());
                 coverage.runPassed();
-                if (!skippedForSide.isEmpty()) {
+                if (!skippedForwarded.isEmpty()) {
                     System.out.println(
                             "[GRUG CI] Skipped "
-                                    + skippedForSide.size()
+                                    + skippedForwarded.size()
+                                    + " forwarded_ test(s): they run only on a dedicated server"
+                                    + " that forwards client calls to the player who started the"
+                                    + " run.");
+                }
+                if (skippedForSide.size() > skippedForwarded.size()) {
+                    System.out.println(
+                            "[GRUG CI] Skipped "
+                                    + (skippedForSide.size() - skippedForwarded.size())
                                     + " test(s) that a dedicated server cannot run: they do not"
                                     + " define tick_any_side, or the loader lists them as"
                                     + " unsupported.");
@@ -1622,6 +1684,21 @@ public class GrugTestRunner {
         return dedicatedServer && !definesAnySideTick;
     }
 
+    /** Whether a test is a {@code forwarded_} one, by its file name. */
+    static boolean isForwarded(String path) {
+        return path.substring(path.lastIndexOf('/') + 1).startsWith(FORWARDED_PREFIX);
+    }
+
+    /**
+     * Whether a {@code forwarded_} test runs: only on a dedicated server whose loader forwards a
+     * client-only call to the joined client of the player who started the run. Anywhere else it is
+     * skipped, because its calls have no client to go to, or (in a client's own run) because its
+     * fault-injection tests would fail without the fault.
+     */
+    static boolean runsForwardedTests(boolean dedicatedServer, boolean forwardsClientCalls) {
+        return dedicatedServer && forwardsClientCalls;
+    }
+
     /**
      * Reads a loader's list of tests its server cannot run: one path per line, blank lines and
      * lines that start with {@code #} ignored, so the file can say why.
@@ -1658,6 +1735,18 @@ public class GrugTestRunner {
             skipForSide(path);
             skippedThisTick = true;
             return false;
+        }
+        if (isForwarded(path)) {
+            if (!runsForwardedTests(dedicatedServer, forwardsClientCalls)) {
+                skippedForwarded.add(path);
+                skipForSide(path);
+                skippedThisTick = true;
+                return false;
+            }
+            // A plain tick that runs on the server: its client-only calls go to the player's
+            // client.
+            currentTickFnId = tickFnId;
+            return ops.callExportFn(currentEntityHandle, tickFnId);
         }
         int errorsBefore = GrugTestState.runtimeErrorCount;
         boolean completed = ops.callExportFn(currentEntityHandle, anySideTickFnId);

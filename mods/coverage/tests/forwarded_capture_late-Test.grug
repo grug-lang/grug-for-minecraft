@@ -1,0 +1,10 @@
+# A forwarded capture the client answers only after the server gave up (the run delays the answer
+# to a request whose rectangle is 9 wide, GRUG_CI_CONTROL_LATE_WIDTH) is a timeout like a dropped
+# one. The late answer then arrives for a request that is no longer waiting, which the next test
+# proves harmless.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.expect_error("did not answer request")
+        Test.screenshot().capture(10, 10, 19, 19)
+    }
+}

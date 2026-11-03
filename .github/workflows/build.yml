@@ -972,6 +972,12 @@ jobs:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '300'
 
+      # What the test-control channel did (#1040), from both ends, so a reader of the job log sees the
+      # round trips and the injected faults without opening the artifact.
+      - name: The test-control channel's log lines
+        if: (matrix.loader == '1.20.6-forge' || matrix.loader == 'a1.1.2_01-ornithe') && !cancelled()
+        run: grep -F '[GRUG CONTROL]' loaders/${{ matrix.loader }}/run-server-ci.log loaders/${{ matrix.loader }}/run-client-ci.log || true
+
       - name: Upload logs and crash reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

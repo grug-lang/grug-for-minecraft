@@ -1,0 +1,10 @@
+# A forwarded capture the client never answers (the run drops a request whose rectangle is 7 wide,
+# GRUG_CI_CONTROL_DROP_WIDTH) must time out and fail with an error that names the wait, rather than
+# hang the server or pass. The expected error is the proof: a run that returned an image here
+# would not raise it, and the test would fail.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.expect_error("did not answer request")
+        Test.screenshot().capture(10, 10, 17, 17)
+    }
+}
