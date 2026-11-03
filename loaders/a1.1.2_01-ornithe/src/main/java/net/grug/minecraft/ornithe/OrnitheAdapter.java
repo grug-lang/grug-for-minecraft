@@ -1430,20 +1430,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        if (!rectangleIsValid("Screenshot.capture", x1, y1, x2, y2)) return null;
         if (refuseWithoutAClient("Screenshot.capture")) return null;
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
     }
 
     /**
-     * Checks the rectangle and reads it, reporting {@code operation} as the thing that wanted it.
-     *
-     * <p>Both screenshot entry points share this so a bad coordinate is reported the same way
-     * either way; only the name in front of the message differs, so a test reading the log can tell
-     * which call it was.
+     * Reports a rectangle that is out of range or empty and answers false, or answers true. Runs
+     * before anything that needs a client, so a dedicated server reports a typo'd coordinate as the
+     * typo it is, as the other adapters do, rather than as a refusal.
      */
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    private BufferedImage captureChecked(
-            String operation, double x1, double y1, double x2, double y2) {
+    private boolean rectangleIsValid(String operation, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure. (1300 instead of 130 is an easy mistake to
         // make while writing a new test, and is the whole reason this lists the offending name.)
@@ -1453,7 +1451,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
         if (bad != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, operation + ": " + bad);
-            return null;
+            return false;
         }
         // The truncated values rather than the doubles, because they are what the width below is
         // computed from and what the message prints. Comparing the doubles let a rectangle through
@@ -1476,6 +1474,22 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                             + ","
                             + top
                             + ")");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Checks the rectangle and reads it, reporting {@code operation} as the thing that wanted it.
+     *
+     * <p>Both screenshot entry points share this so a bad coordinate is reported the same way
+     * either way; only the name in front of the message differs, so a test reading the log can tell
+     * which call it was.
+     */
+    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
+    private BufferedImage captureChecked(
+            String operation, double x1, double y1, double x2, double y2) {
+        if (!rectangleIsValid(operation, x1, y1, x2, y2)) {
             return null;
         }
 
