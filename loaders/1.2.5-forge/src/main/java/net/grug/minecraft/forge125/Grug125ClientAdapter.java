@@ -782,8 +782,10 @@ public class Grug125ClientAdapter extends Grug125Adapter {
                             + p.rotationYaw
                             + " pitch "
                             + p.rotationPitch
-                            + ", screen open "
-                            + (mc.currentScreen != null)
+                            + ", screen "
+                            + (mc.currentScreen == null
+                                    ? "none"
+                                    : mc.currentScreen.getClass().getName())
                             + ", look ray hits "
                             + hit
                             + ", non-air block ids within 6 of the player (id=count) "
