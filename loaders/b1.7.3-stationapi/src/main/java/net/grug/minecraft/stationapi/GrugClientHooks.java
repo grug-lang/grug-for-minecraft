@@ -271,14 +271,20 @@ public class GrugClientHooks {
      * half a second into every run and pause the world behind it. See #195.
      */
     public boolean isTestRunActive() {
-        return testRunner != null;
+        return testRunner != null || controlRunStarted;
     }
+
+    /**
+     * Set once this client started a run on a server (#1040), which owns the client as a run does.
+     */
+    private boolean controlRunStarted;
 
     /**
      * What a run's start does to the window, for a joined client that starts its own run on a
      * server (#1040): the screenshot size. The view is left alone, as on the Ornithe loaders.
      */
     public void beginControlRun() {
+        controlRunStarted = true;
         window.beginRun();
     }
 
