@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
@@ -74,6 +75,12 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        // Arguments first, as on a client, then forward: a bad rectangle never reaches the client.
+        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
+        if (bad != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + bad);
+            return null;
+        }
         try {
             return GrugControlForge.server().capture((int) x1, (int) y1, (int) x2, (int) y2);
         } catch (GrugControlServer.ControlException e) {

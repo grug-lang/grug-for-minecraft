@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.forge.mixin.ChunkMapAccessor;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
@@ -32,6 +33,9 @@ import java.util.UUID;
  * <p>This class names no client class: a dedicated server refuses to load one. The client half is
  * {@link GrugControlClientForge}, reached only from the client branch of {@link #handle}.
  */
+@GrugGenerated(
+        "the Forge channel glue of #1040: the multiplayer job runs it, and the coverage gate does"
+                + " not count that job; every decision in it lives in core's GrugControlServer")
 public final class GrugControlForge {
     /**
      * How long the server's freeze waits for the client's answer. Under the 30 s a connection may

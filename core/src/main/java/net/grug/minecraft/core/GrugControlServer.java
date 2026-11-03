@@ -238,6 +238,15 @@ public final class GrugControlServer {
                 throw new ControlException(
                         "The client's answer to request " + id + " is not a PNG.");
             }
+            System.out.println(
+                    "[GRUG CONTROL] request "
+                            + id
+                            + " answered: a "
+                            + image.getWidth()
+                            + "x"
+                            + image.getHeight()
+                            + " image, mean colour "
+                            + meanColour(image));
             return image;
         } finally {
             pending.remove(id);
@@ -251,5 +260,22 @@ public final class GrugControlServer {
                             + (millis / 50)
                             + " ticks and is running again");
         }
+    }
+
+    /** The average of the pixels as {@code #rrggbb}, so a log shows what the answer looked like. */
+    static String meanColour(BufferedImage image) {
+        long red = 0;
+        long green = 0;
+        long blue = 0;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int rgb = image.getRGB(x, y);
+                red += (rgb >> 16) & 0xFF;
+                green += (rgb >> 8) & 0xFF;
+                blue += rgb & 0xFF;
+            }
+        }
+        long count = (long) image.getWidth() * image.getHeight();
+        return String.format("#%02x%02x%02x", red / count, green / count, blue / count);
     }
 }

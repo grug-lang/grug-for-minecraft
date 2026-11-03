@@ -1945,37 +1945,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
             String operation, double x1, double y1, double x2, double y2, boolean waitForSettled) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure.
-        String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
-        if (bad == null) bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
-        if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
-        if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
+        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
         if (bad != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, operation + ": " + bad);
             return null;
         }
-        // The truncated values rather than the doubles, because they are what the width below is
-        // computed from and what the message prints. Comparing the doubles let a rectangle through
-        // that truncates to nothing, such as (590, 310, 590.5, 410), and the width then threw from
-        // inside a zero-width image rather than being reported as the typo it was.
         int left = (int) x1;
         int top = (int) y1;
         int right = (int) x2;
         int bottom = (int) y2;
-        if (right <= left || bottom <= top) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    operation
-                            + ": the rectangle is empty, since ("
-                            + right
-                            + ","
-                            + bottom
-                            + ") is not below and right of ("
-                            + left
-                            + ","
-                            + top
-                            + ")");
-            return null;
-        }
 
         // A defensive safety net rather than the primary sizing mechanism: R forces 1280x720 around
         // a test run. If that ever stops happening, a mismatch here is much easier to diagnose than
@@ -2109,24 +2087,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 blocks);
     }
 
-    /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    private static String checkCoordinate(String name, double value, int limit) {
-        if (value < 0 || value > limit) {
-            return name
-                    + " is "
-                    + (int) value
-                    + ", which is outside the "
-                    + GrugScreenshots.WIDTH
-                    + "x"
-                    + GrugScreenshots.HEIGHT
-                    + " frame (0 to "
-                    + limit
-                    + ")";
-        }
-        return null;
-    }
-
     private static BufferedImage captureOnClientThread(int x1, int y1, int x2, int y2) {
         final BufferedImage[] result = new BufferedImage[1];
         onClientThread(() -> result[0] = capture(x1, y1, x2, y2));
@@ -2138,6 +2098,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * the main render target's colour texture (the same path vanilla screenshots use), which is
      * Y-flipped so the image's origin is the top left, matching the crop convention.
      */
+    @GrugGenerated(
+            "a joined client's forwarded capture, which only the multiplayer job runs (#1040)")
     static BufferedImage captureRectangle(int x1, int y1, int x2, int y2) {
         return capture(x1, y1, x2, y2);
     }
@@ -2149,6 +2111,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * because it tracks edits made on a client's own side of an integrated server, and a joined
      * client makes none.
      */
+    @GrugGenerated(
+            "a joined client's forwarded capture, which only the multiplayer job runs (#1040)")
     static boolean clientIdleForControl(Minecraft minecraft) {
         return !GrugModLoader.isReloading()
                 && GrugRenderSettle.clientSettled(

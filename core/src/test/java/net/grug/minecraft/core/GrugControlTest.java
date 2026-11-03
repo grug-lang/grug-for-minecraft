@@ -402,4 +402,14 @@ class GrugControlTest {
         System.arraycopy(all, 0, cut, 0, cut.length);
         return cut;
     }
+
+    @Test
+    void theMeanColourOfAnImageIsLoggedAsHex() {
+        java.awt.image.BufferedImage image =
+                new java.awt.image.BufferedImage(2, 1, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        image.setRGB(0, 0, 0x102030);
+        image.setRGB(1, 0, 0x304050);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "#203040", GrugControlServer.meanColour(image));
+    }
 }

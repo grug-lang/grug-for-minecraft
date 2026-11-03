@@ -293,4 +293,20 @@ class GrugScreenshotsTest {
                 IllegalArgumentException.class,
                 () -> GrugScreenshots.changedPercent(solid(4, 4, 0), solid(8, 4, 0)));
     }
+
+    @Test
+    void rectangleProblemNamesWhyARectangleCannotBeRead() {
+        assertEquals(null, GrugScreenshots.rectangleProblem(0, 0, 1280, 720));
+        assertTrue(GrugScreenshots.rectangleProblem(-1, 0, 5, 5).startsWith("x1 is -1"));
+        assertTrue(GrugScreenshots.rectangleProblem(0, 721, 5, 5).startsWith("y1 is 721"));
+        assertTrue(GrugScreenshots.rectangleProblem(0, 0, 1281, 5).startsWith("x2 is 1281"));
+        assertTrue(GrugScreenshots.rectangleProblem(0, 0, 5, -2).startsWith("y2 is -2"));
+        // The far edge on the height side, and a width that truncates to nothing.
+        assertEquals(
+                "the rectangle is empty, since (200,310) is not below and right of (100,410)",
+                GrugScreenshots.rectangleProblem(100, 410, 200, 310));
+        assertTrue(
+                GrugScreenshots.rectangleProblem(590, 310, 590.5, 410)
+                        .startsWith("the rectangle is empty"));
+    }
 }
