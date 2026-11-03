@@ -176,10 +176,8 @@ public final class GrugControlServer {
             if (request.chunks == null) {
                 request.chunks = new byte[chunk.total][];
             }
-            if (chunk.total != request.chunks.length
-                    || chunk.index < 0
-                    || chunk.index >= chunk.total
-                    || request.chunks[chunk.index] != null) {
+            // decode already guarantees 0 <= index < total.
+            if (chunk.total != request.chunks.length || request.chunks[chunk.index] != null) {
                 request.png.completeExceptionally(
                         new ControlException(
                                 "The client's answer has an inconsistent chunk "

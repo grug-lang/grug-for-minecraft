@@ -266,6 +266,15 @@ class GrugControlTest {
         assertTrue(e.getMessage().contains("9x10, but 10x10 was asked for"), e.getMessage());
     }
 
+    @Test
+    void aCaptureWithTheRightWidthButTheWrongHeightIsRefused() {
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> answeredWithAPngOf(10, 9).capture(0, 0, 10, 10));
+        assertTrue(e.getMessage().contains("10x9, but 10x10 was asked for"), e.getMessage());
+    }
+
     /** A server whose request 1 is answered with a PNG of the given size. */
     private static GrugControlServer answeredWithAPngOf(int w, int h) {
         try {
