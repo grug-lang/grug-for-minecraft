@@ -925,6 +925,9 @@ class GrugControlTest {
         byte[] nan =
                 GrugControlWire.callRequest(1, GrugControlWire.CALL_HAS_SOUND, "x", Double.NaN, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(nan));
+        byte[] nanPitch =
+                GrugControlWire.callRequest(1, GrugControlWire.CALL_HAS_SOUND, "x", 0, Double.NaN);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(nanPitch));
         byte[] longName =
                 GrugControlWire.callRequest(
                         1,
