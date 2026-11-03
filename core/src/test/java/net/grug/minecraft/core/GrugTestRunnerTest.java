@@ -1336,6 +1336,49 @@ class GrugTestRunnerTest {
     }
 
     @Test
+    void aRunIsPassedOnlyWhenItFinishedWithEveryTestPassed() {
+        FakeOps passing = new FakeOps();
+        GrugTestRunner passingRunner =
+                runnerWithCoverage(
+                        passing, Map.of("coverage/tests/a-Test.grug", 1L), 1, new CoverageLog());
+        assertFalse(passingRunner.isPassed());
+        runToEnd(passingRunner);
+        assertTrue(passingRunner.isPassed());
+
+        FakeOps failing = new FakeOps();
+        failing.completed = false;
+        GrugTestRunner failingRunner =
+                runnerWithCoverage(
+                        failing, Map.of("coverage/tests/a-Test.grug", 1L), 1, new CoverageLog());
+        runToEnd(failingRunner);
+        assertTrue(failingRunner.isFinished());
+        assertFalse(failingRunner.isPassed());
+    }
+
+    @Test
+    void aLoaderListNamingNoLoadedTestFailsTheRun() {
+        FakeOps ops = new FakeOps();
+        for (String name :
+                new String[] {
+                    "coverage/tests/typo-Test.grug",
+                    // A loaded file that is not a test is no test either.
+                    "examplemod/code/foo-Block.grug"
+                }) {
+            IllegalStateException e =
+                    assertThrows(
+                            IllegalStateException.class,
+                            () -> listedRunner(ops, true, Set.of(name)));
+            assertTrue(e.getMessage().contains(name), e.getMessage());
+        }
+    }
+
+    @Test
+    void aLoaderListNamingOnlyLoadedTestsStartsTheRun() {
+        FakeOps ops = new FakeOps();
+        listedRunner(ops, true, Set.of("coverage/tests/a-Test.grug", "jei/code/a-Test.grug"));
+    }
+
+    @Test
     void aTestListHoldsOnePathPerLineAndIgnoresCommentsAndBlankLines() {
         assertEquals(
                 Set.of("a/tests/x-Test.grug", "b/tests/y-Test.grug"),

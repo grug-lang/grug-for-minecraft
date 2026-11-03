@@ -1413,6 +1413,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             double x2,
             double y2,
             double tolerancePercent) {
+        if (refuseWithoutAClient("Screenshot.equals")) return;
         BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
         if (capture == null) {
             return; // captureChecked already reported why
@@ -1428,6 +1429,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        if (refuseWithoutAClient("Screenshot.capture")) return null;
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
     }
 
@@ -1594,6 +1596,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        if (refuseWithoutAClient("Test.use_block")) return;
         World world = (World) levelObj;
         PlayerEntity player = GrugClientPlayer.get();
         if (player == null) {
@@ -1644,6 +1647,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
             "failure paths a healthy run cannot enter: no local player or client level, no block at"
                     + " the position, or a shape the overlay failed to reset")
     public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
+        if (refuseWithoutAClient("Test.mining_crack")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         PlayerEntity player = GrugClientPlayer.of(minecraft);
         if (player == null) {

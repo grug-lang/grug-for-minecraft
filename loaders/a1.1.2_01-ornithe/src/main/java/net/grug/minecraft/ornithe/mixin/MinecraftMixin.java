@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.mixin;
 
+import net.grug.minecraft.core.GrugConnectAddress;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.minecraft.client.Minecraft;
@@ -59,9 +60,8 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     private void grug$connectOnStartup(CallbackInfo ci) {
         String connect = System.getenv("GRUG_CI_CONNECT");
         if (connect != null && !connect.isEmpty()) {
-            int colon = connect.lastIndexOf(':');
-            setStartupServer(
-                    connect.substring(0, colon), Integer.parseInt(connect.substring(colon + 1)));
+            GrugConnectAddress address = GrugConnectAddress.parse(connect);
+            setStartupServer(address.host(), address.port());
         }
     }
 
