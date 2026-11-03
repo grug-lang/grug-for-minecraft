@@ -248,6 +248,16 @@ public class GrugClientHooks {
                 });
     }
 
+    /**
+     * What a run's start does to the window, for a joined client that starts its own run on a
+     * server (#1040): the screenshot size and a short view distance.
+     */
+    public void beginControlRun() {
+        if (window.beginRun()) {
+            shrinkViewForRun();
+        }
+    }
+
     public void tick() {
         if (!titleSet) {
             Display.setTitle(title);

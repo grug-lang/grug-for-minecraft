@@ -114,25 +114,34 @@ if [ -n "$SERVER_VERSION" ] || [ "$STANDALONE" = true ]; then
   printf 'allow-flight=true\n' >> "${SERVER_DIR}/server.properties"
 fi
 
-# The prototype of #1040 (option A) on 1.20.6-forge: the server runs plain-tick tests whose client-only
-# calls are forwarded to the joined client. They live in mods the client does not need, so the server
-# alone gets a copy of mods/ with them added (GRUG_MODS_DIR). GRUG_MP_TIMEOUT_TEST=1 runs only the
-# test that must time out, with the client told to drop that request, and is expected to fail.
-if [ "$LOADER" = "1.20.6-forge" ]; then
-  PROTO_MODS="${REPO_ROOT}/${LOADER_DIR}/run-server-mods"
-  rm -rf "$PROTO_MODS"
-  cp -r mods "$PROTO_MODS"
+# The prototype of #1040 (option A) on 1.20.6-forge and a1.1.2_01-ornithe: the server runs plain-tick
+# tests whose client-only calls are forwarded to the joined client. They live in mods the client does
+# not need, so the server alone gets them: 1.20.6 a copy of mods/ with them added (GRUG_MODS_DIR),
+# Alpha the proto mod beside coverage in its grug_mods. GRUG_MP_TIMEOUT_TEST=1 runs only the test
+# that must time out, with the client told to drop that request, and is expected to fail.
+PROTO_STAGE=""
+if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ]; then
+  PROTO_STAGE="${REPO_ROOT}/${LOADER_DIR}/run-server-proto"
+  rm -rf "$PROTO_STAGE"
+  mkdir -p "$PROTO_STAGE"
   if [ "${GRUG_MP_TIMEOUT_TEST:-}" = 1 ]; then
-    cp -r "${LOADER_DIR}/mp-proto/mpproto_timeout" "$PROTO_MODS/"
+    PROTO_MOD=mpproto_timeout
     export GRUG_CI_TESTS="mpproto_timeout/tests/forward_timeout-Test.grug"
     export GRUG_CI_FORWARD_TESTS="$GRUG_CI_TESTS"
     export GRUG_CI_CONTROL_TIMEOUT_MILLIS=5000
     CLIENT_DROP_WIDTH=7
   else
-    cp -r "${LOADER_DIR}/mp-proto/mpproto" "$PROTO_MODS/"
+    PROTO_MOD=mpproto
     export GRUG_CI_FORWARD_TESTS="mpproto/tests/forward_capture-Test.grug"
   fi
-  export GRUG_MODS_DIR="$PROTO_MODS"
+  cp -r "${REPO_ROOT}/loaders/1.20.6-forge/mp-proto/${PROTO_MOD}" "$PROTO_STAGE/"
+  if [ "$LOADER" = "1.20.6-forge" ]; then
+    PROTO_MODS="${REPO_ROOT}/${LOADER_DIR}/run-server-mods"
+    rm -rf "$PROTO_MODS"
+    cp -r mods "$PROTO_MODS"
+    cp -r "${PROTO_STAGE}/${PROTO_MOD}" "$PROTO_MODS/"
+    export GRUG_MODS_DIR="$PROTO_MODS"
+  fi
 fi
 
 # Forge's cosmetic early window can only hurt a headless run (see run-loader.sh).
@@ -227,9 +236,13 @@ url = next(
 urllib.request.urlretrieve(url, out)
 PY
   cp -r mods/coverage "${SERVER_DIR}/grug_mods/"
-  python3 - mods "${SERVER_DIR}/grug_mods_state.json" <<'PY'
+  if [ -n "$PROTO_STAGE" ]; then
+    cp -r "$PROTO_STAGE"/* "${SERVER_DIR}/grug_mods/"
+  fi
+  python3 - mods "${SERVER_DIR}/grug_mods_state.json" "${SERVER_DIR}/grug_mods" <<'PY'
 import json, pathlib, sys
 mods = sorted(p.name for p in pathlib.Path(sys.argv[1]).iterdir() if p.is_dir() and p.name != "coverage")
+mods += [p.name for p in pathlib.Path(sys.argv[3]).iterdir() if p.is_dir() and p.name.startswith("mpproto")]
 pathlib.Path(sys.argv[2]).write_text(json.dumps({"mods": {name: {"on": True} for name in mods}}) + "\n")
 PY
 }

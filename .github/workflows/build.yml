@@ -972,8 +972,8 @@ jobs:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '300'
 
-      - name: Keep the passing run's logs (1.20.6-forge only)
-        if: matrix.loader == '1.20.6-forge' && !cancelled()
+      - name: Keep the passing run's logs (1.20.6-forge and a1.1.2_01-ornithe)
+        if: (matrix.loader == '1.20.6-forge' || matrix.loader == 'a1.1.2_01-ornithe') && !cancelled()
         run: |
           cp loaders/${{ matrix.loader }}/run-server-ci.log loaders/${{ matrix.loader }}/run-server-pass-ci.log
           cp loaders/${{ matrix.loader }}/run-client-ci.log loaders/${{ matrix.loader }}/run-client-pass-ci.log
@@ -981,8 +981,8 @@ jobs:
 
       # The failure half of the #1040 prototype: a forwarded capture the client never answers must
       # time out and fail the run, with the usual FAIL line and a non-zero exit.
-      - name: A forwarded call the client never answers fails the run (1.20.6-forge only)
-        if: matrix.loader == '1.20.6-forge' && !cancelled()
+      - name: A forwarded call the client never answers fails the run (1.20.6-forge and a1.1.2_01-ornithe)
+        if: (matrix.loader == '1.20.6-forge' || matrix.loader == 'a1.1.2_01-ornithe') && !cancelled()
         continue-on-error: true
         run: |
           if xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer.sh ${{ matrix.loader }}; then

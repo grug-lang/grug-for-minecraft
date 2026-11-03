@@ -1,16 +1,22 @@
 package net.grug.minecraft.ornithe;
 
+import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.entity.mob.player.PlayerInventory;
 import net.minecraft.world.World;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -55,6 +61,41 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
         List<?> players = world.players;
         return players.isEmpty() ? null : players.get(0);
+    }
+
+    /**
+     * Forwards the capture to the joined client of the player who started the run and waits for the
+     * answer with the world frozen (#1040, option A). Arguments are checked first, as on a client.
+     */
+    @Override
+    public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
+        if (bad != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + bad);
+            return null;
+        }
+        try {
+            return GrugControlAlpha.server().capture((int) x1, (int) y1, (int) x2, (int) y2);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * The plain-tick tests the run asks a dedicated server to run (#1040), from the comma separated
+     * {@code GRUG_CI_FORWARD_TESTS}: their client-only calls are forwarded.
+     */
+    @Override
+    public Set<String> forwardedTestsOnServer() {
+        Set<String> paths = new LinkedHashSet<>();
+        String value = System.getenv("GRUG_CI_FORWARD_TESTS");
+        if (value != null) {
+            for (String path : value.split(",")) {
+                if (!path.trim().isEmpty()) paths.add(path.trim());
+            }
+        }
+        return paths;
     }
 
     /** Nothing to close: the screen belongs to a client, and a server has none. */
