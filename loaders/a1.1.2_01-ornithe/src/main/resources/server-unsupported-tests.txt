@@ -1,10 +1,11 @@
 # Tests the Alpha a0.2.1 dedicated server cannot run although they define tick_any_side, one path
 # per line. Interim (#1021): this mechanism is removed together with tick_any_side when #1040 lands.
-# The a0.2.1 server jar has no CraftingManager (crafting was client-side then), so a test that needs
-# a recipe result fails there; and its Block has no randomDisplayTick (particles are drawn by the
-# client), so the display_tick tests fail there too; and its Block has no getOutlineShape (the
-# selection box is a client matter), so the block_selection tests fail there; and it has no sound
-# engine, which the sound name checks go through.
+# Each group below says why its tests cannot run on that server.
+#
+# Recipes and crafting. The a0.2.1 server jar has no CraftingManager (crafting was client-side
+# then), so a test that needs a recipe result fails with NoClassDefFoundError there. The set was
+# found by a grep for recipe and crafting words in the tests, not test by test, so it may be wider
+# than necessary: a later pass can remove an entry and see whether the server job still passes.
 buildcraft/tests/autocrafting_table_borrow-Test.grug
 buildcraft/tests/autocrafting_table_pipe-Test.grug
 buildcraft/tests/demo_chain-Test.grug
@@ -22,18 +23,28 @@ coverage/tests/slot_access-Test.grug
 coverage/tests/take_crafting_result_empty-Test.grug
 coverage/tests/take_crafting_result_on_a_chest-Test.grug
 coverage/tests/update_recipe_output_on_a_chest-Test.grug
+#
+# Display tick. The a0.2.1 server Block has no randomDisplayTick (particles are drawn by the
+# client), so these tests fail with NoSuchMethodError there.
 buildcraft/tests/redstone_engine_particles-Test.grug
 coverage/tests/display_tick-Test.grug
 coverage/tests/expect_display_tick_index-Test.grug
 coverage/tests/expect_display_tick_particle-Test.grug
-# Unexplained, to investigate (#1021): the dropped item's hop y is not 0.2 on the server although
-# the a0.2.1 ItemEntity constructor sets 0.2F like the client's.
-buildcraft/tests/wooden_pipe_break-Test.grug
+#
+# Block selection. The a0.2.1 server Block has no getOutlineShape (the selection box is a client
+# matter), so these tests fail with NoSuchMethodError there.
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
+#
+# Sound. The a0.2.1 server has no sound engine, so the sound name checks fail with
+# NoClassDefFoundError there.
 coverage/tests/expect_play_ui_sound_other_namespace-Test.grug
 coverage/tests/expect_play_ui_sound_unknown-Test.grug
 coverage/tests/expect_has_sound_name-Test.grug
 coverage/tests/expect_play_ui_sound_pitch-Test.grug
 coverage/tests/expect_play_ui_sound_name-Test.grug
 coverage/tests/expect_play_ui_sound_volume-Test.grug
+#
+# Unexplained, tracked in #1051: the dropped item's hop y is not 0.2 on the server although the
+# a0.2.1 ItemEntity constructor sets 0.2F like the client's.
+buildcraft/tests/wooden_pipe_break-Test.grug
