@@ -16,7 +16,7 @@ import net.grug.minecraft.grug.GrugModTreeDefect;
 import net.grug.minecraft.grug.GrugModsDirectory;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugRecipeTree;
-import net.grug.minecraft.stationapi.StationApiAdapter;
+import net.grug.minecraft.stationapi.ServerAdapterChoice;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
 import net.grug.minecraft.stationapi.item.GrugItem;
@@ -129,11 +129,9 @@ public class InitListener {
                         gameDir, FabricLoader.getInstance().isDevelopmentEnvironment());
         File modApiJson = GrugModsDirectory.modApiJson(gameDir);
 
-        // One adapter for both processes for now. The dedicated-server one has to be its own class
-        // behind a lazily resolved branch: Fabric Loader will not define a class the game marked
-        // server-only in a client, so a class referencing one from here breaks the client, and
-        // preInit runs on both sides. See #165.
-        GrugCore.initialize(new StationApiAdapter(), modApiJson, activeGrugDir);
+        // A dedicated server gets its own adapter, chosen in a class a client never calls into so
+        // that no client loads a class the game marked server-only. See #165.
+        GrugCore.initialize(ServerAdapterChoice.forThisSide(), modApiJson, activeGrugDir);
 
         FileInfo[] files = Grug.compileAllFiles();
 

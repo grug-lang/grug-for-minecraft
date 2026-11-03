@@ -21,8 +21,12 @@
 # jar and the loader's layer, assembles them into the universal jar a player would drop in, installs
 # the server beside it with OSL, and starts it from the jar; the client still comes from runClient.
 #
-# Needs a display for the client, so run it under xvfb-run. 1.20.6-forge, a1.1.2_01-ornithe and
-# b1.7.3-ornithe have a server run so far.
+# A standalone loader without server-version.txt (b1.7.3-stationapi, #165) runs the dedicated server
+# the way a development client runs: its own Gradle build's runServer, in run-server, after core has
+# been published into build/maven for it to resolve.
+#
+# Needs a display for the client, so run it under xvfb-run. 1.20.6-forge, a1.1.2_01-ornithe,
+# b1.7.3-ornithe and b1.7.3-stationapi have a server run so far.
 
 set -uo pipefail
 
@@ -56,6 +60,8 @@ SERVER_VERSION=""
 if [ -f "${LOADER_DIR}/server-version.txt" ]; then
   SERVER_VERSION=$(tr -d ' \n\r' < "${LOADER_DIR}/server-version.txt")
 fi
+STANDALONE=false
+[ -f "${LOADER_DIR}/root.gradle" ] && STANDALONE=true
 
 # The same crash lines run-loader.sh watches, and a Rust abort, which kills the process.
 crash_re='Uncaught exception in thread "Server thread"|Exception in thread "main"|Uncaught exception in thread "Minecraft main thread"|Exception in thread "Minecraft main thread"|Game crashed! Crash report saved to|Broken grug invariant|Failed to start the minecraft server|panicked at .*\.rs:[0-9]+:[0-9]+'
@@ -99,14 +105,14 @@ simulation-distance=4
 max-tick-time=-1
 spawn-protection=0
 PROPS
-if [ -n "$SERVER_VERSION" ]; then
+if [ -n "$SERVER_VERSION" ] || [ "$STANDALONE" = true ]; then
   # An old server spawns monsters and animals around the player by itself, and a mob in the test
   # room or a hit on the test player would fail a test for a reason the test is not about.
   printf 'spawn-monsters=false\nspawn-animals=false\n' >> "${SERVER_DIR}/server.properties"
 fi
 
 # Forge's cosmetic early window can only hurt a headless run (see run-loader.sh).
-if [ -z "$SERVER_VERSION" ]; then
+if [ -z "$SERVER_VERSION" ] && [ "$STANDALONE" = false ]; then
   for dir in "$SERVER_DIR" "$CLIENT_DIR"; do
     mkdir -p "${dir}/config"
     printf '#Disable the cosmetic early load window (CI has no desktop to fall back to).\nearlyWindowControl = false\n' > "${dir}/config/fml.toml"
@@ -127,7 +133,7 @@ cleanup() {
   # A run that did not pass leaves the stacks of both game JVMs next to the logs, which is the only
   # way to see where a process that went quiet was stuck.
   if [ "$status" -ne 0 ]; then
-    for pid in $(timeout 10 pgrep -f "${REPO_ROOT}.*(forge_userdev|ForgeBootstrap|BootstrapLauncher|fabric-server-launch)" 2>/dev/null); do
+    for pid in $(timeout 10 pgrep -f "${REPO_ROOT}.*(forge_userdev|ForgeBootstrap|BootstrapLauncher|fabric-server-launch|KnotServer)" 2>/dev/null); do
       echo "==> Thread dump of java process ${pid}" >> "${REPO_ROOT}/${LOADER_DIR}/run-threads-ci.log"
       timeout 20 jcmd "$pid" Thread.print >> "${REPO_ROOT}/${LOADER_DIR}/run-threads-ci.log" 2>&1 || true
     done
@@ -214,6 +220,20 @@ if [ -n "$SERVER_VERSION" ]; then
   fi
   cd "$SERVER_DIR"
   GRUG_CI=true setsid java -jar fabric-server-launch.jar nogui >>"$SERVER_LOG" 2>&1 &
+  server_pid=$!
+  cd "$REPO_ROOT"
+elif [ "$STANDALONE" = true ]; then
+  # A standalone loader consumes core from the repository the root build publishes it into, so that
+  # publish happens first, as run-loader.sh does.
+  echo "==> Publishing core into build/maven" >"$SERVER_LOG"
+  if ! GRUG_CI=true ./gradlew :core:publishMavenJavaPublicationToGrugBuildRepository \
+    "${gradle_args[@]}" -x test >>"$SERVER_LOG" 2>&1; then
+    cat "$SERVER_LOG" >&2
+    echo "==> Publishing core for ${LOADER} failed." >&2
+    exit 1
+  fi
+  cd "$LOADER_DIR"
+  GRUG_CI=true setsid ./gradlew runServer "${gradle_args[@]}" -x test >>"$SERVER_LOG" 2>&1 &
   server_pid=$!
   cd "$REPO_ROOT"
 else
