@@ -115,4 +115,10 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
         return out.toByteArray();
     }
+
+    /** The world's own tick, as on the other loaders, so a test need not wait for the server. */
+    @Override
+    public int tickLevel(Object levelObj, int ticks) {
+        return GrugServerRun.advance((World) levelObj, ticks);
+    }
 }
