@@ -15,7 +15,7 @@ public final class GrugFieldByType {
      */
     public static <T> T find(Object holder, Class<T> type) throws IllegalAccessException {
         if (holder == null) return null;
-        for (Class<?> c = holder.getClass(); c != null && !c.getName().startsWith("java."); ) {
+        for (Class<?> c = holder.getClass(); !c.getName().startsWith("java."); ) {
             for (Field field : c.getDeclaredFields()) {
                 if (!type.isAssignableFrom(field.getType())) continue;
                 field.setAccessible(true);
