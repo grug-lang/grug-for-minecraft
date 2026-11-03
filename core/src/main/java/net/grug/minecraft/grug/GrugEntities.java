@@ -81,12 +81,7 @@ public final class GrugEntities {
      * and the test's next {@code Test.tick_level} reported the id as collected. See #1049.
      */
     static void unroot(List<GrugObject> roots, GrugObject object) {
-        for (int i = roots.size() - 1; i >= 0; i--) {
-            if (roots.get(i) == object) {
-                roots.remove(i);
-                return;
-            }
-        }
+        roots.removeIf(root -> root == object);
     }
 
     /**
