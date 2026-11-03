@@ -414,6 +414,17 @@ bump commands are in #369. `core/`'s main sources compile with `--release 8`, so
   call in one runs again on every iteration or every record. Hoist a value that cannot change into
   a local variable.
 
+## Multiplayer authoring
+
+The goal is that several mod authors write a new mod from scratch together on one multiplayer
+server, never leaving it: they write the mod's server-side and client-side code, and its server-side
+and client-side tests, and run those tests on that server. So multiplayer testing is not only a CI
+job (#36): whatever carries a test between server and client (#1040) ships in the mod and works on
+a live server, behind an explicit opt-in by the server operator and the joined clients, not
+compiled out of release jars. grug code may say which side a test runs on; hiding the distinction
+from test authors is not a goal (the maintainer relaxed that in #1040). Mod authors never build
+packets: the channel is loader plumbing that the host functions use.
+
 ## Writing tests
 
 - `tick(ctx)` runs once per tick; `ctx.not_done()` keeps the test alive.
