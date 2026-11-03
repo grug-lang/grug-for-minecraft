@@ -1280,6 +1280,38 @@ class GrugTestRunnerTest {
         assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
     }
 
+    private GrugTestRunner forwardedRunner(FakeOps ops, Set<String> forwarded) {
+        Map<String, Long> files = threeMods();
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                new SweepLog(new ArrayList<>()),
+                1,
+                new CoverageLog(),
+                Set.of(),
+                GrugTestRunner.MAX_GAME_SPEED,
+                Set.of(),
+                Set.of(),
+                true,
+                Set.of(),
+                forwarded);
+    }
+
+    @Test
+    void aServerRunsAPlainTickTestWhoseClientCallsAreForwarded() {
+        FakeOps ops = new FakeOps();
+        ops.anySide.addAll(Set.of("buildcraft/code/a-Test.grug", "jei/code/a-Test.grug"));
+        String printed =
+                capture(() -> runToEnd(forwardedRunner(ops, Set.of("coverage/tests/a-Test.grug"))));
+
+        assertTrue(printed.contains("[GRUG CI] PASS coverage/tests/a-Test.grug"), printed);
+        assertTrue(printed.contains("Skipped 2 test(s)"), printed);
+        assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
+    }
+
     private GrugTestRunner listedRunner(FakeOps ops, boolean dedicatedServer, Set<String> listed) {
         Map<String, Long> files = threeMods();
         ops.pathsAre(files);

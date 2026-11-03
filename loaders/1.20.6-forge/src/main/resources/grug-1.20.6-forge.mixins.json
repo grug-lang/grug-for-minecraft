@@ -18,6 +18,9 @@
             "ModelBlockRendererMixin",
             "SectionBufferBuilderPoolMixin",
             "ThreadedLevelLightEngineMixin"
+        ],
+        "mixins": [
+            "ChunkMapAccessor"
         ]
     }
 }

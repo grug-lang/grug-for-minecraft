@@ -1,0 +1,34 @@
+# The prototype of #1040 option A: a server-run test, a plain tick and not tick_any_side, that
+# places blocks and then calls Screenshot.capture. The dedicated server forwards the capture to the
+# joined client of the player who started the run, stays frozen until the client answers, and hands
+# the pixels back here. Capturing the empty room, placing a wall in front of the camera and
+# capturing again must give two frames that differ, which is only true if the client drew the wall
+# the server placed before it captured.
+before: Option[Screenshot] = Option.new()
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        before.set(Test.screenshot().capture(620, 62, 700, 118))
+        origin: Vec3 = Test.get_origin()
+        _wall_in_front_of(origin)
+        ctx.not_done()
+    } else {
+        after: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
+        after.differs_from(before.unwrap(), 50)
+    }
+}
+
+local _wall_in_front_of(origin: Vec3) {
+    level: Level = Test.get_client_level()
+    z: number = origin.z() + 1
+    across: number = -2
+    while across <= 2 {
+        x: number = origin.x() + across
+        up: number = -4
+        while up <= 0 {
+            level.place_block(x, origin.y() + up, z, "grug:coverage_block")
+            up = up + 1
+        }
+        across = across + 1
+    }
+}

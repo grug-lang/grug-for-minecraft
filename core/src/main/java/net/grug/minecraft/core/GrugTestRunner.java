@@ -247,6 +247,8 @@ public class GrugTestRunner {
      */
     private final Set<String> unsupportedOnServer;
 
+    private final Set<String> forwardedOnServer;
+
     /** The tests a dedicated server skipped, so a repeat neither probes nor counts them again. */
     private final Set<String> skippedForSide = new LinkedHashSet<>();
 
@@ -438,7 +440,8 @@ public class GrugTestRunner {
                 carryOverCoverageTestsFromEnv(),
                 testsFromEnv(),
                 GrugCore.getAdapter().getSide().isDedicatedServer(),
-                GrugCore.getAdapter().serverUnsupportedTests());
+                GrugCore.getAdapter().serverUnsupportedTests(),
+                GrugCore.getAdapter().forwardedTestsOnServer());
     }
 
     /** Visible for tests: builds a runner over the given files without touching GrugCore. */
@@ -638,8 +641,45 @@ public class GrugTestRunner {
             Set<String> selectedTests,
             boolean dedicatedServer,
             Set<String> unsupportedOnServer) {
+        this(
+                fileIds,
+                referenceErrors,
+                ops,
+                clock,
+                boxBuilder,
+                repeats,
+                coverage,
+                selectedMods,
+                maxGameSpeed,
+                carryOverCoverageTests,
+                selectedTests,
+                dedicatedServer,
+                unsupportedOnServer,
+                Collections.emptySet());
+    }
+
+    /**
+     * Visible for tests: the same, with the plain-{@code tick} tests a dedicated server runs anyway
+     * because their client-only calls are forwarded to the joined client (#1040).
+     */
+    public GrugTestRunner(
+            Map<String, Long> fileIds,
+            List<String> referenceErrors,
+            TestEntityOps ops,
+            LongSupplier clock,
+            TestBoxBuilder boxBuilder,
+            int repeats,
+            CoverageRecorder coverage,
+            Set<String> selectedMods,
+            int maxGameSpeed,
+            Set<String> carryOverCoverageTests,
+            Set<String> selectedTests,
+            boolean dedicatedServer,
+            Set<String> unsupportedOnServer,
+            Set<String> forwardedOnServer) {
         this.dedicatedServer = dedicatedServer;
         this.unsupportedOnServer = unsupportedOnServer;
+        this.forwardedOnServer = forwardedOnServer;
         this.maxGameSpeed = maxGameSpeed;
         this.ops = ops;
         this.coverage = coverage;
@@ -1662,7 +1702,7 @@ public class GrugTestRunner {
         int errorsBefore = GrugTestState.runtimeErrorCount;
         boolean completed = ops.callExportFn(currentEntityHandle, anySideTickFnId);
         boolean definesAnySide = completed || GrugTestState.runtimeErrorCount != errorsBefore;
-        if (skipsOnServer(dedicatedServer, definesAnySide)) {
+        if (skipsOnServer(dedicatedServer, definesAnySide) && !forwardedOnServer.contains(path)) {
             skipForSide(path);
             skippedThisTick = true;
             return false;

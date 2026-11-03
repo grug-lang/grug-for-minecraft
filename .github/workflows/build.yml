@@ -972,6 +972,31 @@ jobs:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '300'
 
+      - name: Keep the passing run's logs (1.20.6-forge only)
+        if: matrix.loader == '1.20.6-forge' && !cancelled()
+        run: |
+          cp loaders/${{ matrix.loader }}/run-server-ci.log loaders/${{ matrix.loader }}/run-server-pass-ci.log
+          cp loaders/${{ matrix.loader }}/run-client-ci.log loaders/${{ matrix.loader }}/run-client-pass-ci.log
+          grep -F '[GRUG CONTROL]' loaders/${{ matrix.loader }}/run-server-pass-ci.log loaders/${{ matrix.loader }}/run-client-pass-ci.log || true
+
+      # The failure half of the #1040 prototype: a forwarded capture the client never answers must
+      # time out and fail the run, with the usual FAIL line and a non-zero exit.
+      - name: A forwarded call the client never answers fails the run (1.20.6-forge only)
+        if: matrix.loader == '1.20.6-forge' && !cancelled()
+        continue-on-error: true
+        run: |
+          if xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer.sh ${{ matrix.loader }}; then
+            echo "The run passed, but its forwarded capture was never answered." >&2
+            exit 1
+          fi
+          echo "The run failed, as it must."
+          grep -F '[GRUG CONTROL]' loaders/${{ matrix.loader }}/run-server-ci.log
+          grep -F '[GRUG CI] FAIL' loaders/${{ matrix.loader }}/run-server-ci.log
+        env:
+          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
+          GRUG_CI_RUN_TIMEOUT: '300'
+          GRUG_MP_TIMEOUT_TEST: '1'
+
       - name: Upload logs and crash reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -984,6 +1009,8 @@ jobs:
             loaders/${{ matrix.loader }}/run/logs
             loaders/${{ matrix.loader }}/run/crash-reports
             loaders/${{ matrix.loader }}/run-client-ci.log
+            loaders/${{ matrix.loader }}/run-server-pass-ci.log
+            loaders/${{ matrix.loader }}/run-client-pass-ci.log
             loaders/${{ matrix.loader }}/run-threads-ci.log
             loaders/${{ matrix.loader }}/run-server/hs_err_pid*.log
             loaders/${{ matrix.loader }}/run/hs_err_pid*.log

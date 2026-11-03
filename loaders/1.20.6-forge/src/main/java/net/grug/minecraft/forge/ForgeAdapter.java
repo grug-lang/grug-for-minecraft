@@ -2138,6 +2138,26 @@ public class ForgeAdapter implements ModLoaderAdapter {
      * the main render target's colour texture (the same path vanilla screenshots use), which is
      * Y-flipped so the image's origin is the top left, matching the crop convention.
      */
+    static BufferedImage captureRectangle(int x1, int y1, int x2, int y2) {
+        return capture(x1, y1, x2, y2);
+    }
+
+    /**
+     * Whether a joined client's renderer has nothing left to show of what the server sent, for the
+     * forwarded capture of the test-control channel (#1040): no resource reload, no light work, and
+     * frames drawn since that ended idle. The block half of {@link #clientSettled} is left out,
+     * because it tracks edits made on a client's own side of an integrated server, and a joined
+     * client makes none.
+     */
+    static boolean clientIdleForControl(Minecraft minecraft) {
+        return !GrugModLoader.isReloading()
+                && GrugRenderSettle.clientSettled(
+                        minecraft.level.getChunkSource().getLightEngine().hasLightWork(),
+                        minecraft.level.isLightUpdateQueueEmpty(),
+                        RENDER_SETTLE.settled(),
+                        true);
+    }
+
     private static BufferedImage capture(int x1, int y1, int x2, int y2) {
         RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
         NativeImage image = Screenshot.takeScreenshot(target);

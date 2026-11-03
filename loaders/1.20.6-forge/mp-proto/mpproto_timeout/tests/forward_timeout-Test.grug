@@ -1,0 +1,8 @@
+# The failure half of the prototype of #1040: the joined client is started with
+# GRUG_CI_CONTROL_DROP_WIDTH=7, so it drops a request for a rectangle 7 pixels wide and never
+# answers. The server's wait times out and the test must fail with a [GRUG CI] FAIL line, which is
+# what the multiplayer job's extra step asserts. This test is in its own mod so that the passing run
+# never loads it.
+export tick(ctx: TestTickContext) {
+    Test.screenshot().capture(10, 10, 17, 17)
+}

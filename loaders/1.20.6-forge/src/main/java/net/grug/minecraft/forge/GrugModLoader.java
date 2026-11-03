@@ -276,6 +276,10 @@ public class GrugModLoader {
 
         net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(this);
 
+        // The test-control channel (#1040) ships in the mod and works on a live server, so it is
+        // registered on both sides, in a CI run or not.
+        GrugControlForge.init();
+
         // Registered here rather than through an event bus subscriber annotation, which Forge would
         // act on in any version that scans this class, not only the one this layer targets.
         // The suite of a dedicated server is driven from the server's tick, since there is no
@@ -669,6 +673,9 @@ public class GrugModLoader {
 
                 handleDevHotkeys(mc);
 
+                startControlRun(mc);
+                GrugControlClientForge.onClientTick(mc);
+
                 if ("true".equals(System.getenv("GRUG_CI"))
                         && !grug$testsRan
                         && mc.player != null
@@ -768,6 +775,33 @@ public class GrugModLoader {
                 }
             }
         }
+
+        /**
+         * The stand-in for the hotkey that starts a run on a server (#1040): a client launched with
+         * GRUG_CI_CONNECT starts its run once it is in the world. Starting a run is the operator's
+         * consent, so the client sets the run flag and tells the server, and does what a run's
+         * start does to the window.
+         */
+        @GrugGenerated("a joined client, which only the dispatch-only multiplayer job launches")
+        private static void startControlRun(Minecraft mc) {
+            if (grug$controlRunStarted
+                    || System.getenv("GRUG_CI_CONNECT") == null
+                    || mc.player == null
+                    || mc.level == null
+                    || mc.getSingleplayerServer() != null
+                    || !GrugCore.getAdapter().isWorldReady(mc.player)) {
+                return;
+            }
+            grug$controlRunStarted = true;
+            if (WINDOW.beginRun()) {
+                stopTutorialForRun(mc);
+                shrinkViewForRun(mc);
+                minimiseParticlesForRun(mc);
+            }
+            GrugControlClientForge.beginRun();
+        }
+
+        private static boolean grug$controlRunStarted = false;
 
         @GrugGenerated("dev-only: R runs tests and M forces the test resolution")
         private static void handleDevHotkeys(Minecraft mc) {

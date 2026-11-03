@@ -87,6 +87,15 @@ public interface ModLoaderAdapter {
         return java.util.Collections.emptySet();
     }
 
+    /**
+     * The tests, by path, that define a plain {@code tick} and that a dedicated server runs anyway,
+     * because a client-only call in them is forwarded to the joined client over the test-control
+     * channel (#1040, option A). Empty unless the loader has the channel and the run names tests.
+     */
+    default java.util.Set<String> forwardedTestsOnServer() {
+        return java.util.Collections.emptySet();
+    }
+
     void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj);
 
     // --- Logging Abstraction --- TODO: Give this section a better title

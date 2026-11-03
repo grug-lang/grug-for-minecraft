@@ -114,6 +114,27 @@ if [ -n "$SERVER_VERSION" ] || [ "$STANDALONE" = true ]; then
   printf 'allow-flight=true\n' >> "${SERVER_DIR}/server.properties"
 fi
 
+# The prototype of #1040 (option A) on 1.20.6-forge: the server runs plain-tick tests whose client-only
+# calls are forwarded to the joined client. They live in mods the client does not need, so the server
+# alone gets a copy of mods/ with them added (GRUG_MODS_DIR). GRUG_MP_TIMEOUT_TEST=1 runs only the
+# test that must time out, with the client told to drop that request, and is expected to fail.
+if [ "$LOADER" = "1.20.6-forge" ]; then
+  PROTO_MODS="${REPO_ROOT}/${LOADER_DIR}/run-server-mods"
+  rm -rf "$PROTO_MODS"
+  cp -r mods "$PROTO_MODS"
+  if [ "${GRUG_MP_TIMEOUT_TEST:-}" = 1 ]; then
+    cp -r "${LOADER_DIR}/mp-proto/mpproto_timeout" "$PROTO_MODS/"
+    export GRUG_CI_TESTS="mpproto_timeout/tests/forward_timeout-Test.grug"
+    export GRUG_CI_FORWARD_TESTS="$GRUG_CI_TESTS"
+    export GRUG_CI_CONTROL_TIMEOUT_MILLIS=5000
+    CLIENT_DROP_WIDTH=7
+  else
+    cp -r "${LOADER_DIR}/mp-proto/mpproto" "$PROTO_MODS/"
+    export GRUG_CI_FORWARD_TESTS="mpproto/tests/forward_capture-Test.grug"
+  fi
+  export GRUG_MODS_DIR="$PROTO_MODS"
+fi
+
 # Forge's cosmetic early window can only hurt a headless run (see run-loader.sh).
 if [ -z "$SERVER_VERSION" ] && [ "$STANDALONE" = false ]; then
   for dir in "$SERVER_DIR" "$CLIENT_DIR"; do
@@ -264,7 +285,7 @@ if [ -f "${LOADER_DIR}/root.gradle" ]; then
   client_task=runClient
   client_dir="${REPO_ROOT}/${LOADER_DIR}"
 fi
-(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
+(cd "$client_dir" && exec env -u GRUG_CI -u GRUG_CI_TESTS -u GRUG_MODS_DIR -u GRUG_CI_FORWARD_TESTS -u GRUG_CI_CONTROL_TIMEOUT_MILLIS GRUG_CI_CONTROL_DROP_WIDTH="${CLIENT_DROP_WIDTH:-}" GRUG_CI_CONNECT="127.0.0.1:${PORT}" setsid ./gradlew "$client_task" "${gradle_args[@]}" -x test) >"$CLIENT_LOG" 2>&1 &
 client_pid=$!
 tail -n +1 -F "$CLIENT_LOG" 2>/dev/null | sed -u 's/^/[client] /' &
 client_tail_pid=$!
