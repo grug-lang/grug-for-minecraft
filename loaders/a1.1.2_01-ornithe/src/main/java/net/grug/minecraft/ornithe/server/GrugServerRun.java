@@ -3,6 +3,7 @@ package net.grug.minecraft.ornithe.server;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugModsWatcher;
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -80,11 +81,25 @@ public final class GrugServerRun {
         return ticks;
     }
 
+    /**
+     * Looks for changed mod files, which a client does every tick and a server has no hook for.
+     * Without it a hot reload a test asks for never happens. A server has no resources to reload,
+     * so a changed resource counts as reloaded at once.
+     */
+    private static void pollModFiles() {
+        String[] changed =
+                GrugModsWatcher.update(message -> System.out.println("[GRUG CI] " + message));
+        if (changed.length > 0) {
+            GrugModsWatcher.noteLoaderReloadFinished(GrugModsWatcher.takePendingReloadPaths());
+        }
+    }
+
     private static long lastReportMillis = 0;
 
     private static void tick(World tickedWorld) {
         world = tickedWorld;
         List<?> players = tickedWorld.players;
+        pollModFiles();
 
         if (runner == null) {
             if (waitStartMillis == 0) {
