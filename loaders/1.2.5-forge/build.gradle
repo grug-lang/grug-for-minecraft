@@ -684,15 +684,22 @@ tasks.register('fetchServerJar') {
     doLast {
         serverVanillaJar.parentFile.mkdirs()
         def partial = new File(serverBuildDir, 'minecraft_server.jar.part')
-        new URL(SERVER_JAR_URL).withInputStream { input ->
-            partial.withOutputStream { out -> out << input }
-        }
-        def digest = java.security.MessageDigest.getInstance('SHA-1')
-        partial.eachByte(8192) { buffer, length -> digest.update(buffer, 0, length) }
-        def actual = digest.digest().encodeHex().toString()
-        if (actual != SERVER_JAR_SHA1) {
+        try {
+            def connection = new URL(SERVER_JAR_URL).openConnection()
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
+            connection.inputStream.withStream { input ->
+                partial.withOutputStream { out -> out << input }
+            }
+            def digest = java.security.MessageDigest.getInstance('SHA-1')
+            partial.eachByte(8192) { buffer, length -> digest.update(buffer, 0, length) }
+            def actual = digest.digest().encodeHex().toString()
+            if (actual != SERVER_JAR_SHA1) {
+                throw new GradleException("The 1.2.5 server jar has SHA-1 ${actual}, not ${SERVER_JAR_SHA1}.")
+            }
+        } catch (Throwable t) {
             partial.delete()
-            throw new GradleException("The 1.2.5 server jar has SHA-1 ${actual}, not ${SERVER_JAR_SHA1}.")
+            throw t
         }
         partial.renameTo(serverVanillaJar)
     }
