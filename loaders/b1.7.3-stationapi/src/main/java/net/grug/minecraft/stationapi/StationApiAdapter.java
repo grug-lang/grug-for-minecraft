@@ -33,7 +33,6 @@ import net.grug.minecraft.stationapi.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.chunk.ChunkBuilder;
 import net.minecraft.entity.Entity;
@@ -1213,7 +1212,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
-        mc.setScreen(new InventoryScreen((PlayerEntity) playerObj));
+        GrugClientPlayer.openInventory(mc, (PlayerEntity) playerObj);
     }
 
     @Override

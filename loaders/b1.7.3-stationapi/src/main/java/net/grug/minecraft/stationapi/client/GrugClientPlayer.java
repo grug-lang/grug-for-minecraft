@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi.client;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.entity.player.PlayerEntity;
 
 /**
@@ -14,5 +15,14 @@ public final class GrugClientPlayer {
 
     public static PlayerEntity of(Minecraft minecraft) {
         return minecraft.player;
+    }
+
+    /**
+     * Opens the survival inventory screen. Passing an {@code InventoryScreen} to {@code setScreen}
+     * makes the verifier load {@code Screen} to check the assignment, so the call lives here and
+     * not in the adapter a dedicated server also loads.
+     */
+    public static void openInventory(Minecraft minecraft, PlayerEntity player) {
+        minecraft.setScreen(new InventoryScreen(player));
     }
 }
