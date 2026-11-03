@@ -59,7 +59,7 @@ public final class GrugServerRun {
             // whoever watches the log, so say what stopped the run.
             System.out.println("[GRUG CI] FAIL the server run threw " + thrown);
             thrown.printStackTrace(System.out);
-            stop();
+            stop(1);
         }
     }
 
@@ -117,7 +117,7 @@ public final class GrugServerRun {
                         "[GRUG CI] No player joined the dedicated server within "
                                 + (PLAYER_JOIN_TIMEOUT_MILLIS / 1000)
                                 + " seconds, so the tests were not started.");
-                stop();
+                stop(1);
                 return;
             } else {
                 long now = System.currentTimeMillis();
@@ -142,7 +142,7 @@ public final class GrugServerRun {
             System.out.println(
                     "[GRUG CI] Every player disconnected from the dedicated server during the"
                             + " run.");
-            stop();
+            stop(1);
             return;
         }
 
@@ -151,13 +151,14 @@ public final class GrugServerRun {
         }
         runner.tick(players.get(0));
         if (runner.isFinished()) {
-            stop();
+            stop(runner.isPassed() ? 0 : 1);
         }
     }
 
-    private static void stop() {
+    /** Ends the server process; a non-zero status says the run did not pass. */
+    private static void stop(int status) {
         done = true;
         System.out.flush();
-        System.exit(0);
+        System.exit(status);
     }
 }

@@ -243,15 +243,16 @@ client_tail_pid=$!
 
 deadline=$((SECONDS + ${GRUG_CI_RUN_TIMEOUT:-300}))
 while :; do
-  if line=$(grep -m1 -E "$SUCCESS_RE" "$SERVER_LOG"); then
-    grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
-    echo "==> ${line}, run on the dedicated server with a client connected."
-    exit 0
-  fi
+  # A failure is checked before the success line, so a log holding both is a failure.
   if grep -qF '[GRUG CI] FAIL' "$SERVER_LOG"; then
     echo "==> A test failed on the dedicated server." >&2
     grep -m1 -B 5 -A 10 -F '[GRUG CI] FAIL' "$SERVER_LOG" >&2
     exit 1
+  fi
+  if line=$(grep -m1 -E "$SUCCESS_RE" "$SERVER_LOG"); then
+    grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
+    echo "==> ${line}, run on the dedicated server with a client connected."
+    exit 0
   fi
   if line=$(grep -m1 -E "$crash_re" "$SERVER_LOG"); then
     echo "==> The dedicated server crashed: ${line}" >&2

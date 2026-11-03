@@ -677,6 +677,7 @@ public class GrugTestRunner {
         checkSelectedModsExist(selectedMods, fileIds);
         checkCarryOverTestsExist(carryOverCoverageTests, fileIds);
         checkSelectedTestsExist(selectedTests, fileIds);
+        checkUnsupportedTestsExist(unsupportedOnServer, fileIds);
         for (Map.Entry<String, Long> entry : fileIds.entrySet()) {
             if (entry.getKey().endsWith(GrugFileIndex.TEST_SUFFIX)
                     && (selectedMods.isEmpty() || selectedMods.contains(owningMod(entry.getKey())))
@@ -890,6 +891,23 @@ public class GrugTestRunner {
                                 + test
                                 + "', but the loaded tests are: "
                                 + String.join(", ", loaded));
+            }
+        }
+    }
+
+    /**
+     * Fails when a loader's list of tests its server cannot run names a test that was not loaded,
+     * because a typo or a deleted test would otherwise leave the list silently skipping nothing
+     * while looking as if it still covered something (#1021).
+     */
+    static void checkUnsupportedTestsExist(Set<String> unsupported, Map<String, Long> fileIds) {
+        for (String test : unsupported) {
+            if (!fileIds.containsKey(test) || !test.endsWith(GrugFileIndex.TEST_SUFFIX)) {
+                throw Grug.fatal(
+                        "The loader lists '"
+                                + test
+                                + "' as a test its dedicated server cannot run, but no loaded"
+                                + " test has that path: fix the typo or remove the entry.");
             }
         }
     }
@@ -1830,5 +1848,13 @@ public class GrugTestRunner {
     /** True once the run has stopped for any reason: every test passed, or one failed. */
     public boolean isFinished() {
         return finished;
+    }
+
+    /**
+     * Whether the run finished with every test passed, which a dedicated server's process turns
+     * into its exit status (#1021).
+     */
+    public boolean isPassed() {
+        return finished && passedCount == totalCount;
     }
 }
