@@ -21,6 +21,7 @@ import net.grug.minecraft.gui.GrugGuiBuilder;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.block.GrugBoxRenderer;
 import net.grug.minecraft.stationapi.block.entity.GrugBlockEntity;
+import net.grug.minecraft.stationapi.client.GrugClientPlayer;
 import net.grug.minecraft.stationapi.client.GrugOverlayHost;
 import net.grug.minecraft.stationapi.client.GrugScreenGeometry;
 import net.grug.minecraft.stationapi.events.init.InitListener;
@@ -1088,7 +1089,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         }
         World world = minecraft.world;
         WorldRenderer worldRenderer = minecraft.worldRenderer;
-        PlayerEntity player = minecraft.player;
+        PlayerEntity player = GrugClientPlayer.of(minecraft);
         if (world == null || worldRenderer == null || player == null) {
             return true;
         }
@@ -1148,7 +1149,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
-        PlayerEntity player = mc.player;
+        PlayerEntity player = GrugClientPlayer.of(mc);
         if (player == null) {
             throw Grug.fatal(
                     "The test runner: there is no local player to snap to their block centre.");
@@ -1325,7 +1326,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
-        PlayerEntity player = mc.player;
+        PlayerEntity player = GrugClientPlayer.of(mc);
         if (player == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
@@ -1370,7 +1371,7 @@ public class StationApiAdapter implements ModLoaderAdapter {
         @SuppressWarnings("deprecation")
         net.minecraft.client.Minecraft mc =
                 (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
-        PlayerEntity player = mc.player;
+        PlayerEntity player = GrugClientPlayer.of(mc);
         if (player == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.mining_crack: There is no local player to mine with.");
