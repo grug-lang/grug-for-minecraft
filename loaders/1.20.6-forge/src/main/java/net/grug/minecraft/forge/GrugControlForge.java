@@ -44,6 +44,7 @@ public final class GrugControlForge {
     static final long DEFAULT_TIMEOUT_MILLIS = 20_000;
 
     /** The message, in either direction. */
+    @GrugGenerated("the Forge channel glue of #1040, which only the multiplayer job runs")
     public record Packet(byte[] bytes) {}
 
     private static SimpleChannel channel;
@@ -99,6 +100,7 @@ public final class GrugControlForge {
         channel.send(new Packet(bytes), PacketDistributor.SERVER.noArg());
     }
 
+    @GrugGenerated("the Forge channel glue of #1040, which only the multiplayer job runs")
     private static final class ServerLink implements GrugControlServer.Link {
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
