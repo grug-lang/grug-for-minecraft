@@ -1,3 +1,21 @@
 # Tests the 1.2.5 dedicated server cannot run although they define tick_any_side, one path per
 # line. Interim (#166): this mechanism is removed together with tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
+#
+# Display tick. A dedicated server draws no particles, so Test.display_tick refuses there with
+# "This needs a client" after validating its arguments.
+buildcraft/tests/redstone_engine_particles-Test.grug
+coverage/tests/display_tick-Test.grug
+coverage/tests/expect_display_tick_index-Test.grug
+coverage/tests/expect_display_tick_particle-Test.grug
+#
+# Block selection. The selection box is the client's outline, so Test.block_selection refuses on a
+# dedicated server.
+buildcraft/tests/wooden_pipe_boxes-Test.grug
+coverage/tests/block_shape-Test.grug
+#
+# Screenshot. A capture needs the client's frame buffer, so Screenshot.capture and
+# Screenshot.equals refuse on a dedicated server.
+coverage/tests/expect_screenshot_capture_empty_height-Test.grug
+coverage/tests/expect_screenshot_capture_past_the_edge-Test.grug
+coverage/tests/expect_screenshot_capture_truncates_to_empty-Test.grug

@@ -35,7 +35,8 @@ import java.util.zip.ZipOutputStream;
  *       version" line of {@code startServer}, which finds and loads every mod;
  *   <li>{@code FMLServerHandler.onLoadComplete()} just before the server builds its {@code
  *       ServerConfigurationManager}, which initialises them;
- *   <li>{@code rescheduleTicks()} then {@code onPreServerTick()} and {@code onPostServerTick()} around the per-tick method.
+ *   <li>{@code rescheduleTicks()} then {@code onPreServerTick()} and {@code onPostServerTick()}
+ *       around the per-tick method.
  * </ul>
  *
  * <p>FML's patches also add a few public methods to vanilla classes, which FML's own sources call

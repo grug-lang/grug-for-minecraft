@@ -971,7 +971,6 @@ jobs:
         env:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '300'
-          GRUG_MULTIPLAYER_BOOT_ONLY: ${{ matrix.loader == '1.2.5-forge' && '1' || '' }}
 
       - name: Upload logs and crash reports
         if: always()
