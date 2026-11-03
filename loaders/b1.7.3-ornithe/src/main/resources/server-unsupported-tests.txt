@@ -13,11 +13,3 @@ coverage/tests/expect_display_tick_particle-Test.grug
 # matter), so these tests fail with NoSuchMethodError there.
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
-#
-# Sound. The b1.7.3 server has no sound engine, so the sound name checks fail there.
-coverage/tests/expect_play_ui_sound_other_namespace-Test.grug
-coverage/tests/expect_play_ui_sound_unknown-Test.grug
-coverage/tests/expect_has_sound_name-Test.grug
-coverage/tests/expect_play_ui_sound_pitch-Test.grug
-coverage/tests/expect_play_ui_sound_name-Test.grug
-coverage/tests/expect_play_ui_sound_volume-Test.grug

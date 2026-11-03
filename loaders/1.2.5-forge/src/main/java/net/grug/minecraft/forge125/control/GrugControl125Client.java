@@ -46,6 +46,7 @@ public final class GrugControl125Client implements GrugControlRouter {
             new GrugControlClient(
                     message -> sendQueue().addToSendQueue(new GrugControlPacket(message)),
                     GrugControl125Client::capture,
+                    GrugControlClient.adapterCaller(GrugCore::getAdapter),
                     GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_DROP_WIDTH", -1),
                     GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_WIDTH", -1));
 

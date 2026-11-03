@@ -15,7 +15,7 @@ import java.util.List;
  * packet its game has; nothing here knows about a packet, so every loader can reuse the format and
  * a unit test can run both ends in one process.
  *
- * <p>Four messages exist. {@link #RUN_START} goes from the client to the server and says this
+ * <p>Seven messages exist. {@link #RUN_START} goes from the client to the server and says this
  * player started a run, which is the consent the client later relies on. {@link #CAPTURE_REQUEST}
  * goes the other way and names a screenshot rectangle. The client answers with either {@link
  * #ANSWER_ERROR} or one or more {@link #ANSWER_CHUNK}s that together hold a PNG: a serverbound
@@ -30,6 +30,25 @@ public final class GrugControlWire {
 
     /** Server to client: the run is over, so the client stops obeying forwarded calls. */
     public static final byte RUN_END = 5;
+
+    /**
+     * Server to client: perform one client-only host function and answer with {@link #ANSWER_VALUE}
+     * or {@link #ANSWER_ERROR}. The call is one of the {@code CALL_} codes, with a name and two
+     * numbers the call may use.
+     */
+    public static final byte CALL_REQUEST = 6;
+
+    /** Client to server: the call was performed; it carries the one-byte result. */
+    public static final byte ANSWER_VALUE = 7;
+
+    /** The call: does the game have the sound under the name. The answer is 1 or 0. */
+    public static final byte CALL_HAS_SOUND = 1;
+
+    /** The call: play the sound under the name at the volume and pitch. The answer is 1. */
+    public static final byte CALL_PLAY_UI_SOUND = 2;
+
+    /** The longest name a call may carry, in bytes. */
+    public static final int MAX_NAME = 256;
 
     /** Well under the 32767 bytes a serverbound payload may hold, leaving room for the header. */
     public static final int MAX_CHUNK = 20_000;
@@ -85,6 +104,17 @@ public final class GrugControlWire {
         public final byte[] data;
         public final String text;
 
+        /** The {@code CALL_} code of a call request. */
+        public final byte call;
+
+        /** The volume and pitch of a {@link #CALL_PLAY_UI_SOUND}; the name is in {@link #text}. */
+        public final double volume;
+
+        public final double pitch;
+
+        /** The result byte of a value answer. */
+        public final byte value;
+
         Message(
                 byte type,
                 long id,
@@ -93,6 +123,21 @@ public final class GrugControlWire {
                 int total,
                 byte[] data,
                 String text) {
+            this(type, id, rectangle, index, total, data, text, (byte) 0, 0, 0, (byte) 0);
+        }
+
+        Message(
+                byte type,
+                long id,
+                int[] rectangle,
+                int index,
+                int total,
+                byte[] data,
+                String text,
+                byte call,
+                double volume,
+                double pitch,
+                byte value) {
             this.type = type;
             this.id = id;
             this.x1 = rectangle[0];
@@ -103,7 +148,28 @@ public final class GrugControlWire {
             this.total = total;
             this.data = data;
             this.text = text;
+            this.call = call;
+            this.volume = volume;
+            this.pitch = pitch;
+            this.value = value;
         }
+    }
+
+    public static byte[] callRequest(long id, byte call, String name, double volume, double pitch) {
+        byte[] bytes = name.getBytes(StandardCharsets.UTF_8);
+        return ByteBuffer.allocate(1 + 8 + 1 + 4 + bytes.length + 8 + 8)
+                .put(CALL_REQUEST)
+                .putLong(id)
+                .put(call)
+                .putInt(bytes.length)
+                .put(bytes)
+                .putDouble(volume)
+                .putDouble(pitch)
+                .array();
+    }
+
+    public static byte[] answerValue(long id, byte value) {
+        return ByteBuffer.allocate(1 + 8 + 1).put(ANSWER_VALUE).putLong(id).put(value).array();
     }
 
     public static byte[] runStart() {
@@ -206,6 +272,40 @@ public final class GrugControlWire {
                     byte[] data = new byte[checkedLength(in, MAX_CHUNK, "chunk")];
                     in.get(data);
                     message = new Message(type, chunkId, none, index, total, data, null);
+                    break;
+                case CALL_REQUEST:
+                    long callId = in.getLong();
+                    byte call = in.get();
+                    if (call != CALL_HAS_SOUND && call != CALL_PLAY_UI_SOUND) {
+                        throw new IllegalArgumentException("unknown call " + call);
+                    }
+                    byte[] name = new byte[checkedLength(in, MAX_NAME, "name")];
+                    in.get(name);
+                    double volume = in.getDouble();
+                    double pitch = in.getDouble();
+                    if (Double.isNaN(volume) || Double.isNaN(pitch)) {
+                        throw new IllegalArgumentException("a call number is not a number");
+                    }
+                    message =
+                            new Message(
+                                    type,
+                                    callId,
+                                    none,
+                                    0,
+                                    0,
+                                    null,
+                                    new String(name, StandardCharsets.UTF_8),
+                                    call,
+                                    volume,
+                                    pitch,
+                                    (byte) 0);
+                    break;
+                case ANSWER_VALUE:
+                    long valueId = in.getLong();
+                    byte value = in.get();
+                    message =
+                            new Message(
+                                    type, valueId, none, 0, 0, null, null, (byte) 0, 0, 0, value);
                     break;
                 default:
                     throw new IllegalArgumentException("unknown control message type " + type);

@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugControlClient;
 import net.grug.minecraft.core.GrugControlFaults;
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
@@ -53,6 +54,7 @@ public final class GrugControlClientForge {
                     new GrugControlClient(
                             GrugControlForge::sendToServer,
                             GrugControlClientForge::capture,
+                            GrugControlClient.adapterCaller(GrugCore::getAdapter),
                             GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_DROP_WIDTH", -1),
                             GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_WIDTH", -1));
         }

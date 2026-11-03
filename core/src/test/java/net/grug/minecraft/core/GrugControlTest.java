@@ -66,8 +66,44 @@ class GrugControlTest {
             long timeoutMillis, int dropWidth, int lateWidth, GrugControlClient.Capturer c) {
         Loopback loop = new Loopback();
         loop.server = new GrugControlServer(loop, timeoutMillis);
-        loop.client = new GrugControlClient(loop, c, dropWidth, lateWidth);
+        loop.client = new GrugControlClient(loop, c, NO_CALLS, dropWidth, lateWidth);
         return loop;
+    }
+
+    /** A caller that fails the test if a call reaches it. */
+    private static final GrugControlClient.Caller NO_CALLS =
+            new GrugControlClient.Caller() {
+                @Override
+                public boolean hasSound(String path) {
+                    throw new AssertionError("no call was expected");
+                }
+
+                @Override
+                public void playUiSound(String path, double volume, double pitch) {
+                    throw new AssertionError("no call was expected");
+                }
+            };
+
+    private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
+        Loopback loop = new Loopback();
+        loop.server = new GrugControlServer(loop, timeoutMillis);
+        loop.client = new GrugControlClient(loop, solid(0), caller, -1, -1);
+        return loop;
+    }
+
+    /** A caller that knows the sound "random.click" and records what it was asked to play. */
+    private static final class Sounds implements GrugControlClient.Caller {
+        final List<String> played = new ArrayList<>();
+
+        @Override
+        public boolean hasSound(String path) {
+            return path.equals("random.click");
+        }
+
+        @Override
+        public void playUiSound(String path, double volume, double pitch) {
+            played.add(path + " " + volume + " " + pitch);
+        }
     }
 
     private static GrugControlClient.Capturer solid(int rgb) {
@@ -725,5 +761,210 @@ class GrugControlTest {
         image.setRGB(1, 0, 0x304050);
         org.junit.jupiter.api.Assertions.assertEquals(
                 "#203040", GrugControlServer.meanColour(image));
+    }
+
+    @Test
+    void aForwardedSoundCallReturnsTheClientsAnswerAndAnAck() throws Exception {
+        Sounds sounds = new Sounds();
+        Loopback loop = wireCalls(1000, sounds);
+        loop.client.beginRun();
+
+        String printed =
+                capture(
+                        () -> {
+                            try {
+                                assertTrue(loop.server.hasSound("random.click"));
+                                assertFalse(loop.server.hasSound("no_such"));
+                                loop.server.playUiSound("random.click", 0.5, 2);
+                            } catch (GrugControlServer.ControlException e) {
+                                throw new AssertionError(e);
+                            }
+                        });
+
+        assertEquals(List.of("random.click 0.5 2.0"), sounds.played);
+        assertTrue(loop.flushed);
+        assertTrue(printed.contains("the world is frozen until the client answers"), printed);
+        assertTrue(printed.contains("and the world is running again"), printed);
+    }
+
+    @Test
+    void aCallWithoutAStarterOrFromAClientThatDidNotStartIsAClearError() {
+        Loopback loop = wireCalls(1000, new Sounds());
+        GrugControlServer.ControlException none =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> loop.server.hasSound("random.click"));
+        assertTrue(none.getMessage().contains("No client has started a run"), none.getMessage());
+
+        loop.server.onMessage(PLAYER, GrugControlWire.runStart());
+        GrugControlServer.ControlException refused =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> loop.server.playUiSound("random.click", 1, 1));
+        assertTrue(refused.getMessage().contains("refused"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("no run was started"), refused.getMessage());
+
+        loop.connected = false;
+        GrugControlServer.ControlException gone =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> loop.server.hasSound("random.click"));
+        assertTrue(gone.getMessage().contains("not connected"), gone.getMessage());
+    }
+
+    @Test
+    void aCallTheWireCannotCarryNeverLeavesTheServer() {
+        Loopback loop = wireCalls(1000, new Sounds());
+        loop.client.beginRun();
+        String longName = "a".repeat(GrugControlWire.MAX_NAME + 1);
+        assertThrows(
+                GrugControlServer.ControlException.class, () -> loop.server.hasSound(longName));
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () -> loop.server.playUiSound("x", Double.NaN, 1));
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () -> loop.server.playUiSound("x", 1, Double.NaN));
+        assertTrue(loop.toClient.isEmpty());
+    }
+
+    @Test
+    void anUnansweredCallTimesOutAndTheWrongKindOfAnswerIsRefused() {
+        List<byte[]> sent = java.util.Collections.synchronizedList(new ArrayList<>());
+        GrugControlServer.Link link =
+                new GrugControlServer.Link() {
+                    @Override
+                    public boolean sendToStarter(Object starter, byte[] message) {
+                        sent.add(message);
+                        return true;
+                    }
+
+                    @Override
+                    public void flushWorld() {}
+
+                    @Override
+                    public boolean mayStartRun(Object sender) {
+                        return true;
+                    }
+                };
+        GrugControlServer server = new GrugControlServer(link, 40);
+        server.onMessage(PLAYER, GrugControlWire.runStart());
+
+        GrugControlServer.ControlException timeout =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server.hasSound("random.click"));
+        assertTrue(timeout.getMessage().contains("did not answer"), timeout.getMessage());
+
+        // A chunk answering a call, and a value answering a capture, are each the wrong kind.
+        GrugControlServer chunky = new GrugControlServer(link, 5000);
+        chunky.onMessage(PLAYER, GrugControlWire.runStart());
+        Thread answerer =
+                new Thread(
+                        () -> {
+                            awaitSent(sent, 1);
+                            long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
+                            chunky.onMessage(
+                                    PLAYER, GrugControlWire.answerChunks(id, new byte[1]).get(0));
+                        });
+        answerer.start();
+        GrugControlServer.ControlException wrong =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> chunky.hasSound("random.click"));
+        assertTrue(wrong.getMessage().contains("wrong kind of answer"), wrong.getMessage());
+
+        GrugControlServer valued = new GrugControlServer(link, 5000);
+        valued.onMessage(PLAYER, GrugControlWire.runStart());
+        int before = sent.size();
+        Thread valuer =
+                new Thread(
+                        () -> {
+                            awaitSent(sent, before + 1);
+                            long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
+                            valued.onMessage(PLAYER, GrugControlWire.answerValue(id, (byte) 1));
+                        });
+        valuer.start();
+        GrugControlServer.ControlException wrongToo =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> valued.capture(0, 0, 4, 4));
+        assertTrue(wrongToo.getMessage().contains("wrong kind of answer"), wrongToo.getMessage());
+    }
+
+    private static void awaitSent(List<byte[]> sent, int count) {
+        long until = System.nanoTime() + 5_000_000_000L;
+        while (System.nanoTime() < until) {
+            if (sent.size() >= count) {
+                return;
+            }
+            Thread.yield();
+        }
+        throw new AssertionError("nothing was sent");
+    }
+
+    @Test
+    void theWireRoundTripsACallAndItsValueAndRefusesWhatLies() {
+        GrugControlWire.Message call =
+                GrugControlWire.decode(
+                        GrugControlWire.callRequest(
+                                5, GrugControlWire.CALL_PLAY_UI_SOUND, "random.click", 0.25, 1.5));
+        assertEquals(GrugControlWire.CALL_REQUEST, call.type);
+        assertEquals(5, call.id);
+        assertEquals(GrugControlWire.CALL_PLAY_UI_SOUND, call.call);
+        assertEquals("random.click", call.text);
+        assertEquals(0.25, call.volume);
+        assertEquals(1.5, call.pitch);
+
+        GrugControlWire.Message value =
+                GrugControlWire.decode(GrugControlWire.answerValue(6, (byte) 1));
+        assertEquals(GrugControlWire.ANSWER_VALUE, value.type);
+        assertEquals(1, value.value);
+
+        byte[] unknown = GrugControlWire.callRequest(1, (byte) 9, "x", 0, 0);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
+        byte[] nan =
+                GrugControlWire.callRequest(1, GrugControlWire.CALL_HAS_SOUND, "x", Double.NaN, 0);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(nan));
+        byte[] longName =
+                GrugControlWire.callRequest(
+                        1,
+                        GrugControlWire.CALL_HAS_SOUND,
+                        "a".repeat(GrugControlWire.MAX_NAME + 1),
+                        0,
+                        0);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(longName));
+        byte[] atCap =
+                GrugControlWire.callRequest(
+                        1,
+                        GrugControlWire.CALL_HAS_SOUND,
+                        "a".repeat(GrugControlWire.MAX_NAME),
+                        0,
+                        0);
+        assertEquals(GrugControlWire.MAX_NAME, GrugControlWire.decode(atCap).text.length());
+        byte[] cut = java.util.Arrays.copyOf(atCap, atCap.length - 1);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(cut));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> GrugControlWire.decode(java.util.Arrays.copyOf(atCap, atCap.length + 1)));
+    }
+
+    @Test
+    void theAdapterCallerHandsTheCallsToTheAdapterItIsGiven() {
+        List<String> seen = new ArrayList<>();
+        ModLoaderAdapter adapter =
+                (ModLoaderAdapter)
+                        java.lang.reflect.Proxy.newProxyInstance(
+                                ModLoaderAdapter.class.getClassLoader(),
+                                new Class<?>[] {ModLoaderAdapter.class},
+                                (proxy, method, args) -> {
+                                    seen.add(method.getName() + " " + args[0]);
+                                    return method.getReturnType() == boolean.class
+                                            ? Boolean.TRUE
+                                            : null;
+                                });
+        GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
+        assertTrue(caller.hasSound("a"));
+        caller.playUiSound("b", 1, 1);
+        assertEquals(List.of("hasSound a", "playUiSound b"), seen);
     }
 }

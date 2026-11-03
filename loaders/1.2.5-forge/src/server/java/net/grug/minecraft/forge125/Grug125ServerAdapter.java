@@ -86,13 +86,26 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         return super.isWorldReady(playerObj) && ((EntityPlayer) playerObj).onGround;
     }
 
+    /** Asked of the client of the player who started the run, with the world frozen (#1040). */
     @Override
     public boolean hasSound(String path) {
-        return false;
+        try {
+            return GrugControlServer125.server().hasSound(path);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "has_sound: " + e.getMessage());
+            return false;
+        }
     }
 
+    /** Played by the client of the player who started the run, which owns the sound engine. */
     @Override
-    public void playUiSound(String path, double volume, double pitch) {}
+    public void playUiSound(String path, double volume, double pitch) {
+        try {
+            GrugControlServer125.server().playUiSound(path, volume, pitch);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
+        }
+    }
 
     @Override
     public void onFrameRendered() {}

@@ -36,15 +36,6 @@ coverage/tests/expect_display_tick_particle-Test.grug
 buildcraft/tests/wooden_pipe_boxes-Test.grug
 coverage/tests/block_shape-Test.grug
 #
-# Sound. The a0.2.1 server has no sound engine, so the sound name checks fail with
-# NoClassDefFoundError there.
-coverage/tests/expect_play_ui_sound_other_namespace-Test.grug
-coverage/tests/expect_play_ui_sound_unknown-Test.grug
-coverage/tests/expect_has_sound_name-Test.grug
-coverage/tests/expect_play_ui_sound_pitch-Test.grug
-coverage/tests/expect_play_ui_sound_name-Test.grug
-coverage/tests/expect_play_ui_sound_volume-Test.grug
-#
 # Unexplained, tracked in #1051: the dropped item's hop y is not 0.2 on the server although the
 # a0.2.1 ItemEntity constructor sets 0.2F like the client's.
 buildcraft/tests/wooden_pipe_break-Test.grug

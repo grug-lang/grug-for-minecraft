@@ -111,7 +111,9 @@ public final class GrugControlServer125 implements GrugControlRouter {
     public boolean onRead(Thread reader, byte[] bytes) {
         if (bytes.length == 0) return false;
         byte type = bytes[0];
-        if (type != GrugControlWire.ANSWER_ERROR && type != GrugControlWire.ANSWER_CHUNK) {
+        if (type != GrugControlWire.ANSWER_ERROR
+                && type != GrugControlWire.ANSWER_CHUNK
+                && type != GrugControlWire.ANSWER_VALUE) {
             return false;
         }
         // An answer goes to the waiting capture from here, because the game thread that would

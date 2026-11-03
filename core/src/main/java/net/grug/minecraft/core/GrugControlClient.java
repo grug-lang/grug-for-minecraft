@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import javax.imageio.ImageIO;
 
@@ -37,8 +38,31 @@ public final class GrugControlClient {
                 Consumer<String> failed);
     }
 
+    /** The loader's performing of the client-only calls a server may forward. */
+    public interface Caller {
+        boolean hasSound(String path);
+
+        void playUiSound(String path, double volume, double pitch);
+    }
+
+    /** The calls performed by the game's adapter, looked up when a call arrives. */
+    public static Caller adapterCaller(Supplier<ModLoaderAdapter> adapter) {
+        return new Caller() {
+            @Override
+            public boolean hasSound(String path) {
+                return adapter.get().hasSound(path);
+            }
+
+            @Override
+            public void playUiSound(String path, double volume, double pitch) {
+                adapter.get().playUiSound(path, volume, pitch);
+            }
+        };
+    }
+
     private final Link link;
     private final Capturer capturer;
+    private final Caller caller;
     private final int dropWidth;
     private final int lateWidth;
     private final AtomicReference<Runnable> held = new AtomicReference<>();
@@ -52,9 +76,11 @@ public final class GrugControlClient {
      *     server gave up on the first and while it waits for the second, so a run delivers a stale
      *     answer at the moment it could do harm. Negative disables it.
      */
-    public GrugControlClient(Link link, Capturer capturer, int dropWidth, int lateWidth) {
+    public GrugControlClient(
+            Link link, Capturer capturer, Caller caller, int dropWidth, int lateWidth) {
         this.link = link;
         this.capturer = capturer;
+        this.caller = caller;
         this.dropWidth = dropWidth;
         this.lateWidth = lateWidth;
     }
@@ -95,7 +121,8 @@ public final class GrugControlClient {
             endRun();
             return;
         }
-        if (message.type != GrugControlWire.CAPTURE_REQUEST) {
+        if (message.type != GrugControlWire.CAPTURE_REQUEST
+                && message.type != GrugControlWire.CALL_REQUEST) {
             return;
         }
         long id = message.id;
@@ -103,6 +130,10 @@ public final class GrugControlClient {
             link.send(
                     GrugControlWire.answerError(
                             id, "refused: no run was started by this player on this client"));
+            return;
+        }
+        if (message.type == GrugControlWire.CALL_REQUEST) {
+            perform(message);
             return;
         }
         Runnable stale = held.getAndSet(null);
@@ -133,6 +164,18 @@ public final class GrugControlClient {
                     }
                 },
                 text -> link.send(GrugControlWire.answerError(id, text)));
+    }
+
+    /** Performs a call on this thread, which the loader delivers on the game thread. */
+    private void perform(GrugControlWire.Message message) {
+        System.out.println("[GRUG CONTROL] request " + message.id + ": call " + message.call);
+        if (message.call == GrugControlWire.CALL_HAS_SOUND) {
+            boolean has = caller.hasSound(message.text);
+            link.send(GrugControlWire.answerValue(message.id, (byte) (has ? 1 : 0)));
+        } else {
+            caller.playUiSound(message.text, message.volume, message.pitch);
+            link.send(GrugControlWire.answerValue(message.id, (byte) 1));
+        }
     }
 
     private void answer(long id, BufferedImage image) {

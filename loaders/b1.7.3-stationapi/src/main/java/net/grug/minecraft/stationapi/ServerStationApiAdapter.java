@@ -80,6 +80,27 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                 player.x, Math.rint(player.boundingBox.minY * 1e6) / 1e6 + EYE_HEIGHT, player.z);
     }
 
+    /** Asked of the client of the player who started the run, with the world frozen (#1040). */
+    @Override
+    public boolean hasSound(String path) {
+        try {
+            return GrugControlStation.server().hasSound(path);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "has_sound: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Played by the client of the player who started the run, which owns the sound engine. */
+    @Override
+    public void playUiSound(String path, double volume, double pitch) {
+        try {
+            GrugControlStation.server().playUiSound(path, volume, pitch);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
+        }
+    }
+
     /**
      * Forwards the capture to the joined client of the player who started the run and waits for the
      * answer with the world frozen (#1040, option A). Arguments are checked first, as on a client.
