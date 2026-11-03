@@ -39,6 +39,8 @@ public final class GrugServerRun implements ITickHandler {
     private static boolean done = false;
     private static boolean advancing = false;
     private static int gameSpeed = 1;
+    private static double holdY = 0;
+    private static final double HOLD_TOLERANCE = 0.25;
 
     /** Registers the run's tick with FML, on a server. Called by reflection from mod_Grug. */
     public static void install() {
@@ -136,6 +138,20 @@ public final class GrugServerRun implements ITickHandler {
         }
     }
 
+    /**
+     * Puts the player back at the height they landed at when they fell below it. The client owns
+     * the player's movement, and each test clears and rebuilds the floor under them, so a frame in
+     * which the client sees air lets them drop a block or two; test after test that adds up to a
+     * fall out of the world, and every test builds its room from where the player stands.
+     */
+    private static void holdPlayer(EntityPlayerMP player) {
+        if (player.posY < holdY - HOLD_TOLERANCE) {
+            player.playerNetServerHandler.teleportTo(
+                    player.posX, holdY, player.posZ, player.rotationYaw, player.rotationPitch);
+            player.motionY = 0;
+        }
+    }
+
     private static void tick() {
         List<?> players = players();
         pollModFiles();
@@ -149,6 +165,7 @@ public final class GrugServerRun implements ITickHandler {
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
+                holdY = ((EntityPlayerMP) players.get(0)).posY;
                 runner = new GrugTestRunner();
             } else if (System.currentTimeMillis() - waitStartMillis >= PLAYER_JOIN_TIMEOUT_MILLIS) {
                 System.out.println("[GRUG CI] FAIL world readiness");
@@ -191,6 +208,7 @@ public final class GrugServerRun implements ITickHandler {
             if (step > 0) {
                 advance(server().worldMngr[0], 1);
             }
+            holdPlayer((EntityPlayerMP) players.get(0));
             runner.tick(players.get(0));
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
