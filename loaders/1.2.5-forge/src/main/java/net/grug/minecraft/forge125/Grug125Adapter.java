@@ -1,23 +1,18 @@
 package net.grug.minecraft.forge125;
 
+import cpw.mods.fml.common.FMLCommonHandler;
+
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugRegistryNames;
 import net.grug.minecraft.core.GrugRenderSettle;
-import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
-import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge125.block.GrugBlock;
 import net.grug.minecraft.forge125.block.GrugBlocks;
-import net.grug.minecraft.forge125.block.GrugBoxRenderer;
 import net.grug.minecraft.forge125.block.entity.GrugBlockEntity;
-import net.grug.minecraft.forge125.client.GlBridge;
-import net.grug.minecraft.forge125.client.GrugEmptyScreen;
-import net.grug.minecraft.forge125.client.GrugOverlayHost;
-import net.grug.minecraft.forge125.client.GrugScreen;
 import net.grug.minecraft.forge125.grug.DummyCraftingInventory;
 import net.grug.minecraft.forge125.grug.VanillaNames;
 import net.grug.minecraft.forge125.item.GrugItem;
@@ -29,12 +24,9 @@ import net.grug.minecraft.grug.GrugDeclarations;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
-import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
 import net.grug.minecraft.grug.GrugVanillaBlocks;
 import net.grug.minecraft.grug.Vec3;
-import net.grug.minecraft.gui.GrugGuiBuilder;
-import net.minecraft.client.Minecraft;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
@@ -42,9 +34,6 @@ import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.GuiContainer;
-import net.minecraft.src.GuiInventory;
-import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IChunkLoader;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
@@ -53,21 +42,14 @@ import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.MovingObjectPosition;
 import net.minecraft.src.NBTTagCompound;
-import net.minecraft.src.RenderGlobal;
 import net.minecraft.src.TileEntity;
-import net.minecraft.src.Timer;
 import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
-import net.minecraft.src.WorldRenderer;
 
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -78,7 +60,7 @@ import java.util.Map;
  * signatures in the 1.2.5 decompile (see {@code net.minecraft.src}). Method-level coverage
  * annotations call out the parts an ordinary test cannot reach.
  */
-public class Grug125Adapter implements ModLoaderAdapter {
+public abstract class Grug125Adapter implements ModLoaderAdapter {
 
     /**
      * This loader's directory under {@code loaders/}, which names the screenshot references it
@@ -95,24 +77,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
             GrugVanillaBlocks.forLoader(LOADER_NAME);
 
     /**
-     * Always a client, and not because anything registers this mod client-side only: FML 1.2.5's
-     * {@code Loader} scans the mods directory with no side filter, so on a dedicated server it
-     * would find {@code mod_Grug} too. The class cannot load there instead, because it names {@code
-     * net.minecraft.client.Minecraft} and Minecraft 1.2.5's server jar has no {@code
-     * net.minecraft.client} package.
-     *
-     * <p>A 1.2.5 dedicated server is deferred, not ruled out; see #166. It first needs this class,
-     * the block classes and the tick hooks split into a common and a client half. There is a handle
-     * to build on: in the server's own {@code ModLoader}, {@code getMinecraftInstance()} returns
-     * {@code getMinecraftServerInstance()}.
+     * The game directory, which both sides' FML answers: the client's {@code mcDataDir} and the
+     * server's working directory. ModLoader's own {@code getMinecraftInstance()} cannot be asked,
+     * because it returns a {@code Minecraft} on the client and an {@code Object} on the server.
      */
-    @Override
-    public GrugSide getSide() {
-        return GrugSide.CLIENT;
-    }
-
     private static File gameDir() {
-        return ModLoader.getMinecraftInstance().mcDataDir;
+        return FMLCommonHandler.instance().getMinecraftRootDirectory();
     }
 
     @Override
@@ -143,15 +113,6 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     // --- GUI & Inventory Methods ---
-
-    @Override
-    public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
-        // The player and builder types cannot be wrong because of a script, so cast directly.
-        EntityPlayer player = (EntityPlayer) playerObj;
-        IInventory inventory = (IInventory) blockEntityObj;
-        GrugGuiBuilder builder = (GrugGuiBuilder) guiBuilderObj;
-        GrugScreen.open(player, inventory, builder);
-    }
 
     @Override
     public void consumeCraftingIngredients(Object blockEntityObj, double startSlot) {
@@ -1149,54 +1110,6 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated("the no-player arm: a run reads the cursor of a client with a player")
-    public Object carriedItem() {
-        Minecraft minecraft = ModLoader.getMinecraftInstance();
-        if (minecraft == null || minecraft.thePlayer == null) return null;
-        ItemStack stack = minecraft.thePlayer.inventory.getItemStack();
-        return stack == null ? null : stack.getItem();
-    }
-
-    @Override
-    @GrugGenerated("the no-player arm: a run sets the cursor of a client with a player")
-    public void setCarriedItem(Object itemObj) {
-        Minecraft minecraft = ModLoader.getMinecraftInstance();
-        if (minecraft == null || minecraft.thePlayer == null) return;
-        minecraft.thePlayer.inventory.setItemStack(
-                itemObj == null ? null : new ItemStack((Item) itemObj));
-    }
-
-    @Override
-    @GrugGenerated("the no-player arm: a run clears the cursor of a client with a player")
-    public void deleteCarriedItem() {
-        Minecraft minecraft = ModLoader.getMinecraftInstance();
-        if (minecraft == null || minecraft.thePlayer == null) return;
-        minecraft.thePlayer.inventory.setItemStack(null);
-    }
-
-    @Override
-    @GrugGenerated(
-            "In a CI run 1.2.5 downloads no sound resources, so its pool is empty and the true"
-                    + " side of the null check was the only part the coverage report showed missed")
-    public boolean hasSound(String path) {
-        return ModLoader.getMinecraftInstance()
-                        .sndManager
-                        .getSoundsPool()
-                        .getRandomSoundFromSoundPool(path)
-                != null;
-    }
-
-    @Override
-    @GrugGenerated(
-            "In a CI run 1.2.5 downloads no sound resources, so its pool is empty, hasSound is"
-                    + " never true and nothing calls this")
-    public void playUiSound(String path, double volume, double pitch) {
-        ModLoader.getMinecraftInstance()
-                .sndManager
-                .playSoundFX(path, (float) volume, (float) pitch);
-    }
-
-    @Override
     public boolean hasNeighborSignal(Object levelObj, double x, double y, double z) {
         World world = (World) levelObj;
         return world.isBlockIndirectlyGettingPowered(
@@ -1346,16 +1259,6 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    public Object getLevel() {
-        return ModLoader.getMinecraftInstance().theWorld;
-    }
-
-    @Override
-    public Object testPlayer() {
-        return ModLoader.getMinecraftInstance().thePlayer;
-    }
-
-    @Override
     @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
     public void buildTestBox(int radius) {
         // The room build is the first thing the runner does for a test, and it dirties the
@@ -1413,30 +1316,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
         }
     }
 
-    /**
-     * Test only: proves the block-id search spills into the ids above 255 and that an id it hands
-     * out survives the game's own chunk save and load.
-     *
-     * <p>The pack's other mods have used up the low range by the time a grug block overruns it
-     * (#509), which is the case this test makes happen on purpose: every low id it leaves free is
-     * taken with a stand-in, and the id the test block gets then comes from the same pool the
-     * registration takes its own from. Without a search that continues at {@link
-     * GrugBlocks#FIRST_HIGH_BLOCK_ID} that pool is empty, which is the failure. The block takes the
-     * id for real: it is registered in the tables the way registration registers it, placed in the
-     * room the tests run in, saved with the game's own chunk loader, and the id is read back out of
-     * the chunk the loader loaded, so it came back through the save's 12-bit id rather than out of
-     * a field. See #518 and the measurement in #513.
-     */
-    @Override
-    public long highBlockRoundTrip() {
-        return highBlockRoundTrip(ModLoader.getMinecraftInstance().theWorld);
-    }
-
     @GrugGenerated(
             "test-only round trip: its failure arms need a game that refuses the write, an"
                     + " unwritable save, an exhausted id pool or a corrupted read-back, none of"
                     + " which a run can force; the grug test asserts the id it answers")
-    private long highBlockRoundTrip(World world) {
+    long highBlockRoundTrip(World world) {
         if (world == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.high_block_round_trip: There is no level to test in yet.");
@@ -1619,70 +1503,9 @@ public class Grug125Adapter implements ModLoaderAdapter {
         return blockEntityNbt;
     }
 
-    /**
-     * The client's tick timer, which decides how many ticks {@code Minecraft.run} takes for a
-     * frame. The field is private and the class is the game's own, so reflection is the only way
-     * in, and it is found by its type and not by the notch name {@code X}, so a name that moves
-     * with a snapshot cannot silently miss it: {@code Minecraft} holds exactly one {@code Timer}.
-     */
-    private static final Field TIMER = timerField();
-
-    /**
-     * Finds the timer field by its type.
-     *
-     * <p>The class always holds one, so the loop never runs out of fields and the fatal after it
-     * cannot fire; it is there so a different game build fails loudly instead of returning null.
-     */
-    private static Field timerField() {
-        Field field = findTimerField();
-        field.setAccessible(true);
-        return field;
-    }
-
-    @GrugGenerated("Minecraft has exactly one Timer field, so the empty answer cannot be forced")
-    private static Field findTimerField() {
-        for (Field field : Minecraft.class.getDeclaredFields()) {
-            if (field.getType() == Timer.class) {
-                return field;
-            }
-        }
-        throw Grug.fatal("Minecraft has no Timer field");
-    }
-
     @Override
     public double maxGameSpeed() {
         return CLIENT_TICKS_PER_FRAME;
-    }
-
-    /**
-     * Scales the timer, which 1.2.5's single-process game ticks the world from: there is no
-     * integrated server before 1.3, so the world, the tile entities and the test runner all run
-     * from the client's tick and speed up together. The timer hands out at most 10 ticks for a
-     * frame, so what a speed delivers is bounded by about ten times the frame rate.
-     */
-    @Override
-    public boolean setGameSpeed(double speed) {
-        setTimerSpeed(ModLoader.getMinecraftInstance(), (float) speed);
-        return true;
-    }
-
-    /**
-     * Writes the timer's speed through the reflected field.
-     *
-     * <p>The field was made accessible when it was looked up, so reading it cannot fail and the
-     * catch only reports a field that stopped being readable.
-     */
-    private static void setTimerSpeed(Minecraft minecraft, float speed) {
-        ((Timer) readTimer(minecraft)).timerSpeed = speed;
-    }
-
-    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
-    private static Object readTimer(Minecraft minecraft) {
-        try {
-            return TIMER.get(minecraft);
-        } catch (IllegalAccessException e) {
-            throw Grug.fatal("Minecraft's Timer field cannot be read", e);
-        }
     }
 
     @Override
@@ -1775,153 +1598,26 @@ public class Grug125Adapter implements ModLoaderAdapter {
     }
 
     @Override
-    public boolean isWorldSettled() {
-        // What the client owes is the simulated world's current block, not the one the test placed.
-        Object simulated = getLevel();
-        // Asked now as well as per frame: the runner runs up to 10 ticks for a frame, so a change a
-        // test just made has not been in a frame yet, and only the renderer's list knows it.
-        // The client and the server share this loader's world, so a placed block is there, but the
-        // settlement still waits for a frame that shows it. Both answers are combined inside
-        // GrugRenderSettle, whose unit test covers every combination, so no branch here depends on
-        // whether an edit happened to be owed. The block answer refreshes from the world it is
-        // given first, so it compares the client against what the world holds now. See #804.
-        return renderSettle.settledNow(
-                frameHadPendingWork(ModLoader.getMinecraftInstance()),
-                blockSync.settled((x, y, z) -> getBlock(simulated, x, y, z)));
-    }
-
-    @Override
     public void forgetSettledFrames() {
         renderSettle.reset();
-    }
-
-    @Override
-    public void onFrameRendered() {
-        Minecraft minecraft = ModLoader.getMinecraftInstance();
-        // The reader only runs while an edit is owed, and only a placement in a level records one,
-        // so there is a world whenever it is asked. A frame drawn before a world exists owes
-        // nothing and answers without reading.
-        boolean blocksPending =
-                blockSync.onFrame((x, y, z) -> getBlock(minecraft.theWorld, x, y, z));
-        renderSettle.onFrame(frameHadPendingWork(minecraft), blocksPending);
     }
 
     /**
      * The client's frames, and whether the last one had work in it. See {@link
      * #frameHadPendingWork}.
      */
-    private final GrugRenderSettle renderSettle = new GrugRenderSettle();
+    final GrugRenderSettle renderSettle = new GrugRenderSettle();
 
     /**
      * The client's copy of the blocks a test has placed, for the frame hook to sample. See #804.
      */
-    private final GrugBlockSync blockSync = new GrugBlockSync();
-
-    /**
-     * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
-     * to, or a window that was not yet at the size a capture reads.
-     *
-     * <p>This runs from the render tick, after the frame was drawn, so the renderer's list is what
-     * that frame left behind: a chunk still in it and in view was not drawn, and the frame a
-     * capture would read is therefore not the settled scene. The window check is the other half: a
-     * run forces the window to the screenshot resolution, the game's display size only follows at
-     * the end of the frame, and a frame drawn before that is at the old size and lays its GUI out
-     * elsewhere. Both are sampled per frame rather than per game tick because the game draws fewer
-     * frames than it runs ticks, so a tick-based answer can pass while the frame a capture reads is
-     * still the older one. See #257.
-     */
-    private boolean frameHadPendingWork(Minecraft minecraft) {
-        return GrugRenderSettle.frameHadPendingWork(
-                minecraft.displayWidth,
-                minecraft.displayHeight,
-                minecraft.renderGlobal,
-                minecraft.thePlayer,
-                chunkPending(minecraft));
-    }
-
-    /**
-     * Whether a chunk the renderer is going to rebuild is still waiting.
-     *
-     * <p>Only the chunks it can see within the distance {@code updateRenderers} itself compiles
-     * within count: a chunk outside the frustum, or further away than that distance, is kept in the
-     * list until the camera turns or moves, so a stationary run would otherwise never settle.
-     */
-    private boolean chunkPending(Minecraft minecraft) {
-        EntityPlayer player = minecraft.thePlayer;
-        for (Object entry : pendingRenderers(minecraft)) {
-            WorldRenderer chunk = (WorldRenderer) entry;
-            if (chunk.isInFrustum
-                    && chunk.distanceToEntitySquared(player) <= COMPILE_DISTANCE_SQUARED) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * The renderer's pending chunk rebuilds, or an empty list when there is no renderer or player
-     * yet, which the guard above answers for anyway.
-     */
-    @GrugGenerated(
-            "reflection: the field is looked up once and made accessible, so its catch cannot fire;"
-                    + " the missing renderer or player arm is the frame before the world exists")
-    private static List<?> pendingRenderers(Minecraft minecraft) {
-        RenderGlobal renderGlobal = minecraft.renderGlobal;
-        if (renderGlobal == null || minecraft.thePlayer == null) {
-            return Collections.emptyList();
-        }
-        return renderersToUpdate(renderGlobal);
-    }
-
-    private static List<?> renderersToUpdate(RenderGlobal renderGlobal) {
-        return (List<?>) readRenderers(renderGlobal);
-    }
-
-    @GrugGenerated("reflection: the field is accessible, so its catch cannot fire")
-    private static Object readRenderers(RenderGlobal renderGlobal) {
-        try {
-            return RENDERERS_TO_UPDATE.get(renderGlobal);
-        } catch (IllegalAccessException e) {
-            throw Grug.fatal("Could not read RenderGlobal.worldRenderersToUpdate", e);
-        }
-    }
+    final GrugBlockSync blockSync = new GrugBlockSync();
 
     /**
      * The squared distance {@code RenderGlobal.updateRenderers} compiles a chunk within, mirrored
      * from its own check. A chunk further out is only rebuilt once the camera moves closer.
      */
-    private static final float COMPILE_DISTANCE_SQUARED = 256.0F;
-
-    /**
-     * {@code RenderGlobal}'s pending chunk rebuilds, which its own {@code updateRenderers} drains
-     * inside the frame before the chunks are drawn.
-     *
-     * <p>The field is private and the class is the game's own, so reflection is the only way in
-     * from here: 1.2.5 has no Mixin, and the class comes from the pinned MCP snapshot rather than
-     * from a patch this repository keeps. The name looked up is the notch one the reobfuscated game
-     * actually carries, which the snapshot's {@code conf/client.srg} names as {@code l/k} and maps
-     * to {@code RenderGlobal/field_1446_m}, the name {@code conf/fields.csv} gives to {@code
-     * worldRenderersToUpdate}; the MCP name exists only while this class is compiled, which is why
-     * looking it up found nothing. The lookup happens once, and a missing field is a broken build
-     * rather than a condition to carry on from, which is why it is fatal.
-     */
-    private static final Field RENDERERS_TO_UPDATE = renderersToUpdateField();
-
-    private static Field renderersToUpdateField() {
-        Field field = findRenderersField();
-        field.setAccessible(true);
-        return field;
-    }
-
-    @GrugGenerated(
-            "the lookup of a field the reobfuscated game always carries, so its fatal cannot fire")
-    private static Field findRenderersField() {
-        try {
-            return RenderGlobal.class.getDeclaredField("k");
-        } catch (NoSuchFieldException e) {
-            throw Grug.fatal("RenderGlobal has no worldRenderersToUpdate field", e);
-        }
-    }
+    static final float COMPILE_DISTANCE_SQUARED = 256.0F;
 
     @Override
     public boolean registersModRecipes() {
@@ -1936,24 +1632,12 @@ public class Grug125Adapter implements ModLoaderAdapter {
         return new Vec3(player.posX, player.posY, player.posZ);
     }
 
-    private boolean testPlayerSnapped = false;
+    boolean testPlayerSnapped = false;
     private double savedX, savedY, savedZ;
     private float savedYaw, savedPitch;
 
-    @Override
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void snapPlayerForTestOnClient() {
-        Minecraft mc = ModLoader.getMinecraftInstance();
-        EntityPlayer player = mc.thePlayer;
-        if (player == null) {
-            throw Grug.fatal(
-                    "The test runner: there is no local player to snap to their block centre.");
-        }
-        snapPlayer(player);
-    }
-
     /** Saves where the player was and snaps them to their own block's centre. */
-    private void snapPlayer(EntityPlayer player) {
+    void snapPlayer(EntityPlayer player) {
         savedX = player.posX;
         savedY = player.posY;
         savedZ = player.posZ;
@@ -1974,18 +1658,8 @@ public class Grug125Adapter implements ModLoaderAdapter {
                 0.0F);
     }
 
-    @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void restorePlayerAfterTest() {
-        // A no-op on a dedicated server, where there is no client player to snap. The runner calls
-        // this for every test that ends, so it must not report an error for those.
-        if (!testPlayerSnapped) return;
-        testPlayerSnapped = false;
-        restorePlayerIfPresent(ModLoader.getMinecraftInstance().thePlayer);
-    }
-
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    private void restorePlayerIfPresent(EntityPlayer player) {
+    void restorePlayerIfPresent(EntityPlayer player) {
         if (player == null) return;
         restorePlayer(player);
     }
@@ -1995,267 +1669,20 @@ public class Grug125Adapter implements ModLoaderAdapter {
         player.setPositionAndRotation(savedX, savedY, savedZ, savedYaw, savedPitch);
     }
 
-    @Override
-    public void closeOpenScreenForTest() {
-        // Not null: on a headless client the window is never active, so 1.2.5's focus check would
-        // put its in-game menu up over the next frame and pause the world behind it. The empty
-        // screen keeps the focus check quiet and the world ticking. See GrugEmptyScreen.
-        ModLoader.getMinecraftInstance().displayGuiScreen(new GrugEmptyScreen());
-    }
-
-    @Override
-    public boolean isScreenOpenForTest() {
-        // The empty screen close_screen displays is not an open screen as far as a test can tell.
-        return GrugTestScreens.isOpen(
-                ModLoader.getMinecraftInstance().currentScreen, GrugEmptyScreen.class);
-    }
-
-    @Override
-    @GrugGenerated("the no-player arm: a run opens the screen of the player it was given")
-    public void openInventory(Object playerObj) {
-        EntityPlayer player = (EntityPlayer) playerObj;
-        if (player == null) return;
-        ModLoader.getMinecraftInstance().displayGuiScreen(new GuiInventory(player));
-    }
-
-    @Override
-    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
-    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
-        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
-        if (screen == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.press_screen_key: There is no screen open to press.");
-            return false;
-        }
-        return GrugOverlayHost.pressKey(screen, key, ctrl, release);
-    }
-
-    @Override
-    @GrugGenerated("the no-screen arm: a run scrolls while the screen it just opened is up")
-    public boolean scrollScreen(double x, double y, double delta) {
-        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
-        if (screen == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.scroll_screen: There is no screen open to scroll.");
-            return false;
-        }
-        return GrugOverlayHost.scrollThroughScreen(screen, (int) x, (int) y, delta);
-    }
-
-    @Override
-    @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
-    public boolean clickScreen(double x, double y, double button) {
-        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
-        if (screen == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.click_screen: There is no screen open to click.");
-            return false;
-        }
-        return GrugOverlayHost.clickThroughScreen(screen, (int) x, (int) y, (int) button);
-    }
-
-    @Override
-    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
-    public double screenWidthForTest() {
-        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
-        return screen == null ? 0.0 : screen.width;
-    }
-
-    @Override
-    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
-    public double guiLeftForTest() {
-        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
-        if (!(screen instanceof GuiContainer)) return 0.0;
-        return GrugGuiAccess.guiLeft((GuiContainer) screen);
-    }
-
-    @Override
-    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
-    public double guiWidthForTest() {
-        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
-        if (!(screen instanceof GuiContainer)) return 0.0;
-        return GrugGuiAccess.xSize((GuiContainer) screen);
-    }
-
-    @Override
-    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
-    public double guiTopForTest() {
-        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
-        if (!(screen instanceof GuiContainer)) return 0.0;
-        return GrugGuiAccess.guiTop((GuiContainer) screen);
-    }
-
-    @Override
-    @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
-    public double guiHeightForTest() {
-        GuiScreen screen = ModLoader.getMinecraftInstance().currentScreen;
-        if (!(screen instanceof GuiContainer)) return 0.0;
-        return GrugGuiAccess.ySize((GuiContainer) screen);
-    }
-
-    @Override
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void useBlockForTest(Object levelObj, double x, double y, double z) {
-        if (refuseWithoutAClient("Test.use_block")) return;
-        World world = (World) levelObj;
-        EntityPlayer player = ModLoader.getMinecraftInstance().thePlayer;
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
-            return;
-        }
-
-        GrugBlocks.init();
-
-        int blockX = (int) Math.floor(x);
-        int blockY = (int) Math.floor(y);
-        int blockZ = (int) Math.floor(z);
-
-        // 1.2.5 hands back a block id rather than a Block.
-        int blockId = blockIdAt(world, x, y, z);
-        Block block = blockAt(blockId);
-
-        if (block != null) {
-            rightClickBlock(player, world, blockX, blockY, blockZ);
-        } else {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Test.use_block: There is no block at "
-                            + blockX
-                            + ", "
-                            + blockY
-                            + ", "
-                            + blockZ
-                            + ".");
-        }
-    }
-
     /** The id of the block at a world position, floored the way every block position is. */
-    private static int blockIdAt(World world, double x, double y, double z) {
+    static int blockIdAt(World world, double x, double y, double z) {
         return world.getBlockId((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
 
     @GrugGenerated("block resolution: an id outside the tables cannot be forced")
-    private static Block blockAt(int blockId) {
+    static Block blockAt(int blockId) {
         return (blockId >= 0 && blockId < Block.blocksList.length)
                 ? Block.blocksList[blockId]
                 : null;
     }
 
-    /**
-     * Goes through the client's own right-click, which asks the block's activation first and the
-     * held item after, so the test drives the same path a real click does and a block that declines
-     * leaves the click to the item. This is not restricted to grug blocks: real mods open their GUI
-     * from a server-side activation (BuildCraft's BlockAutoWorkbench does exactly this), and the
-     * test only has to trigger it, not reproduce it.
-     */
-    private static void rightClickBlock(
-            EntityPlayer player, World world, int blockX, int blockY, int blockZ) {
-        ModLoader.getMinecraftInstance()
-                .playerController
-                .onPlayerRightClick(
-                        player,
-                        world,
-                        player.inventory.getCurrentItem(),
-                        blockX,
-                        blockY,
-                        blockZ,
-                        1);
-    }
-
-    @Override
-    @GrugGenerated(
-            "failure paths a healthy run cannot enter: no local player or client level, no block at"
-                    + " the position, or a shape the overlay failed to reset")
-    public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
-        if (refuseWithoutAClient("Test.mining_crack")) return false;
-        Minecraft mc = ModLoader.getMinecraftInstance();
-        EntityPlayer player = mc.thePlayer;
-        if (player == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr, "Test.mining_crack: There is no local player to mine with.");
-            return false;
-        }
-
-        World world = (World) levelObj;
-        int blockX = (int) Math.floor(x);
-        int blockY = (int) Math.floor(y);
-        int blockZ = (int) Math.floor(z);
-        int blockId = world.getBlockId(blockX, blockY, blockZ);
-        Block block =
-                (blockId > 0 && blockId < Block.blocksList.length)
-                        ? Block.blocksList[blockId]
-                        : null;
-        if (block == null) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Test.mining_crack: There is no block at "
-                            + blockX
-                            + ", "
-                            + blockY
-                            + ", "
-                            + blockZ
-                            + ".");
-            return false;
-        }
-
-        boolean drew = drawMiningOverlay(player, blockX, blockY, blockZ);
-
-        // The shape has to be a full cube again, or every later block of this type in the same
-        // chunk compile is reshaped by the last box the overlay drew.
-        if (!fullCube(block)) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    "Test.mining_crack: The overlay left the block at "
-                            + blockX
-                            + ", "
-                            + blockY
-                            + ", "
-                            + blockZ
-                            + " shaped from ("
-                            + block.minX
-                            + ", "
-                            + block.minY
-                            + ", "
-                            + block.minZ
-                            + ") to ("
-                            + block.maxX
-                            + ", "
-                            + block.maxY
-                            + ", "
-                            + block.maxZ
-                            + ") instead of a full cube.");
-            return false;
-        }
-
-        return drew;
-    }
-
-    /**
-     * One overlay pass for the block, the way a frame draws it while the player holds the attack
-     * button, at the middle of the break. Drawing between frames goes into the buffer the next
-     * frame clears, and the state it leaves is the game's own.
-     */
-    private static boolean drawMiningOverlay(
-            EntityPlayer player, int blockX, int blockY, int blockZ) {
-        Minecraft mc = ModLoader.getMinecraftInstance();
-        MovingObjectPosition hit =
-                new MovingObjectPosition(
-                        blockX,
-                        blockY,
-                        blockZ,
-                        1,
-                        Vec3D.createVectorHelper(blockX + 0.5, blockY + 0.5, blockZ + 0.5));
-        GrugBoxRenderer.resetOverlayProbe();
-        float previousDamage = mc.renderGlobal.damagePartialTime;
-        mc.renderGlobal.damagePartialTime = 0.5F;
-        mc.renderGlobal.drawBlockBreaking(player, hit, 0, player.inventory.getCurrentItem(), 0.0F);
-        mc.renderGlobal.damagePartialTime = previousDamage;
-        return GrugBoxRenderer.overlayDrew();
-    }
-
     @GrugGenerated("a shape the overlay left non-cubic cannot be forced: the overlay resets it")
-    private static boolean fullCube(Block block) {
+    static boolean fullCube(Block block) {
         return block.minX == 0.0
                 && block.minY == 0.0
                 && block.minZ == 0.0
@@ -2400,216 +1827,11 @@ public class Grug125Adapter implements ModLoaderAdapter {
      * from a world, so the gate does not measure this lookup.
      */
     @GrugGenerated("test helper: the block lookup the three test helpers above share")
-    private static Block blockAt(World world, int x, int y, int z) {
+    static Block blockAt(World world, int x, int y, int z) {
         int blockId = world.getBlockId(x, y, z);
         if (blockId <= 0 || blockId >= Block.blocksList.length) {
             return null;
         }
         return Block.blocksList[blockId];
-    }
-
-    @Override
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void assertScreenshotEquals(
-            String referencePath,
-            double x1,
-            double y1,
-            double x2,
-            double y2,
-            double tolerancePercent) {
-        if (refuseWithoutAClient("Screenshot.equals")) return;
-        BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
-        if (capture == null) {
-            return; // captureChecked already reported why
-        }
-        verifyCapture(capture, referencePath, tolerancePercent);
-    }
-
-    /**
-     * Compares a capture with the reference PNGs beside the mod.
-     *
-     * <p>grug resolves a resource to "&lt;mod name&gt;/&lt;path relative to the mod&gt;", so
-     * joining it onto the mods root gives the reference directory on disk. That directory holds
-     * PNGs named after the loaders that produced them, and the assertion passes if the capture
-     * matches any of them; see GrugScreenshots.
-     */
-    private void verifyCapture(
-            BufferedImage capture, String referencePath, double tolerancePercent) {
-        File referenceDirectory = new File(getGrugModsDirectory(), referencePath);
-        GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
-    }
-
-    @Override
-    public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
-        return captureChecked("Screenshot.capture", x1, y1, x2, y2);
-    }
-
-    /**
-     * Checks the rectangle and reads it, reporting {@code operation} as the thing that wanted it.
-     * Both screenshot entry points share this so a bad coordinate is reported the same way either
-     * way; only the name in front of the message differs.
-     */
-    private BufferedImage captureChecked(
-            String operation, double x1, double y1, double x2, double y2) {
-        // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
-        // rather than as a mysterious capture failure. The window check joins the chain last, so
-        // the failures a test can cause are reported the same way they were before it.
-        Minecraft mc = ModLoader.getMinecraftInstance();
-        String bad = checkCoordinate("x1", x1, GrugScreenshots.WIDTH);
-        if (bad == null) bad = checkCoordinate("y1", y1, GrugScreenshots.HEIGHT);
-        if (bad == null) bad = checkCoordinate("x2", x2, GrugScreenshots.WIDTH);
-        if (bad == null) bad = checkCoordinate("y2", y2, GrugScreenshots.HEIGHT);
-        if (bad == null) bad = windowSizeError(mc);
-        if (bad != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, operation + ": " + bad);
-            return null;
-        }
-        // The truncated values rather than the doubles, because they are what the width below is
-        // computed from and what the message prints. Comparing the doubles let a rectangle through
-        // that truncates to nothing, such as (590, 310, 590.5, 410), and the width then threw from
-        // inside a zero-width image rather than being reported as the typo it was.
-        int left = (int) x1;
-        int top = (int) y1;
-        int right = (int) x2;
-        int bottom = (int) y2;
-        if (right <= left || bottom <= top) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    operation
-                            + ": the rectangle is empty, since ("
-                            + right
-                            + ","
-                            + bottom
-                            + ") is not below and right of ("
-                            + left
-                            + ","
-                            + top
-                            + ")");
-            return null;
-        }
-
-        return captureRectangle(operation, left, top, right, bottom, mc.displayHeight);
-    }
-
-    /**
-     * A message naming the window when it is not the size a capture reads, or null.
-     *
-     * <p>A defensive safety net rather than the primary sizing mechanism: R forces 1280x720 around
-     * a test run. If that ever stops happening, a mismatch here is much easier to diagnose than a
-     * screen of subtly wrong pixels.
-     */
-    @GrugGenerated("the window arm: a run sizes the window to the capture size before a test")
-    private static String windowSizeError(Minecraft mc) {
-        if (mc.displayWidth != GrugScreenshots.WIDTH
-                || mc.displayHeight != GrugScreenshots.HEIGHT) {
-            return "the window is "
-                    + mc.displayWidth
-                    + "x"
-                    + mc.displayHeight
-                    + ", but screenshot tests are captured at "
-                    + GrugScreenshots.WIDTH
-                    + "x"
-                    + GrugScreenshots.HEIGHT;
-        }
-        return null;
-    }
-
-    /** Returns null if the coordinate is in range, or a message naming it if it is not. */
-    private static String checkCoordinate(String name, double value, int limit) {
-        if (value < 0 || value > limit) {
-            return name
-                    + " is "
-                    + (int) value
-                    + ", which is outside the "
-                    + GrugScreenshots.WIDTH
-                    + "x"
-                    + GrugScreenshots.HEIGHT
-                    + " frame (0 to "
-                    + limit
-                    + ")";
-        }
-        return null;
-    }
-
-    /**
-     * Reads back a rectangle of the frame that is currently on screen.
-     *
-     * <p>This runs from Minecraft.tick(), i.e. after the previous frame was rendered but before
-     * this one is drawn, so the frame of interest is whatever was drawn most recently. On LWJGL 2
-     * that is the back buffer, which is also GL's default read buffer.
-     *
-     * <p>Coordinate convention: the rectangle (x1,y1,x2,y2) is in screen space with the origin at
-     * the top left, but GL's origin is the bottom left. A screen row y is therefore GL row
-     * height-1-y, which puts the bottom edge of the crop at GL row height-y2. glReadPixels fills
-     * the buffer bottom row first, so rows are written into the image in reverse to land the right
-     * way up.
-     */
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    private static BufferedImage captureRectangle(
-            String operation, int x1, int y1, int x2, int y2, int windowHeight) {
-        int width = x2 - x1;
-        int height = y2 - y1;
-        int glY = windowHeight - y2;
-
-        ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4);
-
-        String failure = readPixels(operation, x1, glY, width, height, pixels);
-        if (failure != null) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, failure);
-            return null;
-        }
-
-        try {
-            return buildImage(pixels, width, height);
-        } catch (RuntimeException e) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    operation + ": could not build an image from the readback: " + e);
-            return null;
-        }
-    }
-
-    /**
-     * Reads the rectangle back into the buffer, answering a report when the read failed or GL
-     * reported an error, or null when the pixels are the frame's.
-     */
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    private static String readPixels(
-            String operation, int x1, int glY, int width, int height, ByteBuffer pixels) {
-        try {
-            GlBridge.readPixels(x1, glY, width, height, pixels);
-        } catch (RuntimeException e) {
-            return operation + ": the pixel readback failed unexpectedly: " + e;
-        }
-        int glError = GlBridge.getError();
-        if (glError != GlBridge.noError()) {
-            return operation
-                    + ": glReadPixels failed with GL error 0x"
-                    + Integer.toHexString(glError)
-                    + ", so the capture cannot be trusted. A multisampled or otherwise "
-                    + "unreadable framebuffer is the usual cause.";
-        }
-        return null;
-    }
-
-    /** Builds the image from a readback, top row first. */
-    private static BufferedImage buildImage(ByteBuffer pixels, int width, int height) {
-        // Absolute gets, because glReadPixels leaves the buffer's position wherever it likes
-        // (LWJGL rewinds it before the read), so its position and limit cannot be relied on
-        // afterwards. glReadPixels also fills the buffer bottom row first, hence the reversed
-        // row index: the image's row 0 has to be the crop's top row, which is the buffer's
-        // last.
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        for (int row = 0; row < height; row++) {
-            for (int column = 0; column < width; column++) {
-                int index = (row * width + column) * 4;
-                int r = pixels.get(index) & 0xFF;
-                int g = pixels.get(index + 1) & 0xFF;
-                int b = pixels.get(index + 2) & 0xFF;
-                // index + 3 is alpha, which the framebuffer may not even have; unused.
-                image.setRGB(column, height - 1 - row, (r << 16) | (g << 8) | b);
-            }
-        }
-        return image;
     }
 }

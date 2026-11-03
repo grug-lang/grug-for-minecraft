@@ -10,21 +10,24 @@ import csv
 import sys
 
 
-def load_csv(path):
-    # searge -> human, client side only (side 0). MCP lists a server-side row for
-    # a handful of members whose name differs by side, and taking both collides.
+def load_csv(path, side):
+    # searge -> human for one side. MCP numbers the two sides' members apart, so one searge id can
+    # name a different member on each (BlockRedstoneOre's glow is func_320_h on the client and
+    # func_321_g on the server), and a name found by id on the wrong side collides with a real one.
+    # The server map is for the same loader classes, compiled against the client's names, and
+    # reaches the server's members through the names both sides give them.
     out = {}
     with open(path, newline="") as f:
         for row in csv.DictReader(f):
-            if row.get("side", "0") != "0":
-                continue
-            out[row["searge"]] = row["name"]
+            if row.get("side", "0") == side:
+                out[row["searge"]] = row["name"]
     return out
 
 
-def main(srg_in, fields_csv, methods_csv, srg_out):
-    fields = load_csv(fields_csv)
-    methods = load_csv(methods_csv)
+def main(srg_in, fields_csv, methods_csv, srg_out, side="client"):
+    csv_side = "1" if side == "server" else "0"
+    fields = load_csv(fields_csv, csv_side)
+    methods = load_csv(methods_csv, csv_side)
 
     pks, cls, fds, mds = [], [], [], []
     with open(srg_in) as f:
@@ -72,4 +75,4 @@ def main(srg_in, fields_csv, methods_csv, srg_out):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:5])
+    main(*sys.argv[1:6])

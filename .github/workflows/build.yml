@@ -922,16 +922,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        loader: [1.20.6-forge, a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi]
+        loader: [1.2.5-forge, 1.20.6-forge, a1.1.2_01-ornithe, b1.7.3-ornithe, b1.7.3-stationapi]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up the loader build
         uses: ./.github/actions/setup-loader-build
+        id: setup
         with:
           loader: ${{ matrix.loader }}
           save: 'false'
+
+      # The 1.2.5 server and client both boot on Java 8, as the loader jobs do (#166).
+      - name: Set up JDK 8 (1.2.5-forge only)
+        if: matrix.loader == '1.2.5-forge'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        id: java8
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Restore JDK 21 for Gradle (1.2.5-forge only)
+        if: matrix.loader == '1.2.5-forge'
+        run: echo "JAVA_HOME=${{ steps.setup.outputs.java21-path }}" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: |
@@ -957,6 +971,7 @@ jobs:
         env:
           GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
           GRUG_CI_RUN_TIMEOUT: '300'
+          GRUG_MULTIPLAYER_BOOT_ONLY: ${{ matrix.loader == '1.2.5-forge' && '1' || '' }}
 
       - name: Upload logs and crash reports
         if: always()
