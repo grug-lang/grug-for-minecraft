@@ -856,6 +856,17 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         return MinecraftInstance.get().player;
     }
 
+    /**
+     * The player's feet, rounded to a millionth. The game keeps the eye height, so subtracting the
+     * eye offset from it can land a hair under a whole number for a player standing on a block, and
+     * the room's floor, which goes one block under the floor of that value, then sat two blocks
+     * down: the dedicated-server job, which does not snap the player to an exact height, dropped
+     * the player one block with every test until they fell out of the world (#163).
+     */
+    private static double feetY(PlayerEntity player) {
+        return Math.rint((player.y - 1.62) * 1e6) / 1e6;
+    }
+
     @Override
     @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
     public void buildTestBox(int radius) {
@@ -865,7 +876,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         renderSettle.reset();
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
-        GrugTestBox.build(this, getLevel(), player.x, player.y - 1.62, player.z, radius);
+        GrugTestBox.build(this, getLevel(), player.x, feetY(player), player.z, radius);
     }
 
     @Override
@@ -873,7 +884,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void sweepTestItems() {
         PlayerEntity player = (PlayerEntity) testPlayer();
         if (player == null) return;
-        GrugTestBox.sweepItems(this, getLevel(), player.x, player.y - 1.62, player.z);
+        GrugTestBox.sweepItems(this, getLevel(), player.x, feetY(player), player.z);
     }
 
     @Override
