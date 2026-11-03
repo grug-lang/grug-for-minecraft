@@ -8,6 +8,11 @@
 # stayed short for good. The rows run from 8 blocks behind the origin to 12 in front of it, so every
 # engine and pipe lies inside the 16 blocks around the player that the runner clears before a test:
 # rows 20 blocks out kept the engines and items of earlier passes and tests (#1057).
+# A dropped item does not stay within 2 blocks of its pipe: it is thrown with a random velocity and
+# pushed out of the pipe's box, and on 1.20.6 it came to rest between 2 and 3 blocks away in 2 of 6
+# rows in one pass while both chests and both pipes were empty, so the count never reached 2 and the
+# check failed (#1060). The count looks 3 blocks around the pair, which the rows 4 blocks apart still
+# keep apart well enough, because every pipe and chest is also checked on its own.
 export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
@@ -118,20 +123,9 @@ local _check(ctx: TestTickContext) {
         if not (_entity(ctx, level, x + 2, y, z).get_item_count_in_slot(0) == 0) {
             bad = bad + 1
         }
-        if not (level.count_item_entities(x + 1, y, z + 0.5, 2) >= 2) {
+        if not (level.count_item_entities(x + 1, y, z + 0.5, 3) >= 2) {
             bad = bad + 1
         }
-        weng: BlockEntity = _entity(ctx, level, x, y, z - 1)
-        eeng: BlockEntity = _entity(ctx, level, x + 1, y, z + 1)
-        print3("DIAG row", row, bad)
-        print3(_entity(ctx, level, x - 1, y, z).get_item_count_in_slot(0), _entity(ctx, level, x + 2, y, z).get_item_count_in_slot(0), level.count_item_entities(x + 1, y, z + 0.5, 2))
-        print3(west.get_saved_list_size("traveling"), east.get_saved_list_size("traveling"), level.get_time())
-        print3(weng.get_saved_number("energy"), eeng.get_saved_number("energy"), west.get_energy_stored())
-        print3(weng.get_saved_number("progress"), eeng.get_saved_number("progress"), east.get_energy_stored())
-        print3(level.has_neighbor_signal(x, y, z - 1), level.has_neighbor_signal(x + 1, y, z + 1), ctx.current_tick())
-        print3("radii 1 3 5", level.count_item_entities(x + 1, y, z + 0.5, 1), level.count_item_entities(x + 1, y, z + 0.5, 3))
-        print3(level.count_item_entities(x + 1, y, z + 0.5, 5), level.count_item_entities(x + 1, y - 4, z + 0.5, 5), level.count_item_entities(x + 1, y + 3, z + 0.5, 3))
-        print3(level.count_item_entities(x, y, z + 0.5, 1), level.count_item_entities(x + 1, y, z + 0.5, 1), level.count_item_entities(x + 2, y, z + 0.5, 1))
         row = row + 1
     }
     ctx.assert(bad == 0, "Every row's pipes should have dropped their own items and emptied their chests.")
@@ -152,7 +146,7 @@ local _finished() bool {
         if _entity_at(level, x, y, z).get_saved_list_size("traveling") != 0 or _entity_at(level, x + 1, y, z).get_saved_list_size("traveling") != 0 {
             return false
         }
-        if level.count_item_entities(x + 1, y, z + 0.5, 2) < 2 {
+        if level.count_item_entities(x + 1, y, z + 0.5, 3) < 2 {
             return false
         }
         row = row + 1
