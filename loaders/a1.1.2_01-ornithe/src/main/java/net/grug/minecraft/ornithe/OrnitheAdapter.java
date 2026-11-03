@@ -1827,6 +1827,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated(
+            "its dedicated-server arm runs only in the multiplayer job, and a CI client drops the"
+                    + " particle")
     public void addRedstoneDust(Object levelObj, double x, double y, double z) {
         // The three numbers after the position are the particle's colour, so zero gives the game's
         // red.
