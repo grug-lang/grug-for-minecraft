@@ -47,6 +47,29 @@ class GrugTestEntityRootTest {
         assertTrue(collected(id), "the test ending releases it");
     }
 
+    @Test
+    void removingAnEqualEntityLeavesTheTestsOwnRooted() throws InterruptedException {
+        GrugEntities.beginTestEntities();
+        Object level = new Object();
+        long[] held = new long[1];
+        GrugTestState.callWithContext(
+                GrugEntityType.TestTickContext,
+                () -> new Object(),
+                () -> {},
+                contextHandle -> {
+                    held[0] = GrugEntities.addEntity(GrugEntityType.Level, level);
+                    // What a display tick or a shape call made while the test advances the level
+                    // does: an id for the same level, added and removed again.
+                    long temporary = GrugEntities.addEntity(GrugEntityType.Level, level);
+                    GrugEntities.removeEntity(temporary);
+                    return true;
+                });
+
+        assertFalse(collected(held[0]), "the test's level id is still rooted, see #1049");
+        GrugEntities.endTestEntities();
+        assertTrue(collected(held[0]), "the test ending releases it");
+    }
+
     /**
      * One of a test's ticks, through the call the runner makes: its VM call is replaced by one that
      * creates a host entity and keeps its id, which is what a member assignment does.

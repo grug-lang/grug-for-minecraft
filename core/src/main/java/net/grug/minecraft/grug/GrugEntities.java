@@ -67,7 +67,25 @@ public final class GrugEntities {
     public static void removeEntity(long id) {
         GrugObject object = entityData.remove(id);
         if (object != null) {
-            fnEntities.remove(object);
+            unroot(fnEntities, object);
+        }
+    }
+
+    /**
+     * Drops {@code object} itself from {@code roots}, never an equal one.
+     *
+     * <p>{@link GrugObject#equals} compares the wrapped object, so two ids for the same level are
+     * equal, and {@code List.remove(Object)} took the first of them: a display tick or a shape call
+     * made inside {@code Test.tick_level} added a level id and removed it again, and removed the
+     * test's own earlier id for that level instead, which unrooted it. The weak table then lost it
+     * and the test's next {@code Test.tick_level} reported the id as collected. See #1049.
+     */
+    static void unroot(List<GrugObject> roots, GrugObject object) {
+        for (int i = roots.size() - 1; i >= 0; i--) {
+            if (roots.get(i) == object) {
+                roots.remove(i);
+                return;
+            }
         }
     }
 
