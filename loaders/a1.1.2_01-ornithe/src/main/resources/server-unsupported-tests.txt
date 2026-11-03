@@ -24,13 +24,6 @@ coverage/tests/take_crafting_result_empty-Test.grug
 coverage/tests/take_crafting_result_on_a_chest-Test.grug
 coverage/tests/update_recipe_output_on_a_chest-Test.grug
 #
-# Display tick. The a0.2.1 server Block has no randomDisplayTick (particles are drawn by the
-# client), so these tests fail with NoSuchMethodError there.
-buildcraft/tests/redstone_engine_particles-Test.grug
-coverage/tests/display_tick-Test.grug
-coverage/tests/expect_display_tick_index-Test.grug
-coverage/tests/expect_display_tick_particle-Test.grug
-#
 # Block selection. The a0.2.1 server Block has no getOutlineShape (the selection box is a client
 # matter), so these tests fail with NoSuchMethodError there.
 buildcraft/tests/wooden_pipe_boxes-Test.grug
