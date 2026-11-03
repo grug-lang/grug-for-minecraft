@@ -67,6 +67,17 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         return false;
     }
 
+    /**
+     * Ready once the world around the player is loaded and the player has landed. The test origin
+     * is read from the player's position, and a player still falling when the first test starts
+     * gives an origin whose height differs from run to run, which put one test's blocks above the
+     * world's height (#1052).
+     */
+    @Override
+    public boolean isWorldReady(Object playerObj) {
+        return super.isWorldReady(playerObj) && ((PlayerEntity) playerObj).onGround;
+    }
+
     /** Settled as soon as a test asks: no client frame or block packet is owed to anyone. */
     @Override
     public boolean isWorldSettled() {
