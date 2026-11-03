@@ -107,6 +107,9 @@ local _check(ctx: TestTickContext) {
         if not (level.count_item_entities(x + 1, y, z + 0.5, 2) >= 2) {
             bad = bad + 1
         }
+        print3("row", row, "tick")
+        print3(ctx.current_tick(), _entity(ctx, level, x - 1, y, z).get_item_count_in_slot(0), _entity(ctx, level, x + 2, y, z).get_item_count_in_slot(0))
+        print3(west.get_saved_list_size("traveling"), east.get_saved_list_size("traveling"), level.count_item_entities(x + 1, y, z + 0.5, 2))
         row = row + 1
     }
     ctx.assert(bad == 0, "Every row's pipes should have dropped their own items and emptied their chests.")
