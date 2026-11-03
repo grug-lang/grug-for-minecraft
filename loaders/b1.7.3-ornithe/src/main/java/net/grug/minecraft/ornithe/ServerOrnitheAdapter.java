@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe;
 
+import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -99,6 +100,18 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public void forgetSettledFrames() {}
 
+    /**
+     * The feet are the bottom of the bounding box, rounded to a millionth to shed the arithmetic's
+     * last bits: the server's player keeps the feet in {@code y}, so the client's eye offset built
+     * the test room's floor a block and a half too low and dropped the player out of the world
+     * (#163). A client's box is not used because it sits {@code ySize} above the feet for a few
+     * ticks after a step-up, a respawn or a teleport.
+     */
+    @Override
+    protected double feetY(PlayerEntity player) {
+        return Math.rint(player.shape.minY * 1e6) / 1e6;
+    }
+
     /** The tests listed in {@code server-unsupported-tests.txt}, which says why. */
     @Override
     public Set<String> serverUnsupportedTests() {
@@ -138,7 +151,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
 
     @Override
     public boolean setGameSpeed(double speed) {
-        GrugServerRun.setGameSpeed((int) speed);
+        GrugServerRun.setGameSpeed(GrugGameSpeed.wholeSteps(speed));
         return true;
     }
 }

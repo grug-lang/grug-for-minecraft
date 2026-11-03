@@ -1,6 +1,5 @@
 package net.grug.minecraft.ornithe.client;
 
-import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.inventory.menu.SurvivalInventoryScreen;
 import net.minecraft.entity.mob.player.PlayerEntity;
@@ -12,7 +11,6 @@ import net.ornithemc.osl.lifecycle.api.client.MinecraftInstance;
  * that client class while verifying the method's own class, and a dedicated server has no such
  * class. Reading it here keeps that load behind a call only a client makes.
  */
-@GrugGenerated("a client-only accessor, which a dedicated server never loads")
 public final class GrugClientPlayer {
     private GrugClientPlayer() {}
 

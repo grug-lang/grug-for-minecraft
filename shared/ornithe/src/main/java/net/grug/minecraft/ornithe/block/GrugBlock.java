@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.block;
 
+import net.grug.minecraft.core.GrugStaleBlockEntity;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
@@ -121,20 +122,9 @@ public class GrugBlock extends BlockWithBlockEntity {
         return super.use(world, x, y, z, player);
     }
 
-    /**
-     * Greater than zero while a grug block runs its removal, when the block id has already changed
-     * but the block entity is still this block's own and on_break may read it.
-     */
-    public static int removalDepth = 0;
-
     @Override
     public void onRemoved(World world, int x, int y, int z) {
-        removalDepth++;
-        try {
-            removeGrugBlock(world, x, y, z);
-        } finally {
-            removalDepth--;
-        }
+        GrugStaleBlockEntity.duringRemoval(() -> removeGrugBlock(world, x, y, z));
     }
 
     private void removeGrugBlock(World world, int x, int y, int z) {
