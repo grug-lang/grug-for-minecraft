@@ -997,6 +997,22 @@ jobs:
           GRUG_CI_RUN_TIMEOUT: '300'
           GRUG_MP_TIMEOUT_TEST: '1'
 
+      # The control for the Alpha client's stack overflow (#1040): the same wall placed by the server
+      # and no capture request, on the default stack. It must pass.
+      - name: The wall alone, with no capture request (a1.1.2_01-ornithe)
+        if: matrix.loader == 'a1.1.2_01-ornithe' && !cancelled()
+        continue-on-error: true
+        run: |
+          xvfb-run -a -s "-screen 0 1280x720x24 +extension RANDR +extension GLX" .github/scripts/run-multiplayer.sh ${{ matrix.loader }} || status=$?
+          cp loaders/${{ matrix.loader }}/run-server-ci.log loaders/${{ matrix.loader }}/run-server-idle-ci.log
+          cp loaders/${{ matrix.loader }}/run-client-ci.log loaders/${{ matrix.loader }}/run-client-idle-ci.log
+          grep -c StackOverflowError loaders/${{ matrix.loader }}/run-client-idle-ci.log || true
+          exit "${status:-0}"
+        env:
+          GRUG_PREBUILT_GRUG_RS: ${{ github.workspace }}/.grug-ci/libgruggers.a
+          GRUG_CI_RUN_TIMEOUT: '300'
+          GRUG_MP_IDLE_TEST: '1'
+
       - name: Upload logs and crash reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1011,6 +1027,8 @@ jobs:
             loaders/${{ matrix.loader }}/run-client-ci.log
             loaders/${{ matrix.loader }}/run-server-pass-ci.log
             loaders/${{ matrix.loader }}/run-client-pass-ci.log
+            loaders/${{ matrix.loader }}/run-server-idle-ci.log
+            loaders/${{ matrix.loader }}/run-client-idle-ci.log
             loaders/${{ matrix.loader }}/run-threads-ci.log
             loaders/${{ matrix.loader }}/run-server/hs_err_pid*.log
             loaders/${{ matrix.loader }}/run/hs_err_pid*.log

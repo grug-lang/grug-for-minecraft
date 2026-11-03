@@ -1,0 +1,29 @@
+# The control of the Alpha client's stack overflow in #1040: the server places the same wall as
+# forward_capture and then only waits, with no capture request, so a client that overflows here does
+# so without the control channel doing anything.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        origin: Vec3 = Test.get_origin()
+        _wall_in_front_of(origin)
+        ctx.not_done()
+    } else {
+        if ctx.current_tick() < 100 {
+            ctx.not_done()
+        }
+    }
+}
+
+local _wall_in_front_of(origin: Vec3) {
+    level: Level = Test.get_client_level()
+    z: number = origin.z() + 1
+    across: number = -2
+    while across <= 2 {
+        x: number = origin.x() + across
+        up: number = -4
+        while up <= 0 {
+            level.place_block(x, origin.y() + up, z, "grug:coverage_block")
+            up = up + 1
+        }
+        across = across + 1
+    }
+}
