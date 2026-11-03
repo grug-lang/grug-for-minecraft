@@ -421,9 +421,14 @@ server, never leaving it: they write the mod's server-side and client-side code,
 and client-side tests, and run those tests on that server. So multiplayer testing is not only a CI
 job (#36): whatever carries a test between server and client (#1040) ships in the mod and works on
 a live server, behind an explicit opt-in by the server operator and the joined clients, not
-compiled out of release jars. grug code may say which side a test runs on; hiding the distinction
-from test authors is not a goal (the maintainer relaxed that in #1040). Mod authors never build
-packets: the channel is loader plumbing that the host functions use.
+compiled out of release jars. The intended use is a button in a menu: a server operator clicks it
+to run one test of a mod, or all of a mod's tests, and the test room is built around that player's
+current position, as the T key already does in singleplayer. A fake player (a joined test client)
+may be spawned for the graphics tests, so the operator's own camera is not taken over. grug code
+may say which side a test runs on; hiding the distinction from test authors is not a goal (the
+maintainer relaxed that in #1040), but tests that mix world changes with screenshots must keep
+working. Mod authors never build packets: the channel is loader plumbing that the host functions
+use.
 
 ## Writing tests
 
