@@ -34,7 +34,10 @@ public final class GrugServerRun {
     private static long lastReportMillis = 0;
     private static boolean done = false;
     private static boolean advancing = false;
-    private static int gameSpeed = 1;
+    // Zero until a test sets a speed, which runs one step: a field with no initializer leaves this
+    // class without a static initializer, whose coverage would depend on which test first touched
+    // it.
+    private static int gameSpeed;
 
     private GrugServerRun() {}
 
@@ -172,7 +175,7 @@ public final class GrugServerRun {
         // The runner ticks once per world tick, as the client's does at speed: a server tick has
         // run the world once already, and each extra tick of a faster game is a world tick followed
         // by a runner tick (#163).
-        for (int step = 0; step < gameSpeed; step++) {
+        for (int step = 0; step < Math.max(1, gameSpeed); step++) {
             if (step > 0) {
                 advance(server.getWorld(0), 1);
             }
