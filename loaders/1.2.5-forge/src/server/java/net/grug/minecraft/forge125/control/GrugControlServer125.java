@@ -9,6 +9,7 @@ import net.minecraft.src.EntityPlayerMP;
 import net.minecraft.src.NetHandler;
 import net.minecraft.src.NetworkManager;
 
+import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -37,8 +38,18 @@ public final class GrugControlServer125 implements GrugControlRouter {
     private static GrugControlServer server;
 
     /** The player each connection belongs to, learnt when its first control message is handled. */
-    private static final Map<NetworkManager, EntityPlayerMP> PLAYERS =
-            Collections.synchronizedMap(new WeakHashMap<NetworkManager, EntityPlayerMP>());
+    private static final Map<NetworkManager, WeakReference<EntityPlayerMP>> PLAYERS =
+            Collections.synchronizedMap(
+                    new WeakHashMap<NetworkManager, WeakReference<EntityPlayerMP>>());
+
+    /**
+     * The player of a connection, or null. The map holds the player weakly: a player holds its
+     * connection, so a strong value would keep the map's weak key alive for the process's life.
+     */
+    private static EntityPlayerMP playerOf(NetworkManager connection) {
+        WeakReference<EntityPlayerMP> ref = PLAYERS.get(connection);
+        return ref == null ? null : ref.get();
+    }
 
     private GrugControlServer125() {}
 
@@ -62,7 +73,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
     /** The player who started the run, or null when none has or they have left. */
     public static EntityPlayerMP starterPlayer() {
         Object starter = server().starter();
-        return starter == null ? null : PLAYERS.get((NetworkManager) starter);
+        return starter == null ? null : playerOf((NetworkManager) starter);
     }
 
     @GrugGenerated(
@@ -73,7 +84,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
         public boolean sendToStarter(Object starter, byte[] message) {
             // A dead connection takes a packet into its queue without a word, so the starter is
             // asked about instead: a player who left is no longer in the player list.
-            EntityPlayerMP player = PLAYERS.get((NetworkManager) starter);
+            EntityPlayerMP player = playerOf((NetworkManager) starter);
             if (player == null || !GrugServerRun.isConnected(player)) {
                 return false;
             }
@@ -92,7 +103,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
          */
         @Override
         public boolean mayStartRun(Object sender) {
-            return PLAYERS.get((NetworkManager) sender) != null;
+            return playerOf((NetworkManager) sender) != null;
         }
     }
 
@@ -115,7 +126,7 @@ public final class GrugControlServer125 implements GrugControlRouter {
         NetworkManager connection = GrugControlFind.byType(handler, NetworkManager.class);
         EntityPlayerMP player = GrugControlFind.byType(handler, EntityPlayerMP.class);
         if (connection != null && player != null) {
-            PLAYERS.put(connection, player);
+            PLAYERS.put(connection, new WeakReference<EntityPlayerMP>(player));
         }
         server().onMessage(connection, bytes);
     }

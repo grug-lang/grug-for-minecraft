@@ -1,39 +1,22 @@
 package net.grug.minecraft.forge125.control;
 
+import net.grug.minecraft.core.GrugFieldByType;
 import net.grug.minecraft.grug.GrugGenerated;
 
-import java.lang.reflect.Field;
-
 /**
- * Finds a field's value by its type, so the control channel does not depend on the game's field
- * names, which are obfuscated at run time.
+ * The lookup of a field by its type for the 1.2.5 control channel, which cannot name the game's
+ * obfuscated fields.
  */
-@GrugGenerated(
-        "the 1.2.5 channel glue of #1040: no test the coverage gate counts can reach it, since only"
-                + " the multiplayer job runs it")
+@GrugGenerated("a wrapper of the tested lookup that makes its checked exception unchecked")
 public final class GrugControlFind {
     private GrugControlFind() {}
 
-    /**
-     * The first field of {@code holder} (or of a class it extends, up to the JDK's own) whose type
-     * is {@code type}, read; null when there is none or it holds null.
-     */
+    /** {@link GrugFieldByType#find}, with the reflection failure made unchecked. */
     public static <T> T byType(Object holder, Class<T> type) {
-        if (holder == null) return null;
-        for (Class<?> c = holder.getClass(); c != null && !c.getName().startsWith("java."); ) {
-            for (Field field : c.getDeclaredFields()) {
-                if (!type.isAssignableFrom(field.getType())) continue;
-                try {
-                    field.setAccessible(true);
-                    Object value = field.get(holder);
-                    if (value != null) return type.cast(value);
-                } catch (IllegalAccessException e) {
-                    throw new IllegalStateException(
-                            "cannot read " + field + " to find a " + type.getName(), e);
-                }
-            }
-            c = c.getSuperclass();
+        try {
+            return GrugFieldByType.find(holder, type);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("cannot find a " + type.getName() + " in " + holder, e);
         }
-        return null;
     }
 }

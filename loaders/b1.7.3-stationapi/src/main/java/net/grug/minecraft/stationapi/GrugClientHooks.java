@@ -288,6 +288,12 @@ public class GrugClientHooks {
         window.beginRun();
     }
 
+    /** Puts the window back when this client has left the server whose run it started. */
+    public void endControlRun() {
+        controlRunStarted = false;
+        window.endRun();
+    }
+
     public void tick() {
         if (!titleSet) {
             Display.setTitle(title);

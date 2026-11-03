@@ -21,68 +21,73 @@ public final class GrugControlDiagnostic {
         if (!"true".equals(System.getenv("GRUG_CI")) && System.getenv("GRUG_CI_CONNECT") == null) {
             return;
         }
-        try {
-            int n = ++count;
-            java.io.File dir = new java.io.File("control-captures");
-            dir.mkdirs();
-            if (image != null) {
-                javax.imageio.ImageIO.write(
-                        image, "png", new java.io.File(dir, "capture-" + n + ".png"));
-            }
-            net.minecraft.entity.player.PlayerEntity p = mc.player;
-            net.minecraft.world.World w = mc.world;
-            double yawRad = Math.toRadians(p.yaw);
-            double pitchRad = Math.toRadians(p.pitch);
-            double dx = -Math.sin(yawRad) * Math.cos(pitchRad);
-            double dy = -Math.sin(pitchRad);
-            double dz = Math.cos(yawRad) * Math.cos(pitchRad);
-            int px = (int) Math.floor(p.x);
-            int py = (int) Math.floor(p.y);
-            int pz = (int) Math.floor(p.z);
-            java.util.TreeMap<Integer, Integer> ids = new java.util.TreeMap<>();
-            for (int x = px - 6; x <= px + 6; x++) {
-                for (int y = py - 6; y <= py + 6; y++) {
-                    for (int z = pz - 6; z <= pz + 6; z++) {
-                        int id = w.getBlockId(x, y, z);
-                        if (id != 0) ids.merge(id, 1, Integer::sum);
-                    }
+        int n = ++count;
+        java.io.File dir =
+                new java.io.File(
+                        net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().toFile(),
+                        "control-captures");
+        dir.mkdirs();
+        if (image != null) {
+            try {
+                if (!javax.imageio.ImageIO.write(
+                        image, "png", new java.io.File(dir, "capture-" + n + ".png"))) {
+                    throw new IllegalStateException("no PNG writer for the forwarded capture");
                 }
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
             }
-            String hit = "none within 12";
-            for (double t = 0.5; t <= 12; t += 0.25) {
-                int id =
-                        w.getBlockId(
-                                (int) Math.floor(p.x + dx * t),
-                                (int) Math.floor(p.y + dy * t),
-                                (int) Math.floor(p.z + dz * t));
-                if (id != 0) {
-                    hit = "block " + id + " at distance " + t;
-                    break;
-                }
-            }
-            System.out.println(
-                    "[GRUG CONTROL] capture "
-                            + n
-                            + ": player "
-                            + p.x
-                            + " "
-                            + p.y
-                            + " "
-                            + p.z
-                            + " yaw "
-                            + p.yaw
-                            + " pitch "
-                            + p.pitch
-                            + ", screen "
-                            + (mc.currentScreen == null
-                                    ? "none"
-                                    : mc.currentScreen.getClass().getName())
-                            + ", look ray hits "
-                            + hit
-                            + ", non-air block ids within 6 of the player (id=count) "
-                            + ids);
-        } catch (Exception | LinkageError e) {
-            System.out.println("[GRUG CONTROL] diagnostic failed: " + e);
         }
+        net.minecraft.entity.player.PlayerEntity p = mc.player;
+        net.minecraft.world.World w = mc.world;
+        double yawRad = Math.toRadians(p.yaw);
+        double pitchRad = Math.toRadians(p.pitch);
+        double dx = -Math.sin(yawRad) * Math.cos(pitchRad);
+        double dy = -Math.sin(pitchRad);
+        double dz = Math.cos(yawRad) * Math.cos(pitchRad);
+        int px = (int) Math.floor(p.x);
+        int py = (int) Math.floor(p.y);
+        int pz = (int) Math.floor(p.z);
+        java.util.TreeMap<Integer, Integer> ids = new java.util.TreeMap<>();
+        for (int x = px - 6; x <= px + 6; x++) {
+            for (int y = py - 6; y <= py + 6; y++) {
+                for (int z = pz - 6; z <= pz + 6; z++) {
+                    int id = w.getBlockId(x, y, z);
+                    if (id != 0) ids.merge(id, 1, Integer::sum);
+                }
+            }
+        }
+        String hit = "none within 12";
+        for (double t = 0.5; t <= 12; t += 0.25) {
+            int id =
+                    w.getBlockId(
+                            (int) Math.floor(p.x + dx * t),
+                            (int) Math.floor(p.y + dy * t),
+                            (int) Math.floor(p.z + dz * t));
+            if (id != 0) {
+                hit = "block " + id + " at distance " + t;
+                break;
+            }
+        }
+        System.out.println(
+                "[GRUG CONTROL] capture "
+                        + n
+                        + ": player "
+                        + p.x
+                        + " "
+                        + p.y
+                        + " "
+                        + p.z
+                        + " yaw "
+                        + p.yaw
+                        + " pitch "
+                        + p.pitch
+                        + ", screen "
+                        + (mc.currentScreen == null
+                                ? "none"
+                                : mc.currentScreen.getClass().getName())
+                        + ", look ray hits "
+                        + hit
+                        + ", non-air block ids within 6 of the player (id=count) "
+                        + ids);
     }
 }
