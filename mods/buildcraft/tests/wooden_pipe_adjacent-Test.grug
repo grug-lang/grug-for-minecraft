@@ -6,7 +6,7 @@
 # apart, and advanced together, so one run repeats the trigger six times (#1019): before the floor
 # covered the columns an item is pushed into, most rows lost an item on 1.20.6 and the count
 # stayed short for good.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         _advance(ctx)

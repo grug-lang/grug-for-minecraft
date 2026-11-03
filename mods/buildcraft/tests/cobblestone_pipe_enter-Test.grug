@@ -4,7 +4,7 @@
 # still on its way to the new pipe's centre. A pipe-to-pipe entry starts 0.49 from the centre, where an
 # item from an inventory starts 0.5 away, so it reaches the centre on the 48th move and not the 49th.
 # Both pipes are ticked by hand, after one dose of energy, so no engine timing can shift the counts.
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

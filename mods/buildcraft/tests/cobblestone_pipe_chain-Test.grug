@@ -11,7 +11,7 @@ wooden: Option[BlockEntity] = Option.new()
 cobblestone: Option[BlockEntity] = Option.new()
 target: Option[BlockEntity] = Option.new()
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         _advance(ctx)
