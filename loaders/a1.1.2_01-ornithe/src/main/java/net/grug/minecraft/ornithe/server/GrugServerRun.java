@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -105,7 +106,12 @@ public final class GrugServerRun {
             if (waitStartMillis == 0) {
                 waitStartMillis = System.currentTimeMillis();
             }
-            if (!players.isEmpty() && GrugCore.getAdapter().isWorldReady(players.get(0))) {
+            // The run starts when a player has started it (#1040): the joined client sends its
+            // start
+            // once it is in the world.
+            if (!players.isEmpty()
+                    && GrugControlAlpha.server().hasStarter()
+                    && GrugCore.getAdapter().isWorldReady(players.get(0))) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)

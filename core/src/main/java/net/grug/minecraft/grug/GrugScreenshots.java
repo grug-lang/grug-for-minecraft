@@ -794,4 +794,52 @@ public final class GrugScreenshots {
         image.getRGB(0, 0, width, height, pixels, 0, width);
         return pixels;
     }
+
+    /**
+     * Why a capture rectangle cannot be read, or null when it can: a coordinate outside the frame,
+     * or a rectangle that truncates to nothing. A loader checks this before it touches GL or, on a
+     * dedicated server, before it forwards the capture to a client (#1040), so a typo is reported
+     * as a typo on every side.
+     */
+    public static String rectangleProblem(double x1, double y1, double x2, double y2) {
+        String bad = coordinateProblem("x1", x1, WIDTH);
+        if (bad == null) bad = coordinateProblem("y1", y1, HEIGHT);
+        if (bad == null) bad = coordinateProblem("x2", x2, WIDTH);
+        if (bad == null) bad = coordinateProblem("y2", y2, HEIGHT);
+        if (bad != null) return bad;
+        // The truncated values, because they are what the width is computed from: comparing the
+        // doubles let (590, 310, 590.5, 410) through, and the width then threw.
+        int left = (int) x1;
+        int top = (int) y1;
+        int right = (int) x2;
+        int bottom = (int) y2;
+        if (right <= left || bottom <= top) {
+            return "the rectangle is empty, since ("
+                    + right
+                    + ","
+                    + bottom
+                    + ") is not below and right of ("
+                    + left
+                    + ","
+                    + top
+                    + ")";
+        }
+        return null;
+    }
+
+    private static String coordinateProblem(String name, double value, int limit) {
+        if (value < 0 || value > limit) {
+            return name
+                    + " is "
+                    + (int) value
+                    + ", which is outside the "
+                    + WIDTH
+                    + "x"
+                    + HEIGHT
+                    + " frame (0 to "
+                    + limit
+                    + ")";
+        }
+        return null;
+    }
 }

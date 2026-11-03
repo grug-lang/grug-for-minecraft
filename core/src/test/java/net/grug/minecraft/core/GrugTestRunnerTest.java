@@ -1280,6 +1280,65 @@ class GrugTestRunnerTest {
         assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
     }
 
+    private GrugTestRunner forwardedRunner(
+            FakeOps ops, boolean dedicatedServer, boolean forwardsClientCalls) {
+        Map<String, Long> files = threeMods();
+        files.put("coverage/tests/forwarded_a-Test.grug", 8L);
+        ops.pathsAre(files);
+        return new GrugTestRunner(
+                files,
+                List.of(),
+                ops,
+                System::nanoTime,
+                new SweepLog(new ArrayList<>()),
+                1,
+                new CoverageLog(),
+                Set.of(),
+                GrugTestRunner.MAX_GAME_SPEED,
+                Set.of(),
+                Set.of(),
+                dedicatedServer,
+                Set.of(),
+                forwardsClientCalls);
+    }
+
+    @Test
+    void aForwardingServerRunsAForwardedTestWithItsPlainTick() {
+        FakeOps ops = new FakeOps();
+        ops.anySide.addAll(Set.of("buildcraft/code/a-Test.grug", "jei/code/a-Test.grug"));
+        String printed = capture(() -> runToEnd(forwardedRunner(ops, true, true)));
+
+        assertTrue(
+                printed.contains("[GRUG CI] PASS coverage/tests/forwarded_a-Test.grug"), printed);
+        assertTrue(printed.contains("Skipped 3 test(s)"), printed);
+        assertTrue(!printed.contains("forwarded_ test(s)"), printed);
+        assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
+    }
+
+    @Test
+    void aClientAndANonForwardingServerSkipAForwardedTestAndSayWhy() {
+        for (boolean[] side : new boolean[][] {{false, false}, {false, true}, {true, false}}) {
+            FakeOps ops = new FakeOps();
+            ops.anySide.addAll(Set.of("buildcraft/code/a-Test.grug", "jei/code/a-Test.grug"));
+            String printed = capture(() -> runToEnd(forwardedRunner(ops, side[0], side[1])));
+
+            assertTrue(
+                    !printed.contains("[GRUG CI] PASS coverage/tests/forwarded_a-Test.grug"),
+                    printed);
+            assertTrue(printed.contains("Skipped 1 forwarded_ test(s)"), printed);
+        }
+    }
+
+    @Test
+    void onlyAFileNamedWithThePrefixIsForwarded() {
+        assertTrue(GrugTestRunner.isForwarded("coverage/tests/forwarded_a-Test.grug"));
+        assertTrue(GrugTestRunner.isForwarded("forwarded_a-Test.grug"));
+        assertTrue(!GrugTestRunner.isForwarded("coverage/forwarded_dir/a-Test.grug"));
+        assertTrue(GrugTestRunner.runsForwardedTests(true, true));
+        assertTrue(!GrugTestRunner.runsForwardedTests(true, false));
+        assertTrue(!GrugTestRunner.runsForwardedTests(false, true));
+    }
+
     private GrugTestRunner listedRunner(FakeOps ops, boolean dedicatedServer, Set<String> listed) {
         Map<String, Long> files = threeMods();
         ops.pathsAre(files);

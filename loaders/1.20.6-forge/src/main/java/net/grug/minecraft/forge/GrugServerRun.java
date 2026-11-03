@@ -47,7 +47,13 @@ public final class GrugServerRun {
             if (waitStartMillis == 0) {
                 waitStartMillis = System.currentTimeMillis();
             }
-            if (!players.isEmpty() && GrugCore.getAdapter().isWorldReady(players.get(0))) {
+            // The run starts when a player has started it (#1040): the joined client sends its
+            // start
+            // once it is in the world, and the screen the forwarded calls use is that player's.
+            Object testPlayer = GrugCore.getAdapter().testPlayer();
+            if (GrugControlForge.server().hasStarter()
+                    && testPlayer != null
+                    && GrugCore.getAdapter().isWorldReady(testPlayer)) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
@@ -75,7 +81,7 @@ public final class GrugServerRun {
             return;
         }
 
-        runner.tick(players.get(0));
+        runner.tick((ServerPlayer) GrugCore.getAdapter().testPlayer());
         if (runner.isFinished()) {
             stop(server);
         }

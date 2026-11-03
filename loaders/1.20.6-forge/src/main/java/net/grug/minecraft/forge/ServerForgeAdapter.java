@@ -1,9 +1,15 @@
 package net.grug.minecraft.forge;
 
+import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;
+
+import java.awt.image.BufferedImage;
+import java.util.UUID;
 
 /**
  * The adapter for a 1.20.6 dedicated server, which is the same loader as {@link ForgeAdapter} in a
@@ -49,8 +55,44 @@ public class ServerForgeAdapter extends ForgeAdapter {
      */
     @Override
     public Object testPlayer() {
-        var players = ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers();
+        var server = ServerLifecycleHooks.getCurrentServer();
+        // The player who started the run, when one has: it is their screen the forwarded calls use.
+        Object starter = GrugControlForge.server().starter();
+        if (starter != null) {
+            ServerPlayer player = server.getPlayerList().getPlayer((UUID) starter);
+            if (player != null) return player;
+        }
+        var players = server.getPlayerList().getPlayers();
         return players.isEmpty() ? null : (ServerPlayer) players.get(0);
+    }
+
+    /**
+     * Forwards the capture to the joined client of the player who started the run and waits for the
+     * answer with the world frozen (#1040, option A). A failure, including a timeout, is a host
+     * function error, which fails the test.
+     */
+    @Override
+    public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        // Arguments first, as on a client, then forward: a bad rectangle never reaches the client.
+        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
+        if (bad != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + bad);
+            return null;
+        }
+        try {
+            return GrugControlForge.server().capture((int) x1, (int) y1, (int) x2, (int) y2);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * This server forwards a test's client-only calls to the player who started the run (#1040).
+     */
+    @Override
+    public boolean forwardsClientCalls() {
+        return true;
     }
 
     /**
