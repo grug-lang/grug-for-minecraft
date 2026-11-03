@@ -121,4 +121,16 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     public int tickLevel(Object levelObj, int ticks) {
         return GrugServerRun.advance((World) levelObj, ticks);
     }
+
+    /** The client's cap of ticks for one frame, which the server takes as extra ticks per tick. */
+    @Override
+    public double maxGameSpeed() {
+        return CLIENT_TICKS_PER_FRAME;
+    }
+
+    @Override
+    public boolean setGameSpeed(double speed) {
+        GrugServerRun.setGameSpeed((int) speed);
+        return true;
+    }
 }

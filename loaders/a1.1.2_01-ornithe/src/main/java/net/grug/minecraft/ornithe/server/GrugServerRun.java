@@ -28,6 +28,16 @@ public final class GrugServerRun {
     private static GrugTestRunner runner = null;
     private static boolean done = false;
     private static boolean advancing = false;
+    private static int gameSpeed = 1;
+
+    /**
+     * The ticks the world takes for each of the runner's, which is how the server runs a test at
+     * the loader's maximum game speed (#677): the server's own loop gives one, and this runs the
+     * rest before the runner's tick.
+     */
+    public static void setGameSpeed(int speed) {
+        gameSpeed = speed;
+    }
 
     private GrugServerRun() {}
 
@@ -121,6 +131,9 @@ public final class GrugServerRun {
             return;
         }
 
+        if (gameSpeed > 1) {
+            advance(tickedWorld, gameSpeed - 1);
+        }
         runner.tick(players.get(0));
         if (runner.isFinished()) {
             stop();
