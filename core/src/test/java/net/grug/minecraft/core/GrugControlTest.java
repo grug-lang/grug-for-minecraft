@@ -874,10 +874,11 @@ class GrugControlTest {
         // A chunk answering a call, and a value answering a capture, are each the wrong kind.
         GrugControlServer chunky = new GrugControlServer(link, 5000);
         chunky.onMessage(PLAYER, GrugControlWire.runStart());
+        int sentBefore = sent.size();
         Thread answerer =
                 new Thread(
                         () -> {
-                            awaitSent(sent, 1);
+                            awaitSent(sent, sentBefore + 1);
                             long id = GrugControlWire.decode(sent.get(sent.size() - 1)).id;
                             chunky.onMessage(
                                     PLAYER, GrugControlWire.answerChunks(id, new byte[1]).get(0));
