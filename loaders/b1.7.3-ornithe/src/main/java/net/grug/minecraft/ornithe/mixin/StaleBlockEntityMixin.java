@@ -1,5 +1,6 @@
 package net.grug.minecraft.ornithe.mixin;
 
+import net.grug.minecraft.core.GrugStaleBlockEntity;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
@@ -43,11 +44,9 @@ public abstract class StaleBlockEntityMixin {
         if (!(cir.getReturnValue() instanceof GrugBlockEntity)) {
             return;
         }
-        // A grug block being broken is already replaced when its on_break reads its own entity.
-        if (GrugBlock.removalDepth > 0) {
-            return;
-        }
-        if (!(Block.BY_ID[getBlockAt(x, y, z)] instanceof GrugBlock)) {
+        if (GrugStaleBlockEntity.shouldDrop(
+                cir.getReturnValue() instanceof GrugBlockEntity,
+                Block.BY_ID[getBlockAt(x, y, z)] instanceof GrugBlock)) {
             removeBlockEntityAt(x, y, z);
             cir.setReturnValue(getBlockEntityAt(x, y, z));
         }

@@ -857,14 +857,12 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     /**
-     * The player's feet, from the bounding box. The client keeps the eye height in {@code y}, but
-     * the dedicated server's player keeps the feet there, so subtracting the eye offset built the
-     * test room's floor a block and a half too low on the server and dropped the player another
-     * block or two with every test, until they fell out of the world (#163). The box's bottom is
-     * the feet on both sides, rounded to a millionth to shed the arithmetic's last bits.
+     * The player's feet. The client keeps the eye height in {@code y}, so the feet are the eye
+     * offset below it; the dedicated server's player keeps the feet there, which {@link
+     * ServerOrnitheAdapter} answers instead (#163).
      */
-    private static double feetY(PlayerEntity player) {
-        return Math.rint(player.shape.minY * 1e6) / 1e6;
+    protected double feetY(PlayerEntity player) {
+        return player.y - 1.62;
     }
 
     @Override
