@@ -825,7 +825,22 @@ class GrugControlTest {
         assertThrows(
                 GrugControlServer.ControlException.class,
                 () -> loop.server.playUiSound("x", 1, Double.NaN));
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () -> loop.server.playUiSound("x", Double.POSITIVE_INFINITY, 1));
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () -> loop.server.playUiSound("x", 1.5, 1));
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () -> loop.server.playUiSound("x", 1, 0.25));
+        assertThrows(
+                GrugControlServer.ControlException.class,
+                () -> loop.server.playUiSound("x", 1, Double.NEGATIVE_INFINITY));
+        assertThrows(
+                GrugControlServer.ControlException.class, () -> loop.server.hasSound("Not A Name"));
         assertTrue(loop.toClient.isEmpty());
+        assertTrue(GrugControlServer.failed());
     }
 
     @Test
@@ -969,5 +984,107 @@ class GrugControlTest {
         assertTrue(caller.hasSound("a"));
         caller.playUiSound("b", 1, 1);
         assertEquals(List.of("hasSound a", "playUiSound b"), seen);
+    }
+
+    @Test
+    void aClientRefusesWhatTheHostFunctionWouldAndAnAdapterThatThrowsIsAnError() {
+        Loopback loop =
+                wireCalls(
+                        1000,
+                        new GrugControlClient.Caller() {
+                            @Override
+                            public boolean hasSound(String path) {
+                                throw new IllegalStateException("no sound engine");
+                            }
+
+                            @Override
+                            public void playUiSound(String path, double volume, double pitch) {
+                                throw new AssertionError("a refused call must not be performed");
+                            }
+                        });
+        loop.client.beginRun();
+        loop.toServer.clear();
+
+        // A server that skipped its own checks still cannot make the client play this.
+        for (byte[] bad :
+                new byte[][] {
+                    GrugControlWire.callRequest(
+                            3,
+                            GrugControlWire.CALL_PLAY_UI_SOUND,
+                            "x",
+                            Double.POSITIVE_INFINITY,
+                            1),
+                    GrugControlWire.callRequest(3, GrugControlWire.CALL_PLAY_UI_SOUND, "x", 2, 1),
+                    GrugControlWire.callRequest(3, GrugControlWire.CALL_PLAY_UI_SOUND, "x", 1, 0.1),
+                    GrugControlWire.callRequest(3, GrugControlWire.CALL_HAS_SOUND, "Bad Name", 0, 0)
+                }) {
+            loop.client.onMessage(bad);
+            GrugControlWire.Message answer =
+                    GrugControlWire.decode(loop.toServer.get(loop.toServer.size() - 1));
+            assertEquals(GrugControlWire.ANSWER_ERROR, answer.type);
+            assertTrue(answer.text.startsWith("refused: "), answer.text);
+        }
+
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> loop.server.hasSound("random.click"));
+        assertTrue(e.getMessage().contains("the client's call failed"), e.getMessage());
+        assertTrue(e.getMessage().contains("no sound engine"), e.getMessage());
+        assertTrue(GrugControlServer.failed());
+    }
+
+    @Test
+    void anAnswerValueOutsideTheAgreedOnesFailsTheCall() {
+        int[] reply = {0};
+        GrugControlServer[] server = new GrugControlServer[1];
+        GrugControlServer.Link link =
+                new GrugControlServer.Link() {
+                    @Override
+                    public boolean sendToStarter(Object starter, byte[] message) {
+                        long id = GrugControlWire.decode(message).id;
+                        server[0].onMessage(
+                                PLAYER, GrugControlWire.answerValue(id, (byte) reply[0]));
+                        return true;
+                    }
+
+                    @Override
+                    public void flushWorld() {}
+
+                    @Override
+                    public boolean mayStartRun(Object sender) {
+                        return true;
+                    }
+                };
+        server[0] = new GrugControlServer(link, 1000);
+        server[0].onMessage(PLAYER, GrugControlWire.runStart());
+
+        GrugControlServer.clearFailure();
+        reply[0] = 1;
+        try {
+            assertTrue(server[0].hasSound("random.click"));
+            server[0].playUiSound("random.click", 1, 1);
+            reply[0] = 0;
+            assertFalse(server[0].hasSound("random.click"));
+        } catch (GrugControlServer.ControlException e) {
+            throw new AssertionError(e);
+        }
+        assertFalse(GrugControlServer.failed());
+
+        reply[0] = 2;
+        GrugControlServer.ControlException has =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server[0].hasSound("random.click"));
+        assertTrue(has.getMessage().contains("not 0 or 1"), has.getMessage());
+        assertTrue(GrugControlServer.failed());
+
+        GrugControlServer.clearFailure();
+        reply[0] = 0;
+        GrugControlServer.ControlException play =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> server[0].playUiSound("random.click", 1, 1));
+        assertTrue(play.getMessage().contains("not the ack 1"), play.getMessage());
     }
 }

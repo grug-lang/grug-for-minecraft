@@ -3,7 +3,6 @@ package net.grug.minecraft.core;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -11,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -313,14 +313,50 @@ public final class GrugControlServer {
         }
     }
 
+    private static final AtomicBoolean FAILED = new AtomicBoolean();
+
+    /** Forgets that a forwarded call failed; the server thread calls it before a sequence. */
+    public static void clearFailure() {
+        FAILED.set(false);
+    }
+
+    /**
+     * Whether a forwarded call has failed since {@link #clearFailure}, so a host function that made
+     * more than one call reports the first cause and not a second one it led to.
+     */
+    public static boolean failed() {
+        return FAILED.get();
+    }
+
     /** Asks the starter's client whether the game has the sound under {@code path}. */
     public boolean hasSound(String path) throws ControlException {
-        return call(GrugControlWire.CALL_HAS_SOUND, path, 0, 0) != 0;
+        byte result = call(GrugControlWire.CALL_HAS_SOUND, path, 0, 0);
+        if (result != 0 && result != 1) {
+            throw failure("The client answered has_sound with " + result + ", not 0 or 1.");
+        }
+        return result == 1;
     }
 
     /** Asks the starter's client to play the sound under {@code path}, and waits for its ack. */
     public void playUiSound(String path, double volume, double pitch) throws ControlException {
-        call(GrugControlWire.CALL_PLAY_UI_SOUND, path, volume, pitch);
+        byte result = call(GrugControlWire.CALL_PLAY_UI_SOUND, path, volume, pitch);
+        if (result != 1) {
+            throw failure("The client answered play_ui_sound with " + result + ", not the ack 1.");
+        }
+    }
+
+    private static ControlException failure(String message) {
+        FAILED.set(true);
+        return new ControlException(message);
+    }
+
+    /** Why a call's arguments cannot be sent, or null: the same checks the client makes. */
+    static String callProblem(byte call, String name, double volume, double pitch) {
+        String problem = GrugSoundArgs.pathProblem(name);
+        if (problem == null && call == GrugControlWire.CALL_PLAY_UI_SOUND) {
+            problem = GrugSoundArgs.levelsProblem(volume, pitch);
+        }
+        return problem;
     }
 
     /**
@@ -329,12 +365,20 @@ public final class GrugControlServer {
      * host function, so a caller that skipped it still cannot send what the client would refuse.
      */
     private byte call(byte call, String name, double volume, double pitch) throws ControlException {
-        if (name.getBytes(StandardCharsets.UTF_8).length > GrugControlWire.MAX_NAME
-                || Double.isNaN(volume)
-                || Double.isNaN(pitch)) {
-            throw new ControlException(
-                    "The call has an argument the control channel cannot carry.");
+        String problem = callProblem(call, name, volume, pitch);
+        if (problem != null) {
+            throw failure("The call was not sent: " + problem);
         }
+        try {
+            return forward(call, name, volume, pitch);
+        } catch (ControlException e) {
+            FAILED.set(true);
+            throw e;
+        }
+    }
+
+    private byte forward(byte call, String name, double volume, double pitch)
+            throws ControlException {
         Object to = starter.get();
         if (to == null) {
             throw new ControlException(
