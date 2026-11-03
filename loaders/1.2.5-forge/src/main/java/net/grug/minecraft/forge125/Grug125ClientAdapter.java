@@ -718,7 +718,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         return image;
     }
 
-    private static int controlCaptureCount = 0;
+    private static int controlCaptureCount;
 
     /**
      * Under GRUG_CI, saves the frame a forwarded capture returned and logs what this client's world
@@ -730,13 +730,19 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         if (!"true".equals(System.getenv("GRUG_CI")) && System.getenv("GRUG_CI_CONNECT") == null) {
             return;
         }
-        try {
+        {
             int n = ++controlCaptureCount;
-            java.io.File dir = new java.io.File("control-captures");
+            java.io.File dir = new java.io.File(mc.mcDataDir, "control-captures");
             dir.mkdirs();
             if (image != null) {
-                javax.imageio.ImageIO.write(
-                        image, "png", new java.io.File(dir, "capture-" + n + ".png"));
+                try {
+                    if (!javax.imageio.ImageIO.write(
+                            image, "png", new java.io.File(dir, "capture-" + n + ".png"))) {
+                        throw new IllegalStateException("no PNG writer for the forwarded capture");
+                    }
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
             }
             net.minecraft.src.EntityPlayer p = mc.thePlayer;
             net.minecraft.src.World w = mc.theWorld;
@@ -790,8 +796,6 @@ public class Grug125ClientAdapter extends Grug125Adapter {
                             + hit
                             + ", non-air block ids within 6 of the player (id=count) "
                             + ids);
-        } catch (Exception | LinkageError e) {
-            System.out.println("[GRUG CONTROL] diagnostic failed: " + e);
         }
     }
 

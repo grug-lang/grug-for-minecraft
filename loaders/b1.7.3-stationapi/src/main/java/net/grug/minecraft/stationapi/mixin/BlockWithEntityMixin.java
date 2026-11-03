@@ -10,6 +10,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Creates a grug block entity's grug entity when a grug block is placed, after {@code onPlaced} has
  * made the block entity and registered it.
@@ -22,27 +25,39 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(BlockWithEntity.class)
 public abstract class BlockWithEntityMixin {
     /**
-     * Whether this thread is inside {@link #grug$initOnPlaced}. A joined client builds a block
-     * entity the server never sent when something asks the chunk for it, by calling {@code
+     * The positions this thread is inside {@link #grug$initOnPlaced} for. A joined client builds a
+     * block entity the server never sent when something asks the chunk for it, by calling {@code
      * onPlaced}, and a chunk that has not finished arriving does not keep what that makes, so the
-     * lookup below asked the chunk again and recursed until the stack ended (#1040). The lookup
-     * inside the hook is the only one that needs to be skipped.
+     * lookup below asked the chunk again for the same position and recursed until the stack ended
+     * (#1040). Only that same position, in the same world, is skipped: a grug block that {@code
+     * onRegistered} places elsewhere is initialized as usual.
      */
-    private static final ThreadLocal<Boolean> grug$initializing = new ThreadLocal<>();
+    private static final ThreadLocal<List<Object[]>> grug$initializing =
+            ThreadLocal.withInitial(ArrayList::new);
 
     @Inject(method = "onPlaced", at = @At("RETURN"))
     private void grug$initOnPlaced(World world, int x, int y, int z, CallbackInfo ci) {
-        if (grug$initializing.get() != null) {
-            return;
+        List<Object[]> active = grug$initializing.get();
+        for (Object[] open : active) {
+            if (open[0] == world
+                    && (int) open[1] == x
+                    && (int) open[2] == y
+                    && (int) open[3] == z) {
+                return;
+            }
         }
-        grug$initializing.set(Boolean.TRUE);
+        Object[] key = {world, x, y, z};
+        active.add(key);
         try {
             BlockEntity blockEntity = world.getBlockEntity(x, y, z);
             if (blockEntity instanceof GrugBlockEntity grugBlockEntity) {
                 grugBlockEntity.onRegistered();
             }
         } finally {
-            grug$initializing.remove();
+            active.remove(key);
+            if (active.isEmpty()) {
+                grug$initializing.remove();
+            }
         }
     }
 }

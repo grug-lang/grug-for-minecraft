@@ -315,6 +315,11 @@ public class GrugClientHooks implements ITickHandler {
         window.beginRun();
     }
 
+    /** Puts the window back when this client has left the server whose run it started. */
+    public void endControlRun() {
+        window.endRun();
+    }
+
     /**
      * The game tick, which is where the test runner is driven: one {@code Test.tick()} call per
      * game tick, the cadence the other four loaders use.

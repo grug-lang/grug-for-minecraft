@@ -52,8 +52,11 @@ public final class GrugControlStation {
     /** Client ticks to wait for the frames that show what the server sent, at the least. */
     static final int MIN_TICKS = 60;
 
-    /** Client ticks after which the frame the client has is captured even if not settled. */
-    static final int MAX_TICKS = 400;
+    /**
+     * Client ticks after which the frame the client has is captured even if not settled: 15 s at 20
+     * ticks a second, well inside the server's 20 s wait, so the answer is back in time.
+     */
+    static final int MAX_TICKS = 300;
 
     private static GrugControlServer server;
     private static GrugControlClient client;
@@ -326,6 +329,8 @@ public final class GrugControlStation {
             // Left the server: a run belongs to the connection that started it.
             pending = false;
             client().endRun();
+            started = false;
+            hooks.endControlRun();
         }
         if (!pending) return;
         waited++;

@@ -1,5 +1,8 @@
 package net.grug.minecraft.core;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +45,32 @@ public final class GrugControlWire {
     /** The most bytes of text an error answer may hold. */
     public static final int MAX_TEXT = 8192;
 
+    /** The longest message a packet may carry: the largest chunk message, with its header. */
+    public static final int MAX_FRAME = MAX_CHUNK + 64;
+
     private GrugControlWire() {}
+
+    /**
+     * Reads one length-prefixed message from a packet, as every loader's control packet does. The
+     * length comes off the network, so it is bounded before anything is allocated: a connection
+     * that sends a huge or negative one is closed by the reader that sees the exception.
+     */
+    public static byte[] readFrame(DataInput in) throws IOException {
+        int length = in.readInt();
+        if (length < 0 || length > MAX_FRAME) {
+            throw new IOException(
+                    "A control message of " + length + " bytes is outside 0 to " + MAX_FRAME);
+        }
+        byte[] bytes = new byte[length];
+        in.readFully(bytes);
+        return bytes;
+    }
+
+    /** Writes one message as {@link #readFrame} reads it. */
+    public static void writeFrame(DataOutput out, byte[] bytes) throws IOException {
+        out.writeInt(bytes.length);
+        out.write(bytes);
+    }
 
     /** One decoded message; the fields a type does not use are zero or null. */
     public static final class Message {

@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi.control;
 
+import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.network.NetworkHandler;
 import net.minecraft.network.packet.Packet;
@@ -24,13 +25,11 @@ import java.io.UncheckedIOException;
  * as any packet is.
  */
 @GrugGenerated(
-        "the StationAPI channel glue of #1040: no test the coverage gate counts can reach it, since"
-                + " only the multiplayer job runs it")
+        "the game's packet type: its registration and its hand-off to the game's handlers need a"
+                + " running game; the framing it calls is unit-tested in GrugControlFrameTest")
 public class GrugControlPacket extends Packet {
     /** Vanilla uses 0 to 6, 10 to 34, 50 to 53, 59, 100 to 108, 130, 255 and more; 150 is free. */
     public static final int ID = 150;
-
-    private static final int MAX_BYTES = 1 << 20;
 
     public byte[] bytes = new byte[0];
 
@@ -48,12 +47,7 @@ public class GrugControlPacket extends Packet {
         // The mapped signature declares no IOException; the connection's reader catches any
         // Exception and closes the connection, so a wrapped one ends it the same way.
         try {
-            int length = in.readInt();
-            if (length < 0 || length > MAX_BYTES) {
-                throw new IOException("A control message of " + length + " bytes is not allowed");
-            }
-            bytes = new byte[length];
-            in.readFully(bytes);
+            bytes = GrugControlWire.readFrame(in);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -63,8 +57,7 @@ public class GrugControlPacket extends Packet {
     @Override
     public void write(DataOutputStream out) {
         try {
-            out.writeInt(bytes.length);
-            out.write(bytes);
+            GrugControlWire.writeFrame(out, bytes);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

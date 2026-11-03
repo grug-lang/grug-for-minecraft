@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.control;
 
+import net.grug.minecraft.core.GrugControlWire;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.minecraft.src.NetHandler;
 import net.minecraft.src.Packet;
@@ -22,13 +23,11 @@ import java.lang.reflect.Modifier;
  * does not know closes the connection.
  */
 @GrugGenerated(
-        "the 1.2.5 channel glue of #1040: no test the coverage gate counts can reach it, since only"
-                + " the multiplayer job runs it")
+        "the game's packet type: its registration and its hand-off to the game's handlers need a"
+                + " running game; the framing it calls is unit-tested in GrugControlFrameTest")
 public class GrugControlPacket extends Packet {
     /** Vanilla and Forge use 0 to 26, 28 to 43, 50 to 54, 60, 61, 70, 71, 100 to 108 and up. */
     public static final int ID = 150;
-
-    private static final int MAX_BYTES = 1 << 20;
 
     /** The half that handles messages, set by whichever side this process is. */
     public static volatile GrugControlRouter router = null;
@@ -72,20 +71,14 @@ public class GrugControlPacket extends Packet {
 
     @Override
     public void readPacketData(DataInputStream in) throws IOException {
-        int length = in.readInt();
-        if (length < 0 || length > MAX_BYTES) {
-            throw new IOException("A control message of " + length + " bytes is not allowed");
-        }
-        bytes = new byte[length];
-        in.readFully(bytes);
+        bytes = GrugControlWire.readFrame(in);
         GrugControlRouter target = router;
         consumed = target != null && target.onRead(Thread.currentThread(), bytes);
     }
 
     @Override
     public void writePacketData(DataOutputStream out) throws IOException {
-        out.writeInt(bytes.length);
-        out.write(bytes);
+        GrugControlWire.writeFrame(out, bytes);
     }
 
     @Override
