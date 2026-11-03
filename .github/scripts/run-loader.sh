@@ -276,7 +276,9 @@ if [ "${#candidate_mods[@]}" -gt 0 ]; then
 fi
 EXPECTED_TESTS=0
 for mod in "${running_mods[@]}"; do
-  EXPECTED_TESTS=$((EXPECTED_TESTS + $(find "${MODS_DIR}/${mod}" -name "*-Test.grug" | wc -l | tr -d ' ')))
+  # A forwarded_ test (#1040) runs only on a dedicated server that forwards client calls, so a
+  # client's run skips it and does not count it.
+  EXPECTED_TESTS=$((EXPECTED_TESTS + $(find "${MODS_DIR}/${mod}" -name "*-Test.grug" ! -name "forwarded_*" | wc -l | tr -d ' ')))
 done
 if [ "${#running_mods[@]}" -ne "${#candidate_mods[@]}" ]; then
   # The runner has to be told the same list the count is for, and an empty GRUG_CI_MODS would mean
