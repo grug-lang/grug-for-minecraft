@@ -89,6 +89,7 @@ public final class GrugServerRun {
 
     private void stop(MinecraftServer server) {
         done = true;
+        GrugControlForge.server().endRun();
         server.halt(false);
     }
 }

@@ -11,12 +11,19 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.OrnitheAdapter;
+import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.client.Minecraft;
+import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketHandler;
+import net.minecraft.world.World;
 
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -51,7 +58,6 @@ public final class GrugControlAlpha {
     private static GrugControlServer server;
     private static GrugControlClient client;
     private static boolean started = false;
-    private static int startedTicks = 0;
 
     private static int x1;
     private static int y1;
@@ -76,12 +82,31 @@ public final class GrugControlAlpha {
         return server;
     }
 
+    /** The player each connection belongs to, learnt when its first control message is handled. */
+    private static final Map<Connection, PlayerEntity> PLAYERS =
+            Collections.synchronizedMap(new WeakHashMap<>());
+
+    /** The player who started the run, or null when none has or they have left. */
+    public static PlayerEntity starterPlayer() {
+        Object starter = server().starter();
+        return starter == null ? null : PLAYERS.get((Connection) starter);
+    }
+
     @GrugGenerated(
             "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since"
                     + " only the multiplayer job runs it")
     private static final class AlphaLink implements GrugControlServer.Link {
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
+            // A dead connection takes a packet into its queue without a word, so the starter is
+            // asked about instead: a player who left is no longer in the world.
+            PlayerEntity player = PLAYERS.get((Connection) starter);
+            World world = GrugServerRun.world();
+            if (player == null
+                    || world == null
+                    || !new ArrayList<>(world.players).contains(player)) {
+                return false;
+            }
             ((Connection) starter).send(new GrugControlPacket(message));
             return true;
         }
@@ -92,6 +117,16 @@ public final class GrugControlAlpha {
                     "[GRUG CONTROL] no world flush on Alpha: the test waited a tick since it"
                             + " placed blocks");
         }
+
+        /**
+         * Any player who has finished login may start a run (first start wins in core); a
+         * connection whose player was not found has not finished login. Operator-only starting is a
+         * possible later hardening.
+         */
+        @Override
+        public boolean mayStartRun(Object sender) {
+            return PLAYERS.get((Connection) sender) != null;
+        }
     }
 
     private static synchronized GrugControlClient client() {
@@ -100,14 +135,16 @@ public final class GrugControlAlpha {
                     new GrugControlClient(
                             message -> {
                                 Connection connection = clientConnection();
-                                if (connection != null) {
-                                    connection.send(new GrugControlPacket(message));
+                                if (connection == null) {
+                                    throw new IllegalStateException(
+                                            "the control channel has an answer to send but the"
+                                                    + " client has no connection to the server");
                                 }
+                                connection.send(new GrugControlPacket(message));
                             },
                             GrugControlAlpha::capture,
                             GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_DROP_WIDTH", -1),
-                            GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_WIDTH", -1),
-                            GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_MILLIS", 0));
+                            GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_WIDTH", -1));
         }
         return client;
     }
@@ -131,6 +168,7 @@ public final class GrugControlAlpha {
         // The reader thread of a Connection is a Thread subclass that holds it, so the sender of
         // this answer is the connection it was read from, which the server compares with the
         // starter's.
+        // A null sender (no connection found) is passed on: the server fails what waits on it.
         server().onMessage(findConnection(Thread.currentThread(), 0), bytes);
         return true;
     }
@@ -138,16 +176,25 @@ public final class GrugControlAlpha {
     /** Called on the game thread for every other message, from {@code Connection.tick}. */
     static void onHandle(PacketHandler handler, byte[] bytes) {
         if (onServer()) {
-            server().onMessage(findConnection(handler, 1), bytes);
+            Connection connection = findConnection(handler, 1);
+            PlayerEntity player = playerOf(handler);
+            if (connection != null && player != null) {
+                PLAYERS.put(connection, player);
+            }
+            server().onMessage(connection, bytes);
         } else {
             client().onMessage(bytes);
         }
     }
 
-    /** The connection a handler holds, found by type so it does not depend on field names. */
+    /**
+     * The connection a handler holds, found by type so it does not depend on field names. The walk
+     * stops at the JDK's own classes (a reader thread is a {@code Thread}), whose fields are not
+     * ours to open.
+     */
     private static Connection findConnection(Object holder, int depth) {
         if (holder == null) return null;
-        for (Class<?> type = holder.getClass(); type != Object.class; type = type.getSuperclass()) {
+        for (Class<?> type = holder.getClass(); !isJdk(type); type = type.getSuperclass()) {
             for (Field field : type.getDeclaredFields()) {
                 try {
                     field.setAccessible(true);
@@ -163,12 +210,50 @@ public final class GrugControlAlpha {
                         Connection nested = findConnection(field.get(holder), depth - 1);
                         if (nested != null) return nested;
                     }
-                } catch (IllegalAccessException | RuntimeException e) {
-                    // Not this field.
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException(
+                            "cannot read " + field + " to find the connection", e);
                 }
             }
         }
         return null;
+    }
+
+    private static boolean isJdk(Class<?> type) {
+        return type == null || type.getName().startsWith("java.");
+    }
+
+    /**
+     * The player a server-side handler belongs to: a field of the handler that holds one, or else
+     * the player in the world that holds this handler. Null before the player is in the world.
+     */
+    private static PlayerEntity playerOf(PacketHandler handler) {
+        try {
+            for (Class<?> type = handler.getClass(); !isJdk(type); type = type.getSuperclass()) {
+                for (Field field : type.getDeclaredFields()) {
+                    if (PlayerEntity.class.isAssignableFrom(field.getType())) {
+                        field.setAccessible(true);
+                        Object value = field.get(handler);
+                        if (value != null) return (PlayerEntity) value;
+                    }
+                }
+            }
+            World world = GrugServerRun.world();
+            if (world == null) return null;
+            for (Object candidate : new ArrayList<>(world.players)) {
+                for (Class<?> type = candidate.getClass();
+                        !isJdk(type);
+                        type = type.getSuperclass()) {
+                    for (Field field : type.getDeclaredFields()) {
+                        field.setAccessible(true);
+                        if (field.get(candidate) == handler) return (PlayerEntity) candidate;
+                    }
+                }
+            }
+            return null;
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("cannot read the handler's player", e);
+        }
     }
 
     private static Connection clientConnection() {
@@ -239,12 +324,10 @@ public final class GrugControlAlpha {
             client().beginRun();
             System.out.println("[GRUG CONTROL] this client started a run, and sent the start");
         }
-        if (started && ++startedTicks % 100 == 0) {
-            System.out.println(
-                    "[GRUG CONTROL] client tick "
-                            + startedTicks
-                            + " after the start, at "
-                            + System.currentTimeMillis());
+        if (started && mc.world == null) {
+            // Left the server: a run belongs to the connection that started it.
+            pending = false;
+            client().endRun();
         }
         if (!pending) return;
         waited++;

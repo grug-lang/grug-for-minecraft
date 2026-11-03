@@ -27,8 +27,12 @@ public final class GrugControlClientForge {
     /** Client ticks to wait for the frames that show what the server sent, at the least. */
     static final int MIN_TICKS = 4;
 
-    /** Client ticks after which the frame the client has is captured even if it is still busy. */
-    static final int MAX_TICKS = 200;
+    /**
+     * Client ticks after which the frame the client has is captured even if it is still busy. Three
+     * seconds at 20 ticks, under the 5 s the CI run gives the server to wait, so a busy renderer
+     * delays the answer but never past the server's timeout (the server's default wait is 20 s).
+     */
+    static final int MAX_TICKS = 60;
 
     private static GrugControlClient client;
 
@@ -50,8 +54,7 @@ public final class GrugControlClientForge {
                             GrugControlForge::sendToServer,
                             GrugControlClientForge::capture,
                             GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_DROP_WIDTH", -1),
-                            GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_WIDTH", -1),
-                            GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_MILLIS", 0));
+                            GrugControlFaults.intFromEnv("GRUG_CI_CONTROL_LATE_WIDTH", -1));
         }
         return client;
     }
@@ -85,6 +88,12 @@ public final class GrugControlClientForge {
 
     /** One client tick: takes the pending capture once the frame shows the server's world. */
     public static void onClientTick(Minecraft mc) {
+        if (mc.level == null) {
+            // Left the server: a run belongs to the connection that started it.
+            pendingCapture = false;
+            if (client != null) client.endRun();
+            return;
+        }
         if (!pendingCapture) return;
         waited++;
         boolean idle = mc.level != null && ForgeAdapter.clientIdleForControl(mc);

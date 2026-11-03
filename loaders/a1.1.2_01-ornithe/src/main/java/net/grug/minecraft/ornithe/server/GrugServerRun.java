@@ -109,9 +109,11 @@ public final class GrugServerRun {
             // The run starts when a player has started it (#1040): the joined client sends its
             // start
             // once it is in the world.
+            Object testPlayer = GrugCore.getAdapter().testPlayer();
             if (!players.isEmpty()
                     && GrugControlAlpha.server().hasStarter()
-                    && GrugCore.getAdapter().isWorldReady(players.get(0))) {
+                    && GrugControlAlpha.starterPlayer() != null
+                    && GrugCore.getAdapter().isWorldReady(testPlayer)) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
@@ -143,7 +145,8 @@ public final class GrugServerRun {
             }
         }
 
-        if (players.isEmpty()) {
+        if (players.isEmpty() || !players.contains(GrugControlAlpha.starterPlayer())) {
+            GrugControlAlpha.server().onDisconnect(GrugControlAlpha.server().starter());
             System.out.println("[GRUG CI] FAIL the test player left");
             System.out.println(
                     "[GRUG CI] Every player disconnected from the dedicated server during the"
@@ -155,7 +158,7 @@ public final class GrugServerRun {
         if (gameSpeed > 1) {
             advance(tickedWorld, gameSpeed - 1);
         }
-        runner.tick(players.get(0));
+        runner.tick(GrugCore.getAdapter().testPlayer());
         if (runner.isFinished()) {
             stop(runner.isPassed() ? 0 : 1);
         }
@@ -164,6 +167,7 @@ public final class GrugServerRun {
     /** Ends the server process; a non-zero status says the run did not pass. */
     private static void stop(int status) {
         done = true;
+        GrugControlAlpha.server().endRun();
         System.out.flush();
         System.exit(status);
     }

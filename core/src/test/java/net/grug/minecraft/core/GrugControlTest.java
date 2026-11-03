@@ -28,12 +28,15 @@ class GrugControlTest {
         GrugControlServer server;
         GrugControlClient client;
         boolean connected = true;
+        boolean mayStart = true;
+        final List<byte[]> toClient = new ArrayList<>();
         boolean flushed = false;
         final List<byte[]> toServer = new ArrayList<>();
 
         @Override
         public boolean sendToStarter(Object starter, byte[] message) {
             if (!connected) return false;
+            toClient.add(message);
             client.onMessage(message);
             return true;
         }
@@ -44,6 +47,11 @@ class GrugControlTest {
         }
 
         @Override
+        public boolean mayStartRun(Object sender) {
+            return mayStart;
+        }
+
+        @Override
         public void send(byte[] message) {
             toServer.add(message);
             server.onMessage(PLAYER, message);
@@ -51,26 +59,15 @@ class GrugControlTest {
     }
 
     private static Loopback wire(long timeoutMillis, int dropWidth, GrugControlClient.Capturer c) {
-        return wire(timeoutMillis, dropWidth, -1, 0, c);
+        return wire(timeoutMillis, dropWidth, -1, c);
     }
 
     private static Loopback wire(
-            long timeoutMillis,
-            int dropWidth,
-            int lateWidth,
-            long lateMillis,
-            GrugControlClient.Capturer c) {
+            long timeoutMillis, int dropWidth, int lateWidth, GrugControlClient.Capturer c) {
         Loopback loop = new Loopback();
         loop.server = new GrugControlServer(loop, timeoutMillis);
-        loop.client = new GrugControlClient(loop, c, dropWidth, lateWidth, lateMillis);
+        loop.client = new GrugControlClient(loop, c, dropWidth, lateWidth);
         return loop;
-    }
-
-    private static Thread lateAnswerThread() {
-        for (Thread thread : Thread.getAllStackTraces().keySet()) {
-            if (thread.getName().equals("grug-control-late-answer")) return thread;
-        }
-        throw new AssertionError("no late answer thread is running");
     }
 
     private static GrugControlClient.Capturer solid(int rgb) {
@@ -239,49 +236,55 @@ class GrugControlTest {
     }
 
     @Test
-    void aLateAnswerAfterTheTimeoutIsDroppedAndNeverReachesTheNextRequest() throws Exception {
-        Loopback loop = wire(50, -1, 9, 400, solid(0xFF0000));
+    void aStaleAnswerLandingWhileTheNextRequestWaitsIsIgnoredAndTheNextIsAnsweredByItsOwn() {
+        // The 9 wide request is answered only when the next request reaches the client, so the
+        // stale 9x10 red answer is sent after the server gave up and while request 2 is pending.
+        Loopback loop = wire(50, -1, 9, solid(0xFF0000));
         loop.client.beginRun();
 
         assertThrows(
                 GrugControlServer.ControlException.class, () -> loop.server.capture(0, 0, 9, 10));
-        BufferedImage next = loop.server.capture(0, 0, 10, 10);
-        assertEquals(0xFF0000, next.getRGB(0, 0) & 0xFFFFFF);
-        Thread late = lateAnswerThread();
-        String printed = capture(() -> join(late));
+        int before = loop.toServer.size();
+        BufferedImage next = captureOrFail(loop.server, 0, 0, 10, 10);
 
-        assertTrue(printed.contains("request 1 answered with a 9x10 capture"), printed);
-        assertTrue(
-                printed.contains("dropped an answer to request 1, which is not waiting"), printed);
+        assertEquals(10, next.getWidth());
+        assertEquals(0xFF0000, next.getRGB(0, 0) & 0xFFFFFF);
+        // The stale answer was sent (before the new one), and the server did not take it.
+        GrugControlWire.Message first = GrugControlWire.decode(loop.toServer.get(before));
+        assertEquals(1, first.id);
+        assertEquals(2, GrugControlWire.decode(loop.toServer.get(before + 1)).id);
     }
 
     @Test
-    void aLateAnswerIsAnnouncedAndAnInterruptedOneIsNeverSent() throws Exception {
-        Loopback loop = wire(50, -1, 9, 60000, solid(0));
-        loop.client.beginRun();
-        int sentBefore = loop.toServer.size();
-
-        String printed =
-                capture(
-                        () ->
-                                assertThrows(
-                                        GrugControlServer.ControlException.class,
-                                        () -> loop.server.capture(0, 0, 9, 10)));
-        Thread late = lateAnswerThread();
-        late.interrupt();
-        join(late);
-
-        assertTrue(printed.contains("request 1 is answered 60000 ms late"), printed);
-        assertEquals(sentBefore, loop.toServer.size());
+    void ifAStaleAnswerWereAcceptedTheNextRequestWouldGetTheWrongImage() {
+        // The control for the test above: a server that took any answer while one request waits
+        // would complete request 2 with request 1's 9x10 image, which the size check refuses.
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> answeredWithAPngOf(9, 10).capture(0, 0, 10, 10));
+        assertTrue(e.getMessage().contains("9x10, but 10x10 was asked for"), e.getMessage());
     }
 
-    private static void join(Thread thread) {
+    /** A server whose request 1 is answered with a PNG of the given size. */
+    private static GrugControlServer answeredWithAPngOf(int w, int h) {
         try {
-            thread.join(5000);
-        } catch (InterruptedException e) {
+            ByteArrayOutputStream png = new ByteArrayOutputStream();
+            ImageIO.write(new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB), "png", png);
+            return lyingServer(
+                    GrugControlWire.answerChunks(1, png.toByteArray()).toArray(new byte[0][]));
+        } catch (java.io.IOException e) {
             throw new AssertionError(e);
         }
-        assertFalse(thread.isAlive());
+    }
+
+    private static BufferedImage captureOrFail(
+            GrugControlServer server, int x1, int y1, int x2, int y2) {
+        try {
+            return server.capture(x1, y1, x2, y2);
+        } catch (GrugControlServer.ControlException e) {
+            throw new AssertionError(e);
+        }
     }
 
     @Test
@@ -302,7 +305,7 @@ class GrugControlTest {
     }
 
     @Test
-    void onlyTheStarterMayAnswerAndALateAnswerIsDropped() {
+    void messagesFromSomeoneElseOrForAFinishedRequestAreSilentlyIgnored() {
         Loopback loop = wire(1000, -1, solid(0));
         loop.client.beginRun();
 
@@ -310,21 +313,138 @@ class GrugControlTest {
                 capture(
                         () -> {
                             loop.server.onMessage("mallory", GrugControlWire.answerError(1, "x"));
+                            loop.server.onMessage("mallory", new byte[] {99});
                             loop.server.onMessage(PLAYER, GrugControlWire.answerError(99, "x"));
                             loop.server.onMessage("mallory", GrugControlWire.runStart());
-                            loop.server.onMessage(null, GrugControlWire.answerError(1, "x"));
-                            loop.server.onMessage(PLAYER, new byte[] {99});
-                            loop.server.onMessage(
-                                    PLAYER, GrugControlWire.captureRequest(1, 0, 0, 1, 1));
                         });
 
-        assertTrue(printed.contains("dropped an answer from mallory, who did not start"), printed);
-        assertTrue(printed.contains("request 99, which is not waiting"), printed);
-        assertTrue(printed.contains("ignored a run start from mallory"), printed);
-        assertTrue(printed.contains("whose sender is not known"), printed);
-        assertTrue(printed.contains("does not decode"), printed);
-        assertTrue(printed.contains("dropped a message of type 2"), printed);
+        assertEquals("", printed);
         assertEquals(PLAYER, loop.server.starter());
+    }
+
+    @Test
+    void aStartIsAcceptedOnlyFromAnAuthorisedSenderAndOnlyOnce() {
+        Loopback loop = wire(1000, -1, solid(0));
+        loop.mayStart = false;
+        loop.server.onMessage("mallory", GrugControlWire.runStart());
+        assertFalse(loop.server.hasStarter());
+
+        loop.mayStart = true;
+        loop.server.onMessage("alice", GrugControlWire.runStart());
+        loop.server.onMessage("bob", GrugControlWire.runStart());
+        assertEquals("alice", loop.server.starter());
+    }
+
+    @Test
+    void twoSimultaneousStartsLeaveExactlyOneStarter() throws Exception {
+        for (int round = 0; round < 50; round++) {
+            Loopback loop = wire(1000, -1, solid(0));
+            Thread[] threads = new Thread[8];
+            for (int i = 0; i < threads.length; i++) {
+                String name = "p" + i;
+                threads[i] =
+                        new Thread(() -> loop.server.onMessage(name, GrugControlWire.runStart()));
+            }
+            for (Thread t : threads) t.start();
+            for (Thread t : threads) t.join();
+            Object winner = loop.server.starter();
+            assertNotNull(winner);
+            loop.server.onMessage("late", GrugControlWire.runStart());
+            assertEquals(winner, loop.server.starter());
+        }
+    }
+
+    @Test
+    void anUnattributableSenderFailsTheWaitingCall() {
+        GrugControlServer.ControlException e =
+                failFrom((server) -> server.onMessage(null, GrugControlWire.answerError(1, "x")));
+        assertTrue(e.getMessage().contains("could not identify"), e.getMessage());
+    }
+
+    @Test
+    void aMalformedMessageFromTheStarterFailsTheCallButOneFromSomeoneElseDoesNot() {
+        GrugControlServer.ControlException e =
+                failFrom((server) -> server.onMessage(PLAYER, new byte[] {99}));
+        assertTrue(e.getMessage().contains("malformed control message"), e.getMessage());
+        e =
+                failFrom(
+                        (server) ->
+                                server.onMessage(
+                                        PLAYER, GrugControlWire.captureRequest(1, 0, 0, 1, 1)));
+        assertTrue(e.getMessage().contains("control message of type 2"), e.getMessage());
+    }
+
+    @Test
+    void theRunEndingOrTheStarterLeavingFailsTheCallAndClearsTheStarter() {
+        Loopback ended = silentLoop();
+        GrugControlServer.ControlException e = waitingCallFails(ended, () -> ended.server.endRun());
+        assertTrue(e.getMessage().contains("run ended"), e.getMessage());
+        assertFalse(ended.server.hasStarter());
+        assertEquals(
+                GrugControlWire.RUN_END,
+                GrugControlWire.decode(ended.toClient.get(ended.toClient.size() - 1)).type);
+
+        Loopback left = silentLoop();
+        e = waitingCallFails(left, () -> left.server.onDisconnect(PLAYER));
+        assertTrue(e.getMessage().contains("disconnected"), e.getMessage());
+        assertFalse(left.server.hasStarter());
+
+        Loopback other = silentLoop();
+        other.server.onDisconnect("mallory");
+        other.server.onDisconnect(null);
+        assertTrue(other.server.hasStarter());
+
+        Loopback idle = wire(1000, -1, solid(0));
+        idle.server.endRun();
+        assertTrue(idle.toClient.isEmpty());
+    }
+
+    @Test
+    void theClientStopsObeyingWhenTheServerEndsTheRunOrItDisconnects() {
+        Loopback loop = wire(1000, -1, solid(0));
+        loop.client.beginRun();
+        loop.server.endRun();
+        assertFalse(loop.client.runActive());
+        assertThrows(
+                GrugControlServer.ControlException.class, () -> loop.server.capture(0, 0, 10, 10));
+    }
+
+    private static Loopback silentLoop() {
+        Loopback loop = wire(60_000, -1, (x1, y1, x2, y2, done, failed) -> {});
+        loop.client.beginRun();
+        return loop;
+    }
+
+    private static GrugControlServer.ControlException waitingCallFails(
+            Loopback loop, Runnable interruption) {
+        GrugControlServer.ControlException[] error = new GrugControlServer.ControlException[1];
+        Thread caller =
+                new Thread(
+                        () ->
+                                error[0] =
+                                        assertThrows(
+                                                GrugControlServer.ControlException.class,
+                                                () -> loop.server.capture(0, 0, 10, 10)));
+        caller.start();
+        try {
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            while (loop.toClient.isEmpty() && System.nanoTime() < deadline) {
+                Thread.sleep(2);
+            }
+            Thread.sleep(20);
+            interruption.run();
+            caller.join(5000);
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
+        assertFalse(caller.isAlive());
+        return error[0];
+    }
+
+    private static GrugControlServer.ControlException failFrom(
+            java.util.function.Consumer<GrugControlServer> hostile) {
+        Loopback loop = silentLoop();
+        return waitingCallFails(loop, () -> hostile.accept(loop.server));
     }
 
     /** A server whose client, instead of capturing, sends these messages as the answer. */
@@ -350,8 +470,6 @@ class GrugControlTest {
         byte[] one = {1};
         byte[][][] scenarios = {
             {chunk(1, 0, 2, one), chunk(1, 0, 2, one)},
-            {chunk(1, 5, 2, one)},
-            {chunk(1, -1, 2, one)},
             {chunk(1, 0, 2, one), chunk(1, 1, 3, one)},
         };
         for (byte[][] answers : scenarios) {
@@ -365,6 +483,58 @@ class GrugControlTest {
     }
 
     @Test
+    void aChunkOutsideItsCountIsMalformedAndFailsTheCall() {
+        byte[] one = {1};
+        for (byte[] bad :
+                new byte[][] {
+                    chunk(1, 5, 2, one),
+                    chunk(1, -1, 2, one),
+                    chunk(1, 0, 0, one),
+                    chunk(1, 0, -3, one),
+                    chunk(1, 0, GrugControlWire.MAX_CHUNKS + 1, one),
+                }) {
+            GrugControlServer server = lyingServer(bad);
+            GrugControlServer.ControlException e =
+                    assertThrows(
+                            GrugControlServer.ControlException.class,
+                            () -> server.capture(0, 0, 1, 1));
+            assertTrue(e.getMessage().contains("malformed control message"), e.getMessage());
+        }
+    }
+
+    @Test
+    void anAnswerWhoseChunksAddUpToMoreThanTheCapIsRefusedBeforeItIsJoined() {
+        byte[] full = new byte[GrugControlWire.MAX_CHUNK];
+        int total = GrugControlWire.MAX_CHUNKS;
+        byte[][] answers = new byte[total][];
+        for (int i = 0; i < total; i++) {
+            answers[i] = chunk(1, i, total, full);
+        }
+        // MAX_CHUNKS full chunks is just over MAX_PNG_BYTES.
+        assertTrue((long) total * full.length > GrugControlWire.MAX_PNG_BYTES);
+        GrugControlServer server = lyingServer(answers);
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> server.capture(0, 0, 1, 1));
+        assertTrue(e.getMessage().contains("bytes of PNG"), e.getMessage());
+    }
+
+    @Test
+    void aCaptureOfAnotherSizeThanAskedForIsRefusedBeforeItIsDecoded() throws Exception {
+        // A PNG header can claim any size: this one claims 60000x60000 and holds no pixels.
+        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "png", png);
+        byte[] bytes = png.toByteArray();
+        java.nio.ByteBuffer.wrap(bytes).putInt(16, 60000).putInt(20, 60000);
+        GrugControlServer server =
+                lyingServer(GrugControlWire.answerChunks(1, bytes).toArray(new byte[0][]));
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> server.capture(0, 0, 8, 8));
+        assertTrue(e.getMessage().contains("60000x60000, but 8x8 was asked for"), e.getMessage());
+    }
+
+    @Test
     void aTruncatedPngIsAnErrorAndSoIsOneThatIsNotAnImage() throws Exception {
         for (byte[] bad : new byte[][] {new byte[] {1, 2, 3}, truncatedPng()}) {
             GrugControlServer server =
@@ -373,7 +543,7 @@ class GrugControlTest {
             GrugControlServer.ControlException e =
                     assertThrows(
                             GrugControlServer.ControlException.class,
-                            () -> server.capture(0, 0, 1, 1));
+                            () -> server.capture(0, 0, 40, 40));
 
             assertTrue(e.getMessage().contains("is not a PNG"), e.getMessage());
         }
@@ -397,7 +567,7 @@ class GrugControlTest {
     }
 
     @Test
-    void theClientDropsMessagesItCannotUse() {
+    void theClientIgnoresMessagesItCannotUseSilently() {
         Loopback loop = wire(1000, -1, solid(0));
 
         String printed =
@@ -407,8 +577,35 @@ class GrugControlTest {
                             loop.client.onMessage(GrugControlWire.runStart());
                         });
 
-        assertTrue(printed.contains("does not decode"), printed);
-        assertTrue(printed.contains("dropped a server message of type 1"), printed);
+        assertEquals("", printed);
+        assertTrue(loop.toServer.isEmpty());
+    }
+
+    @Test
+    void anAnswerOverTheCapIsAnErrorTheServerReports() {
+        Loopback loop =
+                wire(
+                        1000,
+                        -1,
+                        (x1, y1, x2, y2, done, failed) -> {
+                            // Noise does not compress, so this PNG is far over the cap.
+                            int side = 2400;
+                            BufferedImage big =
+                                    new BufferedImage(side, side, BufferedImage.TYPE_INT_RGB);
+                            Random random = new Random(1);
+                            for (int y = 0; y < side; y++) {
+                                for (int x = 0; x < side; x++) {
+                                    big.setRGB(x, y, random.nextInt());
+                                }
+                            }
+                            done.accept(big);
+                        });
+        loop.client.beginRun();
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class,
+                        () -> loop.server.capture(0, 0, 2400, 2400));
+        assertTrue(e.getMessage().contains("a control answer may hold"), e.getMessage());
     }
 
     @Test
@@ -445,6 +642,50 @@ class GrugControlTest {
                                         .putInt(-5)
                                         .array()));
         assertNotNull(request);
+    }
+
+    @Test
+    void theWireRefusesEveryLengthThatLiesBeforeAllocatingFromIt() {
+        java.nio.ByteBuffer hugeText =
+                java.nio.ByteBuffer.allocate(13)
+                        .put(GrugControlWire.ANSWER_ERROR)
+                        .putLong(1)
+                        .putInt(Integer.MAX_VALUE);
+        assertThrows(
+                IllegalArgumentException.class, () -> GrugControlWire.decode(hugeText.array()));
+        byte[] overText =
+                java.nio.ByteBuffer.allocate(13 + GrugControlWire.MAX_TEXT + 1)
+                        .put(GrugControlWire.ANSWER_ERROR)
+                        .putLong(1)
+                        .putInt(GrugControlWire.MAX_TEXT + 1)
+                        .array();
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(overText));
+        // A length that fits the cap but not the bytes that came.
+        byte[] shortText =
+                java.nio.ByteBuffer.allocate(13 + 2)
+                        .put(GrugControlWire.ANSWER_ERROR)
+                        .putLong(1)
+                        .putInt(10)
+                        .array();
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(shortText));
+        byte[] overChunk = chunk(1, 0, 1, new byte[GrugControlWire.MAX_CHUNK + 1]);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(overChunk));
+        byte[] shortChunk = chunk(1, 0, 1, new byte[5]);
+        byte[] cut = java.util.Arrays.copyOf(shortChunk, shortChunk.length - 1);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(cut));
+        byte[] negative = chunk(1, 0, 1, new byte[5]);
+        java.nio.ByteBuffer.wrap(negative).putInt(1 + 8 + 8, -1);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(negative));
+        byte[] trailing = java.util.Arrays.copyOf(GrugControlWire.runStart(), 3);
+        assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(trailing));
+        assertEquals(
+                GrugControlWire.RUN_END, GrugControlWire.decode(GrugControlWire.runEnd()).type);
+        // The largest chunk the writer produces is accepted.
+        assertEquals(
+                GrugControlWire.MAX_CHUNK,
+                GrugControlWire.decode(chunk(1, 0, 1, new byte[GrugControlWire.MAX_CHUNK]))
+                        .data
+                        .length);
     }
 
     private static byte[] chunk(long id, int index, int total, byte[] data) {

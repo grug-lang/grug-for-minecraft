@@ -3,6 +3,7 @@ package net.grug.minecraft.core;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,8 +11,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 /**
  * The server end of the test-control channel (#1040, option A): a client-only host function that a
@@ -26,9 +30,12 @@ import javax.imageio.ImageIO;
  * of a test's tick). A timeout is an error the host function reports, which fails the test with the
  * usual {@code [GRUG CI] FAIL} line.
  *
- * <p>Only the player who sent {@link GrugControlWire#RUN_START} may answer: any other sender's
- * message is dropped and logged. That is the server's half of the consent rule; the client's half
- * is in {@link GrugControlClient}.
+ * <p>Only the player who sent {@link GrugControlWire#RUN_START} may answer, and only a player the
+ * loader says has finished login ({@link Link#mayStartRun}) can become the starter. That is the
+ * server's half of the consent rule; the client's half is in {@link GrugControlClient}. What a
+ * message from someone else does is nothing (an expected race is silent), and what a malformed or
+ * oversized message from the starter does is fail the calls waiting on it with a {@link
+ * ControlException}, which the host function reports as the test's error.
  */
 public final class GrugControlServer {
     /** The loader's half: how to reach the starting player, and how to make the world current. */
@@ -42,6 +49,12 @@ public final class GrugControlServer {
          * placements would still be queued when the client captures.
          */
         void flushWorld();
+
+        /**
+         * Whether {@code sender} may start a run: any player who finished login. Asked before a
+         * start is accepted.
+         */
+        boolean mayStartRun(Object sender);
     }
 
     /** A request that cannot be answered; its message is what the test's error says. */
@@ -55,15 +68,23 @@ public final class GrugControlServer {
 
     private static final class Pending {
         final CompletableFuture<byte[]> png = new CompletableFuture<>();
+        final int width;
+        final int height;
         byte[][] chunks = null;
         int received = 0;
+        long bytes = 0;
+
+        Pending(int width, int height) {
+            this.width = width;
+            this.height = height;
+        }
     }
 
     private final Link link;
     private final long timeoutMillis;
     private final AtomicLong nextId = new AtomicLong(1);
     private final Map<Long, Pending> pending = new ConcurrentHashMap<>();
-    private volatile Object starter = null;
+    private final AtomicReference<Object> starter = new AtomicReference<>();
 
     public GrugControlServer(Link link, long timeoutMillis) {
         this.link = link;
@@ -72,70 +93,81 @@ public final class GrugControlServer {
 
     /** The player who started the run, or null when none has. */
     public Object starter() {
-        return starter;
+        return starter.get();
     }
 
     /** Whether a player has started a run. */
     public boolean hasStarter() {
-        return starter != null;
+        return starter.get() != null;
     }
 
     /**
      * Handles a message from {@code sender}, on the network thread. A start sets the starter when
-     * there is none; anything else counts only from the starter.
+     * there is none and the loader allows the sender; anything else counts only from the starter.
      */
     public void onMessage(Object sender, byte[] bytes) {
         if (sender == null) {
-            System.out.println("[GRUG CONTROL] dropped a message whose sender is not known");
+            // The loader could not say who sent it, so nobody can be held to it: whatever waits
+            // fails instead of waiting on an answer that cannot be attributed.
+            failAll("A control message arrived from a sender the server could not identify.");
             return;
         }
+        boolean fromStarter = sender.equals(starter.get());
         GrugControlWire.Message message;
         try {
             message = GrugControlWire.decode(bytes);
         } catch (IllegalArgumentException e) {
-            System.out.println("[GRUG CONTROL] dropped a message that does not decode: " + e);
-            return;
-        }
-        if (message.type == GrugControlWire.RUN_START) {
-            if (starter == null) {
-                starter = sender;
-                System.out.println("[GRUG CONTROL] " + sender + " started the run");
-            } else {
-                System.out.println(
-                        "[GRUG CONTROL] ignored a run start from "
-                                + sender
-                                + ", the run was started by "
-                                + starter);
+            if (fromStarter) {
+                failAll("The client sent a malformed control message: " + e.getMessage());
             }
             return;
         }
-        if (!sender.equals(starter)) {
-            System.out.println(
-                    "[GRUG CONTROL] dropped an answer from "
-                            + sender
-                            + ", who did not start the run");
+        if (message.type == GrugControlWire.RUN_START) {
+            if (link.mayStartRun(sender) && starter.compareAndSet(null, sender)) {
+                System.out.println("[GRUG CONTROL] " + sender + " started the run");
+            }
+            return;
+        }
+        if (!fromStarter) {
             return;
         }
         if (message.type != GrugControlWire.ANSWER_ERROR
                 && message.type != GrugControlWire.ANSWER_CHUNK) {
-            System.out.println(
-                    "[GRUG CONTROL] dropped a message of type "
-                            + message.type
-                            + " from the client");
+            failAll("The client sent a control message of type " + message.type + ".");
             return;
         }
         Pending request = pending.get(message.id);
         if (request == null) {
-            System.out.println(
-                    "[GRUG CONTROL] dropped an answer to request "
-                            + message.id
-                            + ", which is not waiting (late or repeated)");
+            // Late or repeated: the request finished already, which is an expected race.
             return;
         }
         if (message.type == GrugControlWire.ANSWER_ERROR) {
             request.png.completeExceptionally(new ControlException(message.text));
         } else {
             accept(request, message);
+        }
+    }
+
+    /** Fails every request that is waiting, as the starter's call error. */
+    private void failAll(String reason) {
+        for (Pending request : pending.values()) {
+            request.png.completeExceptionally(new ControlException(reason));
+        }
+    }
+
+    /** The run is over: tells the starter's client, forgets it, and fails what still waits. */
+    public void endRun() {
+        Object to = starter.getAndSet(null);
+        if (to != null) {
+            link.sendToStarter(to, GrugControlWire.runEnd());
+        }
+        failAll("The run ended while the call was waiting.");
+    }
+
+    /** {@code sender} is gone: if it started the run, the run has no screen any more. */
+    public void onDisconnect(Object sender) {
+        if (sender != null && starter.compareAndSet(sender, null)) {
+            failAll("The player who started the run disconnected.");
         }
     }
 
@@ -157,16 +189,23 @@ public final class GrugControlServer {
                                         + "."));
                 return;
             }
+            // Each chunk is at most MAX_CHUNK and the sum is checked against the cap on every
+            // chunk, so this cannot overflow.
+            request.bytes = Math.addExact(request.bytes, (long) chunk.data.length);
+            if (request.bytes > GrugControlWire.MAX_PNG_BYTES) {
+                request.png.completeExceptionally(
+                        new ControlException(
+                                "The client's answer is over "
+                                        + GrugControlWire.MAX_PNG_BYTES
+                                        + " bytes of PNG."));
+                return;
+            }
             request.chunks[chunk.index] = chunk.data;
             request.received++;
             if (request.received < request.chunks.length) {
                 return;
             }
-            int length = 0;
-            for (byte[] piece : request.chunks) {
-                length += piece.length;
-            }
-            byte[] whole = new byte[length];
+            byte[] whole = new byte[(int) request.bytes];
             int at = 0;
             for (byte[] piece : request.chunks) {
                 System.arraycopy(piece, 0, whole, at, piece.length);
@@ -181,14 +220,14 @@ public final class GrugControlServer {
      * frozen. Called from the server thread.
      */
     public BufferedImage capture(int x1, int y1, int x2, int y2) throws ControlException {
-        Object to = starter;
+        Object to = starter.get();
         if (to == null) {
             throw new ControlException(
                     "No client has started a run, so there is no screen to capture. A client"
                             + " starts a run when its player starts one.");
         }
         long id = nextId.getAndIncrement();
-        Pending request = new Pending();
+        Pending request = new Pending(x2 - x1, y2 - y1);
         pending.put(id, request);
         long startNanos = System.nanoTime();
         try {
@@ -232,16 +271,7 @@ public final class GrugControlServer {
                 Thread.currentThread().interrupt();
                 throw new ControlException("The wait for the client's answer was interrupted.");
             }
-            BufferedImage image;
-            try {
-                image = ImageIO.read(new ByteArrayInputStream(png));
-            } catch (IOException e) {
-                image = null;
-            }
-            if (image == null) {
-                throw new ControlException(
-                        "The client's answer to request " + id + " is not a PNG.");
-            }
+            BufferedImage image = decodeChecked(png, request, id);
             System.out.println(
                     "[GRUG CONTROL] request "
                             + id
@@ -263,6 +293,48 @@ public final class GrugControlServer {
                             + " ms: the world was frozen for about "
                             + (millis / 50)
                             + " ticks and is running again");
+        }
+    }
+
+    /**
+     * Decodes the PNG after reading its size from the header, so a small file that claims a huge
+     * image is refused before any pixel buffer exists, and after checking the size is the rectangle
+     * that was asked for.
+     */
+    private static BufferedImage decodeChecked(byte[] png, Pending request, long id)
+            throws ControlException {
+        String notPng = "The client's answer to request " + id + " is not a PNG.";
+        try (ImageInputStream stream =
+                ImageIO.createImageInputStream(new ByteArrayInputStream(png))) {
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
+            if (!readers.hasNext()) {
+                throw new ControlException(notPng);
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(stream);
+                int width = reader.getWidth(0);
+                int height = reader.getHeight(0);
+                if (width != request.width || height != request.height) {
+                    throw new ControlException(
+                            "The client's answer to request "
+                                    + id
+                                    + " is "
+                                    + width
+                                    + "x"
+                                    + height
+                                    + ", but "
+                                    + request.width
+                                    + "x"
+                                    + request.height
+                                    + " was asked for.");
+                }
+                return reader.read(0);
+            } finally {
+                reader.dispose();
+            }
+        } catch (IOException | RuntimeException e) {
+            throw new ControlException(notPng);
         }
     }
 

@@ -25,8 +25,22 @@ public final class GrugControlWire {
     public static final byte ANSWER_ERROR = 3;
     public static final byte ANSWER_CHUNK = 4;
 
+    /** Server to client: the run is over, so the client stops obeying forwarded calls. */
+    public static final byte RUN_END = 5;
+
     /** Well under the 32767 bytes a serverbound payload may hold, leaving room for the header. */
     public static final int MAX_CHUNK = 20_000;
+
+    /**
+     * The most bytes of PNG an answer may hold in all; a bigger one is an error, never a buffer.
+     */
+    public static final int MAX_PNG_BYTES = 4 << 20;
+
+    /** The most chunks an answer may be cut into, which {@link #MAX_PNG_BYTES} needs. */
+    public static final int MAX_CHUNKS = (MAX_PNG_BYTES + MAX_CHUNK - 1) / MAX_CHUNK;
+
+    /** The most bytes of text an error answer may hold. */
+    public static final int MAX_TEXT = 8192;
 
     private GrugControlWire() {}
 
@@ -66,6 +80,10 @@ public final class GrugControlWire {
 
     public static byte[] runStart() {
         return ByteBuffer.allocate(1).put(RUN_START).array();
+    }
+
+    public static byte[] runEnd() {
+        return ByteBuffer.allocate(1).put(RUN_END).array();
     }
 
     public static byte[] captureRequest(long id, int x1, int y1, int x2, int y2) {
@@ -109,43 +127,90 @@ public final class GrugControlWire {
         return messages;
     }
 
-    /** Reads a message, or throws {@link IllegalArgumentException} when the bytes are not one. */
+    /**
+     * Reads a message, or throws {@link IllegalArgumentException} when the bytes are not one. Every
+     * length, count and index is checked against the bytes that remain and against a fixed cap
+     * before anything is allocated from it, so a hostile peer cannot make this allocate more than
+     * the message it sent.
+     */
     public static Message decode(byte[] bytes) {
         try {
             ByteBuffer in = ByteBuffer.wrap(bytes);
             byte type = in.get();
             int[] none = new int[4];
+            Message message;
             switch (type) {
                 case RUN_START:
-                    return new Message(type, 0, none, 0, 0, null, null);
+                case RUN_END:
+                    message = new Message(type, 0, none, 0, 0, null, null);
+                    break;
                 case CAPTURE_REQUEST:
                     long id = in.getLong();
                     int[] rectangle = {in.getInt(), in.getInt(), in.getInt(), in.getInt()};
-                    return new Message(type, id, rectangle, 0, 0, null, null);
+                    message = new Message(type, id, rectangle, 0, 0, null, null);
+                    break;
                 case ANSWER_ERROR:
                     long errorId = in.getLong();
-                    byte[] text = new byte[in.getInt()];
+                    byte[] text = new byte[checkedLength(in, MAX_TEXT, "text")];
                     in.get(text);
-                    return new Message(
-                            type,
-                            errorId,
-                            none,
-                            0,
-                            0,
-                            null,
-                            new String(text, StandardCharsets.UTF_8));
+                    message =
+                            new Message(
+                                    type,
+                                    errorId,
+                                    none,
+                                    0,
+                                    0,
+                                    null,
+                                    new String(text, StandardCharsets.UTF_8));
+                    break;
                 case ANSWER_CHUNK:
                     long chunkId = in.getLong();
                     int index = in.getInt();
                     int total = in.getInt();
-                    byte[] data = new byte[in.getInt()];
+                    if (total < 1 || total > MAX_CHUNKS) {
+                        throw new IllegalArgumentException(
+                                "a chunk count of " + total + " is outside 1 to " + MAX_CHUNKS);
+                    }
+                    if (index < 0 || index >= total) {
+                        throw new IllegalArgumentException(
+                                "chunk " + index + " is outside 0 to " + (total - 1));
+                    }
+                    byte[] data = new byte[checkedLength(in, MAX_CHUNK, "chunk")];
                     in.get(data);
-                    return new Message(type, chunkId, none, index, total, data, null);
+                    message = new Message(type, chunkId, none, index, total, data, null);
+                    break;
                 default:
                     throw new IllegalArgumentException("unknown control message type " + type);
             }
-        } catch (BufferUnderflowException | NegativeArraySizeException e) {
+            if (in.hasRemaining()) {
+                throw new IllegalArgumentException(
+                        "malformed control message: " + in.remaining() + " trailing bytes");
+            }
+            return message;
+        } catch (BufferUnderflowException e) {
             throw new IllegalArgumentException("malformed control message: " + e, e);
         }
+    }
+
+    /**
+     * A length read from the message: not negative, within {@code max}, and present in the bytes.
+     */
+    private static int checkedLength(ByteBuffer in, int max, String what) {
+        int length = in.getInt();
+        if (length < 0 || length > max) {
+            throw new IllegalArgumentException(
+                    "a " + what + " length of " + length + " is outside 0 to " + max);
+        }
+        if (length > in.remaining()) {
+            throw new IllegalArgumentException(
+                    "a "
+                            + what
+                            + " length of "
+                            + length
+                            + " but only "
+                            + in.remaining()
+                            + " bytes");
+        }
+        return length;
     }
 }

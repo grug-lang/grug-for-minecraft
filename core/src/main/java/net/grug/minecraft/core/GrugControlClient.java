@@ -5,6 +5,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import javax.imageio.ImageIO;
@@ -40,23 +41,22 @@ public final class GrugControlClient {
     private final Capturer capturer;
     private final int dropWidth;
     private final int lateWidth;
-    private final long lateMillis;
+    private final AtomicReference<Runnable> held = new AtomicReference<>();
     private volatile boolean runActive = false;
 
     /**
      * @param dropWidth fault injection for CI: a request whose rectangle is this wide is never
      *     answered, which is how a run makes the server time out. Negative disables it.
-     * @param lateWidth fault injection for CI: a request whose rectangle is this wide is answered
-     *     {@code lateMillis} later, after the server gave up, which is how a run delivers an answer
-     *     to a request that is no longer waiting. Negative disables it.
+     * @param lateWidth fault injection for CI: the answer to a request whose rectangle is this wide
+     *     is held back and sent just before the client handles the next request, which is after the
+     *     server gave up on the first and while it waits for the second, so a run delivers a stale
+     *     answer at the moment it could do harm. Negative disables it.
      */
-    public GrugControlClient(
-            Link link, Capturer capturer, int dropWidth, int lateWidth, long lateMillis) {
+    public GrugControlClient(Link link, Capturer capturer, int dropWidth, int lateWidth) {
         this.link = link;
         this.capturer = capturer;
         this.dropWidth = dropWidth;
         this.lateWidth = lateWidth;
-        this.lateMillis = lateMillis;
     }
 
     public boolean runActive() {
@@ -70,32 +70,44 @@ public final class GrugControlClient {
         link.send(GrugControlWire.runStart());
     }
 
+    /**
+     * The run is over, or the connection it belonged to is gone: the client stops obeying, so it
+     * never serves a later server that did not get its player's start.
+     */
     public void endRun() {
         runActive = false;
+        held.set(null);
     }
 
-    /** Handles a message from the server. */
+    /**
+     * Handles a message from the server. Anything that is not a well-formed request or the end of
+     * the run is ignored: this client has no call to fail, and the server's wait for the answer
+     * that never comes is the error the test sees.
+     */
     public void onMessage(byte[] bytes) {
         GrugControlWire.Message message;
         try {
             message = GrugControlWire.decode(bytes);
         } catch (IllegalArgumentException e) {
-            System.out.println(
-                    "[GRUG CONTROL] dropped a server message that does not decode: " + e);
+            return;
+        }
+        if (message.type == GrugControlWire.RUN_END) {
+            endRun();
             return;
         }
         if (message.type != GrugControlWire.CAPTURE_REQUEST) {
-            System.out.println("[GRUG CONTROL] dropped a server message of type " + message.type);
             return;
         }
         long id = message.id;
         if (!runActive) {
-            System.out.println(
-                    "[GRUG CONTROL] refused request " + id + ": no run was started by this player");
             link.send(
                     GrugControlWire.answerError(
                             id, "refused: no run was started by this player on this client"));
             return;
+        }
+        Runnable stale = held.getAndSet(null);
+        if (stale != null) {
+            stale.run();
         }
         if (message.x2 - message.x1 == dropWidth) {
             System.out.println(
@@ -111,7 +123,11 @@ public final class GrugControlClient {
                 message.y2,
                 image -> {
                     if (late) {
-                        answerLater(id, image);
+                        System.out.println(
+                                "[GRUG CONTROL] fault injection: the answer to request "
+                                        + id
+                                        + " is held until the next request");
+                        held.set(() -> answer(id, image));
                     } else {
                         answer(id, image);
                     }
@@ -119,33 +135,21 @@ public final class GrugControlClient {
                 text -> link.send(GrugControlWire.answerError(id, text)));
     }
 
-    /** The fault injection of a late answer: sleeps off the game's thread, then answers. */
-    private void answerLater(long id, BufferedImage image) {
-        System.out.println(
-                "[GRUG CONTROL] fault injection: request "
-                        + id
-                        + " is answered "
-                        + lateMillis
-                        + " ms late");
-        Thread thread =
-                new Thread(
-                        () -> {
-                            try {
-                                Thread.sleep(lateMillis);
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                return;
-                            }
-                            answer(id, image);
-                        },
-                        "grug-control-late-answer");
-        thread.setDaemon(true);
-        thread.start();
-    }
-
     private void answer(long id, BufferedImage image) {
+        byte[] png = encode(image);
+        if (png.length > GrugControlWire.MAX_PNG_BYTES) {
+            link.send(
+                    GrugControlWire.answerError(
+                            id,
+                            "the capture is "
+                                    + png.length
+                                    + " bytes of PNG, over the "
+                                    + GrugControlWire.MAX_PNG_BYTES
+                                    + " a control answer may hold"));
+            return;
+        }
         int count = 0;
-        for (byte[] chunk : GrugControlWire.answerChunks(id, encode(image))) {
+        for (byte[] chunk : GrugControlWire.answerChunks(id, png)) {
             link.send(chunk);
             count++;
         }
