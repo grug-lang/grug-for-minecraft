@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugRegistryNames;
 import net.grug.minecraft.core.GrugRenderSettle;
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugWorldReady;
@@ -21,6 +22,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockData;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugIdPool;
 import net.grug.minecraft.grug.GrugItemData;
@@ -1777,15 +1779,26 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("test helper: it asks a game's own block for its display tick")
     public void displayTickForTest(Object levelObj, double x, double y, double z, long seed) {
-        // A server's Block has no display tick: the client calls it.
-        if (refuseWithoutAClient("Test.display_tick")) return;
         World world = (World) levelObj;
         int blockX = (int) Math.floor(x);
         int blockY = (int) Math.floor(y);
         int blockZ = (int) Math.floor(z);
         Block block = blockAt(world, blockX, blockY, blockZ);
         if (block != null) {
-            block.randomDisplayTick(world, blockX, blockY, blockZ, new java.util.Random(seed));
+            if (getSide() != GrugSide.CLIENT && block instanceof GrugBlock) {
+                // A dedicated server's Block has no randomDisplayTick (the client calls it), so
+                // run the script's display tick directly with the same stream. The particles are
+                // recorded in core and the server draws none (#1040).
+                GrugDisplayTicks.run(
+                        ((GrugBlock) block).blockFileId,
+                        world,
+                        blockX,
+                        blockY,
+                        blockZ,
+                        new java.util.Random(seed)::nextFloat);
+            } else {
+                block.randomDisplayTick(world, blockX, blockY, blockZ, new java.util.Random(seed));
+            }
         }
     }
 

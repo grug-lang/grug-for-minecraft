@@ -13,6 +13,7 @@ import net.grug.minecraft.grug.BlockPos;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugBlockEntityNbt;
 import net.grug.minecraft.grug.GrugDeclarations;
+import net.grug.minecraft.grug.GrugDisplayTicks;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.GrugSlotAccess;
@@ -1612,6 +1613,8 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void addRedstoneDust(Object levelObj, double x, double y, double z) {
         // The three numbers after the position are the particle's colour, so zero gives the game's
         // red.
+        // A dedicated server draws no particle: its display tick only records them (#1040).
+        if (getSide() != GrugSide.CLIENT) return;
         spawnUnlessCiRun((World) levelObj, x, y, z);
     }
 
@@ -1637,7 +1640,20 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         int blockZ = (int) Math.floor(z);
         Block block = blockAt(world, blockX, blockY, blockZ);
         if (block != null) {
-            block.randomDisplayTick(world, blockX, blockY, blockZ, new java.util.Random(seed));
+            if (getSide() != GrugSide.CLIENT && block instanceof GrugBlock) {
+                // A dedicated server's Block has no randomDisplayTick (the client calls it), so
+                // run the script's display tick directly with the same stream. The particles are
+                // recorded in core and the server draws none (#1040).
+                GrugDisplayTicks.run(
+                        ((GrugBlock) block).blockFileId,
+                        world,
+                        blockX,
+                        blockY,
+                        blockZ,
+                        new java.util.Random(seed)::nextFloat);
+            } else {
+                block.randomDisplayTick(world, blockX, blockY, blockZ, new java.util.Random(seed));
+            }
         }
     }
 

@@ -2,13 +2,6 @@
 # line. Interim (#163): this mechanism is removed together with tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
-# Display tick. The b1.7.3 server Block has no randomDisplayTick (particles are drawn by the
-# client), so these tests fail with NoSuchMethodError there.
-buildcraft/tests/redstone_engine_particles-Test.grug
-coverage/tests/display_tick-Test.grug
-coverage/tests/expect_display_tick_index-Test.grug
-coverage/tests/expect_display_tick_particle-Test.grug
-#
 # Block selection. The b1.7.3 server Block has no getOutlineShape (the selection box is a client
 # matter), so these tests fail with NoSuchMethodError there.
 buildcraft/tests/wooden_pipe_boxes-Test.grug
