@@ -2,8 +2,12 @@
 # line. Interim (#166): this mechanism is removed together with tick_any_side when #1040 lands.
 # Each group below says why its tests cannot run on that server.
 #
+# The file is named after the loader because the 1.2.5 layer sits at the universal jar's root and
+# the other loaders' lists are read from the class path by their bare name: a root
+# server-unsupported-tests.txt would shadow theirs in the nested layers.
+#
 # Display tick. A dedicated server draws no particles, so Test.display_tick refuses there with
-# "This needs a client" after validating its arguments.
+# "This needs a client", before it reaches the block.
 buildcraft/tests/redstone_engine_particles-Test.grug
 coverage/tests/display_tick-Test.grug
 coverage/tests/expect_display_tick_index-Test.grug
