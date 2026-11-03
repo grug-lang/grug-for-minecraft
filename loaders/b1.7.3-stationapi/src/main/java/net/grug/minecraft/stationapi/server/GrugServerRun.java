@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.World;
@@ -112,7 +113,12 @@ public final class GrugServerRun {
             if (waitStartMillis == 0) {
                 waitStartMillis = System.currentTimeMillis();
             }
-            if (!players.isEmpty() && GrugCore.getAdapter().isWorldReady(players.get(0))) {
+            // The run starts when a player has started it (#1040): the joined client sends its
+            // start once it is in the world.
+            if (!players.isEmpty()
+                    && GrugControlStation.server().hasStarter()
+                    && GrugControlStation.starterPlayer() != null
+                    && GrugCore.getAdapter().isWorldReady(GrugCore.getAdapter().testPlayer())) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
@@ -143,7 +149,8 @@ public final class GrugServerRun {
             }
         }
 
-        if (players.isEmpty()) {
+        if (players.isEmpty() || !players.contains(GrugControlStation.starterPlayer())) {
+            GrugControlStation.server().onDisconnect(GrugControlStation.server().starter());
             System.out.println("[GRUG CI] FAIL the test player left");
             System.out.println(
                     "[GRUG CI] Every player disconnected from the dedicated server during the"
@@ -159,7 +166,7 @@ public final class GrugServerRun {
             if (step > 0) {
                 advance(server.getWorld(0), 1);
             }
-            runner.tick(players.get(0));
+            runner.tick(GrugCore.getAdapter().testPlayer());
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
                 return;
@@ -170,6 +177,7 @@ public final class GrugServerRun {
     /** Ends the server process; a non-zero status says the run did not pass. */
     private static void stop(int status) {
         done = true;
+        GrugControlStation.server().endRun();
         System.out.flush();
         System.exit(status);
     }

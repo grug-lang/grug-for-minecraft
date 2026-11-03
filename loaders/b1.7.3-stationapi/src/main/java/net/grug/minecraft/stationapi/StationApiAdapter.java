@@ -1700,6 +1700,15 @@ public class StationApiAdapter implements ModLoaderAdapter {
                 operation, (int) x1, (int) y1, (int) x2, (int) y2, mc.displayHeight);
     }
 
+    /**
+     * The forwarded capture of the test-control channel (#1040), taken by a joined client on its
+     * own tick with the window already checked against the screenshot size.
+     */
+    @GrugGenerated("a joined client's forwarded capture, which only the multiplayer job runs")
+    public BufferedImage captureForControl(int x1, int y1, int x2, int y2, Minecraft mc) {
+        return captureRectangle("Screenshot.capture", x1, y1, x2, y2, mc.displayHeight);
+    }
+
     /** Returns null if the coordinate is in range, or a message naming it if it isn't. */
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private static String checkCoordinate(String name, double value, int limit) {
