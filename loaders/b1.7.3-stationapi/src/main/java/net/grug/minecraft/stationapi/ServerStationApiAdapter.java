@@ -1,13 +1,18 @@
 package net.grug.minecraft.stationapi;
 
+import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.ModLoaderAdapter;
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
+import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
 import net.minecraft.entity.player.PlayerEntity;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,6 +59,11 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     public Object testPlayer() {
         // Deliberately an untyped list: Fabric Loader will not define a class the game marked
         // server-only in a client, so no reference the verifier has to resolve may name one here.
+        // The player who started the run, when one has: forwarded calls use their screen (#1040).
+        PlayerEntity starter = GrugControlStation.starterPlayer();
+        if (starter != null) {
+            return starter;
+        }
         List<?> players = GrugServerRun.players();
         return players.isEmpty() ? null : players.get(0);
     }
@@ -68,6 +78,31 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         PlayerEntity player = (PlayerEntity) playerObj;
         return new Vec3(
                 player.x, Math.rint(player.boundingBox.minY * 1e6) / 1e6 + EYE_HEIGHT, player.z);
+    }
+
+    /**
+     * Forwards the capture to the joined client of the player who started the run and waits for the
+     * answer with the world frozen (#1040, option A). Arguments are checked first, as on a client.
+     */
+    @Override
+    public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
+        if (bad != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + bad);
+            return null;
+        }
+        try {
+            return GrugControlStation.server().capture((int) x1, (int) y1, (int) x2, (int) y2);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** This server forwards a test's client-only calls to the player who started the run. */
+    @Override
+    public boolean forwardsClientCalls() {
+        return true;
     }
 
     /** Nothing to close: the screen belongs to a client, and a server has none. */

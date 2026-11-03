@@ -28,6 +28,7 @@ import net.modificationstation.stationapi.api.StationAPI;
 import net.modificationstation.stationapi.api.event.block.entity.BlockEntityRegisterEvent;
 import net.modificationstation.stationapi.api.event.mod.InitEvent;
 import net.modificationstation.stationapi.api.event.mod.PreInitEvent;
+import net.modificationstation.stationapi.api.event.network.packet.PacketRegisterEvent;
 import net.modificationstation.stationapi.api.event.recipe.RecipeRegisterEvent;
 import net.modificationstation.stationapi.api.event.registry.BlockRegistryEvent;
 import net.modificationstation.stationapi.api.event.registry.ItemRegistryEvent;
@@ -107,6 +108,20 @@ public class InitListener {
             this.type = type;
             this.url = url;
         }
+    }
+
+    /**
+     * Registers the test-control packet (#1040) on the client and on the server alike, since
+     * StationAPI posts this event from the end of {@code Packet}'s static initialiser on both. A
+     * raw vanilla packet through StationAPI's own registration needs no mixin of grug's own.
+     */
+    @EventListener
+    private static void registerControlPacket(PacketRegisterEvent event) {
+        event.register(
+                net.grug.minecraft.stationapi.control.GrugControlPacket.ID,
+                true,
+                true,
+                net.grug.minecraft.stationapi.control.GrugControlPacket.class);
     }
 
     @EventListener

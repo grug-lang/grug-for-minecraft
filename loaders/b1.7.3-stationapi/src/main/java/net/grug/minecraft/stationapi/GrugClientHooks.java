@@ -274,6 +274,14 @@ public class GrugClientHooks {
         return testRunner != null;
     }
 
+    /**
+     * What a run's start does to the window, for a joined client that starts its own run on a
+     * server (#1040): the screenshot size. The view is left alone, as on the Ornithe loaders.
+     */
+    public void beginControlRun() {
+        window.beginRun();
+    }
+
     public void tick() {
         if (!titleSet) {
             Display.setTitle(title);
