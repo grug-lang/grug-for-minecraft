@@ -1,14 +1,19 @@
 package net.grug.minecraft.ornithe;
 
+import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.world.World;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,8 +70,38 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         // break every client. A local variable's type argument is erased and so would survive, but
         // it promises a type the runtime cannot hand over: the next loop or cast written in this
         // method would break the client, and nothing at the call site would say why.
+        // The player who started the run, when one has: forwarded calls use their screen (#1040).
+        PlayerEntity starter = GrugControlBeta.starterPlayer();
+        if (starter != null) {
+            return starter;
+        }
         List<?> players = MinecraftServerInstance.get().playerManager.players;
         return players.isEmpty() ? null : players.get(0);
+    }
+
+    /**
+     * Forwards the capture to the joined client of the player who started the run and waits for the
+     * answer with the world frozen (#1040, option A). Arguments are checked first, as on a client.
+     */
+    @Override
+    public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
+        String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
+        if (bad != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + bad);
+            return null;
+        }
+        try {
+            return GrugControlBeta.server().capture((int) x1, (int) y1, (int) x2, (int) y2);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "Screenshot.capture: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** This server forwards a test's client-only calls to the player who started the run. */
+    @Override
+    public boolean forwardsClientCalls() {
+        return true;
     }
 
     /** Nothing to close: the screen belongs to a client, and a server has none. */
