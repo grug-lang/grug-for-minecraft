@@ -25,8 +25,8 @@ import java.io.IOException;
         "the Beta channel glue of #1040: no test the coverage gate counts can reach it, since only"
                 + " the multiplayer job runs it")
 public class GrugControlPacket extends Packet {
-    /** Vanilla uses 0 to 6, 10 to 34, 50 to 53, 59 and 255. */
-    public static final int ID = 100;
+    /** Vanilla uses 0 to 6, 10 to 34, 50 to 53, 59, 100 to 108, 130, 255 and more; 150 is free. */
+    public static final int ID = 150;
 
     private static final int MAX_BYTES = 1 << 20;
 
