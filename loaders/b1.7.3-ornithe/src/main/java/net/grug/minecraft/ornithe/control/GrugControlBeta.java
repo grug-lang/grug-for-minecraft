@@ -38,9 +38,9 @@ import java.util.function.Consumer;
  * GrugControlPacket#read} says, so nothing drains the connection by hand.
  *
  * <p>The sender of an answer is the connection the reader thread belongs to, and core's server
- * accepts an answer only from the connection that started the run. The server does not flush block
- * changes before a request, the way 1.20.6 does, because Beta's server queues them per chunk and a
- * test that waits a tick between placing and capturing has had them sent.
+ * accepts an answer only from the connection that started the run. Before a request the server
+ * flushes the block changes its chunk maps queued, as 1.20.6 does, because the server only sends
+ * them at the end of its own tick, which a frozen tick never reaches.
  */
 @GrugGenerated(
         "the Beta channel glue of #1040: no test the coverage gate counts can reach it, since only"
@@ -113,9 +113,7 @@ public final class GrugControlBeta {
 
         @Override
         public void flushWorld() {
-            System.out.println(
-                    "[GRUG CONTROL] no world flush on Beta: the test waited a tick since it"
-                            + " placed blocks");
+            GrugServerRun.flushBlockChanges();
         }
 
         /**

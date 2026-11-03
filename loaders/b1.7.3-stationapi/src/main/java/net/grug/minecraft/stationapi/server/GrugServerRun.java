@@ -48,6 +48,16 @@ public final class GrugServerRun {
         return server == null ? null : server.getWorld(0);
     }
 
+    /**
+     * Sends the block changes the chunk maps have queued, which the server only does at the end of
+     * its own tick: a frozen tick never reaches it (#1040).
+     */
+    public static void flushBlockChanges() {
+        if (server != null) {
+            server.playerManager.updateAllChunks();
+        }
+    }
+
     /** The connected players, newest last, as an untyped list (see the server adapter). */
     public static List<?> players() {
         return server == null ? Collections.emptyList() : server.playerManager.players;
