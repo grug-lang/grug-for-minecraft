@@ -155,7 +155,10 @@ def layers():
         },
         "b1.7.3-ornithe": {
             **fabric_layer(
-                "net/grug/minecraft/ornithe/", "1.0.0-beta.7.3", "GrugModLoader", OSL_DEPENDS
+                "net/grug/minecraft/ornithe/",
+                "1.0.0-beta.7.3",
+                "GrugModLoader",
+                {k: v for k, v in OSL_DEPENDS.items() if k != "osl-keybinds"},
             ),
             "net/minecraft/crafting/GrugRecipeHelper.class": klass(),
         },

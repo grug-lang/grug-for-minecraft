@@ -23,6 +23,7 @@ import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.block.GrugBlockEntityNbtAccess;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
+import net.grug.minecraft.ornithe.client.GrugClientPlayer;
 import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
@@ -32,7 +33,6 @@ import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screen.inventory.menu.SurvivalInventoryScreen;
 import net.minecraft.client.render.world.RenderChunk;
 import net.minecraft.client.render.world.WorldRenderer;
 import net.minecraft.crafting.CraftingManager;
@@ -898,7 +898,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @GrugGenerated(
             "the game's private tick timer: CI sees the scale only as how long a test takes, and"
-                    + " a dedicated server, which has no client timer, is never launched")
+                    + " a dedicated server, which has no client timer, answers in its own adapter")
     @Override
     public boolean setGameSpeed(double speed) {
         // A dedicated server has no client timer: its clock is its own tick loop.
@@ -1193,7 +1193,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         }
         World world = minecraft.world;
         WorldRenderer worldRenderer = minecraft.worldRenderer;
-        PlayerEntity player = minecraft.player;
+        PlayerEntity player = GrugClientPlayer.of(minecraft);
         if (world == null || worldRenderer == null || player == null) {
             return true;
         }
@@ -1251,7 +1251,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     public void snapPlayerForTestOnClient() {
-        PlayerEntity player = MinecraftInstance.get().player;
+        PlayerEntity player = GrugClientPlayer.get();
         if (player == null) {
             throw Grug.fatal(
                     "The test runner: there is no local player to snap to their block centre.");
@@ -1288,7 +1288,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         if (!testPlayerSnapped) return;
         testPlayerSnapped = false;
 
-        PlayerEntity player = MinecraftInstance.get().player;
+        PlayerEntity player = GrugClientPlayer.get();
         if (player != null) {
             // The saved y is the eye; the feet are what setPositionAndAngles wants, so the restore
             // puts the player back rather than raising them again.
@@ -1309,7 +1309,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
 
     @Override
     public void openInventory(Object playerObj) {
-        MinecraftInstance.get().openScreen(new SurvivalInventoryScreen((PlayerEntity) playerObj));
+        GrugClientPlayer.openInventory((PlayerEntity) playerObj);
     }
 
     @Override
@@ -1396,7 +1396,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.use_block")) return;
         World world = (World) levelObj;
-        PlayerEntity player = MinecraftInstance.get().player;
+        PlayerEntity player = GrugClientPlayer.get();
         if (player == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.use_block: There is no local player to right-click with.");
@@ -1447,7 +1447,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public boolean miningCrackForTest(Object levelObj, double x, double y, double z) {
         if (refuseWithoutAClient("Test.mining_crack")) return false;
         Minecraft minecraft = MinecraftInstance.get();
-        PlayerEntity player = minecraft.player;
+        PlayerEntity player = GrugClientPlayer.of(minecraft);
         if (player == null) {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr, "Test.mining_crack: There is no local player to mine with.");

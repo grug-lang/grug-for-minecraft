@@ -1,12 +1,20 @@
 package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.ornithe.resource.GrugResourcePackProvider;
+import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.crafting.GrugRecipeHelper;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerEvents;
 import net.ornithemc.osl.resource.loader.api.server.ServerResourceLoaderEvents;
 
+/**
+ * The entrypoint of a b1.7.3 dedicated server. Besides the resource pack and the recipes, it hands
+ * the server's tick to {@link GrugServerRun}, which runs the test suite when {@code GRUG_CI} is set
+ * (#163).
+ */
+@GrugGenerated("a dedicated server, which only the dispatch-only multiplayer job launches")
 public class ServerGrugModLoader implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
@@ -23,5 +31,7 @@ public class ServerGrugModLoader implements DedicatedServerModInitializer {
                     GrugRecipeHelper.registerAutoDiscoveredRecipes(
                             GrugModLoader.getActiveGrugModsDir());
                 });
+
+        MinecraftServerEvents.TICK_END.register(GrugServerRun::onServerTick);
     }
 }
