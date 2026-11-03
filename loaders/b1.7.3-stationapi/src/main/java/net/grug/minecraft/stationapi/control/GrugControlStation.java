@@ -329,6 +329,10 @@ public final class GrugControlStation {
         }
         if (!pending) return;
         waited++;
+        if (waited == 1 && mc.currentScreen != null) {
+            // The runner shows no screen between tests, so the forwarded capture does the same.
+            mc.setScreen(null);
+        }
         if (waited == 1 || waited % 100 == 0) {
             System.out.println(
                     "[GRUG CONTROL] a capture is pending, client tick "
