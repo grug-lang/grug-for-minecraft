@@ -1,10 +1,14 @@
 # A dedicated server has no sound engine, so has_sound and play_ui_sound are forwarded to the client
 # of the player who started the run, which answers from its own sound table (#1040). The answers are
-# the same as sound-Test's on that client: only 1.20.6 names a sound by event, and a 1.2.5 client
+# the same as sound-Test's on that client (1.20.6 forwards too): only 1.20.6 names a sound by event, and a 1.2.5 client
 # run downloads no sound resources, so it knows no sound and plays none.
 export tick(ctx: TestTickContext) {
     ctx.assert(not has_sound("minecraft:no_such_sound"), "The client should have no sound named no_such_sound.")
-    ctx.assert(not has_sound("minecraft:ui.button.click"), "The older versions name their sounds by pool, so they have no ui.button.click.")
+    if Test.loader_name() == "1.20.6-forge" {
+        ctx.assert(has_sound("minecraft:ui.button.click"), "1.20.6 should have the button click.")
+    } else {
+        ctx.assert(not has_sound("minecraft:ui.button.click"), "The older versions name their sounds by pool, so they have no ui.button.click.")
+    }
 
     if has_sound("minecraft:random.click") {
         play_ui_sound("minecraft:random.click", 1, 1)
