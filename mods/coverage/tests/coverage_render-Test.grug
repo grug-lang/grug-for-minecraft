@@ -7,8 +7,6 @@
 # The crop is a world-space rectangle at 1280x720, unlike the autocrafting table GUI test: nothing
 # here is a GUI panel, so there is no virtual-space scaling to undo. Where the shape and its
 # background end up is worked out from where the snapped player's origin is, in _setup.
-# It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
-# joined client, and the capture it takes is the client's (#1086).
 render_block: Option[BlockEntity] = Option.new()
 
 # Whether the fixture has been meshed again from the settled light yet. See _force_remesh.
@@ -17,7 +15,7 @@ remeshed: bool = false
 # How many runner ticks in a row the world has answered settled. See the hold in tick().
 settled_ticks: number = 0
 
-export tick_any_side(ctx: TestTickContext) {
+export tick(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
