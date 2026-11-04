@@ -1273,7 +1273,12 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     private void buildBoxAt(EntityPlayer player, int radius) {
-        GrugTestBox.build(this, getLevel(), player.posX, player.posY - 1.62, player.posZ, radius);
+        // posY is the eye reference on a client and the feet on a dedicated server, so the feet
+        // come from the collision box, as they do for isWorldReady. Built around the eye on a
+        // server, the room sits 1.62 blocks too low and its ceiling lands directly above the
+        // origin, so a declined click has no air to place the held block into (#1090).
+        GrugTestBox.build(
+                this, getLevel(), player.posX, player.boundingBox.minY, player.posZ, radius);
     }
 
     @Override
@@ -1285,7 +1290,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
     }
 
     private void sweepItemsAt(EntityPlayer player) {
-        GrugTestBox.sweepItems(this, getLevel(), player.posX, player.posY - 1.62, player.posZ);
+        GrugTestBox.sweepItems(this, getLevel(), player.posX, player.boundingBox.minY, player.posZ);
     }
 
     @Override
