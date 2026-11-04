@@ -38,6 +38,19 @@ public final class GrugTestState {
     private static TickContext tickContext = null;
     private static InitContext initContext = null;
 
+    /**
+     * Whether a test's export is running on this thread. A host function's write is a test edit
+     * only then: a block entity's own tick runs between calls and may save data every tick, and
+     * counting that as a world change would move the revision on every settle ask, so the client
+     * would forget its frames each time and never answer settled (#1086).
+     */
+    private static final ThreadLocal<Boolean> inTestCall = ThreadLocal.withInitial(() -> false);
+
+    /** Whether a test's export is running on this thread. */
+    public static boolean inTestCall() {
+        return inTestCall.get();
+    }
+
     /** Opens the context of one {@code tick()} call. */
     static TickContext openTickContext() {
         tickContext = new TickContext();
@@ -134,9 +147,12 @@ public final class GrugTestState {
                                 () -> {
                                     long contextHandle =
                                             GrugEntities.addEntity(contextType, open.get());
+                                    boolean wasInTestCall = inTestCall.get();
+                                    inTestCall.set(true);
                                     try {
                                         completed[0] = call.test(contextHandle);
                                     } finally {
+                                        inTestCall.set(wasInTestCall);
                                         GrugEntities.removeEntity(contextHandle);
                                         close.run();
                                     }

@@ -27,14 +27,28 @@ public class HostFunctions {
 
     /**
      * The world a client shows changed, so a settle answer a server remembered for an older
-     * revision no longer describes it (#1086). Every host function that writes a block, a block
-     * entity's saved data, inventory, energy or NBT, a slot a client may be showing, an entity, a
-     * dropped item or the player's hand calls this, and so does a test that advances the world's
-     * simulation. It is what lets a forwarded {@code Test.world_settled} wait without freezing the
-     * world on every poll.
+     * revision no longer describes it (#1086). Every host function through which a test can write a
+     * block, a block entity's saved data, inventory, energy or NBT, a slot a client may be showing,
+     * an entity, a dropped item or the player's hand calls this, and so does a test that advances
+     * the world's simulation. It is what lets a forwarded {@code Test.world_settled} wait without
+     * freezing the world on every poll.
+     *
+     * <p>It counts only a write made while a test's own export is running: the game ticks a mod's
+     * block entities between calls, and a machine that saves its progress every tick must not move
+     * the revision, or a settle wait on it could never end.
      */
     private static void worldChanged() {
-        GrugWorldRevision.bump();
+        // A write is a test edit only while the test's own export is running. The game ticks a
+        // mod's
+        // block entities between those calls, so a fixture that saves a number every tick would
+        // otherwise move the revision on every settle ask: the client would see a new revision each
+        // time, forget its frames and answer 0 without ever asking its adapter, so the wait could
+        // not end (#1086). A test that changes the world every tick still moves it, and a world
+        // that
+        // keeps changing is one that never settles.
+        if (GrugTestState.inTestCall()) {
+            GrugWorldRevision.bump();
+        }
     }
 
     // Entities
