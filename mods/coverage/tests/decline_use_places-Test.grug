@@ -4,9 +4,11 @@
 # cobblestone is still in hand for the block that declines, whose click places it below that block: the
 # fixture stands above the test player's eye, which is the block's bottom face (#1106).
 # That the handling block places nothing has no condition to wait for, so it is checked once the declined
-# click's cobblestone has appeared, which came after it. On 1.20.6 the clicks reach the blocks by packets, so
-# the cobblestone is waited for, with no count of ticks of its own: a tick is not a unit of time there (#688),
-# and the runner's budget ends a click that never arrives.
+# click's cobblestone has appeared, which came after it. The handling block stands four beside the eye, in the
+# room's wall column, so the eye sees its west face and a placement by it would land at x + 3, inside the room,
+# which is where the assertion looks. On 1.20.6 the clicks reach the blocks by packets, so the cobblestone is
+# waited for, with no count of ticks of its own: a tick is not a unit of time there (#688), and the runner's
+# budget ends a click that never arrives.
 
 export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
@@ -25,7 +27,7 @@ export tick_any_side(ctx: TestTickContext) {
     } else if not _is_cobblestone(level, x, y - 1, z) {
         ctx.not_done()
     } else {
-        ctx.assert(not _is_cobblestone(level, x + 4, y - 1, z), "A click the block handled should not place the held block.")
+        ctx.assert(not _is_cobblestone(level, x + 3, y, z), "A click the block handled should not place the held block.")
         Test.clear_held_item(Test.get_player())
     }
 }
