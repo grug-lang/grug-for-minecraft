@@ -1051,6 +1051,26 @@ class RunLoaderTest(unittest.TestCase):
         self.assertIn("carries over 1 coverage test(s)", result.stdout)
         self.assertIn("coverage/tests/a-Test.grug", result.stdout)
 
+    def test_a_carried_over_forwarded_test_is_not_subtracted_from_the_expected_count(self):
+        # The expected count leaves a forwarded_ test out, because a client's run never counts it.
+        # Carrying one over has to subtract nothing then: the game skips it either way, so
+        # subtracting it expects one test fewer than the game reports and fails a green run
+        # (#1084).
+        self.add_coverage_tests(["a", "forwarded_b"])
+
+        result = self.run_script(
+            self.selected_log(1),
+            0,
+            {
+                "GRUG_CI_COVERAGE_CARRY_OVER": (
+                    "coverage/tests/a-Test.grug,coverage/tests/forwarded_b-Test.grug"
+                )
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("carries over 1 coverage test(s)", result.stdout)
+
     def test_a_run_that_passed_the_uncarried_count_still_fails(self):
         # The subtraction is what the check depends on: the same run, counted as if nothing were
         # carried over, is a run that did not pass every test it was asked to.

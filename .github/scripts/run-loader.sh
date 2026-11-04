@@ -329,6 +329,13 @@ if [ -n "${GRUG_CI_COVERAGE_CARRY_OVER//[[:space:]]/}" ]; then
     fi
     # A name repeated in the list counts once, as the runner treats it.
     case "$carried_tests" in *" ${test} "*) continue ;; esac
+    # A forwarded_ test is not in the expected count above, because a client's run skips it.
+    # Carrying one over must then subtract nothing: the game skips it either way, and subtracting
+    # it would expect fewer tests than the game reports and fail a green run (#1084). The name is
+    # still passed to the game, which skips it like any carried-over test.
+    case "$test" in
+      */forwarded_*-Test.grug) continue ;;
+    esac
     carried_tests="${carried_tests}${test} "
     carried=$((carried + 1))
   done
