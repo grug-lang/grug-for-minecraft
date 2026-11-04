@@ -1,5 +1,7 @@
 package net.grug.minecraft.core;
 
+import net.grug.minecraft.grug.Grug;
+
 import java.util.function.LongSupplier;
 
 /**
@@ -13,9 +15,10 @@ import java.util.function.LongSupplier;
  * open inventory differ between runs (#961).
  *
  * <p>The field the room's blocks define has exactly one stable value: every cell is the larger of
- * its own emission and its brightest neighbour minus one. Asking the engine to recompute every cell
- * of the room until a whole sweep changes nothing therefore ends at that one value, whatever
- * history the engine started from.
+ * its own emission and its brightest neighbour minus that cell's opacity (at least one), so an
+ * opaque cell such as a stone wall stays at 0 however bright its neighbour is. Asking the engine to
+ * recompute every cell of the room until a whole sweep changes nothing therefore ends at that one
+ * value, whatever history the engine started from.
  */
 public final class GrugRelight {
     private GrugRelight() {}
@@ -39,7 +42,7 @@ public final class GrugRelight {
             }
             previous = hash;
         }
-        throw new IllegalStateException(
+        throw Grug.fatal(
                 "the room's light did not settle in " + limit + " sweeps of recomputing it");
     }
 }

@@ -39,7 +39,8 @@ class GrugRelightTest {
                         () -> GrugRelight.sweepUntilStable(() -> next.incrementAndGet(), 4));
 
         assertEquals(
-                "the room's light did not settle in 4 sweeps of recomputing it",
+                "Broken grug invariant: the room's light did not settle in 4 sweeps of recomputing"
+                        + " it",
                 failure.getMessage());
         assertEquals(4, next.get());
     }
