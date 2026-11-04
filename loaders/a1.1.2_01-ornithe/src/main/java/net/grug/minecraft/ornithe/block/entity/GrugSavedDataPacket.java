@@ -74,12 +74,29 @@ public class GrugSavedDataPacket extends Packet {
     @Override
     public void handle(PacketHandler handler) {
         Object level = GrugCore.getAdapter().getLevel();
+        System.out.println(
+                "[GRUG SYNC] alpha client apply at "
+                        + x
+                        + ","
+                        + y
+                        + ","
+                        + z
+                        + " level="
+                        + level
+                        + " data="
+                        + data);
         if (!(level instanceof World)) {
             return;
         }
         BlockEntity blockEntity = ((World) level).getBlockEntity(x, y, z);
         if (blockEntity instanceof GrugBlockEntity) {
             ((GrugBlockEntity) blockEntity).readSavedData(data);
+            System.out.println(
+                    "[GRUG SYNC] alpha client applied, marker="
+                            + net.grug.minecraft.grug.GrugSavedNumbers.get(blockEntity, "marker"));
+        } else {
+            System.out.println(
+                    "[GRUG SYNC] alpha client has no grug block entity there: " + blockEntity);
         }
     }
 

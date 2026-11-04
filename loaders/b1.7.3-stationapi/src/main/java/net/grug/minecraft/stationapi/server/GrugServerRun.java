@@ -48,10 +48,14 @@ public final class GrugServerRun {
         server = joined;
     }
 
-    /** Sends {@code packet} to every player who is on this server. */
-    public static void sendToAllPlayers(Packet packet) {
+    /**
+     * Sends {@code packet} to the players in {@code world}, and to no one else: the packet carries
+     * a position, and a client in another dimension applies it to whatever block sits at those
+     * coordinates in its own world.
+     */
+    public static void sendToWorld(World world, Packet packet) {
         if (server != null && server.playerManager != null) {
-            server.playerManager.sendToAll(packet);
+            server.playerManager.sendToDimension(packet, world.dimension.id);
         }
     }
 

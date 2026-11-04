@@ -36,8 +36,17 @@ public final class GrugBlockEntitySync implements GrugSavedDataSync.Transport {
     @Override
     public void send(Object blockEntity) {
         GrugBlockEntity entity = (GrugBlockEntity) blockEntity;
-        PacketDistributor.TRACKING_CHUNK
-                .with(entity.getLevel().getChunkAt(entity.getBlockPos()))
-                .send(entity.getUpdatePacket());
+        net.minecraft.server.level.ServerLevel serverLevel =
+                (net.minecraft.server.level.ServerLevel) entity.getLevel();
+        net.minecraft.world.level.chunk.LevelChunk chunk =
+                serverLevel.getChunkAt(entity.getBlockPos());
+        System.out.println(
+                "[GRUG SYNC] 1.20.6 send chunk="
+                        + chunk.getPos()
+                        + " tracking="
+                        + serverLevel.getChunkSource().chunkMap.getPlayers(chunk.getPos(), false)
+                        + " packet="
+                        + entity.getUpdatePacket());
+        PacketDistributor.TRACKING_CHUNK.with(chunk).send(entity.getUpdatePacket());
     }
 }

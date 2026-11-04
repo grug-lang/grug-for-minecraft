@@ -21,9 +21,13 @@ import java.util.WeakHashMap;
  * again for it: the packet has to be sent by itself. The rule is the same on every loader, so it
  * lives here and each loader only supplies the three things only it can answer ({@link Transport}).
  *
- * <p>Only a block that draws per frame is sent: a block whose geometry is in its chunk's mesh reads
- * the numbers when the mesh is built, and the script asks for that with {@code redraw}, so a send
- * here would arrive without the mesh that shows it.
+ * <p>Only a block that draws per frame is sent. A block whose geometry is in its chunk's mesh reads
+ * the numbers when the mesh is built, and the script asks for that with {@code redraw}; a send here
+ * would arrive without the mesh that shows it. On a client that shares the world (singleplayer and
+ * the integrated server) {@code redraw} re-meshes that one world and the number is already there,
+ * but a joined client's mesh is not re-meshed by it: a chunk-mesh block's number still does not
+ * reach a joined client, which is a gap of its own (#1098) and not one this rule can close by
+ * sending.
  *
  * <p>A send is left out when the data is what was last sent to that block entity, because a script
  * may save the same value every tick, and a machine's tick is not a reason for a packet. The data
@@ -70,25 +74,26 @@ public final class GrugSavedDataSync {
     public static synchronized void changed(Object blockEntity) {
         Transport installed = transport;
         if (installed == null) {
+            System.out.println("[GRUG SYNC] no transport installed");
             return;
         }
-        if (!installed.onServer(blockEntity) || !installed.frameOnly(blockEntity)) {
+        if (!installed.onServer(blockEntity)) {
+            System.out.println("[GRUG SYNC] not the simulating side: " + blockEntity);
+            return;
+        }
+        if (!installed.frameOnly(blockEntity)) {
+            System.out.println("[GRUG SYNC] not a frame-only block: " + blockEntity);
             return;
         }
         String now = snapshot(blockEntity);
         if (now.equals(LAST_SENT.get(blockEntity))) {
+            System.out.println("[GRUG SYNC] already sent: " + now);
             return;
         }
         LAST_SENT.put(blockEntity, now);
+        System.out.println(
+                "[GRUG SYNC] sending " + now + " through " + installed.getClass().getName());
         installed.send(blockEntity);
-    }
-
-    /**
-     * Forgets what was last sent to the block entity, so the next change is sent even when the data
-     * is what it was. Visible for tests.
-     */
-    static synchronized void forget(Object blockEntity) {
-        LAST_SENT.remove(blockEntity);
     }
 
     /**

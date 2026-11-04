@@ -61,12 +61,30 @@ public final class GrugServerRun implements ITickHandler {
         cpw.mods.fml.common.FMLCommonHandler.instance().registerTickHandler(new GrugServerRun());
     }
 
-    /** Sends {@code packet} to every player who is on this server. */
-    public static void sendToAllPlayers(Packet packet) {
+    /**
+     * Sends {@code packet} to the players in {@code world}, and to no one else: the packet carries
+     * a position, and a client in another dimension applies it to whatever block sits at those
+     * coordinates in its own world.
+     */
+    public static void sendToWorld(World world, Packet packet) {
         MinecraftServer server = server();
-        if (server != null && server.configManager != null) {
-            server.configManager.sendPacketToAllPlayers(packet);
+        if (server == null || server.configManager == null) {
+            System.out.println("[GRUG SYNC] 1.2.5 send: no server or manager");
+            return;
         }
+        int sent = 0;
+        for (Object element : server.configManager.playerEntities) {
+            EntityPlayerMP player = (EntityPlayerMP) element;
+            if (player.worldObj == world && player.playerNetServerHandler != null) {
+                player.playerNetServerHandler.sendPacket(packet);
+                sent++;
+            }
+        }
+        System.out.println(
+                "[GRUG SYNC] 1.2.5 send: players="
+                        + server.configManager.playerEntities.size()
+                        + " in world="
+                        + sent);
     }
 
     private static MinecraftServer server() {

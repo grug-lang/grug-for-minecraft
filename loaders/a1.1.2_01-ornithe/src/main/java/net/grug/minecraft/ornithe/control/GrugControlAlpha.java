@@ -92,6 +92,22 @@ public final class GrugControlAlpha {
         return starter == null ? null : PLAYERS.get((Connection) starter);
     }
 
+    /**
+     * The connection a player holds, from the one its first control message came on. The handler
+     * that message came through is the only place this layer can learn the pair, since the server's
+     * player manager is in classes a client never loads.
+     */
+    public static Connection connectionFor(PlayerEntity player) {
+        synchronized (PLAYERS) {
+            for (Map.Entry<Connection, PlayerEntity> entry : PLAYERS.entrySet()) {
+                if (entry.getValue() == player) {
+                    return entry.getKey();
+                }
+            }
+        }
+        return null;
+    }
+
     @GrugGenerated(
             "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since"
                     + " only the multiplayer job runs it")
