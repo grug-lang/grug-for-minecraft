@@ -1795,7 +1795,7 @@
 					}
 				},
 				"use_block": {
-					"description": "Right-clicks the block at the given coordinates with the player the test runs as, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. The click runs on the side the test runs on, the local player's own right-click on a client and the test player's on a dedicated server, so its effect lands in the world the test reads either way. It clicks the top face on both sides, since a test has no camera to aim.",
+					"description": "Right-clicks the block at the given coordinates with the player the test runs as, the same way `Block.use` is called. Lets a test open a real block's GUI without having to redeclare its layout, which would silently drift out of sync with the block's own `use` function. The click runs on the side the test runs on, the local player's own right-click on a client and the test player's on a dedicated server, so its effect lands in the world the test reads either way. The face is the one the test player's eye sees of the block, the same on both sides: the top of a block below the eye, the bottom of one above it, and the side facing the player of one at its level.",
 					"parameters": [
 						{
 							"name": "level",

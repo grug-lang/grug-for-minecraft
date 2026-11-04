@@ -3,6 +3,7 @@ package net.grug.minecraft.stationapi;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -87,9 +88,12 @@ public class ServerStationApiAdapter extends StationApiAdapter {
      * interaction manager to call, so the two calls its {@code interactBlock} makes are made here
      * in the same order.
      *
-     * <p>The face is the top one, which is the face the client path passes to its own interaction
-     * manager: a test has no camera to aim, and the test room's blocks sit above the player's level
-     * view, so a ray trace could not reach them. Both sides therefore click the same face.
+     * <p>The face is the one a ray from the test player's eye to the block's centre enters, which
+     * is the face the player sees of it: the top of a block below the eye, the bottom of one above
+     * it, and the side facing the player of one at its level. The client path asks {@link
+     * GrugUseBlockFace} with the same eye, so both sides click the same face for the same fixture
+     * (#1106). This generation's {@code Block.onUse} takes no face, so it is the held item's {@code
+     * useOnBlock} that sees it.
      */
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
@@ -126,7 +130,13 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         if (!block.onUse(world, blockX, blockY, blockZ, player)) {
             ItemStack held = player.inventory.getSelectedItem();
             if (held != null) {
-                held.useOnBlock(player, world, blockX, blockY, blockZ, 1);
+                held.useOnBlock(
+                        player,
+                        world,
+                        blockX,
+                        blockY,
+                        blockZ,
+                        GrugUseBlockFace.face(testPlayerEye(player), blockX, blockY, blockZ));
             }
         }
     }

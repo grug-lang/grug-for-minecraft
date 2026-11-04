@@ -12,6 +12,7 @@ import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugTickLockstep;
+import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.forge.block.GrugBlock;
@@ -1715,11 +1716,17 @@ public class ForgeAdapter implements ModLoaderAdapter {
                 new net.minecraft.core.BlockPos(
                         (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
         // Drive a real right-click through the interaction manager, so the block's own use code
-        // runs rather than a copy of its GUI layout.
+        // runs rather than a copy of its GUI layout. The face is the one a ray from the test
+        // player's eye to the block's centre enters, which is the face the player sees of it and
+        // the face the server path picks from the same eye (#1106).
+        Direction face =
+                Direction.values()[
+                        GrugUseBlockFace.face(
+                                testPlayerEye(mc.player), pos.getX(), pos.getY(), pos.getZ())];
         BlockHitResult hit =
                 new BlockHitResult(
                         new net.minecraft.world.phys.Vec3(x + 0.5, y + 0.5, z + 0.5),
-                        Direction.UP,
+                        face,
                         pos,
                         false);
         mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);

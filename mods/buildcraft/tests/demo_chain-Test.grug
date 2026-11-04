@@ -111,10 +111,12 @@ local _setup(ctx: TestTickContext) {
     act2.unwrap().set_item_in_slot(0, plank, 1)
     act2.unwrap().set_item_in_slot(3, plank, 1)
 
-    _place_pipe(level, x + 2, y)
-    _place_pipe(level, x + 4, y)
+    # The engines go first: the reference places each one by right-clicking the bottom of the
+    # support in the pipe's own block, and that support is cleared again before the pipe goes in.
     _place_engine(level, x + 2, y - 1, z)
     _place_engine(level, x + 4, y - 1, z)
+    _place_pipe(level, x + 2, y)
+    _place_pipe(level, x + 4, y)
 
     if not Test.is_reference() {
         pipe1.set(level.get_block_entity(x + 2, y, z).unwrap())
@@ -135,13 +137,13 @@ local _place_pipe(level: Level, x: number, y: number) {
         level.place_block(x, y, z, "grug:wooden_pipe")
         return
     }
-    level.place_block(x, y - 1, z, "minecraft:stone")
+    level.place_block(x, y + 1, z, "minecraft:stone")
     player: Player = Test.get_player()
     held: Item = item(resource_location("buildcraft:PipeItemsWood"))
     Test.set_held_item(player, held)
-    Test.use_block(level, x, y - 1, z)
+    Test.use_block(level, x, y + 1, z)
     Test.clear_held_item(player)
-    level.place_block(x, y - 1, z, "minecraft:air")
+    level.place_block(x, y + 1, z, "minecraft:air")
 }
 
 local _place_engine(level: Level, x: number, y: number, z: number) {
@@ -151,11 +153,12 @@ local _place_engine(level: Level, x: number, y: number, z: number) {
         level.place_block(x, y, z, "grug:redstone_engine")
         return
     }
-    level.place_block(x, y - 1, z, "minecraft:stone")
+    level.place_block(x, y + 1, z, "minecraft:stone")
     player: Player = Test.get_player()
     held: Item = item(resource_location("buildcraft:engineWood"))
     Test.set_held_item(player, held)
-    Test.use_block(level, x, y - 1, z)
+    Test.use_block(level, x, y + 1, z)
     Test.clear_held_item(player)
+    level.place_block(x, y + 1, z, "minecraft:air")
     level.place_block(x, y - 1, z, "minecraft:redstone_torch")
 }

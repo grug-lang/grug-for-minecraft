@@ -2,6 +2,7 @@ package net.grug.minecraft.forge;
 
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugSide;
+import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
@@ -84,10 +85,11 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * which is what {@code ServerGamePacketListenerImpl.handleUseItemOn} reaches for a client's use
      * packet: the block's use first, and the held item's use against it when the block declines.
      *
-     * <p>The face is the top one, which is the face the client path puts in its {@code
-     * BlockHitResult}: a test has no camera to aim, and the test room's blocks sit above the
-     * player's level view, so a ray trace could not reach them. Both sides therefore click the same
-     * face.
+     * <p>The face is the one a ray from the test player's eye to the block's centre enters, which
+     * is the face the player sees of it: the top of a block below the eye, the bottom of one above
+     * it, and the side facing the player of one at its level. The client path asks {@link
+     * GrugUseBlockFace} with the same eye, so both sides click the same face for the same fixture
+     * (#1106).
      */
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
@@ -100,8 +102,12 @@ public class ServerForgeAdapter extends ForgeAdapter {
         ServerPlayer player = (ServerPlayer) playerObj;
         ServerLevel level = (ServerLevel) levelObj;
         BlockPos pos = new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        Direction face =
+                Direction.values()[
+                        GrugUseBlockFace.face(
+                                testPlayerEye(player), pos.getX(), pos.getY(), pos.getZ())];
         BlockHitResult hit =
-                new BlockHitResult(new Vec3(x + 0.5, y + 0.5, z + 0.5), Direction.UP, pos, false);
+                new BlockHitResult(new Vec3(x + 0.5, y + 0.5, z + 0.5), face, pos, false);
         player.gameMode.useItemOn(
                 player, level, player.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
     }

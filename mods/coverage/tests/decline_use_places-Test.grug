@@ -1,7 +1,8 @@
 # Covers what a declined click does in the game: the click is left to the held item, which places a block
 # against the face that was clicked, while a block whose use export does not decline keeps the click and
 # nothing is placed. The player holds one cobblestone. The block that handles the click is used first, so the
-# cobblestone is still in hand for the block that declines, whose click places it on top of that block.
+# cobblestone is still in hand for the block that declines, whose click places it below that block: the
+# fixture stands above the test player's eye, which is the block's bottom face (#1106).
 # That the handling block places nothing has no condition to wait for, so it is checked once the declined
 # click's cobblestone has appeared, which came after it. On 1.20.6 the clicks reach the blocks by packets, so
 # the cobblestone is waited for, with no count of ticks of its own: a tick is not a unit of time there (#688),
@@ -21,10 +22,10 @@ export tick_any_side(ctx: TestTickContext) {
         Test.use_block(level, x + 4, y, z)
         Test.use_block(level, x, y, z)
         ctx.not_done()
-    } else if not _is_cobblestone(level, x, y + 1, z) {
+    } else if not _is_cobblestone(level, x, y - 1, z) {
         ctx.not_done()
     } else {
-        ctx.assert(not _is_cobblestone(level, x + 4, y + 1, z), "A click the block handled should not place the held block.")
+        ctx.assert(not _is_cobblestone(level, x + 4, y - 1, z), "A click the block handled should not place the held block.")
         Test.clear_held_item(Test.get_player())
     }
 }

@@ -74,20 +74,21 @@ local _setup(ctx: TestTickContext) {
 }
 
 # The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
-# right-clicking the top of a block under it with the pipe held, and that block is cleared again so
-# both scenes hold the same blocks. ItemPipe names the item after its pipe class.
+# right-clicking the side of a block at z + 1 with the pipe held, which is the face the test player's
+# eye sees of it, so the pipe lands at z; that block is cleared again so both scenes hold the same
+# blocks. ItemPipe names the item after its pipe class.
 local _place_pipe(level: Level, x: number, y: number, z: number) {
     if not Test.is_reference() {
         level.place_block(x, y, z, "grug:cobblestone_pipe")
         return
     }
-    level.place_block(x, y - 1, z, "minecraft:stone")
+    level.place_block(x, y, z + 1, "minecraft:stone")
     player: Player = Test.get_player()
     held: Item = item(resource_location("buildcraft:PipeItemsCobblestone"))
     Test.set_held_item(player, held)
-    Test.use_block(level, x, y - 1, z)
+    Test.use_block(level, x, y, z + 1)
     Test.clear_held_item(player)
-    level.place_block(x, y - 1, z, "minecraft:air")
+    level.place_block(x, y, z + 1, "minecraft:air")
 }
 
 # Thirteen blocks square of minecraft:stone at (x0, y0, z), which covers the crop with room to
