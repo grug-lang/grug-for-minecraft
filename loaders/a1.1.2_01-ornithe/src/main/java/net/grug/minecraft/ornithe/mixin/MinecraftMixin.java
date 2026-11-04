@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe.mixin;
 
 import net.grug.minecraft.core.GrugConnectAddress;
+import net.grug.minecraft.core.GrugMissingClientMod;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
@@ -49,7 +50,13 @@ public abstract class MinecraftMixin implements GrugClientAccess {
                     "Minecraft Alpha 1.1.2_01 - Ornithe with grug");
 
     static {
-        GrugClientHooks.registerKeybinds();
+        // fabric.mod.json does not depend on osl-keybinds, because a dedicated server cannot load
+        // it, so Fabric will not say that a client lacks it: this does (#1056).
+        try {
+            GrugClientHooks.registerKeybinds();
+        } catch (NoClassDefFoundError e) {
+            throw GrugMissingClientMod.fatal("osl-keybinds", "Alpha 1.1.2_01", e);
+        }
     }
 
     /**

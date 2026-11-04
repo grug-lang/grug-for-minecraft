@@ -1,7 +1,7 @@
 package net.grug.minecraft.ornithe.mixin;
 
 import net.grug.minecraft.core.GrugConnectAddress;
-import net.grug.minecraft.grug.Grug;
+import net.grug.minecraft.core.GrugMissingClientMod;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
@@ -50,10 +50,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         try {
             GrugClientHooks.registerKeybinds();
         } catch (NoClassDefFoundError e) {
-            throw Grug.fatal(
-                    "Grug on a Beta 1.7.3 client needs the osl-keybinds mod, which is not"
-                            + " installed.",
-                    e);
+            throw GrugMissingClientMod.fatal("osl-keybinds", "Beta 1.7.3", e);
         }
     }
 
