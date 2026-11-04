@@ -48,14 +48,29 @@ public final class GrugEntities {
         long id = ((long) type.ordinal() << 32) | (index & 0xFFFFFFFFL);
 
         entityData.put(id, grugObject);
-        fnEntities.add(grugObject);
+        root(fnEntities, grugObject);
         return id;
     }
 
     public static void addEntityWithId(long id, GrugEntityType type, Object object) {
         GrugObject grugObject = new GrugObject(type, object);
         entityData.put(id, grugObject);
-        fnEntities.add(grugObject);
+        root(fnEntities, grugObject);
+    }
+
+    /**
+     * Adds {@code object} to {@code roots}, under the monitor every root list is guarded by.
+     *
+     * <p>A root list is reachable from more than one thread: {@link #fnEntities} is process-global,
+     * so the client's render thread removing a context id and the server thread rooting a call's
+     * entities can both land on the same list. A plain {@code ArrayList} throws {@link
+     * java.util.ConcurrentModificationException} when a root lands in the middle of an unroot's
+     * iteration, so every mutation and every iteration takes the list's own monitor. See #1108.
+     */
+    private static void root(List<GrugObject> roots, GrugObject object) {
+        synchronized (roots) {
+            roots.add(object);
+        }
     }
 
     /**
@@ -79,9 +94,24 @@ public final class GrugEntities {
      * made inside {@code Test.tick_level} added a level id and removed it again, and removed the
      * test's own earlier id for that level instead, which unrooted it. The weak table then lost it
      * and the test's next {@code Test.tick_level} reported the id as collected. See #1049.
+     *
+     * <p>The iteration takes the list's monitor, which {@link #root} and {@link #clearRoots} also
+     * take, so a root landing on another thread cannot change the list under it. See #1108.
      */
     static void unroot(List<GrugObject> roots, GrugObject object) {
-        roots.removeIf(root -> root == object);
+        synchronized (roots) {
+            roots.removeIf(root -> root == object);
+        }
+    }
+
+    /**
+     * Empties {@code roots}, under the monitor {@link #root} and {@link #unroot} take, so a clear
+     * on one thread cannot change the list under an unroot's iteration on another. See #1108.
+     */
+    public static void clearRoots(List<GrugObject> roots) {
+        synchronized (roots) {
+            roots.clear();
+        }
     }
 
     /**
@@ -277,12 +307,12 @@ public final class GrugEntities {
      * Starts the root list of the test that is starting, releasing whatever an earlier one kept.
      */
     public static void beginTestEntities() {
-        testEntities.clear();
+        clearRoots(testEntities);
     }
 
     /** Releases what the test that just ended created through its member scope. */
     public static void endTestEntities() {
-        testEntities.clear();
+        clearRoots(testEntities);
     }
 
     /**
