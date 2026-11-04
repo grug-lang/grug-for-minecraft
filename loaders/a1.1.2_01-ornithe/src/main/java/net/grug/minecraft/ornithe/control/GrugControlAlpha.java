@@ -38,9 +38,11 @@ import java.util.function.Consumer;
  * GrugControlPacket#read} says, so nothing drains the connection by hand.
  *
  * <p>The sender of an answer is the connection the reader thread belongs to, and core's server
- * accepts an answer only from the connection that started the run. The server does not flush block
- * changes before a request, the way 1.20.6 does, because Alpha's server queues them per chunk and a
- * test that waits a tick between placing and capturing has had them sent.
+ * accepts an answer only from the connection that started the run. The server flushes block changes
+ * before a request, as the other loaders do: the runner ticks at the end of a server world tick,
+ * and a test's first capture is asked for in the same tick that built its room, before the server
+ * has sent the room's clearing, so without the flush the client's frame can still be the previous
+ * test's (#1078).
  */
 @GrugGenerated(
         "the Alpha channel glue of #1040: no test the coverage gate counts can reach it, since only"
@@ -113,9 +115,7 @@ public final class GrugControlAlpha {
 
         @Override
         public void flushWorld() {
-            System.out.println(
-                    "[GRUG CONTROL] no world flush on Alpha: the test waited a tick since it"
-                            + " placed blocks");
+            flushBlockChanges();
         }
 
         /**
@@ -257,6 +257,42 @@ public final class GrugControlAlpha {
         } catch (IllegalAccessException e) {
             throw new IllegalStateException("cannot read the handler's player", e);
         }
+    }
+
+    /**
+     * Sends the block changes the server has queued, which it only does at the end of its own tick.
+     * A test's room is built, and its first capture asked for, inside one server world tick, so the
+     * room's clearing has not been sent when the request goes out and the client would answer with
+     * the previous test's frame (#1078). The server is not on this layer's compile classpath, so it
+     * is found from the starter's player by type: the player holds the server, whose player
+     * manager's {@code tick} sends the queued changes, as the b1.7.3 loaders' flush does.
+     */
+    static void flushBlockChanges() {
+        try {
+            PlayerEntity player = starterPlayer();
+            if (player == null) {
+                throw new IllegalStateException("no starter to find the server through");
+            }
+            Object serverObject = fieldOfType(player, "net.minecraft.server.MinecraftServer");
+            Object manager = fieldOfType(serverObject, "net.minecraft.server.PlayerManager");
+            manager.getClass().getMethod("tick").invoke(manager);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("cannot flush the server's block changes", e);
+        }
+    }
+
+    private static Object fieldOfType(Object holder, String typeName)
+            throws IllegalAccessException {
+        for (Class<?> type = holder.getClass(); !isJdk(type); type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (field.getType().getName().equals(typeName)) {
+                    field.setAccessible(true);
+                    Object value = field.get(holder);
+                    if (value != null) return value;
+                }
+            }
+        }
+        throw new IllegalStateException(holder.getClass().getName() + " holds no " + typeName);
     }
 
     private static Connection clientConnection() {

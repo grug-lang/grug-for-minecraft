@@ -330,6 +330,8 @@ if [ -n "${GRUG_CI_COVERAGE_CARRY_OVER//[[:space:]]/}" ]; then
     # A name repeated in the list counts once, as the runner treats it.
     case "$carried_tests" in *" ${test} "*) continue ;; esac
     carried_tests="${carried_tests}${test} "
+    # A forwarded_ test is not in the count above, so carrying one over takes nothing off it (#1078).
+    case "${test##*/}" in forwarded_*) continue ;; esac
     carried=$((carried + 1))
   done
   # The carry-over subtracts only when the coverage mod's tests are counted at all: the mods
