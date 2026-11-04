@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugConnectAddress;
 import net.grug.minecraft.core.GrugMissingClientMod;
 import net.grug.minecraft.ornithe.GrugClientAccess;
 import net.grug.minecraft.ornithe.GrugClientHooks;
+import net.grug.minecraft.ornithe.OrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.TickTimer;
@@ -55,7 +56,7 @@ public abstract class MinecraftMixin implements GrugClientAccess {
         try {
             GrugClientHooks.registerKeybinds();
         } catch (NoClassDefFoundError e) {
-            throw GrugMissingClientMod.fatal("osl-keybinds", "Alpha 1.1.2_01", e);
+            throw GrugMissingClientMod.fatal("osl-keybinds", OrnitheAdapter.CLIENT_NAME, e);
         }
     }
 

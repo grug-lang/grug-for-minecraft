@@ -35,6 +35,21 @@ class GrugMissingClientModTest {
     }
 
     @Test
+    void namesTheResourceLoaderModOnAlpha() {
+        NoClassDefFoundError cause =
+                new NoClassDefFoundError(
+                        "net/ornithemc/osl/resource/loader/api/client/ClientResourceLoaderEvents");
+
+        RuntimeException fatal =
+                GrugMissingClientMod.fatal("osl-resource-loader", "Alpha 1.1.2_01", cause);
+
+        assertTrue(fatal.getMessage().contains("osl-resource-loader"), fatal.getMessage());
+        assertTrue(fatal.getMessage().contains("Alpha 1.1.2_01"), fatal.getMessage());
+        assertTrue(fatal.getMessage().contains("which is not installed"), fatal.getMessage());
+        assertSame(cause, fatal.getCause());
+    }
+
+    @Test
     void keepsTheClassThatWasMissingAsTheCause() {
         NoClassDefFoundError cause = noClassDefFound("KeybindEvents");
 
