@@ -446,7 +446,9 @@ public class GrugBlockEntity extends BlockEntity
             ClientboundBlockEntityDataPacket packet,
             HolderLookup.Provider registries) {
         System.out.println(
-                "[GRUG SYNC] 1.20.6 client apply tag="
+                "[GRUG SYNC] 1.20.6 client apply be="
+                        + System.identityHashCode(this)
+                        + " tag="
                         + packet.getTag()
                         + " marker before="
                         + GrugSavedNumbers.get(this, "marker"));
