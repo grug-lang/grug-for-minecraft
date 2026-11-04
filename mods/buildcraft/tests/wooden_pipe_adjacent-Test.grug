@@ -55,14 +55,16 @@ local _row(ctx: TestTickContext, level: Level, x: number, y: number, z: number) 
     _fresh(ctx, east)
 
     # The damage tells the two items apart, so the drop can be checked to hold the pipe's own item
-    # and not the one from the pipe beside it.
-    west_chest.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+    # and not the one from the pipe beside it. Both are swords, because 1.20.6 clamps a stack's
+    # damage to the item's maximum, which is 0 for a diamond or an ingot, and the record would then
+    # carry 0 and not the damage the chest was given.
+    west_chest.set_item_in_slot(0, item(resource_location("minecraft:diamond_sword")), 1)
     west_chest.set_item_damage_in_slot(0, 1)
-    east_chest.set_item_in_slot(0, item(resource_location("minecraft:iron_ingot")), 1)
+    east_chest.set_item_in_slot(0, item(resource_location("minecraft:iron_sword")), 1)
     east_chest.set_item_damage_in_slot(0, 2)
 
-    _pull_and_drop(ctx, level, west, west_chest, item(resource_location("minecraft:diamond")), 1)
-    _pull_and_drop(ctx, level, east, east_chest, item(resource_location("minecraft:iron_ingot")), 2)
+    _pull_and_drop(ctx, level, west, west_chest, item(resource_location("minecraft:diamond_sword")), 1)
+    _pull_and_drop(ctx, level, east, east_chest, item(resource_location("minecraft:iron_sword")), 2)
 }
 
 # Pulls the chest's item into the pipe, checks the pipe carries that item and no other, then runs the
