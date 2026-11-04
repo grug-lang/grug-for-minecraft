@@ -34,15 +34,23 @@ export render_frame(ctx: RenderFrameContext) {
     ctx.draw_item(log, 0, 1, 0.3, 0.2, 0.5)
     ctx.draw_item(stick, 0, 1, 0.7, 0.2, 0.5)
 
-    # Two more stacks, one above the other, drawn only once a test has saved a number, which is
-    # what the frame pass reads here: on a version whose client keeps its own copy of the block
-    # entity, that copy is the one this call runs on. See coverage_frame_saved_number. A dedicated
-    # server's camera is not snapped to the block centre the way a client run's is, so the crop is
-    # framed a little differently on each loader: the low stack is inside the 1.20.6 crop and the
-    # high one is inside the Beta and Alpha crops, so every loader sees at least one of them.
+    # A row of three stacks at each of three heights, drawn only once a test has saved a number,
+    # which is what the frame pass reads here: on a version whose client keeps its own copy of the
+    # block entity, that copy is the one this call runs on. See coverage_frame_saved_number. A
+    # dedicated server's camera is not snapped to the block centre the way a client run's is, so the
+    # crop is framed a little differently on each loader: the middle row is inside every crop, and
+    # the low and high rows catch the crops that sit a little higher or lower. A row rather than one
+    # stack, because one stack covers less than the 1 percent of the Alpha crop the test asks for.
     if me.get_saved_number("marker") > 0 {
+        ctx.draw_item(log, 0, 1, 0.35, 0.2, 0.5)
         ctx.draw_item(log, 0, 1, 0.5, 0.2, 0.5)
+        ctx.draw_item(log, 0, 1, 0.65, 0.2, 0.5)
+        ctx.draw_item(log, 0, 1, 0.35, 0.4, 0.5)
+        ctx.draw_item(log, 0, 1, 0.5, 0.4, 0.5)
+        ctx.draw_item(log, 0, 1, 0.65, 0.4, 0.5)
+        ctx.draw_item(log, 0, 1, 0.35, 0.6, 0.5)
         ctx.draw_item(log, 0, 1, 0.5, 0.6, 0.5)
+        ctx.draw_item(log, 0, 1, 0.65, 0.6, 0.5)
     }
 
     if not refused_bad_count {
