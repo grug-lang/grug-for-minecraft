@@ -12,6 +12,7 @@ import net.grug.minecraft.grug.GrugFrameGeometry;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
 import net.grug.minecraft.grug.GrugModelDraw;
+import net.grug.minecraft.grug.GrugSavedNumbers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -54,6 +55,8 @@ import net.minecraft.world.level.block.state.BlockState;
         "draws during the game's frame, so it is coupled to the renderer rather than to grug")
 public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEntity> {
 
+    private static long LAST_RENDER_LOG = 0;
+
     @Override
     public void render(
             GrugBlockEntity blockEntity,
@@ -66,6 +69,16 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
         if (!(state.getBlock() instanceof GrugBlock grugBlock)
                 || !grugBlock.drawsCustomGeometry()) {
             return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - LAST_RENDER_LOG > 500) {
+            LAST_RENDER_LOG = now;
+            System.out.println(
+                    "[GRUG SYNC] 1.20.6 render be="
+                            + System.identityHashCode(blockEntity)
+                            + " marker="
+                            + GrugSavedNumbers.get(blockEntity, "marker"));
         }
 
         // The camera is already interpolated for this frame, so its yaw is the direction the
