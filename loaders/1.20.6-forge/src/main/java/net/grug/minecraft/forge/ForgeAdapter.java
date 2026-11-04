@@ -2050,11 +2050,15 @@ public class ForgeAdapter implements ModLoaderAdapter {
                         latch.countDown();
                     }
                 });
+        // One lambda for both arms: JaCoCo measures a lambda as its own method, and the method's
+        // own @GrugGenerated does not carry over to it, so a second lambda in an arm no run takes
+        // would be counted and miss the gate. See #1086.
+        Runnable wait = () -> awaitLatch(latch);
         Thread admitted = clientThread;
         if (admitted == null) {
-            Grug.runWithStateLockReleased(() -> awaitLatch(latch));
+            Grug.runWithStateLockReleased(wait);
         } else {
-            Grug.runWithStateLockReleased(() -> awaitLatch(latch), admitted);
+            Grug.runWithStateLockReleased(wait, admitted);
         }
     }
 
