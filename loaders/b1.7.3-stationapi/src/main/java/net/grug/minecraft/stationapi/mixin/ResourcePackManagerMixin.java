@@ -23,7 +23,9 @@ public class ResourcePackManagerMixin {
                                     "Lcom/google/common/collect/ImmutableSet;copyOf([Ljava/lang/Object;)Lcom/google/common/collect/ImmutableSet;",
                             remap = false))
     private ImmutableSet<ResourcePackProvider> addProvider(Object[] providers) {
-        // The list building lives in GrugResourcePackProvider so JaCoCo can measure it.
+        // A common mixin, so this runs on both sides: on a client's asset and data managers and on
+        // the data pack manager a dedicated server builds (#165). The list building lives in
+        // GrugResourcePackProvider so JaCoCo can measure it.
         return GrugResourcePackProvider.withGrugProvider(providers);
     }
 }

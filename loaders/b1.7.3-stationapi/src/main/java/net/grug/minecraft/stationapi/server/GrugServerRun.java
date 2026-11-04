@@ -108,8 +108,9 @@ public final class GrugServerRun {
 
     /**
      * Looks for changed mod files, which a client does every tick and a server has no hook for.
-     * Without it a hot reload a test asks for never happens. A server has no resources to reload,
-     * so a changed resource counts as reloaded at once.
+     * Without it a hot reload a test asks for never happens. The server reads its data pack once at
+     * startup, as its own loader has no reload hook, so a changed resource counts as reloaded at
+     * once.
      */
     private static void pollModFiles() {
         String[] changed =
