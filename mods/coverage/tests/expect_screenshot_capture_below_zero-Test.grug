@@ -1,0 +1,10 @@
+# A crop coordinate below zero must be reported by name before any capture is attempted, which is
+# the lower end of the bounds check that expect_screenshot_capture_past_the_edge's upper end pairs
+# with. Screenshot.equals checks its rectangle in core now, so a capture is what reaches the
+# loaders' own check for this end.
+export tick_any_side(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.expect_error("x1 is -1, which is outside")
+        Test.screenshot().capture(-1, 0, 100, 100)
+    }
+}
