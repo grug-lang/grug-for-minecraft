@@ -14,9 +14,9 @@ export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    # The other pipe tests use bands at +15, +20, +25, +35, +40, +45 and +50, and +50 is the top of
-    # the ladder that has to stay inside Alpha's 128-block world height, so this band is a clear one
-    # below it.
+    # The other pipe tests use bands at +15, +20, +25, +35, +40, +45 and +50. The +45 and +50
+    # bands are clamped to 120 for a high spawn, because Alpha's world is 128 blocks tall, so the
+    # ladder's top is +40, the highest band that is not clamped, and this band is below it.
     y: number = origin.y() + 30
     z: number = origin.z()
 
