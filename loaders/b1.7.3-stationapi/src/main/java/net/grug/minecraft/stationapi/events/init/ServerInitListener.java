@@ -3,6 +3,7 @@ package net.grug.minecraft.stationapi.events.init;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
+import net.grug.minecraft.stationapi.server.ServerChatReports;
 import net.mine_diver.unsafeevents.listener.EventListener;
 import net.modificationstation.stationapi.api.event.init.InitFinishedEvent;
 import net.modificationstation.stationapi.api.event.tick.GameTickEvent;
@@ -37,9 +38,10 @@ public class ServerInitListener {
         GrugServerRun.onServer(event.player.server);
     }
 
-    /** Hands the end of each server tick to the test run. */
+    /** Hands the end of each server tick to the test run and to the reports a player reads. */
     @EventListener
     private static void tickEnd(GameTickEvent.End event) {
         GrugServerRun.onServerTick();
+        ServerChatReports.onServerTick();
     }
 }

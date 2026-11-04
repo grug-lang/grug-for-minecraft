@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi;
 
+import net.grug.minecraft.core.GrugChat;
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.core.GrugTestRunner;
@@ -538,31 +539,22 @@ public class GrugClientHooks {
     private void sendMessage(String text, String prefix) {
         if (minecraft.player == null || text == null) return;
 
-        String[] lines = text.split("\n");
-        for (String line : lines) {
+        for (String line : text.split("\n")) {
             // Print the full, unsplit line to the console
             InitListener.LOGGER.info(prefix + line);
+        }
 
-            // A CI run is not watched, and the readout is drawn into every capture that reaches
-            // down to it, so the log is all it gets. See #412.
-            if (GrugReference.isCiRun()) {
-                continue;
-            }
+        // A CI run is not watched, and the readout is drawn into every capture that reaches
+        // down to it, so the log is all it gets. See #412.
+        if (GrugReference.isCiRun()) {
+            return;
+        }
 
-            // Break long lines into chunks of ~50 characters
-            // so the color code is preserved for the player
-            int maxLength = 50;
-            while (line.length() > maxLength) {
-                int splitIndex = line.lastIndexOf(' ', maxLength);
-                if (splitIndex == -1) {
-                    splitIndex = maxLength; // Force split mid-word if there are no spaces
-                }
-                access.grug$sendChat(prefix + line.substring(0, splitIndex));
-                line = line.substring(splitIndex).trim(); // Remove leading space for the next line
-            }
-            if (!line.isEmpty()) {
-                access.grug$sendChat(prefix + line);
-            }
+        // The same wrapping the server uses for the reports it sends a player, so a line wraps the
+        // same whichever process said it (#165). A server's line still goes through the game's own
+        // translation on the way out, which wrapping cannot change.
+        for (String piece : GrugChat.wrap(text)) {
+            access.grug$sendChat(prefix + piece);
         }
     }
 }
