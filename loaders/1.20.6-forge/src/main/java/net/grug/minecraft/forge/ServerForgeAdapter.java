@@ -38,7 +38,8 @@ import java.util.UUID;
  * test on a server into an err naming the function, rather than an exception from inside {@code
  * net.minecraft.client}. {@code useBlockForTest} is not one of them and is overridden: a click is
  * not a client-only function, so the server right-clicks in its own world, the world the test reads
- * (#1090).
+ * (#1090). {@code playUiSound} is overridden as well: the sound engine belongs to the client, so a
+ * server forwards the play to the player who started the run (#1032).
  *
  * <p>Whole class is excluded from coverage until CI launches a server: see #167.
  */
@@ -110,6 +111,23 @@ public class ServerForgeAdapter extends ForgeAdapter {
                 new BlockHitResult(new Vec3(x + 0.5, y + 0.5, z + 0.5), face, pos, false);
         player.gameMode.useItemOn(
                 player, level, player.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
+    }
+
+    /**
+     * Played by the client of the player who started the run, which owns the sound engine (#1040).
+     *
+     * <p>The sound registry is in both processes on this version, so {@code hasSound} stays the
+     * inherited registry answer and a server needs no client to probe a sound. The engine a sound
+     * plays on is the client's, so this call is forwarded like the four other loaders' servers
+     * forward it (#1032).
+     */
+    @Override
+    public void playUiSound(String path, double volume, double pitch) {
+        try {
+            GrugControlForge.server().playUiSound(path, volume, pitch);
+        } catch (GrugControlServer.ControlException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, "play_ui_sound: " + e.getMessage());
+        }
     }
 
     /**

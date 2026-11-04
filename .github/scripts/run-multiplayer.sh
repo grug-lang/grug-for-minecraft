@@ -319,6 +319,16 @@ while :; do
         exit 1
       fi
     done
+    # The tests #1032 promoted have to show as passed too, or a leg that skips one (its export
+    # reverted, or the loader listing it as unsupported) would still look green. On the 1.20.6 leg
+    # sound also exercises the new play_ui_sound forwarding, because that leg plays its button click;
+    # a 1.2.5 leg plays nothing, so its PASS only proves the test ran there.
+    for promoted in coverage/tests/decline_use coverage/tests/sound; do
+      if ! grep -qF "[GRUG CI] PASS ${promoted}-Test.grug" "$SERVER_LOG"; then
+        echo "==> The run passed, but ${promoted}-Test.grug did not run on the dedicated server." >&2
+        exit 1
+      fi
+    done
     echo "==> ${line}, run on the dedicated server with a client connected."
     exit 0
   fi

@@ -2,7 +2,10 @@
 # use export declines, so right-clicking it must run the export and the call must not be an error. That the
 # game then treats the click as unhandled is in each loader's GrugBlock and shows in how the wooden pipe
 # lets a block be placed against it.
-export tick(ctx: TestTickContext) {
+# Both clicks are made in the world the test reads, which on a dedicated server is the server's own world:
+# each loader's server adapter right-clicks there with the connected player, and the block's use export
+# runs on that side (#1090).
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

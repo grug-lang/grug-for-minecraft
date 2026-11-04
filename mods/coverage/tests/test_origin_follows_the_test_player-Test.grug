@@ -4,6 +4,12 @@
 # loader answers this from the same player now: #188 removed 1.20.6's second reading of the
 # integrated server's player, which agreed with this only while the two players had not moved apart.
 # This is the guard that none of them starts reading another player again. See #188 and #609.
+# A dedicated server skips this test, because the block centre it asserts is the one the runner snaps a
+# client player to, and a server player is not snapped: the connected client drives its own position, so
+# a server-side snap would be undone by its next position packet. The server's equivalent is a
+# control-channel request for the client to snap itself, which is #1040 work (#1094). The server's origin
+# still comes from the test player, since Test.get_origin derives it from testPlayer() on every side
+# (#188), so what this test covers there is the snap and not whose player the origin reads.
 
 # Read in init rather than in the first tick, because the first call captures the origin for the
 # whole test and init is the earliest point after the snap.

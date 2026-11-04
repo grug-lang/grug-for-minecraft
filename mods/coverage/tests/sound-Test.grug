@@ -3,7 +3,11 @@
 # pool by the name of the file, so they have random.click and not ui.button.click; a 1.2.5 run
 # downloads no sound resources and its pool is empty, so there has_sound is the probe and nothing is
 # played. A name that is another namespace's, or that nothing has, is never known. See #914.
-export tick(ctx: TestTickContext) {
+# A dedicated server runs this too. On 1.20.6 the sound registry is in both processes, so its server
+# answers has_sound itself, while Alpha, Beta and 1.2.5 keep their pool on the client and forward the
+# question to the client of the player who started the run (#1040). play_ui_sound, when a test plays
+# one, also reaches that client, which owns the sound engine, so a server forwards the play (#1032).
+export tick_any_side(ctx: TestTickContext) {
     print2("has_sound ui.button.click", has_sound("minecraft:ui.button.click"))
     print2("has_sound random.click", has_sound("minecraft:random.click"))
 
