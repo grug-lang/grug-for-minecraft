@@ -6,6 +6,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.network.packet.Packet;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.World;
 
@@ -45,6 +46,13 @@ public final class GrugServerRun {
     /** Remembers the server a player logged in to, which is the only handle StationAPI gives. */
     public static void onServer(MinecraftServer joined) {
         server = joined;
+    }
+
+    /** Sends {@code packet} to every player who is on this server. */
+    public static void sendToAllPlayers(Packet packet) {
+        if (server != null && server.playerManager != null) {
+            server.playerManager.sendToAll(packet);
+        }
     }
 
     /** The overworld, or null before anyone has logged in. */

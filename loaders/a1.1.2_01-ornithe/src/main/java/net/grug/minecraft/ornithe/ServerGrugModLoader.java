@@ -1,7 +1,9 @@
 package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.grug.GrugGenerated;
+import net.grug.minecraft.ornithe.block.entity.GrugSavedDataAlpha;
 
 /**
  * The entrypoint of an Alpha a0.2.1 dedicated server (#1021).
@@ -16,6 +18,9 @@ import net.grug.minecraft.grug.GrugGenerated;
 public class ServerGrugModLoader implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
+        // The client keeps its own copy of a grug block entity, so a saved number the script writes
+        // here is sent to it (#1093). A singleplayer game has one world and installs none.
+        GrugSavedDataSync.install(new GrugSavedDataAlpha());
         GrugModLoader.LOGGER.info("grug is running on a dedicated server.");
     }
 }
