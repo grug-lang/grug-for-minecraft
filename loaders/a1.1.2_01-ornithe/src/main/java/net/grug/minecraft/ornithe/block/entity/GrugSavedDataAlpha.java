@@ -55,11 +55,6 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
     @Override
     public void send(Object blockEntity) {
         World world = GrugServerRun.world();
-        System.out.println(
-                "[GRUG SYNC] alpha send: world="
-                        + (world != null)
-                        + " players="
-                        + (world == null ? -1 : world.players.size()));
         if (world == null) {
             return;
         }
@@ -69,11 +64,6 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
             if (connection == null) {
                 connection = GrugControlAlpha.connectionFor((PlayerEntity) player);
             }
-            System.out.println(
-                    "[GRUG SYNC] alpha player "
-                            + player.getClass().getName()
-                            + " connection="
-                            + connection);
             if (connection != null) {
                 connection.send(packet);
             }

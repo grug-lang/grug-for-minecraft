@@ -445,17 +445,7 @@ public class GrugBlockEntity extends BlockEntity
             Connection connection,
             ClientboundBlockEntityDataPacket packet,
             HolderLookup.Provider registries) {
-        System.out.println(
-                "[GRUG SYNC] 1.20.6 client apply be="
-                        + System.identityHashCode(this)
-                        + " tag="
-                        + packet.getTag()
-                        + " marker before="
-                        + GrugSavedNumbers.get(this, "marker"));
         super.onDataPacket(connection, packet, registries);
-        System.out.println(
-                "[GRUG SYNC] 1.20.6 client applied, marker after="
-                        + GrugSavedNumbers.get(this, "marker"));
         if (level != null && level.isClientSide()) {
             // Only a block with geometry in the chunk's mesh has anything to mesh again: a block
             // that draws per frame reads this data from the next frame on.

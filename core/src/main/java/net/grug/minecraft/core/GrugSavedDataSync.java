@@ -74,25 +74,19 @@ public final class GrugSavedDataSync {
     public static synchronized void changed(Object blockEntity) {
         Transport installed = transport;
         if (installed == null) {
-            System.out.println("[GRUG SYNC] no transport installed");
             return;
         }
         if (!installed.onServer(blockEntity)) {
-            System.out.println("[GRUG SYNC] not the simulating side: " + blockEntity);
             return;
         }
         if (!installed.frameOnly(blockEntity)) {
-            System.out.println("[GRUG SYNC] not a frame-only block: " + blockEntity);
             return;
         }
         String now = snapshot(blockEntity);
         if (now.equals(LAST_SENT.get(blockEntity))) {
-            System.out.println("[GRUG SYNC] already sent: " + now);
             return;
         }
         LAST_SENT.put(blockEntity, now);
-        System.out.println(
-                "[GRUG SYNC] sending " + now + " through " + installed.getClass().getName());
         installed.send(blockEntity);
     }
 

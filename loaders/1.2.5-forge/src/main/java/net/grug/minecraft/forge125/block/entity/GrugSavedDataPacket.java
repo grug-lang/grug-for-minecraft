@@ -82,29 +82,12 @@ public class GrugSavedDataPacket extends Packet {
     @Override
     public void processPacket(NetHandler handler) {
         Object level = GrugCore.getAdapter().getLevel();
-        System.out.println(
-                "[GRUG SYNC] 1.2.5 client apply at "
-                        + x
-                        + ","
-                        + y
-                        + ","
-                        + z
-                        + " level="
-                        + level
-                        + " data="
-                        + data);
         if (!(level instanceof World)) {
             return;
         }
         TileEntity blockEntity = ((World) level).getBlockTileEntity(x, y, z);
         if (blockEntity instanceof GrugBlockEntity) {
             ((GrugBlockEntity) blockEntity).readSavedData(data);
-            System.out.println(
-                    "[GRUG SYNC] 1.2.5 client applied, marker="
-                            + net.grug.minecraft.grug.GrugSavedNumbers.get(blockEntity, "marker"));
-        } else {
-            System.out.println(
-                    "[GRUG SYNC] 1.2.5 client has no grug block entity there: " + blockEntity);
         }
     }
 
