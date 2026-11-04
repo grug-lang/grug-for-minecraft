@@ -15,6 +15,10 @@
 # runner's budget, which is scaled by the game's speed, is what ends a screen that never opens. The first use
 # used to stall the server thread for 1500 ms so that a build without #698's fix failed on the old count of
 # ticks: after #709 no length of stall does that, so it does not stall any more (#708).
+# A dedicated server skips this test, because its wait is the client's screen. A screen belongs to the
+# client, so every loader's server adapter answers Test.screen_open false (#1032), and the wait above could
+# never end there. What the test covers is also the client's own ordering, of the packet that opens the
+# screen against the one that places the block (#425), which a server has no screen to observe.
 # Which position the next use is at, and whether the current one is waiting for its screen.
 col: number = 0
 row: number = 0
