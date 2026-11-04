@@ -1,0 +1,41 @@
+# A server-run test that places blocks and then waits for the joined client to draw them (#1086,
+# option A). A dedicated server's own world answers settled at once, so the wait is forwarded: the
+# server flushes the block changes it queued, asks the client of the player who started the run, and
+# the client answers false until it has drawn them.
+# The assertion that the answer is false in the tick the wall is placed is what a server that does
+# not forward the call fails, because its own answer is true immediately. The two captures then
+# differ only if the client drew the wall before the second one.
+# Only a multiplayer run that forwards client calls runs a forwarded_ test.
+before: Option[Screenshot] = Option.new()
+
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        before.set(Test.screenshot().capture(620, 62, 700, 118))
+        origin: Vec3 = Test.get_origin()
+        _wall_in_front_of(origin)
+        # Same tick as the placement: the client cannot have drawn it, so a forwarded answer has to
+        # say the world is not settled. A server that answers for itself says it is.
+        ctx.assert(not Test.world_settled(), "The world should not be settled in the tick a block was placed.")
+        ctx.not_done()
+    } else if not Test.world_settled() {
+        ctx.not_done()
+    } else {
+        after: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
+        after.differs_from(before.unwrap(), 50)
+    }
+}
+
+local _wall_in_front_of(origin: Vec3) {
+    level: Level = Test.get_client_level()
+    z: number = origin.z() + 1
+    across: number = -2
+    while across <= 2 {
+        x: number = origin.x() + across
+        up: number = -4
+        while up <= 0 {
+            level.place_block(x, origin.y() + up, z, "grug:coverage_block")
+            up = up + 1
+        }
+        across = across + 1
+    }
+}

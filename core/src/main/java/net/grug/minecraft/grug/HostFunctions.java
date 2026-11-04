@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugFrameRequest;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugSoundArgs;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.core.GrugWorldRevision;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.gui.GrugGuiBuilder;
 
@@ -22,6 +23,16 @@ public class HostFunctions {
 
     @GrugGenerated("utility class: never instantiated")
     private HostFunctions() {}
+
+    /**
+     * The world a client shows changed, so a settle answer a server remembered for an older
+     * revision no longer describes it (#1086). Every host function that writes a block, a block
+     * entity's saved data or a slot a client may be showing calls this, which is what lets a
+     * forwarded {@code Test.world_settled} wait without freezing the world on every poll.
+     */
+    private static void worldChanged() {
+        GrugWorldRevision.bump();
+    }
 
     // Entities
 
@@ -767,6 +778,7 @@ public class HostFunctions {
     }
 
     public static void Test_notify_neighbors(long levelId, double x, double y, double z) {
+        worldChanged();
         withEntity(
                 "Test.notify_neighbors",
                 "level",
@@ -775,6 +787,7 @@ public class HostFunctions {
     }
 
     public static void Test_use_block(long levelId, double x, double y, double z) {
+        worldChanged();
         withEntity(
                 "Test.use_block",
                 "level",
@@ -1119,6 +1132,7 @@ public class HostFunctions {
     }
 
     public static void BlockEntity_set_saved_number(long blockEntityId, String name, double value) {
+        worldChanged();
         if (!GrugSavedNumbers.set(
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId), name, value)) {
             reportNotSaving("set_saved_number");
@@ -1134,6 +1148,7 @@ public class HostFunctions {
     }
 
     public static double BlockEntity_append_saved_list_record(long blockEntityId, String name) {
+        worldChanged();
         return withSavedLists(
                 "append_saved_list_record",
                 blockEntityId,
@@ -1143,6 +1158,7 @@ public class HostFunctions {
 
     public static void BlockEntity_remove_saved_list_record(
             long blockEntityId, String name, double index) {
+        worldChanged();
         withSavedRecord(
                 "remove_saved_list_record",
                 blockEntityId,
@@ -1171,6 +1187,7 @@ public class HostFunctions {
 
     public static void BlockEntity_set_saved_list_number(
             long blockEntityId, String name, double index, String key, double value) {
+        worldChanged();
         withSavedRecord(
                 "set_saved_list_number",
                 blockEntityId,
@@ -1196,6 +1213,7 @@ public class HostFunctions {
 
     public static void BlockEntity_set_saved_list_item(
             long blockEntityId, String name, double index, long itemId) {
+        worldChanged();
         withSavedRecord(
                 "set_saved_list_item",
                 blockEntityId,
@@ -1288,11 +1306,13 @@ public class HostFunctions {
                     "redraw: Only a grug block entity has a render function to draw again.");
             return;
         }
+        worldChanged();
         GrugCore.getAdapter().redraw(blockEntity);
     }
 
     public static void BlockEntity_set_item_count_in_slot(
             long blockEntityId, double slot, double count) {
+        worldChanged();
         GrugCore.getAdapter()
                 .setItemCountInSlot(
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, count);
@@ -1300,6 +1320,7 @@ public class HostFunctions {
 
     public static void BlockEntity_set_item_damage_in_slot(
             long blockEntityId, double slot, double damage) {
+        worldChanged();
         GrugCore.getAdapter()
                 .setItemDamageInSlot(
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, damage);
@@ -1307,6 +1328,7 @@ public class HostFunctions {
 
     public static void BlockEntity_set_item_in_slot(
             long blockEntityId, double slot, long itemId, double count) {
+        worldChanged();
         withEntity(
                 "BlockEntity.set_item_in_slot",
                 "item",
@@ -1626,6 +1648,7 @@ public class HostFunctions {
 
     public static void Level_place_block(
             long levelId, double x, double y, double z, String blockName) {
+        worldChanged();
         withEntity(
                 "Level.place_block",
                 "level",
@@ -1652,6 +1675,7 @@ public class HostFunctions {
                     "explode: power must be from 0 to " + Float.MAX_VALUE + ", got " + power);
             return;
         }
+        worldChanged();
         withEntity(
                 "Level.explode",
                 "level",

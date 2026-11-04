@@ -82,6 +82,16 @@ class GrugControlTest {
                 public void playUiSound(String path, double volume, double pitch) {
                     throw new AssertionError("no call was expected");
                 }
+
+                @Override
+                public boolean isWorldSettled() {
+                    throw new AssertionError("no settle ask was expected");
+                }
+
+                @Override
+                public void forgetSettledFrames() {
+                    throw new AssertionError("no settle ask was expected");
+                }
             };
 
     private static Loopback wireCalls(long timeoutMillis, GrugControlClient.Caller caller) {
@@ -103,6 +113,42 @@ class GrugControlTest {
         @Override
         public void playUiSound(String path, double volume, double pitch) {
             played.add(path + " " + volume + " " + pitch);
+        }
+
+        @Override
+        public boolean isWorldSettled() {
+            throw new AssertionError("no settle ask was expected");
+        }
+
+        @Override
+        public void forgetSettledFrames() {
+            throw new AssertionError("no settle ask was expected");
+        }
+    }
+
+    /** A client whose settle answer the test decides, and which counts the frames it forgets. */
+    private static final class Settled implements GrugControlClient.Caller {
+        boolean settled;
+        int forgotten;
+
+        @Override
+        public boolean hasSound(String path) {
+            throw new AssertionError("no sound call was expected");
+        }
+
+        @Override
+        public void playUiSound(String path, double volume, double pitch) {
+            throw new AssertionError("no sound call was expected");
+        }
+
+        @Override
+        public boolean isWorldSettled() {
+            return settled;
+        }
+
+        @Override
+        public void forgetSettledFrames() {
+            forgotten++;
         }
     }
 
@@ -936,6 +982,16 @@ class GrugControlTest {
         assertEquals(GrugControlWire.ANSWER_VALUE, value.type);
         assertEquals(1, value.value);
 
+        // A settle ask carries its revision in the volume slot, whole for every revision a run
+        // reaches.
+        GrugControlWire.Message settled =
+                GrugControlWire.decode(GrugControlWire.worldSettledRequest(10, 1_234_567_890_123L));
+        assertEquals(GrugControlWire.CALL_REQUEST, settled.type);
+        assertEquals(10, settled.id);
+        assertEquals(GrugControlWire.CALL_WORLD_SETTLED, settled.call);
+        assertEquals("", settled.text);
+        assertEquals(1_234_567_890_123L, (long) settled.volume);
+
         byte[] unknown = GrugControlWire.callRequest(1, (byte) 9, "x", 0, 0);
         assertThrows(IllegalArgumentException.class, () -> GrugControlWire.decode(unknown));
         byte[] nan =
@@ -976,7 +1032,11 @@ class GrugControlTest {
                                 ModLoaderAdapter.class.getClassLoader(),
                                 new Class<?>[] {ModLoaderAdapter.class},
                                 (proxy, method, args) -> {
-                                    seen.add(method.getName() + " " + args[0]);
+                                    seen.add(
+                                            method.getName()
+                                                    + (args == null || args.length == 0
+                                                            ? ""
+                                                            : " " + args[0]));
                                     return method.getReturnType() == boolean.class
                                             ? Boolean.TRUE
                                             : null;
@@ -984,7 +1044,11 @@ class GrugControlTest {
         GrugControlClient.Caller caller = GrugControlClient.adapterCaller(() -> adapter);
         assertTrue(caller.hasSound("a"));
         caller.playUiSound("b", 1, 1);
-        assertEquals(List.of("hasSound a", "playUiSound b"), seen);
+        assertTrue(caller.isWorldSettled());
+        caller.forgetSettledFrames();
+        assertEquals(
+                List.of("hasSound a", "playUiSound b", "isWorldSettled", "forgetSettledFrames"),
+                seen);
     }
 
     @Test
@@ -1001,6 +1065,16 @@ class GrugControlTest {
                             @Override
                             public void playUiSound(String path, double volume, double pitch) {
                                 throw new AssertionError("a refused call must not be performed");
+                            }
+
+                            @Override
+                            public boolean isWorldSettled() {
+                                throw new AssertionError("no settle ask was expected");
+                            }
+
+                            @Override
+                            public void forgetSettledFrames() {
+                                throw new AssertionError("no settle ask was expected");
                             }
                         });
         loop.client.beginRun();
@@ -1087,5 +1161,118 @@ class GrugControlTest {
                         GrugControlServer.ControlException.class,
                         () -> server[0].playUiSound("random.click", 1, 1));
         assertTrue(play.getMessage().contains("not the ack 1"), play.getMessage());
+    }
+
+    @Test
+    void aForwardedSettleAskIsAnsweredAndRememberedUntilTheWorldChanges() throws Exception {
+        Settled settled = new Settled();
+        Loopback loop = wireCalls(1000, settled);
+        loop.client.beginRun();
+        settled.settled = true;
+
+        // A revision this client has not answered is never settled: it forgets the frames counted
+        // so far, so the answer waits for frames drawn after the server flushed its changes.
+        assertFalse(loop.server.worldSettled());
+        assertTrue(loop.flushed);
+        assertEquals(1, settled.forgotten);
+        int asked = loop.toClient.size();
+
+        // The same revision, now that the client has drawn: settled, and the ask went out once
+        // more.
+        assertTrue(loop.server.worldSettled());
+        assertEquals(asked + 1, loop.toClient.size());
+        assertEquals(1, settled.forgotten);
+
+        // A settled answer holds for its revision, so a wait that polls does not freeze the world.
+        loop.flushed = false;
+        assertTrue(loop.server.worldSettled());
+        assertEquals(asked + 1, loop.toClient.size());
+        assertFalse(loop.flushed);
+
+        // A change makes the remembered answer stale, and the client says so.
+        GrugWorldRevision.bump();
+        settled.settled = false;
+        assertFalse(loop.server.worldSettled());
+        assertEquals(2, settled.forgotten);
+        assertTrue(loop.flushed);
+        // An unsettled answer is not remembered as one, so the next ask is a fresh question.
+        assertFalse(loop.server.worldSettled());
+    }
+
+    @Test
+    void aNewRunAsksTheClientAgainEvenAtTheSameRevision() throws Exception {
+        Settled settled = new Settled();
+        Loopback loop = wireCalls(1000, settled);
+        loop.client.beginRun();
+        settled.settled = true;
+        assertFalse(loop.server.worldSettled());
+        assertTrue(loop.server.worldSettled());
+        assertTrue(loop.server.worldSettled());
+
+        loop.server.endRun();
+        loop.client.beginRun();
+        settled.settled = true;
+        assertFalse(loop.server.worldSettled());
+    }
+
+    @Test
+    void aSettleAskWithoutAStarterIsAnErrorAndNothingIsFrozen() {
+        Loopback loop = wireCalls(1000, new Settled());
+
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> loop.server.worldSettled());
+
+        assertTrue(e.getMessage().contains("No client has started a run"), e.getMessage());
+        assertFalse(loop.flushed);
+        assertTrue(loop.toClient.isEmpty());
+    }
+
+    @Test
+    void aSettleAskAClientThatNeverStartedRefusesIsAnError() {
+        // The server has a starter, as if a malicious client had sent the start for it, but this
+        // client's own player did not start anything, so the answer is a refusal.
+        Loopback loop = wireCalls(1000, new Settled());
+        loop.server.onMessage(PLAYER, GrugControlWire.runStart());
+        GrugControlServer.clearFailure();
+
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> loop.server.worldSettled());
+
+        assertTrue(e.getMessage().contains("refused"), e.getMessage());
+        assertTrue(GrugControlServer.failed());
+    }
+
+    @Test
+    void aSettleAnswerOutsideTheAgreedOnesFailsTheCall() {
+        GrugControlServer[] server = new GrugControlServer[1];
+        GrugControlServer.Link link =
+                new GrugControlServer.Link() {
+                    @Override
+                    public boolean sendToStarter(Object starter, byte[] message) {
+                        long id = GrugControlWire.decode(message).id;
+                        server[0].onMessage(PLAYER, GrugControlWire.answerValue(id, (byte) 2));
+                        return true;
+                    }
+
+                    @Override
+                    public void flushWorld() {}
+
+                    @Override
+                    public boolean mayStartRun(Object sender) {
+                        return true;
+                    }
+                };
+        server[0] = new GrugControlServer(link, 1000);
+        server[0].onMessage(PLAYER, GrugControlWire.runStart());
+        GrugControlServer.clearFailure();
+
+        GrugControlServer.ControlException e =
+                assertThrows(
+                        GrugControlServer.ControlException.class, () -> server[0].worldSettled());
+
+        assertTrue(e.getMessage().contains("not 0 or 1"), e.getMessage());
+        assertTrue(GrugControlServer.failed());
     }
 }

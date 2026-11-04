@@ -91,6 +91,7 @@ public final class GrugControlServer {
     private final AtomicLong nextId = new AtomicLong(1);
     private final Map<Long, Pending> pending = new ConcurrentHashMap<>();
     private final AtomicReference<Object> starter = new AtomicReference<>();
+    private final GrugSettledRevision settled = new GrugSettledRevision();
 
     public GrugControlServer(Link link, long timeoutMillis) {
         this.link = link;
@@ -176,6 +177,7 @@ public final class GrugControlServer {
         if (to != null) {
             link.sendToStarter(to, GrugControlWire.runEnd());
         }
+        settled.forget();
         failAll("The run ended while the call was waiting.");
     }
 
@@ -345,6 +347,47 @@ public final class GrugControlServer {
         }
     }
 
+    /**
+     * Asks the starter's client whether it has drawn the world the server has, and waits for the
+     * answer with the world frozen as in {@link #capture} (#1086).
+     *
+     * <p>The server's own answer is about frames and block packets it owes nobody, so a server-run
+     * test that places blocks and waits for the client to draw them has to ask the client. The
+     * changes the test made are flushed first, as a capture's are, because the client would
+     * otherwise answer about a world without them.
+     *
+     * <p>A settled answer is remembered for the revision it was given at, which is what {@link
+     * GrugWorldRevision} bumps on every change, so a wait that asks once per tick freezes the world
+     * only when a host function has changed it since the last settled answer. A client that has not
+     * seen the revision yet answers unsettled, so a test that places a block and asks in the same
+     * tick is told the client has not drawn it.
+     */
+    public boolean worldSettled() throws ControlException {
+        Object to = starter.get();
+        if (to == null) {
+            throw new ControlException(
+                    "No client has started a run, so there is no client to ask whether the world is"
+                            + " settled. A client starts a run when its player starts one.");
+        }
+        long revision = GrugWorldRevision.current();
+        if (settled.answeredSettled(revision)) {
+            return true;
+        }
+        link.flushWorld();
+        byte result;
+        try {
+            result = forward(GrugControlWire.CALL_WORLD_SETTLED, "", 0, 0, revision);
+        } catch (ControlException e) {
+            FAILED.set(true);
+            throw e;
+        }
+        if (result != 0 && result != 1) {
+            throw failure("The client answered world_settled with " + result + ", not 0 or 1.");
+        }
+        settled.record(revision, result == 1);
+        return result == 1;
+    }
+
     private static ControlException failure(String message) {
         FAILED.set(true);
         return new ControlException(message);
@@ -370,14 +413,19 @@ public final class GrugControlServer {
             throw failure("The call was not sent: " + problem);
         }
         try {
-            return forward(call, name, volume, pitch);
+            return forward(call, name, volume, pitch, 0);
         } catch (ControlException e) {
             FAILED.set(true);
             throw e;
         }
     }
 
-    private byte forward(byte call, String name, double volume, double pitch)
+    /**
+     * Forwards one client-only call to the starter's client and waits for its one-byte result, with
+     * the world frozen as in {@link #capture}. {@code revision} is the world revision a {@link
+     * GrugControlWire#CALL_WORLD_SETTLED} asks about, and is unused by the sound calls.
+     */
+    private byte forward(byte call, String name, double volume, double pitch, long revision)
             throws ControlException {
         Object to = starter.get();
         if (to == null) {
@@ -392,19 +440,23 @@ public final class GrugControlServer {
         try {
             // No flushWorld here: a sound call depends on no world state, and flushing sends the
             // queued block changes to the client early, which changed what a later test's client
-            // saw (a chest removed by an explosion before its block entity arrived, on b1.7.3).
+            // saw (a chest removed by an explosion before its block entity arrived, on b1.7.3). A
+            // settle ask flushes before it reaches here, because its answer is about those changes.
+            byte[] message =
+                    call == GrugControlWire.CALL_WORLD_SETTLED
+                            ? GrugControlWire.worldSettledRequest(id, revision)
+                            : GrugControlWire.callRequest(id, call, name, volume, pitch);
             System.out.println(
                     "[GRUG CONTROL] request "
                             + id
-                            + ": call "
-                            + call
-                            + " \""
-                            + name
-                            + "\" sent to "
+                            + ": "
+                            + (call == GrugControlWire.CALL_WORLD_SETTLED
+                                    ? "world_settled at revision " + revision
+                                    : "call " + call + " \"" + name + "\"")
+                            + " sent to "
                             + to
                             + ", the world is frozen until the client answers");
-            if (!link.sendToStarter(
-                    to, GrugControlWire.callRequest(id, call, name, volume, pitch))) {
+            if (!link.sendToStarter(to, message)) {
                 throw new ControlException(
                         "The player who started the run is not connected any more.");
             }

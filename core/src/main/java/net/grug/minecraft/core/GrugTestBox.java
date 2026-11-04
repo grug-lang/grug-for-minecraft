@@ -74,6 +74,9 @@ public final class GrugTestBox {
             double feetY,
             double feetZ,
             int radius) {
+        // The room replaces what the previous test left, so a settle answer a server remembered for
+        // an older world no longer holds. See GrugWorldRevision.
+        GrugWorldRevision.bump();
         int px = (int) Math.floor(feetX);
         int py = (int) Math.floor(feetY);
         int pz = (int) Math.floor(feetZ);

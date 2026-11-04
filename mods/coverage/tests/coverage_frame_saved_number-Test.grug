@@ -9,6 +9,8 @@
 # so the ask is 1 percent of the crop, where two captures of an unchanged frame differ in none.
 # Setting the number again to the value it holds changes nothing the client needs, so that is no
 # new send; the loader skips it, and the test reaches that path by saving the same value again.
+# It defines tick_any_side, so a dedicated server runs it too: the settle wait is forwarded to the
+# joined client, and the captures are the client's (#1086).
 frame_block: Option[BlockEntity] = Option.new()
 before: Option[Screenshot] = Option.new()
 saved: bool = false
@@ -16,7 +18,7 @@ saved: bool = false
 # The runner tick the number was saved on.
 saved_tick: number = 0
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     if ctx.current_tick() == 0 {
         _setup(ctx)
         ctx.not_done()
