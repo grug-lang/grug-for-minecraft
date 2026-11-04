@@ -230,18 +230,19 @@ local _force_remesh(ctx: TestTickContext) {
 # Places the engine as a player does, because the reference's BlockEngine.c, which faces a new
 # engine up and looks for a receptor to face, is only called for a player's placement. The port does
 # the same on its first tick, so placing its block is enough. The reference's engine is placed by
-# right-clicking the top of a block under it with the engine held, and that block is cleared again
-# so both scenes hold the same blocks. See redstone_engine-Test.grug.
+# right-clicking the side of a block at z + 1 with the engine held, which is the face the test
+# player's eye sees of it, so the engine lands at z; that block is cleared again so both scenes
+# hold the same blocks. The reference's placement ignores the face. See redstone_engine-Test.grug.
 local _place_engine(level: Level, x: number, y: number, z: number) {
     if not Test.is_reference() {
         level.place_block(x, y, z, "grug:redstone_engine")
         return
     }
-    level.place_block(x, y - 1, z, "minecraft:stone")
+    level.place_block(x, y, z + 1, "minecraft:stone")
     player: Player = Test.get_player()
     held: Item = item(resource_location("buildcraft:engineWood"))
     Test.set_held_item(player, held)
-    Test.use_block(level, x, y - 1, z)
+    Test.use_block(level, x, y, z + 1)
     Test.clear_held_item(player)
-    level.place_block(x, y - 1, z, "minecraft:air")
+    level.place_block(x, y, z + 1, "minecraft:air")
 }

@@ -275,19 +275,20 @@ local _stage(energy: number) number {
 # Places the engine as a player does, because the reference's BlockEngine.c, which faces a new
 # engine up and looks for a receptor to face, is only called for a player's placement. The port does
 # the same on its first tick, so placing its block is enough. The reference's engine is placed by
-# right-clicking the top of a block under it with the engine held, and that block is cleared again
-# so both scenes hold the same blocks. ItemEngine names metadata 0 tile.engineWood, which is how
-# the reference's engine item is found.
+# right-clicking the side of a block at ez + 1 with the engine held, which is the face the test
+# player's eye sees of it, so the engine lands at ez; that block is cleared again so both scenes
+# hold the same blocks. The reference's placement ignores the face. ItemEngine names metadata 0
+# tile.engineWood, which is how the reference's engine item is found.
 local _place_engine(level: Level) {
     if not Test.is_reference() {
         level.place_block(ex, ey, ez, "grug:redstone_engine")
         return
     }
-    level.place_block(ex, ey - 1, ez, "minecraft:stone")
+    level.place_block(ex, ey, ez + 1, "minecraft:stone")
     player: Player = Test.get_player()
     held: Item = item(resource_location("buildcraft:engineWood"))
     Test.set_held_item(player, held)
-    Test.use_block(level, ex, ey - 1, ez)
+    Test.use_block(level, ex, ey, ez + 1)
     Test.clear_held_item(player)
-    level.place_block(ex, ey - 1, ez, "minecraft:air")
+    level.place_block(ex, ey, ez + 1, "minecraft:air")
 }

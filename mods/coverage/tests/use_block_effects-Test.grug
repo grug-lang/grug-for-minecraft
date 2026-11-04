@@ -1,11 +1,12 @@
 # Covers Test.use_block itself, on a client and on a dedicated server: a click runs the block's use
 # export against the world the test reads, and a block that declines leaves the click to the held
-# item, which places it against the face that was clicked. The face is the top one on both sides,
-# which is the face the client path passes, so the held block lands above the clicked block on a
-# dedicated server too. Both fixtures stand inside the room, whose shell is four blocks out: a block
-# in the shell has no air above it to place into. On 1.20.6 a client reaches the block by a packet,
-# so each step waits for the effect it asked for rather than counting ticks: a tick is not a unit of
-# time there (#688), and the runner's budget ends a click that never arrives.
+# item, which places it against the face that was clicked. The face is the one the test player's eye
+# sees of the block, the same on both sides (#1106): both fixtures stand above the eye, so the held
+# block lands below the clicked block on a dedicated server too. Both fixtures stand inside the
+# room, whose shell is four blocks out: a block in the shell has no air above it to place into. On
+# 1.20.6 a client reaches the block by a packet, so each step waits for the effect it asked for
+# rather than counting ticks: a tick is not a unit of time there (#688), and the runner's budget
+# ends a click that never arrives.
 step: number = 0
 
 export tick_any_side(ctx: TestTickContext) {
@@ -30,10 +31,10 @@ export tick_any_side(ctx: TestTickContext) {
         Test.use_block(level, x + 2, y, z)
         step = 2
         ctx.not_done()
-    } else if not _is_cobblestone(level, x + 2, y + 1, z) {
+    } else if not _is_cobblestone(level, x + 2, y - 1, z) {
         ctx.not_done()
     } else {
-        ctx.assert(not _is_cobblestone(level, x, y + 1, z), "A click the block handled should not place the held block.")
+        ctx.assert(not _is_cobblestone(level, x, y - 1, z), "A click the block handled should not place the held block.")
         Test.clear_held_item(Test.get_player())
     }
 }

@@ -45,20 +45,21 @@ export tick_any_side(ctx: TestTickContext) {
 }
 
 # The reference's pipe gets its kind from ItemPipe, so it is placed as a player places it, by
-# right-clicking the top of a block under it with the pipe held, and that block is cleared again so
-# both scenes hold the same blocks.
+# right-clicking the bottom of a block above it with the pipe held, which is the face the test
+# player's eye sees of it, so the pipe lands on that block's own level; that block is cleared again
+# so both scenes hold the same blocks.
 local _place_pipe(level: Level, x: number, y: number, z: number) {
     if not Test.is_reference() {
         level.place_block(x, y, z, "grug:wooden_pipe")
         return
     }
-    level.place_block(x, y - 1, z, "minecraft:stone")
+    level.place_block(x, y + 1, z, "minecraft:stone")
     player: Player = Test.get_player()
     held: Item = item(resource_location("buildcraft:PipeItemsWood"))
     Test.set_held_item(player, held)
-    Test.use_block(level, x, y - 1, z)
+    Test.use_block(level, x, y + 1, z)
     Test.clear_held_item(player)
-    level.place_block(x, y - 1, z, "minecraft:air")
+    level.place_block(x, y + 1, z, "minecraft:air")
 }
 
 # A straight run along x: the centre and the two arms collide, the space above and below the pipe

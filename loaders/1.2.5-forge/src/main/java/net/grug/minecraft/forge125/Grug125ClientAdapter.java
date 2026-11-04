@@ -3,6 +3,7 @@ package net.grug.minecraft.forge125;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestScreens;
+import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.forge125.block.GrugBlocks;
 import net.grug.minecraft.forge125.block.GrugBoxRenderer;
 import net.grug.minecraft.forge125.client.GlBridge;
@@ -426,7 +427,13 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         Block block = blockAt(blockId);
 
         if (block != null) {
-            rightClickBlock(player, world, blockX, blockY, blockZ);
+            rightClickBlock(
+                    player,
+                    world,
+                    blockX,
+                    blockY,
+                    blockZ,
+                    GrugUseBlockFace.face(testPlayerEye(player), blockX, blockY, blockZ));
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
@@ -446,9 +453,15 @@ public class Grug125ClientAdapter extends Grug125Adapter {
      * leaves the click to the item. This is not restricted to grug blocks: real mods open their GUI
      * from a server-side activation (BuildCraft's BlockAutoWorkbench does exactly this), and the
      * test only has to trigger it, not reproduce it.
+     *
+     * <p>The face is the one a ray from the test player's eye to the block's centre enters, which
+     * is the face the player sees of it: the top of a block below the eye, the bottom of one above
+     * it, and the side facing the player of one at its level. The server path asks {@link
+     * GrugUseBlockFace} with the same eye, so both sides click the same face for the same fixture
+     * (#1106).
      */
     private static void rightClickBlock(
-            EntityPlayer player, World world, int blockX, int blockY, int blockZ) {
+            EntityPlayer player, World world, int blockX, int blockY, int blockZ, int side) {
         ModLoader.getMinecraftInstance()
                 .playerController
                 .onPlayerRightClick(
@@ -458,7 +471,7 @@ public class Grug125ClientAdapter extends Grug125Adapter {
                         blockX,
                         blockY,
                         blockZ,
-                        1);
+                        side);
     }
 
     @Override

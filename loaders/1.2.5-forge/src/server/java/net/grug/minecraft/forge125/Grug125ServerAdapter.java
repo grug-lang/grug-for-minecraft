@@ -4,6 +4,7 @@ import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.forge125.control.GrugControlServer125;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -257,10 +258,11 @@ public class Grug125ServerAdapter extends Grug125Adapter {
      * which is what {@code NetServerHandler.handlePlace} reaches for a client's use packet: the
      * block's activation first, and the held item's use against it when the block declines.
      *
-     * <p>The face is the top one, which is the face the client path passes to {@code
-     * onPlayerRightClick}: a test has no camera to aim, and the test room's blocks sit above the
-     * player's level view, so a ray trace could not reach them. Both sides therefore click the same
-     * face.
+     * <p>The face is the one a ray from the test player's eye to the block's centre enters, which
+     * is the face the player sees of it: the top of a block below the eye, the bottom of one above
+     * it, and the side facing the player of one at its level. The client path asks {@link
+     * GrugUseBlockFace} with the same eye, so both sides click the same face for the same fixture
+     * (#1106).
      */
     @Override
     public void useBlockForTest(Object levelObj, double x, double y, double z) {
@@ -290,7 +292,13 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         }
 
         player.itemInWorldManager.activeBlockOrUseItem(
-                player, world, player.inventory.getCurrentItem(), blockX, blockY, blockZ, 1);
+                player,
+                world,
+                player.inventory.getCurrentItem(),
+                blockX,
+                blockY,
+                blockZ,
+                GrugUseBlockFace.face(testPlayerEye(player), blockX, blockY, blockZ));
     }
 
     /**

@@ -7,6 +7,7 @@ import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
 import net.grug.minecraft.core.GrugTestPlayerSnap;
+import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.GrugWorldReady;
 import net.grug.minecraft.core.ModLoaderAdapter;
 import net.grug.minecraft.grug.BlockPos;
@@ -1357,9 +1358,17 @@ public class StationApiAdapter implements ModLoaderAdapter {
             // Go through the client's own right-click, which asks the block's use first and the
             // held
             // item after, so the test drives the same path a real click does and a block that
-            // declines leaves the click to the item.
+            // declines leaves the click to the item. The face is the one a ray from the test
+            // player's eye to the block's centre enters, which is the face the player sees of it
+            // and the face the server path picks from the same eye (#1106).
             mc.interactionManager.interactBlock(
-                    player, world, player.inventory.getSelectedItem(), blockX, blockY, blockZ, 1);
+                    player,
+                    world,
+                    player.inventory.getSelectedItem(),
+                    blockX,
+                    blockY,
+                    blockZ,
+                    GrugUseBlockFace.face(testPlayerEye(player), blockX, blockY, blockZ));
         } else {
             Grug.hostFunctionErrorHappened(
                     Grug.statePtr,
