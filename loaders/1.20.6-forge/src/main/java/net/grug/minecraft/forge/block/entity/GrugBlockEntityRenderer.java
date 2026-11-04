@@ -55,8 +55,6 @@ import net.minecraft.world.level.block.state.BlockState;
         "draws during the game's frame, so it is coupled to the renderer rather than to grug")
 public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEntity> {
 
-    private static long LAST_RENDER_LOG = 0;
-
     @Override
     public void render(
             GrugBlockEntity blockEntity,
@@ -71,12 +69,17 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
             return;
         }
 
-        long now = System.currentTimeMillis();
-        if (now - LAST_RENDER_LOG > 500) {
-            LAST_RENDER_LOG = now;
+        if (state.getBlock()
+                .builtInRegistryHolder()
+                .key()
+                .location()
+                .toString()
+                .equals("grug:coverage_frame")) {
             System.out.println(
                     "[GRUG SYNC] 1.20.6 render be="
                             + System.identityHashCode(blockEntity)
+                            + " handle="
+                            + blockEntity.getGrugEntityHandle()
                             + " marker="
                             + GrugSavedNumbers.get(blockEntity, "marker"));
         }
