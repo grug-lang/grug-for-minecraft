@@ -122,8 +122,12 @@ class GrugTestBoxTest {
         }
 
         void build(int radius) {
+            build(radius, false);
+        }
+
+        void build(int radius, boolean keepFeetBlock) {
             placements = 0;
-            GrugTestBox.build(adapter, "level", 10.5, 64.0, -20.5, radius);
+            GrugTestBox.build(adapter, "level", 10.5, 64.0, -20.5, radius, keepFeetBlock);
         }
 
         void put(int x, int y, int z, String block) {
@@ -159,6 +163,26 @@ class GrugTestBoxTest {
 
         assertEquals(3, world.placements);
         assertEquals(room, world.blocks);
+    }
+
+    /**
+     * The block at the player's feet is cleared unless the caller keeps it, which only the
+     * b1.7.3-ornithe server does and only for a collision shape the hold reads. The 1.2.5 test
+     * save's feet block is tall grass, so a build there must still clear it (#1102).
+     */
+    @Test
+    void theFeetBlockIsClearedUnlessTheCallerKeepsIt() {
+        FakeWorld cleared = new FakeWorld(true);
+        cleared.put(10, 64, -21, "minecraft:tallgrass");
+        cleared.build(3, false);
+        assertFalse(cleared.blocks.containsKey("10 64 -21"));
+
+        FakeWorld kept = new FakeWorld(true);
+        kept.put(10, 64, -21, "minecraft:stone_slab");
+        kept.build(3, true);
+        assertEquals("minecraft:stone_slab", kept.blocks.get("10 64 -21"));
+        // The stand block under it is still placed, so the kept surface has its support.
+        assertEquals("minecraft:stone", kept.blocks.get("10 63 -21"));
     }
 
     @Test

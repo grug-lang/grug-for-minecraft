@@ -1278,7 +1278,7 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         // server, the room sits 1.62 blocks too low and its ceiling lands directly above the
         // origin, so a declined click has no air to place the held block into (#1090).
         GrugTestBox.build(
-                this, getLevel(), player.posX, player.boundingBox.minY, player.posZ, radius);
+                this, getLevel(), player.posX, player.boundingBox.minY, player.posZ, radius, false);
     }
 
     @Override

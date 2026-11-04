@@ -431,7 +431,8 @@ public class ForgeAdapter implements ModLoaderAdapter {
         RENDER_SETTLE.reset();
         Player player = (Player) testPlayer();
         if (player == null) return;
-        GrugTestBox.build(this, getLevel(), player.getX(), player.getY(), player.getZ(), radius);
+        GrugTestBox.build(
+                this, getLevel(), player.getX(), player.getY(), player.getZ(), radius, false);
     }
 
     @Override

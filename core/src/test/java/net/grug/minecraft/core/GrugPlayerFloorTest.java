@@ -10,8 +10,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Covers the floor a dedicated server holds a player on in {@link GrugPlayerFloor}. */
 class GrugPlayerFloorTest {
@@ -50,9 +52,20 @@ class GrugPlayerFloorTest {
 
         private final Map<String, List<CollisionBox>> boxes = new HashMap<>();
 
+        /**
+         * Positions that hold a block with no collision box, such as a plant or a torch. They are
+         * not air, so a floor that gave a present block a top would answer differently for them.
+         */
+        private final Set<String> nonBlocking = new HashSet<>();
+
         /** A full cube, whose collision top is the block's own top. */
         void addSolid(int x, int y, int z) {
             addBox(x, y, z, 0.0, 0.0, 1.0, 1.0, 1.0);
+        }
+
+        /** A block that is there but has no collision box, as a plant or a torch has none. */
+        void addNonBlocking(int x, int y, int z) {
+            nonBlocking.add(x + "," + y + "," + z);
         }
 
         /** A block whose whole footprint stops the player at {@code top} above its bottom. */
@@ -75,7 +88,11 @@ class GrugPlayerFloorTest {
 
         @Override
         public double collisionTop(int x, int y, int z, double pointX, double pointZ) {
-            List<CollisionBox> list = boxes.get(x + "," + y + "," + z);
+            String key = x + "," + y + "," + z;
+            if (nonBlocking.contains(key)) {
+                return BlockSource.NO_COLLISION;
+            }
+            List<CollisionBox> list = boxes.get(key);
             if (list == null) {
                 return BlockSource.NO_COLLISION;
             }
@@ -109,6 +126,35 @@ class GrugPlayerFloorTest {
         assertTrue(GrugPlayerFloor.below(feet, floor));
         assertFalse(GrugPlayerFloor.standsOn(feet, floor));
         assertTrue(GrugPlayerFloor.insideABlock(level, -23.5, feet, -64.5));
+    }
+
+    /**
+     * The inside test and the standing test share one tolerance, so this pins the boundary: a
+     * millionth above a top is not inside, a millionth under it is still standing on it (the
+     * client's own arithmetic is off by about a millionth and the server accepts a fall of up to
+     * 0.0625), and more than the tolerance under it is inside. A future change to {@link
+     * GrugPlayerFloor#TOLERANCE} has to move all three together.
+     */
+    @Test
+    void theInsideATopBoundaryIsTheStandingTolerance() {
+        FakeLevel level = new FakeLevel();
+        level.addSolid(-24, 70, -65);
+
+        double above = 71.000001;
+        assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, above, -64.5));
+        assertTrue(GrugPlayerFloor.standsOn(above, 71.0));
+
+        double aMillionthUnder = 70.999999;
+        assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, aMillionthUnder, -64.5));
+        assertTrue(GrugPlayerFloor.standsOn(aMillionthUnder, 71.0));
+
+        double halfTheToleranceUnder = 71.0 - GrugPlayerFloor.TOLERANCE / 2.0;
+        assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, halfTheToleranceUnder, -64.5));
+        assertTrue(GrugPlayerFloor.standsOn(halfTheToleranceUnder, 71.0));
+
+        double twiceTheToleranceUnder = 71.0 - 2.0 * GrugPlayerFloor.TOLERANCE;
+        assertTrue(GrugPlayerFloor.insideABlock(level, -23.5, twiceTheToleranceUnder, -64.5));
+        assertFalse(GrugPlayerFloor.standsOn(twiceTheToleranceUnder, 71.0));
     }
 
     /** A player that landed on the same ground stands on the floor and is not inside a block. */
@@ -168,15 +214,19 @@ class GrugPlayerFloorTest {
     }
 
     /**
-     * A plant at the feet has no collision box, so it does not make the player inside a block and a
-     * player standing in one may start a run.
+     * A plant at the feet is a block that is there but has no collision box, so it does not make
+     * the player inside a block, it is not a floor, and a player standing in one may start a run.
+     * The level holds a block at 71, not air, so a floor that gave a present block a top would fail
+     * here.
      */
     @Test
     void aPlantAtTheFeetIsNotInsideABlock() {
         FakeLevel level = new FakeLevel();
         level.addSolid(-24, 70, -65);
+        level.addNonBlocking(-24, 71, -65);
 
         assertEquals(71.0, GrugPlayerFloor.floorTop(level, -23.5, 71.0, -64.5));
+        assertTrue(GrugPlayerFloor.standsOn(71.0, 71.0));
         assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, 71.0, -64.5));
     }
 

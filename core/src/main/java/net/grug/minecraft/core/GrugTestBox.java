@@ -32,6 +32,11 @@ package net.grug.minecraft.core;
  * around the player and {@link #AREA_TOP} above their feet, which covers the bands the tests build
  * their fixtures in. That is what lets every test start from the same empty world instead of from
  * what an earlier test, or an earlier suite pass, left behind. See #254.
+ *
+ * <p>The one block a caller may ask to keep is the one at the player's feet, which is where a
+ * non-full floor such as a slab sits. Only the b1.7.3-ornithe server asks, and only for a block
+ * whose collision shape the hold reads, so every other loader clears that block exactly as before
+ * (#1102).
  */
 public final class GrugTestBox {
     /**
@@ -66,6 +71,12 @@ public final class GrugTestBox {
      * block under them, so the player does not move when it replaces the ground they were standing
      * on. A caller that knows only the eye height has to subtract it first, which is what each
      * adapter's version of {@link ModLoaderAdapter#buildTestBox(int)} does.
+     *
+     * <p>{@code keepFeetBlock} leaves the block the feet are in in place, which the b1.7.3-ornithe
+     * server asks for a collision shape the hold reads: a slab's top is the surface the hold puts
+     * the player on, so clearing it would drop them onto the stand block below by the missing part
+     * of the block. Every other caller passes false and clears it as before, so a plant, water or a
+     * wall torch at the feet never survives the build (#1102).
      */
     public static void build(
             ModLoaderAdapter adapter,
@@ -73,7 +84,8 @@ public final class GrugTestBox {
             double feetX,
             double feetY,
             double feetZ,
-            int radius) {
+            int radius,
+            boolean keepFeetBlock) {
         // The room replaces what the previous test left, so a settle answer a server remembered for
         // an older world no longer holds. See GrugWorldRevision.
         GrugWorldRevision.bump();
@@ -131,12 +143,11 @@ public final class GrugTestBox {
                         if (roomIsWhole && room.blockAt(x, y, z) != null) {
                             continue;
                         }
-                        // The block the player's feet are in is left in place. On a full block it
-                        // is air, and on a non-full one (a slab, a stair's step, soul sand) it is
-                        // the surface the player stands on: the server holds the feet on that
-                        // block's collision top, so clearing it would drop them onto the stand
-                        // block below by the missing part of the block (#1102).
-                        if (x == px && y == py && z == pz) {
+                        // The block the player's feet are in is the one block a caller may keep:
+                        // on a non-full floor such as a slab it is the surface the server holds the
+                        // feet on, so clearing it would drop them onto the stand block below by
+                        // the missing part of the block (#1102).
+                        if (keepFeetBlock && x == px && y == py && z == pz) {
                             continue;
                         }
                         clearBlock(adapter, level, x, y, z);
