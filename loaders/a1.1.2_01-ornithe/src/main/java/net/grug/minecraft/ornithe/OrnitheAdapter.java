@@ -506,10 +506,21 @@ public class OrnitheAdapter implements ModLoaderAdapter {
                             + " position in a chunk the client has not received is discarded.");
             return;
         }
+        // A quiet write does not tell the world's listeners, and on a dedicated server that is
+        // what queues the change for the joined client. See #1078.
+        notifyPlacedBlock(world, posX, posY, posZ);
         // The client and the server share this loader's world, so the block is there, but the
         // settle wait still has to be told that a frame has to see it. See #804.
         blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
     }
+
+    /**
+     * Tells the world that {@link #placeBlock} changed a position, which is how a dedicated server
+     * queues the change for a joined client. The client and the server share this loader's world,
+     * so a client's own frame already shows the block and this does nothing there; {@code
+     * ServerOrnitheAdapter} overrides it. See #1078.
+     */
+    protected void notifyPlacedBlock(World world, int x, int y, int z) {}
 
     /**
      * The name this loader spells a canonical block name with, which is what {@link #resolveBlock}

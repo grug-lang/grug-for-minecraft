@@ -1,25 +1,36 @@
 # A server-run test, a plain tick and not tick_any_side, that places blocks and then calls
 # Screenshot.capture (#1040, option A). The dedicated server forwards the capture to the joined
 # client of the player who started the run, stays frozen until the client answers, and hands the
-# pixels back here. Capturing the empty room, placing a wall in front of the camera and capturing
-# again must give two frames that differ, which is only true if the client drew the wall the
-# server placed before it captured. Only a multiplayer run that forwards client calls runs a
-# forwarded_ test.
-before: Option[Screenshot] = Option.new()
+# pixels back here. Only a multiplayer run that forwards client calls runs a forwarded_ test.
+# Every change gets a tick of its own and every capture the tick after it. The server sends its
+# queued block changes at the end of its own tick, so a capture in the same tick as a placement
+# would be taken before that send and would not show the change. The wall goes up in tick 0 and is
+# captured in tick 1, and comes down in tick 2 and is captured in tick 3, so the two captures are
+# the wall and the room it stood in front of, each taken after its change reached the client.
+# The wall is obsidian in a stone room, which differs by more than the comparison's per-channel
+# floor even when the room's light is dim. Without the notify a dedicated server sends after its
+# quiet placement, neither change reaches the client, both captures are the room, and the frames
+# differ by light noise alone rather than by the 50% asked for. See #1078.
+wall: Option[Screenshot] = Option.new()
 
 export tick(ctx: TestTickContext) {
+    origin: Vec3 = Test.get_origin()
     if ctx.current_tick() == 0 {
-        before.set(Test.screenshot().capture(620, 62, 700, 118))
-        origin: Vec3 = Test.get_origin()
-        _wall_in_front_of(origin)
+        _wall_in_front_of(origin, "minecraft:obsidian")
+        ctx.not_done()
+    } else if ctx.current_tick() == 1 {
+        wall.set(Test.screenshot().capture(620, 62, 700, 118))
+        ctx.not_done()
+    } else if ctx.current_tick() == 2 {
+        _wall_in_front_of(origin, "minecraft:air")
         ctx.not_done()
     } else {
-        after: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
-        after.differs_from(before.unwrap(), 50)
+        room: Screenshot = Test.screenshot().capture(620, 62, 700, 118)
+        room.differs_from(wall.unwrap(), 50)
     }
 }
 
-local _wall_in_front_of(origin: Vec3) {
+local _wall_in_front_of(origin: Vec3, block_name: string) {
     level: Level = Test.get_client_level()
     z: number = origin.z() + 1
     across: number = -2
@@ -27,7 +38,7 @@ local _wall_in_front_of(origin: Vec3) {
         x: number = origin.x() + across
         up: number = -4
         while up <= 0 {
-            level.place_block(x, origin.y() + up, z, "grug:coverage_block")
+            level.place_block(x, origin.y() + up, z, block_name)
             up = up + 1
         }
         across = across + 1

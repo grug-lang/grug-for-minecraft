@@ -4,7 +4,8 @@
   "package": "net.grug.minecraft.ornithe.mixin",
   "compatibilityLevel": "JAVA_8",
   "server": [
-    "ServerWorldMixin"
+    "ServerWorldMixin",
+    "WorldNotifyAccess"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
+import net.grug.minecraft.ornithe.mixin.WorldNotifyAccess;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.world.World;
@@ -46,6 +47,17 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     @Override
     public GrugSide getSide() {
         return GrugSide.DEDICATED_SERVER;
+    }
+
+    /**
+     * Queues the placement for the joined client. {@code setBlockQuietly} writes the chunk without
+     * telling the world's listeners, and it is the listener that queues the change in the player
+     * manager, so without this a dedicated server's placement never reaches the client. The notify
+     * is the one {@code setBlock} does, without its neighbour updates. See #1078.
+     */
+    @Override
+    protected void notifyPlacedBlock(World world, int x, int y, int z) {
+        ((WorldNotifyAccess) world).grug$notifyBlockChanged(x, y, z);
     }
 
     @Override
