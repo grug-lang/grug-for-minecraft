@@ -31,7 +31,6 @@ import net.minecraft.src.World;
 import net.minecraft.src.WorldRenderer;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -687,20 +686,6 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         return field;
     }
 
-    /**
-     * Compares a capture with the reference PNGs beside the mod.
-     *
-     * <p>grug resolves a resource to "&lt;mod name&gt;/&lt;path relative to the mod&gt;", so
-     * joining it onto the mods root gives the reference directory on disk. That directory holds
-     * PNGs named after the loaders that produced them, and the assertion passes if the capture
-     * matches any of them; see GrugScreenshots.
-     */
-    private void verifyCapture(
-            BufferedImage capture, String referencePath, double tolerancePercent) {
-        File referenceDirectory = new File(getGrugModsDirectory(), referencePath);
-        GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
-    }
-
     @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
         return captureChecked("Screenshot.capture", x1, y1, x2, y2);
@@ -873,22 +858,5 @@ public class Grug125ClientAdapter extends Grug125Adapter {
                     operation + ": could not build an image from the readback: " + e);
             return null;
         }
-    }
-
-    @Override
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void assertScreenshotEquals(
-            String referencePath,
-            double x1,
-            double y1,
-            double x2,
-            double y2,
-            double tolerancePercent) {
-        if (refuseWithoutAClient("Screenshot.equals")) return;
-        BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2);
-        if (capture == null) {
-            return; // captureChecked already reported why
-        }
-        verifyCapture(capture, referencePath, tolerancePercent);
     }
 }

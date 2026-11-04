@@ -273,10 +273,4 @@ public class Grug125ServerAdapter extends Grug125Adapter {
     public boolean forwardsClientCalls() {
         return true;
     }
-
-    @Override
-    public void assertScreenshotEquals(
-            String name, double x1, double y1, double x2, double y2, double tolerance) {
-        refuseWithoutAClient("Screenshot.equals");
-    }
 }

@@ -102,13 +102,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
-     * How many client ticks a screenshot's wait for a client-side idle state may take before it
-     * gives up and captures the frame the client has. The first tick that finds nothing left is
-     * enough, and the rest is margin for a loaded runner. See #259.
-     */
-    private static final int SETTLE_WAIT_CLIENT_TICKS = 100;
-
-    /**
      * The adapter for whichever process this is, called from {@code GrugModLoader}, which runs on
      * both sides: Forge loads a {@code @Mod} class on whichever side the game started as, and
      * grug's {@code [[mods]]} block in {@code mods.toml} has no {@code side} key at all. The two
@@ -1915,45 +1908,18 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
-    public void assertScreenshotEquals(
-            String referencePath,
-            double x1,
-            double y1,
-            double x2,
-            double y2,
-            double tolerancePercent) {
-        if (refuseWithoutAClient("Screenshot.equals")) return;
-        BufferedImage capture = captureChecked("Screenshot.equals", x1, y1, x2, y2, true);
-        if (capture == null) {
-            return; // captureChecked already reported why
-        }
-
-        // grug resolves a resource to "<mod name>/<path relative to the mod>", so joining it onto
-        // the mods root gives the reference directory on disk. That directory holds PNGs named
-        // after the loaders that produced them, and the assertion passes if the capture matches
-        // any of them; see GrugScreenshots.
-        File referenceDirectory = new File(GrugModLoader.getActiveGrugModsDir(), referencePath);
-        GrugScreenshots.verify(capture, referenceDirectory, referencePath, tolerancePercent);
-    }
-
-    @Override
     public BufferedImage captureScreenshot(double x1, double y1, double x2, double y2) {
-        // No settle wait: this capture is compared with another capture, so it stays the frame the
-        // test asked for at the moment it asked, not the frame after the world settles.
-        return captureChecked("Screenshot.capture", x1, y1, x2, y2, false);
+        // No settle wait: the frame this reads is the one the test asked for at the moment it
+        // asked, and Screenshot.equals compares it against a committed PNG.
+        return captureChecked("Screenshot.capture", x1, y1, x2, y2);
     }
 
     /**
      * Checks the rectangle and reads it, reporting {@code operation} as the thing that wanted it.
-     * Both screenshot entry points share this so a bad coordinate is reported the same way either
-     * way; only the name in front of the message, and whether the read waits for a settled world,
-     * differ. The assertion path waits, because it compares the capture against a committed PNG; a
-     * capture that another capture is compared with stays immediate.
      */
     @GrugGenerated("screenshot/GL integration: failure paths a healthy run cannot enter")
     private BufferedImage captureChecked(
-            String operation, double x1, double y1, double x2, double y2, boolean waitForSettled) {
+            String operation, double x1, double y1, double x2, double y2) {
         // Validate the arguments before touching GL, so a typo'd coordinate is reported as a typo
         // rather than as a mysterious capture failure.
         String bad = GrugScreenshots.rectangleProblem(x1, y1, x2, y2);
@@ -1986,116 +1952,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
             return null;
         }
 
-        if (!waitForSettled) {
-            return captureOnClientThread(left, top, right, bottom);
-        }
-        return captureSettledOnClientThread(operation, left, top, right, bottom);
-    }
-
-    /**
-     * Reads the rectangle on a client tick whose own rendering state is idle, retrying until one
-     * is.
-     *
-     * <p>The check and the read share one client task, so a light update or a section rebuild that
-     * lands after the test's own {@code Test.world_settled} answer cannot land between them: the
-     * read waits for the same answer's client half, re-taken immediately before it. Only the client
-     * half is re-taken, because this wait runs on the server thread and blocks it: the integrated
-     * server cannot drain its own light work while the wait is running, so a wait that included the
-     * server half would never finish on a runner whose server is still catching up. The server half
-     * is the test's own wait, one call per test tick, where the server is free. A client that never
-     * goes idle is not an error either: the frame it has is captured and the comparison decides,
-     * because a crop of a GUI does not depend on the section renderer at all. See #259.
-     */
-    @GrugGenerated(
-            "screenshot settle wait: loader plumbing that waits on the client's own tick loop,"
-                    + " which only a running client provides; the retry paths need the light or"
-                    + " rebuild work this wait exists to absorb")
-    private BufferedImage captureSettledOnClientThread(
-            String operation, int x1, int y1, int x2, int y2) {
-        Minecraft minecraft = Minecraft.getInstance();
-        // A capture's wait has no settle call in front of it, so its own check refreshes what the
-        // client is owed from the world: the world can replace a block after the test put it there
-        // (a clear is refilled by water), and a check that kept the block the test placed would
-        // compare it against the client's replacement for ever, spending this wait's whole budget
-        // before giving up. The level is read here, on the server thread that owns it, and handed
-        // to the client task as the reader it refreshes through: this wait blocks that thread, so
-        // the world does not move while the client reads it. See #804.
-        Object simulated = getLevel();
-        for (int attempt = 0; attempt < SETTLE_WAIT_CLIENT_TICKS; attempt++) {
-            BufferedImage[] result = new BufferedImage[1];
-            boolean[] captured = {false};
-            onClientThreadLettingWorkersIn(
-                    () ->
-                            captureIfClientSettled(
-                                    minecraft, simulated, x1, y1, x2, y2, result, captured));
-            if (captured[0]) {
-                return result[0];
-            }
-        }
-        // Not an error: a crop of a GUI does not depend on the section renderer, which is what a
-        // busy runner would otherwise fail a capture over, and the comparison is what catches a
-        // frame that moved. See #259.
-        reportCaptureStillRendering(operation);
-        return captureOnClientThread(x1, y1, x2, y2);
-    }
-
-    /**
-     * The client task the wait posts: it captures only on a tick whose client is idle, and returns
-     * without capturing otherwise so the wait posts again.
-     *
-     * <p>It is its own method rather than a lambda body because JaCoCo measures a lambda as its own
-     * method, and the wait's own exclusion does not carry over to it: its two branches would then
-     * be measured, and the retry branch is only reached on a run loaded enough to be busy at the
-     * capture.
-     */
-    @GrugGenerated(
-            "screenshot settle wait: the branches are the wait's retry paths, reached or not"
-                    + " depending on how loaded the runner is")
-    private static void captureIfClientSettled(
-            Minecraft minecraft,
-            Object simulated,
-            int x1,
-            int y1,
-            int x2,
-            int y2,
-            BufferedImage[] result,
-            boolean[] captured) {
-        if (!clientSettled(minecraft, simulated)) {
-            return;
-        }
-        result[0] = capture(x1, y1, x2, y2);
-        captured[0] = true;
-    }
-
-    /**
-     * Names the part of the client that was still busy when a capture's wait ran out. Not an error,
-     * and not a verdict: a crop of a GUI does not depend on the section renderer, so the capture is
-     * taken anyway and the comparison decides. This line is what says which of the two it was when
-     * one does fail.
-     */
-    @GrugGenerated(
-            "screenshot settle wait: a diagnostic on the give-up path, reached or not depending on"
-                    + " how loaded the runner is")
-    private static void reportCaptureStillRendering(String operation) {
-        Minecraft minecraft = Minecraft.getInstance();
-        boolean light = minecraft.level.getChunkSource().getLightEngine().hasLightWork();
-        boolean queues = !minecraft.levelRenderer.hasRenderedAllSections();
-        int free = minecraft.levelRenderer.getSectionRenderDispatcher().getFreeBufferCount();
-        int total = GrugModLoader.getSectionBufferPoolSize();
-        // A block a test placed that the client's copy still does not show is not the renderer
-        // being slow, and naming it here is what tells the two apart in a run that does fail.
-        boolean blocks = !BLOCK_SYNC.settled();
-        LOGGER.info(
-                "{}: the client still had work after {} client ticks (light work pending: {},"
-                        + " section queues busy: {}, free section buffers: {}/{}, test blocks still"
-                        + " owed: {}), so the capture is the frame the client had",
-                operation,
-                SETTLE_WAIT_CLIENT_TICKS,
-                light,
-                queues,
-                free,
-                total,
-                blocks);
+        return captureOnClientThread(left, top, right, bottom);
     }
 
     private static BufferedImage captureOnClientThread(int x1, int y1, int x2, int y2) {
@@ -2179,21 +2036,6 @@ public class ForgeAdapter implements ModLoaderAdapter {
      */
     @GrugGenerated("client-thread marshalling: the same-thread path cannot occur in a CI run")
     private static void onClientThread(Runnable task) {
-        onClientThread(task, false);
-    }
-
-    /**
-     * Like {@link #onClientThread(Runnable)}, but lets every thread enter the state meanwhile, for
-     * a wait that polls for the chunk workers' drawing to finish, which they can only do while the
-     * call is released.
-     */
-    @GrugGenerated("client-thread marshalling: see onClientThread")
-    private static void onClientThreadLettingWorkersIn(Runnable task) {
-        onClientThread(task, true);
-    }
-
-    @GrugGenerated("client-thread marshalling: the same-thread path cannot occur in a CI run")
-    private static void onClientThread(Runnable task, boolean lettingWorkersIn) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.isSameThread()) {
             task.run();
@@ -2209,7 +2051,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
                     }
                 });
         Thread admitted = clientThread;
-        if (lettingWorkersIn || admitted == null) {
+        if (admitted == null) {
             Grug.runWithStateLockReleased(() -> awaitLatch(latch));
         } else {
             Grug.runWithStateLockReleased(() -> awaitLatch(latch), admitted);
