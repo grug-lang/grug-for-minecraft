@@ -1,10 +1,11 @@
 # Covers which neighbours the wooden pipe grows an arm toward, asked through its collision box:
 # BuildCraft 2.2.14's Pipe.isPipeConnected is PipeLogicWood.isPipeConnected, which refuses another
-# wooden pipe, and PipeTransportItems.isPipeConnected, which accepts any IInventory whatever it
-# holds and whatever slots it offers (#912). A redstone engine is not an inventory and its own
-# BlockEngine.isPipeConnected refuses pipes, so it gets no arm either. The fixture is one pipe with
-# a wooden pipe to its west, an engine to its north and an inventory with nothing extractable
-# to its east, so the rule is pinned on both its halves.
+# wooden pipe, and PipeTransportItems.isPipeConnected, which accepts any inventory whatever it
+# holds and whatever slots it offers (#912). A redstone engine is an inventory in the reference,
+# so that test accepts it, but its own block refuses the connection: BlockEngine.isPipeConnected
+# answers false for an EngineWood through Utils.checkPipesConnections, so it gets no arm either. The
+# fixture is one pipe with a wooden pipe to its west, an engine to its north and an inventory with
+# nothing extractable to its east, so the rule is pinned on both its halves.
 # The reference's blocks are named differently, and its pipe is placed by a player, so this test is
 # about the port only.
 phase: number = 0

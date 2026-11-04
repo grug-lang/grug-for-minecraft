@@ -538,13 +538,15 @@ local _reverse(side: number) number {
     return side - 1
 }
 
-# Whether this neighbour is an inventory in the reference's sense, which is all
-# PipeTransportItems.isPipeConnected asks (instanceof IInventory): it never asks whether the
-# inventory holds anything or offers a slot to take from. A machine that answers for itself counts
-# whatever it holds right now, and a block entity with slots counts whatever those slots allow, so
-# a closed inventory still gets its arm. A block entity with no slots at all is not an inventory,
-# which is what keeps the redstone engine out of the pipe's way, as BlockEngine.isPipeConnected does
-# in the reference.
+# Whether this neighbour is an inventory in the reference's sense, which is the branch
+# PipeTransportItems.isPipeConnected takes for anything that implements io, 1.2.5's IInventory: it
+# never asks whether the inventory holds anything or offers a slot to take from. A machine that
+# answers for itself counts whatever it holds right now, and a block entity with slots counts
+# whatever those slots allow, so a closed inventory still gets its arm. The redstone engine passes
+# that branch in the reference, since TileEngine implements io with one slot, and its arm is refused
+# by its own block instead: BlockEngine.isPipeConnected answers false for an EngineWood, and
+# Utils.checkPipesConnections lets either block refuse. The port reaches the same answer because its
+# engine declares no inventory.
 local _has_extractable_slot(neighbor: BlockEntity, from_side: number) bool {
     if neighbor.ask_extract_item(from_side) >= 0 {
         return true
