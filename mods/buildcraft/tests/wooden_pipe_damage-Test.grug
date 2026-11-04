@@ -19,8 +19,10 @@ local _damage_setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    # The straight and corner pipe tests use bands at +25 and +35, so this one works in a clear band.
-    y: number = origin.y() + 45
+    # The straight and corner pipe tests use bands at +25 and +35, so this one works in a clear
+    # band. A high spawn can put +45 at y 128, outside Alpha's 128-block world height, so
+    # _damage_band_y keeps it at 120 or below.
+    y: number = _damage_band_y(origin)
     z: number = origin.z()
 
     level.place_block(x - 1, y, z, "minecraft:chest")
@@ -61,6 +63,18 @@ local _damage_check(ctx: TestTickContext) {
     ctx.assert(source_count == 0, "The source chest should be empty.")
     ctx.assert(target_count == 1, "The target chest should hold the sword.")
     ctx.assert(target_damage == 7, "The moved sword should keep its damage.")
+}
+
+# The band +45 above the origin, kept inside Alpha's 128-block world height. The dedicated server
+# places the joining player at a random point within 10 blocks of the world spawn, at the terrain
+# height there, so the origin's y changes between runs; a high spawn can put an unclamped band at
+# y 128 or above, where level.place_block refuses it.
+local _damage_band_y(origin: Vec3) number {
+    y: number = origin.y() + 45
+    if y > 120 {
+        y = 120
+    }
+    return y
 }
 
 # Same wait as wooden_pipe-Test.grug: the pipe has finished handling the item once it has left the
