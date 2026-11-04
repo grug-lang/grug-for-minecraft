@@ -69,22 +69,14 @@ public final class GrugServerRun implements ITickHandler {
     public static void sendToWorld(World world, Packet packet) {
         MinecraftServer server = server();
         if (server == null || server.configManager == null) {
-            System.out.println("[GRUG SYNC] 1.2.5 send: no server or manager");
             return;
         }
-        int sent = 0;
         for (Object element : server.configManager.playerEntities) {
             EntityPlayerMP player = (EntityPlayerMP) element;
             if (player.worldObj == world && player.playerNetServerHandler != null) {
                 player.playerNetServerHandler.sendPacket(packet);
-                sent++;
             }
         }
-        System.out.println(
-                "[GRUG SYNC] 1.2.5 send: players="
-                        + server.configManager.playerEntities.size()
-                        + " in world="
-                        + sent);
     }
 
     private static MinecraftServer server() {
