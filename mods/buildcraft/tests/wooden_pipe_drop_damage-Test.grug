@@ -18,9 +18,10 @@ local _drop_setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    # The other pipe tests use bands at +25, +35 and +45, so this one works in a clear band. +50 is the
-    # top of the ladder and has to stay inside Alpha's 128-block world height, so nothing goes above it.
-    y: number = origin.y() + 50
+    # The other pipe tests use bands at +25, +35 and +45, so this one works in a clear band. +50 is
+    # the top of the ladder, and a high spawn would put it above Alpha's 128-block world height, so
+    # _drop_band_y keeps it at 120 or below.
+    y: number = _drop_band_y(origin)
     z: number = origin.z()
 
     level.place_block(x - 1, y, z, "minecraft:chest")
@@ -48,7 +49,7 @@ local _drop_check(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()
-    y: number = origin.y() + 50
+    y: number = _drop_band_y(origin)
     z: number = origin.z()
 
     source_count: number = pipe_drop_source.unwrap().get_item_count_in_slot(0)
@@ -61,6 +62,19 @@ local _drop_check(ctx: TestTickContext) {
     ctx.assert(found.has(), "The pipe should have dropped the sword.")
     dropped: ItemEntity = found.unwrap()
     ctx.assert(dropped.damage() == 7, "The dropped sword should keep its damage.")
+}
+
+# The band +50 above the origin, kept inside Alpha's 128-block world height. The dedicated server
+# places the joining player at a random point within 10 blocks of the world spawn, at the terrain
+# height there, so the origin's y changes between runs; an unclamped band at y 128 or above is
+# refused by level.place_block. 120 is still inside the area the room build clears for every spawn
+# this save can produce.
+local _drop_band_y(origin: Vec3) number {
+    y: number = origin.y() + 50
+    if y > 120 {
+        y = 120
+    }
+    return y
 }
 
 # The pipe has finished with the item once it has left the source chest and the pipe's travelling
