@@ -11,6 +11,10 @@ import java.lang.reflect.Modifier;
  * Registers a packet of grug's own in the game's packet table, which every loader of this version
  * needs on both ends: a packet id the receiver does not know closes the connection.
  */
+@GrugGenerated(
+        "the game's packet table is reachable only from a running game, and the two throws need a"
+                + " Packet whose registration method is missing or fails; GrugControlPacket, which"
+                + " held this same search, is excluded for the same reason")
 public final class GrugPacketRegister {
 
     @GrugGenerated("utility class: never instantiated")
