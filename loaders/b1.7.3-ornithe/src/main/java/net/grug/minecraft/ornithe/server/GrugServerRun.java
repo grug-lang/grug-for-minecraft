@@ -1,12 +1,15 @@
 package net.grug.minecraft.ornithe.server;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
+import net.grug.minecraft.ornithe.ServerOrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.entity.mob.player.ServerPlayerEntity;
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -32,6 +35,11 @@ public final class GrugServerRun {
     private static boolean done = false;
     private static boolean advancing = false;
     private static int gameSpeed = 1;
+
+    /** How many times the hold put the player back on the floor, and when it last said so. */
+    private static long holds = 0;
+
+    private static long lastHoldReportMillis = 0;
 
     private GrugServerRun() {}
 
@@ -120,12 +128,16 @@ public final class GrugServerRun {
             if (waitStartMillis == 0) {
                 waitStartMillis = System.currentTimeMillis();
             }
+            PlayerEntity waiting = (PlayerEntity) GrugCore.getAdapter().testPlayer();
+            if (waiting != null) {
+                holdPlayer(waiting);
+            }
             // The run starts when a player has started it (#1040): the joined client sends its
             // start once it is in the world.
             if (!players.isEmpty()
                     && GrugControlBeta.server().hasStarter()
-                    && GrugControlBeta.starterPlayer() != null
-                    && GrugCore.getAdapter().isWorldReady(GrugCore.getAdapter().testPlayer())) {
+                    && waiting != null
+                    && GrugCore.getAdapter().isWorldReady(waiting)) {
                 System.out.println(
                         "[GRUG CI] CI mode active & player loaded after "
                                 + (System.currentTimeMillis() - waitStartMillis)
@@ -174,7 +186,9 @@ public final class GrugServerRun {
             if (step > 0) {
                 advance(server.getWorld(0), 1);
             }
-            runner.tick(GrugCore.getAdapter().testPlayer());
+            PlayerEntity player = (PlayerEntity) GrugCore.getAdapter().testPlayer();
+            holdPlayer(player);
+            runner.tick(player);
             if (runner.isFinished()) {
                 stop(runner.isPassed() ? 0 : 1);
                 return;
@@ -182,10 +196,57 @@ public final class GrugServerRun {
         }
     }
 
+    /**
+     * Puts the player back on the ground the server's own world has under them.
+     *
+     * <p>A client that fell through the terrain while its chunks were arriving reports a position a
+     * fraction of a block inside the ground, and the server accepts it because the box its
+     * collision check tests is contracted by 0.0625. The client's own collision then never reports
+     * support, so the wait for {@code onGround} never ends (#1095). The ground is in the server's
+     * world, so the server teleports the player to the top of the solid column under them whenever
+     * they are below it, and zeroes the fall they arrived with. Once the feet are exactly on the
+     * floor the client lands on it and reports support again.
+     *
+     * <p>The same hold runs during the run, so a rebuild that clears the floor under the player for
+     * a tick cannot leave them inside the new one. No host function moves the player down, so
+     * holding the feet at the floor cannot hide a test's own movement.
+     */
+    private static void holdPlayer(PlayerEntity player) {
+        World world = world();
+        if (world == null) {
+            return;
+        }
+        GrugPlayerFloor.BlockSource blocks = ServerOrnitheAdapter.solidBlocks(world);
+        double feet = player.shape.minY;
+        double floor = GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z);
+        if (!GrugPlayerFloor.below(feet, floor)) {
+            return;
+        }
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
+        serverPlayer.networkHandler.teleport(
+                serverPlayer.x, floor, serverPlayer.z, serverPlayer.yaw, serverPlayer.pitch);
+        serverPlayer.velocityY = 0.0;
+        holds++;
+        long now = System.currentTimeMillis();
+        if (holds == 1 || now - lastHoldReportMillis >= 5000) {
+            lastHoldReportMillis = now;
+            System.out.println(
+                    "[GRUG CI] holding the test player on the floor at "
+                            + floor
+                            + ", up from "
+                            + feet
+                            + " (inside the ground)");
+        }
+    }
+
     /** Ends the server process; a non-zero status says the run did not pass. */
     private static void stop(int status) {
         done = true;
         GrugControlBeta.server().endRun();
+        if (holds > 0) {
+            System.out.println(
+                    "[GRUG CI] The test player was held on the floor " + holds + " times.");
+        }
         System.out.flush();
         System.exit(status);
     }

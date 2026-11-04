@@ -2,6 +2,7 @@ package net.grug.minecraft.ornithe;
 
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
+import net.grug.minecraft.core.GrugPlayerFloor;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
@@ -10,6 +11,7 @@ import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.grug.minecraft.ornithe.mixin.WorldNotifyAccess;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
+import net.minecraft.block.Block;
 import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.world.World;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
@@ -148,14 +150,43 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
-     * Ready once the world around the player is loaded and the player has landed. The test origin
-     * is read from the player's position, and a player still falling when the first test starts
-     * gives an origin whose height differs from run to run, which put one test's blocks above the
-     * world's height (#1052).
+     * Ready once the world around the player is loaded, the player is out of any block and the
+     * player has landed. The test origin is read from the player's position, and a player still
+     * falling when the first test starts gives an origin whose height differs from run to run,
+     * which put one test's blocks above the world's height (#1052).
+     *
+     * <p>{@code onGround} alone is not enough. The server copies it from the client's movement
+     * packets, and a client that fell through the terrain while its chunks were arriving reports a
+     * position a fraction of a block inside the ground, which the server accepts because the box
+     * its collision check tests is contracted by 0.0625. From there the client's own collision
+     * never reports support, and every later packet takes the handler's teleport-back path, which
+     * returns before {@code onGround} is copied, so the wait timed out with the client in the world
+     * and the run already started (#1095). The server's own world has the ground, so the player
+     * counts as ready when they stand on it, and a player inside a block is never accepted.
      */
     @Override
     public boolean isWorldReady(Object playerObj) {
-        return super.isWorldReady(playerObj) && ((PlayerEntity) playerObj).onGround;
+        PlayerEntity player = (PlayerEntity) playerObj;
+        double feet = feetY(player);
+        GrugPlayerFloor.BlockSource blocks = solidBlocks(getLevel());
+        return super.isWorldReady(playerObj)
+                && !GrugPlayerFloor.insideABlock(blocks, player.x, feet, player.z)
+                && (player.onGround
+                        || GrugPlayerFloor.standsOn(
+                                feet, GrugPlayerFloor.floorTop(blocks, player.x, feet, player.z)));
+    }
+
+    /**
+     * The solid blocks of a level, as {@link GrugPlayerFloor} reads them. A block counts when it
+     * stops movement, which is the test the level's own surface height uses, so a torch or a plant
+     * under the player is not a floor.
+     */
+    public static GrugPlayerFloor.BlockSource solidBlocks(Object levelObj) {
+        World world = (World) levelObj;
+        return (x, y, z) -> {
+            int id = world.getBlock(x, y, z);
+            return id != 0 && Block.BY_ID[id].material.blocksMovement();
+        };
     }
 
     /**
