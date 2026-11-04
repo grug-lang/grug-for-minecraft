@@ -5,8 +5,10 @@
 # ServerPlayer.openMenu, which sends the joined client the open-screen packet its screen is built
 # from, so the GUI crosses a real connection rather than an integrated server's function call.
 # Test.screen_open answers about the side the test runs on: a client answers whether its own screen
-# is open, and a dedicated server whether the player it runs as has a container open, which is the
-# menu that client's screen is built from. So the same file proves both halves of the split, and a
+# is open, and a dedicated server that answers (only 1.20.6-forge so far) whether the player it runs
+# as has a container open, which is the menu that client's screen is built from. That answer can be
+# true before the open-screen packet reaches the client, so it says the menu exists, not that the
+# client has drawn it. So the same file proves both halves of the split, and a
 # regression that opens the GUI on a client instead, or does not open it at all, leaves the menu
 # closed and ends the test at the runner's tick budget instead of reaching the assertions below.
 # What a server cannot see is the client's own screen object: #1094 forwards that question to the

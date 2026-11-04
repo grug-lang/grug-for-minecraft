@@ -181,13 +181,13 @@ public class ServerForgeAdapter extends ForgeAdapter {
      * client's screen is built from.
      *
      * <p>A test that clicks a block whose use export opens a GUI reaches {@code
-     * ServerPlayer.openMenu}, which sends the open-screen packet before it stores the menu here,
-     * and a right-click on a container opens the game's own menu the same way. So a test that asks
-     * this after such a click learns whether the window it opened exists for the player it runs as,
-     * and a regression that opens the GUI on a client instead, or does not open it at all, leaves
-     * it closed. What this does not answer is the client's own screen, which is a client-side
-     * object: asking it is what #1094 forwards, and until then a test on a server asks this server
-     * half.
+     * ServerPlayer.openMenu}, which sends the open-screen packet before it stores the menu here, so
+     * this answer is true while that packet may still be on its way to the client and says nothing
+     * about the client having drawn the screen. A right-click on a container opens the game's own
+     * menu the same way. So a test that asks this after such a click learns whether the window it
+     * opened exists for the player it runs as, and a regression that opens the GUI on a client
+     * instead, or does not open it at all, leaves it closed. What this does not answer is the
+     * client's own screen, which is a client-side object: asking it is what #1094 forwards.
      */
     @Override
     public boolean isScreenOpenForTest() {

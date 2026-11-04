@@ -655,9 +655,9 @@ public interface ModLoaderAdapter {
      *
      * <p>Tests share one client for the whole run, so an open screen outlives the test that opened
      * it. That is invisible until a later test takes a screenshot and finds the world behind a
-     * panel it did not ask for. A dedicated server has no screen of its own to close, so it closes
-     * the container its test player has open, which is the packet that closes the joined client's
-     * screen.
+     * panel it did not ask for. A dedicated server has no screen of its own to close: 1.20.6-forge
+     * closes the container its test player has open, which is the packet that closes the joined
+     * client's screen, and the other four servers do nothing.
      */
     void closeOpenScreenForTest();
 
@@ -666,9 +666,10 @@ public interface ModLoaderAdapter {
      * arrived. {@code Test.close_screen} leaves no screen open by this answer, even on a loader
      * that displays a placeholder screen for it.
      *
-     * <p>On a dedicated server it is the container its test player has open, the menu the joined
-     * client's screen is built from: the client's own screen is a client-side object a server does
-     * not have, and asking the client is what #1094 forwards.
+     * <p>On a dedicated server only 1.20.6-forge answers, with the container its test player has
+     * open, the menu the joined client's screen is built from: the client's own screen is a
+     * client-side object a server does not have, and asking the client is what #1094 forwards. The
+     * other four servers answer false, and a test that needs their client's screen cannot ask here.
      */
     boolean isScreenOpenForTest();
 

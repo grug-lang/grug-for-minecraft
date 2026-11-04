@@ -331,8 +331,10 @@ while :; do
     done
     # The remote GUI test (#168) runs only on the 1.20.6 server so far: the other four servers
     # answer Test.screen_open for their nonexistent client, so their lists skip it until #1094
-    # forwards the question, and only this leg has to show it ran. Without this, a 1.20.6 server
-    # that stopped opening the menu would pass the run with the test silently skipped.
+    # forwards the question, and only this leg has to show it ran. This catches the test not running
+    # at all on that leg (renamed, listed as unsupported, or no longer recognised as declared),
+    # which the run would otherwise pass with it silently skipped; a server that stops opening the
+    # menu fails the test on its own tick budget, before this is reached.
     if [ "$LOADER" = "1.20.6-forge" ]; then
       remote_gui='[GRUG CI] PASS coverage/tests/remote_gui-Test.grug'
       if ! grep -qF "$remote_gui" "$SERVER_LOG"; then
