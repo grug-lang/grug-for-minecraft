@@ -2,11 +2,12 @@
 # The frame pass reads the client's copy of the block entity, while a test's set_saved_number writes
 # the copy the game simulates, so on a dedicated server the number only arrives if the loader sends
 # it. Every loader does: with the game's block entity update packet where it has one, and with a
-# packet of grug's own on the versions that have none (#1093). The coverage_frame block draws one
-# more stack once its "marker" number is above 0, and the assertion is that the frame changed.
+# packet of grug's own on the versions that have none (#1093). The coverage_frame block draws an
+# extra stack (at two heights, so one is inside every camera's crop) once its "marker" number is
+# above 0, and the assertion is that the frame changed.
 # Two captures of one session are compared, rather than one against a reference image, so this holds
 # the same on every loader and needs no golden: a frame that never saw the number looks like the
-# frame before it and fails. The stack is a quarter block across and nothing else in the crop moves,
+# frame before it and fails. Each stack is a quarter block across and nothing else in the crop moves,
 # so the ask is 1 percent of the crop, where two captures of an unchanged frame differ in none.
 # Setting the number again to the value it holds changes nothing the client needs, so that is no
 # new send; the loader skips it, and the test reaches that path by saving the same value again.
