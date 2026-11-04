@@ -8,9 +8,13 @@ import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
+import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
+import net.minecraft.block.Block;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.world.World;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -30,7 +34,9 @@ import java.util.Set;
  * has always created), so extending it adds no class a server cannot load. What a server cannot
  * inherit is the pair of handles to the level and the player, and the answers about screens and
  * frames, and those are what this replaces. The client-only functions are inherited and each one
- * refuses itself through {@code ModLoaderAdapter.refuseWithoutAClient}.
+ * refuses itself through {@code ModLoaderAdapter.refuseWithoutAClient}. {@code useBlockForTest} is
+ * not one of them and is overridden: a click is not a client-only function, so the server
+ * right-clicks in its own world, the world the test reads (#1090).
  *
  * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server (#167
  * stage 4). See #165.
@@ -66,6 +72,63 @@ public class ServerStationApiAdapter extends StationApiAdapter {
         }
         List<?> players = GrugServerRun.players();
         return players.isEmpty() ? null : players.get(0);
+    }
+
+    /**
+     * Right-clicks a block on this server's own world, so a server-run test's click lands in the
+     * world the test reads (#1090).
+     *
+     * <p>A forwarded click would deadlock: the client's interaction manager sends a use packet the
+     * server thread is blocked inside this call and so cannot process. So the click is made here
+     * instead, in the same order the game's server uses for a client's use packet: the block's
+     * {@code onUse} first, and the held item's {@code useOnBlock} when the block declines.
+     *
+     * <p>This generation's client jar, which is what this layer compiles against, holds no server
+     * interaction manager to call, so the two calls its {@code interactBlock} makes are made here
+     * in the same order.
+     *
+     * <p>The face is the top one, which is the face the client path passes to its own interaction
+     * manager: a test has no camera to aim, and the test room's blocks sit above the player's level
+     * view, so a ray trace could not reach them. Both sides therefore click the same face.
+     */
+    @Override
+    public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+            return;
+        }
+
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+
+        // World.getBlockId() hands back a block id rather than a Block in this generation.
+        int blockId = world.getBlockId(blockX, blockY, blockZ);
+        Block block =
+                (blockId >= 0 && blockId < Block.BLOCKS.length) ? Block.BLOCKS[blockId] : null;
+
+        if (!(block instanceof GrugBlock)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.use_block: There is no grug block at "
+                            + blockX
+                            + ", "
+                            + blockY
+                            + ", "
+                            + blockZ
+                            + ".");
+            return;
+        }
+
+        if (!block.onUse(world, blockX, blockY, blockZ, player)) {
+            ItemStack held = player.inventory.getSelectedItem();
+            if (held != null) {
+                held.useOnBlock(player, world, blockX, blockY, blockZ, 1);
+            }
+        }
     }
 
     /**

@@ -9,7 +9,7 @@
 step: number = 0
 waited: number = 0
 
-export tick(ctx: TestTickContext) {
+export tick_any_side(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     x: number = origin.x()

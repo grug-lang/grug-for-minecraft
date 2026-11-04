@@ -8,11 +8,13 @@ import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.ornithe.block.GrugBlock;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.grug.minecraft.ornithe.mixin.WorldNotifyAccess;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
 import net.minecraft.entity.mob.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
 import net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance;
 
@@ -38,7 +40,9 @@ import java.util.Set;
  * <p>The client-only functions are inherited too, and are not overridden here: each one refuses
  * itself through {@code ModLoaderAdapter.refuseWithoutAClient}, which is what turns a screenshot
  * test on a server into an err naming the function, rather than an exception from inside {@code
- * net.minecraft.client}.
+ * net.minecraft.client}. {@code useBlockForTest} is not one of them and is overridden: a click is
+ * not a client-only function, so the server right-clicks in its own world, the world the test reads
+ * (#1090).
  *
  * <p>Excluded from coverage because only the dispatch-only multiplayer job launches a server, and
  * the coverage gate merges no server run's data (#167 stage 4). See #163.
@@ -91,6 +95,63 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
         }
         List<?> players = MinecraftServerInstance.get().playerManager.players;
         return players.isEmpty() ? null : players.get(0);
+    }
+
+    /**
+     * Right-clicks a block on this server's own world, so a server-run test's click lands in the
+     * world the test reads (#1090).
+     *
+     * <p>A forwarded click would deadlock: the client's interaction manager sends a use packet the
+     * server thread is blocked inside this call and so cannot process. So the click is made here
+     * instead, in the same order the game's server uses for a client's use packet: the block's
+     * {@code use} first, and the held item's {@code useOn} when the block declines.
+     *
+     * <p>The dedicated server does have a {@code ServerPlayerInteractionManager.useBlock}, which is
+     * what a client's use packet reaches, but the client jar this layer compiles against does not
+     * hold that class (only the server jar does), so the two calls it makes are made here in the
+     * same order instead.
+     *
+     * <p>The face is the top one, which is the face the client path passes to its own interaction
+     * manager: a test has no camera to aim, and the test room's blocks sit above the player's level
+     * view, so a ray trace could not reach them. Both sides therefore click the same face.
+     */
+    @Override
+    public void useBlockForTest(Object levelObj, double x, double y, double z) {
+        World world = (World) levelObj;
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "Test.use_block: There is no player to right-click with.");
+            return;
+        }
+
+        int blockX = (int) Math.floor(x);
+        int blockY = (int) Math.floor(y);
+        int blockZ = (int) Math.floor(z);
+
+        // World.getBlock() hands back a block id rather than a Block in this generation.
+        int blockId = world.getBlock(blockX, blockY, blockZ);
+        Block block = (blockId >= 0 && blockId < Block.BY_ID.length) ? Block.BY_ID[blockId] : null;
+
+        if (!(block instanceof GrugBlock)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Test.use_block: There is no grug block at "
+                            + blockX
+                            + ", "
+                            + blockY
+                            + ", "
+                            + blockZ
+                            + ".");
+            return;
+        }
+
+        if (!block.use(world, blockX, blockY, blockZ, player)) {
+            ItemStack held = player.inventory.getSelectedItem();
+            if (held != null) {
+                held.useOn(player, world, blockX, blockY, blockZ, 1);
+            }
+        }
     }
 
     /** Asked of the client of the player who started the run, with the world frozen (#1040). */
