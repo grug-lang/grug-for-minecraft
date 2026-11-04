@@ -1474,9 +1474,10 @@ public class ForgeAdapter implements ModLoaderAdapter {
      *
      * <p>A singleplayer client's light comes from the integrated server, so the server has to be
      * done too: its updates reach the client as packets, and the client can look idle while the
-     * server is still computing them. The lookup is loader plumbing: a client run has a server and
-     * the client's own dimension, the no-server and no-level answers exist for a multiplayer
-     * client, which CI does not launch.
+     * server is still computing them. The lookup is loader plumbing: a singleplayer client run has
+     * a server and the client's own dimension. The no-server arm is the client of a dedicated
+     * server, which the multiplayer legs launch and take on every forwarded settle ask (#1086), and
+     * the no-level arm is a dimension the server does not have.
      *
      * <p>The public light-engine answer counts only that engine's propagation queues, so the checks
      * a batch has not reached yet and the batch itself are read from the engine's own state, which

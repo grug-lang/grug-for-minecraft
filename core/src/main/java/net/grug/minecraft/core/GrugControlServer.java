@@ -184,6 +184,9 @@ public final class GrugControlServer {
     /** {@code sender} is gone: if it started the run, the run has no screen any more. */
     public void onDisconnect(Object sender) {
         if (sender != null && starter.compareAndSet(sender, null)) {
+            // The client that answered is gone, so an answer remembered for its revision says
+            // nothing about the client a later starter uses.
+            settled.forget();
             failAll("The player who started the run disconnected.");
         }
     }
@@ -361,6 +364,10 @@ public final class GrugControlServer {
      * only when a host function has changed it since the last settled answer. A client that has not
      * seen the revision yet answers unsettled, so a test that places a block and asks in the same
      * tick is told the client has not drawn it.
+     *
+     * <p>The queued block changes are flushed once per revision, not once per ask: a wait that
+     * polls while the client catches up would otherwise send every change again on every tick, and
+     * an early send is what a later test's client saw (#1078).
      */
     public boolean worldSettled() throws ControlException {
         Object to = starter.get();
@@ -373,7 +380,10 @@ public final class GrugControlServer {
         if (settled.answeredSettled(revision)) {
             return true;
         }
-        link.flushWorld();
+        if (settled.needsFlush(revision)) {
+            link.flushWorld();
+            settled.flushed(revision);
+        }
         byte result;
         try {
             result = forward(GrugControlWire.CALL_WORLD_SETTLED, "", 0, 0, revision);
