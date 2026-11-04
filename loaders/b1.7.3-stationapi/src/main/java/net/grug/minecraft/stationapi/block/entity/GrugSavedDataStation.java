@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi.block.entity;
 
 import net.grug.minecraft.core.GrugSavedDataSync;
+import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.stationapi.block.GrugBlock;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
 import net.minecraft.block.Block;
@@ -12,6 +13,9 @@ import net.minecraft.block.Block;
  * <p>A singleplayer game has no server and no second copy of the world, so it installs none: the
  * copy the script writes is the one the frame pass reads.
  */
+@GrugGenerated(
+        "only the dedicated-server entrypoint from #163 installs this transport, and the coverage"
+                + " gate counts the pull request's client runs, not the dispatch-only server legs")
 public final class GrugSavedDataStation implements GrugSavedDataSync.Transport {
 
     @Override

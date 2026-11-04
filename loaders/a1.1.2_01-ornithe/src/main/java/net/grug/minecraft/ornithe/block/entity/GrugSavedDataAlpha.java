@@ -26,8 +26,10 @@ import java.util.ArrayList;
  * the copy the script writes is the one the frame pass reads.
  */
 @GrugGenerated(
-        "the Alpha server's player list is reachable only through the game's own classes, which"
-                + " this layer is not compiled against")
+        "only the dedicated-server entrypoint installs this transport, and the coverage gate counts"
+                + " the pull request's client runs, not the dispatch-only server legs; its player"
+                + " list is reachable only through the game's own classes, which this layer is not"
+                + " compiled against")
 public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
 
     @Override
