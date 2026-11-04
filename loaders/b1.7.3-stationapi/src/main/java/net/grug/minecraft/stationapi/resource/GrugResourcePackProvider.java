@@ -15,7 +15,9 @@ public class GrugResourcePackProvider implements ResourcePackProvider {
 
     /**
      * Appends this mod's provider to the loader's built-in list. Called from the resource-pack
-     * mixin so the loop stays measurable instead of living in an uninstrumentable mixin class.
+     * mixin, which is on both sides, so a dedicated server's data pack manager holds the pack as
+     * well as a client's asset and data managers (#165). The loop stays here so it is measurable
+     * instead of living in an uninstrumentable mixin class.
      */
     public static ImmutableSet<ResourcePackProvider> withGrugProvider(Object[] providers) {
         ImmutableSet.Builder<ResourcePackProvider> builder = ImmutableSet.builder();

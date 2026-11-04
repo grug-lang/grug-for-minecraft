@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "BlockWithEntityMixin",
-    "ChunkMixin"
+    "ChunkMixin",
+    "ResourcePackManagerMixin"
   ],
   "server": [],
   "client": [
@@ -18,7 +19,6 @@
     "TessellatorMixin",
     "InGameHudMixin",
     "MinecraftMixin",
-    "ResourcePackManagerMixin",
     "TitleScreenMixin",
     "GameRendererMixin",
     "HandledScreenMixin",
