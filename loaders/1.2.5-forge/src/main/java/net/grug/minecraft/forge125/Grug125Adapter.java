@@ -5,7 +5,6 @@ import cpw.mods.fml.common.FMLCommonHandler;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugItemStacks;
 import net.grug.minecraft.core.GrugRegistryNames;
-import net.grug.minecraft.core.GrugRelight;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.GrugTestBox;
@@ -37,7 +36,6 @@ import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.EnumSkyBlock;
 import net.minecraft.src.IChunkLoader;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
@@ -861,41 +859,10 @@ public abstract class Grug125Adapter implements ModLoaderAdapter {
         batchPositionCount = 0;
     }
 
-    /** Sweeps of the room's cells the light may take before it is called not settling. */
-    private static final int RELIGHT_SWEEP_LIMIT = 16;
-
     @Override
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        World world = (World) levelObj;
-        GrugRelight.sweepUntilStable(
-                () -> relightSweep(world, minX, minY, minZ, maxX, maxY, maxZ), RELIGHT_SWEEP_LIMIT);
-    }
-
-    /**
-     * Recomputes the light of every cell of the box once, in a fixed order, and hashes the block
-     * light the box holds afterwards. The engine's incremental updates leave a field that depends
-     * on the changes that came before; a cell recomputed from its neighbours is exact, so sweeping
-     * until nothing moves ends at the one field the blocks define. See {@link GrugRelight}.
-     */
-    private static long relightSweep(
-            World world, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                for (int x = minX; x <= maxX; x++) {
-                    world.updateAllLightTypes(x, y, z);
-                }
-            }
-        }
-        long hash = 0;
-        for (int y = minY; y <= maxY; y++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                for (int x = minX; x <= maxX; x++) {
-                    hash = hash * 31 + world.getSavedLightValue(EnumSkyBlock.Block, x, y, z);
-                }
-            }
-        }
-        return hash;
+        // Control run: the relight is off, so the 1.2.5 room keeps the field its history left.
     }
 
     /** Records a position whose relight the open batch postponed. */
