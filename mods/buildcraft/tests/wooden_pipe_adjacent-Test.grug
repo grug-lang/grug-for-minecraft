@@ -1,172 +1,106 @@
 # Covers two wooden pipes placed next to each other: they do not hand items to one another, as in the
 # reference's default config (PipeLogicWood.isPipeConnected refuses another wooden pipe while
-# pipes.alwaysConnect is false). Each pipe has its own source chest and engine, and a different item,
-# so an item that crossed from one pipe to the other would be found in the wrong pipe or chest. With
-# no exit, each pipe drops its item at its centre. The fixture is built in 6 rows, four blocks
-# apart, and advanced together, so one run repeats the trigger six times (#1019): before the floor
-# covered the columns an item is pushed into, most rows lost an item on 1.20.6 and the count
-# stayed short for good. The rows run from 8 blocks behind the origin to 12 in front of it, so every
-# engine and pipe lies inside the 16 blocks around the player that the runner clears before a test:
-# rows 20 blocks out kept the engines and items of earlier passes and tests (#1057).
-# A dropped item does not stay within 2 blocks of its pipe: it is thrown with a random velocity and
-# pushed out of the pipe's box, and on 1.20.6 it came to rest between 2 and 3 blocks away in 2 of 6
-# rows in one pass while both chests and both pipes were empty, so the count never reached 2 and the
-# check failed (#1060). The count looks 3 blocks around the pair, which the rows 4 blocks apart still
-# keep apart well enough, because every pipe and chest is also checked on its own.
+# pipes.alwaysConnect is false). Each pipe has its own source chest and a different item, so an item
+# that crossed from one pipe to the other would be found in the wrong pipe or chest. With no exit,
+# each pipe drops its item at its own centre. The fixture is built in 6 rows, four blocks apart, so
+# one run repeats the trigger six times (#1019). The rows run from 8 blocks behind the origin to 12
+# in front of it, so every pipe and chest lies inside the 16 blocks around the player that the runner
+# clears before a test: rows 20 blocks out kept the block entities and items of earlier passes and
+# tests (#1057).
+
+# The pipe's tick is run by hand, as wooden_pipe_energy and wooden_pipe_drop_stack do, rather than
+# letting the level's clock run it, so the dropped item is still exactly where the pipe put it when
+# the check reads it. A level-ticked drop lands wherever the loader's item physics carries it, which
+# on 1.20.6 is 2 to 3 blocks away and can be further: the item overlaps the pipe's collision box, and
+# the game throws it out sideways (ItemEntity.moveTowardsClosestSpace) with a random velocity. A
+# check that counted item entities within a fixed radius therefore waited for a condition that a run
+# could miss for good (#1060, #1079), and no radius is both wide enough for that throw and narrow
+# enough to keep rows four blocks apart out of one another's count. Reading each drop at the tick it
+# happens has neither problem, and it is what proves the item came out of the pipe's own centre with
+# the damage of its own chest's item.
+
+# The energy is receive_energy, the call the engine makes to hand a stroke over, so the engine's
+# stroke, which is a duration, is not part of this test: redstone_engine-Test and wooden_pipe-Test
+# cover it.
 export tick(ctx: TestTickContext) {
-    if ctx.current_tick() == 0 {
-        _setup(ctx)
-        _advance(ctx)
-        ctx.not_done()
-    } else if ctx.current_tick() < 600 and (ctx.current_tick() < 25 or not _finished()) {
-        # The dropped items reach the client's copy of the level a few frames after the server ran
-        # the ticks above, and a loader that cannot advance the level in one go needs the whole
-        # journey, so the rows are waited for, up to a budget that leaves the checks to name the
-        # row that is wrong.
-        ctx.not_done()
-    } else {
-        _check(ctx)
-    }
-}
-
-local _advance(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    advanced: number = 0
-    ran: number = 10
-    # Both pipes pull on their first powered tick and then take 49 moves to the centre, so 400
-    # ticks cover the whole journey and the drop twice over.
-    while ran > 0 and advanced < 400 {
-        ran = Test.tick_level(level, 10)
-        advanced = advanced + ran
-    }
-}
-
-local _setup(ctx: TestTickContext) {
     level: Level = Test.get_client_level()
     origin: Vec3 = Test.get_origin()
     row: number = 0
     while row < 6 {
-        _setup_row(ctx, level, origin.x(), origin.y() + 12, origin.z() + (row - 2) * 4)
+        _row(ctx, level, origin.x(), origin.y() + 12, origin.z() + (row - 2) * 4)
         row = row + 1
     }
 }
 
-local _setup_row(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
+local _row(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
     level.place_block(x - 1, y, z, "minecraft:chest")
     level.place_block(x, y, z, "grug:wooden_pipe")
     level.place_block(x + 1, y, z, "grug:wooden_pipe")
     level.place_block(x + 2, y, z, "minecraft:chest")
 
-    # A floor under the whole row and under the two columns beside the pipes that are open, so the
-    # item a pipe drops stays where the count looks for it. A dropped item that overlaps the pipe's
-    # box is pushed out of it sideways (ItemEntity.moveTowardsClosestSpace) and, with nothing under
-    # the open column it lands in, falls out of the count's reach.
+    # A floor under the row, so a dropped item has ground under it as it has in the reference.
     level.place_block(x - 1, y - 1, z, "minecraft:stone")
     level.place_block(x, y - 1, z, "minecraft:stone")
     level.place_block(x + 1, y - 1, z, "minecraft:stone")
     level.place_block(x + 2, y - 1, z, "minecraft:stone")
-    level.place_block(x, y - 1, z + 1, "minecraft:stone")
-    level.place_block(x + 1, y - 1, z - 1, "minecraft:stone")
 
-    level.place_block(x, y - 2, z - 1, "minecraft:stone")
-    level.place_block(x, y - 1, z - 1, "minecraft:redstone_torch")
-    level.place_block(x, y, z - 1, "grug:redstone_engine")
-    level.place_block(x + 1, y - 2, z + 1, "minecraft:stone")
-    level.place_block(x + 1, y - 1, z + 1, "minecraft:redstone_torch")
-    level.place_block(x + 1, y, z + 1, "grug:redstone_engine")
+    west: BlockEntity = _entity(ctx, level, x, y, z)
+    east: BlockEntity = _entity(ctx, level, x + 1, y, z)
+    west_chest: BlockEntity = _entity(ctx, level, x - 1, y, z)
+    east_chest: BlockEntity = _entity(ctx, level, x + 2, y, z)
 
-    # The row must start from nothing: a row outside the area the runner clears before each test
-    # keeps its engines, with their saved energy, and its pipes' items from an earlier pass (#1057).
-    _fresh(ctx, level, x, y, z - 1)
-    _fresh(ctx, level, x + 1, y, z + 1)
-    _fresh(ctx, level, x, y, z)
-    _fresh(ctx, level, x + 1, y, z)
+    # The row must start from nothing: a pipe outside the area the runner clears keeps its energy and
+    # its records from an earlier pass (#1057).
+    _fresh(ctx, west)
+    _fresh(ctx, east)
 
-    ctx.assert(level.has_neighbor_signal(x, y, z), "The west pipe's engine should be powered.")
-    ctx.assert(level.has_neighbor_signal(x + 1, y, z), "The east pipe's engine should be powered.")
+    # The damage tells the two items apart, so the drop can be checked to hold the pipe's own item
+    # and not the one from the pipe beside it.
+    west_chest.set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
+    west_chest.set_item_damage_in_slot(0, 1)
+    east_chest.set_item_in_slot(0, item(resource_location("minecraft:iron_ingot")), 1)
+    east_chest.set_item_damage_in_slot(0, 2)
 
-    _entity(ctx, level, x - 1, y, z).set_item_in_slot(0, item(resource_location("minecraft:diamond")), 1)
-    _entity(ctx, level, x + 2, y, z).set_item_in_slot(0, item(resource_location("minecraft:iron_ingot")), 1)
+    _pull_and_drop(ctx, level, west, west_chest, item(resource_location("minecraft:diamond")), 1)
+    _pull_and_drop(ctx, level, east, east_chest, item(resource_location("minecraft:iron_ingot")), 2)
 }
 
-local _fresh(ctx: TestTickContext, level: Level, x: number, y: number, z: number) {
-    block_entity: BlockEntity = _entity(ctx, level, x, y, z)
-    ctx.assert(block_entity.get_saved_number("energy") == 0 and block_entity.get_saved_number("progress") == 0 and block_entity.get_saved_list_size("traveling") == 0, "A fixture block entity should start empty, so the row has to lie inside the area the runner clears (16 blocks around the player).")
+# Pulls the chest's item into the pipe, checks the pipe carries that item and no other, then runs the
+# journey to the centre and the drop there. The pipe spends the energy it was given on the pull, so
+# the 60 ticks after it move the one record and then find nothing left to pull.
+local _pull_and_drop(ctx: TestTickContext, level: Level, pipe: BlockEntity, chest: BlockEntity, wanted: Item, damage: number) {
+    pipe.receive_energy(64)
+    Test.tick_block_entity(pipe, 1)
+    ctx.assert(pipe.get_saved_list_size("traveling") == 1, "The pipe should have pulled its chest's item.")
+
+    held: Option[Item] = pipe.get_saved_list_item("traveling", 0)
+    ctx.assert(held.has(), "The travelling record should hold an item.")
+    ctx.assert(equals(held.unwrap(), wanted), "The pipe should carry the item from its own chest.")
+    ctx.assert(pipe.get_saved_list_number("traveling", 0, "damage") == damage, "The pipe should carry its own chest's item, damage and all.")
+
+    # 49 moves reach the pipe's centre, where the other wooden pipe and every empty side accept
+    # nothing, so the item is dropped at the centre on the next move.
+    Test.tick_block_entity(pipe, 60)
+    ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The pipe should have dropped its travelling item.")
+    ctx.assert(chest.get_item_count_in_slot(0) == 0, "The pipe's own chest should be empty.")
+
+    # The item entity is counted at the centre the drop put it at, before any tick can move it, so a
+    # radius half a block wide finds exactly the pipe's own drop and not the one a block beside it.
+    center: Vec3 = pipe.block_pos().center()
+    dropped: number = level.count_item_entities(center.x(), center.y() - 0.25, center.z(), 0.5)
+    ctx.assert(dropped == 1, "The pipe should have dropped one item entity at its own centre, not handed its item to the pipe beside it.")
+    found: Option[ItemEntity] = level.find_item_entity(center.x(), center.y() - 0.25, center.z(), 0.5)
+    ctx.assert(found.has(), "The dropped item should lie at the pipe's centre.")
+    ctx.assert(found.unwrap().damage() == damage, "The dropped item should be the pipe's own item.")
+}
+
+local _fresh(ctx: TestTickContext, pipe: BlockEntity) {
+    empty: bool = pipe.get_energy_stored() == 0 and pipe.get_item_count_in_slot(0) == 0 and pipe.get_saved_list_size("traveling") == 0
+    ctx.assert(empty, "A pipe should start with no energy and no items, so the row has to lie inside the area the runner clears (16 blocks around the player).")
 }
 
 local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
     block_entity: Option[BlockEntity] = level.get_block_entity(x, y, z)
     ctx.assert(block_entity.has(), "The fixture should have a block entity.")
     return block_entity.unwrap()
-}
-
-local _check(ctx: TestTickContext) {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
-    x: number = origin.x()
-    y: number = origin.y() + 12
-    bad: number = 0
-    row: number = 0
-    while row < 6 {
-        z: number = origin.z() + (row - 2) * 4
-        west: BlockEntity = _entity(ctx, level, x, y, z)
-        east: BlockEntity = _entity(ctx, level, x + 1, y, z)
-        if not (_only(west, item(resource_location("minecraft:diamond")))) {
-            bad = bad + 1
-        }
-        if not (_only(east, item(resource_location("minecraft:iron_ingot")))) {
-            bad = bad + 1
-        }
-        if not (_entity(ctx, level, x - 1, y, z).get_item_count_in_slot(0) == 0) {
-            bad = bad + 1
-        }
-        if not (_entity(ctx, level, x + 2, y, z).get_item_count_in_slot(0) == 0) {
-            bad = bad + 1
-        }
-        if not (level.count_item_entities(x + 1, y, z + 0.5, 3) >= 2) {
-            bad = bad + 1
-        }
-        row = row + 1
-    }
-    ctx.assert(bad == 0, "Every row's pipes should have dropped their own items and emptied their chests.")
-}
-
-# Every row has emptied both chests, carries nothing and shows both dropped items.
-local _finished() bool {
-    level: Level = Test.get_client_level()
-    origin: Vec3 = Test.get_origin()
-    x: number = origin.x()
-    y: number = origin.y() + 12
-    row: number = 0
-    while row < 6 {
-        z: number = origin.z() + (row - 2) * 4
-        if _entity_at(level, x - 1, y, z).get_item_count_in_slot(0) != 0 or _entity_at(level, x + 2, y, z).get_item_count_in_slot(0) != 0 {
-            return false
-        }
-        if _entity_at(level, x, y, z).get_saved_list_size("traveling") != 0 or _entity_at(level, x + 1, y, z).get_saved_list_size("traveling") != 0 {
-            return false
-        }
-        if level.count_item_entities(x + 1, y, z + 0.5, 3) < 2 {
-            return false
-        }
-        row = row + 1
-    }
-    return true
-}
-
-local _entity_at(level: Level, x: number, y: number, z: number) BlockEntity {
-    return level.get_block_entity(x, y, z).unwrap()
-}
-
-local _only(pipe: BlockEntity, wanted: Item) bool {
-    index: number = 0
-    records: number = pipe.get_saved_list_size("traveling")
-    while index < records {
-        held: Option[Item] = pipe.get_saved_list_item("traveling", index)
-        if held.has() and not equals(held.unwrap(), wanted) {
-            return false
-        }
-        index = index + 1
-    }
-    return true
 }
