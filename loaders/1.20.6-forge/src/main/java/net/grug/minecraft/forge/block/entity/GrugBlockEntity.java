@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge.block.entity;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.forge.GrugModLoader;
 import net.grug.minecraft.forge.block.GrugBakedModel;
 import net.grug.minecraft.forge.block.GrugBlock;
@@ -46,12 +47,6 @@ public class GrugBlockEntity extends BlockEntity
     private long frameRenderFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
     private boolean frameRenderFnIdResolved = false;
     private boolean initStarted = false;
-
-    /**
-     * What the client's copy was last sent because a saved number changed, to leave out a send of
-     * data it already holds. Null until the first send.
-     */
-    private CompoundTag lastSentToClients = null;
 
     /**
      * The host entities this block entity's member scope created, rooted here so they live exactly
@@ -402,58 +397,26 @@ public class GrugBlockEntity extends BlockEntity
     }
 
     /**
-     * A saved number changed, so the chunk has to be saved with it, and a block that draws all of
-     * its geometry per frame has its client told. The client keeps its own copy of this block
-     * entity, whose saved numbers are what the frame pass reads, and nothing else would send it the
-     * change: {@code setChanged} only marks the chunk unsaved.
+     * A saved number changed, so the chunk has to be saved with it, and the client's copy of the
+     * block entity is sent the data the frame pass reads from it. Nothing else would send it:
+     * {@code setChanged} only marks the chunk unsaved.
      */
     @Override
     public void markSavedNumbersChanged() {
         setChanged();
-        if (!sendsDataToClients()) {
-            return;
-        }
         // Only a change the client has not been sent, because a script may set a number to what it
         // already holds every tick and each send is a packet.
-        CompoundTag now = getUpdateTag(level.registryAccess());
-        if (now.equals(lastSentToClients)) {
-            return;
-        }
-        lastSentToClients = now;
-        // The send redraw makes, without its settle note: a script saves numbers as it runs, a
-        // powered engine every few ticks, and a world that is never settled while one runs would
-        // keep every capture waiting. A test that needs the frame holds for it, as it does for the
-        // light.
-        level.sendBlockUpdated(
-                worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+        GrugSavedDataSync.changed(this);
     }
 
     /**
-     * Whether a change to this block entity's data has to be sent to the client's copy by itself:
-     * the block draws only per frame, so the frame pass is the one reader of the numbers and
-     * nothing meshes the block again for it. Any other block has its chunk geometry rebuilt, which
-     * the script asks for with {@code redraw}, and a block entity with no level, or one on the
-     * client, has no copy to send to.
+     * The energy this block entity holds changed, so the chunk has to be saved with it, and the
+     * client's copy of the block entity is sent the store a frame pass may read from it.
      */
-    private boolean sendsDataToClients() {
-        if (!onServer()) {
-            return false;
-        }
-        GrugBlock block = (GrugBlock) getBlockState().getBlock();
-        return block.drawsCustomGeometry() && !block.drawsChunkGeometry();
-    }
-
-    @GrugGenerated(
-            "a script call only reaches a block entity in the server's level, so the no-level and"
-                    + " client-side answers are defensive and no test can make them")
-    private boolean onServer() {
-        return level != null && !level.isClientSide();
-    }
-
-    /** The energy this block entity holds changed, so the chunk has to be saved with it. */
     @Override
     public void markEnergyChanged() {
         setChanged();
+        GrugSavedDataSync.changed(this);
     }
 
     /**

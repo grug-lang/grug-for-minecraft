@@ -8,6 +8,7 @@ import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.ornithe.ServerOrnitheAdapter;
 import net.grug.minecraft.ornithe.control.GrugControlBeta;
 import net.minecraft.entity.mob.player.PlayerEntity;
+import net.minecraft.network.packet.Packet;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.entity.mob.player.ServerPlayerEntity;
 import net.minecraft.world.World;
@@ -52,6 +53,15 @@ public final class GrugServerRun {
                 net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get();
         if (server != null) {
             server.playerManager.tick();
+        }
+    }
+
+    /** Sends {@code packet} to every player who is on this server. */
+    public static void sendToAllPlayers(Packet packet) {
+        net.minecraft.server.MinecraftServer server =
+                net.ornithemc.osl.lifecycle.api.server.MinecraftServerInstance.get();
+        if (server != null && server.playerManager != null) {
+            server.playerManager.sendPacket(packet);
         }
     }
 

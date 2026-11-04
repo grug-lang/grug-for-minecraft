@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge125.block.entity;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.forge125.block.GrugBlock;
 import net.grug.minecraft.grug.ExportFns;
 import net.grug.minecraft.grug.Grug;
@@ -357,16 +358,45 @@ public class GrugBlockEntity extends TileEntity
     @Override
     public void closeChest() {}
 
-    /** A saved number changed, so the chunk has to be saved with it. */
+    /**
+     * A saved number changed, so the chunk has to be saved with it, and the client's copy of the
+     * block entity is sent the data the frame pass reads from it. On a dedicated server the script
+     * writes this copy, and the client's holds the old numbers until it is told.
+     */
     @Override
     public void markSavedNumbersChanged() {
         onInventoryChanged();
+        // Only a change the client has not been sent, because a script may save the same value
+        // every tick and each send is a packet.
+        GrugSavedDataSync.changed(this);
     }
 
-    /** The energy this block entity holds changed, so the chunk has to be saved with it. */
+    /**
+     * The energy this block entity holds changed, so the chunk has to be saved with it, and the
+     * client's copy of the block entity is sent the store a frame pass may read from it.
+     */
     @Override
     public void markEnergyChanged() {
         onInventoryChanged();
+        GrugSavedDataSync.changed(this);
+    }
+
+    /**
+     * Everything the frame pass reads from this block entity, written as the NBT the client's copy
+     * is sent when a script changes it. The inventory is not part of it: it has its own window
+     * packets.
+     */
+    public void writeSavedData(NBTTagCompound nbt) {
+        writeSavedNumbers(nbt);
+        writeSavedLists(nbt);
+        nbt.setDouble("GrugEnergy", GrugPower.stored(this));
+    }
+
+    /** Applies what {@link #writeSavedData} wrote to this block entity. */
+    public void readSavedData(NBTTagCompound nbt) {
+        readSavedNumbers(nbt);
+        readSavedLists(nbt);
+        GrugPower.load(this, nbt.getDouble("GrugEnergy"));
     }
 
     @Override

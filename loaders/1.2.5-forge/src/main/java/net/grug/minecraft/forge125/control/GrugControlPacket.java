@@ -8,9 +8,6 @@ import net.minecraft.src.Packet;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 
 /**
  * The one packet of the test-control channel on 1.2.5 (#1040, option A): an int length and the
@@ -44,29 +41,11 @@ public class GrugControlPacket extends Packet {
     }
 
     /**
-     * Registers the packet in the game's packet table, found by its signature (a static method of
-     * {@code Packet} taking an int, two booleans and a class) because the game's names are
-     * obfuscated at run time and the method is not public.
+     * Registers the packet in the game's packet table. See {@link GrugPacketRegister#register},
+     * which every packet of grug's own on this loader uses.
      */
     public static void register() {
-        for (Method method : Packet.class.getDeclaredMethods()) {
-            Class<?>[] types = method.getParameterTypes();
-            if (Modifier.isStatic(method.getModifiers())
-                    && types.length == 4
-                    && types[0] == int.class
-                    && types[1] == boolean.class
-                    && types[2] == boolean.class
-                    && types[3] == Class.class) {
-                try {
-                    method.setAccessible(true);
-                    method.invoke(null, ID, true, true, GrugControlPacket.class);
-                    return;
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    throw new IllegalStateException("cannot register the control packet", e);
-                }
-            }
-        }
-        throw new IllegalStateException("Packet has no method to register a packet with");
+        GrugPacketRegister.register(ID, GrugControlPacket.class);
     }
 
     @Override

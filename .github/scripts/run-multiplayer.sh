@@ -300,9 +300,10 @@ while :; do
     # cannot forward, and either skip is a green run: the tests below have to show as passed. The
     # forwarded_ ones are the channel's own tests, including forwarded_world_settled, which is the
     # control for the forwarded settle answer (#1086). The pixel tests stay client-only until they
-    # have a per-side reference (#1092) or a saved-number send a server actually makes (#1093).
+    # have a per-side reference (#1092); coverage_frame_saved_number runs on every server leg now
+    # that a loader sends a saved number to the client's copy (#1093).
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
-      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_world_settled; do
+      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_world_settled coverage_frame_saved_number; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${required}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${required}-Test.grug did not run on the dedicated server." >&2
           exit 1

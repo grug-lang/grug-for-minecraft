@@ -111,17 +111,23 @@ public class InitListener {
     }
 
     /**
-     * Registers the test-control packet (#1040) on the client and on the server alike, since
-     * StationAPI posts this event from the end of {@code Packet}'s static initialiser on both. A
-     * raw vanilla packet through StationAPI's own registration needs no mixin of grug's own.
+     * Registers the test-control packet (#1040) and the saved-data packet (#1093) on the client and
+     * on the server alike, since StationAPI posts this event from the end of {@code Packet}'s
+     * static initialiser on both. A raw vanilla packet through StationAPI's own registration needs
+     * no mixin of grug's own.
      */
     @EventListener
-    private static void registerControlPacket(PacketRegisterEvent event) {
+    private static void registerPackets(PacketRegisterEvent event) {
         event.register(
                 net.grug.minecraft.stationapi.control.GrugControlPacket.ID,
                 true,
                 true,
                 net.grug.minecraft.stationapi.control.GrugControlPacket.class);
+        event.register(
+                net.grug.minecraft.stationapi.block.entity.GrugSavedDataPacket.ID,
+                true,
+                true,
+                net.grug.minecraft.stationapi.block.entity.GrugSavedDataPacket.class);
     }
 
     @EventListener

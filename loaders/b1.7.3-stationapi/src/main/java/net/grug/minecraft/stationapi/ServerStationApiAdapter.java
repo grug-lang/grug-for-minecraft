@@ -2,6 +2,7 @@ package net.grug.minecraft.stationapi;
 
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugGameSpeed;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.core.ModLoaderAdapter;
@@ -10,6 +11,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.grug.minecraft.grug.Vec3;
 import net.grug.minecraft.stationapi.block.GrugBlock;
+import net.grug.minecraft.stationapi.block.entity.GrugSavedDataStation;
 import net.grug.minecraft.stationapi.control.GrugControlStation;
 import net.grug.minecraft.stationapi.server.GrugServerRun;
 import net.minecraft.block.Block;
@@ -47,6 +49,14 @@ public class ServerStationApiAdapter extends StationApiAdapter {
 
     /** A player's eye is this far above their feet. */
     private static final double EYE_HEIGHT = 1.62;
+
+    /**
+     * The client keeps its own copy of a grug block entity, so a saved number the script writes on
+     * this server is sent to it (#1093). A singleplayer game has one world and installs none.
+     */
+    public ServerStationApiAdapter() {
+        GrugSavedDataSync.install(new GrugSavedDataStation());
+    }
 
     @Override
     public Object getLevel() {

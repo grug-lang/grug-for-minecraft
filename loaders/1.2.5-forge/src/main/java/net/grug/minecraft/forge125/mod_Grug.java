@@ -4,6 +4,7 @@ import cpw.mods.fml.common.FMLCommonHandler;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge125.block.GrugBlocks;
+import net.grug.minecraft.forge125.block.entity.GrugSavedDataPacket;
 import net.grug.minecraft.forge125.client.GrugClientSetup;
 import net.grug.minecraft.forge125.control.GrugControl125Client;
 import net.grug.minecraft.forge125.control.GrugControlPacket;
@@ -90,6 +91,7 @@ public class mod_Grug extends BaseMod {
             customRenderId = GrugClientSetup.registerRenderId();
             GrugControlPacket.register();
             GrugControl125Client.install();
+            GrugSavedDataPacket.register();
         }
 
         FileInfo[] files = Grug.compileAllFiles();

@@ -5,7 +5,10 @@ import cpw.mods.fml.common.TickType;
 import cpw.mods.fml.server.FMLServerHandler;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestRunner;
+import net.grug.minecraft.forge125.block.entity.GrugSavedDataPacket;
+import net.grug.minecraft.forge125.block.entity.GrugSavedDataServer125;
 import net.grug.minecraft.forge125.control.GrugControlFind;
 import net.grug.minecraft.forge125.control.GrugControlPacket;
 import net.grug.minecraft.forge125.control.GrugControlServer125;
@@ -13,6 +16,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.src.EntityPlayerMP;
+import net.minecraft.src.Packet;
 import net.minecraft.src.PlayerManager;
 import net.minecraft.src.World;
 
@@ -52,7 +56,17 @@ public final class GrugServerRun implements ITickHandler {
     public static void install() {
         GrugControlPacket.register();
         GrugControlServer125.install();
+        GrugSavedDataPacket.register();
+        GrugSavedDataSync.install(new GrugSavedDataServer125());
         cpw.mods.fml.common.FMLCommonHandler.instance().registerTickHandler(new GrugServerRun());
+    }
+
+    /** Sends {@code packet} to every player who is on this server. */
+    public static void sendToAllPlayers(Packet packet) {
+        MinecraftServer server = server();
+        if (server != null && server.configManager != null) {
+            server.configManager.sendPacketToAllPlayers(packet);
+        }
     }
 
     private static MinecraftServer server() {

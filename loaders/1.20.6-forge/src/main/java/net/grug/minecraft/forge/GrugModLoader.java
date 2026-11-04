@@ -4,12 +4,14 @@ import com.mojang.logging.LogUtils;
 
 import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugRunWindow;
+import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugTestRunner;
 import net.grug.minecraft.forge.block.GrugBakedModel;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.GrugItemBakedModel;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntityRenderer;
+import net.grug.minecraft.forge.block.entity.GrugBlockEntitySync;
 import net.grug.minecraft.forge.gui.GrugMenu;
 import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.forge.resource.GrugPackResources;
@@ -279,6 +281,10 @@ public class GrugModLoader {
         // The test-control channel (#1040) ships in the mod and works on a live server, so it is
         // registered on both sides, in a CI run or not.
         GrugControlForge.init();
+
+        // The client keeps its own copy of a grug block entity, so a saved number the script writes
+        // on the server is sent to it, on both sides of a singleplayer game alike.
+        GrugSavedDataSync.install(new GrugBlockEntitySync());
 
         // Registered here rather than through an event bus subscriber annotation, which Forge would
         // act on in any version that scans this class, not only the one this layer targets.
