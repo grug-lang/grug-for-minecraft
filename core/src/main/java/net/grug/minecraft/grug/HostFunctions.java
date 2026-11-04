@@ -27,8 +27,10 @@ public class HostFunctions {
     /**
      * The world a client shows changed, so a settle answer a server remembered for an older
      * revision no longer describes it (#1086). Every host function that writes a block, a block
-     * entity's saved data or a slot a client may be showing calls this, which is what lets a
-     * forwarded {@code Test.world_settled} wait without freezing the world on every poll.
+     * entity's saved data, inventory, energy or NBT, a slot a client may be showing, an entity, a
+     * dropped item or the player's hand calls this, and so does a test that advances the world's
+     * simulation. It is what lets a forwarded {@code Test.world_settled} wait without freezing the
+     * world on every poll.
      */
     private static void worldChanged() {
         GrugWorldRevision.bump();
@@ -160,6 +162,7 @@ public class HostFunctions {
     }
 
     public static void Test_set_held_item(long playerId, long itemId) {
+        worldChanged();
         withEntities(
                 "Test.set_held_item",
                 "player",
@@ -170,6 +173,7 @@ public class HostFunctions {
     }
 
     public static void Test_clear_held_item(long playerId) {
+        worldChanged();
         withEntity(
                 "Test.clear_held_item",
                 "player",
@@ -296,6 +300,7 @@ public class HostFunctions {
     }
 
     public static void Test_round_trip_nbt(long blockEntityId) {
+        worldChanged();
         GrugCore.getAdapter().roundTripNbt(HostFunctionHelpers.resolveBlockEntity(blockEntityId));
     }
 
@@ -311,6 +316,7 @@ public class HostFunctions {
      * a no-op rather than an err. See #518.
      */
     public static double Test_high_block_round_trip() {
+        worldChanged();
         return GrugCore.getAdapter().highBlockRoundTrip();
     }
 
@@ -327,6 +333,7 @@ public class HostFunctions {
      * rounded.
      */
     public static void Test_tick_block_entity(long blockEntityId, double ticks) {
+        worldChanged();
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!GrugSavedNumbers.isHolder(blockEntity)) {
             Grug.hostFunctionErrorHappened(
@@ -363,6 +370,7 @@ public class HostFunctions {
      * yet, so a test can tell an advance that did nothing from one that worked. See #753 and #780.
      */
     public static double Test_tick_level(long levelId, double ticks) {
+        worldChanged();
         String problem = GrugTestState.checkTickCount(ticks);
         if (problem != null) {
             Grug.hostFunctionErrorHappened(Grug.statePtr, "Test.tick_level: " + problem);
@@ -384,6 +392,7 @@ public class HostFunctions {
      * nothing behind for the next run to trip over. See {@link GrugModFileStates}.
      */
     public static void Test_set_mod_file_state(String relativePath, String state) {
+        worldChanged();
         try {
             GrugModFileStates.set(
                     GrugCore.getAdapter().getGrugModsDirectory(), relativePath, state);
@@ -482,6 +491,7 @@ public class HostFunctions {
 
     /** Test only: loads a block entity's staged NBT edits. See {@link GrugBlockEntityNbt}. */
     public static void Test_load_nbt(long blockEntityId) {
+        worldChanged();
         GrugBlockEntityNbt.report(
                 "Test.load_nbt",
                 GrugBlockEntityNbt.load(HostFunctionHelpers.resolveBlockEntity(blockEntityId)));
@@ -967,12 +977,14 @@ public class HostFunctions {
     }
 
     public static double BlockEntity_ask_extract_item(long blockEntityId, double fromSide) {
+        worldChanged();
         return GrugSpecialInventory.askExtract(
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId), fromSide);
     }
 
     public static double BlockEntity_extract_item_into(
             long blockEntityId, long destinationId, double destinationSlot, double fromSide) {
+        worldChanged();
         return GrugSpecialInventory.extractInto(
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId),
                 HostFunctionHelpers.resolveBlockEntity(destinationId),
@@ -987,6 +999,7 @@ public class HostFunctions {
             double count,
             double fromSide,
             boolean add) {
+        worldChanged();
         return withEntity(
                 "BlockEntity.add_item",
                 "item",
@@ -1005,6 +1018,7 @@ public class HostFunctions {
 
     public static void BlockEntity_consume_crafting_ingredients(
             long blockEntityId, double startSlot) {
+        worldChanged();
         GrugCore.getAdapter()
                 .consumeCraftingIngredients(
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
@@ -1027,6 +1041,7 @@ public class HostFunctions {
 
     public static double BlockEntity_extract_item_from_inventory(
             long blockEntityId, long itemId, double damage, double amount) {
+        worldChanged();
         return withEntity(
                 "BlockEntity.extract_item_from_inventory",
                 "item",
@@ -1043,6 +1058,7 @@ public class HostFunctions {
 
     public static double BlockEntity_insert_item_into_inventory(
             long blockEntityId, long itemId, double damage, double amount, boolean insert) {
+        worldChanged();
         return withEntity(
                 "BlockEntity.insert_item_into_inventory",
                 "item",
@@ -1273,6 +1289,7 @@ public class HostFunctions {
     }
 
     public static double BlockEntity_receive_energy(long blockEntityId, double amount) {
+        worldChanged();
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         String problem = GrugPower.checkIsReceiver(blockEntity);
         if (problem == null) {
@@ -1286,6 +1303,7 @@ public class HostFunctions {
     }
 
     public static double BlockEntity_extract_energy(long blockEntityId, double max) {
+        worldChanged();
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         String problem = GrugPower.checkIsReceiver(blockEntity);
         if (problem == null) {
@@ -1363,18 +1381,21 @@ public class HostFunctions {
     }
 
     public static double BlockEntity_take_crafting_result(long blockEntityId, double amount) {
+        worldChanged();
         return GrugCore.getAdapter()
                 .takeCraftingResult(HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount);
     }
 
     public static double BlockEntity_take_item_from_slot(
             long blockEntityId, double slot, double amount) {
+        worldChanged();
         return GrugCore.getAdapter()
                 .takeItemFromSlot(
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), slot, amount);
     }
 
     public static void BlockEntity_update_recipe_output(long blockEntityId, double startSlot) {
+        worldChanged();
         GrugCore.getAdapter()
                 .updateRecipeOutput(
                         HostFunctionHelpers.resolveBlockEntity(blockEntityId), startSlot);
@@ -1463,6 +1484,7 @@ public class HostFunctions {
     }
 
     public static void Entity_set_delta_movement(long entityId, long vec3Id) {
+        worldChanged();
         withEntities(
                 "Entity.set_delta_movement",
                 "entity",
@@ -1490,6 +1512,7 @@ public class HostFunctions {
     }
 
     public static void Entity_spawn(long entityId, long levelId) {
+        worldChanged();
         withEntities(
                 "Entity.spawn",
                 "entity",
@@ -2125,6 +2148,7 @@ public class HostFunctions {
     // Host functions
 
     public static void drop_inventory(long levelId, double x, double y, double z) {
+        worldChanged();
         withEntity(
                 "drop_inventory",
                 "level",
@@ -2159,6 +2183,7 @@ public class HostFunctions {
      * that is the copy the game saves and the one a test reads back; see the adapter's own method.
      */
     public static void give_item(long itemId) {
+        worldChanged();
         withEntity("give_item", "item", itemId, HostFunctions::giveItem);
     }
 
@@ -2187,6 +2212,7 @@ public class HostFunctions {
      * give_item}.
      */
     public static void give_item_stack(long itemId) {
+        worldChanged();
         withEntity("give_item_stack", "item", itemId, HostFunctions::giveItemStack);
     }
 
@@ -2390,6 +2416,7 @@ public class HostFunctions {
     }
 
     public static long item_entity(long levelId, double x, double y, double z, long itemStackId) {
+        worldChanged();
         return withEntities(
                 "item_entity",
                 "item stack",

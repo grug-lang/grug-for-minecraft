@@ -35,4 +35,29 @@ class GrugSettledRevisionTest {
         settled.forget();
         assertFalse(settled.answeredSettled(3));
     }
+
+    @Test
+    void theQueuedChangesAreFlushedOncePerRevision() {
+        GrugSettledRevision settled = new GrugSettledRevision();
+        assertTrue(settled.needsFlush(4), "nothing has been flushed yet");
+
+        settled.flushed(4);
+        assertFalse(settled.needsFlush(4), "a repeat ask at the same revision sends nothing");
+        assertTrue(settled.needsFlush(5), "a later revision's changes have not been sent");
+
+        settled.flushed(5);
+        settled.record(5, false);
+        assertFalse(settled.needsFlush(5), "an unsettled answer still had its changes sent");
+        assertFalse(settled.answeredSettled(5));
+    }
+
+    @Test
+    void forgettingAnAnswerAlsoFlushesTheRevisionAgain() {
+        GrugSettledRevision settled = new GrugSettledRevision();
+        settled.flushed(3);
+        assertFalse(settled.needsFlush(3));
+
+        settled.forget();
+        assertTrue(settled.needsFlush(3), "a new run sends the same revision's changes again");
+    }
 }

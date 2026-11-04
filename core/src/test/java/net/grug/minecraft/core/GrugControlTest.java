@@ -1178,10 +1178,12 @@ class GrugControlTest {
         int asked = loop.toClient.size();
 
         // The same revision, now that the client has drawn: settled, and the ask went out once
-        // more.
+        // more. Its changes were flushed by the first ask, so this one sends nothing again.
+        loop.flushed = false;
         assertTrue(loop.server.worldSettled());
         assertEquals(asked + 1, loop.toClient.size());
         assertEquals(1, settled.forgotten);
+        assertFalse(loop.flushed);
 
         // A settled answer holds for its revision, so a wait that polls does not freeze the world.
         loop.flushed = false;
@@ -1195,8 +1197,11 @@ class GrugControlTest {
         assertFalse(loop.server.worldSettled());
         assertEquals(2, settled.forgotten);
         assertTrue(loop.flushed);
-        // An unsettled answer is not remembered as one, so the next ask is a fresh question.
+        // An unsettled answer is not remembered as one, so the next ask is a fresh question, and
+        // its revision's changes were already flushed.
+        loop.flushed = false;
         assertFalse(loop.server.worldSettled());
+        assertFalse(loop.flushed);
     }
 
     @Test
@@ -1213,6 +1218,28 @@ class GrugControlTest {
         loop.client.beginRun();
         settled.settled = true;
         assertFalse(loop.server.worldSettled());
+    }
+
+    @Test
+    void aDisconnectForgetsTheAnswerSoALaterStarterIsAskedAgain() throws Exception {
+        Settled settled = new Settled();
+        Loopback loop = wireCalls(1000, settled);
+        loop.client.beginRun();
+        settled.settled = true;
+        assertFalse(loop.server.worldSettled());
+        assertTrue(loop.server.worldSettled());
+        // The answer is remembered now, so the same revision is answered without a freeze.
+        assertTrue(loop.server.worldSettled());
+
+        // The player who started the run left, and a new run starts at the same revision.
+        loop.server.onDisconnect(PLAYER);
+        loop.client.beginRun();
+        settled.settled = true;
+
+        // The remembered answer belonged to the client that left, so it must not answer for this
+        // one: the client is asked, and its first answer at a new run is unsettled.
+        assertFalse(loop.server.worldSettled());
+        assertEquals(2, settled.forgotten);
     }
 
     @Test
