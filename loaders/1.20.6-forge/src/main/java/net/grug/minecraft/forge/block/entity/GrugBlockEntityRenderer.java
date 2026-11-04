@@ -13,6 +13,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugItemDraw;
 import net.grug.minecraft.grug.GrugModelDraw;
 import net.grug.minecraft.grug.GrugSavedNumbers;
+import net.grug.minecraft.grug.HostFunctionHelpers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -69,20 +70,13 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
             return;
         }
 
-        if (state.getBlock()
-                .builtInRegistryHolder()
-                .key()
-                .location()
-                .toString()
-                .equals("grug:coverage_frame")) {
-            System.out.println(
-                    "[GRUG SYNC] 1.20.6 render be="
-                            + System.identityHashCode(blockEntity)
-                            + " handle="
-                            + blockEntity.getGrugEntityHandle()
-                            + " marker="
-                            + GrugSavedNumbers.get(blockEntity, "marker"));
-        }
+        boolean coverageFrame =
+                state.getBlock()
+                        .builtInRegistryHolder()
+                        .key()
+                        .location()
+                        .toString()
+                        .equals("grug:coverage_frame");
 
         // The camera is already interpolated for this frame, so its yaw is the direction the
         // player looks in without the partial tick being applied again here.
@@ -93,6 +87,39 @@ public class GrugBlockEntityRenderer implements BlockEntityRenderer<GrugBlockEnt
                         blockEntity.getFrameRenderFnId(),
                         partialTick,
                         yaw);
+
+        if (coverageFrame) {
+            Object resolved =
+                    HostFunctionHelpers.resolveBlockEntity(blockEntity.getGrugEntityHandle());
+            StringBuilder draws = new StringBuilder();
+            for (GrugFrameDraw draw : geometry.draws()) {
+                if (draw instanceof GrugItemDraw item) {
+                    draws.append("item(")
+                            .append(item.x())
+                            .append(',')
+                            .append(item.y())
+                            .append(',')
+                            .append(item.z())
+                            .append(") ");
+                } else {
+                    draws.append("model ");
+                }
+            }
+            System.out.println(
+                    "[GRUG SYNC] 1.20.6 render be="
+                            + System.identityHashCode(blockEntity)
+                            + " handle="
+                            + blockEntity.getGrugEntityHandle()
+                            + " marker="
+                            + GrugSavedNumbers.get(blockEntity, "marker")
+                            + " resolved="
+                            + System.identityHashCode(resolved)
+                            + " resolvedMarker="
+                            + GrugSavedNumbers.get(resolved, "marker")
+                            + " draws=["
+                            + draws
+                            + "]");
+        }
         if (geometry.draws().isEmpty()) return;
 
         for (GrugFrameDraw draw : geometry.draws()) {
