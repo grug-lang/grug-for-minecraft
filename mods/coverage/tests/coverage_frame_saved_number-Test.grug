@@ -31,9 +31,10 @@ export tick_any_side(ctx: TestTickContext) {
         saved_tick = ctx.current_tick()
         ctx.not_done()
     } else if not Test.world_settled() or ctx.current_tick() < saved_tick + 30 {
-        # The change is a packet and a frame away, and nothing marks the world unsettled for it: a
-        # script saves numbers as it runs and a world that settled only between those would never
-        # settle. The runner runs up to 10 ticks for a frame, so 30 ticks hold three frames.
+        # The change is a packet and a frame away, and a client's own settle does not see a block
+        # entity's data packet, so this holds for a fixed count as well as for the forwarded settle
+        # answer: a script saves numbers as it runs and a world that settled only between those
+        # would never settle. The runner runs up to 10 ticks for a frame, so 30 ticks hold three.
         ctx.not_done()
     } else {
         after: Screenshot = Test.screenshot().capture(500, 180, 780, 340)
