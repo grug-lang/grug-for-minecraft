@@ -1055,7 +1055,7 @@ class RunLoaderTest(unittest.TestCase):
         # The expected count leaves a forwarded_ test out, because a client's run never counts it.
         # Carrying one over has to subtract nothing then: the game skips it either way, so
         # subtracting it expects one test fewer than the game reports and fails a green run
-        # (#1084).
+        # (#1084). Both names are still reported as carried over, since both are.
         self.add_coverage_tests(["a", "forwarded_b"])
 
         result = self.run_script(
@@ -1069,7 +1069,30 @@ class RunLoaderTest(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("carries over 1 coverage test(s)", result.stdout)
+        self.assertIn("carries over 2 coverage test(s)", result.stdout)
+        self.assertIn("coverage/tests/a-Test.grug", result.stdout)
+        self.assertIn("coverage/tests/forwarded_b-Test.grug", result.stdout)
+
+    def test_a_forwarded_only_carry_over_is_reported_in_full(self):
+        # Nothing is subtracted here, because the count never included either test, but both were
+        # carried over and the message has to say so: a list with no name after the colon reads
+        # as if nothing was carried.
+        self.add_coverage_tests(["forwarded_a", "forwarded_b"])
+
+        result = self.run_script(
+            self.selected_log(1),
+            0,
+            {
+                "GRUG_CI_COVERAGE_CARRY_OVER": (
+                    "coverage/tests/forwarded_a-Test.grug,coverage/tests/forwarded_b-Test.grug"
+                )
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("carries over 2 coverage test(s)", result.stdout)
+        self.assertIn("coverage/tests/forwarded_a-Test.grug", result.stdout)
+        self.assertIn("coverage/tests/forwarded_b-Test.grug", result.stdout)
 
     def test_a_run_that_passed_the_uncarried_count_still_fails(self):
         # The subtraction is what the check depends on: the same run, counted as if nothing were
@@ -1117,19 +1140,24 @@ class RunLoaderTest(unittest.TestCase):
         self.assertIn("(2 tests)", result.stdout)
 
     def test_a_selection_that_runs_no_coverage_test_cannot_carry_one_over(self):
-        # The subtraction would expect one test fewer than the game runs, so a list of names with
-        # nothing being counted for the gate is refused rather than passed to the runner.
-        self.add_coverage_tests(["a", "b"])
+        # A list of names with nothing being counted for the gate is refused rather than passed to
+        # the runner. A forwarded_ name is no exception: it subtracts nothing, but it still says a
+        # coverage test was carried over, and this selection runs none.
+        self.add_coverage_tests(["a", "forwarded_b"])
 
-        result = self.run_script(
-            PASSING_LOG,
-            0,
-            {"GRUG_CI_MODS": "fake", "GRUG_CI_COVERAGE_CARRY_OVER": "coverage/tests/a-Test.grug"},
-        )
+        for name in ("a", "forwarded_b"):
+            result = self.run_script(
+                PASSING_LOG,
+                0,
+                {
+                    "GRUG_CI_MODS": "fake",
+                    "GRUG_CI_COVERAGE_CARRY_OVER": f"coverage/tests/{name}-Test.grug",
+                },
+            )
 
-        self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn("runs no coverage test", result.stderr)
-        self.assertEqual(result.gradle_args, "")
+            self.assertEqual(result.returncode, 2, (name, result.stderr))
+            self.assertIn("runs no coverage test", result.stderr)
+            self.assertEqual(result.gradle_args, "")
 
     def test_an_empty_carry_over_entry_fails_before_the_game_starts(self):
         self.add_coverage_tests(["a"])

@@ -305,6 +305,9 @@ fi
 # empty, which changes nothing.
 GRUG_CI_COVERAGE_CARRY_OVER="${GRUG_CI_COVERAGE_CARRY_OVER:-}"
 if [ -n "${GRUG_CI_COVERAGE_CARRY_OVER//[[:space:]]/}" ]; then
+  # Every carried name, which the message reports and the no-coverage guard counts.
+  carried_total=0
+  # The carried names the expected count above includes, which is what the count loses.
   carried=0
   carried_tests=" "
   # The comma appended here keeps read from dropping a last empty entry, such as the one in "a,".
@@ -329,14 +332,15 @@ if [ -n "${GRUG_CI_COVERAGE_CARRY_OVER//[[:space:]]/}" ]; then
     fi
     # A name repeated in the list counts once, as the runner treats it.
     case "$carried_tests" in *" ${test} "*) continue ;; esac
+    carried_tests="${carried_tests}${test} "
+    carried_total=$((carried_total + 1))
     # A forwarded_ test is not in the expected count above, because a client's run skips it.
     # Carrying one over must then subtract nothing: the game skips it either way, and subtracting
-    # it would expect fewer tests than the game reports and fail a green run (#1084). The name is
-    # still passed to the game, which skips it like any carried-over test.
+    # it would expect fewer tests than the game reports and fail a green run (#1084). It is still
+    # carried over and still named to the game, which skips it like any carried-over test.
     case "$test" in
       */forwarded_*-Test.grug) continue ;;
     esac
-    carried_tests="${carried_tests}${test} "
     carried=$((carried + 1))
   done
   # The carry-over subtracts only when the coverage mod's tests are counted at all: the mods
@@ -346,13 +350,13 @@ if [ -n "${GRUG_CI_COVERAGE_CARRY_OVER//[[:space:]]/}" ]; then
     case " ${selected_mods} " in *" coverage "*) ;; *) counting_coverage=false ;; esac
   fi
   if [ "$counting_coverage" = false ]; then
-    if [ "$carried" -gt 0 ]; then
-      echo "==> ERROR: GRUG_CI_COVERAGE_CARRY_OVER names ${carried} coverage test(s), but the mods selection runs no coverage test." >&2
+    if [ "$carried_total" -gt 0 ]; then
+      echo "==> ERROR: GRUG_CI_COVERAGE_CARRY_OVER names ${carried_total} coverage test(s), but the mods selection runs no coverage test." >&2
       exit 2
     fi
   else
     EXPECTED_TESTS=$((EXPECTED_TESTS - carried))
-    echo "==> GRUG_CI_COVERAGE_CARRY_OVER carries over ${carried} coverage test(s) from the base commit's recorded coverage, whose assertions do not rerun:${carried_tests# }"
+    echo "==> GRUG_CI_COVERAGE_CARRY_OVER carries over ${carried_total} coverage test(s) from the base commit's recorded coverage, whose assertions do not rerun:${carried_tests# }"
   fi
 fi
 SUCCESS_MSG="[GRUG CI] ALL ${EXPECTED_TESTS} TESTS PASSED"

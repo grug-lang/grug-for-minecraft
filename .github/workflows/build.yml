@@ -792,9 +792,10 @@ jobs:
           GRUG_CI_MODS: ${{ matrix.mods || inputs.mods }}
           # The coverage tests the gate carries over instead of rerunning (#786), the discover
           # job's proof: a pull request's, empty otherwise. run-loader.sh checks each name
-          # against the tree before the game starts and subtracts it from the expected count,
-          # so a name the proof cannot back is a failure before the game, not a run that quietly
-          # skipped more than it was asked to.
+          # against the tree before the game starts and subtracts from the expected count every
+          # name that count includes, so a name the proof cannot back is a failure before the
+          # game, not a run that quietly skipped more than it was asked to. A forwarded_ name is
+          # carried over but not subtracted, since a client's run never counts it.
           GRUG_CI_COVERAGE_CARRY_OVER: ${{ needs.discover.outputs.carry-over }}
           # The watch covers the whole run: 300s for one pass (the slowest loader measured under 190s
           # of game time) plus 200s per extra pass. 1.2.5 is the slowest loader and took about 150s
