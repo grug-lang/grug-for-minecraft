@@ -298,10 +298,11 @@ while :; do
     grep -E '\[GRUG CI\] Skipped ' "$SERVER_LOG"
     # A server skips a test that does not define tick_any_side and skips a forwarded_ test it
     # cannot forward, and either skip is a green run: the tests below have to show as passed. The
-    # forwarded_ ones are the channel's own tests, and the three coverage tests are the ones whose
-    # settle wait and capture only work on a server once the wait is forwarded (#1086).
+    # forwarded_ ones are the channel's own tests, and the saved-number test is the one pixel test
+    # promoted so far, because it compares two captures of the same session (#1086). The two that
+    # compare against a golden are left out until they have a per-side reference (#1092).
     if [ "$LOADER" = "1.20.6-forge" ] || [ "$LOADER" = "1.2.5-forge" ] || [ "$LOADER" = "a1.1.2_01-ornithe" ] || [ "$LOADER" = "b1.7.3-ornithe" ] || [ "$LOADER" = "b1.7.3-stationapi" ]; then
-      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_world_settled coverage_frame coverage_frame_saved_number coverage_render; do
+      for required in forwarded_capture forwarded_capture_dropped forwarded_capture_late forwarded_capture_late_then forwarded_world_settled coverage_frame_saved_number; do
         if ! grep -qF "[GRUG CI] PASS coverage/tests/${required}-Test.grug" "$SERVER_LOG"; then
           echo "==> The run passed, but coverage/tests/${required}-Test.grug did not run on the dedicated server." >&2
           exit 1
