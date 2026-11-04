@@ -663,19 +663,25 @@ public interface ModLoaderAdapter {
     void restorePlayerAfterTest();
 
     /**
-     * Closes whatever screen the client currently has open, so a test that captures the world is
-     * not looking at a panel an earlier test opened and never closed.
+     * Closes whatever screen is open, so a test that captures the world is not looking at a panel
+     * an earlier test opened and never closed.
      *
      * <p>Tests share one client for the whole run, so an open screen outlives the test that opened
      * it. That is invisible until a later test takes a screenshot and finds the world behind a
-     * panel it did not ask for.
+     * panel it did not ask for. A dedicated server has no screen of its own to close, so it closes
+     * the container its test player has open, which is the packet that closes the joined client's
+     * screen.
      */
     void closeOpenScreenForTest();
 
     /**
-     * Whether the client has a screen open, for a test that must not capture before the panel it
-     * asked for has arrived. {@code Test.close_screen} leaves no screen open by this answer, even
-     * on a loader that displays a placeholder screen for it.
+     * Whether a screen is open, for a test that must not capture before the panel it asked for has
+     * arrived. {@code Test.close_screen} leaves no screen open by this answer, even on a loader
+     * that displays a placeholder screen for it.
+     *
+     * <p>On a dedicated server it is the container its test player has open, the menu the joined
+     * client's screen is built from: the client's own screen is a client-side object a server does
+     * not have, and asking the client is what #1094 forwards.
      */
     boolean isScreenOpenForTest();
 

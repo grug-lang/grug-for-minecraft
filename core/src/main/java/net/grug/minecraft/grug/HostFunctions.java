@@ -582,7 +582,8 @@ public class HostFunctions {
     private static boolean screenWasOpen = false;
 
     /**
-     * Test only: closes whatever screen the client has open.
+     * Test only: closes whatever screen is open, which on a dedicated server is the container the
+     * player the test runs as has open.
      *
      * <p>One client serves the whole run, so a screen a test opened outlives it. A screenshot test
      * that follows one which opened a GUI needs this, or it captures that panel rather than the
@@ -597,9 +598,10 @@ public class HostFunctions {
     }
 
     /**
-     * Test only: whether the client has a screen open. On 1.20.6 a block's GUI is opened by a
-     * packet from the server, so it is not open yet when {@code Test.use_block} returns, and a
-     * settled world does not say it has arrived. See #418.
+     * Test only: whether a screen is open, which on a dedicated server is the container the player
+     * the test runs as has open, the menu the joined client's screen is built from. On 1.20.6 a
+     * block's GUI is opened by a packet from the server, so it is not open yet when {@code
+     * Test.use_block} returns, and a settled world does not say it has arrived. See #418.
      *
      * <p>A screen that has just appeared forgets the frames counted so far. {@code screen_open}
      * alone only says the screen object exists, and {@code world_settled} only says the last frames

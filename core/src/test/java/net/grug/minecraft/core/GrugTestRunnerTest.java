@@ -1280,6 +1280,36 @@ class GrugTestRunnerTest {
         assertTrue(printed.contains("ALL 3 TESTS PASSED"), printed);
     }
 
+    @Test
+    void aServerFailsATestThatDeclaredItRunsThereWhenItsCallNeedsAClient() {
+        // The declaration is what makes a skip legal, so a test that declared it runs on a
+        // dedicated server is never skipped: when one of its calls needs a client, the host
+        // function's refusal aborts the tick and the run FAILS. That refusal is what a client-only
+        // host function leaves behind (ModLoaderAdapter.refuseWithoutAClient reports it through
+        // Grug.hostFunctionErrorHappened, which stops the script), and the forwarded_ refusal tests
+        // are the game-run proof of its message. Without this, the skip branch would hide a test
+        // that declared it can run but cannot.
+        FakeOps ops = new FakeOps();
+        ops.anySide.add("coverage/tests/a-Test.grug");
+        ops.onCall =
+                () -> {
+                    if (!"coverage/tests/a-Test.grug".equals(ops.activePath)) return;
+                    reportRuntimeError(
+                            "Test.screen_width: This needs a client, and grug is running on a"
+                                    + " dedicated server.");
+                    ops.completed = false;
+                };
+
+        String printed = capture(() -> runToEnd(sideRunner(ops, true)));
+
+        assertTrue(printed.contains("[GRUG CI] FAIL coverage/tests/a-Test.grug"), printed);
+        assertTrue(
+                printed.contains("The test script reported a runtime error and stopped early"),
+                printed);
+        assertFalse(printed.contains("Skipped"), printed);
+        assertFalse(printed.contains("[GRUG CI] PASS coverage/tests/a-Test.grug"), printed);
+    }
+
     private GrugTestRunner forwardedRunner(
             FakeOps ops, boolean dedicatedServer, boolean forwardsClientCalls) {
         Map<String, Long> files = threeMods();
