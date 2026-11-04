@@ -1118,6 +1118,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double screenWidthForTest() {
+        if (refuseWithoutAClient("Test.screen_width")) return 0.0;
         Screen screen = Minecraft.getInstance().screen;
         return screen == null ? 0.0 : screen.width;
     }
@@ -1125,6 +1126,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiLeftForTest() {
+        if (refuseWithoutAClient("Test.gui_left")) return 0.0;
         AbstractContainerScreen<?> container = openContainerScreen();
         return container == null ? 0.0 : container.getGuiLeft();
     }
@@ -1132,6 +1134,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiWidthForTest() {
+        if (refuseWithoutAClient("Test.gui_width")) return 0.0;
         AbstractContainerScreen<?> container = openContainerScreen();
         return container == null ? 0.0 : container.getXSize();
     }
@@ -1139,6 +1142,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiTopForTest() {
+        if (refuseWithoutAClient("Test.gui_top")) return 0.0;
         AbstractContainerScreen<?> container = openContainerScreen();
         return container == null ? 0.0 : container.getGuiTop();
     }
@@ -1146,6 +1150,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiHeightForTest() {
+        if (refuseWithoutAClient("Test.gui_height")) return 0.0;
         AbstractContainerScreen<?> container = openContainerScreen();
         return container == null ? 0.0 : container.getYSize();
     }
@@ -1589,7 +1594,9 @@ public class ForgeAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void openInventory(Object playerObj) {
+        if (refuseWithoutAClient("Test.open_inventory")) return;
         Player player = (Player) playerObj;
         // Marshalled like closeOpenScreenForTest, because a test ticks on the server thread and the
         // screen belongs to the client. The screen is up by the next frame, which a test waits for
@@ -1600,6 +1607,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
+        if (refuseWithoutAClient("Test.click_screen")) return false;
         // The same path a real press takes, fired on the client thread, so the overlay's handler
         // and the screen's own handler see exactly what a mouse would send, including a
         // cancellation. The arms live in clickOnClient so that this method has no branch for a
@@ -1634,6 +1642,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run scrolls while the screen it just opened is up")
     public boolean scrollScreen(double x, double y, double delta) {
+        if (refuseWithoutAClient("Test.scroll_screen")) return false;
         // The same path a real wheel takes: the pre event the overlay listens to, fired on the
         // client thread, and the screen's own handler only when nothing cancelled it.
         boolean[] outcome = new boolean[2];
@@ -1662,6 +1671,7 @@ public class ForgeAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        if (refuseWithoutAClient("Test.press_screen_key")) return false;
         // The same path a real key takes: the pre event the overlay listens to, fired on the
         // client thread, and the screen's own handler only when nothing cancelled it.
         boolean[] outcome = new boolean[2];

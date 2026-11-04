@@ -44,6 +44,64 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         refuseWithoutAClient("GUI.open");
     }
 
+    // The screen functions a client adapter implements, refused here rather than inherited, so a
+    // server says it has no client instead of saying this loader cannot drive a screen: 1.2.5's
+    // server adapter does not extend the client adapter, so it would otherwise answer with the
+    // interface's default.
+
+    @Override
+    public void openInventory(Object playerObj) {
+        refuseWithoutAClient("Test.open_inventory");
+    }
+
+    @Override
+    public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        refuseWithoutAClient("Test.press_screen_key");
+        return false;
+    }
+
+    @Override
+    public boolean scrollScreen(double x, double y, double delta) {
+        refuseWithoutAClient("Test.scroll_screen");
+        return false;
+    }
+
+    @Override
+    public boolean clickScreen(double x, double y, double button) {
+        refuseWithoutAClient("Test.click_screen");
+        return false;
+    }
+
+    @Override
+    public double screenWidthForTest() {
+        refuseWithoutAClient("Test.screen_width");
+        return 0.0;
+    }
+
+    @Override
+    public double guiLeftForTest() {
+        refuseWithoutAClient("Test.gui_left");
+        return 0.0;
+    }
+
+    @Override
+    public double guiWidthForTest() {
+        refuseWithoutAClient("Test.gui_width");
+        return 0.0;
+    }
+
+    @Override
+    public double guiTopForTest() {
+        refuseWithoutAClient("Test.gui_top");
+        return 0.0;
+    }
+
+    @Override
+    public double guiHeightForTest() {
+        refuseWithoutAClient("Test.gui_height");
+        return 0.0;
+    }
+
     @Override
     public Object getLevel() {
         return GrugServerRun.world();
