@@ -75,6 +75,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     private static final String LOADER_NAME = "b1.7.3-ornithe";
 
     /**
+     * This client as a player knows it, which the shared client code names when a mod the client
+     * needs turns out to be missing (#1113): that code is shared with the Alpha loader, so it
+     * cannot name this loader's client itself, just as it cannot name this loader's adapter.
+     */
+    public static final String CLIENT_NAME = "Beta 1.7.3";
+
+    /**
      * This loader's column of the canonical vanilla block name table, so a mod naming a block gets
      * the same block here as it would on every other loader.
      */

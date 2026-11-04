@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.grug.minecraft.core.GrugMissingClientMod;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugIdShortage;
 import net.grug.minecraft.grug.GrugModTreeDefect;
@@ -46,6 +47,34 @@ public class ClientGrugModLoader implements ClientModInitializer {
     public void onInitializeClient() {
         GrugOverlayHost.init(GrugModLoader.overlayFiles, GrugModLoader.overlayMods);
 
+        // Alpha's fabric.mod.json cannot depend on osl-resource-loader, because its
+        // dedicated server layer cannot load the module, so Fabric will not say that an Alpha
+        // client lacks it. This does (#1113). Beta declares the module, so this catch is dead
+        // there.
+        try {
+            registerResourceLoaderHooks();
+        } catch (NoClassDefFoundError e) {
+            throw GrugMissingClientMod.fatal("osl-resource-loader", OrnitheAdapter.CLIENT_NAME, e);
+        }
+
+        MinecraftClientEvents.READY.register(
+                minecraft -> {
+                    // A game short of ids registered none of what did not fit, so the recipes that
+                    // give it would each fail, and the player cannot craft before turning mods off
+                    // (#510).
+                    if (!GrugIdShortage.all().isEmpty()) return;
+                    GrugModLoader.LOGGER.info("Parsing JSON recipes...");
+                    GrugRecipeHelper.registerAutoDiscoveredRecipes(
+                            GrugModLoader.getActiveGrugModsDir());
+                });
+    }
+
+    /**
+     * Registers the two osl-resource-loader hooks: the generated resource pack, and the refresh of
+     * the grug sprites after a reload. The module is not in every layer's dependencies, so this is
+     * a method of its own, called behind the guard in {@link #onInitializeClient()}.
+     */
+    private void registerResourceLoaderHooks() {
         ClientResourceLoaderEvents.INIT_RESOURCE_PACK_REPOSITORY.register(
                 repo -> {
                     repo.addSource(new GrugResourcePackProvider());
@@ -102,17 +131,6 @@ public class ClientGrugModLoader implements ClientModInitializer {
                         // The textures draw_model faces bind themselves, outside the atlases.
                         GrugModelRenderer.reload();
                     }
-                });
-
-        MinecraftClientEvents.READY.register(
-                minecraft -> {
-                    // A game short of ids registered none of what did not fit, so the recipes that
-                    // give it would each fail, and the player cannot craft before turning mods off
-                    // (#510).
-                    if (!GrugIdShortage.all().isEmpty()) return;
-                    GrugModLoader.LOGGER.info("Parsing JSON recipes...");
-                    GrugRecipeHelper.registerAutoDiscoveredRecipes(
-                            GrugModLoader.getActiveGrugModsDir());
                 });
     }
 
