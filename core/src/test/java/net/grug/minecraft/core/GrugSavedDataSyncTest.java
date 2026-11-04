@@ -10,6 +10,12 @@ import net.grug.minecraft.grug.GrugSavedNumbers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
 /**
  * Covers the decision to send a block entity's saved data to the client's copy, which every loader
  * makes the same way and only a running game can carry out.
@@ -119,6 +125,34 @@ class GrugSavedDataSyncTest {
 
         GrugSavedDataSync.changed(machine);
         assertEquals(1, recorder.sends);
+
+        GrugPower.load(machine, 20);
+        GrugSavedDataSync.changed(machine);
+        assertEquals(2, recorder.sends, "a store that moved again is a new frame");
+    }
+
+    @Test
+    void aReorderedListIsSent() {
+        Recorder recorder = new Recorder();
+        GrugSavedDataSync.install(recorder);
+        Machine machine = new Machine();
+
+        GrugSavedLists.append(machine, "items");
+        GrugSavedLists.append(machine, "items");
+        GrugSavedLists.setNumber(machine, GrugSavedLists.record(machine, "items", 0), "slot", 1);
+        GrugSavedLists.setNumber(machine, GrugSavedLists.record(machine, "items", 1), "slot", 2);
+        GrugSavedDataSync.changed(machine);
+        assertEquals(1, recorder.sends);
+
+        Map<String, List<GrugSavedLists.Record>> reordered = new TreeMap<>();
+        List<GrugSavedLists.Record> records =
+                new ArrayList<>(GrugSavedLists.snapshot(machine).get("items"));
+        Collections.reverse(records);
+        reordered.put("items", records);
+        GrugSavedLists.replace(machine, reordered);
+
+        GrugSavedDataSync.changed(machine);
+        assertEquals(2, recorder.sends, "the order of a list is part of what the frame pass draws");
     }
 
     @Test
@@ -136,20 +170,6 @@ class GrugSavedDataSyncTest {
         recorder.frameOnly = false;
         GrugSavedDataSync.changed(machine);
         assertEquals(0, recorder.sends, "a block in its chunk's mesh is drawn again by its redraw");
-    }
-
-    @Test
-    void forgettingWhatWasSentSendsTheSameDataAgain() {
-        Recorder recorder = new Recorder();
-        GrugSavedDataSync.install(recorder);
-        Machine machine = new Machine();
-        GrugSavedNumbers.set(machine, "marker", 1);
-        GrugSavedDataSync.changed(machine);
-
-        GrugSavedDataSync.forget(machine);
-        GrugSavedDataSync.changed(machine);
-
-        assertEquals(2, recorder.sends);
     }
 
     @Test

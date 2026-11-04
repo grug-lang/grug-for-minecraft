@@ -3,8 +3,10 @@ package net.grug.minecraft.ornithe.block.entity;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.ornithe.block.GrugBlock;
+import net.grug.minecraft.ornithe.control.GrugControlAlpha;
 import net.grug.minecraft.ornithe.server.GrugServerRun;
 import net.minecraft.block.Block;
+import net.minecraft.entity.mob.player.PlayerEntity;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketHandler;
 import net.minecraft.world.World;
@@ -53,12 +55,25 @@ public final class GrugSavedDataAlpha implements GrugSavedDataSync.Transport {
     @Override
     public void send(Object blockEntity) {
         World world = GrugServerRun.world();
+        System.out.println(
+                "[GRUG SYNC] alpha send: world="
+                        + (world != null)
+                        + " players="
+                        + (world == null ? -1 : world.players.size()));
         if (world == null) {
             return;
         }
         GrugSavedDataPacket packet = new GrugSavedDataPacket((GrugBlockEntity) blockEntity);
         for (Object player : new ArrayList<>(world.players)) {
             Connection connection = connectionOf(player);
+            if (connection == null) {
+                connection = GrugControlAlpha.connectionFor((PlayerEntity) player);
+            }
+            System.out.println(
+                    "[GRUG SYNC] alpha player "
+                            + player.getClass().getName()
+                            + " connection="
+                            + connection);
             if (connection != null) {
                 connection.send(packet);
             }
