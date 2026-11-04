@@ -131,6 +131,14 @@ public final class GrugTestBox {
                         if (roomIsWhole && room.blockAt(x, y, z) != null) {
                             continue;
                         }
+                        // The block the player's feet are in is left in place. On a full block it
+                        // is air, and on a non-full one (a slab, a stair's step, soul sand) it is
+                        // the surface the player stands on: the server holds the feet on that
+                        // block's collision top, so clearing it would drop them onto the stand
+                        // block below by the missing part of the block (#1102).
+                        if (x == px && y == py && z == pz) {
+                            continue;
+                        }
                         clearBlock(adapter, level, x, y, z);
                     }
                 }

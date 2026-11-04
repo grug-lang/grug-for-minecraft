@@ -8,29 +8,86 @@ import net.grug.minecraft.core.GrugPlayerFloor.BlockSource;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /** Covers the floor a dedicated server holds a player on in {@link GrugPlayerFloor}. */
 class GrugPlayerFloorTest {
 
-    /** A level whose blocks a test names, and which answers air everywhere else. */
+    /**
+     * A level whose collision boxes a test names, and which answers no collision everywhere else.
+     * One position may hold more than one box, as a stair does, and a box covers only its own part
+     * of the block, so the answer depends on the point the floor asks about.
+     */
     private static final class FakeLevel implements BlockSource {
-        private final Set<String> solid = new HashSet<>();
-        private final Set<String> nonBlocking = new HashSet<>();
+        /** How far a point may sit outside a box's edge and still count as covered. */
+        private static final double EDGE = 1e-9;
 
-        void addSolid(int x, int y, int z) {
-            solid.add(x + "," + y + "," + z);
+        private static final class CollisionBox {
+            final double minX;
+            final double minZ;
+            final double maxX;
+            final double maxZ;
+            final double top;
+
+            CollisionBox(double minX, double minZ, double maxX, double maxZ, double top) {
+                this.minX = minX;
+                this.minZ = minZ;
+                this.maxX = maxX;
+                this.maxZ = maxZ;
+                this.top = top;
+            }
+
+            boolean covers(double localX, double localZ) {
+                return localX >= minX - EDGE
+                        && localX <= maxX + EDGE
+                        && localZ >= minZ - EDGE
+                        && localZ <= maxZ + EDGE;
+            }
         }
 
-        void addNonBlocking(int x, int y, int z) {
-            nonBlocking.add(x + "," + y + "," + z);
+        private final Map<String, List<CollisionBox>> boxes = new HashMap<>();
+
+        /** A full cube, whose collision top is the block's own top. */
+        void addSolid(int x, int y, int z) {
+            addBox(x, y, z, 0.0, 0.0, 1.0, 1.0, 1.0);
+        }
+
+        /** A block whose whole footprint stops the player at {@code top} above its bottom. */
+        void addTop(int x, int y, int z, double top) {
+            addBox(x, y, z, 0.0, 0.0, 1.0, 1.0, top);
+        }
+
+        void addBox(
+                int x,
+                int y,
+                int z,
+                double minX,
+                double minZ,
+                double maxX,
+                double maxZ,
+                double top) {
+            boxes.computeIfAbsent(x + "," + y + "," + z, key -> new ArrayList<>())
+                    .add(new CollisionBox(minX, minZ, maxX, maxZ, top));
         }
 
         @Override
-        public boolean blocksMovement(int x, int y, int z) {
-            String key = x + "," + y + "," + z;
-            return solid.contains(key) && !nonBlocking.contains(key);
+        public double collisionTop(int x, int y, int z, double pointX, double pointZ) {
+            List<CollisionBox> list = boxes.get(x + "," + y + "," + z);
+            if (list == null) {
+                return BlockSource.NO_COLLISION;
+            }
+            double localX = pointX - x;
+            double localZ = pointZ - z;
+            double top = BlockSource.NO_COLLISION;
+            for (CollisionBox box : list) {
+                if (box.covers(localX, localZ)) {
+                    top = Math.max(top, box.top);
+                }
+            }
+            return top;
         }
     }
 
@@ -96,7 +153,7 @@ class GrugPlayerFloorTest {
 
     /**
      * A player inside a stack is put on top of the whole stack: the floor is the top of the
-     * contiguous solid column, not the top of the first solid block below the feet.
+     * contiguous column of collision shapes, not the top of the first block below the feet.
      */
     @Test
     void theFloorIsTheTopOfAContiguousSolidStack() {
@@ -111,14 +168,13 @@ class GrugPlayerFloorTest {
     }
 
     /**
-     * A plant at the feet does not make the player inside a block: the level's material test says
-     * it does not stop movement, so a player standing in one may start a run.
+     * A plant at the feet has no collision box, so it does not make the player inside a block and a
+     * player standing in one may start a run.
      */
     @Test
     void aPlantAtTheFeetIsNotInsideABlock() {
         FakeLevel level = new FakeLevel();
         level.addSolid(-24, 70, -65);
-        level.addNonBlocking(-24, 71, -65);
 
         assertEquals(71.0, GrugPlayerFloor.floorTop(level, -23.5, 71.0, -64.5));
         assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, 71.0, -64.5));
@@ -148,15 +204,114 @@ class GrugPlayerFloorTest {
     }
 
     /**
-     * A level that answers solid everywhere cannot hang the scan: the upward walk stops at the
-     * highest block it reads, so a broken level costs a bounded number of reads.
+     * A level that answers a full cube everywhere cannot hang the scan: the upward walk stops at
+     * the highest block it reads, so a broken level costs a bounded number of reads.
      */
     @Test
     void aColumnThatNeverEndsStopsAtTheScanTop() {
-        BlockSource alwaysSolid = (x, y, z) -> true;
+        BlockSource alwaysSolid = (x, y, z, pointX, pointZ) -> 1.0;
 
         assertEquals(
                 GrugPlayerFloor.SCAN_TOP + 1.0,
                 GrugPlayerFloor.floorTop(alwaysSolid, -23.5, 71.0, -64.5));
+    }
+
+    /**
+     * A slab at y=70 has a collision top at 70.5, so a player whose feet are there stands on it and
+     * is not inside it, and the floor is its shape's top rather than the block's top at 71. Without
+     * the collision shape the floor answers 71 and the hold lifts the player half a block.
+     */
+    @Test
+    void aSlabHoldsThePlayerOnItsCollisionTop() {
+        FakeLevel level = new FakeLevel();
+        level.addTop(-24, 70, -65, 0.5);
+
+        double feet = 70.5;
+        assertEquals(70.5, GrugPlayerFloor.floorTop(level, -23.5, feet, -64.5));
+        assertFalse(GrugPlayerFloor.below(feet, 70.5));
+        assertTrue(GrugPlayerFloor.standsOn(feet, 70.5));
+        assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, feet, -64.5));
+    }
+
+    /** A player whose feet are inside a slab's shape is inside a block, not standing on it. */
+    @Test
+    void feetInsideASlabsShapeAreInsideABlock() {
+        FakeLevel level = new FakeLevel();
+        level.addTop(-24, 70, -65, 0.5);
+
+        double feet = 70.2;
+        assertEquals(70.5, GrugPlayerFloor.floorTop(level, -23.5, feet, -64.5));
+        assertTrue(GrugPlayerFloor.below(feet, 70.5));
+        assertFalse(GrugPlayerFloor.standsOn(feet, 70.5));
+        assertTrue(GrugPlayerFloor.insideABlock(level, -23.5, feet, -64.5));
+    }
+
+    /**
+     * A stair is two collision boxes in one block: the lower step is half a block high and the
+     * upper one is a full block. A player on the lower step is held at 70.5, and one on the upper
+     * step at 71, so the floor follows the box the player's own column meets.
+     */
+    @Test
+    void aStairsStepHoldsThePlayerOnTheBoxUnderThem() {
+        FakeLevel level = new FakeLevel();
+        level.addBox(-24, 70, -65, 0.0, 0.0, 0.5, 1.0, 0.5);
+        level.addBox(-24, 70, -65, 0.5, 0.0, 1.0, 1.0, 1.0);
+
+        double onLowerStep = 70.5;
+        assertEquals(70.5, GrugPlayerFloor.floorTop(level, -23.75, onLowerStep, -64.5));
+        assertTrue(GrugPlayerFloor.standsOn(onLowerStep, 70.5));
+        assertFalse(GrugPlayerFloor.insideABlock(level, -23.75, onLowerStep, -64.5));
+
+        double onUpperStep = 71.0;
+        assertEquals(71.0, GrugPlayerFloor.floorTop(level, -23.25, onUpperStep, -64.5));
+        assertTrue(GrugPlayerFloor.standsOn(onUpperStep, 71.0));
+        assertFalse(GrugPlayerFloor.insideABlock(level, -23.25, onUpperStep, -64.5));
+    }
+
+    /**
+     * A player whose column meets the stair's taller box, with feet still at the lower step's
+     * height, is inside that box: the block's own top is not what decides it.
+     */
+    @Test
+    void feetInsideAStairsTallerBoxAreInsideABlock() {
+        FakeLevel level = new FakeLevel();
+        level.addBox(-24, 70, -65, 0.0, 0.0, 0.5, 1.0, 0.5);
+        level.addBox(-24, 70, -65, 0.5, 0.0, 1.0, 1.0, 1.0);
+
+        double feet = 70.5;
+        assertEquals(71.0, GrugPlayerFloor.floorTop(level, -23.25, feet, -64.5));
+        assertTrue(GrugPlayerFloor.below(feet, 71.0));
+        assertTrue(GrugPlayerFloor.insideABlock(level, -23.25, feet, -64.5));
+    }
+
+    /**
+     * Soul sand's collision shape is 0.875 of a block on b1.7.3, so a player on it stands at 70.875
+     * and is not lifted to the block's top.
+     */
+    @Test
+    void soulSandHoldsThePlayerOnItsCollisionTop() {
+        FakeLevel level = new FakeLevel();
+        level.addTop(-24, 70, -65, 0.875);
+
+        double feet = 70.875;
+        assertEquals(70.875, GrugPlayerFloor.floorTop(level, -23.5, feet, -64.5));
+        assertTrue(GrugPlayerFloor.standsOn(feet, 70.875));
+        assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, feet, -64.5));
+    }
+
+    /**
+     * Farmland's collision shape is the full cube on b1.7.3 even though its outline is 15/16
+     * ({@code FarmlandBlock.getCollisionShape} answers {@code y} to {@code y + 1}), so a player on
+     * it stands at the block top and the floor is not its lowered outline.
+     */
+    @Test
+    void farmlandCollidesAsAFullBlock() {
+        FakeLevel level = new FakeLevel();
+        level.addSolid(-24, 70, -65);
+
+        double feet = 71.0;
+        assertEquals(71.0, GrugPlayerFloor.floorTop(level, -23.5, feet, -64.5));
+        assertTrue(GrugPlayerFloor.standsOn(feet, 71.0));
+        assertFalse(GrugPlayerFloor.insideABlock(level, -23.5, feet, -64.5));
     }
 }

@@ -205,9 +205,11 @@ public final class GrugServerRun {
      * fraction of a block inside the ground, and the server accepts it because the box its
      * collision check tests is contracted by 0.0625. The client's own collision then never reports
      * support, so the wait for {@code onGround} never ends (#1095). The ground is in the server's
-     * world, so the server teleports the player to the top of the solid column under them whenever
-     * they are below it, and zeroes {@code velocityY} so the fall does not continue. Once the feet
-     * are exactly on the floor the client lands on it and reports support again.
+     * world, so the server teleports the player to the top of the collision column under them
+     * whenever they are below it, and zeroes {@code velocityY} so the fall does not continue. The
+     * top is the block's collision shape, not its full cube, so a player on a slab is put on the
+     * slab's top at 70.5 rather than half a block above it (#1102). Once the feet are exactly on
+     * the floor the client lands on it and reports support again.
      *
      * <p>The same hold runs during the run, so a player who ends a tick below the room's floor is
      * put back on it before the runner ticks. It does nothing while a rebuild has cleared the floor
