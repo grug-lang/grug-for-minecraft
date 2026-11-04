@@ -49,8 +49,8 @@ local _row(ctx: TestTickContext, level: Level, x: number, y: number, z: number) 
     west_chest: BlockEntity = _entity(ctx, level, x - 1, y, z)
     east_chest: BlockEntity = _entity(ctx, level, x + 2, y, z)
 
-    # The row must start from nothing: a pipe outside the area the runner clears keeps its energy and
-    # its records from an earlier pass (#1057).
+    # The row must start from nothing: a pipe outside the area the runner clears keeps the records
+    # and the inbox item an earlier pass left in it (#1057).
     _fresh(ctx, west)
     _fresh(ctx, east)
 
@@ -81,8 +81,8 @@ local _pull_and_drop(ctx: TestTickContext, level: Level, pipe: BlockEntity, ches
     ctx.assert(equals(held.unwrap(), wanted), "The pipe should carry the item from its own chest.")
     ctx.assert(pipe.get_saved_list_number("traveling", 0, "damage") == damage, "The pipe should carry its own chest's item, damage and all.")
 
-    # 49 moves reach the pipe's centre, where the other wooden pipe and every empty side accept
-    # nothing, so the item is dropped at the centre on the next move.
+    # 49 moves bring the item within speed * 1.01 of the pipe's centre, where the other wooden pipe
+    # and every empty side accept nothing, so that move drops it at the centre.
     Test.tick_block_entity(pipe, 60)
     ctx.assert(pipe.get_saved_list_size("traveling") == 0, "The pipe should have dropped its travelling item.")
     ctx.assert(chest.get_item_count_in_slot(0) == 0, "The pipe's own chest should be empty.")
@@ -97,9 +97,12 @@ local _pull_and_drop(ctx: TestTickContext, level: Level, pipe: BlockEntity, ches
     ctx.assert(found.unwrap().damage() == damage, "The dropped item should be the pipe's own item.")
 }
 
+# The travelling list and the inbox are what an earlier pass leaves in a pipe. Its energy is no
+# evidence either way: init empties the host store after the NBT load, and every tick ends with
+# extract_energy(64), so a reused pipe reads 0 whether or not it held energy before.
 local _fresh(ctx: TestTickContext, pipe: BlockEntity) {
-    empty: bool = pipe.get_energy_stored() == 0 and pipe.get_item_count_in_slot(0) == 0 and pipe.get_saved_list_size("traveling") == 0
-    ctx.assert(empty, "A pipe should start with no energy and no items, so the row has to lie inside the area the runner clears (16 blocks around the player).")
+    empty: bool = pipe.get_item_count_in_slot(0) == 0 and pipe.get_saved_list_size("traveling") == 0
+    ctx.assert(empty, "A pipe should start with no items, so the row has to lie inside the area the runner clears (16 blocks around the player).")
 }
 
 local _entity(ctx: TestTickContext, level: Level, x: number, y: number, z: number) BlockEntity {
