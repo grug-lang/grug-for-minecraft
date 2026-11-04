@@ -26,7 +26,7 @@ import java.util.WeakHashMap;
  * would arrive without the mesh that shows it. On a client that shares the world (singleplayer and
  * the integrated server) {@code redraw} re-meshes that one world and the number is already there,
  * but a joined client's mesh is not re-meshed by it: a chunk-mesh block's number still does not
- * reach a joined client, which is a gap of its own (#1098) and not one this rule can close by
+ * reach a joined client, which is a gap of its own (#1101) and not one this rule can close by
  * sending.
  *
  * <p>A send is left out when the data is what was last sent to that block entity, because a script
