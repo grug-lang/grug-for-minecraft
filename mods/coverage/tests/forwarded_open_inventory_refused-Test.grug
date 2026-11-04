@@ -1,0 +1,8 @@
+# A dedicated server has no client, so Test.open_inventory must refuse with a host function error
+# naming the function instead of reaching for the client's own game class, which a server refuses to
+# load (#1064). The player is the connected one, so the refusal is about the missing client and not
+# about a missing player. See forwarded_screen_width_refused-Test for why this is a forwarded_ test.
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("Test.open_inventory: This needs a client")
+    Test.open_inventory(Test.get_player())
+}

@@ -1329,13 +1329,16 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void openInventory(Object playerObj) {
+        if (refuseWithoutAClient("Test.open_inventory")) return;
         GrugClientPlayer.openInventory((PlayerEntity) playerObj);
     }
 
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean pressScreenKey(int key, boolean ctrl, boolean release) {
+        if (refuseWithoutAClient("Test.press_screen_key")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         if (minecraft.screen == null) {
             Grug.hostFunctionErrorHappened(
@@ -1348,6 +1351,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run scrolls while the screen it just opened is up")
     public boolean scrollScreen(double x, double y, double delta) {
+        if (refuseWithoutAClient("Test.scroll_screen")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         if (minecraft.screen == null) {
             Grug.hostFunctionErrorHappened(
@@ -1360,6 +1364,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run presses while the screen it just opened is up")
     public boolean clickScreen(double x, double y, double button) {
+        if (refuseWithoutAClient("Test.click_screen")) return false;
         Minecraft minecraft = MinecraftInstance.get();
         if (minecraft.screen == null) {
             Grug.hostFunctionErrorHappened(
@@ -1376,6 +1381,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double screenWidthForTest() {
+        if (refuseWithoutAClient("Test.screen_width")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         return minecraft.screen == null ? 0.0 : minecraft.screen.width;
     }
@@ -1383,6 +1389,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiLeftForTest() {
+        if (refuseWithoutAClient("Test.gui_left")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
         return ((GrugScreenGeometry) minecraft.screen).grug$guiLeft();
@@ -1391,6 +1398,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiWidthForTest() {
+        if (refuseWithoutAClient("Test.gui_width")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
         return ((GrugScreenGeometry) minecraft.screen).grug$guiWidth();
@@ -1399,6 +1407,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiTopForTest() {
+        if (refuseWithoutAClient("Test.gui_top")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
         return ((GrugScreenGeometry) minecraft.screen).grug$guiTop();
@@ -1407,6 +1416,7 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     @GrugGenerated("the no-screen arm: a run measures the screen it just opened")
     public double guiHeightForTest() {
+        if (refuseWithoutAClient("Test.gui_height")) return 0.0;
         Minecraft minecraft = MinecraftInstance.get();
         if (!(minecraft.screen instanceof GrugScreenGeometry)) return 0.0;
         return ((GrugScreenGeometry) minecraft.screen).grug$guiHeight();
