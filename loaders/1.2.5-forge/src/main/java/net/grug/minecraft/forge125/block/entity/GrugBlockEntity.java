@@ -237,7 +237,7 @@ public class GrugBlockEntity extends TileEntity
         if (entityHandle != 0) {
             Grug.destroyEntity(entityHandle);
             entityHandle = 0;
-            childEntities.clear();
+            GrugEntities.clearRoots(childEntities);
         }
     }
 

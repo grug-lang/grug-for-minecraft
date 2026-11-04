@@ -2,11 +2,19 @@ package net.grug.minecraft.grug;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * The weak table that resolves a grug entity id to the host object behind it.
+ *
+ * <p>The client's render thread removes a context id while the server thread roots and resolves
+ * entities, so the table is read and written from more than one thread. A {@code HashMap} can lose
+ * an entry or corrupt itself under that, and a lost entry is an id that stops resolving and takes
+ * the JVM down inside a host call, so the table is concurrent. See #1108.
+ */
 public class WeakGrugValueMap {
-    private final Map<Long, WeakValue> map = new HashMap<>();
+    private final Map<Long, WeakValue> map = new ConcurrentHashMap<>();
     private final ReferenceQueue<GrugObject> queue = new ReferenceQueue<>();
 
     public void put(long id, GrugObject value) {
