@@ -2,11 +2,11 @@
 # Screenshot.capture (#1040, option A). The dedicated server forwards the capture to the joined
 # client of the player who started the run, stays frozen until the client answers, and hands the
 # pixels back here. Only a multiplayer run that forwards client calls runs a forwarded_ test.
-# Every change gets a tick of its own and every capture the tick after it. The server sends its
-# queued block changes at the end of its own tick, so a capture in the same tick as a placement
-# would be taken before that send and would not show the change. The wall goes up in tick 0 and is
-# captured in tick 1, and comes down in tick 2 and is captured in tick 3, so the two captures are
-# the wall and the room it stood in front of, each taken after its change reached the client.
+# Every change gets a tick of its own and every capture the tick after it, so the client has a tick
+# in which to receive the change and draw it before the capture asks for its frame. The wall goes
+# up in tick 0 and is captured in tick 1, and comes down in tick 2 and is captured in tick 3, so
+# the two captures are the wall and the room it stood in front of, each taken after its change
+# reached the client.
 # The wall is obsidian in a stone room, which differs by more than the comparison's per-channel
 # floor even when the room's light is dim. Without the notify a dedicated server sends after its
 # quiet placement, neither change reaches the client, both captures are the room, and the frames
